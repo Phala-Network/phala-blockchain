@@ -1,0 +1,67 @@
+[package]
+name = "experimental-node-runtime"
+version = "2.0.0"
+authors = ["Jasl"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "1.0.101", optional = true, features = ["derive"] }
+safe-mix = { version = "1.0.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false, features = ["derive"] }
+rstd = { package = "sr-std", path = "../../substrate/core/sr-std", default_features = false }
+runtime-io = { package = "sr-io", path = "../../substrate/core/sr-io", default_features = false }
+version = { package = "sr-version", path = "../../substrate/core/sr-version", default_features = false }
+support = { package = "srml-support", path = "../../substrate/srml/support", default_features = false }
+primitives = { package = "substrate-primitives", path = "../../substrate/core/primitives", default_features = false }
+substrate-session = { path = "../../substrate/core/session", default-features = false }
+balances = { package = "srml-balances", path = "../../substrate/srml/balances", default_features = false }
+aura = { package = "srml-aura", path = "../../substrate/srml/aura", default_features = false }
+aura-primitives = { package = "substrate-consensus-aura-primitives", path = "../../substrate/core/consensus/aura/primitives", default_features = false }
+grandpa = { package = "srml-grandpa", path = "../../substrate/srml/grandpa", default_features = false }
+executive = { package = "srml-executive", path = "../../substrate/srml/executive", default_features = false }
+indices = { package = "srml-indices", path = "../../substrate/srml/indices", default_features = false }
+randomness-collective-flip = { package = "srml-randomness-collective-flip", path = "../../substrate/srml/randomness-collective-flip", default_features = false }
+system = { package = "srml-system", path = "../../substrate/srml/system", default_features = false }
+timestamp = { package = "srml-timestamp", path = "../../substrate/srml/timestamp", default_features = false }
+sudo = { package = "srml-sudo", path = "../../substrate/srml/sudo", default_features = false }
+transaction-payment = { package = "srml-transaction-payment", path = "../../substrate/srml/transaction-payment", default_features = false }
+sr-primitives = { path = "../../substrate/core/sr-primitives", default_features = false }
+client = { package = "substrate-client", path = "../../substrate/core/client", default_features = false }
+offchain-primitives = { package = "substrate-offchain-primitives", path = "../../substrate/core/offchain/primitives", default-features = false }
+
+chrono = { version = "0.4", default-features = false, features = ["serde"] }
+itertools = { version = "0.8", default-features = false }
+untrusted = { version = "0.7" }
+base64 = { version = "0.11", default-features = false }
+hex = { version = "0.4", default-features = false }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.4" }
+
+[features]
+default = ["std"]
+std = [
+	"codec/std",
+	"client/std",
+	"rstd/std",
+	"runtime-io/std",
+	"support/std",
+	"balances/std",
+	"aura/std",
+	"aura-primitives/std",
+	"grandpa/std",
+	"executive/std",
+	"indices/std",
+	"primitives/std",
+	"sr-primitives/std",
+	"randomness-collective-flip/std",
+	"system/std",
+	"timestamp/std",
+	"sudo/std",
+	"transaction-payment/std",
+	"version/std",
+	"serde",
+	"safe-mix/std",
+	"offchain-primitives/std",
+	"substrate-session/std",
+]
