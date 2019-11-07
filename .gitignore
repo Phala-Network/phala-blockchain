@@ -41,3 +41,9 @@ CMakeLists.txt
 
 # Substrate
 .wasm-binaries
+
+# Ring
+sr-ring-lite/build/
+sr-ring-lite/ssl/test/runner/runner
+sr-ring-lite/doc/*.html
+sr-ring-lite/doc/doc.css
