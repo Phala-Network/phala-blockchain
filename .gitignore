@@ -43,7 +43,7 @@ CMakeLists.txt
 .wasm-binaries
 
 # Ring
-sr-ring-lite/build/
-sr-ring-lite/ssl/test/runner/runner
-sr-ring-lite/doc/*.html
-sr-ring-lite/doc/doc.css
+ring/build/
+ring/ssl/test/runner/runner
+ring/doc/*.html
+ring/doc/doc.css

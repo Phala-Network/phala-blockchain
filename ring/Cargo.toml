@@ -7,13 +7,13 @@ documentation = "https://briansmith.org/rustdoc/ring/"
 edition = "2018"
 keywords = ["crypto", "cryptography", "rand", "ECC", "RSA"]
 license-file = "LICENSE"
-name = "sr-ring-lite"
+name = "ring"
 readme = "doc/link-to-readme.md"
 repository = "https://github.com/briansmith/ring"
 version = "0.16.9"
 
 # Prevent multiple versions of *ring* from being linked into the same program.
-links = "ring-asm"
+links = "ring-alternative-asm"
 
 exclude = [
     # The presence of .gitignore is used to differentiate non-packaged builds
@@ -313,8 +313,8 @@ libc = { version = "0.2.48", default-features = false }
 [target.'cfg(any(target_os = "android", target_os = "freebsd", target_os = "linux", target_os = "netbsd", target_os = "openbsd", target_os = "solaris"))'.dependencies]
 lazy_static = { version = "1.3", default-features = false, optional = true }
 
-[target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown", target_env = ""))'.dependencies]
-web-sys = { version = "0.3.25", default-features = false, features = ["Crypto", "Window"] }
+#[target.'cfg(all(target_arch = "wasm32", target_vendor = "unknown", target_os = "unknown", target_env = ""))'.dependencies]
+#web-sys = { version = "0.3.25", default-features = false, features = ["Crypto", "Window"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.7", default-features = false, features = ["ntsecapi", "wtypesbase"] }

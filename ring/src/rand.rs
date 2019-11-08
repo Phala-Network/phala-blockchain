@@ -259,12 +259,12 @@ mod sysrand_chunk {
             dest = &mut dest[..MAX_LEN];
         };
 
-        let _ = web_sys::window()
-            .ok_or(error::Unspecified)?
-            .crypto()
-            .map_err(|_| error::Unspecified)?
-            .get_random_values_with_u8_array(dest)
-            .map_err(|_| error::Unspecified)?;
+//        let _ = web_sys::window()
+//            .ok_or(error::Unspecified)?
+//            .crypto()
+//            .map_err(|_| error::Unspecified)?
+//            .get_random_values_with_u8_array(dest)
+//            .map_err(|_| error::Unspecified)?;
 
         Ok(dest.len())
     }

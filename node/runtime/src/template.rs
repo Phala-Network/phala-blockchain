@@ -29,6 +29,24 @@ decl_storage! {
 	}
 }
 
+type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
+static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
+	&webpki::ECDSA_P256_SHA256,
+	&webpki::ECDSA_P256_SHA384,
+	&webpki::ECDSA_P384_SHA256,
+	&webpki::ECDSA_P384_SHA384,
+	&webpki::RSA_PKCS1_2048_8192_SHA256,
+	&webpki::RSA_PKCS1_2048_8192_SHA384,
+	&webpki::RSA_PKCS1_2048_8192_SHA512,
+	&webpki::RSA_PKCS1_3072_8192_SHA384,
+];
+
+pub const IAS_REPORT_CA : &[u8] = include_bytes!("../AttestationReportSigningCACert.pem");
+
+pub const IAS_REPORT_SAMPLE : &[u8] = include_bytes!("../sample/report");
+pub const IAS_REPORT_SIGNATURE : &[u8] = include_bytes!("../sample/report_signature");
+pub const IAS_REPORT_SIGNING_CERTIFICATE : &[u8] = include_bytes!("../sample/report_signing_certificate");
+
 // The module's dispatchable functions.
 decl_module! {
 	/// The module declaration.
@@ -47,6 +65,11 @@ decl_module! {
 			// TODO: Code to execute when something calls this.
 			// For example: the following line stores the passed in u32 in the storage
 			Something::put(something);
+
+//			let attn_report: serde_json::Value = serde_json::from_slice(IAS_REPORT_SAMPLE).unwrap();
+//			let sig: vec::Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).unwrap();
+//			let sig_cert_dec: vec::Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD);
+//			let sig_cert: webpki::EndEntityCert = webpki::EndEntityCert::from(&sig_cert_dec).unwrap();
 
 			// here we are raising the Something event
 			Self::deposit_event(RawEvent::SomethingStored(something, who));

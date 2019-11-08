@@ -13,6 +13,8 @@ extern crate base64;
 extern crate itertools;
 extern crate hex;
 
+extern crate webpki;
+
 use rstd::prelude::*;
 use primitives::OpaqueMetadata;
 use sr_primitives::{

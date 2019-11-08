@@ -369,7 +369,7 @@ fn build_c_code(target: &Target, pregenerated: PathBuf, out_dir: &Path) {
         })
         .unwrap();
 
-    let use_pregenerated = !target.is_git;
+    let use_pregenerated = false;
     let warnings_are_errors = target.is_git;
 
     let asm_dir = if use_pregenerated {

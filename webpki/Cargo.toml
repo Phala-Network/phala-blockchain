@@ -19,7 +19,7 @@ description = "Web PKI X.509 Certificate Verification."
 documentation = "https://briansmith.org/rustdoc/webpki/"
 edition = "2018"
 license-file = "LICENSE"
-name = "sr-webpki-lite"
+name = "webpki"
 readme = "README.md"
 repository = "https://github.com/briansmith/webpki"
 version = "0.21.0"
@@ -64,7 +64,7 @@ trust_anchor_util = ["std"]
 std = []
 
 [dependencies]
-ring = "0.16.0"
+ring = { version = "0.16.0", path = "../ring"}
 untrusted = "0.7.0"
 
 [dev-dependencies]

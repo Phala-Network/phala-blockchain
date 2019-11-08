@@ -34,6 +34,8 @@ itertools = { version = "0.8", default-features = false }
 untrusted = { version = "0.7" }
 base64 = { version = "0.11", default-features = false }
 hex = { version = "0.4", default-features = false }
+webpki = { path = "../../webpki", default_features = false }
+serde_json = {}
 
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.4" }
