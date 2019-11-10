@@ -11,6 +11,8 @@
 use support::{decl_module, decl_storage, decl_event, dispatch::Result};
 use system::ensure_signed;
 
+use alloc::vec::Vec;
+
 /// The module's configuration trait.
 pub trait Trait: system::Trait {
 	// TODO: Add other types and constants required configure this module.
@@ -66,10 +68,10 @@ decl_module! {
 			// For example: the following line stores the passed in u32 in the storage
 			Something::put(something);
 
-//			let attn_report: serde_json::Value = serde_json::from_slice(IAS_REPORT_SAMPLE).unwrap();
-//			let sig: vec::Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).unwrap();
-//			let sig_cert_dec: vec::Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD);
-//			let sig_cert: webpki::EndEntityCert = webpki::EndEntityCert::from(&sig_cert_dec).unwrap();
+			// let attn_report: serde_json::Value = serde_json::from_slice(IAS_REPORT_SAMPLE).unwrap();
+			let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).unwrap();
+			let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).unwrap();
+			let sig_cert: webpki::EndEntityCert = webpki::EndEntityCert::from(&sig_cert_dec).unwrap();
 
 			// here we are raising the Something event
 			Self::deposit_event(RawEvent::SomethingStored(something, who));
