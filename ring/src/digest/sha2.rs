@@ -159,10 +159,10 @@ pub(super) trait Word:
 
     type InputBytes: Copy;
 
-    #[cfg_attr(not(target_arch = "wasm32"), inline(always))]
+    //#[inline(always)]
     fn from_be_bytes(input: Self::InputBytes) -> Self;
 
-    #[cfg_attr(not(target_arch = "wasm32"), inline)]
+    //#[inline]
     fn rotr(self, count: u32) -> Self;
 }
 
