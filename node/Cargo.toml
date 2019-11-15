@@ -19,23 +19,24 @@ exit-future = "0.1.4"
 parking_lot = "0.9.0"
 codec = { package = "parity-scale-codec", version = "1.0.0" }
 trie-root = "0.15.2"
-sr-io = { path = "../substrate/core/sr-io" }
-substrate-cli = { path = "../substrate/core/cli" }
-primitives = { package = "substrate-primitives", path = "../substrate/core/primitives" }
-substrate-executor = { path = "../substrate/core/executor" }
-substrate-service = { path = "../substrate/core/service" }
-inherents = { package = "substrate-inherents", path = "../substrate/core/inherents" }
-transaction-pool = { package = "substrate-transaction-pool", path = "../substrate/core/transaction-pool" }
-network = { package = "substrate-network", path = "../substrate/core/network" }
-aura = { package = "substrate-consensus-aura", path = "../substrate/core/consensus/aura" }
-aura-primitives = { package = "substrate-consensus-aura-primitives", path = "../substrate/core/consensus/aura/primitives" }
-grandpa = { package = "substrate-finality-grandpa", path = "../substrate/core/finality-grandpa" }
-grandpa-primitives = { package = "substrate-finality-grandpa-primitives", path = "../substrate/core/finality-grandpa/primitives" }
-substrate-client = {  path = "../substrate/core/client" }
-basic-authorship = { package = "substrate-basic-authorship", path = "../substrate/core/basic-authorship" }
+sr-io = { path = "../substrate/primitives/sr-io" }
+substrate-cli = { path = "../substrate/client/cli" }
+primitives = { package = "substrate-primitives", path = "../substrate/primitives/core" }
+substrate-executor = { path = "../substrate/client/executor" }
+substrate-service = { path = "../substrate/client/service" }
+inherents = { package = "substrate-inherents", path = "../substrate/primitives/inherents" }
+transaction-pool = { package = "substrate-transaction-pool", path = "../substrate/client/transaction-pool" }
+network = { package = "substrate-network", path = "../substrate/client/network" }
+aura = { package = "substrate-consensus-aura", path = "../substrate/client/consensus/aura" }
+aura-primitives = { package = "substrate-consensus-aura-primitives", path = "../substrate/primitives/consensus/aura" }
+grandpa = { package = "substrate-finality-grandpa", path = "../substrate/client/finality-grandpa" }
+grandpa-primitives = { package = "substrate-finality-grandpa-primitives", path = "../substrate/primitives/finality-grandpa" }
+substrate-client = {  path = "../substrate/client/" }
 runtime = { package = "experimental-node-runtime", path = "runtime" }
-sr-primitives = { path = "../substrate/core/sr-primitives" }
+sr-primitives = { path = "../substrate/primitives/sr-primitives" }
+basic-authorship = { package = "substrate-basic-authorship", path  = "../substrate/client/basic-authorship"}
 
 [build-dependencies]
 vergen = "3.0.4"
-build-script-utils = { package = "substrate-build-script-utils", path = "../substrate/core/utils/build-script-utils" }
+build-script-utils = { package = "substrate-build-script-utils", path = "../substrate/utils/build-script-utils" }
+

@@ -245,9 +245,9 @@ checksum = "5da9b3d9f6f585199287a473f4f8dfab6566cf827d15c00c219f53c645687ead"
 
 [[package]]
 name = "bitvec"
-version = "0.14.0"
+version = "0.15.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9633b74910e1870f50f5af189b08487195cdb83c0e27a71d6f64d5e09dd0538b"
+checksum = "a993f74b4c99c1908d156b8d2e0fb6277736b0ecbd833982fd1241d39b2766a6"
 
 [[package]]
 name = "blake2"
@@ -300,6 +300,12 @@ checksum = "fa79dedbb091f449f1f39e53edf88d5dbe95f895dae6135a8d7b881fb5af73f5"
 dependencies = [
  "byte-tools",
 ]
+
+[[package]]
+name = "bs58"
+version = "0.2.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c95ee6bba9d950218b6cc910cf62bc9e0a171d0f4537e3627b0f54d08549b188"
 
 [[package]]
 name = "bs58"
@@ -798,6 +804,17 @@ dependencies = [
  "chrono",
  "hex 0.4.0",
  "itertools",
+ "paint-aura",
+ "paint-balances",
+ "paint-executive",
+ "paint-grandpa",
+ "paint-indices",
+ "paint-randomness-collective-flip",
+ "paint-sudo",
+ "paint-support",
+ "paint-system",
+ "paint-timestamp",
+ "paint-transaction-payment",
  "parity-scale-codec",
  "ring 0.16.9",
  "safe-mix",
@@ -807,17 +824,6 @@ dependencies = [
  "sr-primitives",
  "sr-std",
  "sr-version",
- "srml-aura",
- "srml-balances",
- "srml-executive",
- "srml-grandpa",
- "srml-indices",
- "srml-randomness-collective-flip",
- "srml-sudo",
- "srml-support",
- "srml-system",
- "srml-timestamp",
- "srml-transaction-payment",
  "substrate-block-builder-runtime-api",
  "substrate-consensus-aura-primitives",
  "substrate-inherents",
@@ -1737,9 +1743,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9aa3d728b96c06763b2e919b4c99a334d698303c49489671b5ffe3a4b0fd4c9c"
+checksum = "8fab3090cd3af0f0ff5e6c2cc0f6fe6607e9f9282680cf7cd3bdd4cda38ea722"
 dependencies = [
  "bytes",
  "futures 0.1.29",
@@ -1763,8 +1769,8 @@ dependencies = [
  "libp2p-wasm-ext",
  "libp2p-websocket",
  "libp2p-yamux",
- "parity-multiaddr",
- "parity-multihash",
+ "parity-multiaddr 0.6.0",
+ "parity-multihash 0.2.0",
  "parking_lot 0.9.0",
  "smallvec",
  "tokio-codec",
@@ -1775,12 +1781,12 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07759706a4cb4a90903c67d92cb9575acd8df90f583dfdc46d57afdeaead4c82"
+checksum = "4a3def059145c191b6975e51784d5edc59e77e1ed5b25402fccac704dd7731f3"
 dependencies = [
  "asn1_der",
- "bs58",
+ "bs58 0.3.0",
  "bytes",
  "ed25519-dalek 1.0.0-pre.2",
  "failure",
@@ -1790,8 +1796,8 @@ dependencies = [
  "libsecp256k1",
  "log",
  "multistream-select",
- "parity-multiaddr",
- "parity-multihash",
+ "parity-multiaddr 0.6.0",
+ "parity-multihash 0.2.0",
  "parking_lot 0.9.0",
  "protobuf",
  "quick-error",
@@ -1849,7 +1855,7 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92c11b95281e8cb87eb83c204b3ca4988fa665ed9351199b5bcc323056f49816"
 dependencies = [
- "bs58",
+ "bs58 0.3.0",
  "bytes",
  "cuckoofilter",
  "fnv",
@@ -1864,16 +1870,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4eba6103329e9a1a2aa940671efe5600c758a295e61172139d7a900166da0017"
+checksum = "b4e4b0b4bcf410f77361b08335022d5705df34970dc1744ff58d4bb902309547"
 dependencies = [
  "bytes",
  "futures 0.1.29",
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "parity-multiaddr",
+ "parity-multiaddr 0.6.0",
  "protobuf",
  "smallvec",
  "tokio-codec",
@@ -1884,9 +1890,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "84ceb0faa267b96560ef883dc5bc6dddd9de1662e35a4070208623b391deefca"
+checksum = "7fd25360fc12b23edb1ed13f73426325a38d32e0927a46fec26ddb6873d7644d"
 dependencies = [
  "arrayvec 0.5.1",
  "bytes",
@@ -1896,8 +1902,8 @@ dependencies = [
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "parity-multiaddr",
- "parity-multihash",
+ "parity-multiaddr 0.6.0",
+ "parity-multihash 0.2.0",
  "protobuf",
  "rand 0.7.2",
  "sha2",
@@ -1912,9 +1918,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab1eec2958fc74883ed8ecb0c38324941a44195a58fea87fcfc2bd17da34d1fa"
+checksum = "c4c2e225a7dfc571c3ad77a0a5ecccc9537afe42d72289ac9f19768567cd677d"
 dependencies = [
  "data-encoding",
  "dns-parser",
@@ -1923,7 +1929,7 @@ dependencies = [
  "libp2p-swarm",
  "log",
  "net2",
- "parity-multiaddr",
+ "parity-multiaddr 0.6.0",
  "rand 0.6.5",
  "smallvec",
  "tokio-io",
@@ -1973,16 +1979,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.13.0"
+version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4e1682cdae649394d2793758ded2bfd4d9d440f807e3b4d9f70981f377aa28a"
+checksum = "5b975ad345eb9bb29ddc64670664a50a8ab3e66e28357abb0f83cfc0a9ca2d78"
 dependencies = [
  "bytes",
  "futures 0.1.29",
  "libp2p-core",
  "libp2p-swarm",
  "log",
- "parity-multiaddr",
+ "parity-multiaddr 0.6.0",
  "rand 0.7.2",
  "tokio-io",
  "void",
@@ -2420,7 +2426,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2ad2a91a8e869eeb30b9cb3119ae87773a8f4ae617f41b1eb9c154b2905f7bd6"
 dependencies = [
  "memchr",
- "version_check",
+ "version_check 0.1.5",
 ]
 
 [[package]]
@@ -2458,18 +2464,18 @@ dependencies = [
 
 [[package]]
 name = "num-traits"
-version = "0.2.8"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ba9a427cfca2be13aa6f6403b0b7e7368fe982bfa16fccc450ce74c46cd9b32"
+checksum = "443c53b3c3531dfcbfa499d8893944db78474ad7a1d87fa2d94d1a2231693ac6"
 dependencies = [
  "autocfg",
 ]
 
 [[package]]
 name = "num_cpus"
-version = "1.11.0"
+version = "1.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "155394f924cdddf08149da25bfb932d226b4a593ca7468b08191ff6335941af5"
+checksum = "76dac5ed2a876980778b8b85f75a71b6cbf0db0b1232ee12f826bccb00d09d72"
 dependencies = [
  "hermit-abi",
  "libc",
@@ -2516,22 +2522,290 @@ dependencies = [
 ]
 
 [[package]]
+name = "paint-aura"
+version = "2.0.0"
+dependencies = [
+ "paint-session",
+ "paint-support",
+ "paint-system",
+ "paint-timestamp",
+ "parity-scale-codec",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+ "substrate-application-crypto",
+ "substrate-consensus-aura-primitives",
+ "substrate-inherents",
+ "substrate-primitives",
+]
+
+[[package]]
+name = "paint-balances"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "safe-mix",
+ "serde",
+ "sr-primitives",
+ "sr-std",
+ "substrate-keyring",
+]
+
+[[package]]
+name = "paint-executive"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+]
+
+[[package]]
+name = "paint-finality-tracker"
+version = "2.0.0"
+dependencies = [
+ "impl-trait-for-tuples",
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "serde",
+ "sr-primitives",
+ "sr-std",
+ "substrate-inherents",
+]
+
+[[package]]
+name = "paint-grandpa"
+version = "2.0.0"
+dependencies = [
+ "paint-finality-tracker",
+ "paint-session",
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "serde",
+ "sr-primitives",
+ "sr-staking-primitives",
+ "sr-std",
+ "substrate-finality-grandpa-primitives",
+ "substrate-primitives",
+]
+
+[[package]]
+name = "paint-indices"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "safe-mix",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+ "substrate-keyring",
+ "substrate-primitives",
+]
+
+[[package]]
+name = "paint-metadata"
+version = "2.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sr-std",
+ "substrate-primitives",
+]
+
+[[package]]
+name = "paint-randomness-collective-flip"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "safe-mix",
+ "sr-primitives",
+ "sr-std",
+]
+
+[[package]]
+name = "paint-session"
+version = "2.0.0"
+dependencies = [
+ "impl-trait-for-tuples",
+ "paint-support",
+ "paint-system",
+ "paint-timestamp",
+ "parity-scale-codec",
+ "safe-mix",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-staking-primitives",
+ "sr-std",
+ "substrate-trie",
+]
+
+[[package]]
+name = "paint-sudo"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+]
+
+[[package]]
+name = "paint-support"
+version = "2.0.0"
+dependencies = [
+ "bitmask",
+ "impl-trait-for-tuples",
+ "log",
+ "once_cell 0.2.4",
+ "paint-metadata",
+ "paint-support-procedural",
+ "parity-scale-codec",
+ "paste",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+ "substrate-inherents",
+ "substrate-primitives",
+ "substrate-state-machine",
+]
+
+[[package]]
+name = "paint-support-procedural"
+version = "2.0.0"
+dependencies = [
+ "paint-support-procedural-tools",
+ "proc-macro2 1.0.6",
+ "quote 1.0.2",
+ "syn 1.0.8",
+]
+
+[[package]]
+name = "paint-support-procedural-tools"
+version = "2.0.0"
+dependencies = [
+ "paint-support-procedural-tools-derive",
+ "proc-macro-crate",
+ "proc-macro2 1.0.6",
+ "quote 1.0.2",
+ "syn 1.0.8",
+]
+
+[[package]]
+name = "paint-support-procedural-tools-derive"
+version = "2.0.0"
+dependencies = [
+ "proc-macro2 1.0.6",
+ "quote 1.0.2",
+ "syn 1.0.8",
+]
+
+[[package]]
+name = "paint-system"
+version = "2.0.0"
+dependencies = [
+ "impl-trait-for-tuples",
+ "paint-support",
+ "parity-scale-codec",
+ "safe-mix",
+ "serde",
+ "sr-io",
+ "sr-primitives",
+ "sr-std",
+ "sr-version",
+ "substrate-primitives",
+]
+
+[[package]]
+name = "paint-timestamp"
+version = "2.0.0"
+dependencies = [
+ "impl-trait-for-tuples",
+ "paint-support",
+ "paint-system",
+ "parity-scale-codec",
+ "serde",
+ "sr-primitives",
+ "sr-std",
+ "substrate-inherents",
+]
+
+[[package]]
+name = "paint-transaction-payment"
+version = "2.0.0"
+dependencies = [
+ "paint-support",
+ "paint-system",
+ "paint-transaction-payment-rpc-runtime-api",
+ "parity-scale-codec",
+ "sr-primitives",
+ "sr-std",
+]
+
+[[package]]
+name = "paint-transaction-payment-rpc-runtime-api"
+version = "2.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sr-api",
+ "sr-primitives",
+ "sr-std",
+]
+
+[[package]]
 name = "parity-bytes"
 version = "0.1.0"
 source = "git+https://github.com/paritytech/parity-common?rev=b0317f649ab2c665b7987b8475878fc4d2e1f81d#b0317f649ab2c665b7987b8475878fc4d2e1f81d"
 
 [[package]]
 name = "parity-multiaddr"
-version = "0.5.1"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7dbc379f41150dedda75cbbdb5b9beb2bf786a07e56c2c99ec89aeaaa894662c"
+checksum = "045b3c7af871285146300da35b1932bb6e4639b66c7c98e85d06a32cbc4e8fa7"
 dependencies = [
  "arrayref",
- "bs58",
+ "bs58 0.2.5",
  "byteorder 1.3.2",
  "bytes",
  "data-encoding",
- "parity-multihash",
+ "parity-multihash 0.1.3",
+ "percent-encoding 1.0.1",
+ "serde",
+ "unsigned-varint",
+ "url 1.7.2",
+]
+
+[[package]]
+name = "parity-multiaddr"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82afcb7461eae5d122543d8be1c57d306ed89af2d6ff7f8b0f5a3cc8f7e511bc"
+dependencies = [
+ "arrayref",
+ "bs58 0.3.0",
+ "byteorder 1.3.2",
+ "bytes",
+ "data-encoding",
+ "parity-multihash 0.2.0",
  "percent-encoding 2.1.0",
  "serde",
  "unsigned-varint",
@@ -2540,9 +2814,24 @@ dependencies = [
 
 [[package]]
 name = "parity-multihash"
-version = "0.1.4"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "340ed03f939e02e4cb71a5a127b5507ba4dab506e41a05f8f467e28d8ce529f4"
+checksum = "df3a17dc27848fd99e4f87eb0f8c9baba6ede0a6d555400c850ca45254ef4ce3"
+dependencies = [
+ "blake2",
+ "bytes",
+ "rand 0.6.5",
+ "sha-1",
+ "sha2",
+ "sha3",
+ "unsigned-varint",
+]
+
+[[package]]
+name = "parity-multihash"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c70cad855872dd51ce6679e823efb6434061a2c1782a1686438aabf506392cdd"
 dependencies = [
  "blake2",
  "bytes",
@@ -2555,11 +2844,11 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec"
-version = "1.0.6"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "001fbbb956d8593f321c7a784f64d16b2c99b2657823976eea729006ad2c3668"
+checksum = "f9f9d99dae413590a5f37e43cd99b94d4e62a244160562899126913ea7108673"
 dependencies = [
- "arrayvec 0.4.12",
+ "arrayvec 0.5.1",
  "bitvec",
  "byte-slice-cast",
  "parity-scale-codec-derive",
@@ -2568,14 +2857,14 @@ dependencies = [
 
 [[package]]
 name = "parity-scale-codec-derive"
-version = "1.0.3"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42af752f59119656fa3cb31e8852ed24e895b968c0bdb41847da7f0cea6d155f"
+checksum = "492ac3aa93d6caa5d20e4e3e0b75d08e2dcd9dd8a50d19529548b6fe11b3f295"
 dependencies = [
  "proc-macro-crate",
- "proc-macro2 0.4.30",
- "quote 0.6.13",
- "syn 0.15.44",
+ "proc-macro2 1.0.6",
+ "quote 1.0.2",
+ "syn 1.0.8",
 ]
 
 [[package]]
@@ -2600,6 +2889,12 @@ name = "parity-wasm"
 version = "0.40.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e39faaa292a687ea15120b1ac31899b13586446521df6c149e46f1584671e0f"
+
+[[package]]
+name = "parity-wasm"
+version = "0.41.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddfc878dac00da22f8f61e7af3157988424567ab01d9920b962ef7dcbd7cd865"
 
 [[package]]
 name = "parking_lot"
@@ -3565,256 +3860,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "srml-aura"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "srml-session",
- "srml-support",
- "srml-system",
- "srml-timestamp",
- "substrate-application-crypto",
- "substrate-consensus-aura-primitives",
- "substrate-inherents",
- "substrate-primitives",
-]
-
-[[package]]
-name = "srml-balances"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "safe-mix",
- "serde",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "substrate-keyring",
-]
-
-[[package]]
-name = "srml-executive"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
-]
-
-[[package]]
-name = "srml-finality-tracker"
-version = "2.0.0"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "serde",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "substrate-inherents",
-]
-
-[[package]]
-name = "srml-grandpa"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-primitives",
- "sr-staking-primitives",
- "sr-std",
- "srml-finality-tracker",
- "srml-session",
- "srml-support",
- "srml-system",
- "substrate-finality-grandpa-primitives",
- "substrate-primitives",
-]
-
-[[package]]
-name = "srml-indices"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "safe-mix",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "substrate-keyring",
- "substrate-primitives",
-]
-
-[[package]]
-name = "srml-metadata"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-std",
- "substrate-primitives",
-]
-
-[[package]]
-name = "srml-randomness-collective-flip"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "safe-mix",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
-]
-
-[[package]]
-name = "srml-session"
-version = "2.0.0"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "safe-mix",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-staking-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "srml-timestamp",
- "substrate-trie",
-]
-
-[[package]]
-name = "srml-sudo"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
-]
-
-[[package]]
-name = "srml-support"
-version = "2.0.0"
-dependencies = [
- "bitmask",
- "impl-trait-for-tuples",
- "log",
- "once_cell 0.2.4",
- "parity-scale-codec",
- "paste",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "srml-metadata",
- "srml-support-procedural",
- "substrate-inherents",
- "substrate-primitives",
- "substrate-state-machine",
-]
-
-[[package]]
-name = "srml-support-procedural"
-version = "2.0.0"
-dependencies = [
- "proc-macro2 1.0.6",
- "quote 1.0.2",
- "srml-support-procedural-tools",
- "syn 1.0.8",
-]
-
-[[package]]
-name = "srml-support-procedural-tools"
-version = "2.0.0"
-dependencies = [
- "proc-macro-crate",
- "proc-macro2 1.0.6",
- "quote 1.0.2",
- "srml-support-procedural-tools-derive",
- "syn 1.0.8",
-]
-
-[[package]]
-name = "srml-support-procedural-tools-derive"
-version = "2.0.0"
-dependencies = [
- "proc-macro2 1.0.6",
- "quote 1.0.2",
- "syn 1.0.8",
-]
-
-[[package]]
-name = "srml-system"
-version = "2.0.0"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "safe-mix",
- "serde",
- "sr-io",
- "sr-primitives",
- "sr-std",
- "sr-version",
- "srml-support",
- "substrate-primitives",
-]
-
-[[package]]
-name = "srml-timestamp"
-version = "2.0.0"
-dependencies = [
- "impl-trait-for-tuples",
- "parity-scale-codec",
- "serde",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "substrate-inherents",
-]
-
-[[package]]
-name = "srml-transaction-payment"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "sr-primitives",
- "sr-std",
- "srml-support",
- "srml-system",
- "srml-transaction-payment-rpc-runtime-api",
-]
-
-[[package]]
-name = "srml-transaction-payment-rpc-runtime-api"
-version = "2.0.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sr-api",
- "sr-primitives",
- "sr-std",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3912,6 +3957,7 @@ dependencies = [
  "sr-primitives",
  "substrate-block-builder",
  "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-common",
  "substrate-inherents",
  "substrate-primitives",
@@ -4003,7 +4049,7 @@ dependencies = [
  "serde_json",
  "sr-primitives",
  "structopt",
- "substrate-client",
+ "substrate-client-api",
  "substrate-header-metadata",
  "substrate-keyring",
  "substrate-network",
@@ -4018,6 +4064,37 @@ dependencies = [
 
 [[package]]
 name = "substrate-client"
+version = "2.0.0"
+dependencies = [
+ "derive_more",
+ "fnv",
+ "futures 0.1.29",
+ "futures-preview",
+ "hash-db",
+ "hex-literal",
+ "kvdb",
+ "log",
+ "parity-scale-codec",
+ "parking_lot 0.9.0",
+ "sr-api",
+ "sr-primitives",
+ "sr-std",
+ "sr-version",
+ "substrate-block-builder",
+ "substrate-client-api",
+ "substrate-consensus-common",
+ "substrate-executor",
+ "substrate-header-metadata",
+ "substrate-inherents",
+ "substrate-keyring",
+ "substrate-primitives",
+ "substrate-state-machine",
+ "substrate-telemetry",
+ "substrate-trie",
+]
+
+[[package]]
+name = "substrate-client-api"
 version = "2.0.0"
 dependencies = [
  "derive_more",
@@ -4060,6 +4137,7 @@ dependencies = [
  "parking_lot 0.9.0",
  "sr-primitives",
  "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-common",
  "substrate-executor",
  "substrate-header-metadata",
@@ -4078,17 +4156,17 @@ dependencies = [
  "futures-preview",
  "futures-timer",
  "log",
+ "paint-aura",
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "sr-api",
  "sr-io",
  "sr-primitives",
  "sr-version",
- "srml-aura",
- "srml-support",
  "substrate-application-crypto",
  "substrate-block-builder-runtime-api",
  "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-aura-primitives",
  "substrate-consensus-common",
  "substrate-consensus-slots",
@@ -4150,7 +4228,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "sr-primitives",
- "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-common",
  "substrate-inherents",
  "substrate-primitives",
@@ -4175,7 +4253,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "parity-scale-codec",
- "parity-wasm",
+ "parity-wasm 0.40.3",
  "parking_lot 0.9.0",
  "sr-io",
  "sr-version",
@@ -4208,13 +4286,14 @@ dependencies = [
  "futures 0.1.29",
  "futures-preview",
  "log",
+ "paint-finality-tracker",
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "rand 0.7.2",
  "serde_json",
  "sr-primitives",
- "srml-finality-tracker",
  "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-common",
  "substrate-finality-grandpa-primitives",
  "substrate-header-metadata",
@@ -4312,9 +4391,11 @@ dependencies = [
  "slog",
  "slog_derive",
  "smallvec",
+ "sr-arithmetic",
  "sr-primitives",
  "substrate-block-builder",
  "substrate-client",
+ "substrate-client-api",
  "substrate-consensus-babe-primitives",
  "substrate-consensus-common",
  "substrate-header-metadata",
@@ -4344,7 +4425,7 @@ dependencies = [
  "rand 0.7.2",
  "sr-api",
  "sr-primitives",
- "substrate-client",
+ "substrate-client-api",
  "substrate-keystore",
  "substrate-network",
  "substrate-offchain-primitives",
@@ -4445,6 +4526,7 @@ dependencies = [
  "sr-primitives",
  "sr-version",
  "substrate-client",
+ "substrate-client-api",
  "substrate-executor",
  "substrate-keystore",
  "substrate-primitives",
@@ -4541,7 +4623,7 @@ dependencies = [
  "futures-preview",
  "lazy_static",
  "log",
- "parity-multiaddr",
+ "parity-multiaddr 0.5.0",
  "parity-scale-codec",
  "parking_lot 0.9.0",
  "serde",
@@ -4553,6 +4635,7 @@ dependencies = [
  "substrate-application-crypto",
  "substrate-chain-spec",
  "substrate-client",
+ "substrate-client-api",
  "substrate-client-db",
  "substrate-consensus-common",
  "substrate-executor",
@@ -4684,8 +4767,6 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder-runner"
 version = "1.0.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bd48273fe9d7f92c1f7d6c1c537bb01c8068f925b47ad2cd8367e11dc32f8550"
 
 [[package]]
 name = "substrate-wasm-interface"
@@ -5133,11 +5214,11 @@ dependencies = [
 
 [[package]]
 name = "unicase"
-version = "2.5.1"
+version = "2.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e2e6bd1e59e56598518beb94fd6db628ded570326f0a98c679a304bd9f00150"
+checksum = "50f37be617794602aabbeee0be4f259dc1778fabe05e2d67ee8f79326d5cb4f6"
 dependencies = [
- "version_check",
+ "version_check 0.9.1",
 ]
 
 [[package]]
@@ -5248,6 +5329,12 @@ name = "version_check"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "914b1a6776c4c929a602fafd8bc742e06365d4bcbe48c30f9cca5824f70dc9dd"
+
+[[package]]
+name = "version_check"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "078775d0255232fb988e6fccf26ddc9d1ac274299aaedcedce21c6f72cc533ce"
 
 [[package]]
 name = "void"
@@ -5371,25 +5458,25 @@ dependencies = [
 
 [[package]]
 name = "wasmi"
-version = "0.5.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f31d26deb2d9a37e6cfed420edce3ed604eab49735ba89035e13c98f9a528313"
+checksum = "bf617d864d25af3587aa745529f7aaa541066c876d57e050c0d0c85c61c92aff"
 dependencies = [
  "libc",
  "memory_units",
  "num-rational",
  "num-traits",
- "parity-wasm",
+ "parity-wasm 0.41.0",
  "wasmi-validation",
 ]
 
 [[package]]
 name = "wasmi-validation"
-version = "0.2.0"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6bc0356e3df56e639fc7f7d8a99741915531e27ed735d911ed83d7e1339c8188"
+checksum = "ea78c597064ba73596099281e2f4cfc019075122a65cdda3205af94f0b264d93"
 dependencies = [
- "parity-wasm",
+ "parity-wasm 0.41.0",
 ]
 
 [[package]]

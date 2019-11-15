@@ -12,6 +12,7 @@ use substrate_executor::native_executor_instance;
 pub use substrate_executor::NativeExecutor;
 use aura_primitives::sr25519::{AuthorityPair as AuraPair};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
+use basic_authorship;
 
 // Our native executor instance.
 native_executor_instance!(
@@ -73,7 +74,7 @@ macro_rules! new_full_start {
 
 /// Builds a new service for a full client.
 pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisConfig>)
-											 -> Result<impl AbstractService, ServiceError>
+	-> Result<impl AbstractService, ServiceError>
 {
 	let is_authority = config.roles.is_authority();
 	let force_authoring = config.force_authoring;
@@ -182,7 +183,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 
 /// Builds a new service for a light client.
 pub fn new_light<C: Send + Default + 'static>(config: Configuration<C, GenesisConfig>)
-											  -> Result<impl AbstractService, ServiceError>
+	-> Result<impl AbstractService, ServiceError>
 {
 	let inherent_data_providers = InherentDataProviders::new();
 

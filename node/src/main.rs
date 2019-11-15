@@ -12,12 +12,12 @@ pub use substrate_cli::{VersionInfo, IntoExit, error};
 
 fn main() -> Result<(), cli::error::Error> {
 	let version = VersionInfo {
-		name: "Experimental node",
+		name: "Experimental Substrate Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "experimental-node",
 		author: "Jasl",
-		description: "Template Node",
+		description: "Experimental Substrate Node to evaluate PKI verification on Runtime.",
 		support_url: "support.anonymous.an",
 	};
 
