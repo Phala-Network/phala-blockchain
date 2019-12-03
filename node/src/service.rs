@@ -143,7 +143,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 	let grandpa_config = grandpa::Config {
 		// FIXME #1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
-		justification_period: 512,
+		justification_period: 1,
 		name: Some(name),
 		observer_enabled: true,
 		keystore,
