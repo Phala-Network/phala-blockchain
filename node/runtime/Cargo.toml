@@ -5,32 +5,32 @@ authors = ["Jasl"]
 edition = "2018"
 
 [dependencies]
-aura = { package = "paint-aura", path = "../../substrate/paint/aura", default-features = false }
-aura-primitives = { package = "substrate-consensus-aura-primitives", path = "../../substrate/primitives/consensus/aura", default-features = false }
-balances = { package = "paint-balances", path = "../../substrate/paint/balances", default-features = false }
-block-builder-api = { package = "substrate-block-builder-runtime-api", path = "../../substrate/primitives/block-builder/runtime-api", default-features = false}
+aura = { package = "pallet-aura", path = "../../substrate/frame/aura", default-features = false }
+aura-primitives = { package = "sp-consensus-aura", path = "../../substrate/primitives/consensus/aura", default-features = false }
+balances = { package = "pallet-balances", path = "../../substrate/frame/balances", default-features = false }
+block-builder-api = { package = "sp-block-builder", path = "../../substrate/primitives/block-builder/runtime-api", default-features = false}
 codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false, features = ["derive"] }
-executive = { package = "paint-executive", path = "../../substrate/paint/executive", default-features = false }
-grandpa = { package = "paint-grandpa", path = "../../substrate/paint/grandpa", default-features = false }
-indices = { package = "paint-indices", path = "../../substrate/paint/indices", default-features = false }
-inherents = { package = "substrate-inherents", path = "../../substrate/primitives/inherents", default-features = false}
-offchain-primitives = { package = "substrate-offchain-primitives", path = "../../substrate/primitives/offchain", default-features = false }
-primitives = { package = "substrate-primitives", path = "../../substrate/primitives/core", default-features = false }
-randomness-collective-flip = { package = "paint-randomness-collective-flip", path = "../../substrate/paint/randomness-collective-flip", default-features = false }
-rstd = { package = "sr-std", path = "../../substrate/primitives/sr-std", default-features = false }
-runtime-io = { package = "sr-io", path = "../../substrate/primitives/sr-io", default-features = false }
+executive = { package = "frame-executive", path = "../../substrate/frame/executive", default-features = false }
+grandpa = { package = "pallet-grandpa", path = "../../substrate/frame/grandpa", default-features = false }
+indices = { package = "pallet-indices", path = "../../substrate/frame/indices", default-features = false }
+inherents = { package = "sp-inherents", path = "../../substrate/primitives/inherents", default-features = false}
+offchain-primitives = { package = "sp-offchain", path = "../../substrate/primitives/offchain", default-features = false }
+primitives = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false }
+randomness-collective-flip = { package = "pallet-randomness-collective-flip", path = "../../substrate/frame/randomness-collective-flip", default-features = false }
+rstd = { package = "sp-std", path = "../../substrate/primitives/sr-std", default-features = false }
+runtime-io = { package = "sp-io", path = "../../substrate/primitives/sr-io", default-features = false }
 safe-mix = { version = "1.0.0", default-features = false }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
-sr-api = { path = "../../substrate/primitives/sr-api", default-features = false }
-sr-primitives = { path = "../../substrate/primitives/sr-primitives", default-features = false }
-substrate-session = { path = "../../substrate/primitives/session", default-features = false }
-sudo = { package = "paint-sudo", path = "../../substrate/paint/sudo", default-features = false }
-support = { package = "paint-support", path = "../../substrate/paint/support", default-features = false }
-system = { package = "paint-system", path = "../../substrate/paint/system", default-features = false }
-timestamp = { package = "paint-timestamp", path = "../../substrate/paint/timestamp", default-features = false }
-transaction-payment = { package = "paint-transaction-payment", path = "../../substrate/paint/transaction-payment", default-features = false }
-tx-pool-api = { package = "substrate-transaction-pool-runtime-api", path = "../../substrate/primitives/transaction-pool/runtime-api", default-features = false }
-version = { package = "sr-version", path = "../../substrate/primitives/sr-version", default-features = false }
+sp-api = { path = "../../substrate/primitives/sr-api", default-features = false }
+sp-runtime = { path = "../../substrate/primitives/sr-primitives", default-features = false }
+sp-session = { path = "../../substrate/primitives/session", default-features = false }
+sudo = { package = "pallet-sudo", path = "../../substrate/frame/sudo", default-features = false }
+support = { package = "frame-support", path = "../../substrate/frame/support", default-features = false }
+system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
+timestamp = { package = "pallet-timestamp", path = "../../substrate/frame/timestamp", default-features = false }
+transaction-payment = { package = "pallet-transaction-payment", path = "../../substrate/frame/transaction-payment", default-features = false }
+txpool-runtime-api = { package = "sp-transaction-pool-runtime-api", path = "../../substrate/primitives/transaction-pool/runtime-api", default-features = false }
+version = { package = "sp-version", path = "../../substrate/primitives/sr-version", default-features = false }
 
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 itertools = { version = "0.8", default-features = false }
@@ -63,14 +63,14 @@ std = [
 	"runtime-io/std",
 	"safe-mix/std",
 	"serde",
-	"sr-api/std",
-	"sr-primitives/std",
-	"substrate-session/std",
+	"sp-api/std",
+	"sp-runtime/std",
+	"sp-session/std",
 	"sudo/std",
 	"support/std",
 	"system/std",
 	"timestamp/std",
 	"transaction-payment/std",
-	"tx-pool-api/std",
+	"txpool-runtime-api/std",
 	"version/std",
 ]

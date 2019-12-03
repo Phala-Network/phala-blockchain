@@ -5,14 +5,14 @@ use runtime::{
 };
 use aura_primitives::sr25519::{AuthorityId as AuraId};
 use grandpa_primitives::{AuthorityId as GrandpaId};
-use substrate_service;
-use sr_primitives::traits::{Verify, IdentifyAccount};
+use sc_service;
+use sp_runtime::traits::{Verify, IdentifyAccount};
 
 // Note this is the URL for the telemetry server
 //const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
-pub type ChainSpec = substrate_service::ChainSpec<GenesisConfig>;
+pub type ChainSpec = sc_service::ChainSpec<GenesisConfig>;
 
 /// The chain specification option. This is expected to come in from the CLI and
 /// is little more than one of a number of alternatives which can easily be converted
@@ -59,14 +59,14 @@ impl Alternative {
 				|| testnet_genesis(vec![
 					get_authority_keys_from_seed("Alice"),
 				],
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				vec![
-					get_account_id_from_seed::<sr25519::Public>("Alice"),
-					get_account_id_from_seed::<sr25519::Public>("Bob"),
-					get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-				],
-				true),
+								   get_account_id_from_seed::<sr25519::Public>("Alice"),
+								   vec![
+									   get_account_id_from_seed::<sr25519::Public>("Alice"),
+									   get_account_id_from_seed::<sr25519::Public>("Bob"),
+									   get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+								   ],
+								   true),
 				vec![],
 				None,
 				None,
@@ -80,22 +80,22 @@ impl Alternative {
 					get_authority_keys_from_seed("Alice"),
 					get_authority_keys_from_seed("Bob"),
 				],
-				get_account_id_from_seed::<sr25519::Public>("Alice"),
-				vec![
-					get_account_id_from_seed::<sr25519::Public>("Alice"),
-					get_account_id_from_seed::<sr25519::Public>("Bob"),
-					get_account_id_from_seed::<sr25519::Public>("Charlie"),
-					get_account_id_from_seed::<sr25519::Public>("Dave"),
-					get_account_id_from_seed::<sr25519::Public>("Eve"),
-					get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-					get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-					get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
-				],
-				true),
+								   get_account_id_from_seed::<sr25519::Public>("Alice"),
+								   vec![
+									   get_account_id_from_seed::<sr25519::Public>("Alice"),
+									   get_account_id_from_seed::<sr25519::Public>("Bob"),
+									   get_account_id_from_seed::<sr25519::Public>("Charlie"),
+									   get_account_id_from_seed::<sr25519::Public>("Dave"),
+									   get_account_id_from_seed::<sr25519::Public>("Eve"),
+									   get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+									   get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+									   get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+								   ],
+								   true),
 				vec![],
 				None,
 				None,
@@ -115,9 +115,9 @@ impl Alternative {
 }
 
 fn testnet_genesis(initial_authorities: Vec<(AuraId, GrandpaId)>,
-	root_key: AccountId,
-	endowed_accounts: Vec<AccountId>,
-	_enable_println: bool) -> GenesisConfig {
+				   root_key: AccountId,
+				   endowed_accounts: Vec<AccountId>,
+				   _enable_println: bool) -> GenesisConfig {
 	GenesisConfig {
 		system: Some(SystemConfig {
 			code: WASM_BINARY.to_vec(),
