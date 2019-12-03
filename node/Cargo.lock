@@ -880,7 +880,6 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
- "ring 0.16.9",
  "safe-mix",
  "serde",
  "sp-api",
@@ -897,7 +896,6 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder-runner",
  "untrusted",
- "webpki 0.21.0",
 ]
 
 [[package]]
@@ -1648,7 +1646,7 @@ dependencies = [
  "rustls",
  "tokio-io 0.1.12",
  "tokio-rustls",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
  "webpki-roots 0.17.0",
 ]
 
@@ -2036,7 +2034,7 @@ dependencies = [
  "protobuf",
  "quick-error",
  "rand 0.7.2",
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "rw-stream-sink",
  "sha2",
  "smallvec 0.6.13",
@@ -2204,7 +2202,7 @@ dependencies = [
  "log",
  "protobuf",
  "rand 0.7.2",
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "snow",
  "tokio-io 0.1.12",
  "x25519-dalek",
@@ -2263,7 +2261,7 @@ dependencies = [
  "parity-send-wrapper",
  "protobuf",
  "rand 0.6.5",
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "rw-stream-sink",
  "sha2",
  "tokio-codec 0.1.1",
@@ -3543,17 +3541,6 @@ checksum = "11a7e20d1cce64ef2fed88b66d347f88bd9babb82845b2b858f3edbf59a4f716"
 [[package]]
 name = "ring"
 version = "0.16.9"
-dependencies = [
- "cc",
- "libc",
- "spin",
- "untrusted",
- "winapi 0.3.8",
-]
-
-[[package]]
-name = "ring"
-version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6747f8da1f2b1fabbee1aaa4eb8a11abf9adef0bf58a41cee45db5d59cecdfac"
 dependencies = [
@@ -3615,9 +3602,9 @@ checksum = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
 dependencies = [
  "base64 0.10.1",
  "log",
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "sct",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -4254,7 +4241,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
 dependencies = [
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "untrusted",
 ]
 
@@ -4453,7 +4440,7 @@ checksum = "afb767eee7d257ba202f0b9b08673bc13b22281632ef45267b19f13100accd2f"
 dependencies = [
  "arrayref",
  "rand_core 0.5.1",
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "rustc_version",
  "subtle 2.2.2",
 ]
@@ -5312,7 +5299,7 @@ dependencies = [
  "iovec",
  "rustls",
  "tokio-io 0.1.12",
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -5828,18 +5815,10 @@ dependencies = [
 [[package]]
 name = "webpki"
 version = "0.21.0"
-dependencies = [
- "ring 0.16.9",
- "untrusted",
-]
-
-[[package]]
-name = "webpki"
-version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d7e664e770ac0110e2384769bcc59ed19e329d81f555916a6e072714957b81b4"
 dependencies = [
- "ring 0.16.9 (registry+https://github.com/rust-lang/crates.io-index)",
+ "ring",
  "untrusted",
 ]
 
@@ -5849,7 +5828,7 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a262ae37dd9d60f60dd473d1158f9fbebf110ba7b6a5051c8160460f6043718b"
 dependencies = [
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]
@@ -5858,7 +5837,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91cd5736df7f12a964a5067a12c62fa38e1bd8080aff1f80bc29be7c80d19ab4"
 dependencies = [
- "webpki 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "webpki",
 ]
 
 [[package]]

@@ -15,8 +15,6 @@ extern crate base64;
 extern crate itertools;
 extern crate hex;
 
-extern crate webpki;
-
 use rstd::prelude::*;
 use primitives::OpaqueMetadata;
 use sp_runtime::{
@@ -72,8 +70,8 @@ pub type Hash = primitives::H256;
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
 
-/// Used for the module template in `./template.rs`
-mod template;
+/// Used for the module ExecutionModule in `./execution.rs`
+mod execution;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -240,8 +238,8 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
-/// Used for the module template in `./template.rs`
-impl template::Trait for Runtime {
+/// Used for the module ExecutionModule in `./execution.rs`
+impl execution::Trait for Runtime {
 	type Event = Event;
 }
 
@@ -259,8 +257,8 @@ construct_runtime!(
 		Balances: balances::{default, Error},
 		TransactionPayment: transaction_payment::{Module, Storage},
 		Sudo: sudo,
-		// Used for the module template in `./template.rs`
-		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		// Used for the module ExecutionModule in `./execution.rs`
+		ExecutionModule: execution::{Module, Call, Storage, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Call, Storage},
 	}
 );
