@@ -7,11 +7,12 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pnode-runtime = { package = "node-template-runtime", path = "../runtime" }
-subxt = { package = "substrate-subxt", path = "../subxt" }
+pnode-runtime = { package = "experimental-node-runtime", path = "../node/runtime" }
+subxt = { package = "substrate-subxt", path = "../substrate-subxt" }
 tokio = "0.1"
-node-runtime = { git = "https://github.com/paritytech/substrate.git", package = "node-runtime", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538"}
-srml-system = { git = "https://github.com/paritytech/substrate.git", package = "srml-system", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
-substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate.git", package = "substrate-rpc-primitives", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
-sr-primitives = { git = "https://github.com/paritytech/substrate.git", package = "sr-primitives", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
+system = { package = "frame-system", path = "../substrate/frame/system" }
+sp-rpc = { package = "sp-rpc", path = "../substrate/primitives/rpc" }
+sp-runtime = { package = "sp-runtime", path = "../substrate/primitives/sr-primitives" }
+sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa"}
+
 codec = { package = 'parity-scale-codec', version = '1.0.0' }

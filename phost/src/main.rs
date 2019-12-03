@@ -1,20 +1,22 @@
 use pnode_runtime;
-use substrate_rpc_primitives::number::NumberOrHex;
+use sp_rpc::number::NumberOrHex;
 use codec::{Encode, Decode};
-use sr_primitives::{
+use sp_runtime::{
     generic::SignedBlock,
     OpaqueExtrinsic
 };
 
+use sc_finality_grandpa::GrandpaJustification;
+
 type Runtime = pnode_runtime::Runtime;
 type Header = <Runtime as subxt::system::System>::Header;
-type OpaqueBlock = sr_primitives::generic::Block<Header, OpaqueExtrinsic>;
+type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 
 fn create_client() -> (tokio::runtime::Runtime, subxt::Client<Runtime>) {
     let mut rt = tokio::runtime::Runtime::new().unwrap();
     let client_future = subxt::ClientBuilder::<Runtime>::new().build();
-    let client = rt.block_on(client_future).unwrap();
+    let client = rt.block_on(client_future).expect("Connect to substrate failed");
     (rt, client)
 }
 
@@ -43,8 +45,18 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::Signe
 }
 
  fn print_jutification(justification: &Vec<u8>) {
-     let grandpa_j = GrandpaJustification::<Runtime::Block>::decode(&mut jutification.as_slice());
-     println!("Justification: {:?}", grandpa_j);
+    let grandpa_j = match GrandpaJustification::<pnode_runtime::Block>::decode(&mut justification.as_slice()) {
+        Ok(j) => j,
+        Err(err) => {
+            println!("Err: {:?}", err);
+            return;
+        }
+    };
+    println!("GrandpaJustification:: <private>");
+    // println!("Justification: {{ round: {}, commit: {:?}, votes_ancestries: {:?} }}",
+    //          grandpa_j.round,
+    //          grandpa_j.commit,
+    //          grandpa_j.votes_ancestries);
  }
 
 fn get_block_at(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime>, h: Option<u32>) -> Option<pnode_runtime::SignedBlock> {
@@ -77,9 +89,22 @@ fn print_metadata(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runti
 fn main() {
     let (mut rt, client) = create_client();
 
-    // print_metadata(&mut rt, &client);
+    print_metadata(&mut rt, &client);
 
-    let signed_tip = get_block_at(&mut rt, &client, None).unwrap();
+    /*
+    loop {
+        let runtime_tip = await get_pruntime_height();
+        loop /== every dt ==/ {
+            let chain_tip = await get_chain_height();
+            for h in (runtime_tip + 1)..(chain_tip) {
+                block = get_block_at(&mut rt, &client, Some(h));
+                feed_pruntime(block);
+            }
+        }
+    }
+    */
+
+    let signed_tip = get_block_at(&mut rt, &client, None).expect("Can't get block tip");
 
     for i in 1..3 {
         println!("--");
