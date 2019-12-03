@@ -347,6 +347,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
+ "ring",
  "safe-mix",
  "serde",
  "sp-api",
@@ -363,6 +364,7 @@ dependencies = [
  "sp-version",
  "substrate-wasm-builder-runner",
  "untrusted",
+ "webpki",
 ]
 
 [[package]]
@@ -1457,6 +1459,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "11a7e20d1cce64ef2fed88b66d347f88bd9babb82845b2b858f3edbf59a4f716"
 
 [[package]]
+name = "ring"
+version = "0.16.9"
+dependencies = [
+ "cc",
+ "libc",
+ "spin",
+ "untrusted",
+ "winapi",
+]
+
+[[package]]
 name = "rustc-demangle"
 version = "0.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1929,6 +1942,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "spin"
+version = "0.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2172,6 +2191,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea78c597064ba73596099281e2f4cfc019075122a65cdda3205af94f0b264d93"
 dependencies = [
  "parity-wasm",
+]
+
+[[package]]
+name = "webpki"
+version = "0.21.0"
+dependencies = [
+ "ring",
+ "untrusted",
 ]
 
 [[package]]

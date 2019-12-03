@@ -165,6 +165,10 @@ typedef crypto_word BN_ULONG;
 #error "Must define either OPENSSL_32_BIT or OPENSSL_64_BIT"
 #endif
 
+#if defined(ENABLE_C_FALLBACK) && defined(BN_ULLONG)
+#define Lw(t) ((BN_ULONG)(t))
+#define Hw(t) ((BN_ULONG)((t) >> BN_BITS2))
+#endif
 
 // bn_mul_add_words multiples |ap| by |w|, adds the result to |rp|, and places
 // the result in |rp|. |ap| and |rp| must both be |num| words long. It returns
@@ -172,6 +176,25 @@ typedef crypto_word BN_ULONG;
 // not alias.
 BN_ULONG GFp_bn_mul_add_words(BN_ULONG *rp, const BN_ULONG *ap, size_t num,
                               BN_ULONG w);
+
+#ifdef ENABLE_C_FALLBACK
+
+// bn_mul_words multiples |ap| by |w| and places the result in |rp|. |ap| and
+// |rp| must both be |num| words long. It returns the carry word of the
+// operation. |ap| and |rp| may be equal but otherwise may not alias.
+BN_ULONG GFp_bn_mul_words(BN_ULONG *rp, const BN_ULONG *ap, size_t num, BN_ULONG w);
+
+// bn_mul_comba8 sets |r| to the product of |a| and |b|.
+void GFp_bn_mul_comba8(BN_ULONG r[16], const BN_ULONG a[8], const BN_ULONG b[8]);
+
+// bn_sqr_comba8 sets |r| to |a|^2.
+void GFp_bn_sqr_comba8(BN_ULONG r[16], const BN_ULONG a[8]);
+
+int GFp_bn_from_montgomery_in_place(BN_ULONG r[], size_t num_r, BN_ULONG a[], size_t num_a,
+                                    const BN_ULONG n[], size_t num_n,
+                                    const BN_ULONG n0_[BN_MONT_CTX_N0_LIMBS]);
+
+#endif
 
 // |num| must be at least 4, at least on x86.
 //

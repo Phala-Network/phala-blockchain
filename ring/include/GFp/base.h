@@ -63,7 +63,17 @@
 #endif
 
 #include <stddef.h>
-#include <stdint.h>
+
+#if defined(__wasm32__)
+# include <GFp/stdint.h>
+# define OPENSSL_NO_ASM
+#else
+# include <stdint.h>
+#endif
+
+#ifdef OPENSSL_NO_ASM
+# define ENABLE_C_FALLBACK
+#endif
 
 #if defined(_MSC_VER) && !defined(__clang__)
 #pragma warning(pop)
@@ -87,6 +97,8 @@
 #elif defined(__mips__) && defined(__LP64__)
 #define OPENSSL_64_BIT
 #define OPENSSL_MIPS64
+#elif defined(__wasm32__)
+#define OPENSSL_32_BIT
 #else
 // Note BoringSSL only supports standard 32-bit and 64-bit two's-complement,
 // little-endian architectures. Functions will not produce the correct answer

@@ -47,3 +47,6 @@ ring/build/
 ring/ssl/test/runner/runner
 ring/doc/*.html
 ring/doc/doc.css
+
+# node runtime
+node/scripts/ccwrapper/*.log

@@ -15,6 +15,8 @@ extern crate base64;
 extern crate itertools;
 extern crate hex;
 
+extern crate webpki;
+
 use sp_std::prelude::*;
 use sp_core::OpaqueMetadata;
 use sp_runtime::{

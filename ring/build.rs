@@ -51,6 +51,7 @@ const NEVER: &str = "Don't ever build this file.";
 #[cfg_attr(rustfmt, rustfmt_skip)]
 const RING_SRCS: &[(&[&str], &str)] = &[
     (&[], "crypto/fipsmodule/bn/generic.c"),
+    (&[], "crypto/fipsmodule/bn/mul.c"),
     (&[], "crypto/fipsmodule/bn/montgomery.c"),
     (&[], "crypto/fipsmodule/bn/montgomery_inv.c"),
     (&[], "crypto/crypto.c"),
@@ -137,6 +138,7 @@ const RING_INCLUDES: &[&str] =
       "include/GFp/cpu.h",
       "include/GFp/mem.h",
       "include/GFp/type_check.h",
+      "include/GFp/stdint.h",
       "third_party/fiat/curve25519_32.h",
       "third_party/fiat/curve25519_64.h",
       "third_party/fiat/curve25519_tables.h",
@@ -239,6 +241,7 @@ const ASM_TARGETS: &[(&str, Option<&str>, &str)] = &[
     ("x86", None, "elf"),
     ("arm", Some("ios"), "ios32"),
     ("arm", None, "linux32"),
+    ("wasm32", None, "unknown"),
 ];
 
 const WINDOWS: &str = "windows";
@@ -336,11 +339,15 @@ struct Target {
     is_debug: bool,
 }
 
-fn build_c_code(target: &Target, pregenerated: PathBuf, out_dir: &Path) {
-    if &target.arch == "wasm32" {
-        return;
+fn cc_add_target_flag(builder: &mut cc::Build, target: &Target) {
+    if target.arch == "wasm32" {
+        let _ = builder.target("wasm32-unknown-unknown")
+                       .flag("-emit-llvm")
+                       .flag("-fno-stack-protector");
     }
+}
 
+fn build_c_code(target: &Target, pregenerated: PathBuf, out_dir: &Path) {
     let includes_modified = RING_INCLUDES
         .iter()
         .chain(RING_BUILD_FILE.iter())
@@ -360,48 +367,55 @@ fn build_c_code(target: &Target, pregenerated: PathBuf, out_dir: &Path) {
         }
     }
 
-    let (_, _, perlasm_format) = ASM_TARGETS
+    let warnings_are_errors = target.is_git;
+    let mut asm_srcs_files: Vec<PathBuf> = Vec::new();
+
+    let target_tuple = ASM_TARGETS
         .iter()
         .find(|entry| {
             let &(entry_arch, entry_os, _) = *entry;
             entry_arch == &target.arch && is_none_or_equals(entry_os, &target.os)
-        })
-        .unwrap();
+        });
+    
+    match target_tuple {
+        Some((_, _, perlasm_format)) => {
+            let use_pregenerated = false;
 
-    let use_pregenerated = false;
-    let warnings_are_errors = target.is_git;
-
-    let asm_dir = if use_pregenerated {
-        &pregenerated
-    } else {
-        out_dir
-    };
-
-    let perlasm_src_dsts =
-        perlasm_src_dsts(asm_dir, &target.arch, Some(&target.os), perlasm_format);
-
-    if !use_pregenerated {
-        perlasm(
-            &perlasm_src_dsts[..],
-            &target.arch,
-            perlasm_format,
-            Some(includes_modified),
-        );
+            let asm_dir = if use_pregenerated {
+                &pregenerated
+            } else {
+                out_dir
+            };
+        
+            let perlasm_src_dsts =
+                perlasm_src_dsts(asm_dir, &target.arch, Some(&target.os), perlasm_format);
+        
+            if !use_pregenerated {
+                perlasm(
+                    &perlasm_src_dsts[..],
+                    &target.arch,
+                    perlasm_format,
+                    Some(includes_modified),
+                );
+            }
+        
+            asm_srcs_files = asm_srcs(perlasm_src_dsts);
+        
+            // For Windows we also pregenerate the object files for non-Git builds so
+            // the user doesn't need to install the assembler. On other platforms we
+            // assume the C compiler also assembles.
+            if use_pregenerated && &target.os == WINDOWS {
+                // The pregenerated object files always use ".obj" as the extension,
+                // even when the C/C++ compiler outputs files with the ".o" extension.
+                asm_srcs_files = asm_srcs_files
+                    .iter()
+                    .map(|src| obj_path(&pregenerated, src.as_path(), "obj"))
+                    .collect::<Vec<_>>();
+            }
+        },
+        None => ()
     }
 
-    let mut asm_srcs = asm_srcs(perlasm_src_dsts);
-
-    // For Windows we also pregenerate the object files for non-Git builds so
-    // the user doesn't need to install the assembler. On other platforms we
-    // assume the C compiler also assembles.
-    if use_pregenerated && &target.os == WINDOWS {
-        // The pregenerated object files always use ".obj" as the extension,
-        // even when the C/C++ compiler outputs files with the ".o" extension.
-        asm_srcs = asm_srcs
-            .iter()
-            .map(|src| obj_path(&pregenerated, src.as_path(), "obj"))
-            .collect::<Vec<_>>();
-    }
 
     let core_srcs = sources_for_arch(&target.arch)
         .into_iter()
@@ -411,7 +425,7 @@ fn build_c_code(target: &Target, pregenerated: PathBuf, out_dir: &Path) {
     let test_srcs = RING_TEST_SRCS.iter().map(PathBuf::from).collect::<Vec<_>>();
 
     let libs = [
-        ("ring-core", &core_srcs[..], &asm_srcs[..]),
+        ("ring-core", &core_srcs[..], &asm_srcs_files[..]),
         ("ring-test", &test_srcs[..], &[]),
     ];
 
@@ -462,6 +476,7 @@ fn build_library(
         .any(|p| need_run(&p, &lib_path, includes_modified))
     {
         let mut c = cc::Build::new();
+        cc_add_target_flag(&mut c, target);
 
         for f in LD_FLAGS {
             let _ = c.flag(&f);
@@ -535,6 +550,7 @@ fn cc(
     out_dir: &Path,
 ) -> Command {
     let mut c = cc::Build::new();
+    cc_add_target_flag(&mut c, target);
     let _ = c.include("include");
     match ext {
         "c" => {
@@ -548,7 +564,8 @@ fn cc(
     for f in cpp_flags(target) {
         let _ = c.flag(&f);
     }
-    if &target.os != "none" && &target.os != "redox" && &target.os != "windows" {
+    if &target.os != "none" && &target.os != "redox" && &target.os != "windows" &&
+       &target.arch != "wasm32" {
         let _ = c.flag("-fstack-protector");
     }
 

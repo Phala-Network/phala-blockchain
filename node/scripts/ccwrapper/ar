@@ -1,0 +1,6 @@
+#!/bin/bash
+
+CUR_DIR=$(dirname "$0")
+echo "$(date) | wrap | ar $@" >> "$CUR_DIR/ar.log"
+
+llvm-ar-9 "$@"

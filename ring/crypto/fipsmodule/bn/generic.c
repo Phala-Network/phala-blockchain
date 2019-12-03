@@ -97,3 +97,265 @@ BN_ULONG GFp_bn_mul_add_words(BN_ULONG *rp, const BN_ULONG *ap, size_t num,
 
   return c1;
 }
+
+#ifdef ENABLE_C_FALLBACK
+
+#define mul(r, a, w, c)             \
+  do {                              \
+    BN_ULLONG t;                    \
+    t = (BN_ULLONG)(w) * (a) + (c); \
+    (r) = Lw(t);                    \
+    (c) = Hw(t);                    \
+  } while (0)
+
+BN_ULONG GFp_bn_mul_words(BN_ULONG *rp, const BN_ULONG *ap, size_t num,
+                      BN_ULONG w) {
+  BN_ULONG c1 = 0;
+
+  if (num == 0) {
+    return c1;
+  }
+
+  while (num & ~3) {
+    mul(rp[0], ap[0], w, c1);
+    mul(rp[1], ap[1], w, c1);
+    mul(rp[2], ap[2], w, c1);
+    mul(rp[3], ap[3], w, c1);
+    ap += 4;
+    rp += 4;
+    num -= 4;
+  }
+  while (num) {
+    mul(rp[0], ap[0], w, c1);
+    ap++;
+    rp++;
+    num--;
+  }
+  return c1;
+}
+
+#define mul_add_c(a, b, c0, c1, c2)     \
+  do {                                  \
+    BN_ULONG hi;                        \
+    BN_ULLONG t = (BN_ULLONG)(a) * (b); \
+    t += (c0); /* no carry */           \
+    (c0) = (BN_ULONG)Lw(t);             \
+    hi = (BN_ULONG)Hw(t);               \
+    (c1) += (hi);                       \
+    if ((c1) < hi) {                    \
+      (c2)++;                           \
+    }                                   \
+  } while (0)
+
+#define mul_add_c2(a, b, c0, c1, c2)        \
+  do {                                      \
+    BN_ULONG hi;                            \
+    BN_ULLONG t = (BN_ULLONG)(a) * (b);     \
+    BN_ULLONG tt = t + (c0); /* no carry */ \
+    (c0) = (BN_ULONG)Lw(tt);                \
+    hi = (BN_ULONG)Hw(tt);                  \
+    (c1) += hi;                             \
+    if ((c1) < hi) {                        \
+      (c2)++;                               \
+    }                                       \
+    t += (c0); /* no carry */               \
+    (c0) = (BN_ULONG)Lw(t);                 \
+    hi = (BN_ULONG)Hw(t);                   \
+    (c1) += hi;                             \
+    if ((c1) < hi) {                        \
+      (c2)++;                               \
+    }                                       \
+  } while (0)
+
+#define sqr_add_c(a, i, c0, c1, c2)           \
+  do {                                        \
+    BN_ULONG hi;                              \
+    BN_ULLONG t = (BN_ULLONG)(a)[i] * (a)[i]; \
+    t += (c0); /* no carry */                 \
+    (c0) = (BN_ULONG)Lw(t);                   \
+    hi = (BN_ULONG)Hw(t);                     \
+    (c1) += hi;                               \
+    if ((c1) < hi) {                          \
+      (c2)++;                                 \
+    }                                         \
+  } while (0)
+
+#define sqr_add_c2(a, i, j, c0, c1, c2) mul_add_c2((a)[i], (a)[j], c0, c1, c2)
+
+void GFp_bn_mul_comba8(BN_ULONG r[16], const BN_ULONG a[8], const BN_ULONG b[8]) {
+  BN_ULONG c1, c2, c3;
+
+  c1 = 0;
+  c2 = 0;
+  c3 = 0;
+  mul_add_c(a[0], b[0], c1, c2, c3);
+  r[0] = c1;
+  c1 = 0;
+  mul_add_c(a[0], b[1], c2, c3, c1);
+  mul_add_c(a[1], b[0], c2, c3, c1);
+  r[1] = c2;
+  c2 = 0;
+  mul_add_c(a[2], b[0], c3, c1, c2);
+  mul_add_c(a[1], b[1], c3, c1, c2);
+  mul_add_c(a[0], b[2], c3, c1, c2);
+  r[2] = c3;
+  c3 = 0;
+  mul_add_c(a[0], b[3], c1, c2, c3);
+  mul_add_c(a[1], b[2], c1, c2, c3);
+  mul_add_c(a[2], b[1], c1, c2, c3);
+  mul_add_c(a[3], b[0], c1, c2, c3);
+  r[3] = c1;
+  c1 = 0;
+  mul_add_c(a[4], b[0], c2, c3, c1);
+  mul_add_c(a[3], b[1], c2, c3, c1);
+  mul_add_c(a[2], b[2], c2, c3, c1);
+  mul_add_c(a[1], b[3], c2, c3, c1);
+  mul_add_c(a[0], b[4], c2, c3, c1);
+  r[4] = c2;
+  c2 = 0;
+  mul_add_c(a[0], b[5], c3, c1, c2);
+  mul_add_c(a[1], b[4], c3, c1, c2);
+  mul_add_c(a[2], b[3], c3, c1, c2);
+  mul_add_c(a[3], b[2], c3, c1, c2);
+  mul_add_c(a[4], b[1], c3, c1, c2);
+  mul_add_c(a[5], b[0], c3, c1, c2);
+  r[5] = c3;
+  c3 = 0;
+  mul_add_c(a[6], b[0], c1, c2, c3);
+  mul_add_c(a[5], b[1], c1, c2, c3);
+  mul_add_c(a[4], b[2], c1, c2, c3);
+  mul_add_c(a[3], b[3], c1, c2, c3);
+  mul_add_c(a[2], b[4], c1, c2, c3);
+  mul_add_c(a[1], b[5], c1, c2, c3);
+  mul_add_c(a[0], b[6], c1, c2, c3);
+  r[6] = c1;
+  c1 = 0;
+  mul_add_c(a[0], b[7], c2, c3, c1);
+  mul_add_c(a[1], b[6], c2, c3, c1);
+  mul_add_c(a[2], b[5], c2, c3, c1);
+  mul_add_c(a[3], b[4], c2, c3, c1);
+  mul_add_c(a[4], b[3], c2, c3, c1);
+  mul_add_c(a[5], b[2], c2, c3, c1);
+  mul_add_c(a[6], b[1], c2, c3, c1);
+  mul_add_c(a[7], b[0], c2, c3, c1);
+  r[7] = c2;
+  c2 = 0;
+  mul_add_c(a[7], b[1], c3, c1, c2);
+  mul_add_c(a[6], b[2], c3, c1, c2);
+  mul_add_c(a[5], b[3], c3, c1, c2);
+  mul_add_c(a[4], b[4], c3, c1, c2);
+  mul_add_c(a[3], b[5], c3, c1, c2);
+  mul_add_c(a[2], b[6], c3, c1, c2);
+  mul_add_c(a[1], b[7], c3, c1, c2);
+  r[8] = c3;
+  c3 = 0;
+  mul_add_c(a[2], b[7], c1, c2, c3);
+  mul_add_c(a[3], b[6], c1, c2, c3);
+  mul_add_c(a[4], b[5], c1, c2, c3);
+  mul_add_c(a[5], b[4], c1, c2, c3);
+  mul_add_c(a[6], b[3], c1, c2, c3);
+  mul_add_c(a[7], b[2], c1, c2, c3);
+  r[9] = c1;
+  c1 = 0;
+  mul_add_c(a[7], b[3], c2, c3, c1);
+  mul_add_c(a[6], b[4], c2, c3, c1);
+  mul_add_c(a[5], b[5], c2, c3, c1);
+  mul_add_c(a[4], b[6], c2, c3, c1);
+  mul_add_c(a[3], b[7], c2, c3, c1);
+  r[10] = c2;
+  c2 = 0;
+  mul_add_c(a[4], b[7], c3, c1, c2);
+  mul_add_c(a[5], b[6], c3, c1, c2);
+  mul_add_c(a[6], b[5], c3, c1, c2);
+  mul_add_c(a[7], b[4], c3, c1, c2);
+  r[11] = c3;
+  c3 = 0;
+  mul_add_c(a[7], b[5], c1, c2, c3);
+  mul_add_c(a[6], b[6], c1, c2, c3);
+  mul_add_c(a[5], b[7], c1, c2, c3);
+  r[12] = c1;
+  c1 = 0;
+  mul_add_c(a[6], b[7], c2, c3, c1);
+  mul_add_c(a[7], b[6], c2, c3, c1);
+  r[13] = c2;
+  c2 = 0;
+  mul_add_c(a[7], b[7], c3, c1, c2);
+  r[14] = c3;
+  r[15] = c1;
+}
+
+void GFp_bn_sqr_comba8(BN_ULONG r[16], const BN_ULONG a[8]) {
+  BN_ULONG c1, c2, c3;
+
+  c1 = 0;
+  c2 = 0;
+  c3 = 0;
+  sqr_add_c(a, 0, c1, c2, c3);
+  r[0] = c1;
+  c1 = 0;
+  sqr_add_c2(a, 1, 0, c2, c3, c1);
+  r[1] = c2;
+  c2 = 0;
+  sqr_add_c(a, 1, c3, c1, c2);
+  sqr_add_c2(a, 2, 0, c3, c1, c2);
+  r[2] = c3;
+  c3 = 0;
+  sqr_add_c2(a, 3, 0, c1, c2, c3);
+  sqr_add_c2(a, 2, 1, c1, c2, c3);
+  r[3] = c1;
+  c1 = 0;
+  sqr_add_c(a, 2, c2, c3, c1);
+  sqr_add_c2(a, 3, 1, c2, c3, c1);
+  sqr_add_c2(a, 4, 0, c2, c3, c1);
+  r[4] = c2;
+  c2 = 0;
+  sqr_add_c2(a, 5, 0, c3, c1, c2);
+  sqr_add_c2(a, 4, 1, c3, c1, c2);
+  sqr_add_c2(a, 3, 2, c3, c1, c2);
+  r[5] = c3;
+  c3 = 0;
+  sqr_add_c(a, 3, c1, c2, c3);
+  sqr_add_c2(a, 4, 2, c1, c2, c3);
+  sqr_add_c2(a, 5, 1, c1, c2, c3);
+  sqr_add_c2(a, 6, 0, c1, c2, c3);
+  r[6] = c1;
+  c1 = 0;
+  sqr_add_c2(a, 7, 0, c2, c3, c1);
+  sqr_add_c2(a, 6, 1, c2, c3, c1);
+  sqr_add_c2(a, 5, 2, c2, c3, c1);
+  sqr_add_c2(a, 4, 3, c2, c3, c1);
+  r[7] = c2;
+  c2 = 0;
+  sqr_add_c(a, 4, c3, c1, c2);
+  sqr_add_c2(a, 5, 3, c3, c1, c2);
+  sqr_add_c2(a, 6, 2, c3, c1, c2);
+  sqr_add_c2(a, 7, 1, c3, c1, c2);
+  r[8] = c3;
+  c3 = 0;
+  sqr_add_c2(a, 7, 2, c1, c2, c3);
+  sqr_add_c2(a, 6, 3, c1, c2, c3);
+  sqr_add_c2(a, 5, 4, c1, c2, c3);
+  r[9] = c1;
+  c1 = 0;
+  sqr_add_c(a, 5, c2, c3, c1);
+  sqr_add_c2(a, 6, 4, c2, c3, c1);
+  sqr_add_c2(a, 7, 3, c2, c3, c1);
+  r[10] = c2;
+  c2 = 0;
+  sqr_add_c2(a, 7, 4, c3, c1, c2);
+  sqr_add_c2(a, 6, 5, c3, c1, c2);
+  r[11] = c3;
+  c3 = 0;
+  sqr_add_c(a, 6, c1, c2, c3);
+  sqr_add_c2(a, 7, 5, c1, c2, c3);
+  r[12] = c1;
+  c1 = 0;
+  sqr_add_c2(a, 7, 6, c2, c3, c1);
+  r[13] = c2;
+  c2 = 0;
+  sqr_add_c(a, 7, c3, c1, c2);
+  r[14] = c3;
+  r[15] = c1;
+}
+
+#endif
