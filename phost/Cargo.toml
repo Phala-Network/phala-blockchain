@@ -1,0 +1,17 @@
+[package]
+name = "phost"
+version = "0.1.0"
+authors = ["h4x3rotab <h4x3rotab@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+pnode-runtime = { package = "node-template-runtime", path = "../runtime" }
+subxt = { package = "substrate-subxt", path = "../subxt" }
+tokio = "0.1"
+node-runtime = { git = "https://github.com/paritytech/substrate.git", package = "node-runtime", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538"}
+srml-system = { git = "https://github.com/paritytech/substrate.git", package = "srml-system", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
+substrate-rpc-primitives = { git = "https://github.com/paritytech/substrate.git", package = "substrate-rpc-primitives", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
+sr-primitives = { git = "https://github.com/paritytech/substrate.git", package = "sr-primitives", rev = "f5ea01efb14b6dcaa1a5e7aeef3c1341921c0538" }
+codec = { package = 'parity-scale-codec', version = '1.0.0' }
