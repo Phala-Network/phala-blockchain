@@ -20,28 +20,9 @@ fn create_client() -> (tokio::runtime::Runtime, subxt::Client<Runtime>) {
     (rt, client)
 }
 
-fn deopaque_block(opaque_block: OpaqueBlock) -> pnode_runtime::Block {
-    pnode_runtime::Block {
-        header: opaque_block.header,
-        extrinsics:
-            opaque_block.extrinsics
-                .iter().map(|x| {
-                    // v = UncheckedExtrinsic.encode(obj)
-                    // vv = Vec.decode(v)
-                    let v: &Vec<u8> = &x.0;
-                    let vv = Encode::encode(v);
-                    pnode_runtime::UncheckedExtrinsic::decode(&mut vv.as_slice())
-                        .expect("Block decode failed")
-                })
-                .collect()
-    }
-}
-
 fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::SignedBlock {
-    pnode_runtime::SignedBlock {
-        block: deopaque_block(opaque_block.block),
-        justification: opaque_block.justification,
-    }
+    let raw_block = Encode::encode(&opaque_block);
+    pnode_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
 }
 
  fn print_jutification(justification: &Vec<u8>) {
@@ -59,7 +40,8 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::Signe
     //          grandpa_j.votes_ancestries);
  }
 
-fn get_block_at(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime>, h: Option<u32>) -> Option<pnode_runtime::SignedBlock> {
+fn get_block_at(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime>, h: Option<u32>)
+        -> Option<pnode_runtime::SignedBlock> {
     let pos = match h {
         Some(h) => Some(NumberOrHex::Number(h)),
         None => None
@@ -84,7 +66,7 @@ fn get_block_at(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime
     Some(block)
 }
 
-fn print_metadata(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime>) {
+fn print_metadata(_rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime>) {
     let metadata = client.metadata();
     println!("Metadata: {:?}", metadata);
 }
