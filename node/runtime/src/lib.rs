@@ -70,7 +70,7 @@ pub type Hash = primitives::H256;
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
 
-/// Used for the module ExecutionModule in `./execution.rs`
+/// Used for the module Execution in `./execution.rs`
 mod execution;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
@@ -238,7 +238,7 @@ impl sudo::Trait for Runtime {
 	type Proposal = Call;
 }
 
-/// Used for the module ExecutionModule in `./execution.rs`
+/// Used for the module Execution in `./execution.rs`
 impl execution::Trait for Runtime {
 	type Event = Event;
 }
@@ -257,8 +257,8 @@ construct_runtime!(
 		Balances: balances::{default, Error},
 		TransactionPayment: transaction_payment::{Module, Storage},
 		Sudo: sudo,
-		// Used for the module ExecutionModule in `./execution.rs`
-		ExecutionModule: execution::{Module, Call, Storage, Event<T>},
+		// Used for the module Execution in `./execution.rs`
+		Execution: execution::{Module, Call, Storage, Event<T>},
 		RandomnessCollectiveFlip: randomness_collective_flip::{Module, Call, Storage},
 	}
 );

@@ -22,7 +22,7 @@ pub trait Trait: system::Trait {
 
 // This module's storage items.
 decl_storage! {
-	trait Store for Module<T: Trait> as ExecutionModule {
+	trait Store for Module<T: Trait> as Execution {
 		// Just a dummy storage item.
 		// Here we are declaring a StorageValue, `Something` as a Option<u32>
 		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
@@ -107,7 +107,7 @@ mod tests {
 	impl Trait for Test {
 		type Event = ();
 	}
-	type ExecutionModule = Module<Test>;
+	type Execution = Module<Test>;
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
@@ -119,8 +119,8 @@ mod tests {
 	fn it_works_for_default_value() {
 		new_test_ext().execute_with(|| {
 			let payload = vec![1];
-			assert_ok!(ExecutionModule::push_command(Origin::signed(1), 42, payload));
-			assert_eq!(ExecutionModule::command_number(), Some(1));
+			assert_ok!(Execution::push_command(Origin::signed(1), 42, payload));
+			assert_eq!(Execution::command_number(), Some(1));
 		});
 	}
 }

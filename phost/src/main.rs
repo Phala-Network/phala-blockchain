@@ -75,6 +75,9 @@ fn get_block_at(rt: &mut tokio::runtime::Runtime, client: &subxt::Client<Runtime
         None => { eprintln!("Block not found"); return None },
     };
 
+    let raw_block = Encode::encode(&opaque_block);
+    println!("raw block: {}", hex::encode(&raw_block));
+
     let block = deopaque_signedblock(opaque_block);
     println!("block: {:?}", block);
 

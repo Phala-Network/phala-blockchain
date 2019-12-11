@@ -2348,6 +2348,7 @@ version = "0.1.0"
 dependencies = [
  "experimental-node-runtime 2.0.0",
  "frame-system 2.0.0",
+ "hex 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 1.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "sc-finality-grandpa 2.0.0",
  "sp-rpc 2.0.0",
