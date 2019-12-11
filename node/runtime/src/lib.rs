@@ -37,6 +37,7 @@ use version::NativeVersion;
 pub use sp_runtime::BuildStorage;
 pub use timestamp::Call as TimestampCall;
 pub use balances::Call as BalancesCall;
+pub use execution::Call as ExecutionCall;
 pub use sp_runtime::{Permill, Perbill};
 pub use support::{
 	StorageValue, construct_runtime, parameter_types,
