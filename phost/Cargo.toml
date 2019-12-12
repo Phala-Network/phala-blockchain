@@ -7,13 +7,21 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+futures_03 = { package = "futures", version = "0.3.0", features = ["compat"] }
+tokio = { version = "0.2", features = ["full"] }
+tokio-compat = { git = "https://github.com/tokio-rs/tokio-compat.git" }
+hyper = { version = "0.13" }
+hex = { version = "*" }
+base64 = "0.11"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.7"
+bytes = "0.5"
+
 pnode-runtime = { package = "experimental-node-runtime", path = "../node/runtime" }
 subxt = { package = "substrate-subxt", path = "../substrate-subxt" }
-tokio = "0.1"
 system = { package = "frame-system", path = "../substrate/frame/system" }
 sp-rpc = { package = "sp-rpc", path = "../substrate/primitives/rpc" }
 sp-runtime = { package = "sp-runtime", path = "../substrate/primitives/sr-primitives" }
 sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa"}
-hex = { package = "hex" }
-
 codec = { package = 'parity-scale-codec', version = '1.0.0' }
