@@ -22,7 +22,7 @@ start)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path /tmp/alice \
-        --chain=local \
+        --chain=chain.json \
         --alice \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
         --validator "$@"
@@ -32,7 +32,7 @@ start)
     "./target/release/${NODE_NAME}" \
         --base-path /tmp/bob \
         --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR \
-        --chain=local \
+        --chain=chain.json \
         --bob \
         --port "$BOB_RPC_PORT" \
         --validator "$@"
