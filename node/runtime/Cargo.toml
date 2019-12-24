@@ -5,32 +5,33 @@ authors = ["Jasl"]
 edition = "2018"
 
 [dependencies]
-aura = { package = "pallet-aura", path = "../../substrate/frame/aura", default-features = false }
-aura-primitives = { package = "sp-consensus-aura", path = "../../substrate/primitives/consensus/aura", default-features = false }
-balances = { package = "pallet-balances", path = "../../substrate/frame/balances", default-features = false }
-block-builder-api = { package = "sp-block-builder", path = "../../substrate/primitives/block-builder/runtime-api", default-features = false}
+aura = { version = "2.0.0", default-features = false, package = "pallet-aura", path = "../../substrate/frame/aura" }
+balances = { version = "2.0.0", default-features = false, package = "pallet-balances", path = "../../substrate/frame/balances" }
+frame-support = { version = "2.0.0", default-features = false, path = "../../substrate/frame/support" }
+grandpa = { version = "2.0.0", default-features = false, package = "pallet-grandpa", path = "../../substrate/frame/grandpa" }
+indices = { version = "2.0.0", default-features = false, package = "pallet-indices", path = "../../substrate/frame/indices" }
+randomness-collective-flip = { version = "2.0.0", default-features = false, package = "pallet-randomness-collective-flip", path = "../../substrate/frame/randomness-collective-flip" }
+sudo = { version = "2.0.0", default-features = false, package = "pallet-sudo", path = "../../substrate/frame/sudo" }
+system = { version = "2.0.0", default-features = false, package = "frame-system", path = "../../substrate/frame/system" }
+timestamp = { version = "2.0.0", default-features = false, package = "pallet-timestamp", path = "../../substrate/frame/timestamp" }
+transaction-payment = { version = "2.0.0", default-features = false, package = "pallet-transaction-payment", path = "../../substrate/frame/transaction-payment" }
+
 codec = { package = "parity-scale-codec", version = "1.0.0", default-features = false, features = ["derive"] }
-executive = { package = "frame-executive", path = "../../substrate/frame/executive", default-features = false }
-grandpa = { package = "pallet-grandpa", path = "../../substrate/frame/grandpa", default-features = false }
-indices = { package = "pallet-indices", path = "../../substrate/frame/indices", default-features = false }
-inherents = { package = "sp-inherents", path = "../../substrate/primitives/inherents", default-features = false}
-offchain-primitives = { package = "sp-offchain", path = "../../substrate/primitives/offchain", default-features = false }
-primitives = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false }
-randomness-collective-flip = { package = "pallet-randomness-collective-flip", path = "../../substrate/frame/randomness-collective-flip", default-features = false }
-rstd = { package = "sp-std", path = "../../substrate/primitives/sr-std", default-features = false }
-runtime-io = { package = "sp-io", path = "../../substrate/primitives/sr-io", default-features = false }
+frame-executive = { version = "2.0.0", default-features = false, path = "../../substrate/frame/executive" }
 safe-mix = { version = "1.0.0", default-features = false }
 serde = { version = "1.0.101", optional = true, features = ["derive"] }
-sp-api = { path = "../../substrate/primitives/sr-api", default-features = false }
-sp-runtime = { path = "../../substrate/primitives/sr-primitives", default-features = false }
-sp-session = { path = "../../substrate/primitives/session", default-features = false }
-sudo = { package = "pallet-sudo", path = "../../substrate/frame/sudo", default-features = false }
-support = { package = "frame-support", path = "../../substrate/frame/support", default-features = false }
-system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
-timestamp = { package = "pallet-timestamp", path = "../../substrate/frame/timestamp", default-features = false }
-transaction-payment = { package = "pallet-transaction-payment", path = "../../substrate/frame/transaction-payment", default-features = false }
-txpool-runtime-api = { package = "sp-transaction-pool-runtime-api", path = "../../substrate/primitives/transaction-pool/runtime-api", default-features = false }
-version = { package = "sp-version", path = "../../substrate/primitives/sr-version", default-features = false }
+sp-api = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/api" }
+sp-block-builder = { path = "../../substrate/primitives/block-builder", default-features = false}
+sp-consensus-aura = { version = "0.8", default-features = false, path = "../../substrate/primitives/consensus/aura" }
+sp-core = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/core" }
+sp-inherents = { path = "../../substrate/primitives/inherents", default-features = false}
+sp-io = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/io" }
+sp-offchain = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/offchain" }
+sp-runtime = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
+sp-session = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/session" }
+sp-std = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/std" }
+sp-transaction-pool = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/transaction-pool" }
+sp-version = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/version" }
 
 chrono = { version = "0.4", default-features = false, features = ["serde"] }
 itertools = { version = "0.8", default-features = false }
@@ -41,36 +42,37 @@ hex = { version = "0.4", default-features = false }
 # ring = { path = "../../ring", default_features = false, features = ["alloc"] }
 # serde_json_core = {}
 
+
 [build-dependencies]
-wasm-builder-runner = { package = "substrate-wasm-builder-runner", path = "../../substrate/client/utils/wasm-builder-runner", version = "1.0.4" }
+wasm-builder-runner = { version = "1.0.4", package = "substrate-wasm-builder-runner", path = "../../substrate/utils/wasm-builder-runner" }
 
 [features]
 default = ["std"]
 std = [
-	"aura-primitives/std",
 	"aura/std",
 	"balances/std",
-	"block-builder-api/std",
 	"codec/std",
-	"executive/std",
+	"frame-executive/std",
+	"frame-support/std",
 	"grandpa/std",
 	"indices/std",
-	"inherents/std",
-	"offchain-primitives/std",
-	"primitives/std",
 	"randomness-collective-flip/std",
-	"rstd/std",
-	"runtime-io/std",
 	"safe-mix/std",
 	"serde",
 	"sp-api/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-io/std",
+	"sp-offchain/std",
 	"sp-runtime/std",
 	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
 	"sudo/std",
-	"support/std",
 	"system/std",
 	"timestamp/std",
 	"transaction-payment/std",
-	"txpool-runtime-api/std",
-	"version/std",
 ]

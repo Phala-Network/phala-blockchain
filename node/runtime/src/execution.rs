@@ -8,8 +8,9 @@
 /// For more guidance on Substrate modules, see the example module
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 
-use rstd::vec::Vec;
-use support::{decl_module, decl_storage, decl_event, dispatch::Result};
+use frame_support::dispatch::Vec;
+
+use frame_support::{decl_module, decl_storage, decl_event, dispatch};
 use system::ensure_signed;
 
 /// The module's configuration trait.
@@ -38,13 +39,13 @@ decl_module! {
 		// this is needed only if you are using events in your module
 		fn deposit_event() = default;
 
-		pub fn register_worker(origin, json_payload: Vec<u8>) -> Result {
+		pub fn register_worker(origin, json_payload: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_signed(origin)?;
 			// TODO
 			Ok(())
 		}
 
-		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> Result {
+		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
 			CommandNumber::put(num + 1);
@@ -56,7 +57,9 @@ decl_module! {
 
 decl_event!(
 	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
-		// Command(sender: AccountId, contract: u32, payload: vec<u8>, number: u32)
+		// Just a dummy event.
+		// Event `Something` is declared with a parameter of the type `u32` and `AccountId`
+		// To emit this event, we call the deposit funtion, from our runtime funtions
 		CommandPushed(AccountId, u32, Vec<u8>, u32),
 	}
 );
@@ -66,8 +69,8 @@ decl_event!(
 mod tests {
 	use super::*;
 
-	use primitives::H256;
-	use support::{impl_outer_origin, assert_ok, parameter_types, weights::Weight};
+	use sp_core::H256;
+	use frame_support::{impl_outer_origin, assert_ok, parameter_types, weights::Weight};
 	use sp_runtime::{
 		traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
 	};
@@ -103,6 +106,7 @@ mod tests {
 		type MaximumBlockLength = MaximumBlockLength;
 		type AvailableBlockRatio = AvailableBlockRatio;
 		type Version = ();
+		type ModuleToIndex = ();
 	}
 	impl Trait for Test {
 		type Event = ();
@@ -111,7 +115,7 @@ mod tests {
 
 	// This function basically just builds a genesis storage key/value store according to
 	// our desired mockup.
-	fn new_test_ext() -> runtime_io::TestExternalities {
+	fn new_test_ext() -> sp_io::TestExternalities {
 		system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 	}
 

@@ -22,6 +22,6 @@ pnode-runtime = { package = "experimental-node-runtime", path = "../node/runtime
 subxt = { package = "substrate-subxt", path = "../substrate-subxt" }
 system = { package = "frame-system", path = "../substrate/frame/system" }
 sp-rpc = { package = "sp-rpc", path = "../substrate/primitives/rpc" }
-sp-runtime = { package = "sp-runtime", path = "../substrate/primitives/sr-primitives" }
+sp-runtime = { package = "sp-runtime", path = "../substrate/primitives/runtime" }
 sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa"}
 codec = { package = 'parity-scale-codec', version = '1.0.0' }
