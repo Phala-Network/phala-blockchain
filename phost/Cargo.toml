@@ -18,10 +18,10 @@ serde_json = "1.0"
 rand = "0.7"
 bytes = "0.5"
 
-pnode-runtime = { package = "experimental-node-runtime", path = "../node/runtime" }
-subxt = { package = "substrate-subxt", path = "../substrate-subxt" }
-system = { package = "frame-system", path = "../substrate/frame/system" }
-sp-rpc = { package = "sp-rpc", path = "../substrate/primitives/rpc" }
-sp-runtime = { package = "sp-runtime", path = "../substrate/primitives/runtime" }
-sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa"}
+pnode-runtime = { path = "../node/runtime", package = "experimental-node-runtime" }
+subxt = { path = "../substrate-subxt", package = "substrate-subxt" }
+system = { version = "2.0.0", path = "../substrate/frame/system", package = "frame-system" }
+sp-rpc = { version = "2.0.0", path = "../substrate/primitives/rpc", package = "sp-rpc" }
+sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime", package = "sp-runtime" }
+sc-finality-grandpa = { version = "2.0.0", path = "../substrate/client/finality-grandpa", package = "sc-finality-grandpa" }
 codec = { package = 'parity-scale-codec', version = '1.0.0' }

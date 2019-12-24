@@ -8,7 +8,7 @@
 /// For more guidance on Substrate modules, see the example module
 /// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
 
-use frame_support::dispatch::Vec;
+use sp_std::vec::Vec;
 
 use frame_support::{decl_module, decl_storage, decl_event, dispatch};
 use system::ensure_signed;

@@ -1,0 +1,41 @@
+[package]
+name = "substrate-subxt"
+version = "0.4.0"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2018"
+
+license = "GPL-3.0"
+readme = "README.md"
+description = "Submit extrinsics (transactions) to a substrate node via RPC"
+keywords = ["parity", "substrate", "blockchain"]
+include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
+
+[dependencies]
+log = "0.4"
+thiserror = "1.0"
+futures = "0.1"
+jsonrpc-core-client = { version = "14.0", features = ["ws"] }
+num-traits = { version = "0.2", default-features = false }
+serde = { version = "1.0", features = ["derive"] }
+url = "1.7"
+codec = { package = "parity-scale-codec", version = "1.1", default-features = false, features = ["derive", "full"] }
+
+frame-metadata = { path = "../substrate/frame/metadata", package = "frame-metadata" }
+frame-support = { path = "../substrate/frame/support", package = "frame-support" }
+sp-runtime = { path = "../substrate/primitives/runtime", package = "sp-runtime" }
+sp-version = { path = "../substrate/primitives/version", package = "sp-version" }
+pallet-indices = { path = "../substrate/frame/indices", package = "pallet-indices" }
+hex = "0.4.0"
+sc-rpc-api = { path = "../substrate/client/rpc-api", package = "sc-rpc-api" }
+sp-rpc = { path = "../substrate/primitives/rpc", package = "sp-rpc" }
+sp-core = { path = "../substrate/primitives/core", package = "sp-core" }
+sp-transaction-pool = { path = "../substrate/primitives/transaction-pool", package = "sp-transaction-pool" }
+
+[dev-dependencies]
+env_logger = "0.7"
+tokio = "0.1"
+wabt = "0.9"
+frame-system = { path = "../substrate/frame/system", package = "frame-system" }
+node-runtime = { path = "../substrate/bin/node/runtime", package = "node-runtime" }
+pallet-balances = { path = "../substrate/frame/balances", package = "pallet-balances" }
+sp-keyring = { path = "../substrate/primitives/keyring", package = "sp-keyring" }
