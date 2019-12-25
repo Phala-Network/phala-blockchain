@@ -24,6 +24,9 @@ frame-metadata = { path = "../substrate/frame/metadata", package = "frame-metada
 frame-support = { path = "../substrate/frame/support", package = "frame-support" }
 sp-runtime = { path = "../substrate/primitives/runtime", package = "sp-runtime" }
 sp-version = { path = "../substrate/primitives/version", package = "sp-version" }
+frame-system = { path = "../substrate/frame/system", package = "frame-system" }
+pallet-balances = { path = "../substrate/frame/balances", package = "pallet-balances" }
+pallet-contracts = { path = "../substrate/frame/contracts", package = "pallet-contracts" }
 pallet-indices = { path = "../substrate/frame/indices", package = "pallet-indices" }
 hex = "0.4.0"
 sc-rpc-api = { path = "../substrate/client/rpc-api", package = "sc-rpc-api" }
@@ -35,7 +38,5 @@ sp-transaction-pool = { path = "../substrate/primitives/transaction-pool", packa
 env_logger = "0.7"
 tokio = "0.1"
 wabt = "0.9"
-frame-system = { path = "../substrate/frame/system", package = "frame-system" }
 node-runtime = { path = "../substrate/bin/node/runtime", package = "node-runtime" }
-pallet-balances = { path = "../substrate/frame/balances", package = "pallet-balances" }
 sp-keyring = { path = "../substrate/primitives/keyring", package = "sp-keyring" }
