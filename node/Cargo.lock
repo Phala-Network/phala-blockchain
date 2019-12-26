@@ -178,11 +178,11 @@ dependencies = [
 
 [[package]]
 name = "async-task"
-version = "1.0.0"
+version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de6bd58f7b9cc49032559422595c81cbfcf04db2f2133592f70af19e258a1ced"
+checksum = "abdb6048336bef96e8c8fc5573536c5cc5b391fbfd0980349959b7c3f7a40d19"
 dependencies = [
- "crossbeam-utils 0.6.6",
+ "crossbeam-utils 0.7.0",
 ]
 
 [[package]]
@@ -594,10 +594,11 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-queue"
-version = "0.2.0"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dfd6515864a82d2f877b42813d4553292c6659498c9a2aa31bab5a15243c2700"
+checksum = "c695eeca1e7173472a32221542ae469b3e9aac3a4fc81f7696bcad82029493db"
 dependencies = [
+ "cfg-if",
  "crossbeam-utils 0.7.0",
 ]
 
@@ -3501,7 +3502,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "08a89b46efaf957e52b18062fb2f4660f8b8a4dde1807ca002690868ef2c85a9"
 dependencies = [
  "crossbeam-deque",
- "crossbeam-queue 0.2.0",
+ "crossbeam-queue 0.2.1",
  "crossbeam-utils 0.7.0",
  "lazy_static",
  "num_cpus",
