@@ -28,6 +28,9 @@ decl_storage! {
 		// Here we are declaring a StorageValue, `Something` as a Option<u32>
 		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
 		CommandNumber get(fn command_number): Option<u32>;
+
+		// Store a map of TEE key and TEE register info, map Vec<u8> => Vec<u8>
+		TEERegisterInfo get(fn tee_register_info): map Vec<u8> => Vec<u8>;
 	}
 }
 
@@ -50,6 +53,16 @@ decl_module! {
 			let num = Self::command_number().unwrap_or(0);
 			CommandNumber::put(num + 1);
 			Self::deposit_event(RawEvent::CommandPushed(who, contract_id, payload, num));
+			Ok(())
+		}
+
+		// Register TEE
+		pub fn register_tee(origin, pubkey: Vec<u8>, info: Vec<u8>) -> dispatch::DispatchResult {
+			ensure_signed(origin)?;
+
+			// if pubkey exists, the info will be updated
+			TEERegisterInfo::insert(pubkey, info);
+
 			Ok(())
 		}
 	}
