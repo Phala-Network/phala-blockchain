@@ -144,7 +144,7 @@ struct SyncBlockResp {
     synced_to: pnode_runtime::BlockNumber
 }
 
-const PRUNTIME_RPC_BASE: &'static str = "http://172.20.20.211:8000";
+const PRUNTIME_RPC_BASE: &'static str = "http://127.0.0.1:8000";
 
 async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T: Serialize {
     let client = HttpClient::new();

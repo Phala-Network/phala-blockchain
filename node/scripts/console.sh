@@ -13,7 +13,8 @@ dev)
   shift
   "./target/release/${NODE_NAME}" \
       --base-path /tmp/dev \
-      --chain=dev
+      --chain=dev \
+      --rpc-cors=all
 ;;
 start)
   shift
@@ -23,6 +24,7 @@ start)
     "./target/release/${NODE_NAME}" \
         --base-path /tmp/alice \
         --chain=chain.json \
+        --rpc-cors all \
         --alice \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
         --validator "$@"
@@ -31,8 +33,9 @@ start)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path /tmp/bob \
-        --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR \
+        --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmY8R46KqvBHLwBBu8dE3LygvQdFa6usrfyVH6zLzzSjsg \
         --chain=chain.json \
+        --rpc-cors all \
         --bob \
         --port "$BOB_RPC_PORT" \
         --validator "$@"
