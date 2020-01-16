@@ -47,7 +47,7 @@ ring = { path = "../../ring", default_features = false, features = ["alloc"] }
 wasm-builder-runner = { version = "1.0.4", package = "substrate-wasm-builder-runner", path = "../../substrate/utils/wasm-builder-runner" }
 
 [features]
-default = ["std"]
+default = ["std", "include-wasm"]
 std = [
 	"aura/std",
 	"balances/std",
@@ -76,3 +76,4 @@ std = [
 	"timestamp/std",
 	"transaction-payment/std",
 ]
+include-wasm = []
