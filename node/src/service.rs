@@ -13,6 +13,36 @@ use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider};
 use sc_basic_authority;
 
+use codec::{Encode, Decode};
+use sp_runtime::generic::BlockId;
+use sp_core::storage::StorageKey;
+use grandpa_primitives::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sp_state_machine::StorageProof;
+
+// Shared struct between chain client and pRuntime. Used to init the bridge.
+#[derive(Encode, Debug)]
+pub struct GenesisGrandpaInfo {
+	block_header: experimental_node_runtime::Header,
+	pub validator_set: AuthorityList,
+	validator_set_proof: Vec<Vec<u8>>,
+}
+
+impl GenesisGrandpaInfo {
+	fn new(
+		block_header: experimental_node_runtime::Header,
+		validator_set: AuthorityList,
+		validator_set_proof: StorageProof
+	) -> Self {
+		let raw_proof: Vec<Vec<u8>> = validator_set_proof.iter_nodes().collect();
+
+		Self {
+			block_header: block_header,
+			validator_set: validator_set,
+			validator_set_proof: raw_proof,
+		}
+	}
+}
+
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
@@ -81,7 +111,7 @@ macro_rules! new_full_start {
 
 /// Builds a new service for a full client.
 pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisConfig>)
-											 -> Result<impl AbstractService, ServiceError>
+											 -> Result<(impl AbstractService, GenesisGrandpaInfo), ServiceError>
 {
 	let is_authority = config.roles.is_authority();
 	let force_authoring = config.force_authoring;
@@ -104,6 +134,28 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, client)) as _)
 		)?
 		.build()?;
+
+	let grandpa_info = {
+		let client = &service.client();
+		let blocknum = BlockId::Number(0);
+		let header = client.header(&blocknum)
+			.expect("Missing genesis block; qed")
+			.expect("Missing genesis block; qed");
+		// println!("###### genesis header: {:?}", header);
+
+		let storage_proof = client.read_proof(&blocknum, &[GRANDPA_AUTHORITIES_KEY]).expect("No GRANNDPA authorties key; qed");
+		// println!("###### genesis grandpa_authorities proof: {:?}", storage_proof);
+
+		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
+		let validator_set: AuthorityList = client.storage(&blocknum, &storage_key)?
+			.and_then(|encoded| VersionedAuthorityList::decode(&mut encoded.0.as_slice()).ok())
+			.map(|versioned| versioned.into())
+			.expect("Bad genesis config; qed");
+		// println!("###### authority list: {:?}", validator_set);
+
+		GenesisGrandpaInfo::new(header, validator_set, storage_proof)
+	};
+	println!("###### GRANDPA_GENESIS: {:?}", grandpa_info);
 
 	if participates_in_consensus {
 		let proposer = sc_basic_authority::ProposerFactory {
@@ -147,7 +199,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 	let grandpa_config = grandpa::Config {
 		// FIXME #1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
-		justification_period: 512,
+		justification_period: 1,
 		name: Some(name),
 		observer_enabled: true,
 		keystore,
@@ -191,7 +243,7 @@ pub fn new_full<C: Send + Default + 'static>(config: Configuration<C, GenesisCon
 		},
 	}
 
-	Ok(service)
+	Ok((service, grandpa_info))
 }
 
 /// Builds a new service for a light client.

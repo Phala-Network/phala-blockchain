@@ -9,6 +9,14 @@ use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 use crate::chain_spec;
 use log::info;
 
+use codec::Encode;
+
+fn output_genesis_grandpa(genesis_info: service::GenesisGrandpaInfo) {
+	let data = genesis_info.encode();
+	let b64 = base64::encode(&data);
+	println!("Genesis Grandpa Info: {}", b64);
+}
+
 /// Parse command line arguments into service configuration.
 pub fn run<I, T, E>(args: I, exit: E, version: VersionInfo) -> error::Result<()> where
 	I: IntoIterator<Item = T>,
@@ -32,11 +40,11 @@ pub fn run<I, T, E>(args: I, exit: E, version: VersionInfo) -> error::Result<()>
 														 service::new_light(config)?,
 														 exit
 													 ),
-													 _ => run_until_exit(
-														 runtime,
-														 service::new_full(config)?,
-														 exit
-													 ),
+													 _ => {
+														 let (service, genesis_info) = service::new_full(config)?;
+														 output_genesis_grandpa(genesis_info);
+														 run_until_exit(runtime, service, exit)
+												   },
 												 }
 											 }),
 		ParseAndPrepare::BuildSpec(cmd) => cmd.run::<NoCustom, _, _, _>(load_spec),

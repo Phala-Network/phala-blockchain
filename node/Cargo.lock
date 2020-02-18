@@ -834,6 +834,7 @@ dependencies = [
 name = "experimental-node"
 version = "2.0.0"
 dependencies = [
+ "base64 0.10.1",
  "ctrlc",
  "experimental-node-runtime",
  "futures 0.1.29",
@@ -857,6 +858,7 @@ dependencies = [
  "sp-inherents",
  "sp-io",
  "sp-runtime",
+ "sp-state-machine",
  "sp-transaction-pool",
  "substrate-build-script-utils",
  "tokio 0.1.22",

@@ -36,6 +36,8 @@ sc-client = { version = "2.0.0", path = "../substrate/client/" }
 experimental-node-runtime = { version = "2.0.0", path = "runtime" }
 sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime" }
 sc-basic-authority = { path  = "../substrate/client/basic-authorship" }
+sp-state-machine = { version = "2.0.0", path = "../substrate/primitives/state-machine" }
+base64 = "*"
 
 [build-dependencies]
 vergen = "3.0.4"
