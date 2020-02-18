@@ -1,6 +1,8 @@
 #!/bin/bash
 
-BOB_RPC_PORT=30334
+A_P2P_PORT=30333
+B_P2P_PORT=40333
+B_RPC_PORT=40334
 NODE_NAME=experimental-node
 
 BASE_PATH_BASE=/tmp
@@ -50,7 +52,7 @@ start)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path $BASE_PATH_BASE/alice \
-        --chain=chain.json \
+        --chain=local \
         --rpc-cors all \
         --alice \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
@@ -60,11 +62,11 @@ start)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path $BASE_PATH_BASE/bob \
-        --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmY8R46KqvBHLwBBu8dE3LygvQdFa6usrfyVH6zLzzSjsg \
-        --chain=chain.json \
+        --bootnodes "/ip4/127.0.0.1/tcp/${A_P2P_PORT}/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR" \
+        --chain=local \
         --rpc-cors all \
         --bob \
-        --port "$BOB_RPC_PORT" \
+        --port "$B_P2P_PORT" \
         --validator "$@"
   ;;
   *)
