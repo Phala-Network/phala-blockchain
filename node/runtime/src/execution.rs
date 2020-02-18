@@ -100,7 +100,7 @@ fn test_validate_cert() {
 
 	runtime_print!("test_validate_cert: entered!");
 
-	let mut sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
+	let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
 		Ok(x) => x,
 		Err(_) => return
 	};
@@ -155,7 +155,7 @@ decl_module! {
 		// this is needed only if you are using events in your module
 		fn deposit_event() = default;
 
-		pub fn runtest(origin) -> dispatch::DispatchResult {
+		pub fn runtest(_origin) -> dispatch::DispatchResult {
 			test_validate_cert();
 			Ok(())
 		}

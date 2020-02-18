@@ -1,5 +1,3 @@
-// use tokio::io;
-// use tokio::prelude::*;
 use futures_03::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
@@ -19,8 +17,6 @@ use sp_runtime::{
     OpaqueExtrinsic
 };
 
-// use sc_finality_grandpa::GrandpaJustification;
-
 mod error;
 use crate::error::Error;
 
@@ -33,21 +29,6 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::Signe
     let raw_block = Encode::encode(&opaque_block);
     pnode_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
 }
-
-// fn print_jutification(justification: &Vec<u8>) {
-//     let grandpa_j = match GrandpaJustification::<pnode_runtime::Block>::decode(&mut justification.as_slice()) {
-//         Ok(j) => j,
-//         Err(err) => {
-//             println!("Err: {:?}", err);
-//             return;
-//         }
-//     };
-//     println!("GrandpaJustification:: <private>");
-//     // println!("Justification: {{ round: {}, commit: {:?}, votes_ancestries: {:?} }}",
-//     //          grandpa_j.round,
-//     //          grandpa_j.commit,
-//     //          grandpa_j.votes_ancestries);
-// }
 
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
         -> Result<pnode_runtime::SignedBlock, Error> {
