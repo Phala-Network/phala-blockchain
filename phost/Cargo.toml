@@ -17,6 +17,8 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 rand = "0.7"
 bytes = "0.5"
+structopt = { version = "0.3", features = ["paw"] }
+paw = "1.0"
 
 pnode-runtime = { path = "../node/runtime", package = "experimental-node-runtime", default-features = false, features = ["std"] }
 subxt = { path = "../substrate-subxt", package = "substrate-subxt" }
