@@ -61,28 +61,8 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
     Ok(block)
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-struct InitRuntimeReq {
-    skip_ra: bool,
-    bridge_genesis_info_b64: String
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct InitRuntimeResp {
-    public_key: String,
-    attestation: InitRespAttestation,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct InitRespAttestation {
-    version: i32,
-    provider: String,
-    // payload: { report, signature, signing_cert }
-}
 trait Resp {
     type Resp: DeserializeOwned;
-}
-impl Resp for InitRuntimeReq {
-    type Resp = InitRuntimeResp;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -104,9 +84,6 @@ impl Nonce {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct Null {}
-
-#[derive(Serialize, Deserialize, Debug)]
 struct RuntimeReq<T: Serialize> {
     input: T,
     nonce: Nonce,
@@ -118,51 +95,48 @@ impl<T: Serialize> RuntimeReq<T> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-struct GetInfo {
-    input: Null,
-    nonce: Nonce
-}
-
-impl GetInfo {
-    fn new() -> GetInfo {
-        GetInfo {
-            input: Null {},
-            nonce: Nonce::new()
-        }
-    }
-}
-
+struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 struct GetInfoResp {
     blocknum: pnode_runtime::BlockNumber,
     initialized: bool,
     public_key: String
 }
+impl Resp for GetInfoReq {
+    type Resp = GetInfoResp;
+}
 
 #[derive(Serialize, Deserialize, Debug)]
-struct SyncBlockInput {
+struct InitRuntimeReq {
+    skip_ra: bool,
+    bridge_genesis_info_b64: String
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct InitRuntimeResp {
+    public_key: String,
+    attestation: InitRespAttestation,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct InitRespAttestation {
+    version: i32,
+    provider: String,
+    // payload: { report, signature, signing_cert }
+}
+impl Resp for InitRuntimeReq {
+    type Resp = InitRuntimeResp;
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SyncBlockReq {
     // base64 encoded raw SignedBlock
     data: String
 }
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SyncBlock {
-    input: SyncBlockInput,
-    nonce: Nonce
-}
-
-impl SyncBlock {
-    fn new(raw_block: String) -> SyncBlock {
-        SyncBlock {
-            input: SyncBlockInput { data: raw_block },
-            nonce: Nonce::new()
-        }
-    }
-}
-
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockResp {
     synced_to: pnode_runtime::BlockNumber
+}
+impl Resp for SyncBlockReq {
+    type Resp = SyncBlockResp;
 }
 
 const PRUNTIME_RPC_BASE: &'static str = "http://127.0.0.1:8000";
@@ -191,36 +165,30 @@ async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T:
     Ok(signed_resp)
 }
 
-async fn req_get_info() -> Result<GetInfoResp, Error> {
-    let resp = req("get_info", &GetInfo::new()).await?;
-    let result: GetInfoResp = serde_json::from_str(&*(resp.payload)).unwrap();
+async fn req_decode<Req>(command: &str, request: Req) -> Result<Req::Resp, Error>
+where Req: Serialize + Resp {
+    let payload = RuntimeReq::new(request);
+    let resp = req(command, &payload).await?;
+    let result: Req::Resp = serde_json::from_str(&resp.payload).unwrap();
     Ok(result)
 }
 
 async fn req_sync_block(block: &pnode_runtime::SignedBlock) -> Result<SyncBlockResp, Error> {
     let raw_block = Encode::encode(block);
-    let resp = req("sync_block", &SyncBlock::new(base64::encode(&raw_block))).await?;
+    let b64_block = base64::encode(&raw_block);
+    let resp = req_decode("sync_block", SyncBlockReq { data: b64_block }).await?;
     println!("req_sync_block: {:?}", resp);
-    let result: SyncBlockResp = serde_json::from_str(&*(resp.payload)).unwrap();
-    Ok(result)
-}
-
-async fn req_decode<'de, Req>(command: &str, request: &Req) -> Result<Req::Resp, Error>
-where Req: Serialize + Resp {
-    let payload = RuntimeReq::new(request.clone());
-    let resp = req(command, &payload).await?;
-    let result: Req::Resp = serde_json::from_str(&resp.payload).unwrap();
-    Ok(result)
+    Ok(resp)
 }
 
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new().build().compat().await?;
 
-    let mut info = req_get_info().await?;
+    let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        req_decode("init_runtime", &InitRuntimeReq {
+        req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: args.genesis
         }).await?;
@@ -248,7 +216,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // update the latest pRuntime state
-        info = req_get_info().await?;
+        info = req_decode("get_info", GetInfoReq {}).await?;
     }
 }
 
