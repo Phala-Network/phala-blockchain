@@ -2,7 +2,7 @@ use futures_03::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
 
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
 extern crate hyper;
 use hyper::Client as HttpClient;
@@ -20,6 +20,19 @@ use sp_runtime::{
 mod error;
 use crate::error::Error;
 
+#[derive(structopt::StructOpt)]
+struct Args {
+    /// Should init pRuntime?
+    #[structopt(short = "n", long = "no-init")]
+    no_init: bool,
+    /// The genesis grandpa info data for bridge init, in base64
+    #[structopt(short = "g", long = "genesis", default_value = "")]
+    genesis: String,
+    /// Should enable Remote Attestation
+    #[structopt(short = "r", long = "remote-attestation")]
+    ra: bool,
+}
+
 type Runtime = pnode_runtime::Runtime;
 type Header = <Runtime as subxt::system::System>::Header;
 type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
@@ -32,28 +45,44 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::Signe
 
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
         -> Result<pnode_runtime::SignedBlock, Error> {
-    let pos = match h {
-        Some(h) => Some(NumberOrHex::Number(h)),
-        None => None
-    };
-    let hash = match client.block_hash(pos).compat().await? {
-        Some(hash) => hash,
-        None => { eprintln!("Block hash not found!"); return Err(Error::BlockHashNotFound()) }
+    let pos = h.map(|h| NumberOrHex::Number(h));
+    let hash = if pos == None {
+        client.finalized_head().compat().await?
+    } else {
+        client.block_hash(pos).compat().await?
+            .ok_or(Error::BlockHashNotFound())?
     };
     println!("get_block_at: Got block {:?} hash {:?}", h, hash);
 
-    let opaque_block = match client.block(Some(hash)).compat().await? {
-        Some(block) => block,
-        None => { eprintln!("Block not found"); return Err(Error::BlockNotFound()) },
-    };
-
-    // let raw_block = Encode::encode(&opaque_block);
-    // println!("raw block: {}", hex::encode(&raw_block));
+    let opaque_block = client.block(Some(hash)).compat().await?
+                             .ok_or(Error::BlockNotFound())?;
 
     let block = deopaque_signedblock(opaque_block);
-    // println!("block: {:?}", block);
-
     Ok(block)
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct InitRuntimeReq {
+    skip_ra: bool,
+    bridge_genesis_info_b64: String
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct InitRuntimeResp {
+    public_key: String,
+    attestation: InitRespAttestation,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct InitRespAttestation {
+    version: i32,
+    provider: String,
+    // payload: { report, signature, signing_cert }
+}
+trait Resp {
+    type Resp: DeserializeOwned;
+}
+impl Resp for InitRuntimeReq {
+    type Resp = InitRuntimeResp;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -76,6 +105,17 @@ impl Nonce {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct Null {}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct RuntimeReq<T: Serialize> {
+    input: T,
+    nonce: Nonce,
+}
+impl<T: Serialize> RuntimeReq<T> {
+    fn new(input: T) -> Self {
+        Self { input: input, nonce: Nonce::new() }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 struct GetInfo {
@@ -165,25 +205,36 @@ async fn req_sync_block(block: &pnode_runtime::SignedBlock) -> Result<SyncBlockR
     Ok(result)
 }
 
-async fn bridge() -> Result<(), Error> {
+async fn req_decode<'de, Req>(command: &str, request: &Req) -> Result<Req::Resp, Error>
+where Req: Serialize + Resp {
+    let payload = RuntimeReq::new(request.clone());
+    let resp = req(command, &payload).await?;
+    let result: Req::Resp = serde_json::from_str(&resp.payload).unwrap();
+    Ok(result)
+}
+
+async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new().build().compat().await?;
 
     let mut info = req_get_info().await?;
-    if !info.initialized {
-        // TODO: request RA and register to chain
-        println!("pRuntime not initialized. TODO: init it!");
+    if !info.initialized && !args.no_init {
+        println!("pRuntime not initialized. Requesting init");
+        req_decode("init_runtime", &InitRuntimeReq {
+            skip_ra: !args.ra,
+            bridge_genesis_info_b64: args.genesis
+        }).await?;
     }
 
     loop {
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None).await?;
         // info.blocknum is the next needed block
-        println!("try to upload block from {} to {}", info.blocknum, block_tip.block.header.number);
+        println!("try to upload block. next required: {}, finalized tip: {}",
+            info.blocknum, block_tip.block.header.number);
 
         // check if pRuntime has already reached the chain tip.
         if info.blocknum > block_tip.block.header.number {
-            // yes, so wait for new blocks...
             println!("waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;
@@ -201,16 +252,17 @@ async fn bridge() -> Result<(), Error> {
     }
 }
 
-async fn async_main() {
+async fn async_main(args: Args) {
     // start the bridge
-    let r = bridge().await;
+    let r = bridge(args).await;
     println!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
 }
 
-fn main() {
+#[paw::main]
+fn main(args: Args) {
     // tokio 0.1 compatible construction
     use tokio_compat::runtime;
     let mut rt = runtime::Runtime::new().unwrap();
-    rt.block_on_std(async_main());
+    rt.block_on_std(async_main(args));
 }
