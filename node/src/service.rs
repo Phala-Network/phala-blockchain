@@ -3,7 +3,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use sc_client::LongestChain;
-use experimental_node_runtime::{self, GenesisConfig, opaque::Block, RuntimeApi};
+use phala_blockchain_runtime::{self, GenesisConfig, opaque::Block, RuntimeApi};
 use sc_service::{error::{Error as ServiceError}, AbstractService, Configuration, ServiceBuilder};
 use sp_inherents::InherentDataProviders;
 use sc_network::{construct_simple_protocol};
@@ -22,14 +22,14 @@ use sp_state_machine::StorageProof;
 // Shared struct between chain client and pRuntime. Used to init the bridge.
 #[derive(Encode, Debug)]
 pub struct GenesisGrandpaInfo {
-	block_header: experimental_node_runtime::Header,
+	block_header: phala_blockchain_runtime::Header,
 	pub validator_set: AuthorityList,
 	validator_set_proof: Vec<Vec<u8>>,
 }
 
 impl GenesisGrandpaInfo {
 	fn new(
-		block_header: experimental_node_runtime::Header,
+		block_header: phala_blockchain_runtime::Header,
 		validator_set: AuthorityList,
 		validator_set_proof: StorageProof
 	) -> Self {
@@ -46,8 +46,8 @@ impl GenesisGrandpaInfo {
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
-	experimental_node_runtime::api::dispatch,
-	experimental_node_runtime::native_version,
+	phala_blockchain_runtime::api::dispatch,
+	phala_blockchain_runtime::native_version,
 );
 
 construct_simple_protocol! {
@@ -65,7 +65,7 @@ macro_rules! new_full_start {
 		let inherent_data_providers = sp_inherents::InherentDataProviders::new();
 
 		let builder = sc_service::ServiceBuilder::new_full::<
-			experimental_node_runtime::opaque::Block, experimental_node_runtime::RuntimeApi, crate::service::Executor
+			phala_blockchain_runtime::opaque::Block, phala_blockchain_runtime::RuntimeApi, crate::service::Executor
 		>($config)?
 			.with_select_chain(|_config, backend| {
 				Ok(sc_client::LongestChain::new(backend.clone()))
@@ -82,7 +82,7 @@ macro_rules! new_full_start {
 					.ok_or_else(|| sc_service::Error::SelectChainRequired)?;
 
 				let (grandpa_block_import, grandpa_link) =
-					grandpa::block_import::<_, _, _, experimental_node_runtime::RuntimeApi, _>(
+					grandpa::block_import::<_, _, _, phala_blockchain_runtime::RuntimeApi, _>(
 						client.clone(), &*client, select_chain
 					)?;
 

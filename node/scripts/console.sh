@@ -3,7 +3,7 @@
 A_P2P_PORT=30333
 B_P2P_PORT=40333
 B_RPC_PORT=40334
-NODE_NAME=experimental-node
+NODE_NAME=phala-blockchain
 
 BASE_PATH_BASE=/tmp
 SCRIPT_PATH=$(realpath $(dirname "$0"))
@@ -75,7 +75,7 @@ start)
   esac
 ;;
 check-nm)
-  llvm-nm-6.0 -a target/release/wbuild/target/wasm32-unknown-unknown/release/experimental_node_runtime.wasm
+  llvm-nm-6.0 -a target/release/wbuild/target/wasm32-unknown-unknown/release/phala_blockchain_runtime.wasm
 ;;
 wrap-build)
   chmod +x "$SCRIPT_PATH/ccwrapper/ar" "$SCRIPT_PATH/ccwrapper/clang"

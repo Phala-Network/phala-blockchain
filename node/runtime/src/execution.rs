@@ -160,11 +160,6 @@ decl_module! {
 			Ok(())
 		}
 
-		pub fn register_worker(origin) -> dispatch::DispatchResult {
-			ensure_signed(origin)?;
-			Ok(())
-		}
-
 		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
@@ -173,8 +168,7 @@ decl_module! {
 			Ok(())
 		}
 
-		// Register TEE
-		pub fn register_tee(origin, pubkey: Vec<u8>, info: Vec<u8>) -> dispatch::DispatchResult {
+		pub fn register_worker(origin, pubkey: Vec<u8>, info: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_signed(origin)?;
 
 			// if pubkey exists, the info will be updated

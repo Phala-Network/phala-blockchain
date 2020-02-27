@@ -101,7 +101,7 @@ struct GetInfoResp {
     blocknum: pnode_runtime::BlockNumber,
     initialized: bool,
     public_key: String,
-    ecdh_public_key: Strig,
+    ecdh_public_key: String,
 }
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;

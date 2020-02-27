@@ -1,5 +1,5 @@
 [package]
-name = "experimental-node-runtime"
+name = "phala-blockchain-runtime"
 version = "2.0.0"
 authors = ["Jasl"]
 edition = "2018"

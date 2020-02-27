@@ -15,7 +15,7 @@ fn main() -> Result<(), cli::error::Error> {
 		name: "Experimental Substrate Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
-		executable_name: "experimental-node",
+		executable_name: "phala-blockchain",
 		author: "Jasl",
 		description: "Experimental Substrate Node to evaluate PKI verification on Runtime.",
 		support_url: "support.anonymous.an",

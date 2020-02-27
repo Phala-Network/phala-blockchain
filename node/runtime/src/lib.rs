@@ -102,8 +102,8 @@ pub mod opaque {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("experimental-node"),
-	impl_name: create_runtime_str!("experimental-node"),
+	spec_name: create_runtime_str!("phala-blockchain"),
+	impl_name: create_runtime_str!("phala-blockchain"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 1,

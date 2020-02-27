@@ -1,5 +1,5 @@
 use sp_core::{Pair, Public, sr25519};
-use experimental_node_runtime::{
+use phala_blockchain_runtime::{
 	AccountId, AuraConfig, BalancesConfig, GenesisConfig, GrandpaConfig,
 	SudoConfig, IndicesConfig, SystemConfig, WASM_BINARY, Signature
 };

@@ -1,12 +1,12 @@
 [package]
-name = "experimental-node"
+name = "phala-blockchain"
 version = "2.0.0"
 authors = ["Jasl"]
 build = "build.rs"
 edition = "2018"
 
 [[bin]]
-name = "experimental-node"
+name = "phala-blockchain"
 path = "src/main.rs"
 
 [dependencies]
@@ -33,7 +33,7 @@ sp-consensus = { version = "0.8", path = "../substrate/primitives/consensus/comm
 grandpa = { version = "2.0.0", package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa" }
 grandpa-primitives = { version = "2.0.0", package = "sp-finality-grandpa", path = "../substrate/primitives/finality-grandpa" }
 sc-client = { version = "2.0.0", path = "../substrate/client/" }
-experimental-node-runtime = { version = "2.0.0", path = "runtime" }
+phala-blockchain-runtime = { version = "2.0.0", path = "runtime" }
 sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime" }
 sc-basic-authority = { path  = "../substrate/client/basic-authorship" }
 sp-state-machine = { version = "2.0.0", path = "../substrate/primitives/state-machine" }

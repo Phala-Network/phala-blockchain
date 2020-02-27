@@ -20,7 +20,7 @@ bytes = "0.5"
 structopt = { version = "0.3", features = ["paw"] }
 paw = "1.0"
 
-pnode-runtime = { path = "../node/runtime", package = "experimental-node-runtime", default-features = false, features = ["std"] }
+pnode-runtime = { path = "../node/runtime", package = "phala-blockchain-runtime", default-features = false, features = ["std"] }
 subxt = { path = "../substrate-subxt", package = "substrate-subxt" }
 system = { version = "2.0.0", path = "../substrate/frame/system", package = "frame-system" }
 sp-rpc = { version = "2.0.0", path = "../substrate/primitives/rpc", package = "sp-rpc" }

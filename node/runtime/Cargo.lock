@@ -328,46 +328,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34f8467a0284de039e6bd0e25c14519538462ba5beb548bb1f03e645097837a8"
 
 [[package]]
-name = "experimental-node-runtime"
-version = "2.0.0"
-dependencies = [
- "base64",
- "chrono",
- "frame-executive",
- "frame-support",
- "frame-system",
- "hex",
- "itertools",
- "pallet-aura",
- "pallet-balances",
- "pallet-grandpa",
- "pallet-indices",
- "pallet-randomness-collective-flip",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "ring",
- "safe-mix",
- "serde",
- "sp-api",
- "sp-block-builder",
- "sp-consensus-aura",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "substrate-wasm-builder-runner",
- "untrusted",
- "webpki",
-]
-
-[[package]]
 name = "failure"
 version = "0.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1208,6 +1168,46 @@ checksum = "006c038a43a45995a9670da19e67600114740e8511d4333bf97a56e66a7542d9"
 dependencies = [
  "byteorder",
  "crypto-mac",
+]
+
+[[package]]
+name = "phala-blockchain-runtime"
+version = "2.0.0"
+dependencies = [
+ "base64",
+ "chrono",
+ "frame-executive",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "itertools",
+ "pallet-aura",
+ "pallet-balances",
+ "pallet-grandpa",
+ "pallet-indices",
+ "pallet-randomness-collective-flip",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "ring",
+ "safe-mix",
+ "serde",
+ "sp-api",
+ "sp-block-builder",
+ "sp-consensus-aura",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-offchain",
+ "sp-runtime",
+ "sp-session",
+ "sp-std",
+ "sp-transaction-pool",
+ "sp-version",
+ "substrate-wasm-builder-runner",
+ "untrusted",
+ "webpki",
 ]
 
 [[package]]
