@@ -80,6 +80,8 @@ check-nm)
 wrap-build)
   chmod +x "$SCRIPT_PATH/ccwrapper/ar" "$SCRIPT_PATH/ccwrapper/clang"
   export PATH="$SCRIPT_PATH/ccwrapper:$PATH"
+  export CC="$SCRIPT_PATH/ccwrapper/clang"
+  export AR="$SCRIPT_PATH/ccwrapper/ar"
   echo "$(date) | wrap-build" >> "$SCRIPT_PATH/ccwrapper/clang.log"
   echo "$(date) | wrap-build" >> "$SCRIPT_PATH/ccwrapper/ar.log"
   shift
