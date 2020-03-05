@@ -1,6 +1,7 @@
 use futures_03::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
+use std::fs;
 
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
@@ -28,9 +29,24 @@ struct Args {
     /// The genesis grandpa info data for bridge init, in base64
     #[structopt(short = "g", long = "genesis", default_value = "")]
     genesis: String,
+    /// The genesis grandpa info data for bridge init, in base64
+    #[structopt(short = "f", long = "genesis-file",
+                default_value = "/tmp/alice/chains/local_testnet/genesis-info.txt")]
+    genesis_file: String,
     /// Should enable Remote Attestation
     #[structopt(short = "r", long = "remote-attestation")]
     ra: bool,
+}
+
+impl Args {
+    fn get_genesis(&self) -> String {
+        if !self.genesis.is_empty() {
+            self.genesis.clone()
+        } else {
+            let data = fs::read(&self.genesis_file).expect("Missing genesis file");
+            String::from_utf8_lossy(&data).to_string()
+        }
+    }
 }
 
 type Runtime = pnode_runtime::Runtime;
@@ -191,7 +207,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         println!("pRuntime not initialized. Requesting init");
         req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
-            bridge_genesis_info_b64: args.genesis
+            bridge_genesis_info_b64: args.get_genesis()
         }).await?;
     }
 

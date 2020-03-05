@@ -1,6 +1,8 @@
 use crate::service;
 use futures::{future::{select, Map}, FutureExt, TryFutureExt, channel::oneshot, compat::Future01CompatExt};
 use std::cell::RefCell;
+use std::fs;
+use std::path::PathBuf;
 use tokio::runtime::Runtime;
 pub use sc_cli::{VersionInfo, IntoExit, error};
 use sc_cli::{display_role, informant, parse_and_prepare, ParseAndPrepare, NoCustom};
@@ -11,10 +13,11 @@ use log::info;
 
 use codec::Encode;
 
-fn output_genesis_grandpa(genesis_info: service::GenesisGrandpaInfo) {
+fn output_genesis_grandpa(genesis_info: service::GenesisGrandpaInfo, save_dir: &PathBuf) {
 	let data = genesis_info.encode();
 	let b64 = base64::encode(&data);
-	println!("Genesis Grandpa Info: {}", b64);
+	println!("Genesis Grandpa Info ({}): {}", save_dir.to_str().unwrap(), b64);
+	fs::write(save_dir, &b64).expect("Unable to write genesis-info.txt");
 }
 
 /// Parse command line arguments into service configuration.
@@ -41,8 +44,10 @@ pub fn run<I, T, E>(args: I, exit: E, version: VersionInfo) -> error::Result<()>
 														 exit
 													 ),
 													 _ => {
+														 let genesis_info_path = config.in_chain_config_dir("genesis-info.txt")
+														 		 .expect("Missing base_path");
 														 let (service, genesis_info) = service::new_full(config)?;
-														 output_genesis_grandpa(genesis_info);
+														 output_genesis_grandpa(genesis_info, &genesis_info_path);
 														 run_until_exit(runtime, service, exit)
 												   },
 												 }
