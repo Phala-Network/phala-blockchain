@@ -5,12 +5,15 @@ B_P2P_PORT=40333
 B_RPC_PORT=40334
 NODE_NAME=phala-blockchain
 
-BASE_PATH_BASE=/tmp
+BASE_PATH_BASE="/tmp/$USER"
 SCRIPT_PATH=$(realpath $(dirname "$0"))
 
 if [[ $(pwd) == *"/staging/"* ]]; then
-  BASE_PATH_BASE=/tmp/staging
-  mkdir $BASE_PATH_BASE
+  BASE_PATH_BASE="/tmp/$USER/staging"
+fi
+
+if [ ! -e "$BASE_PATH_BASE" ]; then
+  mkdir -p "$BASE_PATH_BASE"
 fi
 
 case $1 in
