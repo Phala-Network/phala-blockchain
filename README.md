@@ -115,6 +115,7 @@ cd phost
 
     - The datadir is at `/tmp/$USER/(alice|bob)`
     - Can be purged by `./scripts/console.sh purge`
+    - The WebUI can connect to Alice at port 9944.
 
 2. Run pHost (please start pRuntime first):
 
@@ -125,3 +126,5 @@ cd phost
 
     - `-f`: Specify the genesis state to initialize the Substrate bridge in pRuntime. The file is
       produced by the blockchain node when launching.
+    - pHost quits every time the blockchain node or the pRuntime is down. Remember to relauch when
+      necessary.
