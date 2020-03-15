@@ -1,80 +1,127 @@
-# Experimental Node
+# Phala Blockchain
 
-A new SRML-based Substrate node, ready for hacking.
+Phala Network is a TEE-Blockchain hybrid architecture implementing Confidential Contract. This repo
+includes:
 
-## Prepare
+- `node/`: the main blockchain built on Substrate
+- `phost/`: the bridge daemon to connect the blockchain and
+  [pRuntime](https://github.com/Phala-Network/phala-pruntime)
 
-`git submodule update --init`
+## Overview
 
-## Build
+![](docs/static/diagram.png)
 
-Install Rust:
+The **blockchain** is the central compoent of the system. It records commands (confidential contract
+invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
 
-```bash
-curl https://sh.rustup.rs -sSf | sh
+**pHost** is a daemon program that connects the blockchain and the pRuntime. It passes the block
+data from the chain to pRuntime and passes pRuntime side effects back to the chain.
+
+Related repos:
+
+- [phala-docs](https://github.com/Phala-Network/phala-docs): The central repo for documentations.
+- [phala-pruntime](https://github.com/Phala-Network/phala-pruntime): The cotract executor running
+  inside TEE enclaves.
+- [phala-polka-apps](https://github.com/Phala-Network/phala-polka-apps): The Web UI and SDK to
+  interact with confidential contract. Based on polkadot.js.
+- [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker): The W3F M2 docker
+  build with the blockchain, pHost and pRuntime.
+
+### File structure
+
+```text
+.
+├── LICENSE
+├── README.md
+├── node                      Blockchain node
+│   ├── runtime               The runtime
+│   │   └── src
+│   │       ├── execution.rs  Phala Network's main runtime module
+│   │       └── lib.rs        Entry of the runtime
+│   ├── scripts
+│   │   ├── ccwrapper/        Helper scripts for building
+│   │   ├── console.sh        Helper script to build & run the blockchain
+│   │   └── init.sh
+│   └── src/                  The node
+├── phost                     The bridge deamon "pHost"
+│   ├── scripts               
+│   │   └── console.sh        Helper script
+│   └── src
+└── ring                      Patched ring with wasm support
 ```
 
-Initialize your Wasm Build environment:
+## Docker bulid
+
+Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker). It includes both the blockchain and pRuntime.
+
+## Native Build
+
+### Dependencies
+
+<details><summary>Expand</summary>
+
+- Rust
+
+  ```bash
+  curl https://sh.rustup.rs -sSf | sh
+  ```
+
+- Substrate dependecies:
+
+   ```bash
+   cd node
+   sh ./scripts/init.sh
+   ```
+
+- LLVM 9
+
+  ```bash
+  wget https://apt.llvm.org/llvm.sh
+  chmod +x llvm.sh
+  ./llvm.sh 9
+  ```
+
+</details>
+
+### Build the blockchain
+
+Make sure you have Rust and LLVM-9 installed.
 
 ```bash
-./scripts/init.sh
+cd node
+./scripts/console.sh wrap-build
 ```
 
-Build Wasm and native code:
+The above script runs a regular `cargo build --release` and enforce LLVM-9 is used in addition.
+LLVM-9 is needed because of the wasm port of rust crypto library, `ring`. We have to compile the C
+code into wasm while keeping the compatibiliy with the _current_ rustc.
+
+### Build the bridge
 
 ```bash
-cargo build --release
+cd phost
+./scripts/console.sh build --release
 ```
 
 ## Run
 
-### Single node development chain
+1. Launch two local dev nodes Alice and Bob:
 
-Purge any existing developer chain state:
+    ```bash
+    cd phost
+    ./scripts/console.sh start alice
+    ./scripts/console.sh start bob
+    ```
 
-```bash
-./target/release/node-template purge-chain --dev
-```
+    - The datadir is at `/tmp/$USER/(alice|bob)`
+    - Can be purged by `./scripts/console.sh purge`
 
-Start a development chain with:
+2. Run pHost (please start pRuntime first):
 
-```bash
-./target/release/node-template --dev
-```
+    ```bash
+    cd phost
+    ./target/release/phost -f "/tmp/${USER}/alice/chains/local_testnet/genesis-info.txt"
+    ```
 
-Detailed logs may be shown by running the node with the following environment variables set: `RUST_LOG=debug RUST_BACKTRACE=1 cargo run -- --dev`.
-
-### Multi-node local testnet
-
-If you want to see the multi-node consensus algorithm in action locally, then you can create a local testnet with two validator nodes for Alice and Bob, who are the initial authorities of the genesis chain that have been endowed with testnet units.
-
-Optionally, give each node a name and expose them so they are listed on the Polkadot [telemetry site](https://telemetry.polkadot.io/#/Local%20Testnet).
-
-You'll need two terminal windows open.
-
-We'll start Alice's substrate node first on default TCP port 30333 with her chain database stored locally at `/tmp/alice`. The bootnode ID of her node is `QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR`, which is generated from the `--node-key` value that we specify below:
-
-```bash
-cargo run -- \
-  --base-path /tmp/alice \
-  --chain=local \
-  --alice \
-  --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
-  --telemetry-url ws://telemetry.polkadot.io:1024 \
-  --validator
-```
-
-In the second terminal, we'll start Bob's substrate node on a different TCP port of 30334, and with his chain database stored locally at `/tmp/bob`. We'll specify a value for the `--bootnodes` option that will connect his node to Alice's bootnode ID on TCP port 30333:
-
-```bash
-cargo run -- \
-  --base-path /tmp/bob \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR \
-  --chain=local \
-  --bob \
-  --port 30334 \
-  --telemetry-url ws://telemetry.polkadot.io:1024 \
-  --validator
-```
-
-Additional CLI usage options are available and may be shown by running `cargo run -- --help`.
+    - `-f`: Specify the genesis state to initialize the Substrate bridge in pRuntime. The file is
+      produced by the blockchain node when launching.
