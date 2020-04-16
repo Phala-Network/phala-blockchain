@@ -37,7 +37,7 @@ sp-finality-grandpa = { version = "2.0.0-dev", path = "../substrate/primitives/f
 sc-client = { version = "0.8.0-dev", path = "../substrate/client/" }
 sc-client-api = { version = "2.0.0-dev", path = "../substrate/client/api" }
 sp-runtime = { version = "2.0.0-dev", path = "../substrate/primitives/runtime" }
-sc-basic-authorship = { path = "../substrate/client/basic-authorship", version = "0.8.0-dev"}
+sc-basic-authorship = { version = "0.8.0-dev", path = "../substrate/client/basic-authorship" }
 
 phala-blockchain-runtime = { version = "2.0.0-dev", path = "../runtime" }
 

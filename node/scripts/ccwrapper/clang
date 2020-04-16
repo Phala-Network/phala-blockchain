@@ -3,4 +3,4 @@
 CUR_DIR=$(dirname "$0")
 echo "$(date) | wrap | clang $@" >> "$CUR_DIR/clang.log"
 
-clang-9 "$@"
+clang-10 "$@"
