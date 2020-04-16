@@ -1,25 +1,23 @@
 //! Substrate Node Template CLI library.
-
 #![warn(missing_docs)]
-#![warn(unused_extern_crates)]
 
 mod chain_spec;
 #[macro_use]
 mod service;
 mod cli;
+mod command;
 
-pub use sc_cli::{VersionInfo, IntoExit, error};
-
-fn main() -> Result<(), cli::error::Error> {
-	let version = VersionInfo {
-		name: "Experimental Substrate Node",
+fn main() -> sc_cli::Result<()> {
+	let version = sc_cli::VersionInfo {
+		name: "Phala Blockchain Node",
 		commit: env!("VERGEN_SHA_SHORT"),
 		version: env!("CARGO_PKG_VERSION"),
 		executable_name: "phala-blockchain",
-		author: "Jasl",
-		description: "Experimental Substrate Node to evaluate PKI verification on Runtime.",
+		author: "Phala",
+		description: "Phala network",
 		support_url: "support.anonymous.an",
+		copyright_start_year: 2017,
 	};
 
-	cli::run(std::env::args(), cli::Exit, version)
+	command::run(version)
 }
