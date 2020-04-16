@@ -1,4 +1,4 @@
-use futures_03::compat::Future01CompatExt;
+// use futures::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
 use std::fs;
