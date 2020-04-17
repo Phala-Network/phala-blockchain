@@ -1,4 +1,4 @@
-// use futures::compat::Future01CompatExt;
+use futures::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
 use std::fs;
@@ -169,7 +169,7 @@ async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T:
         .uri(endpoint)
         .header("content-type", "application/json")
         .body(Body::from(body_json))?;
-    
+
     let res = client.request(req).await?;
 
     println!("Response: {}", res.status());

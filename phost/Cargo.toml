@@ -7,9 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-futures = "0.3.4" # { package = "futures", version = "0.3.4", features = ["compat"] }
+futures = { package = "futures", version = "0.3.4", features = ["compat"] }
 tokio = { version = "0.2", features = ["full"] }
-tokio-compat = { git = "https://github.com/tokio-rs/tokio-compat.git" }
+tokio-compat = "0.1.4"
 hyper = { version = "0.13" }
 hex = { version = "*" }
 base64 = "0.11"

@@ -2402,7 +2402,7 @@ dependencies = [
  "structopt 0.3.13 (registry+https://github.com/rust-lang/crates.io-index)",
  "substrate-subxt 0.6.0",
  "tokio 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)",
- "tokio-compat 0.1.5 (git+https://github.com/tokio-rs/tokio-compat.git)",
+ "tokio-compat 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -4450,7 +4450,7 @@ dependencies = [
 [[package]]
 name = "tokio-compat"
 version = "0.1.5"
-source = "git+https://github.com/tokio-rs/tokio-compat.git#180076a0d31f12c19c4a7e0f449487a22a7fea02"
+source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "futures 0.1.29 (registry+https://github.com/rust-lang/crates.io-index)",
  "futures-core 0.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5318,7 +5318,7 @@ dependencies = [
 "checksum tiny-bip39 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)" = "b0165e045cc2ae1660270ca65e1676dbaab60feb0f91b10f7d0665e9b47e31f2"
 "checksum tiny-keccak 2.0.2 (registry+https://github.com/rust-lang/crates.io-index)" = "2c9d3793400a45f954c52e73d068316d76b6f4e36977e3fcebb13a2721e80237"
 "checksum tokio 0.2.18 (registry+https://github.com/rust-lang/crates.io-index)" = "34ef16d072d2b6dc8b4a56c70f5c5ced1a37752116f8e7c1e80c659aa7cb6713"
-"checksum tokio-compat 0.1.5 (git+https://github.com/tokio-rs/tokio-compat.git)" = "<none>"
+"checksum tokio-compat 0.1.5 (registry+https://github.com/rust-lang/crates.io-index)" = "55ae6e8f0b3bf2c9908bd050ec35598ca71990185e5618fa7a2bbd98771c3e53"
 "checksum tokio-current-thread 0.1.7 (registry+https://github.com/rust-lang/crates.io-index)" = "b1de0e32a83f131e002238d7ccde18211c0a5397f60cbfffcb112868c2e0e20e"
 "checksum tokio-executor 0.1.10 (registry+https://github.com/rust-lang/crates.io-index)" = "fb2d1b8f4548dbf5e1f7818512e9c406860678f29c300cdf0ebac72d1a3a1671"
 "checksum tokio-io 0.1.13 (registry+https://github.com/rust-lang/crates.io-index)" = "57fc868aae093479e3131e3d165c93b1c7474109d13c90ec0dda2a1bbfff0674"
