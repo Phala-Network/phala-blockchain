@@ -50,3 +50,4 @@ ring/doc/doc.css
 
 # node runtime
 node/scripts/ccwrapper/*.log
+node/scripts/ccwrapper/latest-*

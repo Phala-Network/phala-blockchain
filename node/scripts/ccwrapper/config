@@ -1,0 +1,29 @@
+#!/bin/bash
+
+CUR_DIR=$(dirname "$0")
+
+function create_stab {
+  tool=$1
+
+  stab="${CUR_DIR}/latest-${tool}"
+  touch "$stab"
+  chmod +x "$stab"
+
+  for ver in '11' '10' '9'
+  do
+    if type "${tool}-${ver}" > /dev/null 2>&1; then
+      echo """#!/bin/bash
+        ${tool}-${ver} \"\$@\"
+        """ > "$stab"
+      return 0
+    fi
+  done
+  echo """#!/bin/bash
+    echo 'WARN: ${tool} no preferred version'
+    ${tool} "$@"
+    """ > "$stab"
+  return -1
+}
+
+create_stab clang
+create_stab llvm-ar
