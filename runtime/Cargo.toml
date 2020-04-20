@@ -43,7 +43,8 @@ pallet-phala = { version = "2.0.0-dev", default-features = false, path = "../pal
 wasm-builder-runner = { version = "1.0.5", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
 
 [features]
-default = ["std"]
+default = ["std", "include-wasm"]
+include-wasm = []
 std = [
 	"aura/std",
 	"balances/std",
