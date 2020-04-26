@@ -15,8 +15,8 @@ use sp_runtime::{
 	transaction_validity::{TransactionValidity, TransactionSource},
 };
 use sp_runtime::traits::{
-	BlakeTwo256, Block as BlockT, IdentityLookup, Verify, ConvertInto, IdentifyAccount
-};
+	Block as BlockT, IdentityLookup, Verify, ConvertInto, IdentifyAccount
+}; // BlakeTwo256,
 use sp_api::impl_runtime_apis;
 use sp_consensus_aura::sr25519::AuthorityId as AuraId;
 use grandpa::AuthorityList as GrandpaAuthorityList;
@@ -36,6 +36,11 @@ pub use frame_support::{
 	traits::Randomness,
 	weights::Weight,
 };
+
+#[cfg(not(feature = "native-nostd-hasher"))]
+type Hasher = sp_runtime::traits::BlakeTwo256;
+#[cfg(feature = "native-nostd-hasher")]
+type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 /// Importing pallets
 pub use pallet_phala;
@@ -76,7 +81,7 @@ pub mod opaque {
 	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
 	/// Opaque block header type.
-	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	pub type Header = generic::Header<BlockNumber, Hasher>;
 	/// Opaque block type.
 	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 	/// Opaque block identifier type.
@@ -141,9 +146,9 @@ impl system::Trait for Runtime {
 	/// The type for hashing blocks and tries.
 	type Hash = Hash;
 	/// The hashing algorithm used.
-	type Hashing = BlakeTwo256;
+	type Hashing = Hasher;
 	/// The header type.
-	type Header = generic::Header<BlockNumber, BlakeTwo256>;
+	type Header = generic::Header<BlockNumber, Hasher>;
 	/// The ubiquitous event type.
 	type Event = Event;
 	/// The ubiquitous origin type.
@@ -251,7 +256,7 @@ construct_runtime!(
 /// The address format for describing accounts.
 pub type Address = AccountId;
 /// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
+pub type Header = generic::Header<BlockNumber, Hasher>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification

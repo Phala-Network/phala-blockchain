@@ -85,7 +85,7 @@ Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-gra
 
 ### Build the blockchain
 
-Make sure you have Rust and LLVM-9 installed.
+Make sure you have Rust and LLVM-10 installed.
 
 ```bash
 cd node
