@@ -1,0 +1,80 @@
+[package]
+name = "EnclaveApp"
+version = "0.0.1"
+authors = ["jasl"]
+edition = "2018"
+
+[lib]
+name = "enclaveapp"
+crate-type = ["staticlib"]
+
+[target.'cfg(not(target_env = "sgx"))'.dependencies]
+sgx_backtrace   = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types       = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
+sgx_tstd        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "backtrace"] } # { path = "../rust-sgx-sdk/sgx_tstd", features = ["net", "backtrace"] }
+sgx_tcrypto     = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tcrypto" }
+sgx_tse         = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tse" }
+sgx_trts        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_trts" }
+sgx_rand        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand" }
+sgx_rand_derive = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand_derive" }
+
+[dependencies]
+chrono      = { git = "https://github.com/mesalock-linux/chrono-sgx" } # { path = "../vendor/chrono" }
+webpki      = { git = "https://github.com/mesalock-linux/webpki", branch = "mesalock_sgx" } # { path = "../vendor/webpki" }
+base64      = { git = "https://github.com/mesalock-linux/rust-base64-sgx" } # { path = "../vendor/rust-base64" }
+yasna       = { git = "https://github.com/mesalock-linux/yasna.rs-sgx", features = ["bit-vec", "num-bigint", "chrono"] } # { path = "../vendor/yasna", features = ["bit-vec", "num-bigint", "chrono"] }
+num-bigint  = { git = "https://github.com/mesalock-linux/num-bigint-sgx" } # { path = "../vendor/num-bigint" }
+ring        = { git = "https://github.com/mesalock-linux/ring-sgx", tag = "v0.16.5" } # { path = "../vendor/ring" }
+rust-crypto = { git = "https://github.com/mesalock-linux/rust-crypto-sgx" } # { path = "../vendor/rust-crypto" }
+rustls      = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx", features = ["dangerous_configuration"] } # { path = "../vendor/rustls" }
+webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch = "mesalock_sgx" } # { path = "../vendor/webpki-roots" }
+serde       = { git = "https://github.com/mesalock-linux/serde-sgx", features = ["derive"] } #{ path = "../vendor/serde/serde", features = ["derive"] }
+serde_json  = { git = "https://github.com/mesalock-linux/serde-json-sgx" } # { path = "../vendor/serde-json" }
+libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" } # { path = "../vendor/libsecp256k1" }
+rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.2" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
+# rand_core   = { git = "https://github.com/mesalock-linux/rand-sgx", features = ["getrandom"] } # { path = "../vendor/rand/rand_os"}
+
+bit-vec     = { version = "*", default-features = false}
+httparse    = { version = "1.3.2", default-features = false }
+itertools   = { version = "0.8", default-features = false, features = []}
+lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
+
+runtime              = { path = "../../runtime", default-features = false, package = "phala-blockchain-runtime" }
+sp-io                = { path = "../../substrate/primitives/io", default-features = false }
+sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", default-features = false }
+sp-runtime           = { path = "../../substrate/primitives/runtime", default-features = false }
+parity-scale-codec   = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+
+csv-core = { version = "0.1.5", default-features = false }
+
+# for light_validation
+derive_more = "0.99.0"
+log = { git = "https://github.com/mesalock-linux/log-sgx" }
+hash-db = { version = "0.15.2", default-features = false }
+num = { package = "num-traits", version = "0.2", default-features = false }
+finality-grandpa = { version = "0.10.1", default-features = false, features = ["derive-codec"] }
+trie = { package = "sp-trie", path = "../../substrate/primitives/trie", default-features = false }
+system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
+sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
+# sp-blockchain = { package = "sp-blockchain", path = "../../substrate/primitives/blockchain" }
+sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
+sp-core = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
+# sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/finality-grandpa/"  }
+
+[patch.crates-io]
+memchr = { package = "memchr", path = "../memchr-nostd", default-features = false }
+# aho-corasick = { git = "https://github.com/mesalock-linux/aho-corasick-sgx" }
+# regex = { git = "https://github.com/mesalock-linux/regex-sgx" }
+# Inflector = { path = "../../Inflector" }
+# parity-scale-codec = { git = "https://github.com/mesalock-linux/parity-scale-codec-sgx" }
+# primitive-types = { git = "https://github.com/jasl/parity-common-sgx" }
+# getrandom = { git = "https://github.com/mesalock-linux/getrandom-sgx" }
+
+[features]
+default = [
+  "sp-runtime-interface/disable_target_static_assertions",
+  "sp-io/disable_panic_handler",
+  "sp-io/disable_oom",
+  "sp-io/disable_allocator",
+  "runtime/native-nostd-hasher"
+]
