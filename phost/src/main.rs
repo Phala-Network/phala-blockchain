@@ -247,14 +247,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
-async fn async_main(args: Args) {
-    // start the bridge
+#[paw::main]
+#[tokio::main]
+async fn main(args: Args) {
+    // async_main(args);
     let r = bridge(args).await;
     println!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
-}
-
-#[paw::main]
-fn main(args: Args) {
-    async_main(args);
 }
