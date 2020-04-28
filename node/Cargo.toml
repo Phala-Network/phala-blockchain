@@ -1,6 +1,6 @@
 [package]
 name = "phala-blockchain-node"
-version = "2.0.0"
+version = "2.0.0-dev"
 authors = ["Jasl"]
 description = "Phala Substrate Node"
 edition = "2018"
@@ -13,7 +13,7 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [[bin]]
-name = "phala-blockchain"
+name = "phala-node"
 path = "src/main.rs"
 
 [dependencies]
@@ -24,7 +24,7 @@ structopt = "0.3.8"
 sc-cli = { version = "0.8.0-dev", path = "../substrate/client/cli" }
 sp-core = { version = "2.0.0-dev", path = "../substrate/primitives/core" }
 sc-executor = { version = "0.8.0-dev", path = "../substrate/client/executor" }
-sc-service = { version = "0.8.0-dev", path = "../substrate/client/service" }
+sc-service = { version = "0.8.0-dev", default-features = false, path = "../substrate/client/service" }
 sp-inherents = { version = "2.0.0-dev", path = "../substrate/primitives/inherents" }
 sc-transaction-pool = { version = "2.0.0-dev", path = "../substrate/client/transaction-pool" }
 sp-transaction-pool = { version = "2.0.0-dev", path = "../substrate/primitives/transaction-pool" }
@@ -32,15 +32,14 @@ sc-network = { version = "0.8.0-dev", path = "../substrate/client/network" }
 sc-consensus-aura = { version = "0.8.0-dev", path = "../substrate/client/consensus/aura" }
 sp-consensus-aura = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/aura" }
 sp-consensus = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/common" }
+sc-consensus = { version = "0.8.0-dev", path = "../substrate/client/consensus/common" }
 sc-finality-grandpa = { version = "0.8.0-dev", path = "../substrate/client/finality-grandpa" }
 sp-finality-grandpa = { version = "2.0.0-dev", path = "../substrate/primitives/finality-grandpa" }
-sc-client = { version = "0.8.0-dev", path = "../substrate/client/" }
 sc-client-api = { version = "2.0.0-dev", path = "../substrate/client/api" }
 sp-runtime = { version = "2.0.0-dev", path = "../substrate/primitives/runtime" }
-sc-basic-authorship = { version = "0.8.0-dev", path = "../substrate/client/basic-authorship" }
+sc-basic-authorship = { path = "../substrate/client/basic-authorship", version = "0.8.0-dev"}
 
 phala-blockchain-runtime = { version = "2.0.0-dev", path = "../runtime" }
 
 [build-dependencies]
-vergen = "3.0.4"
 substrate-build-script-utils = { version = "2.0.0-dev", path = "../substrate/utils/build-script-utils" }

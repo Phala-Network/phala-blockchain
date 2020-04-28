@@ -20,7 +20,6 @@ extern crate webpki;
 
 use alloc::vec::Vec;
 use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch};
-use frame_support::weights::{SimpleDispatchInfo, MINIMUM_WEIGHT};
 use frame_system::{self as system, ensure_signed};
 
 #[cfg(test)]
@@ -83,7 +82,7 @@ decl_module! {
 		// this is needed only if you are using events in your pallet
 		fn deposit_event() = default;
 
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = 0]
 		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
@@ -92,7 +91,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = SimpleDispatchInfo::FixedNormal(MINIMUM_WEIGHT)]
+		#[weight = 0]
 		pub fn register_worker(origin, pubkey: Vec<u8>, info: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_signed(origin)?;
 
