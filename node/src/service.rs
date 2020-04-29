@@ -12,6 +12,48 @@ pub use sc_executor::NativeExecutor;
 use sp_consensus_aura::sr25519::{AuthorityPair as AuraPair};
 use sc_finality_grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider, StorageAndProofProvider};
 
+use codec::{Encode, Decode};
+use sp_runtime::generic::BlockId;
+use sp_core::storage::StorageKey;
+use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sc_client_api::StorageProof;
+use sc_client_api::backend::StorageProvider;
+use sc_client_api::proof_provider::ProofProvider;
+
+// Shared struct between chain client and pRuntime. Used to init the bridge.
+#[derive(Encode, Debug)]
+pub struct GenesisGrandpaInfo {
+	block_header: phala_blockchain_runtime::Header,
+	pub validator_set: AuthorityList,
+	validator_set_proof: Vec<Vec<u8>>,
+}
+
+impl GenesisGrandpaInfo {
+	fn new(
+		block_header: phala_blockchain_runtime::Header,
+		validator_set: AuthorityList,
+		validator_set_proof: StorageProof
+	) -> Self {
+		let raw_proof: Vec<Vec<u8>> = validator_set_proof.iter_nodes().collect();
+
+		Self {
+			block_header,
+			validator_set,
+			validator_set_proof: raw_proof,
+		}
+	}
+}
+
+use std::path::PathBuf;
+use std::fs;
+
+fn output_genesis_grandpa(genesis_info: GenesisGrandpaInfo, save_dir: &PathBuf) {
+	let data = genesis_info.encode();
+	let b64 = base64::encode(&data);
+	println!("Genesis Grandpa Info ({}): {}", save_dir.to_str().unwrap(), b64);
+	fs::write(save_dir, &b64).expect("Unable to write genesis-info.txt");
+}
+
 // Our native executor instance.
 native_executor_instance!(
 	pub Executor,
@@ -76,6 +118,7 @@ pub fn new_full(config: Configuration) -> Result<impl AbstractService, ServiceEr
 	let force_authoring = config.force_authoring;
 	let name = config.network.node_name.clone();
 	let disable_grandpa = config.disable_grandpa;
+	let genesis_info_path = config.network.net_config_path.clone().expect("Missing base_path").join("../genesis-info.txt");
 
 	let (builder, mut import_setup, inherent_data_providers) = new_full_start!(config);
 
@@ -90,6 +133,28 @@ pub fn new_full(config: Configuration) -> Result<impl AbstractService, ServiceEr
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
 		})?
 		.build()?;
+
+	let grandpa_info = {
+		let client = &service.client();
+		let blocknum = BlockId::Number(0);
+		let header = client.header(&blocknum)
+			.expect("Missing genesis block; qed")
+			.expect("Missing genesis block; qed");
+		// println!("###### genesis header: {:?}", header);
+		let storage_proof = client.read_proof(&blocknum, &mut std::iter::once(GRANDPA_AUTHORITIES_KEY)).expect("No GRANNDPA authorties key; qed");
+		// println!("###### genesis grandpa_authorities proof: {:?}", storage_proof);
+
+		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
+		let validator_set: AuthorityList = client.storage(&blocknum, &storage_key)?
+			.and_then(|encoded| VersionedAuthorityList::decode(&mut encoded.0.as_slice()).ok())
+			.map(|versioned| versioned.into())
+			.expect("Bad genesis config; qed");
+		// println!("###### authority list: {:?}", validator_set);
+
+		GenesisGrandpaInfo::new(header, validator_set, storage_proof)
+	};
+	println!("###### GRANDPA_GENESIS: {:?}", grandpa_info);
+	output_genesis_grandpa(grandpa_info, &genesis_info_path);
 
 	if role.is_authority() {
 		let proposer =
@@ -131,7 +196,7 @@ pub fn new_full(config: Configuration) -> Result<impl AbstractService, ServiceEr
 	let grandpa_config = sc_finality_grandpa::Config {
 		// FIXME #1578 make this available through chainspec
 		gossip_duration: Duration::from_millis(333),
-		justification_period: 512,
+		justification_period: 1,
 		name: Some(name),
 		observer_enabled: false,
 		keystore,
