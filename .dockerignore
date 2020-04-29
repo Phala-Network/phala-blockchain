@@ -1,5 +1,87 @@
-doc
-**target*
-.idea/
 Dockerfile
 .dockerignore
+
+doc
+.git
+
+**/target/
+**/*.rs.bk
+*.swp
+**/._*
+**/.criterion/
+.vscode
+polkadot.*
+.DS_Store
+nohup.out
+rls*.log
+*.orig
+*.rej
+**/wip/*.stderr
+*.pyc
+*.swo
+*.bk
+*~
+
+# Keep
+!.keep
+
+# Visual Studio Junk
+.vs/
+*.opensdf
+*.psess
+*.sdf
+*.sln.docstates
+*.suo
+*.user
+*.userosscache
+*.VC.db
+*.VC.opendb
+*.vsp
+*.vspx
+*.rsproj
+*.sln
+*.vcxproj
+*.filters
+
+# JetBrains Junk
+.idea
+*.iml
+CMakeLists.txt
+
+# Substrate
+.wasm-binaries
+
+# Ring
+ring/build/
+ring/ssl/test/runner/runner
+ring/doc/*.html
+ring/doc/doc.css
+
+# node runtime
+node/scripts/ccwrapper/*.log
+node/scripts/ccwrapper/latest-*
+
+# Object files
+*.o
+
+# Libraries
+*.a
+
+# Shared objects
+*.so
+*.so.*
+
+# Executables
+pruntime/bin/**
+
+# SGX EDL generated stubs
+pruntime/Enclave_u.c
+pruntime/Enclave_u.h
+pruntime/Enclave_t.c
+pruntime/Enclave_t.h
+
+# Generated and temp files
+pruntime/app/src/protos/*.rs
+pruntime/enclave/src/protos/*.rs
+pruntime/protos/tmp
+pruntime/tmp
