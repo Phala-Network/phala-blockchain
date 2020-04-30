@@ -1,46 +1,49 @@
 [package]
-name = "phala-blockchain"
-version = "2.0.0"
+name = "phala-blockchain-node"
+version = "2.0.0-dev"
 authors = ["Jasl"]
-build = "build.rs"
+description = "Phala Substrate Node"
 edition = "2018"
+license = "Unlicense"
+build = "build.rs"
+homepage = "https://substrate.dev"
+repository = "https://github.com/paritytech/substrate/"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
 
 [[bin]]
-name = "phala-blockchain"
+name = "phala-node"
 path = "src/main.rs"
 
 [dependencies]
-futures = "0.3.1"
-futures01 = { package = "futures", version = "0.1.29" }
-ctrlc = { version = "3.1.3", features = ["termination"] }
+futures = "0.3.4"
 log = "0.4.8"
-tokio = "0.1.22"
-parking_lot = "0.9.0"
-codec = { package = "parity-scale-codec", version = "1.0.0" }
-trie-root = "0.15.2"
-sp-io = { version = "2.0.0", path = "../substrate/primitives/io" }
-sc-cli = { version = "2.0.0", path = "../substrate/client/cli" }
-sp-core = { version = "2.0.0", path = "../substrate/primitives/core" }
-sc-executor = { version = "2.0.0", path = "../substrate/client/executor" }
-sc-service = { version = "2.0.0", path = "../substrate/client/service" }
-sp-inherents = { version = "2.0.0", path = "../substrate/primitives/inherents" }
-sc-transaction-pool = { version = "2.0.0", path = "../substrate/client/transaction-pool" }
-sp-transaction-pool = { version = "2.0.0", path = "../substrate/primitives/transaction-pool" }
-sc-network = { version = "0.8", path = "../substrate/client/network" }
-sc-consensus-aura = { version = "0.8", path = "../substrate/client/consensus/aura" }
-sp-consensus-aura = { version = "0.8", path = "../substrate/primitives/consensus/aura" }
-sp-consensus = { version = "0.8", path = "../substrate/primitives/consensus/common" }
-grandpa = { version = "2.0.0", package = "sc-finality-grandpa", path = "../substrate/client/finality-grandpa" }
-grandpa-primitives = { version = "2.0.0", package = "sp-finality-grandpa", path = "../substrate/primitives/finality-grandpa" }
-sc-client = { version = "2.0.0", path = "../substrate/client/" }
-phala-blockchain-runtime = { version = "2.0.0", path = "runtime" }
-sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime" }
-sc-basic-authority = { path  = "../substrate/client/basic-authorship" }
-sp-state-machine = { version = "2.0.0", path = "../substrate/primitives/state-machine" }
+structopt = "0.3.8"
+
+sc-cli = { version = "0.8.0-dev", path = "../substrate/client/cli" }
+sp-core = { version = "2.0.0-dev", path = "../substrate/primitives/core" }
+sc-executor = { version = "0.8.0-dev", path = "../substrate/client/executor" }
+sc-service = { version = "0.8.0-dev", path = "../substrate/client/service" }
+sp-inherents = { version = "2.0.0-dev", path = "../substrate/primitives/inherents" }
+sc-transaction-pool = { version = "2.0.0-dev", path = "../substrate/client/transaction-pool" }
+sp-transaction-pool = { version = "2.0.0-dev", path = "../substrate/primitives/transaction-pool" }
+sc-network = { version = "0.8.0-dev", path = "../substrate/client/network" }
+sc-consensus-aura = { version = "0.8.0-dev", path = "../substrate/client/consensus/aura" }
+sp-consensus-aura = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/aura" }
+sp-consensus = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/common" }
+sc-consensus = { version = "0.8.0-dev", path = "../substrate/client/consensus/common" }
+sc-finality-grandpa = { version = "0.8.0-dev", path = "../substrate/client/finality-grandpa" }
+sp-finality-grandpa = { version = "2.0.0-dev", path = "../substrate/primitives/finality-grandpa" }
+sc-client-api = { version = "2.0.0-dev", path = "../substrate/client/api" }
+sp-runtime = { version = "2.0.0-dev", path = "../substrate/primitives/runtime" }
+sc-basic-authorship = { path = "../substrate/client/basic-authorship", version = "0.8.0-dev"}
+
+phala-blockchain-runtime = { version = "2.0.0-dev", path = "../runtime" }
+
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
 base64 = "*"
+# sp-state-machine = { version = "2.0.0-dev", path = "../substrate/primitives/state-machine" }
 
 [build-dependencies]
-vergen = "3.0.4"
-build-script-utils = { version = "2.0.0", package = "substrate-build-script-utils", path = "../substrate/utils/build-script-utils" }
-
-
+substrate-build-script-utils = { version = "2.0.0-dev", path = "../substrate/utils/build-script-utils" }

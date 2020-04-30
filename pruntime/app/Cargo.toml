@@ -1,0 +1,24 @@
+[package]
+name = "app"
+version = "0.0.1"
+authors = ["jasl"]
+build = "build.rs"
+
+[dependencies]
+sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
+sgx_urts  = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_urts" }
+mio       = "0.7"
+dirs      = "1.0.2"
+
+rocket         = "0.4.4"
+rocket_contrib = { version = "0.4.4", features = ["json"]}
+rocket_codegen = "0.4.4"
+rocket_cors = "0.5.2"
+serde     = "1.0"
+serde_json = "1.0"
+serde_derive = "1.0"
+lazy_static = "1.1.0"
+
+#[patch.'https://github.com/baidu/rust-sgx-sdk.git']
+#sgx_types = { path = "../rust-sgx-sdk/sgx_types" }
+#sgx_urts = { path = "../rust-sgx-sdk/sgx_urts" }

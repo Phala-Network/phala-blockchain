@@ -1,4 +1,3 @@
-use futures_03::compat::Future01CompatExt;
 use tokio::time::delay_for;
 use std::time::Duration;
 use std::fs;
@@ -20,6 +19,9 @@ use sp_runtime::{
 
 mod error;
 use crate::error::Error;
+
+mod runtimes;
+use crate::runtimes::PNodeRuntime;
 
 #[derive(structopt::StructOpt)]
 struct Args {
@@ -49,10 +51,12 @@ impl Args {
     }
 }
 
-type Runtime = pnode_runtime::Runtime;
+// type Runtime = pnode_runtime::Runtime;
+type Runtime = PNodeRuntime;
 type Header = <Runtime as subxt::system::System>::Header;
 type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
+
 
 fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::SignedBlock {
     let raw_block = Encode::encode(&opaque_block);
@@ -61,16 +65,21 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::Signe
 
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
         -> Result<pnode_runtime::SignedBlock, Error> {
-    let pos = h.map(|h| NumberOrHex::Number(h));
-    let hash = if pos == None {
-        client.finalized_head().compat().await?
-    } else {
-        client.block_hash(pos).compat().await?
-            .ok_or(Error::BlockHashNotFound())?
+    let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
+    // let hash = if pos == None {
+    //     client.finalized_head().await?
+    // } else {
+    //     client.block_hash(pos).await?
+    //         .ok_or(Error::BlockHashNotFound())?
+    // };
+    let hash = match pos {
+        Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound())?,
+        None => client.finalized_head().await?
     };
+
     println!("get_block_at: Got block {:?} hash {:?}", h, hash);
 
-    let opaque_block = client.block(Some(hash)).compat().await?
+    let opaque_block = client.block(Some(hash)).await?
                              .ok_or(Error::BlockNotFound())?;
 
     let block = deopaque_signedblock(opaque_block);
@@ -169,7 +178,7 @@ async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T:
         .uri(endpoint)
         .header("content-type", "application/json")
         .body(Body::from(body_json))?;
-    
+
     let res = client.request(req).await?;
 
     println!("Response: {}", res.status());
@@ -200,7 +209,8 @@ async fn req_sync_block(block: &pnode_runtime::SignedBlock) -> Result<SyncBlockR
 
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
-    let client = subxt::ClientBuilder::<Runtime>::new().build().compat().await?;
+    // let client = subxt::ClientBuilder::<Runtime>::new().build().compat().await?;
+    let client = subxt::ClientBuilder::<Runtime>::new().build().await?;
 
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
@@ -237,17 +247,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
-async fn async_main(args: Args) {
-    // start the bridge
+#[paw::main]
+#[tokio::main]
+async fn main(args: Args) {
+    // async_main(args);
     let r = bridge(args).await;
     println!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
-}
-
-#[paw::main]
-fn main(args: Args) {
-    // tokio 0.1 compatible construction
-    use tokio_compat::runtime;
-    let mut rt = runtime::Runtime::new().unwrap();
-    rt.block_on_std(async_main(args));
 }

@@ -16,6 +16,9 @@ rls*.log
 *.bk
 *~
 
+# Keep
+!.keep
+
 # Visual Studio Junk
 .vs/
 *.opensdf
@@ -50,3 +53,29 @@ ring/doc/doc.css
 
 # node runtime
 node/scripts/ccwrapper/*.log
+node/scripts/ccwrapper/latest-*
+
+# Object files
+*.o
+
+# Libraries
+*.a
+
+# Shared objects
+*.so
+*.so.*
+
+# Executables
+pruntime/bin/**
+
+# SGX EDL generated stubs
+pruntime/Enclave_u.c
+pruntime/Enclave_u.h
+pruntime/Enclave_t.c
+pruntime/Enclave_t.h
+
+# Generated and temp files
+pruntime/app/src/protos/*.rs
+pruntime/enclave/src/protos/*.rs
+pruntime/protos/tmp
+pruntime/tmp

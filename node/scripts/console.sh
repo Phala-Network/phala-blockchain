@@ -3,7 +3,7 @@
 A_P2P_PORT=30333
 B_P2P_PORT=40333
 B_RPC_PORT=40334
-NODE_NAME=phala-blockchain
+NODE_NAME=phala-node
 
 BASE_PATH_BASE="/tmp/$USER"
 SCRIPT_PATH=$(realpath $(dirname "$0"))
@@ -81,7 +81,8 @@ check-nm)
   llvm-nm-6.0 -a target/release/wbuild/target/wasm32-unknown-unknown/release/phala_blockchain_runtime.wasm
 ;;
 wrap-build)
-  chmod +x "$SCRIPT_PATH/ccwrapper/ar" "$SCRIPT_PATH/ccwrapper/clang"
+  chmod +x "$SCRIPT_PATH/ccwrapper/config" "$SCRIPT_PATH/ccwrapper/ar" "$SCRIPT_PATH/ccwrapper/clang"
+  "$SCRIPT_PATH/ccwrapper/config"
   export PATH="$SCRIPT_PATH/ccwrapper:$PATH"
   export CC="$SCRIPT_PATH/ccwrapper/clang"
   export AR="$SCRIPT_PATH/ccwrapper/ar"

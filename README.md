@@ -75,19 +75,19 @@ Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-gra
    sh ./scripts/init.sh
    ```
 
-- LLVM 9
+- LLVM 10
 
   ```bash
   wget https://apt.llvm.org/llvm.sh
   chmod +x llvm.sh
-  ./llvm.sh 9
+  ./llvm.sh 10
   ```
 
 </details>
 
 ### Build the blockchain
 
-Make sure you have Rust and LLVM-9 installed.
+Make sure you have Rust and LLVM-10 installed.
 
 ```bash
 cd node
@@ -110,7 +110,7 @@ cd phost
 1. Launch two local dev nodes Alice and Bob:
 
     ```bash
-    cd phost
+    cd node
     ./scripts/console.sh start alice
     ./scripts/console.sh start bob
     ```
