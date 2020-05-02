@@ -39,7 +39,7 @@ httparse    = { version = "1.3.2", default-features = false }
 itertools   = { version = "0.8", default-features = false, features = []}
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 
-runtime              = { path = "../../runtime", default-features = false, package = "phala-blockchain-runtime" }
+runtime              = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
 sp-io                = { path = "../../substrate/primitives/io", default-features = false }
 sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", default-features = false }
 sp-runtime           = { path = "../../substrate/primitives/runtime", default-features = false }

@@ -9,7 +9,7 @@ use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request};
 use bytes::buf::BufExt as _;
 
-use pnode_runtime;
+use phala_node_runtime;
 use sp_rpc::number::NumberOrHex;
 use codec::{Encode, Decode};
 use sp_runtime::{
@@ -21,7 +21,7 @@ mod error;
 use crate::error::Error;
 
 mod runtimes;
-use crate::runtimes::PNodeRuntime;
+use crate::runtimes::PhalaNodeRuntime;
 
 #[derive(structopt::StructOpt)]
 struct Args {
@@ -51,20 +51,20 @@ impl Args {
     }
 }
 
-// type Runtime = pnode_runtime::Runtime;
-type Runtime = PNodeRuntime;
+// type Runtime = phala_node_runtime::Runtime;
+type Runtime = PhalaNodeRuntime;
 type Header = <Runtime as subxt::system::System>::Header;
 type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 
 
-fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> pnode_runtime::SignedBlock {
+fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::SignedBlock {
     let raw_block = Encode::encode(&opaque_block);
-    pnode_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
+    phala_node_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
 }
 
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
-        -> Result<pnode_runtime::SignedBlock, Error> {
+        -> Result<phala_node_runtime::SignedBlock, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
     // let hash = if pos == None {
     //     client.finalized_head().await?
@@ -123,7 +123,7 @@ impl<T: Serialize> RuntimeReq<T> {
 struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 struct GetInfoResp {
-    blocknum: pnode_runtime::BlockNumber,
+    blocknum: phala_node_runtime::BlockNumber,
     initialized: bool,
     public_key: String,
     ecdh_public_key: String,
@@ -159,7 +159,7 @@ struct SyncBlockReq {
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockResp {
-    synced_to: pnode_runtime::BlockNumber
+    synced_to: phala_node_runtime::BlockNumber
 }
 impl Resp for SyncBlockReq {
     type Resp = SyncBlockResp;
@@ -199,7 +199,7 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(block: &pnode_runtime::SignedBlock) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(block: &phala_node_runtime::SignedBlock) -> Result<SyncBlockResp, Error> {
     let raw_block = Encode::encode(block);
     let b64_block = base64::encode(&raw_block);
     let resp = req_decode("sync_block", SyncBlockReq { data: b64_block }).await?;
