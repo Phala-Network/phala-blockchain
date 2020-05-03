@@ -39,8 +39,7 @@ WORKDIR /root
 
 # ====== download Phala ======
 
-# RUN git clone https://github.com/Phala-Network/phala-blockchain.git
-# RUN cd phala-blockclchain && git submodule update --init
+# RUN git clone --recursive https://github.com/Phala-Network/phala-blockchain.git
 
 # ====== download Phala ======
 RUN mkdir phala-blockchain

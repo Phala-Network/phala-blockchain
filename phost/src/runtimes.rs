@@ -15,7 +15,6 @@
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_runtime::{
-    generic::Header,
     traits::{
         BlakeTwo256,
         IdentifyAccount,
@@ -34,27 +33,29 @@ use subxt::{
     system::System,
 };
 
-/// PNode concrete type definitions compatible with those for kusama, v0.7
+use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Header, Index, Moment, AccountId, Signature};
+
+/// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
 /// # Note
 ///
 /// Main difference is `type Address = AccountId`.
 /// Also the contracts module is not part of the kusama runtime.
 #[derive(Debug, Clone, Eq, PartialEq)]
-pub struct PNodeRuntime;
+pub struct PhalaNodeRuntime;
 
-impl System for PNodeRuntime {
-    type Index = u32;
-    type BlockNumber = u32;
-    type Hash = sp_core::H256;
+impl System for PhalaNodeRuntime {
+    type Index = Index;
+    type BlockNumber = BlockNumber;
+    type Hash = Hash;
     type Hashing = BlakeTwo256;
-    type AccountId = <<MultiSignature as Verify>::Signer as IdentifyAccount>::AccountId;
+    type AccountId = AccountId;
     type Address = Self::AccountId;
-    type Header = Header<Self::BlockNumber, BlakeTwo256>;
+    type Header = Header;
     type Extrinsic = OpaqueExtrinsic;
     type AccountData = AccountData<<Self as Balances>::Balance>;
 }
 
-impl Balances for PNodeRuntime {
+impl Balances for PhalaNodeRuntime {
     type Balance = u128;
 }

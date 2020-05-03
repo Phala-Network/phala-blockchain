@@ -882,7 +882,10 @@ fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec:
 }
 
 fn format_address(addr: &chain::Address) -> String {
-    hex::encode_hex_compact(addr.as_ref())
+    match addr {
+        chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
+        chain::Address::Index(index) => format!("index:{}", index)
+    }
 }
 
 fn test_parse_block() {
@@ -980,7 +983,7 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         }
     };
 
-    let origin = if let Some((account_id, _, _)) = origin {
+    let origin = if let Some((chain::Address::Id(account_id), _, _)) = origin {
         account_id
     } else {
         panic!("No account id found for tx {:?}", pos);
