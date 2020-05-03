@@ -39,15 +39,15 @@ impl SubstrateCli for Cli {
 	}
 
 	fn support_url() -> &'static str {
-		"https://github.com/paritytech/substrate/issues/new"
+		"https://github.com/Phala-Network/phala-blockchain/issues/new"
 	}
 
 	fn copyright_start_year() -> i32 {
-		2017
+		2019
 	}
 
 	fn executable_name() -> &'static str {
-		"substrate"
+		env!("CARGO_PKG_NAME")
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
