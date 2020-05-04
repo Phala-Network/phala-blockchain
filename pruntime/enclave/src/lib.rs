@@ -756,7 +756,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let s_pk = hex::encode_hex_compact(pk.serialize_compressed().as_ref());
 
     // ECDH identity
-    let ecdh_sk = ecdh::generate_key();
+    let raw_pk = hex::decode_hex("0000000000000000000000000000000000000000000000000000000000000001");
+    let ecdh_sk = ecdh::create_key(raw_pk.as_slice()).expect("can't create ecdh key");
     let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
     let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
     println!("ECDH pubkey: {:?}", ecdh_pk);
