@@ -37,13 +37,16 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
+use contracts::{AccountIdWrapper};
+use sp_core::hashing::blake2_256;
 
 mod cert;
 mod hex;
 mod light_validation;
 mod cryptography;
-
 use cryptography::{ecdh, aead};
+mod receipt;
+use receipt::{TransactionStatus, TransactionReceipt, Receipt, Request, Response, Error};
 
 extern "C" {
     pub fn ocall_sgx_init_quote(
@@ -989,10 +992,11 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         panic!("No account id found for tx {:?}", pos);
     };
 
-    println!("handle_execution: incominng cmd: {}", String::from_utf8_lossy(&inner_data));
+	let inner_data_string = String::from_utf8_lossy(&inner_data);
+	println!("handle_execution: incominng cmd: {}", inner_data_string);
 
     println!("handle_execution: about to call handle_command");
-    match contract_id {
+    let status = match contract_id {
         DATA_PLAZA => state.contract1.handle_command(
             &origin, pos,
             serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract1 cmd")
@@ -1005,8 +1009,21 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
             &origin, pos,
             serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract3 cmd")
         ),
-        _ => println!("handle_execution: Skipped unknown contract: {}", contract_id)
-    }
+        _ => {
+			println!("handle_execution: Skipped unknown contract: {}", contract_id);
+			TransactionStatus::BadContractId
+		},
+    };
+
+	let mut gr = GLOBAL_RECEIPT.lock().unwrap();
+	gr.add_receipt(AccountIdWrapper(origin), TransactionReceipt {
+		block_num: pos.blocknum,
+		tx_hash: pos.tx_hash.clone(),
+		contract_id,
+		command: inner_data_string.to_string(),
+		status,
+		..TransactionReceipt::default()
+	});
 }
 
 fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
@@ -1016,9 +1033,10 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
             println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
             let pos = TxRef {
                 blocknum: block.block.header.number,
-                index: i as u32
+                index: i as u32,
+				tx_hash: hex::encode_hex_compact(&blake2_256(&xt.encode())),
             };
-            handle_execution(state, &pos, xt.signature.clone(), *contract_id, payload, ecdh_privkey);
+			handle_execution(state, &pos, xt.signature.clone(), *contract_id, payload, ecdh_privkey);
         }
         // skip other unknown extrinsics
     }
@@ -1123,28 +1141,31 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
         None => None
     };
     // Dispatch
-    let mut state = STATE.lock().unwrap();
-    let res = match opaque_query.contract_id {
-        DATA_PLAZA => serde_json::to_value(
-            state.contract1.handle_query(
-                accid_origin.as_ref(),
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
-        ).unwrap(),
-        BALANCE => serde_json::to_value(
-            state.contract2.handle_query(
-                accid_origin.as_ref(),
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (balance::Request)"))?.request)
-        ).unwrap(),
-        ASSETS => serde_json::to_value(
-            state.contract3.handle_query(
-                accid_origin.as_ref(),
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
-        ).unwrap(),
-        _ => return Err(Value::Null)
-    };
+	let mut res = handle_query_receipt(opaque_query.clone(), accid_origin.clone().unwrap());
+	if res == Value::Null {
+		let mut state = STATE.lock().unwrap();
+		res = match opaque_query.contract_id {
+			DATA_PLAZA => serde_json::to_value(
+				state.contract1.handle_query(
+					accid_origin.as_ref(),
+					types::deopaque_query(opaque_query)
+						.map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
+			).unwrap(),
+			BALANCE => serde_json::to_value(
+				state.contract2.handle_query(
+					accid_origin.as_ref(),
+					types::deopaque_query(opaque_query)
+						.map_err(|_| error_msg("Malformed request (balance::Request)"))?.request)
+			).unwrap(),
+			ASSETS => serde_json::to_value(
+				state.contract3.handle_query(
+					accid_origin.as_ref(),
+					types::deopaque_query(opaque_query)
+						.map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
+			).unwrap(),
+			_ => return Err(Value::Null)
+		};
+	}
     // Encrypt response if necessary
     let res_json = res.to_string();
     let res_payload = if let (Some(sk), Some(pk)) = (secret, pubkey) {
@@ -1162,6 +1183,35 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
     let res_value = serde_json::to_value(res_payload).unwrap();
     Ok(res_value)
+}
+
+fn handle_query_receipt(opaque_query: types::OpaqueQuery, accid_origin: chain::AccountId) -> Value {
+	let res = match types::deopaque_query(opaque_query.clone()) {
+		Ok(q) => {
+			let res = match q.request {
+				Request::QueryReceipt{account, tx_hash} => {
+					//println!("request is query receipt, tx_hash={:}", tx_hash);
+					//println!("account={:?}, accid_origin = {:?}", account, AccountIdWrapper(accid_origin.clone()));
+					if account ==  AccountIdWrapper(accid_origin) {
+						let gr = GLOBAL_RECEIPT.lock().unwrap();
+						let receipts: Vec<TransactionReceipt> = gr.tx_receipts.get(&account).unwrap_or(&Vec::new()).to_vec()
+							.into_iter().filter(|x| x.contract_id == opaque_query.contract_id && x.tx_hash == tx_hash).collect::<Vec<TransactionReceipt>>();
+						serde_json::to_value(Response::QueryReceipt { receipts })
+					} else {
+						serde_json::to_value(Response::Error(Error::NotAuthorized))
+					}
+				},
+			};
+
+			res.unwrap()
+		},
+		Err(_e) => {
+			//println!("request normal query");
+			Value::Null
+		},
+	};
+
+	res
 }
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1195,4 +1245,10 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "path": path.to_string(),
         "data": data_b64.to_string()
     }))
+}
+
+lazy_static! {
+    static ref GLOBAL_RECEIPT: SgxMutex<Receipt> = {
+        SgxMutex::new(Receipt::new())
+    };
 }

@@ -2,7 +2,7 @@ use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use crate::std::collections::{HashSet, HashMap};
 use serde::{Serialize, Deserialize};
-
+use super::TransactionStatus;
 use csv_core::{Reader, ReadRecordResult};
 
 use crate::contracts;
@@ -74,7 +74,7 @@ pub enum Command {
   OpenOrder(OrderDetails),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
   GetItems,
   GetOrders,
@@ -130,7 +130,7 @@ impl DataPlaza {
         let dataset = &self.dataset[data_link];
         let query = &self.dataset[query_link];
         let data = Self::compute(order, dataset, query);
-        
+
         let path = order.state.result_path.clone();
         self.dataset.insert(path, data);
       }
@@ -247,16 +247,17 @@ impl DataPlaza {
 impl contracts::Contract<Command, Request, Response> for DataPlaza {
   fn id(&self) -> contracts::ContractId { contracts::DATA_PLAZA }
 
-  fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) {
+  fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {
     let address_hex = crate::hex::encode_hex_compact(origin.as_ref());
-    match cmd {
+    let status = match cmd {
       Command::List(details) => {
-        self.items.push(Item {
-          id: self.items.len() as ItemId,
-          txref: txref.clone(),
-          seller: address_hex,
-          details,
-        })
+		self.items.push(Item {
+		  id: self.items.len() as ItemId,
+		  txref: txref.clone(),
+		  seller: address_hex,
+		  details,
+		});
+		TransactionStatus::Ok
       },
       Command::OpenOrder(details) => {
         self.orders.push(Order {
@@ -272,8 +273,11 @@ impl contracts::Contract<Command, Request, Response> for DataPlaza {
             result_path: String::new(),
           }
         });
+		TransactionStatus::Ok
       },
-    }
+    };
+
+	status
   }
 
   fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
