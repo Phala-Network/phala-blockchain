@@ -1,11 +1,13 @@
 use std::collections::{BTreeMap};
-use serde::{de::{self,Visitor}, Serialize, Deserialize, Serializer, Deserializer};
+use serde::{Serialize, Deserialize};
 use crate::std::string::String;
 use core::{fmt,str};
 use core::cmp::Ord;
 
 use crate::contracts;
 use crate::types::TxRef;
+use crate::contracts::{AccountIdWrapper};
+use super::TransactionStatus;
 
 extern crate runtime as chain;
 
@@ -31,7 +33,7 @@ pub enum Command {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     FreeBalance {
         account: AccountIdWrapper
@@ -64,8 +66,8 @@ impl Balance {
 impl contracts::Contract<Command, Request, Response> for Balance {
     fn id(&self) -> contracts::ContractId { contracts::BALANCE }
 
-    fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) {
-        match cmd {
+    fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
+        let status = match cmd {
             Command::Transfer {dest, value} => {
                 let o = AccountIdWrapper(origin.clone());
                 println!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
@@ -84,10 +86,18 @@ impl contracts::Contract<Command, Request, Response> for Balance {
 
                         println!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         println!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
-                    }
-                }
+
+						TransactionStatus::Ok
+                    } else {
+						TransactionStatus::InsufficientBalance
+					}
+                } else {
+					TransactionStatus::NoBalance
+				}
             }
-        }
+        };
+
+		status
     }
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
@@ -111,63 +121,6 @@ impl contracts::Contract<Command, Request, Response> for Balance {
         match inner() {
             Err(error) => Response::Error(error),
             Ok(resp) => resp
-        }
-    }
-}
-
-#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
-pub struct AccountIdWrapper( chain::AccountId );
-
-impl<'a> AccountIdWrapper {
-    fn from(b: &'a [u8]) -> Self {
-        let mut a = AccountIdWrapper::default();
-        use core::convert::TryFrom;
-        a.0 = sp_core::crypto::AccountId32::try_from(b).unwrap();
-        a
-    }
-    fn from_hex(s: &str) -> Self {
-        let bytes = crate::hex::decode_hex(s);  // TODO: error handling
-        AccountIdWrapper::from(&bytes)
-    }
-    fn to_string(&self) -> String {
-        crate::hex::encode_hex_compact(self.0.as_ref())
-    }
-}
-
-impl Serialize for AccountIdWrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: Serializer,
-    {
-        let data_hex = self.to_string();
-        serializer.serialize_str(&data_hex)
-    }
-}
-
-impl<'de> Deserialize<'de> for AccountIdWrapper{
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-        where D: Deserializer<'de>
-    {
-        deserializer.deserialize_str(AcidVisitor)
-    }
-}
-
-struct AcidVisitor;
-
-impl<'de> Visitor<'de> for AcidVisitor {
-    type Value = AccountIdWrapper;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("AccountID is the hex of [u8;32]")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-        where E: de::Error,
-    {
-        if v.len() == 64 {
-            let bytes = crate::hex::decode_hex(v);  // TODO: error handling
-            Ok(AccountIdWrapper::from(&bytes))
-        } else {
-            Err(E::custom(format!("AccountId hex length wrong: {}", v)))
         }
     }
 }
