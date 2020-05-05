@@ -1165,7 +1165,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 			handle_query_receipt(
 				accid_origin.clone(),
 				types::deopaque_query(opaque_query)
-					.map_err(|_| error_msg("Malformed request (query_receipt::Request)"))?.request)
+					.map_err(|_| error_msg("Malformed request (system::Request)"))?.request)
 		).unwrap(),
 		_ => return Err(Value::Null)
 	};
