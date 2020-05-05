@@ -3,8 +3,8 @@ use crate::std::vec::Vec;
 use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use std::collections::{BTreeMap};
 use crate::contracts::{AccountIdWrapper};
-use crate::std::time::SystemTime;
-use crate::std::untrusted::time::SystemTimeEx;
+
+pub type TransactionHash = String;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
@@ -20,51 +20,29 @@ pub enum TransactionStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionReceipt {
+	pub account: AccountIdWrapper,
 	pub block_num: chain::BlockNumber,
-	pub tx_hash: String,
+	pub tx_hash: TransactionHash,
 	pub contract_id: u32,
 	pub command: String,
 	pub status: TransactionStatus,
-	pub timestamp: u64,
 }
 
-impl Default for TransactionReceipt {
-	fn default() -> Self {
-		TransactionReceipt {
-			block_num: 0,
-			tx_hash: String::from(""),
-			contract_id: 0,
-			command: String::from(""),
-			status: TransactionStatus::Ok,
-			timestamp: SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_millis() as u64,
-		}
-	}
+pub struct ReceiptStore {
+	pub receipts: BTreeMap<TransactionHash, TransactionReceipt>,
 }
 
-pub struct Receipt {
-	pub tx_receipts: BTreeMap<AccountIdWrapper, Vec<TransactionReceipt>>,
-}
-
-impl Receipt {
+impl ReceiptStore {
 	pub fn new() -> Self {
-		let tx_receipts = BTreeMap::<AccountIdWrapper, Vec<TransactionReceipt>>::new();
-		Receipt { tx_receipts }
+		ReceiptStore { receipts: BTreeMap::<TransactionHash, TransactionReceipt>::new() }
 	}
 
-	pub fn add_receipt(&mut self, acc: AccountIdWrapper, tr: TransactionReceipt) {
-		match self.tx_receipts.clone().get_mut(&acc) {
-			Some(receipts) => {
-				receipts.push(tr);
-				self.tx_receipts.insert(acc, receipts.to_vec());
-				//println!("receipt len:{:}", receipts.len());
-			},
-			None => {
-				let mut r = Vec::new();
-				r.push(tr);
-				self.tx_receipts.insert(acc, r.clone());
-				//println!("receipt len:{:}", r.len());
-			},
-		}
+	pub fn add_receipt(&mut self, tx_hash: TransactionHash, tr: TransactionReceipt) {
+		self.receipts.insert(tx_hash, tr);
+	}
+
+	pub fn get_receipt(&self, tx_hash: TransactionHash) -> Option<&TransactionReceipt> {
+		self.receipts.get(&tx_hash)
 	}
 }
 
@@ -77,7 +55,6 @@ pub enum Error {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
 	QueryReceipt {
-		account: AccountIdWrapper,
 		tx_hash: String,
 	},
 }
@@ -85,7 +62,7 @@ pub enum Request {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
 	QueryReceipt {
-		receipts: Vec<TransactionReceipt>
+		receipt: TransactionReceipt
 	},
 	Error(Error),
 }

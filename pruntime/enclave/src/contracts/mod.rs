@@ -16,6 +16,7 @@ pub mod balance;
 pub mod assets;
 
 pub type ContractId = u32;
+pub const QUERY_RECEIPT: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCE: ContractId = 2;
 pub const ASSETS: ContractId = 3;

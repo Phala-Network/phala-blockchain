@@ -46,7 +46,7 @@ mod light_validation;
 mod cryptography;
 use cryptography::{ecdh, aead};
 mod receipt;
-use receipt::{TransactionStatus, TransactionReceipt, Receipt, Request, Response, Error};
+use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response, Error};
 
 extern "C" {
     pub fn ocall_sgx_init_quote(
@@ -844,7 +844,7 @@ mod contracts;
 mod types;
 
 use types::TxRef;
-use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS};
+use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, QUERY_RECEIPT};
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1016,13 +1016,13 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
     };
 
 	let mut gr = GLOBAL_RECEIPT.lock().unwrap();
-	gr.add_receipt(AccountIdWrapper(origin), TransactionReceipt {
+	gr.add_receipt(pos.tx_hash.clone(), TransactionReceipt {
+		account: AccountIdWrapper(origin),
 		block_num: pos.blocknum,
 		tx_hash: pos.tx_hash.clone(),
 		contract_id,
 		command: inner_data_string.to_string(),
 		status,
-		..TransactionReceipt::default()
 	});
 }
 
@@ -1141,31 +1141,34 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
         None => None
     };
     // Dispatch
-	let mut res = handle_query_receipt(opaque_query.clone(), accid_origin.clone().unwrap());
-	if res == Value::Null {
-		let mut state = STATE.lock().unwrap();
-		res = match opaque_query.contract_id {
-			DATA_PLAZA => serde_json::to_value(
-				state.contract1.handle_query(
-					accid_origin.as_ref(),
-					types::deopaque_query(opaque_query)
-						.map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
-			).unwrap(),
-			BALANCE => serde_json::to_value(
-				state.contract2.handle_query(
-					accid_origin.as_ref(),
-					types::deopaque_query(opaque_query)
-						.map_err(|_| error_msg("Malformed request (balance::Request)"))?.request)
-			).unwrap(),
-			ASSETS => serde_json::to_value(
-				state.contract3.handle_query(
-					accid_origin.as_ref(),
-					types::deopaque_query(opaque_query)
-						.map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
-			).unwrap(),
-			_ => return Err(Value::Null)
-		};
-	}
+	let mut state = STATE.lock().unwrap();
+	let res = match opaque_query.contract_id {
+		DATA_PLAZA => serde_json::to_value(
+			state.contract1.handle_query(
+				accid_origin.as_ref(),
+				types::deopaque_query(opaque_query)
+					.map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
+		).unwrap(),
+		BALANCE => serde_json::to_value(
+			state.contract2.handle_query(
+				accid_origin.as_ref(),
+				types::deopaque_query(opaque_query)
+					.map_err(|_| error_msg("Malformed request (balance::Request)"))?.request)
+		).unwrap(),
+		ASSETS => serde_json::to_value(
+			state.contract3.handle_query(
+				accid_origin.as_ref(),
+				types::deopaque_query(opaque_query)
+					.map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
+		).unwrap(),
+		QUERY_RECEIPT => serde_json::to_value(
+			handle_query_receipt(
+				accid_origin.clone(),
+				types::deopaque_query(opaque_query)
+					.map_err(|_| error_msg("Malformed request (query_receipt::Request)"))?.request)
+		).unwrap(),
+		_ => return Err(Value::Null)
+	};
     // Encrypt response if necessary
     let res_json = res.to_string();
     let res_payload = if let (Some(sk), Some(pk)) = (secret, pubkey) {
@@ -1185,33 +1188,28 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     Ok(res_value)
 }
 
-fn handle_query_receipt(opaque_query: types::OpaqueQuery, accid_origin: chain::AccountId) -> Value {
-	let res = match types::deopaque_query(opaque_query.clone()) {
-		Ok(q) => {
-			let res = match q.request {
-				Request::QueryReceipt{account, tx_hash} => {
-					//println!("request is query receipt, tx_hash={:}", tx_hash);
-					//println!("account={:?}, accid_origin = {:?}", account, AccountIdWrapper(accid_origin.clone()));
-					if account ==  AccountIdWrapper(accid_origin) {
-						let gr = GLOBAL_RECEIPT.lock().unwrap();
-						let receipts: Vec<TransactionReceipt> = gr.tx_receipts.get(&account).unwrap_or(&Vec::new()).to_vec()
-							.into_iter().filter(|x| x.contract_id == opaque_query.contract_id && x.tx_hash == tx_hash).collect::<Vec<TransactionReceipt>>();
-						serde_json::to_value(Response::QueryReceipt { receipts })
-					} else {
-						serde_json::to_value(Response::Error(Error::NotAuthorized))
-					}
-				},
-			};
-
-			res.unwrap()
-		},
-		Err(_e) => {
-			//println!("request normal query");
-			Value::Null
-		},
+fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) -> Response {
+	let inner = || -> Result<Response, Error> {
+		match req {
+			Request::QueryReceipt{tx_hash} => {
+				let gr = GLOBAL_RECEIPT.lock().unwrap();
+				match gr.get_receipt(tx_hash) {
+					Some(receipt) => {
+						if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
+							Ok(Response::QueryReceipt { receipt: receipt.clone() })
+						} else {
+							Ok(Response::Error(Error::NotAuthorized))
+						}
+					},
+					None => Ok(Response::Error(Error::Other(String::from("Transaction hash not found")))),
+				}
+			}
+		}
 	};
-
-	res
+	match inner() {
+		Err(error) => Response::Error(error),
+		Ok(resp) => resp
+	}
 }
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1248,7 +1246,7 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 lazy_static! {
-    static ref GLOBAL_RECEIPT: SgxMutex<Receipt> = {
-        SgxMutex::new(Receipt::new())
+    static ref GLOBAL_RECEIPT: SgxMutex<ReceiptStore> = {
+        SgxMutex::new(ReceiptStore::new())
     };
 }
