@@ -175,6 +175,20 @@ impl<T: Trait> LightValidation<T>
 		Ok(())
 	}
 
+	pub fn submit_simple_header_seq(
+		&mut self,
+		bridge_id: BridgeId,
+		header: T::Header,
+		ancestry_proof: Vec<T::Header>,
+		grandpa_proof: Justification
+	) -> Result<(), Error> {
+		let bridge = self.tracked_bridges.get(&bridge_id).ok_or(Error::NoSuchBridgeExists)?;
+		let validator_set = bridge.current_validator_set.clone();
+		let validator_set_id = bridge.current_validator_set_id;
+		self.submit_finalized_headers(
+			bridge_id, header, ancestry_proof, validator_set, validator_set_id, grandpa_proof)
+	}
+
 	pub fn submit_simple_header(
 		&mut self,
 		bridge_id: BridgeId,

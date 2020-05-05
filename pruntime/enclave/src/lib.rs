@@ -577,6 +577,10 @@ struct TestReq {
     test_ecdh: Option<TestEcdhParam>,
 }
 #[derive(Serialize, Deserialize, Debug)]
+struct SyncBlockReq {
+    blocks_b64: Vec<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
     pubkey_hex: Option<String>,
     message_b64: Option<String>,
@@ -610,13 +614,13 @@ pub extern "C" fn ecall_handle(
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
+        ACTION_SYNC_BLOCK => sync_block(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
                 ACTION_GET_INFO => get_info(payload),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
-                ACTION_SYNC_BLOCK => sync_block(payload),
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
                 _ => unknown()
@@ -1025,45 +1029,66 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
     }
 }
 
-fn sync_block(input: &Map<String, Value>) -> Result<Value, Value> {
-    /*
-        input: {
-            data: "<b64 encoded plain data>"
+fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
+    // Parse base64 to data
+    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64)
+        .iter()
+        .map(base64::decode)
+        .collect();
+    let blocks_data = parsed_data
+        .map_err(|_| error_msg("Failed to parse base64 block"))?;
+    // Parse data to blocks
+    let parsed_blocks: Result<Vec<_>, _> = blocks_data
+        .iter()
+        .map(|d| parse_block(&d))
+        .collect();
+    let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
+    // Light validation when possible
+    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?;
+    if last_block.block.header.number > 0 {
+        // 1. the last block must has justification
+        let justification = last_block.justification.as_ref()
+            .ok_or_else(|| error_msg("Missing justification"))?
+            .clone();
+        let header = last_block.block.header.clone();
+        // 2. check block sequence
+        for (i, block) in blocks.iter().enumerate() {
+            if i > 0 && blocks[i].block.header.hash() != block.block.header.parent_hash {
+                return Err(error_msg("Incorrect block order"));
+            }
         }
-    */
-    let block_b64 = input.get("data").unwrap().as_str().unwrap();
-    let block_data = base64::decode(block_b64).unwrap();
-    // TODO: handle error ^^
-
-    let block = parse_block(&block_data).map_err(|_| error_msg("Invalid block (err)"))?;
-
-    if block.block.header.number > 0 {
+        // 3. generate accenstor proof
+        let accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
+            .iter()
+            .map(|b| b.block.header.clone())
+            .collect();
+        // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
-        let justification = block.justification.clone()
-            .ok_or_else(|| error_msg("Missing justification"))?;
-        state.light_client.submit_simple_header(
+        state.light_client.submit_simple_header_seq(
             bridge_id,
-            block.block.header.clone(),
+            header,
+            accenstor_proof,
             justification
-        ).map_err(|_| error_msg("Light validation vailed"))?
+        ).map_err(|_| error_msg("Light validation failed"))?
     }
-
-    // it's the block needed
+    // Passed the validation
     let mut local_state = LOCAL_STATE.lock().unwrap();
-    if block.block.header.number != local_state.blocknum {
-        return Err(error_msg("Unexpected block"))
+    let ecdh_privkey = ecdh::clone_key(
+        local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
+    let mut last_block = 0;
+    for block in blocks.iter() {
+        if block.block.header.number != local_state.blocknum {
+            return Err(error_msg("Unexpected block"))
+        }
+        dispatch(&block, &ecdh_privkey);
+        // move forward
+        last_block = block.block.header.number;
+        (*local_state).blocknum = last_block + 1;
     }
-
-    // trigger updates
-    let ecdh_privkey = local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied");
-    dispatch(&block, ecdh_privkey);
-
-    // move forward
-    (*local_state).blocknum = block.block.header.number + 1;
 
     Ok(json!({
-        "synced_to": block.block.header.number
+        "synced_to": last_block
     }))
 }
 

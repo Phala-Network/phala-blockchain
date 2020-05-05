@@ -11,7 +11,7 @@ pub fn generate_key() -> EphemeralPrivateKey {
 }
 
 // A hack to bypass ring's one-time key restriction
-fn clone_key(key: &EphemeralPrivateKey) -> EphemeralPrivateKey {
+pub fn clone_key(key: &EphemeralPrivateKey) -> EphemeralPrivateKey {
   unsafe { std::mem::transmute_copy::<EphemeralPrivateKey, EphemeralPrivateKey>(key) }
 }
 

@@ -154,8 +154,7 @@ impl Resp for InitRuntimeReq {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
-    // base64 encoded raw SignedBlock
-    data: String
+    blocks_b64: Vec<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockResp {
@@ -199,10 +198,17 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(block: &phala_node_runtime::SignedBlock) -> Result<SyncBlockResp, Error> {
-    let raw_block = Encode::encode(block);
-    let b64_block = base64::encode(&raw_block);
-    let resp = req_decode("sync_block", SyncBlockReq { data: b64_block }).await?;
+async fn req_sync_block(blocks: &Vec<phala_node_runtime::SignedBlock>) -> Result<SyncBlockResp, Error> {
+    let blocks_b64 = blocks
+        .iter()
+        .map(|ref block| {
+            let raw_block = Encode::encode(block);
+            let b64_block = base64::encode(&raw_block);
+            b64_block
+        })
+        .collect();
+
+    let resp = req_decode("sync_block", SyncBlockReq { blocks_b64 }).await?;
     println!("req_sync_block: {:?}", resp);
     Ok(resp)
 }
@@ -224,8 +230,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
     loop {
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None).await?;
-        // info.blocknum is the next needed block
-        println!("try to upload block. next required: {}, finalized tip: {}",
+        // info.blocknum is the next required block
+        println!("try to upload blocks. next required: {}, finalized tip: {}",
             info.blocknum, block_tip.block.header.number);
 
         // check if pRuntime has already reached the chain tip.
@@ -236,11 +242,17 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // no, then catch up to the chain tip
+        let mut blocks = Vec::<phala_node_runtime::SignedBlock>::new();
         for h in info.blocknum ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h)).await?;
-            let r = req_sync_block(&block).await?;
-            println!("feeded block {} into pRuntime: {:?}", block.block.header.number, r);
+            blocks.push(block);
         }
+
+        println!("feeding {} blocks (from {} to {}) into pRuntime",
+                 blocks.len(), info.blocknum, block_tip.block.header.number);
+        let r = req_sync_block(&blocks).await?;
+        println!("  ..sync_block: {:?}", r);
+
 
         // update the latest pRuntime state
         info = req_decode("get_info", GetInfoReq {}).await?;
