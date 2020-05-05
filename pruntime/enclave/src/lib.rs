@@ -1198,10 +1198,10 @@ fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) ->
 						if accid_origin != None && receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
 							Ok(Response::QueryReceipt { receipt: receipt.clone() })
 						} else {
-							Ok(Response::Error(Error::NotAuthorized))
+							Err(Error::NotAuthorized)
 						}
 					},
-					None => Ok(Response::Error(Error::HashNotFound)),
+					None => Err(Error::TxHashNotFound),
 				}
 			}
 		}
