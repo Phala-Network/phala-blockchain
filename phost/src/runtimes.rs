@@ -17,10 +17,7 @@
 use sp_runtime::{
     traits::{
         BlakeTwo256,
-        IdentifyAccount,
-        Verify,
     },
-    MultiSignature,
     OpaqueExtrinsic,
 };
 
@@ -29,11 +26,10 @@ use subxt::{
         AccountData,
         Balances,
     },
-    contracts::Contracts,
     system::System,
 };
 
-use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Header, Index, Moment, AccountId, Signature};
+use node_primitives::{BlockNumber, Hash, Header, Index, AccountId};
 
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
