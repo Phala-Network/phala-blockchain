@@ -49,7 +49,7 @@ impl ReceiptStore {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
 	NotAuthorized,
-	HashNotFound,
+	TxHashNotFound,
 	Other(String),
 }
 
