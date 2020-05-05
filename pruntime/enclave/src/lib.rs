@@ -844,7 +844,7 @@ mod contracts;
 mod types;
 
 use types::TxRef;
-use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, QUERY_RECEIPT};
+use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM};
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1161,7 +1161,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 				types::deopaque_query(opaque_query)
 					.map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
 		).unwrap(),
-		QUERY_RECEIPT => serde_json::to_value(
+		SYSTEM => serde_json::to_value(
 			handle_query_receipt(
 				accid_origin.clone(),
 				types::deopaque_query(opaque_query)
@@ -1195,13 +1195,13 @@ fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) ->
 				let gr = GLOBAL_RECEIPT.lock().unwrap();
 				match gr.get_receipt(tx_hash) {
 					Some(receipt) => {
-						if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
+						if accid_origin != None && receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
 							Ok(Response::QueryReceipt { receipt: receipt.clone() })
 						} else {
 							Ok(Response::Error(Error::NotAuthorized))
 						}
 					},
-					None => Ok(Response::Error(Error::Other(String::from("Transaction hash not found")))),
+					None => Ok(Response::Error(Error::HashNotFound)),
 				}
 			}
 		}
