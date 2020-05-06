@@ -21,7 +21,9 @@
 use std::sync::Arc;
 
 use sc_consensus_babe;
-use grandpa::{self, FinalityProofProvider as GrandpaFinalityProofProvider, StorageAndProofProvider};
+use grandpa::{
+	self, FinalityProofProvider as GrandpaFinalityProofProvider, StorageAndProofProvider,
+};
 use node_executor;
 use node_primitives::Block;
 use node_runtime::RuntimeApi;
@@ -80,8 +82,10 @@ fn output_genesis_grandpa(genesis_info: GenesisGrandpaInfo, save_dir: &PathBuf) 
 macro_rules! new_full_start {
 	($config:expr) => {{
 		use std::sync::Arc;
+
 		type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 		let mut import_setup = None;
+		let mut rpc_setup = None;
 		let inherent_data_providers = sp_inherents::InherentDataProviders::new();
 
 		let builder = sc_service::ServiceBuilder::new_full::<
@@ -92,7 +96,11 @@ macro_rules! new_full_start {
 			})?
 			.with_transaction_pool(|config, client, _fetcher, prometheus_registry| {
 				let pool_api = sc_transaction_pool::FullChainApi::new(client.clone());
-				Ok(sc_transaction_pool::BasicPool::new(config, std::sync::Arc::new(pool_api), prometheus_registry))
+				Ok(sc_transaction_pool::BasicPool::new(
+					config,
+					std::sync::Arc::new(pool_api),
+					prometheus_registry,
+				))
 			})?
 			.with_import_queue(|_config, client, mut select_chain, _transaction_pool, spawn_task_handle| {
 				let select_chain = select_chain.take()
@@ -110,8 +118,6 @@ macro_rules! new_full_start {
 					client.clone(),
 				)?;
 
-				let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
-
 				let import_queue = sc_consensus_babe::import_queue(
 					babe_link.clone(),
 					block_import.clone(),
@@ -119,7 +125,7 @@ macro_rules! new_full_start {
 					None,
 					client,
 					inherent_data_providers.clone(),
-					spawner,
+					spawn_task_handle,
 				)?;
 
 				import_setup = Some((block_import, grandpa_link, babe_link));
@@ -128,6 +134,10 @@ macro_rules! new_full_start {
 			.with_rpc_extensions(|builder| -> std::result::Result<RpcExtension, _> {
 				let babe_link = import_setup.as_ref().map(|s| &s.2)
 					.expect("BabeLink is present for full services or set up failed; qed.");
+				let grandpa_link = import_setup.as_ref().map(|s| &s.1)
+					.expect("GRANDPA LinkHalf is present for full services or set up failed; qed.");
+				let shared_authority_set = grandpa_link.shared_authority_set();
+				let shared_voter_state = grandpa::SharedVoterState::empty();
 				let deps = node_rpc::FullDeps {
 					client: builder.client().clone(),
 					pool: builder.pool(),
@@ -137,12 +147,17 @@ macro_rules! new_full_start {
 						keystore: builder.keystore(),
 						babe_config: sc_consensus_babe::BabeLink::config(babe_link).clone(),
 						shared_epoch_changes: sc_consensus_babe::BabeLink::epoch_changes(babe_link).clone()
-					}
+					},
+					grandpa: node_rpc::GrandpaDeps {
+						shared_voter_state: shared_voter_state.clone(),
+						shared_authority_set: shared_authority_set.clone(),
+					},
 				};
+				rpc_setup = Some((shared_voter_state));
 				Ok(node_rpc::create_full(deps))
 			})?;
 
-		(builder, import_setup, inherent_data_providers)
+		(builder, import_setup, inherent_data_providers, rpc_setup)
 	}}
 }
 
@@ -168,7 +183,8 @@ macro_rules! new_full {
 			$config.disable_grandpa,
 		);
 
-		let (builder, mut import_setup, inherent_data_providers) = new_full_start!($config);
+		let (builder, mut import_setup, inherent_data_providers, mut rpc_setup) =
+			new_full_start!($config);
 
 		let service = builder
 			.with_finality_proof_provider(|client, backend| {
@@ -179,7 +195,10 @@ macro_rules! new_full {
 			.build()?;
 
 		let (block_import, grandpa_link, babe_link) = import_setup.take()
-				.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+			.expect("Link Half and Block Import are present for Full Services or setup failed before. qed");
+
+		let shared_voter_state = rpc_setup.take()
+			.expect("The SharedVoterState is present for Full Services or setup failed before. qed");
 
 		($with_startup_data)(&block_import, &babe_link);
 
@@ -280,6 +299,7 @@ macro_rules! new_full {
 				telemetry_on_connect: Some(service.telemetry_on_connect_stream()),
 				voting_rule: grandpa::VotingRulesBuilder::default().build(),
 				prometheus_registry: service.prometheus_registry(),
+				shared_voter_state,
 			};
 
 			// the GRANDPA voter task is considered infallible, i.e.
@@ -305,7 +325,7 @@ macro_rules! new_full {
 
 /// Builds a new service for a full client.
 pub fn new_full(config: Configuration)
--> Result<impl AbstractService, ServiceError>
+				-> Result<impl AbstractService, ServiceError>
 {
 	let genesis_info_path = config.network.net_config_path.clone().expect("Missing base_path").join("../genesis-info.txt");
 
@@ -337,7 +357,7 @@ pub fn new_full(config: Configuration)
 
 /// Builds a new service for a light client.
 pub fn new_light(config: Configuration)
--> Result<impl AbstractService, ServiceError> {
+				 -> Result<impl AbstractService, ServiceError> {
 	type RpcExtension = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 	let inherent_data_providers = InherentDataProviders::new();
 
@@ -375,8 +395,6 @@ pub fn new_light(config: Configuration)
 				client.clone(),
 			)?;
 
-			let spawner = |future| spawn_task_handle.spawn_blocking("import-queue-worker", future);
-
 			let import_queue = sc_consensus_babe::import_queue(
 				babe_link,
 				babe_block_import,
@@ -384,7 +402,7 @@ pub fn new_light(config: Configuration)
 				Some(Box::new(finality_proof_import)),
 				client.clone(),
 				inherent_data_providers.clone(),
-				spawner,
+				spawn_task_handle,
 			)?;
 
 			Ok((import_queue, finality_proof_request_builder))
@@ -395,21 +413,21 @@ pub fn new_light(config: Configuration)
 			Ok(Arc::new(GrandpaFinalityProofProvider::new(backend, provider)) as _)
 		})?
 		.with_rpc_extensions(|builder,| ->
-			Result<RpcExtension, _>
-		{
-			let fetcher = builder.fetcher()
-				.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
-			let remote_blockchain = builder.remote_backend()
-				.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
+		Result<RpcExtension, _>
+			{
+				let fetcher = builder.fetcher()
+					.ok_or_else(|| "Trying to start node RPC without active fetcher")?;
+				let remote_blockchain = builder.remote_backend()
+					.ok_or_else(|| "Trying to start node RPC without active remote blockchain")?;
 
-			let light_deps = node_rpc::LightDeps {
-				remote_blockchain,
-				fetcher,
-				client: builder.client().clone(),
-				pool: builder.pool(),
-			};
-			Ok(node_rpc::create_light(light_deps))
-		})?
+				let light_deps = node_rpc::LightDeps {
+					remote_blockchain,
+					fetcher,
+					client: builder.client().clone(),
+					pool: builder.pool(),
+				};
+				Ok(node_rpc::create_light(light_deps))
+			})?
 		.build()?;
 
 	Ok(service)
@@ -499,22 +517,22 @@ mod tests {
 		};
 		let extrinsic_factory =
 			|service: &SyncService<<Factory as service::ServiceFactory>::FullService>|
-		{
-			let payload = (
-				0,
-				Call::Balances(BalancesCall::transfer(RawAddress::Id(bob.public().0.into()), 69.into())),
-				Era::immortal(),
-				service.client().genesis_hash()
-			);
-			let signature = alice.sign(&payload.encode()).into();
-			let id = alice.public().0.into();
-			let xt = UncheckedExtrinsic {
-				signature: Some((RawAddress::Id(id), signature, payload.0, Era::immortal())),
-				function: payload.1,
-			}.encode();
-			let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
-			OpaqueExtrinsic(v)
-		};
+				{
+					let payload = (
+						0,
+						Call::Balances(BalancesCall::transfer(RawAddress::Id(bob.public().0.into()), 69.into())),
+						Era::immortal(),
+						service.client().genesis_hash()
+					);
+					let signature = alice.sign(&payload.encode()).into();
+					let id = alice.public().0.into();
+					let xt = UncheckedExtrinsic {
+						signature: Some((RawAddress::Id(id), signature, payload.0, Era::immortal())),
+						function: payload.1,
+					}.encode();
+					let v: Vec<u8> = Decode::decode(&mut xt.as_slice()).unwrap();
+					OpaqueExtrinsic(v)
+				};
 		sc_service_test::sync(
 			sc_chain_spec::integration_test_config(),
 			|config| new_full(config),
