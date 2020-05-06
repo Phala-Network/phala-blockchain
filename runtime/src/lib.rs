@@ -141,10 +141,10 @@ impl frame_system::Trait for Runtime {
 	type Index = Index;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
-	type Hashing = Hasher;
+	type Hashing = BlakeTwo256;
 	type AccountId = AccountId;
 	type Lookup = Indices;
-	type Header = generic::Header<BlockNumber, Hasher>;
+	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type MaximumBlockWeight = MaximumBlockWeight;
@@ -717,7 +717,7 @@ construct_runtime!(
 /// The address format for describing accounts.
 pub type Address = <Indices as StaticLookup>::Source;
 /// Block header type as expected by this runtime.
-pub type Header = generic::Header<BlockNumber, Hasher>;
+pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
 /// Block type as expected by this runtime.
 pub type Block = generic::Block<Header, UncheckedExtrinsic>;
 /// A Block signed with a Justification
