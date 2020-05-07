@@ -27,7 +27,7 @@ frame-benchmarking = { version = "2.0.0-dev", path = "../substrate/frame/benchma
 criterion = "0.3.0"
 frame-support = { version = "2.0.0-dev", path = "../substrate/frame/support" }
 frame-system = { version = "2.0.0-dev", path = "../substrate/frame/system" }
-node-testing = { version = "2.0.0-dev", path = "../testing" }
+# node-testing = { version = "2.0.0-dev", path = "../testing" }
 pallet-balances = { version = "2.0.0-dev", path = "../substrate/frame/balances" }
 pallet-contracts = { version = "2.0.0-dev", path = "../substrate/frame/contracts" }
 pallet-grandpa = { version = "2.0.0-dev", path = "../substrate/frame/grandpa" }

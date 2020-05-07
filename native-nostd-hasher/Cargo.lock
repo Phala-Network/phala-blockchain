@@ -92,9 +92,9 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "fixed-hash"
-version = "0.6.0"
+version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "32529fc42e86ec06e5047092082aab9ad459b070c5d2a76b14f4f5ce70bf2e84"
+checksum = "11498d382790b7a8f2fd211780bec78619bba81cdad3a283997c0c41f836759c"
 dependencies = [
  "static_assertions",
 ]
@@ -268,9 +268,9 @@ dependencies = [
 
 [[package]]
 name = "paste"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3c897744f63f34f7ae3a024d9162bb5001f4ad661dd24bea0dc9f075d2de1c6"
+checksum = "0a229b1c58c692edcaa5b9b0948084f130f55d2dcc15b02fcc5340b2b4521476"
 dependencies = [
  "paste-impl",
  "proc-macro-hack",
@@ -278,9 +278,9 @@ dependencies = [
 
 [[package]]
 name = "paste-impl"
-version = "0.1.11"
+version = "0.1.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66fd6f92e3594f2dd7b3fc23e42d82e292f7bcda6d8e5dcd167072327234ab89"
+checksum = "2e0bf239e447e67ff6d16a8bb5e4d4bd2343acf5066061c0e8e06ac5ba8ca68c"
 dependencies = [
  "proc-macro-hack",
  "proc-macro2",
@@ -290,9 +290,9 @@ dependencies = [
 
 [[package]]
 name = "primitive-types"
-version = "0.7.0"
+version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5e4b9943a2da369aec5e96f7c10ebc74fcf434d39590d974b0a3460e6f67fbb"
+checksum = "c55c21c64d0eaa4d7ed885d959ef2d62d9e488c27c0e02d9aa5ce6c877b7d5f8"
 dependencies = [
  "fixed-hash",
  "impl-codec",
@@ -316,20 +316,40 @@ checksum = "0d659fe7c6d27f25e9d80a1a094c223f5246f6a6596453e09d7229bf42750b63"
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.10"
+version = "1.0.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df246d292ff63439fea9bc8c0a270bed0e390d5ebd4db4ba15aba81111b5abe3"
+checksum = "8872cf6f48eee44265156c111456a700ab3483686b3f96df4cf5481c89157319"
 dependencies = [
  "unicode-xid",
 ]
 
 [[package]]
 name = "quote"
-version = "1.0.3"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bdc6c187c65bca4260c9011c9e3132efe4909da44726bad24cf7572ae338d7f"
+checksum = "4c1f4b0efa5fc5e8ceb705136bfee52cfdb6a4e3509f770b478cd6ed434232a7"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "ref-cast"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0a214c7875e1b63fc1618db7c80efc0954f6156c9ff07699fd9039e255accdd1"
+dependencies = [
+ "ref-cast-impl",
+]
+
+[[package]]
+name = "ref-cast-impl"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "602eb59cda66fcb9aec25841fb76bc01d2b34282dcdd705028da297db6f3eec8"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -464,6 +484,7 @@ dependencies = [
  "primitive-types",
  "sp-runtime-interface-proc-macro",
  "sp-std",
+ "sp-tracing",
  "sp-wasm-interface",
  "static_assertions",
 ]
@@ -487,9 +508,14 @@ version = "2.0.0-dev"
 name = "sp-storage"
 version = "2.0.0-dev"
 dependencies = [
+ "ref-cast",
  "sp-debug-derive",
  "sp-std",
 ]
+
+[[package]]
+name = "sp-tracing"
+version = "2.0.0-dev"
 
 [[package]]
 name = "sp-trie"
@@ -521,9 +547,9 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 
 [[package]]
 name = "syn"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "410a7488c0a728c7ceb4ad59b9567eb4053d02e8cc7f5c0e0eeeb39518369213"
+checksum = "e8e5aa70697bb26ee62214ae3288465ecec0000f05182f039b477001f08f5ae7"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -583,9 +609,9 @@ dependencies = [
 
 [[package]]
 name = "uint"
-version = "0.8.2"
+version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e75a4cdd7b87b28840dba13c483b9a88ee6bbf16ba5c951ee1ecfcf723078e0d"
+checksum = "173cd16430c206dc1a430af8a89a0e9c076cf15cb42b4aedb10e8cc8fee73681"
 dependencies = [
  "byteorder",
  "crunchy",
