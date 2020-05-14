@@ -108,9 +108,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.29"
+version = "1.0.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dc98824304f5513bb8f862f9e5985219003de4d730689e59d8f28818283a6fe4"
+checksum = "2494382e9ba43995f3c56359e518641f450f5c36feeb4632a75cde2ec297c867"
 
 [[package]]
 name = "app_dirs"
@@ -271,9 +271,9 @@ checksum = "f8aac770f1885fd7e387acedd76065302551364496e46b3dd00860b2f8359b9d"
 
 [[package]]
 name = "backtrace"
-version = "0.3.47"
+version = "0.3.48"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a5393cb2f40a6fae0014c9af00018e95846f3b241b331a6b7733c326d3e58108"
+checksum = "0df2f85c8a2abbe3b7d7e748052fdd9b76a0458fdeb16ad4223f5eca78c7c130"
 dependencies = [
  "addr2line",
  "cfg-if",
@@ -321,7 +321,7 @@ dependencies = [
  "cfg-if",
  "clang-sys",
  "clap",
- "env_logger 0.7.1",
+ "env_logger",
  "lazy_static",
  "lazycell",
  "log",
@@ -461,9 +461,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.2.1"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12ae9db68ad7fac5fe51304d20f016c911539251075a214f8e663babefa35187"
+checksum = "5356f1d23ee24a1f785a56d1d1a5f0fd5b0f6a0c0fb2412ce11da71649ab78f6"
 
 [[package]]
 name = "byte-slice-cast"
@@ -873,9 +873,9 @@ checksum = "11c0346158a19b3627234e15596f5e465c360fcdb97d817bcb255e0510f5a788"
 
 [[package]]
 name = "derive_more"
-version = "0.99.5"
+version = "0.99.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2323f3f47db9a0e77ce7a300605d8d2098597fc451ed1a97bb1f6411bb550a7"
+checksum = "46b046a346c374c6c3c84d2070bfe33904504686bdf949c2d8eb22edad3f270c"
 dependencies = [
  "proc-macro2",
  "quote 1.0.5",
@@ -982,19 +982,6 @@ dependencies = [
  "proc-macro2",
  "quote 1.0.5",
  "syn 1.0.21",
-]
-
-[[package]]
-name = "env_logger"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aafcde04e90a5226a6443b7aabdb016ba2f8307c847d524724bd9b346dd1a2d3"
-dependencies = [
- "atty",
- "humantime",
- "log",
- "regex",
- "termcolor",
 ]
 
 [[package]]
@@ -1115,11 +1102,11 @@ dependencies = [
 
 [[package]]
 name = "file-per-thread-logger"
-version = "0.1.2"
+version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8505b75b31ef7285168dd237c4a7db3c1f3e0927e7d314e670bc98e854272fe9"
+checksum = "8b3937f028664bd0e13df401ba49a4567ccda587420365823242977f06609ed1"
 dependencies = [
- "env_logger 0.6.2",
+ "env_logger",
  "log",
 ]
 
@@ -1691,7 +1678,7 @@ dependencies = [
  "indexmap",
  "log",
  "slab",
- "tokio 0.2.20",
+ "tokio 0.2.21",
  "tokio-util",
 ]
 
@@ -1892,7 +1879,7 @@ dependencies = [
  "net2",
  "pin-project",
  "time",
- "tokio 0.2.20",
+ "tokio 0.2.21",
  "tower-service",
  "want 0.3.0",
 ]
@@ -1910,7 +1897,7 @@ dependencies = [
  "log",
  "rustls",
  "rustls-native-certs",
- "tokio 0.2.20",
+ "tokio 0.2.21",
  "tokio-rustls",
  "webpki 0.21.2",
 ]
@@ -3163,11 +3150,11 @@ dependencies = [
 
 [[package]]
 name = "once_cell"
-version = "1.3.1"
+version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c601810575c99596d4afc46f78a678c80105117c379eb3650cf99b8a21ce5b"
+checksum = "0b631f7e854af39a1739f401cf34a8a013dfe09eac4fa4dba91e9768bd28168d"
 dependencies = [
- "parking_lot 0.9.0",
+ "parking_lot 0.10.2",
 ]
 
 [[package]]
@@ -4975,7 +4962,7 @@ dependencies = [
  "chrono",
  "clap",
  "derive_more",
- "env_logger 0.7.1",
+ "env_logger",
  "fdlimit",
  "futures 0.3.5",
  "lazy_static",
@@ -5003,7 +4990,7 @@ dependencies = [
  "structopt",
  "substrate-prometheus-endpoint",
  "time",
- "tokio 0.2.20",
+ "tokio 0.2.21",
 ]
 
 [[package]]
@@ -5575,7 +5562,7 @@ dependencies = [
 name = "sc-service-test"
 version = "2.0.0-dev"
 dependencies = [
- "env_logger 0.7.1",
+ "env_logger",
  "fdlimit",
  "futures 0.1.29",
  "futures 0.3.5",
@@ -6757,7 +6744,7 @@ dependencies = [
  "hyper 0.13.5",
  "log",
  "prometheus",
- "tokio 0.2.20",
+ "tokio 0.2.21",
 ]
 
 [[package]]
@@ -7155,9 +7142,9 @@ dependencies = [
 
 [[package]]
 name = "tokio"
-version = "0.2.20"
+version = "0.2.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05c1d570eb1a36f0345a5ce9c6c6e665b70b73d11236912c0b477616aeec47b1"
+checksum = "d099fa27b9702bed751524694adbe393e18b36b204da91eb1cbbbbb4a5ee2d58"
 dependencies = [
  "bytes 0.5.4",
  "fnv",
@@ -7277,7 +7264,7 @@ checksum = "4adb8b3e5f86b707f1b54e7c15b6de52617a823608ccda98a15d3a24222f265a"
 dependencies = [
  "futures-core",
  "rustls",
- "tokio 0.2.20",
+ "tokio 0.2.21",
  "webpki 0.21.2",
 ]
 
@@ -7389,7 +7376,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite",
- "tokio 0.2.20",
+ "tokio 0.2.21",
 ]
 
 [[package]]
