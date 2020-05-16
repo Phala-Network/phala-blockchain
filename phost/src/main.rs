@@ -17,11 +17,21 @@ use sp_runtime::{
     OpaqueExtrinsic
 };
 
+use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sp_core::{storage::StorageKey, Bytes};
+
 mod error;
 use crate::error::Error;
 
 mod runtimes;
 use crate::runtimes::PhalaNodeRuntime;
+
+#[derive(Encode, Decode)]
+struct GenesisInfo {
+	header: Header,
+	validators: AuthorityList,
+	proof: Vec<Vec<u8>>,
+}
 
 #[derive(structopt::StructOpt)]
 struct Args {
@@ -54,6 +64,7 @@ impl Args {
 // type Runtime = phala_node_runtime::Runtime;
 type Runtime = PhalaNodeRuntime;
 type Header = <Runtime as subxt::system::System>::Header;
+type Hash = <Runtime as subxt::system::System>::Hash;
 type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 
@@ -84,6 +95,14 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
 
     let block = deopaque_signedblock(opaque_block);
     Ok(block)
+}
+
+async fn get_storage(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> Option<Vec<u8>> {
+	client.storage(storage_key, hash).await.unwrap()
+}
+
+async fn read_proof(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> subxt::ReadProof<Hash> {
+	client.read_proof(vec![storage_key], hash).await.unwrap()
 }
 
 trait Resp {
@@ -215,10 +234,34 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        req_decode("init_runtime", InitRuntimeReq {
+		/*req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: args.get_genesis()
-        }).await?;
+        }).await?;*/
+		let genesis = base64::decode(&args.get_genesis()).unwrap();
+		let block = get_block_at(&client, Some(0)).await?;
+		let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?;
+		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
+		let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
+
+		let proof = read_proof(&client, hash, storage_key).await.proof;
+		let mut prf = Vec::new();
+		for p in proof {
+			prf.push(p.to_vec());
+		}
+
+		let v: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice()).unwrap().into();
+		let info = GenesisInfo {
+			header: block.block.header,
+			validators: v,
+			proof: prf,
+		};
+
+		let info_b64 = base64::encode(&info.encode());
+		req_decode("init_runtime", InitRuntimeReq {
+			skip_ra: !args.ra,
+			bridge_genesis_info_b64: info_b64,
+		}).await?;
     }
 
     loop {
@@ -239,7 +282,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         for h in info.blocknum ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h)).await?;
             let r = req_sync_block(&block).await?;
-            println!("feeded block {} into pRuntime: {:?}", block.block.header.number, r);
+			println!("feeded block {} into pRuntime: {:?}", block.block.header.number, r);
         }
 
         // update the latest pRuntime state

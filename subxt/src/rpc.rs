@@ -18,6 +18,7 @@
 // Allows `while let status = subscription.next().await {}`
 // Related: https://github.com/paritytech/substrate-subxt/issues/66
 #![allow(irrefutable_let_patterns)]
+#![warn(missing_docs)]
 
 use std::convert::TryInto;
 
@@ -38,7 +39,7 @@ use jsonrpsee::{
 use num_traits::bounds::Bounded;
 
 use frame_metadata::RuntimeMetadataPrefixed;
-use serde::Serialize;
+use serde::{Serialize, Deserialize};
 use sp_core::{
     storage::{
         StorageChangeSet,
@@ -84,6 +85,15 @@ use crate::{
 pub type ChainBlock<T> =
     SignedBlock<Block<<T as System>::Header, <T as System>::Extrinsic>>;
 
+#[derive(Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReadProof<Hash> {
+    /// Block hash used to generate the proof
+    pub at: Hash,
+    /// A proof used to prove that storage entries are included in the storage trie
+    pub proof: Vec<Bytes>,
+}
+
 /// Wrapper for NumberOrHex to allow custom From impls
 #[derive(Serialize)]
 #[serde(bound = "<T as System>::BlockNumber: Serialize")]
@@ -124,7 +134,7 @@ impl<T: System> Rpc<T> {
     }
 
     /// Fetch a storage key
-    pub async fn storage<V: Decode>(
+    pub async fn fetch<V: Decode>(
         &self,
         key: StorageKey,
         hash: Option<T::Hash>,
@@ -142,6 +152,27 @@ impl<T: System> Rpc<T> {
         }
     }
 
+    /// Query a storage key
+    pub async fn storage(
+        &self,
+        key: StorageKey,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<Vec<u8>>, Error> {
+        // todo: update jsonrpsee::rpc_api! macro to accept shared Client (currently only RawClient)
+        // until then we manually construct params here and in other methods
+        let params = Params::Array(vec![to_json_value(key)?, to_json_value(hash)?]);
+        let data: Option<StorageData> =
+            self.client.request("state_getStorage", params).await?;
+        match data {
+            Some(data) => {
+                Ok(Some(data.0))
+            }
+            None => {
+                Ok(None)
+            },
+        }
+    }
+
     /// Query historical storage entries
     pub async fn query_storage(
         &self,
@@ -156,6 +187,21 @@ impl<T: System> Rpc<T> {
         ]);
         self.client
             .request("state_queryStorage", params)
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn read_proof(
+        &self,
+        keys: Vec<StorageKey>,
+        hash: Option<T::Hash>,
+    ) -> Result<ReadProof<<T as System>::Hash>, Error> {
+        let params = Params::Array(vec![
+            to_json_value(keys)?,
+            to_json_value(hash)?,
+        ]);
+        self.client
+            .request("state_getReadProof", params)
             .await
             .map_err(Into::into)
     }
