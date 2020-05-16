@@ -39,6 +39,8 @@
 )]
 #![allow(clippy::type_complexity)]
 
+#![warn(missing_docs)]
+
 use std::{
     convert::TryFrom,
     marker::PhantomData,
@@ -88,10 +90,11 @@ pub use self::{
     rpc::{
         BlockNumber,
         ExtrinsicSuccess,
+        ReadProof,
     },
     runtimes::*,
 };
-use self::{
+pub use self::{
     events::{
         EventsDecoder,
         EventsError,
@@ -191,7 +194,7 @@ where
         key: StorageKey,
         hash: Option<T::Hash>,
     ) -> Result<Option<V>, Error> {
-        self.rpc.storage::<V>(key, hash).await
+        self.rpc.fetch::<V>(key, hash).await
     }
 
     /// Fetch a StorageKey or return the default.
@@ -215,6 +218,15 @@ where
         Ok(result.unwrap_or_default())
     }
 
+    /// Query a StorageKey.
+    pub async fn storage(
+        &self,
+        key: StorageKey,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<Vec<u8>>, Error> {
+        self.rpc.storage(key, hash).await
+    }
+
     /// Query historical storage entries
     pub async fn query_storage(
         &self,
@@ -223,6 +235,14 @@ where
         to: Option<T::Hash>,
     ) -> Result<Vec<StorageChangeSet<<T as System>::Hash>>, Error> {
         self.rpc.query_storage(keys, from, to).await
+    }
+
+    pub async fn read_proof(
+        &self,
+        keys: Vec<StorageKey>,
+        hash: Option<T::Hash>,
+    ) -> Result<ReadProof<<T as System>::Hash>, Error> {
+        self.rpc.read_proof(keys, hash).await
     }
 
     /// Get a header
