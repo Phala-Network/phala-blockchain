@@ -191,6 +191,27 @@ impl<T: Trait> LightValidation<T>
 		self.submit_finalized_headers(
 			bridge_id, header, ancestry_proof, validator_set, validator_set_id, grandpa_proof)
 	}
+
+	pub fn validate_events_proof(
+		&mut self,
+		state_root: &T::Hash,
+		proof: StorageProof,
+		events: Vec<u8>,
+		key: Vec<u8>,
+	) -> Result<(), Error> {
+		let checker = <StorageProofChecker<T::Hashing>>::new(
+			*state_root,
+			proof.clone()
+		)?;
+		let actual_events = checker
+			.read_value(&key)?
+			.ok_or(Error::StorageValueUnavailable)?;
+		if events == actual_events {
+			Ok(())
+		} else {
+			Err(Error::EventsMismatch)
+		}
+	}
 }
 
 #[derive(Debug)]
@@ -205,6 +226,7 @@ pub enum Error {
 	InvalidFinalityProof,
 	// UnknownClientError,
 	HeaderAncestryMismatch,
+	EventsMismatch,
 }
 
 impl From<JustificationError> for Error {

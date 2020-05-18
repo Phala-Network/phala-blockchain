@@ -20,6 +20,9 @@ use sp_runtime::{
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_core::{storage::StorageKey, Bytes};
 
+mod utils;
+use crate::utils::{storage_value_key_vec};
+
 mod error;
 use crate::error::Error;
 
@@ -139,6 +142,22 @@ impl<T: Serialize> RuntimeReq<T> {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
+struct SyncEventsReq {
+	events: Vec<u8>,
+	proof: Vec<Vec<u8>>,
+	root: Vec<u8>,
+	key: Vec<u8>,
+	block_num: u32,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct SyncEventsResp {
+	synced_to: phala_node_runtime::BlockNumber
+}
+impl Resp for SyncEventsReq {
+	type Resp = SyncBlockResp;
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 struct GetInfoResp {
@@ -238,7 +257,6 @@ async fn bridge(args: Args) -> Result<(), Error> {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: args.get_genesis()
         }).await?;*/
-		let genesis = base64::decode(&args.get_genesis()).unwrap();
 		let block = get_block_at(&client, Some(0)).await?;
 		let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?;
 		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
@@ -283,11 +301,60 @@ async fn bridge(args: Args) -> Result<(), Error> {
             let block = get_block_at(&client, Some(h)).await?;
             let r = req_sync_block(&block).await?;
 			println!("feeded block {} into pRuntime: {:?}", block.block.header.number, r);
+
+			if h > 0 {
+				let _ = sync_events(&client, &block, h).await;
+			}
         }
 
         // update the latest pRuntime state
         info = req_decode("get_info", GetInfoReq {}).await?;
     }
+}
+
+async fn sync_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock, h: u32) -> Result<(), Error> {
+	let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(h)))).await?;
+	let key = storage_value_key_vec("System", "Events");
+	let storage_key = StorageKey(key.clone());
+	let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
+
+	if filter_events(&client, value.clone()) {
+		let proof = read_proof(&client, hash, storage_key).await.proof;
+		let mut prf = Vec::new();
+		for p in proof {
+			prf.push(p.to_vec());
+		}
+		req_decode("sync_events", SyncEventsReq {
+			events: value,
+			proof: prf,
+			root: block.block.header.state_root.as_bytes().to_vec(),
+			key,
+			block_num: h,
+		}).await?;
+	}
+
+	Ok(())
+}
+
+fn filter_events(client: &subxt::Client<Runtime>, events: Vec<u8>) -> bool {
+	match client.decoder().decode_events(&mut &events[..]) {
+		Ok(raw_events) => {
+			for (phase, event) in raw_events {
+				match event {
+					subxt::RuntimeEvent::Raw(re) => {
+						if re.module == "PhalaModule" {
+							println!("phalaModule event");
+							return true;
+						}
+					},
+					_ => (),
+				}
+			}
+		}
+		Err(_err) => (),
+	}
+
+	false
 }
 
 #[paw::main]

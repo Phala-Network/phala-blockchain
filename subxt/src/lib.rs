@@ -84,7 +84,7 @@ mod runtimes;
 
 pub use self::{
     error::Error,
-    events::RawEvent,
+    events::{RawEvent, RuntimeEvent},
     extrinsic::*,
     frame::*,
     rpc::{
@@ -186,6 +186,11 @@ where
     /// Returns the chain metadata.
     pub fn metadata(&self) -> &Metadata {
         &self.metadata
+    }
+
+    pub fn decoder(&self) -> EventsDecoder<T> {
+        let decoder = EventsDecoder::try_from(self.metadata.clone()).unwrap();
+        decoder
     }
 
     /// Fetch a StorageKey.
