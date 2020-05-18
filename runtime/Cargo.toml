@@ -1,16 +1,18 @@
 [package]
 name = "phala-node-runtime"
 version = "2.0.0-dev"
-authors = ["Jasl"]
+authors = ["Phala Network"]
 edition = "2018"
-license = "Unlicense"
-homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/substrate/"
+build = "build.rs"
+license = "Apache-2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
+
 # third-party dependencies
 codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
 integer-sqrt = { version = "0.1.2" }
@@ -82,61 +84,64 @@ native-nostd-hasher = { version = "2.0.0-dev", path = "../native-nostd-hasher", 
 [build-dependencies]
 wasm-builder-runner = { version = "1.0.5", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
 
+[dev-dependencies]
+sp-io = { version = "2.0.0-dev", path = "../substrate/primitives/io" }
+
 [features]
 default = ["std", "include-wasm"]
 include-wasm = []
 std = [
 	"sp-authority-discovery/std",
-    "pallet-authority-discovery/std",
-    "pallet-authorship/std",
-    "sp-consensus-babe/std",
-    "pallet-babe/std",
-    "pallet-balances/std",
-    "sp-block-builder/std",
-    "codec/std",
-    "pallet-collective/std",
-    "pallet-contracts/std",
-    "pallet-contracts-primitives/std",
-    "pallet-contracts-rpc-runtime-api/std",
-    "pallet-democracy/std",
-    "pallet-elections-phragmen/std",
-    "frame-executive/std",
-    "pallet-finality-tracker/std",
-    "pallet-grandpa/std",
-    "pallet-im-online/std",
-    "pallet-indices/std",
-    "sp-inherents/std",
-    "pallet-membership/std",
-    "pallet-identity/std",
-    "node-primitives/std",
-    "sp-offchain/std",
-    "pallet-offences/std",
-    "sp-core/std",
-    "pallet-randomness-collective-flip/std",
-    "sp-std/std",
-    "serde",
-    "pallet-session/std",
-    "sp-api/std",
-    "sp-runtime/std",
-    "sp-staking/std",
-    "pallet-staking/std",
-    "sp-keyring",
-    "sp-session/std",
-    "pallet-sudo/std",
-    "frame-support/std",
-    "frame-benchmarking/std",
-    "frame-system-rpc-runtime-api/std",
-    "frame-system/std",
-    "pallet-timestamp/std",
-    "pallet-transaction-payment-rpc-runtime-api/std",
-    "pallet-transaction-payment/std",
-    "pallet-treasury/std",
-    "sp-transaction-pool/std",
-    "pallet-utility/std",
-    "sp-version/std",
-    "pallet-society/std",
-    "pallet-recovery/std",
-    "pallet-vesting/std",
+	"pallet-authority-discovery/std",
+	"pallet-authorship/std",
+	"sp-consensus-babe/std",
+	"pallet-babe/std",
+	"pallet-balances/std",
+	"sp-block-builder/std",
+	"codec/std",
+	"pallet-collective/std",
+	"pallet-contracts/std",
+	"pallet-contracts-primitives/std",
+	"pallet-contracts-rpc-runtime-api/std",
+	"pallet-democracy/std",
+	"pallet-elections-phragmen/std",
+	"frame-executive/std",
+	"pallet-finality-tracker/std",
+	"pallet-grandpa/std",
+	"pallet-im-online/std",
+	"pallet-indices/std",
+	"sp-inherents/std",
+	"pallet-membership/std",
+	"pallet-identity/std",
+	"node-primitives/std",
+	"sp-offchain/std",
+	"pallet-offences/std",
+	"sp-core/std",
+	"pallet-randomness-collective-flip/std",
+	"sp-std/std",
+	"serde",
+	"pallet-session/std",
+	"sp-api/std",
+	"sp-runtime/std",
+	"sp-staking/std",
+	"pallet-staking/std",
+	"sp-keyring",
+	"sp-session/std",
+	"pallet-sudo/std",
+	"frame-support/std",
+	"frame-benchmarking/std",
+	"frame-system-rpc-runtime-api/std",
+	"frame-system/std",
+	"pallet-timestamp/std",
+	"pallet-transaction-payment-rpc-runtime-api/std",
+	"pallet-transaction-payment/std",
+	"pallet-treasury/std",
+	"sp-transaction-pool/std",
+	"pallet-utility/std",
+	"sp-version/std",
+	"pallet-society/std",
+	"pallet-recovery/std",
+	"pallet-vesting/std",
 	"pallet-phala/std",
 ]
 runtime-benchmarks = [

@@ -1,22 +1,24 @@
-// Copyright 2018-2020 Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
-// Substrate is free software: you can redistribute it and/or modify
+// Copyright (C) 2018-2020 Parity Technologies (UK) Ltd.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+
+// This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// Substrate is distributed in the hope that it will be useful,
+// This program is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Substrate chain configurations.
 
-use sc_chain_spec::{ChainSpecExtension, Properties};
+use sc_chain_spec::ChainSpecExtension;
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
 use node_runtime::{
@@ -374,103 +376,6 @@ pub fn local_testnet_config() -> ChainSpec {
 		Default::default(),
 	)
 }
-
-
-fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
-	// stash, controller, session-key
-	// generated with secret:
-	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/phat/$j/$i; done; done
-	// and
-	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//phat//$j//$i; done; done
-	// for i in 1 2 3 4 ; do for j in session; do subkey --sr25519 inspect "$secret"//phat//$j//$i; done; done
-
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![(
-		// 5CUxw7qvQko4NPVb88Qgg8G36VYTDePDgtjKBuK65Gv7ahYn
-		hex!["1280a479ee3beca7af1636aca17582f30829782e2c9b1b9c72aaf8060563ab37"].into(),
-		// 5ELi5uotM2GU3v4aWJhm1DGYTrKUibtmpcpAn1EEVke8EVv6
-		hex!["64ad2976cd7649cd102ebbc451a6976fd2db0fed678fb90fab2126e5e5ae5113"].into(),
-		// 5HmLqU4HyW2MX47ZmGgGQsiNxFE4bPoZfSRsMnLkd7GyukP9
-		hex!["fc2b7780edac19e87b7705eddeb0d90e37cee014fdb1def2fb71541566faa484"].unchecked_into(),
-		// 5ECBpUbnevxTptrJyAoELV5mBYZGcXoReNyYH39Vw85qaiun
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
-	),(
-		// 5GCeVrMPXCLB8epQGMAZqCcSmojBC5zJvauFbWDPZrhgufLr
-		hex!["b6ff9705ce62359dc2a487f426a8fa977ea6420a5a84e6608e62e62089e7fd7b"].into(),
-		// 5DZJfUJPNuiCschPuXrEAVYHddGvrdzosuoQroUarLnWvqfb
-		hex!["420c46802b86f4c6a02f52882e5efac42609f94627e0aca45f1fb4d160435c62"].into(),
-		// 5CE1bT5dXTdDWxaLuXtMGmqPcPHGfcpkUQAY4zLdipi1A2DZ
-		hex!["0718eb34f317d427e2080f0fc37d526ff9321ba361850a06f3336892a3fd3741"].unchecked_into(),
-		// 5EKx9UqC8o72hEWPk2pah3b9ZNhv4FtT3N4m459p8KdbtUdW
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
-	),(
-		// 5Eh88vAuW767kBXN4G2ivNJViitxjyxnFRKiWSZSqnkrmg1L
-		hex!["743f09263cb6772ec3f050be346751d917b904590b2f958709e11249d08c9007"].into(),
-		// 5GeQy2DPW6kkJ8wJ4AHboYiwnuiWxCFrFCh6NCrV9djbPRNY
-		hex!["caa66b4fa856f986bf27f5f6acec9638f33d3f7399977844d959c8effb3e700b"].into(),
-		// 5CEHGicaLZcT1pQoq7oYGjojKPJHs6HUJYqhAtL3vMvqgqer
-		hex!["074db13f1143914815bf1fc68edb43ccc71ca7e6af44500a6cb1687a1a28369f"].unchecked_into(),
-		// 5Com2ZC4QrUZd87wZDymg5joDTC1i9SyaUqQkx1Mk3uW77XC
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
-	),(
-		// 5EhmDfbqpoYFPRg2vgJgMZb6KdBLMyAz2WeGwZn2pmihBk3B
-		hex!["74bbdd4d4cac2c519e54bbdf77daf6544c54246b4a4dc076900d63679e4f0838"].into(),
-		// 5FkFp5DTUf4Lg6ANXHTyU6L6wuNpgefzYqaihpgEnaTB1JFm
-		hex!["a2ded794110f25309ad3ce74533b9126c172f776a3b19e323e2d7e4268ee547f"].into(),
-		// 5CRNc8nF5pyP8upNZcquqqiMTZgC9fWaw1oxr76gbK8K93vG
-		hex!["0fc359aa38b5a444ff97a52b7ea0676ca3e1b5f8f4c8032060ba036f257af20a"].unchecked_into(),
-		// 5Dyhz1o4oatt9FYKjhqcUDr2uL8YiNJMQHdMGqSB6ZZRMymi
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-	)];
-
-	// generated with secret: subkey inspect "$secret"/phat
-	let root_key: AccountId = hex![
-		// 5GWqoSBypwgeFaqABPp16RrhALGzPMPQGfUDTDwMc2sopQw7
-		"c4e00e9a9de00c227cb4508fb81ae29a235103cb457c07747ef4750a6f3dd81c"
-	].into();
-
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
-
-	testnet_genesis(
-		initial_authorities,
-		root_key,
-		Some(endowed_accounts),
-		false,
-	)
-}
-
-/// Local testnet config (multivalidator Alice + Bob)
-pub fn phala_testnet_poc2_config() -> ChainSpec {
-	let boot_nodes = vec![];
-	let protocol_id: &str = "phat2";
-	let properties = {
-		let mut p = Properties::new();
-		p.insert("tokenSymbol".into(), "PHA".into());
-		p.insert("tokenDecimals".into(), 12.into());
-		p
-	};
-
-	ChainSpec::from_genesis(
-		"Phala PoC-2",
-		"phala_poc_2",
-		ChainType::Live,
-		phala_testnet_poc2_config_genesis,
-		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-			.expect("Staging telemetry url is valid; qed")),
-		Some(protocol_id),
-		Some(properties),
-		Default::default(),
-	)
-}
-
 
 #[cfg(test)]
 pub(crate) mod tests {
