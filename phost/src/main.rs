@@ -18,7 +18,7 @@ use sp_runtime::{
 };
 
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
-use sp_core::{storage::StorageKey, Bytes, twox_128};
+use sp_core::{storage::StorageKey, twox_128};
 
 mod error;
 use crate::error::Error;
@@ -44,6 +44,7 @@ struct Args {
 }
 
 impl Args {
+	#![allow(dead_code)]
     fn get_genesis(&self) -> String {
         if !self.genesis.is_empty() {
             self.genesis.clone()
@@ -75,7 +76,7 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
 }
 
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
-        -> Result<phala_node_runtime::SignedBlock, Error> {
+        -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
     // let hash = if pos == None {
     //     client.finalized_head().await?
@@ -94,15 +95,28 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
                              .ok_or(Error::BlockNotFound())?;
 
     let block = deopaque_signedblock(opaque_block);
-    Ok(block)
+
+	let block_with_events;
+	if h.is_some() && h.unwrap() > 0 {
+		block_with_events = fetch_events(&client, &block, h.unwrap()).await.unwrap();
+	} else {
+		block_with_events = BlockWithEvents {
+			block,
+			events: None,
+			proof: None,
+			key: None,
+		}
+	}
+
+	Ok(block_with_events)
 }
 
 async fn get_storage(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> Option<Vec<u8>> {
-	client.storage(storage_key, hash).await.unwrap()
+	client.storage(storage_key, hash).await.expect("error when getting storage")
 }
 
 async fn read_proof(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> subxt::ReadProof<Hash> {
-	client.read_proof(vec![storage_key], hash).await.unwrap()
+	client.read_proof(vec![storage_key], hash).await.expect("error when reading proof")
 }
 
 trait Resp {
@@ -171,6 +185,14 @@ impl Resp for InitRuntimeReq {
     type Resp = InitRuntimeResp;
 }
 
+#[derive(Encode, Decode, Clone, Debug)]
+struct BlockWithEvents {
+	block: phala_node_runtime::SignedBlock,
+	events: Option<Vec<u8>>,
+	proof: Option<Vec<Vec<u8>>>,
+	key: Option<Vec<u8>>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
     blocks_b64: Vec<String>
@@ -181,22 +203,6 @@ struct SyncBlockResp {
 }
 impl Resp for SyncBlockReq {
     type Resp = SyncBlockResp;
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-struct SyncEventsReq {
-	events: Vec<u8>,
-	proof: Vec<Vec<u8>>,
-	root: Vec<u8>,
-	key: Vec<u8>,
-	block_num: u32,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct SyncEventsResp {
-	synced_to: phala_node_runtime::BlockNumber
-}
-impl Resp for SyncEventsReq {
-	type Resp = SyncBlockResp;
 }
 
 const PRUNTIME_RPC_BASE: &'static str = "http://127.0.0.1:8000";
@@ -233,7 +239,7 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(blocks: &Vec<phala_node_runtime::SignedBlock>) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|ref block| {
@@ -256,11 +262,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        /*req_decode("init_runtime", InitRuntimeReq {
-            skip_ra: !args.ra,
-            bridge_genesis_info_b64: args.get_genesis()
-        }).await?;*/
-		let block = get_block_at(&client, Some(0)).await?;
+		let block = get_block_at(&client, Some(0)).await?.block;
 		let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?;
 		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
 		let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
@@ -287,7 +289,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     loop {
         println!("pRuntime get_info response: {:?}", info);
-        let block_tip = get_block_at(&client, None).await?;
+        let block_tip = get_block_at(&client, None).await?.block;
         // info.blocknum is the next required block
         println!("try to upload blocks. next required: {}, finalized tip: {}",
             info.blocknum, block_tip.block.header.number);
@@ -300,14 +302,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // no, then catch up to the chain tip
-        let mut blocks = Vec::<phala_node_runtime::SignedBlock>::new();
+        let mut blocks = Vec::<BlockWithEvents>::new();
         for h in info.blocknum ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h)).await?;
             blocks.push(block.clone());
-
-			if h > 0 {
-				let _ = sync_events(&client, &block, h).await;
-			}
         }
 
         println!("feeding {} blocks (from {} to {}) into pRuntime",
@@ -321,7 +319,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
-async fn sync_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock, h: u32) -> Result<(), Error> {
+async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock, h: u32) -> Result<BlockWithEvents, Error> {
 	let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(h)))).await?;
 	let key = storage_value_key_vec("System", "Events");
 	let storage_key = StorageKey(key.clone());
@@ -333,28 +331,30 @@ async fn sync_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime
 		for p in proof {
 			prf.push(p.to_vec());
 		}
-		req_decode("sync_events", SyncEventsReq {
-			events: value,
-			proof: prf,
-			root: block.block.header.state_root.as_bytes().to_vec(),
-			key,
-			block_num: h,
-		}).await?;
+
+		return Ok(BlockWithEvents {
+			block: block.clone(),
+			events: Some(value),
+			proof: Some(prf),
+			key: Some(key),
+		});
 	}
 
-	Ok(())
+	Ok(BlockWithEvents {
+		block: block.clone(),
+		events: None,
+		proof: None,
+		key: None,
+	})
 }
 
 fn filter_events(client: &subxt::Client<Runtime>, events: Vec<u8>) -> bool {
 	match client.decoder().decode_events(&mut &events[..]) {
 		Ok(raw_events) => {
-			for (phase, event) in raw_events {
+			for (_phase, event) in raw_events {
 				match event {
-					subxt::RuntimeEvent::Raw(re) => {
-						if re.module == "PhalaModule" {
-							println!("phalaModule event");
-							return true;
-						}
+					subxt::RuntimeEvent::Raw(_re) => {
+						return true;
 					},
 					_ => (),
 				}
