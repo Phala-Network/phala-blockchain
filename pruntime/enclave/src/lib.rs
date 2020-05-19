@@ -37,6 +37,9 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
+use sp_core::H256 as Hash;
+use system::{EventRecord};
+use phala::{RawEvent};
 
 mod cert;
 mod hex;
@@ -562,6 +565,7 @@ const ACTION_DUMP_STATES: u8 = 3;
 const ACTION_LOAD_STATES: u8 = 4;
 const ACTION_SYNC_BLOCK: u8 = 5;
 const ACTION_QUERY: u8 = 6;
+const ACTION_SYNC_EVENTS: u8 = 7;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -584,6 +588,15 @@ struct SyncBlockReq {
 struct TestEcdhParam {
     pubkey_hex: Option<String>,
     message_b64: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct SyncEventsReq {
+	events: Vec<u8>,
+	proof: Vec<Vec<u8>>,
+	root: Vec<u8>,
+	key: Vec<u8>,
+	block_num: u32,
 }
 
 #[no_mangle]
@@ -615,6 +628,7 @@ pub extern "C" fn ecall_handle(
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
         ACTION_SYNC_BLOCK => sync_block(load_param(input_value)),
+		ACTION_SYNC_EVENTS => sync_events(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -1089,6 +1103,41 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
 
     Ok(json!({
         "synced_to": last_block
+    }))
+}
+
+fn sync_events(input: SyncEventsReq) -> Result<Value, Value> {
+	let mut state = STATE.lock().unwrap();
+
+	let mut root: [u8; 32] = Default::default();
+	root.copy_from_slice(&input.root);
+	let state_root = Hash::from(root);
+	let validation = state.light_client.validate_events_proof(&state_root, input.proof, input.events.clone(), input.key);
+	if validation.is_ok() {
+		let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &input.events[..]);
+		match events {
+			Ok(evts) => {
+				for evt in evts {
+					match &evt.event {
+						chain::Event::pallet_phala(be) => {
+							println!("pallet_phala event: {:?}", be);
+							match &be {
+								RawEvent::CommandPushed(w, _c, _p, _n) => {
+									println!("CommandPushed from:{:?}", w);
+								},
+								_ => (),
+							}
+						},
+						_ => (),
+					}
+				}
+			},
+			Err(_) => println!("decode events error"),
+		}
+	}
+
+	Ok(json!({
+        "synced_to": input.block_num
     }))
 }
 

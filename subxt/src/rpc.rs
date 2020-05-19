@@ -132,7 +132,7 @@ impl<T: System> Rpc<T> {
     }
 
     /// Fetch a storage key
-    pub async fn storage<V: Decode>(
+    pub async fn fetch<V: Decode>(
         &self,
         key: StorageKey,
         hash: Option<T::Hash>,
@@ -147,6 +147,27 @@ impl<T: System> Rpc<T> {
                 Ok(Some(value))
             }
             None => Ok(None),
+        }
+    }
+
+    /// Query a storage key
+    pub async fn storage(
+        &self,
+        key: StorageKey,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<Vec<u8>>, Error> {
+        // todo: update jsonrpsee::rpc_api! macro to accept shared Client (currently only RawClient)
+        // until then we manually construct params here and in other methods
+        let params = Params::Array(vec![to_json_value(key)?, to_json_value(hash)?]);
+        let data: Option<StorageData> =
+            self.client.request("state_getStorage", params).await?;
+        match data {
+            Some(data) => {
+                Ok(Some(data.0))
+            }
+            None => {
+                Ok(None)
+            },
         }
     }
 
