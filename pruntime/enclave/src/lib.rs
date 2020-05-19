@@ -1096,7 +1096,10 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         dispatch(block, &ecdh_privkey);
 
 		if block_with_events.events.is_some() {
-			parse_events(&block_with_events);
+			match parse_events(&block_with_events) {
+				Err(error) => return Err(error),
+				Ok(_) => (),
+			}
 		}
 
         // move forward
@@ -1109,13 +1112,16 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     }))
 }
 
-fn parse_events(block_with_events: &BlockWithEvents) {
+fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value>{
 	let mut state = STATE.lock().unwrap();
 	let events = block_with_events.clone().events.unwrap();
 	let proof = block_with_events.clone().proof.unwrap();
 	let key = block_with_events.clone().key.unwrap();
 	let state_root = &block_with_events.block.block.header.state_root;
-	let _validation = state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).expect("Validating proof failed");
+	let validation = state.light_client.validate_events_proof(&state_root, proof, events.clone(), key);
+	if validation.is_err() {
+		return Err(error_msg("bad storage proof"));
+	}
 
 	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
 	match events {
@@ -1135,8 +1141,10 @@ fn parse_events(block_with_events: &BlockWithEvents) {
 				}
 			}
 		},
-		Err(_) => println!("decode events error"),
+		Err(_) => return Err(error_msg("decode events error")),
 	}
+
+	Ok(())
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
