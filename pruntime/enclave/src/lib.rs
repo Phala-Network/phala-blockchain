@@ -1069,10 +1069,11 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
             }
         }
         // 3. generate accenstor proof
-        let accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
+        let mut accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
             .iter()
             .map(|b| b.block.block.header.clone())
             .collect();
+        accenstor_proof.reverse();  // from high to low
         // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
