@@ -38,7 +38,7 @@
     unused_extern_crates
 )]
 #![allow(clippy::type_complexity)]
-
+#![warn(missing_docs)]
 #[macro_use]
 extern crate substrate_subxt_proc_macro;
 
@@ -56,7 +56,7 @@ use codec::{
 };
 use futures::future;
 use jsonrpsee::client::Subscription;
-use sc_rpc_api::state::ReadProof;
+pub use sc_rpc_api::state::ReadProof;
 use sp_core::{
     storage::{
         StorageChangeSet,
@@ -92,6 +92,7 @@ pub use crate::{
         EventsDecoder,
         EventsError,
         RawEvent,
+        RuntimeEvent,
     },
     extrinsic::*,
     frame::*,
@@ -219,12 +220,21 @@ impl<T: System, S, E> Client<T, S, E> {
         hash: Option<T::Hash>,
     ) -> Result<F::Returns, Error> {
         let key = store.key(&self.metadata)?;
-        let value = self.rpc.storage::<F::Returns>(key, hash).await?;
+        let value = self.rpc.fetch::<F::Returns>(key, hash).await?;
         if let Some(v) = value {
             Ok(v)
         } else {
             Ok(store.default(&self.metadata)?)
         }
+    }
+
+    /// Query a StorageKey.
+    pub async fn storage(
+        &self,
+        key: StorageKey,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<Vec<u8>>, Error> {
+        self.rpc.storage(key, hash).await
     }
 
     /// Query historical storage entries

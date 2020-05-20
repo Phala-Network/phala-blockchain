@@ -1,6 +1,5 @@
 use tokio::time::delay_for;
 use std::time::Duration;
-use std::fs;
 
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
@@ -17,6 +16,9 @@ use sp_runtime::{
     OpaqueExtrinsic
 };
 
+use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
+use sp_core::{storage::StorageKey, twox_128};
+
 mod error;
 use crate::error::Error;
 
@@ -28,32 +30,22 @@ struct Args {
     /// Should init pRuntime?
     #[structopt(short = "n", long = "no-init")]
     no_init: bool,
-    /// The genesis grandpa info data for bridge init, in base64
-    #[structopt(short = "g", long = "genesis", default_value = "")]
-    genesis: String,
-    /// The genesis grandpa info data for bridge init, in base64
-    #[structopt(short = "f", long = "genesis-file",
-                default_value = "/tmp/alice/chains/local_testnet/genesis-info.txt")]
-    genesis_file: String,
     /// Should enable Remote Attestation
     #[structopt(short = "r", long = "remote-attestation")]
     ra: bool,
 }
 
-impl Args {
-    fn get_genesis(&self) -> String {
-        if !self.genesis.is_empty() {
-            self.genesis.clone()
-        } else {
-            let data = fs::read(&self.genesis_file).expect("Missing genesis file");
-            String::from_utf8_lossy(&data).to_string()
-        }
-    }
+#[derive(Encode, Decode)]
+struct GenesisInfo {
+	header: Header,
+	validators: AuthorityList,
+	proof: Vec<Vec<u8>>,
 }
 
 // type Runtime = phala_node_runtime::Runtime;
 type Runtime = PhalaNodeRuntime;
 type Header = <Runtime as subxt::system::System>::Header;
+type Hash = <Runtime as subxt::system::System>::Hash;
 type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 
@@ -63,8 +55,8 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
     phala_node_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
 }
 
-async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
-        -> Result<phala_node_runtime::SignedBlock, Error> {
+async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_events: bool)
+        -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
     // let hash = if pos == None {
     //     client.finalized_head().await?
@@ -83,7 +75,25 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
                              .ok_or(Error::BlockNotFound())?;
 
     let block = deopaque_signedblock(opaque_block);
-    Ok(block)
+
+	if with_events {
+		return Ok(fetch_events(&client, &block).await?);
+	}
+
+	Ok(BlockWithEvents {
+		block,
+		events: None,
+		proof: None,
+		key: None,
+	})
+}
+
+async fn get_storage(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> Option<Vec<u8>> {
+	client.storage(storage_key, hash).await.expect("Error when getting storage")
+}
+
+async fn read_proof(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> subxt::ReadProof<Hash> {
+	client.read_proof(vec![storage_key], hash).await.expect("Error when reading proof")
 }
 
 trait Resp {
@@ -152,6 +162,14 @@ impl Resp for InitRuntimeReq {
     type Resp = InitRuntimeResp;
 }
 
+#[derive(Encode, Decode, Clone, Debug)]
+struct BlockWithEvents {
+	block: phala_node_runtime::SignedBlock,
+	events: Option<Vec<u8>>,
+	proof: Option<Vec<Vec<u8>>>,
+	key: Option<Vec<u8>>,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
     blocks_b64: Vec<String>
@@ -198,7 +216,7 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(blocks: &Vec<phala_node_runtime::SignedBlock>) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|ref block| {
@@ -221,15 +239,34 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        req_decode("init_runtime", InitRuntimeReq {
-            skip_ra: !args.ra,
-            bridge_genesis_info_b64: args.get_genesis()
-        }).await?;
+		let block = get_block_at(&client, Some(0), false).await?.block;
+		let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?;
+		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
+		let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
+
+		let proof = read_proof(&client, hash, storage_key).await.proof;
+		let mut prf = Vec::new();
+		for p in proof {
+			prf.push(p.to_vec());
+		}
+
+		let v: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice()).expect("Failed to decode VersionedAuthorityList").into();
+		let info = GenesisInfo {
+			header: block.block.header,
+			validators: v,
+			proof: prf,
+		};
+
+		let info_b64 = base64::encode(&info.encode());
+		req_decode("init_runtime", InitRuntimeReq {
+			skip_ra: !args.ra,
+			bridge_genesis_info_b64: info_b64,
+		}).await?;
     }
 
     loop {
         println!("pRuntime get_info response: {:?}", info);
-        let block_tip = get_block_at(&client, None).await?;
+        let block_tip = get_block_at(&client, None, false).await?.block;
         // info.blocknum is the next required block
         println!("try to upload blocks. next required: {}, finalized tip: {}",
             info.blocknum, block_tip.block.header.number);
@@ -242,10 +279,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // no, then catch up to the chain tip
-        let mut blocks = Vec::<phala_node_runtime::SignedBlock>::new();
+        let mut blocks = Vec::<BlockWithEvents>::new();
         for h in info.blocknum ..= block_tip.block.header.number {
-            let block = get_block_at(&client, Some(h)).await?;
-            blocks.push(block);
+            let block = get_block_at(&client, Some(h), true).await?;
+            blocks.push(block.clone());
         }
 
         println!("feeding {} blocks (from {} to {}) into pRuntime",
@@ -257,6 +294,43 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // update the latest pRuntime state
         info = req_decode("get_info", GetInfoReq {}).await?;
     }
+}
+
+async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock) -> Result<BlockWithEvents, Error> {
+	let hash = client.block_hash(Some(subxt::BlockNumber::from(block.block.header.number))).await?;
+	let key = storage_value_key_vec("System", "Events");
+	let storage_key = StorageKey(key.clone());
+	let block_with_events = match get_storage(&client, hash, storage_key.clone()).await {
+		Some(value) => {
+			let proof = read_proof(&client, hash, storage_key).await.proof;
+			let mut prf = Vec::new();
+			for p in proof {
+				prf.push(p.to_vec());
+			}
+
+			BlockWithEvents {
+				block: block.clone(),
+				events: Some(value),
+				proof: Some(prf),
+				key: Some(key),
+			}
+		},
+
+		None => BlockWithEvents {
+			block: block.clone(),
+			events: None,
+			proof: None,
+			key: None,
+		}
+	};
+
+	Ok(block_with_events)
+}
+
+fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
+	let mut key = twox_128(module.as_bytes()).to_vec();
+	key.extend(&twox_128(storage_key_name.as_bytes()));
+	key
 }
 
 #[paw::main]
