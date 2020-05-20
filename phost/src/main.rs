@@ -55,7 +55,7 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
     phala_node_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
 }
 
-async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
+async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_events: bool)
         -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
     // let hash = if pos == None {
@@ -76,10 +76,8 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
 
     let block = deopaque_signedblock(opaque_block);
 
-	if let Some(height) = h {
-		if height > 0 {
-			return Ok(fetch_events(&client, &block, height).await.unwrap());
-		}
+	if with_events {
+		return Ok(fetch_events(&client, &block, h.unwrap()).await.unwrap());
 	}
 
 	Ok(BlockWithEvents {
@@ -241,7 +239,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-		let block = get_block_at(&client, Some(0)).await?.block;
+		let block = get_block_at(&client, Some(0), false).await?.block;
 		let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?;
 		let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
 		let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
@@ -268,7 +266,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     loop {
         println!("pRuntime get_info response: {:?}", info);
-        let block_tip = get_block_at(&client, None).await?.block;
+        let block_tip = get_block_at(&client, None, false).await?.block;
         // info.blocknum is the next required block
         println!("try to upload blocks. next required: {}, finalized tip: {}",
             info.blocknum, block_tip.block.header.number);
@@ -283,7 +281,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // no, then catch up to the chain tip
         let mut blocks = Vec::<BlockWithEvents>::new();
         for h in info.blocknum ..= block_tip.block.header.number {
-            let block = get_block_at(&client, Some(h)).await?;
+            let block = get_block_at(&client, Some(h), true).await?;
             blocks.push(block.clone());
         }
 
@@ -302,47 +300,31 @@ async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtim
 	let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(h)))).await?;
 	let key = storage_value_key_vec("System", "Events");
 	let storage_key = StorageKey(key.clone());
-	let value = get_storage(&client, hash, storage_key.clone()).await.unwrap();
-
-	if filter_events(&client, value.clone()) {
-		let proof = read_proof(&client, hash, storage_key).await.proof;
-		let mut prf = Vec::new();
-		for p in proof {
-			prf.push(p.to_vec());
-		}
-
-		return Ok(BlockWithEvents {
-			block: block.clone(),
-			events: Some(value),
-			proof: Some(prf),
-			key: Some(key),
-		});
-	}
-
-	Ok(BlockWithEvents {
-		block: block.clone(),
-		events: None,
-		proof: None,
-		key: None,
-	})
-}
-
-fn filter_events(client: &subxt::Client<Runtime>, events: Vec<u8>) -> bool {
-	match client.decoder().unwrap().decode_events(&mut &events[..]) {
-		Ok(raw_events) => {
-			for (_phase, event) in raw_events {
-				match event {
-					subxt::RuntimeEvent::Raw(_re) => {
-						return true;
-					},
-					_ => (),
-				}
+	let block_with_events = match get_storage(&client, hash, storage_key.clone()).await {
+		Some(value) => {
+			let proof = read_proof(&client, hash, storage_key).await.proof;
+			let mut prf = Vec::new();
+			for p in proof {
+				prf.push(p.to_vec());
 			}
-		}
-		Err(_err) => (),
-	}
 
-	false
+			BlockWithEvents {
+				block: block.clone(),
+				events: Some(value),
+				proof: Some(prf),
+				key: Some(key),
+			}
+		},
+
+		None => BlockWithEvents {
+			block: block.clone(),
+			events: None,
+			proof: None,
+			key: None,
+		}
+	};
+
+	Ok(block_with_events)
 }
 
 fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
