@@ -1096,10 +1096,7 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         dispatch(block, &ecdh_privkey);
 
 		if block_with_events.events.is_some() {
-			match parse_events(&block_with_events) {
-				Err(error) => return Err(error),
-				Ok(_) => (),
-			}
+			parse_events(&block_with_events)?;
 		}
 
         // move forward
