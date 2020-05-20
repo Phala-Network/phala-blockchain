@@ -89,11 +89,11 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_even
 }
 
 async fn get_storage(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> Option<Vec<u8>> {
-	client.storage(storage_key, hash).await.expect("error when getting storage")
+	client.storage(storage_key, hash).await.expect("Error when getting storage")
 }
 
 async fn read_proof(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> subxt::ReadProof<Hash> {
-	client.read_proof(vec![storage_key], hash).await.expect("error when reading proof")
+	client.read_proof(vec![storage_key], hash).await.expect("Error when reading proof")
 }
 
 trait Resp {

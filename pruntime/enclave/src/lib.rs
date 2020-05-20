@@ -1124,17 +1124,12 @@ fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value>{
 	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
 	if let Ok(evts) = events {
 		for evt in evts {
-			match &evt.event {
-				chain::Event::pallet_phala(be) => {
-					println!("pallet_phala event: {:?}", be);
-					match &be {
-						RawEvent::CommandPushed(w, _c, _p, _n) => {
-							println!("CommandPushed from:{:?}", w);
-						},
-						_ => (),
-					}
-				},
-				_ => (),
+			if let chain::Event::pallet_phala(be) = &evt.event {
+				println!("pallet_phala event: {:?}", be);
+
+				if let RawEvent::CommandPushed(w, _c, _p, _n) = &be {
+					println!("CommandPushed from:{:?}", w);
+				}
 			}
 		}
 
