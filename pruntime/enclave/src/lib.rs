@@ -1124,27 +1124,26 @@ fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value>{
 	}
 
 	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
-	match events {
-		Ok(evts) => {
-			for evt in evts {
-				match &evt.event {
-					chain::Event::pallet_phala(be) => {
-						println!("pallet_phala event: {:?}", be);
-						match &be {
-							RawEvent::CommandPushed(w, _c, _p, _n) => {
-								println!("CommandPushed from:{:?}", w);
-							},
-							_ => (),
-						}
-					},
-					_ => (),
-				}
+	if let Ok(evts) = events {
+		for evt in evts {
+			match &evt.event {
+				chain::Event::pallet_phala(be) => {
+					println!("pallet_phala event: {:?}", be);
+					match &be {
+						RawEvent::CommandPushed(w, _c, _p, _n) => {
+							println!("CommandPushed from:{:?}", w);
+						},
+						_ => (),
+					}
+				},
+				_ => (),
 			}
-		},
-		Err(_) => return Err(error_msg("decode events error")),
+		}
+
+		return Ok(());
 	}
 
-	Ok(())
+	Err(error_msg("decode events error"))
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
