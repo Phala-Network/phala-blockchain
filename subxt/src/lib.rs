@@ -213,9 +213,9 @@ impl<T: System, S, E> Client<T, S, E> {
         &self.metadata
     }
 
-    pub fn decoder(&self) -> EventsDecoder<T> {
-        let decoder = EventsDecoder::try_from(self.metadata.clone()).unwrap();
-        decoder
+    pub fn decoder(&self) -> Result<EventsDecoder<T>, Error> {
+        let decoder = EventsDecoder::try_from(self.metadata.clone()).expect("Failed to decode events");
+        Ok(decoder)
     }
 
     /// Fetch a StorageKey.

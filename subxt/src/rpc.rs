@@ -161,14 +161,7 @@ impl<T: System> Rpc<T> {
         let params = Params::Array(vec![to_json_value(key)?, to_json_value(hash)?]);
         let data: Option<StorageData> =
             self.client.request("state_getStorage", params).await?;
-        match data {
-            Some(data) => {
-                Ok(Some(data.0))
-            }
-            None => {
-                Ok(None)
-            },
-        }
+        Ok(data.map(|d| d.0))
     }
 
     /// Query historical storage entries

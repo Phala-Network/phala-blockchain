@@ -1,6 +1,5 @@
 use tokio::time::delay_for;
 use std::time::Duration;
-use std::fs;
 
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
@@ -31,28 +30,9 @@ struct Args {
     /// Should init pRuntime?
     #[structopt(short = "n", long = "no-init")]
     no_init: bool,
-    /// The genesis grandpa info data for bridge init, in base64
-    #[structopt(short = "g", long = "genesis", default_value = "")]
-    genesis: String,
-    /// The genesis grandpa info data for bridge init, in base64
-    #[structopt(short = "f", long = "genesis-file",
-                default_value = "/tmp/alice/chains/local_testnet/genesis-info.txt")]
-    genesis_file: String,
     /// Should enable Remote Attestation
     #[structopt(short = "r", long = "remote-attestation")]
     ra: bool,
-}
-
-impl Args {
-	#![allow(dead_code)]
-    fn get_genesis(&self) -> String {
-        if !self.genesis.is_empty() {
-            self.genesis.clone()
-        } else {
-            let data = fs::read(&self.genesis_file).expect("Missing genesis file");
-            String::from_utf8_lossy(&data).to_string()
-        }
-    }
 }
 
 #[derive(Encode, Decode)]
@@ -96,19 +76,18 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>)
 
     let block = deopaque_signedblock(opaque_block);
 
-	let block_with_events;
-	if h.is_some() && h.unwrap() > 0 {
-		block_with_events = fetch_events(&client, &block, h.unwrap()).await.unwrap();
-	} else {
-		block_with_events = BlockWithEvents {
-			block,
-			events: None,
-			proof: None,
-			key: None,
+	if let Some(height) = h {
+		if height > 0 {
+			return Ok(fetch_events(&client, &block, height).await.unwrap());
 		}
 	}
 
-	Ok(block_with_events)
+	Ok(BlockWithEvents {
+		block,
+		events: None,
+		proof: None,
+		key: None,
+	})
 }
 
 async fn get_storage(client: &subxt::Client<Runtime>, hash: Option<Hash>, storage_key: StorageKey) -> Option<Vec<u8>> {
@@ -273,7 +252,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 			prf.push(p.to_vec());
 		}
 
-		let v: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice()).unwrap().into();
+		let v: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice()).expect("Failed to decode VersionedAuthorityList").into();
 		let info = GenesisInfo {
 			header: block.block.header,
 			validators: v,
@@ -349,7 +328,7 @@ async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtim
 }
 
 fn filter_events(client: &subxt::Client<Runtime>, events: Vec<u8>) -> bool {
-	match client.decoder().decode_events(&mut &events[..]) {
+	match client.decoder().unwrap().decode_events(&mut &events[..]) {
 		Ok(raw_events) => {
 			for (_phase, event) in raw_events {
 				match event {
