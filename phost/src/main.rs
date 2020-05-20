@@ -77,7 +77,7 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_even
     let block = deopaque_signedblock(opaque_block);
 
 	if with_events {
-		return Ok(fetch_events(&client, &block, h.unwrap()).await.unwrap());
+		return Ok(fetch_events(&client, &block).await?);
 	}
 
 	Ok(BlockWithEvents {
@@ -296,8 +296,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
-async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock, h: u32) -> Result<BlockWithEvents, Error> {
-	let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(h)))).await?;
+async fn fetch_events(client: &subxt::Client<Runtime>, block: &phala_node_runtime::SignedBlock) -> Result<BlockWithEvents, Error> {
+	let hash = client.block_hash(Some(subxt::BlockNumber::from(block.block.header.number))).await?;
 	let key = storage_value_key_vec("System", "Events");
 	let storage_key = StorageKey(key.clone());
 	let block_with_events = match get_storage(&client, hash, storage_key.clone()).await {
