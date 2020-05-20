@@ -582,6 +582,7 @@ struct TestReq {
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
     blocks_b64: Vec<String>,
+    set_id: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
@@ -1064,7 +1065,7 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         let header = last_block.block.header.clone();
         // 2. check block sequence
         for (i, block) in blocks.iter().enumerate() {
-            if i > 0 && blocks[i].block.block.header.hash() != block.block.block.header.parent_hash {
+            if i > 0 && blocks[i-1].block.block.header.hash() != block.block.block.header.parent_hash {
                 return Err(error_msg("Incorrect block order"));
             }
         }
@@ -1081,7 +1082,8 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
             bridge_id,
             header,
             accenstor_proof,
-            justification
+            justification,
+            input.set_id
         ).map_err(|_| error_msg("Light validation failed"))?
     }
     // Passed the validation

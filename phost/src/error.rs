@@ -8,6 +8,7 @@ pub enum Error {
   BlockHashNotFound,
   BlockNotFound,
   NoJustification,
+  NoSetIdAtBlock
 }
 
 impl From<hyper::error::Error> for Error {

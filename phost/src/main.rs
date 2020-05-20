@@ -172,7 +172,8 @@ struct BlockWithEvents {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
-    blocks_b64: Vec<String>
+    blocks_b64: Vec<String>,
+    set_id: u64
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockResp {
@@ -216,7 +217,7 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(blocks: &Vec<BlockWithEvents>, set_id: u64) -> Result<SyncBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|ref block| {
@@ -226,12 +227,16 @@ async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, 
         })
         .collect();
 
-    let resp = req_decode("sync_block", SyncBlockReq { blocks_b64 }).await?;
+    let req = SyncBlockReq { blocks_b64, set_id };
+    let resp = req_decode("sync_block", req).await?;
     println!("req_sync_block: {:?}", resp);
     Ok(resp)
 }
 
-async fn batch_sync_block(block_buf: &mut Vec<BlockWithEvents>) -> Result<(), Error> {
+async fn batch_sync_block(
+    client: &subxt::Client<Runtime>,
+    block_buf: &mut Vec<BlockWithEvents>
+) -> Result<(), Error> {
     const BATCH_WINDOW: usize = 100;
     while !block_buf.is_empty() {
         // find the longest batch within the window
@@ -248,8 +253,30 @@ async fn batch_sync_block(block_buf: &mut Vec<BlockWithEvents>) -> Result<(), Er
         }
         // send out the longest batch and remove it from the input buffer
         let block_batch: Vec<BlockWithEvents> = block_buf.drain(..=(i as usize)).collect();
-        println!("sending a batch of {} blocks", block_batch.len());
-        req_sync_block(&block_batch).await?;
+
+        /* print collected blocks */ {
+            for b in block_batch.iter() {
+                println!("Block {} :: {} :: {}",
+                    b.block.block.header.number,
+                    b.block.block.header.hash().to_string(),
+                    b.block.block.header.parent_hash.to_string()
+                );
+            }
+        }
+
+        let last_block = &block_batch.last().unwrap();
+        let last_block_hash = last_block.block.block.header.hash();
+        let last_block_number = last_block.block.block.header.number;
+
+        let set_id = client
+            .fetch(runtimes::grandpa::CurrentSetIdStore::new(), Some(last_block_hash))
+            .await
+            .map_err(|_| Error::NoSetIdAtBlock)?;
+
+        println!("sending a batch of {} blocks (last: {}, set_id: {})",
+            block_batch.len(), last_block_number, set_id);
+        let r = req_sync_block(&block_batch, set_id as u64).await?;
+        println!("  ..sync_block: {:?}", r);
     }
     Ok(())
 }
@@ -310,12 +337,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // send the blocks to pRuntime in batch
-        batch_sync_block(&mut blocks).await?;
-
-        println!("feeding {} blocks (from {} to {}) into pRuntime",
-                 blocks.len(), info.blocknum, block_tip.block.header.number);
-        let r = req_sync_block(&blocks).await?;
-        println!("  ..sync_block: {:?}", r);
+        batch_sync_block(&client, &mut blocks).await?;
     }
 }
 
