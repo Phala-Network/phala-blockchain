@@ -5,8 +5,9 @@ pub enum Error {
   UriError(hyper::http::uri::InvalidUri),
   SubxtRpcError(subxt::Error),
   SerdeError(serde_json::error::Error),
-  BlockHashNotFound(),
-  BlockNotFound(),
+  BlockHashNotFound,
+  BlockNotFound,
+  NoJustification,
 }
 
 impl From<hyper::error::Error> for Error {
