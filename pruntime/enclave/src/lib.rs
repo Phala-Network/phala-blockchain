@@ -1114,14 +1114,12 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
 
 fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value>{
 	let mut state = STATE.lock().unwrap();
-	let events = block_with_events.clone().events.unwrap();
-	let proof = block_with_events.clone().proof.unwrap();
-	let key = block_with_events.clone().key.unwrap();
+	let missing_field = error_msg("Missing field");
+	let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
+	let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
+	let key = block_with_events.clone().key.ok_or(missing_field)?;
 	let state_root = &block_with_events.block.block.header.state_root;
-	let validation = state.light_client.validate_events_proof(&state_root, proof, events.clone(), key);
-	if validation.is_err() {
-		return Err(error_msg("bad storage proof"));
-	}
+	state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
 
 	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
 	if let Ok(evts) = events {
