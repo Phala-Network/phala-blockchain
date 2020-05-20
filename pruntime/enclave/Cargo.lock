@@ -19,6 +19,7 @@ dependencies = [
  "log 0.4.8 (git+https://github.com/mesalock-linux/log-sgx)",
  "num-bigint",
  "num-traits 0.2.11",
+ "pallet-phala",
  "parity-scale-codec",
  "phala-node-runtime",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.2)",
@@ -227,9 +228,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.53"
+version = "1.0.54"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "404b1fe4f65288577753b17e3b36a04596ee784493ec249bf81c7f2d2acd751c"
+checksum = "7bbb73db36c1246e9034e307d0fba23f9a2e251faa47ade70c1bd252220c8311"
 
 [[package]]
 name = "cfg-if"
@@ -1002,8 +1003,6 @@ dependencies = [
  "parity-scale-codec",
  "sp-application-crypto",
  "sp-authority-discovery",
- "sp-core",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -1017,9 +1016,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
  "sp-authorship",
- "sp-core",
  "sp-inherents",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -1051,7 +1048,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -1295,7 +1291,6 @@ dependencies = [
  "impl-trait-for-tuples",
  "pallet-timestamp",
  "parity-scale-codec",
- "sp-io",
  "sp-runtime",
  "sp-session",
  "sp-staking",
@@ -1311,7 +1306,6 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
@@ -1426,7 +1420,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "sp-io",
  "sp-runtime",
  "sp-std",
 ]
