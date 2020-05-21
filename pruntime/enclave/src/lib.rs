@@ -816,6 +816,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
+    local_state.blocknum = 1;
 
     Ok(
         json!({
@@ -1057,7 +1058,7 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
     // Light validation when possible
     let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
-    if last_block.block.header.number > 0 {
+    {
         // 1. the last block must has justification
         let justification = last_block.justification.as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
@@ -1084,7 +1085,7 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
             accenstor_proof,
             justification,
             input.set_id
-        ).map_err(|_| error_msg("Light validation failed"))?
+        ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
     }
     // Passed the validation
     let mut local_state = LOCAL_STATE.lock().unwrap();

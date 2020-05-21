@@ -58,12 +58,6 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_events: bool)
         -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
-    // let hash = if pos == None {
-    //     client.finalized_head().await?
-    // } else {
-    //     client.block_hash(pos).await?
-    //         .ok_or(Error::BlockHashNotFound())?
-    // };
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
         None => client.finalized_head().await?
@@ -77,7 +71,11 @@ async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_even
     let block = deopaque_signedblock(opaque_block);
 
 	if with_events {
-		return Ok(fetch_events(&client, &block).await?);
+        let block_with_events = fetch_events(&client, &block).await?;
+        if let Some(ref events) = block_with_events.events {
+            println!("          ... with events {} bytes", events.len());
+        }
+        return Ok(block_with_events)
 	}
 
 	Ok(BlockWithEvents {
@@ -236,7 +234,7 @@ async fn batch_sync_block(
     client: &subxt::Client<Runtime>,
     block_buf: &mut Vec<BlockWithEvents>
 ) -> Result<usize, Error> {
-    const BATCH_WINDOW: usize = 100;
+    const BATCH_WINDOW: usize = 500;
     let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
         // find the longest batch within the window
