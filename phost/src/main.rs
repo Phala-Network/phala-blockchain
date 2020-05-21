@@ -229,7 +229,6 @@ async fn req_sync_block(blocks: &Vec<BlockWithEvents>, set_id: u64) -> Result<Sy
 
     let req = SyncBlockReq { blocks_b64, set_id };
     let resp = req_decode("sync_block", req).await?;
-    println!("req_sync_block: {:?}", resp);
     Ok(resp)
 }
 
