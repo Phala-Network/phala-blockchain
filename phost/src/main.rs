@@ -236,8 +236,9 @@ async fn req_sync_block(blocks: &Vec<BlockWithEvents>, set_id: u64) -> Result<Sy
 async fn batch_sync_block(
     client: &subxt::Client<Runtime>,
     block_buf: &mut Vec<BlockWithEvents>
-) -> Result<(), Error> {
+) -> Result<usize, Error> {
     const BATCH_WINDOW: usize = 100;
+    let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
         // find the longest batch within the window
         let mut i = (std::cmp::min(BATCH_WINDOW, block_buf.len()) as isize) - 1;
@@ -245,10 +246,10 @@ async fn batch_sync_block(
             i -= 1;
         }
         if i < 0 {
-            return if block_buf.len() > BATCH_WINDOW {
-                Err(Error::NoJustification)
+            if block_buf.len() > BATCH_WINDOW {
+                return Err(Error::NoJustification)
             } else {
-                Ok(())
+                break;
             }
         }
         // send out the longest batch and remove it from the input buffer
@@ -276,9 +277,10 @@ async fn batch_sync_block(
         println!("sending a batch of {} blocks (last: {}, set_id: {})",
             block_batch.len(), last_block_number, set_id);
         let r = req_sync_block(&block_batch, set_id as u64).await?;
+        synced_blocks += block_batch.len();
         println!("  ..sync_block: {:?}", r);
     }
-    Ok(())
+    Ok(synced_blocks)
 }
 
 async fn bridge(args: Args) -> Result<(), Error> {
@@ -319,25 +321,35 @@ async fn bridge(args: Args) -> Result<(), Error> {
         info = req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None, false).await?.block;
-        // info.blocknum is the next required block
-        println!("try to upload blocks. next required: {}, finalized tip: {}",
-            info.blocknum, block_tip.block.header.number);
-
-        // check if pRuntime has already reached the chain tip.
-        if info.blocknum > block_tip.block.header.number {
-            println!("waiting for new blocks");
-            delay_for(Duration::from_millis(5000)).await;
-            continue;
+        // remove the blocks not needed in the buffer. info.blocknum is the next required block
+        while let Some(ref b) = blocks.first() {
+            if b.block.block.header.number >= info.blocknum {
+                break;
+            }
+            blocks.remove(0);
         }
+        println!("try to upload blocks. next required: {}, finalized tip: {}, buffered {}",
+            info.blocknum, block_tip.block.header.number, blocks.len());
 
         // no, then catch up to the chain tip
-        for h in info.blocknum ..= block_tip.block.header.number {
+        let next_block = match blocks.last() {
+            Some(b) => b.block.block.header.number + 1,
+            None => info.blocknum
+        };
+        for h in next_block ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h), true).await?;
             blocks.push(block.clone());
         }
 
         // send the blocks to pRuntime in batch
-        batch_sync_block(&client, &mut blocks).await?;
+        let synced_blocks = batch_sync_block(&client, &mut blocks).await?;
+
+        // check if pRuntime has already reached the chain tip.
+        if synced_blocks == 0 {
+            println!("waiting for new blocks");
+            delay_for(Duration::from_millis(5000)).await;
+            continue;
+        }
     }
 }
 
