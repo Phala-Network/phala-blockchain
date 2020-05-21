@@ -37,8 +37,6 @@
 mod storage_proof;
 mod justification;
 mod error;
-mod wasm_hacks;
-use wasm_hacks::header_hash;
 
 use crate::std::vec::Vec;
 use crate::std::collections::BTreeMap;
@@ -146,9 +144,9 @@ impl<T: Trait> LightValidation<T>
 
 		// Check that the new header is a decendent of the old header
 		let last_header = &bridge.last_finalized_block_header;
-		verify_ancestry(ancestry_proof, header_hash(last_header), &header)?;
+		verify_ancestry(ancestry_proof, last_header.hash(), &header)?;
 
-		let block_hash = header_hash(&header);
+		let block_hash = header.hash();
 		let block_num = *header.number();
 
 		// Check that the header has been finalized
@@ -180,11 +178,11 @@ impl<T: Trait> LightValidation<T>
 		bridge_id: BridgeId,
 		header: T::Header,
 		ancestry_proof: Vec<T::Header>,
-		grandpa_proof: Justification
+		grandpa_proof: Justification,
+		validator_set_id: SetId
 	) -> Result<(), Error> {
 		let bridge = self.tracked_bridges.get(&bridge_id).ok_or(Error::NoSuchBridgeExists)?;
 		let validator_set = bridge.current_validator_set.clone();
-		let validator_set_id = bridge.current_validator_set_id;
 		self.submit_finalized_headers(
 			bridge_id, header, ancestry_proof, validator_set, validator_set_id, grandpa_proof)
 	}
@@ -196,7 +194,7 @@ impl<T: Trait> LightValidation<T>
 		grandpa_proof: Justification
 	) -> Result<(), Error> {
 		let bridge = self.tracked_bridges.get(&bridge_id).ok_or(Error::NoSuchBridgeExists)?;
-		if header_hash(&bridge.last_finalized_block_header) != *header.parent_hash() {
+		if bridge.last_finalized_block_header.hash() != *header.parent_hash() {
 			return Err(Error::HeaderAncestryMismatch);
 		}
 		let ancestry_proof = vec![];
@@ -246,7 +244,12 @@ pub enum Error {
 impl From<JustificationError> for Error {
 	fn from(e: JustificationError) -> Self {
 		match e {
-			JustificationError::BadJustification(_) | JustificationError::JustificationDecode => {
+			JustificationError::BadJustification(msg) => {
+				println!("InvalidFinalityProof(BadJustification({}))", msg);
+				Error::InvalidFinalityProof
+			},
+			JustificationError::JustificationDecode => {
+				println!("InvalidFinalityProof(JustificationDecode)");
 				Error::InvalidFinalityProof
 			},
 		}
@@ -293,6 +296,14 @@ fn verify_ancestry<H>(proof: Vec<H>, ancestor_hash: H::Hash, child: &H) -> Resul
 where
 	H: Header<Hash=H256>
 {
+	{
+		println!("ancestor_hash: {}", ancestor_hash);
+		for h in proof.iter() {
+			println!("block {:?} - hash: {} parent: {}", h.number(), h.hash(), h.parent_hash());
+		}
+		println!("child block {:?} - hash: {} parent: {}", child.number(), child.hash(), child.parent_hash());
+	}
+
 	let mut parent_hash = child.parent_hash();
 	if *parent_hash == ancestor_hash {
 		return Ok(())
@@ -301,7 +312,7 @@ where
 	// If we find that the header's parent hash matches our ancestor's hash we're done
 	for header in proof.iter() {
 		// Need to check that blocks are actually related
-		if header_hash(header) != *parent_hash {
+		if header.hash() != *parent_hash {
 			break;
 		}
 

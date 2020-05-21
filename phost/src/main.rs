@@ -58,26 +58,24 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
 async fn get_block_at(client: &subxt::Client<Runtime>, h: Option<u32>, with_events: bool)
         -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
-    // let hash = if pos == None {
-    //     client.finalized_head().await?
-    // } else {
-    //     client.block_hash(pos).await?
-    //         .ok_or(Error::BlockHashNotFound())?
-    // };
     let hash = match pos {
-        Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound())?,
+        Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
         None => client.finalized_head().await?
     };
 
     println!("get_block_at: Got block {:?} hash {:?}", h, hash);
 
     let opaque_block = client.block(Some(hash)).await?
-                             .ok_or(Error::BlockNotFound())?;
+                             .ok_or(Error::BlockNotFound)?;
 
     let block = deopaque_signedblock(opaque_block);
 
 	if with_events {
-		return Ok(fetch_events(&client, &block).await?);
+        let block_with_events = fetch_events(&client, &block).await?;
+        if let Some(ref events) = block_with_events.events {
+            println!("          ... with events {} bytes", events.len());
+        }
+        return Ok(block_with_events)
 	}
 
 	Ok(BlockWithEvents {
@@ -172,7 +170,8 @@ struct BlockWithEvents {
 
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
-    blocks_b64: Vec<String>
+    blocks_b64: Vec<String>,
+    set_id: u64
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockResp {
@@ -216,7 +215,7 @@ where Req: Serialize + Resp {
     Ok(result)
 }
 
-async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(blocks: &Vec<BlockWithEvents>, set_id: u64) -> Result<SyncBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|ref block| {
@@ -226,14 +225,63 @@ async fn req_sync_block(blocks: &Vec<BlockWithEvents>) -> Result<SyncBlockResp, 
         })
         .collect();
 
-    let resp = req_decode("sync_block", SyncBlockReq { blocks_b64 }).await?;
-    println!("req_sync_block: {:?}", resp);
+    let req = SyncBlockReq { blocks_b64, set_id };
+    let resp = req_decode("sync_block", req).await?;
     Ok(resp)
+}
+
+async fn batch_sync_block(
+    client: &subxt::Client<Runtime>,
+    block_buf: &mut Vec<BlockWithEvents>
+) -> Result<usize, Error> {
+    const BATCH_WINDOW: usize = 500;
+    let mut synced_blocks: usize = 0;
+    while !block_buf.is_empty() {
+        // find the longest batch within the window
+        let mut i = (std::cmp::min(BATCH_WINDOW, block_buf.len()) as isize) - 1;
+        while i >= 0 && block_buf[i as usize].block.justification.is_none() {
+            i -= 1;
+        }
+        if i < 0 {
+            if block_buf.len() > BATCH_WINDOW {
+                return Err(Error::NoJustification)
+            } else {
+                break;
+            }
+        }
+        // send out the longest batch and remove it from the input buffer
+        let block_batch: Vec<BlockWithEvents> = block_buf.drain(..=(i as usize)).collect();
+
+        /* print collected blocks */ {
+            for b in block_batch.iter() {
+                println!("Block {} :: {} :: {}",
+                    b.block.block.header.number,
+                    b.block.block.header.hash().to_string(),
+                    b.block.block.header.parent_hash.to_string()
+                );
+            }
+        }
+
+        let last_block = &block_batch.last().unwrap();
+        let last_block_hash = last_block.block.block.header.hash();
+        let last_block_number = last_block.block.block.header.number;
+
+        let set_id = client
+            .fetch(runtimes::grandpa::CurrentSetIdStore::new(), Some(last_block_hash))
+            .await
+            .map_err(|_| Error::NoSetIdAtBlock)?;
+
+        println!("sending a batch of {} blocks (last: {}, set_id: {})",
+            block_batch.len(), last_block_number, set_id);
+        let r = req_sync_block(&block_batch, set_id as u64).await?;
+        synced_blocks += block_batch.len();
+        println!("  ..sync_block: {:?}", r);
+    }
+    Ok(synced_blocks)
 }
 
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
-    // let client = subxt::ClientBuilder::<Runtime>::new().build().compat().await?;
     let client = subxt::ClientBuilder::<Runtime>::new().build().await?;
 
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
@@ -264,35 +312,41 @@ async fn bridge(args: Args) -> Result<(), Error> {
 		}).await?;
     }
 
+    let mut blocks = Vec::<BlockWithEvents>::new();
     loop {
+        // update the latest pRuntime state
+        info = req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None, false).await?.block;
-        // info.blocknum is the next required block
-        println!("try to upload blocks. next required: {}, finalized tip: {}",
-            info.blocknum, block_tip.block.header.number);
-
-        // check if pRuntime has already reached the chain tip.
-        if info.blocknum > block_tip.block.header.number {
-            println!("waiting for new blocks");
-            delay_for(Duration::from_millis(5000)).await;
-            continue;
+        // remove the blocks not needed in the buffer. info.blocknum is the next required block
+        while let Some(ref b) = blocks.first() {
+            if b.block.block.header.number >= info.blocknum {
+                break;
+            }
+            blocks.remove(0);
         }
+        println!("try to upload blocks. next required: {}, finalized tip: {}, buffered {}",
+            info.blocknum, block_tip.block.header.number, blocks.len());
 
         // no, then catch up to the chain tip
-        let mut blocks = Vec::<BlockWithEvents>::new();
-        for h in info.blocknum ..= block_tip.block.header.number {
+        let next_block = match blocks.last() {
+            Some(b) => b.block.block.header.number + 1,
+            None => info.blocknum
+        };
+        for h in next_block ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h), true).await?;
             blocks.push(block.clone());
         }
 
-        println!("feeding {} blocks (from {} to {}) into pRuntime",
-                 blocks.len(), info.blocknum, block_tip.block.header.number);
-        let r = req_sync_block(&blocks).await?;
-        println!("  ..sync_block: {:?}", r);
+        // send the blocks to pRuntime in batch
+        let synced_blocks = batch_sync_block(&client, &mut blocks).await?;
 
-
-        // update the latest pRuntime state
-        info = req_decode("get_info", GetInfoReq {}).await?;
+        // check if pRuntime has already reached the chain tip.
+        if synced_blocks == 0 {
+            println!("waiting for new blocks");
+            delay_for(Duration::from_millis(5000)).await;
+            continue;
+        }
     }
 }
 

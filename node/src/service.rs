@@ -287,7 +287,7 @@ macro_rules! new_full {
 		let config = grandpa::Config {
 			// FIXME #1578 make this available through chainspec
 			gossip_duration: std::time::Duration::from_millis(333),
-			justification_period: 512,
+			justification_period: 10,
 			name: Some(name),
 			observer_enabled: false,
 			keystore,

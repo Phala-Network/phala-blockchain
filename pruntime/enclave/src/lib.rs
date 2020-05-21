@@ -582,6 +582,7 @@ struct TestReq {
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
     blocks_b64: Vec<String>,
+    set_id: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
@@ -815,6 +816,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
+    local_state.blocknum = 1;
 
     Ok(
         json!({
@@ -1056,7 +1058,7 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
     // Light validation when possible
     let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
-    if last_block.block.header.number > 0 {
+    {
         // 1. the last block must has justification
         let justification = last_block.justification.as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
@@ -1064,15 +1066,16 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         let header = last_block.block.header.clone();
         // 2. check block sequence
         for (i, block) in blocks.iter().enumerate() {
-            if i > 0 && blocks[i].block.block.header.hash() != block.block.block.header.parent_hash {
+            if i > 0 && blocks[i-1].block.block.header.hash() != block.block.block.header.parent_hash {
                 return Err(error_msg("Incorrect block order"));
             }
         }
         // 3. generate accenstor proof
-        let accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
+        let mut accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
             .iter()
             .map(|b| b.block.block.header.clone())
             .collect();
+        accenstor_proof.reverse();  // from high to low
         // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
@@ -1080,8 +1083,9 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
             bridge_id,
             header,
             accenstor_proof,
-            justification
-        ).map_err(|_| error_msg("Light validation failed"))?
+            justification,
+            input.set_id
+        ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
     }
     // Passed the validation
     let mut local_state = LOCAL_STATE.lock().unwrap();

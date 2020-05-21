@@ -45,7 +45,7 @@ use attestation::Attestation;
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_TOKEN: &'static str = "enclave.token";
 
-const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 32760 as usize;
+const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 512*1024 as usize;
 
 lazy_static! {
     static ref ENCLAVE: RwLock<Option<SgxEnclave>> = RwLock::new(None);

@@ -31,7 +31,6 @@ use sp_runtime::traits::{NumberFor, Block as BlockT, Header as HeaderT};
 use sp_core::{H256};
 use sp_finality_grandpa::{AuthorityId, AuthoritySignature};
 
-use super::wasm_hacks::header_hash;
 
 /// A GRANDPA justification for block finality, it includes a commit message and
 /// an ancestry proof including all headers routing all precommit target blocks
@@ -137,14 +136,16 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 			}
 		}
 
+		let mut buf = Vec::new();
 		let mut visited_hashes = HashSet::new();
 		for signed in self.commit.precommits.iter() {
-			if let Err(_) = communication::check_message_sig::<Block>(
+			if let Err(_) = communication::check_message_sig_with_buffer::<Block>(
 				&finality_grandpa::Message::Precommit(signed.precommit.clone()),
 				&signed.id,
 				&signed.signature,
 				self.round,
 				set_id,
+				&mut buf,
 			) {
 				return Err(ClientError::BadJustification(
 					"invalid signature for precommit in grandpa justification".to_string()).into());
@@ -171,7 +172,7 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 
 		let ancestry_hashes = self.votes_ancestries
 			.iter()
-			.map(|h: &Block::Header| header_hash(h))
+			.map(|h: &Block::Header| h.hash())
 			.collect();
 
 		if visited_hashes != ancestry_hashes {
@@ -195,7 +196,7 @@ impl<Block: BlockT<Hash=H256>> AncestryChain<Block> {
 		let ancestry: HashMap<_, _> = ancestry
 			.iter()
 			.cloned()
-			.map(|h: Block::Header| (header_hash(&h), h))
+			.map(|h: Block::Header| (h.hash(), h))
 			.collect();
 
 		AncestryChain { ancestry }
@@ -250,16 +251,35 @@ mod communication {
 
 	// Check the signature of a Grandpa message.
 	// This was originally taken from `communication/mod.rs`
-	pub fn check_message_sig<Block: BlockT>(
+	pub(crate) fn check_message_sig<Block: BlockT>(
 		message: &Message<Block>,
 		id: &AuthorityId,
 		signature: &AuthoritySignature,
 		round: RoundNumber,
 		set_id: SetIdNumber,
 	) -> Result<(), ()> {
+		check_message_sig_with_buffer::<Block>(
+			message,
+			id,
+			signature,
+			round,
+			set_id,
+			&mut Vec::new(),
+		)
+	}
+
+	pub(crate) fn check_message_sig_with_buffer<Block: BlockT>(
+		message: &Message<Block>,
+		id: &AuthorityId,
+		signature: &AuthoritySignature,
+		round: RoundNumber,
+		set_id: SetIdNumber,
+		buf: &mut Vec<u8>,
+	) -> Result<(), ()> {
 		let as_public = id.clone();
-		let encoded_raw = localized_payload(round, set_id, message);
-		if AuthorityPair::verify(signature, &encoded_raw, &as_public) {
+		localized_payload_with_buffer(round, set_id, message, buf);
+	
+		if AuthorityPair::verify(signature, buf, &as_public) {
 			Ok(())
 		} else {
 			debug!(target: "afg", "Bad signature on message from {:?}", id);
@@ -267,7 +287,23 @@ mod communication {
 		}
 	}
 
-	pub(crate) fn localized_payload<E: Encode>(round: RoundNumber, set_id: SetIdNumber, message: &E) -> Vec<u8> {
-		(message, round, set_id).encode()
+	pub(crate) fn localized_payload<E: Encode>(
+		round: RoundNumber,
+		set_id: SetIdNumber,
+		message: &E,
+	) -> Vec<u8> {
+		let mut buf = Vec::new();
+		localized_payload_with_buffer(round, set_id, message, &mut buf);
+		buf
+	}
+
+	pub(crate) fn localized_payload_with_buffer<E: Encode>(
+		round: RoundNumber,
+		set_id: SetIdNumber,
+		message: &E,
+		buf: &mut Vec<u8>,
+	) {
+		buf.clear();
+		(message, round, set_id).encode_to(buf)
 	}
 }
