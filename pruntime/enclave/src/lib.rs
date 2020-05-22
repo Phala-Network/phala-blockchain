@@ -46,6 +46,7 @@ mod hex;
 mod light_validation;
 mod cryptography;
 
+use light_validation::AuthoritySetChange;
 use cryptography::{ecdh, aead};
 
 extern "C" {
@@ -582,7 +583,7 @@ struct TestReq {
 #[derive(Serialize, Deserialize, Debug)]
 struct SyncBlockReq {
     blocks_b64: Vec<String>,
-    set_id: u64,
+    authority_set_change_b64: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
@@ -1079,12 +1080,15 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
-        state.light_client.submit_simple_header_seq(
+        let authority_set_change = input.authority_set_change_b64
+            .map(|b64| parse_authority_set_change(b64))
+            .transpose()?;
+        state.light_client.submit_finalized_headers(
             bridge_id,
             header,
             accenstor_proof,
             justification,
-            input.set_id
+            authority_set_change
         ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
     }
     // Passed the validation
@@ -1113,7 +1117,14 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     }))
 }
 
-fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value>{
+fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Value> {
+    let data = base64::decode(&data_b64)
+        .map_err(|_| error_msg("cannot decode authority_set_change_b64"))?;
+    AuthoritySetChange::decode(&mut &data[..])
+        .map_err(|_| error_msg("cannot decode authority_set_change"))
+}
+
+fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
 	let mut state = STATE.lock().unwrap();
 	let missing_field = error_msg("Missing field");
 	let events = block_with_events.clone().events.ok_or(missing_field.clone())?;

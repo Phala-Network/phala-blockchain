@@ -34,6 +34,7 @@
 // // Ensure we're `no_std` when compiling for Wasm.
 // #![cfg_attr(not(feature = "std"), no_std)]
 
+mod types;
 mod storage_proof;
 mod justification;
 mod error;
@@ -48,13 +49,14 @@ use storage_proof::{StorageProof, StorageProofChecker};
 
 use core::iter::FromIterator;
 use parity_scale_codec::{Encode, Decode};
-use sp_finality_grandpa::{AuthorityId, AuthorityWeight, AuthorityList, SetId};
+use sp_finality_grandpa::{AuthorityId, AuthorityWeight, AuthorityList};
 use finality_grandpa::voter_set::VoterSet;
 use sp_core::H256;
-use sp_core::Hasher;
 use num::AsPrimitive;
 use sp_runtime::Justification;
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
+
+pub use types::{AuthoritySet, AuthoritySetChange};
 
 #[derive(Encode, Decode, Clone, PartialEq)]
 pub struct BridgeInitInfo<T: Trait> {
@@ -66,8 +68,7 @@ pub struct BridgeInitInfo<T: Trait> {
 #[derive(Encode, Decode, Clone, PartialEq)]
 pub struct BridgeInfo<T: Trait> {
 	last_finalized_block_header: T::Header,
-	current_validator_set: AuthorityList,
-	current_validator_set_id: SetId,
+	current_set: AuthoritySet,
 }
 
 impl<T: Trait> BridgeInfo<T> {
@@ -78,8 +79,10 @@ impl<T: Trait> BridgeInfo<T> {
 	{
 		BridgeInfo {
 			last_finalized_block_header: block_header,
-			current_validator_set: validator_set,
-			current_validator_set_id: 0,
+			current_set: AuthoritySet {
+				authority_set: validator_set,
+				set_id: 0,
+			}
 		}
 	}
 }
@@ -131,14 +134,19 @@ impl<T: Trait> LightValidation<T>
 		Ok(new_bridge_id)
 	}
 
+	/// Submits a sequence of block headers to the light client to validate
+	/// 
+	/// The light client accepts a sequence of block headers, optionally with an authority set change
+	/// in the last block. Without the authority set change, it assumes the authority set and the set
+	/// id remains the same after submitting the blocks. One submission can have at most one authortiy
+	/// set change (change.set_id == last_set_id + 1).
 	pub fn submit_finalized_headers(
 		&mut self,
 		bridge_id: BridgeId,
 		header: T::Header,
 		ancestry_proof: Vec<T::Header>,
-		validator_set: AuthorityList,
-		validator_set_id: SetId,
 		grandpa_proof: Justification,
+		auhtority_set_change: Option<AuthoritySetChange>
 	) -> Result<(), Error> {
 		let bridge = self.tracked_bridges.get(&bridge_id).ok_or(Error::NoSuchBridgeExists)?;
 
@@ -150,41 +158,42 @@ impl<T: Trait> LightValidation<T>
 		let block_num = *header.number();
 
 		// Check that the header has been finalized
-		let voter_set = VoterSet::from_iter(validator_set.clone());
+		let voters = &bridge.current_set;
+		let voter_set = VoterSet::from_iter(voters.authority_set.clone());
+		let voter_set_id = voters.set_id;
 		verify_grandpa_proof::<T::Block>(
 			grandpa_proof,
 			block_hash,
 			block_num,
-			validator_set_id,
+			voter_set_id,
 			&voter_set,
 		)?;
 
 		match self.tracked_bridges.get_mut(&bridge_id) {
 			Some(bridge_info) => {
 				bridge_info.last_finalized_block_header = header;
-				if validator_set_id > bridge_info.current_validator_set_id {
-					bridge_info.current_validator_set = validator_set;
-					bridge_info.current_validator_set_id = validator_set_id;
+				if let Some(change) = auhtority_set_change {
+					// Check the validator set increment
+					if change.authority_set.set_id != voter_set_id + 1 {
+						return Err(Error::UnexpectedValidatorSetId)
+					}
+					// Check validator set change proof
+					let state_root = bridge_info.last_finalized_block_header.state_root();
+					Self::check_validator_set_proof(
+						state_root,
+						change.authority_proof,
+						&change.authority_set.authority_set)?;
+					// Commit
+					bridge_info.current_set = AuthoritySet {
+						authority_set: change.authority_set.authority_set,
+						set_id: change.authority_set.set_id,
+					}
 				}
 			},
 			_ => panic!("We succesfully got this bridge earlier, therefore it exists; qed")
 		};
 
 		Ok(())
-	}
-
-	pub fn submit_simple_header_seq(
-		&mut self,
-		bridge_id: BridgeId,
-		header: T::Header,
-		ancestry_proof: Vec<T::Header>,
-		grandpa_proof: Justification,
-		validator_set_id: SetId
-	) -> Result<(), Error> {
-		let bridge = self.tracked_bridges.get(&bridge_id).ok_or(Error::NoSuchBridgeExists)?;
-		let validator_set = bridge.current_validator_set.clone();
-		self.submit_finalized_headers(
-			bridge_id, header, ancestry_proof, validator_set, validator_set_id, grandpa_proof)
 	}
 
 	pub fn submit_simple_header(
@@ -198,10 +207,8 @@ impl<T: Trait> LightValidation<T>
 			return Err(Error::HeaderAncestryMismatch);
 		}
 		let ancestry_proof = vec![];
-		let validator_set = bridge.current_validator_set.clone();
-		let validator_set_id = bridge.current_validator_set_id;
 		self.submit_finalized_headers(
-			bridge_id, header, ancestry_proof, validator_set, validator_set_id, grandpa_proof)
+			bridge_id, header, ancestry_proof, grandpa_proof, None)
 	}
 
 	pub fn validate_events_proof(
@@ -238,6 +245,7 @@ pub enum Error {
 	InvalidFinalityProof,
 	// UnknownClientError,
 	HeaderAncestryMismatch,
+	UnexpectedValidatorSetId,
 	EventsMismatch,
 }
 
@@ -358,7 +366,7 @@ impl<T: Trait> fmt::Debug for LightValidation<T> {
 impl<T: Trait> fmt::Debug for BridgeInfo<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "BridgeInfo {{ last_finalized_block_header: {:?}, current_validator_set: {:?}, current_validator_set_id: {} }}",
-			self.last_finalized_block_header, self.current_validator_set, self.current_validator_set_id)
+			self.last_finalized_block_header, self.current_set.authority_set, self.current_set.set_id)
 	}
 }
 

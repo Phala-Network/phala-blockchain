@@ -249,25 +249,6 @@ mod communication {
 
 	pub type Message<Block> = finality_grandpa::Message<<Block as BlockT>::Hash, NumberFor<Block>>;
 
-	// Check the signature of a Grandpa message.
-	// This was originally taken from `communication/mod.rs`
-	pub(crate) fn check_message_sig<Block: BlockT>(
-		message: &Message<Block>,
-		id: &AuthorityId,
-		signature: &AuthoritySignature,
-		round: RoundNumber,
-		set_id: SetIdNumber,
-	) -> Result<(), ()> {
-		check_message_sig_with_buffer::<Block>(
-			message,
-			id,
-			signature,
-			round,
-			set_id,
-			&mut Vec::new(),
-		)
-	}
-
 	pub(crate) fn check_message_sig_with_buffer<Block: BlockT>(
 		message: &Message<Block>,
 		id: &AuthorityId,
@@ -285,16 +266,6 @@ mod communication {
 			debug!(target: "afg", "Bad signature on message from {:?}", id);
 			Err(())
 		}
-	}
-
-	pub(crate) fn localized_payload<E: Encode>(
-		round: RoundNumber,
-		set_id: SetIdNumber,
-		message: &E,
-	) -> Vec<u8> {
-		let mut buf = Vec::new();
-		localized_payload_with_buffer(round, set_id, message, &mut buf);
-		buf
 	}
 
 	pub(crate) fn localized_payload_with_buffer<E: Encode>(
