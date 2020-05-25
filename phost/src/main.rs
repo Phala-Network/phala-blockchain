@@ -137,7 +137,7 @@ async fn bisec_setid_change(
         return Err(Error::NoJustificationInRange);
     }
     let mut l = 0i64;
-    let mut r = headers.len() as i64;
+    let mut r = (headers.len() as i64) - 1;
     while l <= r {
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
@@ -257,6 +257,7 @@ async fn batch_sync_block(
     if block_buf.is_empty() {
         return Ok(0);
     }
+    let first_block_number = block_buf.first().unwrap().block.block.header.number;
     // Current authority set id
     let last_set = if let Some(set) = sync_state.authory_set_state {
         set
@@ -278,7 +279,11 @@ async fn batch_sync_block(
     let mut synced_blocks: usize = 0;
     loop {
         // Find the longest batch within the window
-        let mut i = (std::cmp::min(BATCH_WINDOW, block_buf.len()) as isize) - 1;
+        let end_window = BATCH_WINDOW as isize - 1;
+        let end_buffer = block_buf.len() as isize - 1;
+        let end_set_id_change = (set_id_change_at - first_block_number) as isize;
+        let end = std::cmp::min(end_window, std::cmp::min(end_buffer, end_set_id_change));
+        let mut i = end;
         while i >= 0 {
             let block = &block_buf[i as usize].block;
             if block.justification.is_some() && block.block.header.number <= set_id_change_at {
@@ -287,8 +292,14 @@ async fn batch_sync_block(
             i -= 1;
         }
         if i < 0 {
-            if block_buf.len() > BATCH_WINDOW {
-                return Err(Error::NoJustification)
+            let window_reached = end_window > end_buffer && end_window > end_set_id_change;
+            if window_reached {
+                println!(
+                    "Cannot find justification within BATCH_WINDOW (window: {}, from: {}, to: {})",
+                    BATCH_WINDOW, first_block_number,
+                    block_buf[end as usize].block.block.header.number,
+                );
+                return Err(Error::NoJustification);
             } else {
                 break;
             }
@@ -316,8 +327,10 @@ async fn batch_sync_block(
             None
         };
 
-        println!("sending a batch of {} blocks (last: {}, change: {:?})",
-            block_batch.len(), last_block_number, authrotiy_change.as_ref().map(|change| &change.authority_set));
+        println!(
+            "sending a batch of {} blocks (last: {}, change: {:?})",
+            block_batch.len(), last_block_number,
+            authrotiy_change.as_ref().map(|change| &change.authority_set));
         let r = req_sync_block(&block_batch, authrotiy_change.as_ref()).await?;
         println!("  ..sync_block: {:?}", r);
         // Update sync state
@@ -381,6 +394,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
         };
         for h in next_block ..= block_tip.block.header.number {
             let block = get_block_at(&client, Some(h), true).await?;
+            if block.block.justification.is_some() {
+                println!("block with justification at: {}", block.block.block.header.number);
+            }
             sync_state.blocks.push(block.clone());
         }
 
