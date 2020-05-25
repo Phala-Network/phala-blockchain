@@ -9,7 +9,7 @@ pub enum Error {
   BlockNotFound,
   NoJustification,
   NoSetIdAtBlock,
-  NoJustificationInRange,
+  SearchSetIdChangeInEmptyRange,
 }
 
 impl From<hyper::error::Error> for Error {

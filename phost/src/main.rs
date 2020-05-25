@@ -119,13 +119,15 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
 /// Returns the next set_id change by a binary search on the known blocks
 ///
 /// `known_blocks` must have at least one block with block justification, otherwise raise an error
-/// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns the last
-/// block number plus 1.
+/// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
 async fn bisec_setid_change(
     client: &XtClient,
     last_set: (BlockNumber, SetId),
     known_blocks: &Vec<BlockWithEvents>
-) -> Result<BlockNumber, Error> {
+) -> Result<Option<BlockNumber>, Error> {
+    if known_blocks.is_empty() {
+        return Err(Error::SearchSetIdChangeInEmptyRange);
+    }
     let (last_block, last_id) = last_set;
     // Run binary search only on blocks with justification
     let headers: Vec<&Header> = known_blocks
@@ -133,9 +135,6 @@ async fn bisec_setid_change(
         .filter(|b| b.block.block.header.number > last_block && b.block.justification.is_some())
         .map(|b| &b.block.block.header)
         .collect();
-    if headers.is_empty() {
-        return Err(Error::NoJustificationInRange);
-    }
     let mut l = 0i64;
     let mut r = (headers.len() as i64) - 1;
     while l <= r {
@@ -154,9 +153,9 @@ async fn bisec_setid_change(
     }
     // Return the first occurance of bigger set_id; return (last_id + 1) if not found
     let result = if (l as usize) < headers.len() {
-        headers[l as usize].number
+        Some(headers[l as usize].number)
     } else {
-        known_blocks.last().unwrap().block.block.header.number + 1
+        None
     };
     Ok(result)
 }
@@ -281,12 +280,14 @@ async fn batch_sync_block(
         let first_block_number = block_buf.first().unwrap().block.block.header.number;
         let end_window = BATCH_WINDOW as isize - 1;
         let end_buffer = block_buf.len() as isize - 1;
-        let end_set_id_change = (set_id_change_at - first_block_number) as isize;
+        let end_set_id_change = match set_id_change_at {
+            Some(change_at) => (change_at - first_block_number) as isize,
+            None => block_buf.len() as isize,
+        };
         let end = std::cmp::min(end_window, std::cmp::min(end_buffer, end_set_id_change));
         let mut i = end;
         while i >= 0 {
-            let block = &block_buf[i as usize].block;
-            if block.justification.is_some() && block.block.header.number <= set_id_change_at {
+            if block_buf[i as usize].block.justification.is_some() {
                 break;
             }
             i -= 1;
@@ -321,25 +322,30 @@ async fn batch_sync_block(
         let last_block_hash = last_block.block.block.header.hash();
         let last_block_number = last_block.block.block.header.number;
 
-        let authrotiy_change = if last_block_number == set_id_change_at {
-            Some(get_authority_with_proof_at(&client, last_block_hash).await?)
-        } else {
-            None
-        };
+        let mut authrotiy_change: Option<AuthoritySetChange> = None;
+        if let Some(change_at) = set_id_change_at {
+            if change_at == last_block_number {
+                authrotiy_change = Some(
+                    get_authority_with_proof_at(&client, last_block_hash).await?);
+            }
+        }
 
         println!(
             "sending a batch of {} blocks (last: {}, change: {:?})",
             block_batch.len(), last_block_number,
             authrotiy_change.as_ref().map(|change| &change.authority_set));
+
         let r = req_sync_block(&block_batch, authrotiy_change.as_ref()).await?;
         println!("  ..sync_block: {:?}", r);
         // Update sync state
         synced_blocks += block_batch.len();
-        if let Some(change) = authrotiy_change {
-            sync_state.authory_set_state = Some(
-                (last_block_number + 1, change.authority_set.set_id));
-        }
     }
+    sync_state.authory_set_state = Some(match set_id_change_at {
+        // set_id changed at next block
+        Some(change_at) => (change_at + 1, last_set.1 + 1),
+        // not changed
+        None => (block_buf.last().unwrap().block.block.header.number, last_set.1),
+    });
     Ok(synced_blocks)
 }
 
