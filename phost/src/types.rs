@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
 use codec::{Encode, Decode};
-use sp_finality_grandpa::AuthorityList;
+use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{
     generic::SignedBlock,
     OpaqueExtrinsic
@@ -17,6 +17,7 @@ pub type Hash = <Runtime as subxt::system::System>::Hash;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 
+pub type StorageProof = Vec<Vec<u8>>;
 
 // pRuntime APIs
 
@@ -92,7 +93,7 @@ impl Resp for InitRuntimeReq {
 pub struct GenesisInfo {
     pub header: Header,
     pub validators: AuthorityList,
-    pub proof: Vec<Vec<u8>>,
+    pub proof: StorageProof,
 }
 
 // API: sync_block
@@ -100,7 +101,7 @@ pub struct GenesisInfo {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncBlockReq {
     pub blocks_b64: Vec<String>,
-    pub set_id: u64
+    pub authority_set_change_b64: Option<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncBlockResp {
@@ -113,6 +114,16 @@ impl Resp for SyncBlockReq {
 pub struct BlockWithEvents {
     pub block: phala_node_runtime::SignedBlock,
     pub events: Option<Vec<u8>>,
-    pub proof: Option<Vec<Vec<u8>>>,
+    pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,
+}
+#[derive(Encode, Decode, Clone, PartialEq, Debug)]
+pub struct AuthoritySet {
+	pub authority_set: AuthorityList,
+	pub set_id: SetId,
+}
+#[derive(Encode, Decode, Clone, PartialEq)]
+pub struct AuthoritySetChange {
+	pub authority_set: AuthoritySet,
+	pub authority_proof: StorageProof,
 }
