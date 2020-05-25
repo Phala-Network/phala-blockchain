@@ -257,7 +257,6 @@ async fn batch_sync_block(
     if block_buf.is_empty() {
         return Ok(0);
     }
-    let first_block_number = block_buf.first().unwrap().block.block.header.number;
     // Current authority set id
     let last_set = if let Some(set) = sync_state.authory_set_state {
         set
@@ -277,8 +276,9 @@ async fn batch_sync_block(
     let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
     // Search
     let mut synced_blocks: usize = 0;
-    loop {
+    while !block_buf.is_empty() {
         // Find the longest batch within the window
+        let first_block_number = block_buf.first().unwrap().block.block.header.number;
         let end_window = BATCH_WINDOW as isize - 1;
         let end_buffer = block_buf.len() as isize - 1;
         let end_set_id_change = (set_id_change_at - first_block_number) as isize;
