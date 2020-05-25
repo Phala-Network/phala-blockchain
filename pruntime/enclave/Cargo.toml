@@ -56,6 +56,7 @@ finality-grandpa = { version = "0.10.1", default-features = false, features = ["
 trie = { package = "sp-trie", path = "../../substrate/primitives/trie", default-features = false }
 system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
+phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
 # sp-blockchain = { package = "sp-blockchain", path = "../../substrate/primitives/blockchain" }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}

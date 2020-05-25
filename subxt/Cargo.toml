@@ -3,7 +3,7 @@ members = ["", "proc-macro"]
 
 [package]
 name = "substrate-subxt"
-version = "0.6.0"
+version = "0.7.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -35,7 +35,9 @@ pallet-indices = { version = "2.0.0-dev", package = "pallet-indices", path = "..
 hex = "0.4.0"
 sp-rpc = { version = "2.0.0-dev", package = "sp-rpc", path = "../substrate/primitives/rpc" }
 sp-core = { version = "2.0.0-dev", package = "sp-core", path = "../substrate/primitives/core" }
+sc-rpc-api = { version = "0.8.0-dev", package = "sc-rpc-api", path = "../substrate/client/rpc-api" }
 sp-transaction-pool = { version = "2.0.0-dev", package = "sp-transaction-pool", path = "../substrate/primitives/transaction-pool" }
+substrate-subxt-proc-macro = { version = "0.7.0", path = "proc-macro" }
 
 [dev-dependencies]
 async-std = { version = "1.5.0", features = ["attributes"] }

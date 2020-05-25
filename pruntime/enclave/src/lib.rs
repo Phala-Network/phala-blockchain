@@ -37,12 +37,16 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
+use sp_core::H256 as Hash;
+use system::{EventRecord};
+use phala::{RawEvent};
 
 mod cert;
 mod hex;
 mod light_validation;
 mod cryptography;
 
+use light_validation::AuthoritySetChange;
 use cryptography::{ecdh, aead};
 
 extern "C" {
@@ -577,9 +581,22 @@ struct TestReq {
     test_ecdh: Option<TestEcdhParam>,
 }
 #[derive(Serialize, Deserialize, Debug)]
+struct SyncBlockReq {
+    blocks_b64: Vec<String>,
+    authority_set_change_b64: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
     pubkey_hex: Option<String>,
     message_b64: Option<String>,
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+struct BlockWithEvents {
+	block: chain::SignedBlock,
+	events: Option<Vec<u8>>,
+	proof: Option<Vec<Vec<u8>>>,
+	key: Option<Vec<u8>>,
 }
 
 #[no_mangle]
@@ -610,13 +627,13 @@ pub extern "C" fn ecall_handle(
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
+        ACTION_SYNC_BLOCK => sync_block(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
                 ACTION_GET_INFO => get_info(payload),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
-                ACTION_SYNC_BLOCK => sync_block(payload),
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
                 _ => unknown()
@@ -756,7 +773,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let s_pk = hex::encode_hex_compact(pk.serialize_compressed().as_ref());
 
     // ECDH identity
-    let ecdh_sk = ecdh::generate_key();
+    let raw_pk = hex::decode_hex("0000000000000000000000000000000000000000000000000000000000000001");
+    let ecdh_sk = ecdh::create_key(raw_pk.as_slice()).expect("can't create ecdh key");
     let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
     let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
     println!("ECDH pubkey: {:?}", ecdh_pk);
@@ -799,6 +817,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
+    local_state.blocknum = 1;
 
     Ok(
         json!({
@@ -1024,46 +1043,112 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
     }
 }
 
-fn sync_block(input: &Map<String, Value>) -> Result<Value, Value> {
-    /*
-        input: {
-            data: "<b64 encoded plain data>"
+fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
+    // Parse base64 to data
+    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64)
+        .iter()
+        .map(base64::decode)
+        .collect();
+    let blocks_data = parsed_data
+        .map_err(|_| error_msg("Failed to parse base64 block"))?;
+    // Parse data to blocks
+	let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
+		.iter()
+		.map(|d| Decode::decode(&mut &d[..]))
+		.collect();
+    let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
+    // Light validation when possible
+    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
+    {
+        // 1. the last block must has justification
+        let justification = last_block.justification.as_ref()
+            .ok_or_else(|| error_msg("Missing justification"))?
+            .clone();
+        let header = last_block.block.header.clone();
+        // 2. check block sequence
+        for (i, block) in blocks.iter().enumerate() {
+            if i > 0 && blocks[i-1].block.block.header.hash() != block.block.block.header.parent_hash {
+                return Err(error_msg("Incorrect block order"));
+            }
         }
-    */
-    let block_b64 = input.get("data").unwrap().as_str().unwrap();
-    let block_data = base64::decode(block_b64).unwrap();
-    // TODO: handle error ^^
-
-    let block = parse_block(&block_data).map_err(|_| error_msg("Invalid block (err)"))?;
-
-    if block.block.header.number > 0 {
+        // 3. generate accenstor proof
+        let mut accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
+            .iter()
+            .map(|b| b.block.block.header.clone())
+            .collect();
+        accenstor_proof.reverse();  // from high to low
+        // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
-        let justification = block.justification.clone()
-            .ok_or_else(|| error_msg("Missing justification"))?;
-        state.light_client.submit_simple_header(
+        let authority_set_change = input.authority_set_change_b64
+            .map(|b64| parse_authority_set_change(b64))
+            .transpose()?;
+        state.light_client.submit_finalized_headers(
             bridge_id,
-            block.block.header.clone(),
-            justification
-        ).map_err(|_| error_msg("Light validation vailed"))?
+            header,
+            accenstor_proof,
+            justification,
+            authority_set_change
+        ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
     }
-
-    // it's the block needed
+    // Passed the validation
     let mut local_state = LOCAL_STATE.lock().unwrap();
-    if block.block.header.number != local_state.blocknum {
-        return Err(error_msg("Unexpected block"))
+    let ecdh_privkey = ecdh::clone_key(
+        local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
+    let mut last_block = 0;
+    for block_with_events in blocks.iter() {
+		let block = &block_with_events.block;
+        if block.block.header.number != local_state.blocknum {
+            return Err(error_msg("Unexpected block"))
+        }
+        dispatch(block, &ecdh_privkey);
+
+		if block_with_events.events.is_some() {
+			parse_events(&block_with_events)?;
+		}
+
+        // move forward
+        last_block = block.block.header.number;
+        (*local_state).blocknum = last_block + 1;
     }
-
-    // trigger updates
-    let ecdh_privkey = local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied");
-    dispatch(&block, ecdh_privkey);
-
-    // move forward
-    (*local_state).blocknum = block.block.header.number + 1;
 
     Ok(json!({
-        "synced_to": block.block.header.number
+        "synced_to": last_block
     }))
+}
+
+fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Value> {
+    let data = base64::decode(&data_b64)
+        .map_err(|_| error_msg("cannot decode authority_set_change_b64"))?;
+    AuthoritySetChange::decode(&mut &data[..])
+        .map_err(|_| error_msg("cannot decode authority_set_change"))
+}
+
+fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
+	let mut state = STATE.lock().unwrap();
+	let missing_field = error_msg("Missing field");
+	let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
+	let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
+	let key = block_with_events.clone().key.ok_or(missing_field)?;
+	let state_root = &block_with_events.block.block.header.state_root;
+	state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
+
+	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
+	if let Ok(evts) = events {
+		for evt in evts {
+			if let chain::Event::pallet_phala(be) = &evt.event {
+				println!("pallet_phala event: {:?}", be);
+
+				if let RawEvent::CommandPushed(w, _c, _p, _n) = &be {
+					println!("CommandPushed from:{:?}", w);
+				}
+			}
+		}
+
+		return Ok(());
+	}
+
+	Err(error_msg("decode events error"))
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

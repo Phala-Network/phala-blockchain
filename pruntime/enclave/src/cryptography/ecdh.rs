@@ -11,8 +11,29 @@ pub fn generate_key() -> EphemeralPrivateKey {
 }
 
 // A hack to bypass ring's one-time key restriction
-fn clone_key(key: &EphemeralPrivateKey) -> EphemeralPrivateKey {
+pub fn clone_key(key: &EphemeralPrivateKey) -> EphemeralPrivateKey {
   unsafe { std::mem::transmute_copy::<EphemeralPrivateKey, EphemeralPrivateKey>(key) }
+}
+
+// A damn hack to create arbitrary private key
+pub fn create_key(key: &[u8]) -> Result<EphemeralPrivateKey, ()> {
+  let len = std::mem::size_of::<EphemeralPrivateKey>();
+  if len != 64 {
+    println!("ecdh::create_key unknown EphemeralPrivateKey layout");
+    return Err(());
+  }
+  if key.len() != 32 {
+    println!("ecdh::create_key bad key length 32 vs {}", key.len());
+    return Err(());
+  }
+
+  let base_key = generate_key();
+  unsafe {
+    let mut memlayout: [u8; 64] = std::mem::transmute_copy(&base_key);
+    let key_slice = &mut memlayout[8..40];
+    key_slice.copy_from_slice(key);
+    return Ok(std::mem::transmute_copy(&memlayout));
+  };
 }
 
 fn agree_longlived<B: AsRef<[u8]>, F, R, E>(

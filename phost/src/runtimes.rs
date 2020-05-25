@@ -17,10 +17,7 @@
 use sp_runtime::{
     traits::{
         BlakeTwo256,
-        IdentifyAccount,
-        Verify,
     },
-    MultiSignature,
     OpaqueExtrinsic,
 };
 
@@ -29,11 +26,10 @@ use subxt::{
         AccountData,
         Balances,
     },
-    contracts::Contracts,
     system::System,
 };
 
-use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Header, Index, Moment, AccountId, Signature};
+use node_primitives::{BlockNumber, Hash, Header, Index, AccountId};
 
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
@@ -58,4 +54,31 @@ impl System for PhalaNodeRuntime {
 
 impl Balances for PhalaNodeRuntime {
     type Balance = u128;
+}
+
+pub mod grandpa {
+    use super::PhalaNodeRuntime;
+    use codec::Encode;
+    use subxt::{module, Store, system::{System, SystemEventsDecoder}};
+    use core::marker::PhantomData;
+    use pallet_grandpa::fg_primitives::SetId;
+
+    #[module]
+    pub trait Grandpa: System {}
+    impl Grandpa for PhalaNodeRuntime {}
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct CurrentSetIdStore<T: Grandpa> {
+        #[store(returns = SetId)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+    }
+
+    impl<T: Grandpa> CurrentSetIdStore<T> {
+        pub fn new() -> Self {
+            Self {
+                _runtime: Default::default()
+            }
+        }
+    }
 }
