@@ -46,7 +46,7 @@ Related repos:
 │   │   └── init.sh
 │   └── src/                  The node
 ├── phost                     The bridge deamon "pHost"
-│   ├── scripts               
+│   ├── scripts
 │   │   └── console.sh        Helper script
 │   └── src
 └── ring                      Patched ring with wasm support
@@ -91,7 +91,7 @@ Make sure you have Rust and LLVM-10 installed.
 
 ```bash
 cd node
-./scripts/console.sh wrap-build
+cargo build --release
 ```
 
 The above script runs a regular `cargo build --release` and enforce LLVM-9 is used in addition.
@@ -102,7 +102,7 @@ code into wasm while keeping the compatibiliy with the _current_ rustc.
 
 ```bash
 cd phost
-./scripts/console.sh build --release
+cargo build --release
 ```
 
 ## Run
