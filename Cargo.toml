@@ -4,12 +4,12 @@ exclude = [
 	"substrate",
 	"subxt",
 	"webpki",
-	"ring"
+	"ring",
+	"native-nostd-hasher",
 ]
 
 members = [
 	"executor",
-	"native-nostd-hasher",
     "node",
 	"pallets/phala",
 	"phost",

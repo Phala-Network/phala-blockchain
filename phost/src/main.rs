@@ -1,5 +1,6 @@
 use tokio::time::delay_for;
 use std::time::Duration;
+use structopt::StructOpt;
 
 use serde::Serialize;
 use hyper::Client as HttpClient;
@@ -28,7 +29,8 @@ use crate::types::{
 
 type XtClient = subxt::Client<Runtime>;
 
-#[derive(structopt::StructOpt)]
+#[derive(Debug, StructOpt)]
+#[structopt(name = "phost")]
 struct Args {
     /// Should init pRuntime?
     #[structopt(short = "n", long = "no-init")]
@@ -418,10 +420,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
-#[paw::main]
 #[tokio::main]
-async fn main(args: Args) {
-    // async_main(args);
+async fn main() {
+    let args = Args::from_args();
     let r = bridge(args).await;
     println!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.

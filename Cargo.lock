@@ -4213,33 +4213,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "paw"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09c0fc9b564dbc3dc2ed7c92c0c144f4de340aa94514ce2b446065417c4084e9"
-dependencies = [
- "paw-attributes",
- "paw-raw",
-]
-
-[[package]]
-name = "paw-attributes"
-version = "1.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0f35583365be5d148e959284f42526841917b7bfa09e2d1a7ad5dde2cf0eaa39"
-dependencies = [
- "proc-macro2",
- "quote 1.0.6",
- "syn 1.0.25",
-]
-
-[[package]]
-name = "paw-raw"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f0b59668fe80c5afe998f0c0bf93322bf2cd66cafeeb80581f291716f3467f2"
-
-[[package]]
 name = "pbkdf2"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4438,7 +4411,6 @@ dependencies = [
  "node-primitives",
  "pallet-grandpa",
  "parity-scale-codec",
- "paw",
  "phala-node-runtime",
  "rand 0.7.3",
  "sc-finality-grandpa",
@@ -5110,6 +5082,7 @@ dependencies = [
  "libc",
  "spin",
  "untrusted",
+ "which",
  "winapi 0.3.8",
 ]
 
@@ -8457,6 +8430,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
 dependencies = [
+ "failure",
  "libc",
 ]
 

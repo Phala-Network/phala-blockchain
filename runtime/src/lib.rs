@@ -46,7 +46,7 @@ use sp_runtime::{
 use sp_runtime::curve::PiecewiseLinear;
 use sp_runtime::transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority};
 use sp_runtime::traits::{
-	self, BlakeTwo256, Block as BlockT, StaticLookup, SaturatedConversion,
+	self, Block as BlockT, StaticLookup, SaturatedConversion,
 	ConvertInto, OpaqueKeys, NumberFor, Saturating,
 };
 use sp_version::RuntimeVersion;

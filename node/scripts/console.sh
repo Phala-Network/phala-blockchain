@@ -77,17 +77,4 @@ start)
     exit -1
   esac
 ;;
-check-nm)
-  llvm-nm-6.0 -a target/release/wbuild/target/wasm32-unknown-unknown/release/phala_blockchain_runtime.wasm
-;;
-wrap-build)
-  chmod +x "$SCRIPT_PATH/ccwrapper/config" "$SCRIPT_PATH/ccwrapper/ar" "$SCRIPT_PATH/ccwrapper/clang"
-  "$SCRIPT_PATH/ccwrapper/config"
-  export PATH="$SCRIPT_PATH/ccwrapper:$PATH"
-  export CC="$SCRIPT_PATH/ccwrapper/clang"
-  export AR="$SCRIPT_PATH/ccwrapper/ar"
-  echo "$(date) | wrap-build" >> "$SCRIPT_PATH/ccwrapper/clang.log"
-  echo "$(date) | wrap-build" >> "$SCRIPT_PATH/ccwrapper/ar.log"
-  shift
-  cargo build --release "$@"
 esac

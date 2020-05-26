@@ -10,3 +10,4 @@ path = "../build.rs"
 # Keep this in sync with `[build-dependencies]` in ../Cargo.toml.
 [dependencies]
 cc = "1.0.26"
+which = { version = "3.1.1" }
