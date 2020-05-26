@@ -1,0 +1,18 @@
+[workspace]
+
+exclude = [
+	"substrate",
+	"subxt",
+	"webpki",
+	"ring"
+]
+
+members = [
+	"executor",
+	"native-nostd-hasher",
+    "node",
+	"pallets/phala",
+	"phost",
+	"runtime",
+	"rpc",
+]
