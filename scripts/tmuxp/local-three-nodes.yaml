@@ -1,0 +1,20 @@
+session_name: local-three-nodes
+windows:
+  - focus: 'true'
+    layout: even-horizontal
+    options: {}
+    panes:
+      - focus: 'true'
+        shell_command: ./scripts/console.sh start alice
+      - ./scripts/console.sh start bob
+      - ./scripts/console.sh start charlie
+    start_directory: /home/h4x/workspace/phala-blockchain
+    window_name: nodes
+  - layout: even-horizontal
+    options: {}
+    panes:
+      - focus: 'true'
+        shell_command: echo RUN ./target/release/phost
+      - cd ./pruntime/bin
+    start_directory: /home/h4x/workspace/phala-blockchain
+    window_name: offchain
