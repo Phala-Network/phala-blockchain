@@ -1,12 +1,13 @@
 #!/bin/bash
 
-# SECRET=''
-ENDPOINT=http://localhost:9933
-
 read -s -p "Enter mnemonic: " SECRET
 echo
 read -p "Enter the role number: " n
 echo
+read -s -p "Enter port: " PORT
+echo
+
+ENDPOINT="http://localhost:${PORT}"
 
 function get_pubkey {
   tmp=tmp.key

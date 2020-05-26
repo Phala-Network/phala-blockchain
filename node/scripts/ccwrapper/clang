@@ -1,6 +1,0 @@
-#!/bin/bash
-
-CUR_DIR=$(dirname "$0")
-echo "$(date) | wrap | clang $@" >> "$CUR_DIR/clang.log"
-
-"$CUR_DIR/latest-clang" "$@"

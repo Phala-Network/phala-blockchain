@@ -1,6 +1,0 @@
-#!/bin/bash
-
-CUR_DIR=$(dirname "$0")
-echo "$(date) | wrap | ar $@" >> "$CUR_DIR/ar.log"
-
-"$CUR_DIR/latest-llvm-ar" "$@"

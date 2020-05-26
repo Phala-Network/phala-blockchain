@@ -1,16 +1,12 @@
 #!/bin/bash
 
-A_P2P_PORT=30333
-B_P2P_PORT=40333
-B_RPC_PORT=40334
+declare -A P2P_PORT=( ["alice"]="30333" ["bob"]="31333" ["charlie"]="32333" )
+declare -A RPC_PORT=( ["alice"]="9933" ["bob"]="19933" ["charlie"]="29933" )
+declare -A WS_PORT=( ["alice"]="9944" ["bob"]="19944" ["charlie"]="29944" )
+
 NODE_NAME=phala-node
-
-BASE_PATH_BASE="/tmp/$USER"
+BASE_PATH_BASE="$HOME/tmp/$NODE_NAME"
 SCRIPT_PATH=$(realpath $(dirname "$0"))
-
-if [[ $(pwd) == *"/staging/"* ]]; then
-  BASE_PATH_BASE="/tmp/$USER/staging"
-fi
 
 if [ ! -e "$BASE_PATH_BASE" ]; then
   mkdir -p "$BASE_PATH_BASE"
@@ -20,6 +16,7 @@ case $1 in
 purge)
   rm -rf $BASE_PATH_BASE/*alice*
   rm -rf $BASE_PATH_BASE/*bob*
+  rm -rf $BASE_PATH_BASE/*charlie*
   rm -rf $BASE_PATH_BASE/*dev*
 ;;
 dev)
@@ -50,26 +47,32 @@ dev-native)
 ;;
 start)
   shift
-  case $1 in
+  role=$1
+  case $role in
   alice)
     shift
     "./target/release/${NODE_NAME}" \
-        --base-path $BASE_PATH_BASE/alice \
+        --base-path "${BASE_PATH_BASE}/alice" \
         --chain=local \
         --rpc-cors all \
         --alice \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
+		--port "${P2P_PORT[${role}]}" \
+		--rpc-port "${RPC_PORT[${role}]}" \
+		--ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
-  bob)
+  bob|charlie)
     shift
     "./target/release/${NODE_NAME}" \
-        --base-path $BASE_PATH_BASE/bob \
-        --bootnodes "/ip4/127.0.0.1/tcp/${A_P2P_PORT}/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR" \
+        --base-path "${BASE_PATH_BASE}/${role}" \
+        --bootnodes "/ip4/127.0.0.1/tcp/${P2P_PORT['alice']}/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR" \
         --chain=local \
         --rpc-cors all \
-        --bob \
-        --port "$B_P2P_PORT" \
+        "--${role}" \
+		--port "${P2P_PORT[${role}]}" \
+		--rpc-port "${RPC_PORT[${role}]}" \
+		--ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
   *)
