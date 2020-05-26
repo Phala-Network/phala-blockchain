@@ -12,7 +12,7 @@ ENDPOINT="http://localhost:${PORT}"
 function get_pubkey {
   tmp=tmp.key
   subkey "$@" > "$tmp"
-  awk '/Public key \(hex\):\s+(\w+?)/{print $4}' "$tmp"
+  awk '/Public key \(hex\): +(\w+?)/{print $4}' "$tmp"
   rm tmp.key
 }
 

@@ -10,5 +10,19 @@ Spawn dev processes:
 - local 3 nodes:
 
 	```bash
-	tmuxp load ./scripts/tmuxp/local-three-nodes.yaml
+	tmuxp load ./scripts/tmuxp/three-nodes.yaml
 	```
+
+- poc2 3 nodes:
+
+	```bash
+	CHAIN=poc2 tmuxp load ./scripts/tmuxp/three-nodes.yaml
+	```
+
+- poc2 4 nodes:
+
+	```bash
+	CHAIN=poc2 tmuxp load ./scripts/tmuxp/four-nodes.yaml
+	```
+
+Kill session in tmux by `:kill-session`
