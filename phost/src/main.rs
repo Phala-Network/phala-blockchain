@@ -32,12 +32,18 @@ type XtClient = subxt::Client<Runtime>;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
-    /// Should init pRuntime?
-    #[structopt(short = "n", long = "no-init")]
+    #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
-    /// Should enable Remote Attestation
-    #[structopt(short = "r", long = "remote-attestation")]
+
+    #[structopt(
+        short = "r", long = "remote-attestation",
+        help = "Should enable Remote Attestation")]
     ra: bool,
+
+    #[structopt(
+        default_value = "ws://localhost:9944", long,
+        help = "Substrate rpc websocket endpoint")]
+    substrate_ws_endpoint: String,
 }
 
 struct BlockSyncState {
@@ -353,7 +359,10 @@ async fn batch_sync_block(
 
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
-    let client = subxt::ClientBuilder::<Runtime>::new().build().await?;
+    let client = subxt::ClientBuilder::<Runtime>::new()
+        .set_url(args.substrate_ws_endpoint.clone())
+        .build().await?;
+    println!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
