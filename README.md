@@ -36,20 +36,15 @@ Related repos:
 ├── LICENSE
 ├── README.md
 ├── node                      Blockchain node
-│   ├── runtime               The runtime
-│   │   └── src
-│   │       ├── execution.rs  Phala Network's main runtime module
-│   │       └── lib.rs        Entry of the runtime
-│   ├── scripts
-│   │   ├── ccwrapper/        Helper scripts for building
-│   │   ├── console.sh        Helper script to build & run the blockchain
-│   │   └── init.sh
-│   └── src/                  The node
+├── pallets
+│   └── phala                 Phala pallet
 ├── phost                     The bridge deamon "pHost"
-│   ├── scripts
-│   │   └── console.sh        Helper script
-│   └── src
-└── ring                      Patched ring with wasm support
+├── pruntime                  pRuntime, the TEE kernel
+├── ring                      Patched ring with wasm support
+├── runtime                   Phala Substrate Runtime
+└── scripts
+    ├── console.sh            Helper script to build & run the blockchain
+    └── init.sh
 ```
 
 ## Docker bulid
@@ -85,25 +80,17 @@ Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-gra
 
 </details>
 
-### Build the blockchain
+### Build the blockchain and bridge
 
 Make sure you have Rust and LLVM-10 installed.
 
 ```bash
-cd node
 cargo build --release
 ```
 
-The above script runs a regular `cargo build --release` and enforce LLVM-9 is used in addition.
-LLVM-9 is needed because of the wasm port of rust crypto library, `ring`. We have to compile the C
-code into wasm while keeping the compatibiliy with the _current_ rustc.
-
-### Build the bridge
-
-```bash
-cd phost
-cargo build --release
-```
+The build script enforces LLVM-9 or newer is used. LLVM-9 is needed because of the wasm port of rust
+crypto library, `ring`. We have to compile the C code into wasm while keeping the compatibiliy with
+the _current_ rustc.
 
 ## Run
 
@@ -115,7 +102,7 @@ cargo build --release
     ./scripts/console.sh start bob
     ```
 
-    - The datadir is at `/tmp/$USER/(alice|bob)`
+    - The datadir is at `$HOME/tmp/(alice|bob)`
     - Can be purged by `./scripts/console.sh purge`
     - The WebUI can connect to Alice at port 9944.
 
@@ -123,10 +110,22 @@ cargo build --release
 
     ```bash
     cd phost
-    ./target/release/phost -f "/tmp/${USER}/alice/chains/local_testnet/genesis-info.txt"
+    ./target/release/phost
     ```
 
-    - `-f`: Specify the genesis state to initialize the Substrate bridge in pRuntime. The file is
-      produced by the blockchain node when launching.
-    - pHost quits every time the blockchain node or the pRuntime is down. Remember to relauch when
-      necessary.
+## Run with tmuxp
+
+You can launch the full stack (semi-automatically) by:
+
+```bash
+tmuxp load ./scripts/tmuxp/three-nodes.yaml
+```
+
+Or a 4-node testnet-poc2 setup:
+
+```bash
+CHAIN=poc2 tmuxp load ./scripts/tmuxp/four-nodes.yaml
+```
+
+[tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convinient tool that can bring up a tmux session
+with the preconfigured commands running in panes. To play with tmuxp, it also need a tmux installed.
