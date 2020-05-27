@@ -281,6 +281,7 @@ async fn batch_sync_block(
     };
     // Find the next set id change
     let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
+    let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
     // Search
     let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
@@ -352,7 +353,7 @@ async fn batch_sync_block(
         // set_id changed at next block
         Some(change_at) => (change_at + 1, last_set.1 + 1),
         // not changed
-        None => (block_buf.last().unwrap().block.block.header.number, last_set.1),
+        None => (last_number_in_buff, last_set.1),
     });
     Ok(synced_blocks)
 }
