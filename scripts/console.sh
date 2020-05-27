@@ -51,14 +51,17 @@ dev-native)
 start)
   shift
   role=$1
+  if [ "${CHAIN_SPEC}" == "local" ]; then
+	role_flag="--${role}"
+  fi
   case $role in
   alice)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path "${BASE_PATH_BASE}/alice" \
         --chain="${CHAIN_SPEC}" \
+        ${role_flag} \
         --rpc-cors all \
-        --alice \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
 		--port "${P2P_PORT[${role}]}" \
 		--rpc-port "${RPC_PORT[${role}]}" \
@@ -69,10 +72,10 @@ start)
     shift
     "./target/release/${NODE_NAME}" \
         --base-path "${BASE_PATH_BASE}/${role}" \
-        --bootnodes "/ip4/127.0.0.1/tcp/${P2P_PORT['alice']}/p2p/QmRpheLN4JWdAnY7HGJfWFNbfkQCb6tFf4vvA6hgjMZKrR" \
+        --bootnodes "/ip4/127.0.0.1/tcp/${P2P_PORT['alice']}/p2p/12D3KooWEyoppNCUx8Yx66oV9fJnriXwCcXwDDUA2kj6vnc6iDEp" \
         --chain="${CHAIN_SPEC}" \
+        ${role_flag} \
         --rpc-cors all \
-        "--${role}" \
 		--port "${P2P_PORT[${role}]}" \
 		--rpc-port "${RPC_PORT[${role}]}" \
 		--ws-port "${WS_PORT[${role}]}" \
