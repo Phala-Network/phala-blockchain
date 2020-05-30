@@ -44,12 +44,12 @@ pub mod serde_balance {
   use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 
   pub fn serialize<S>(value: &chain::Balance, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer {
+  where S: Serializer {
     let s = value.to_string();
     String::serialize(&s, serializer)
   }
   pub fn deserialize<'de, D>(deserializer: D) -> Result<chain::Balance, D::Error>
-    where D: Deserializer<'de> {
+  where D: Deserializer<'de> {
     let s = String::deserialize(deserializer)?;
     chain::Balance::from_str(&s).map_err(de::Error::custom)
   }
