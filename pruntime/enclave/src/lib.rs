@@ -37,6 +37,8 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
+use contracts::{AccountIdWrapper};
+use sp_core::hashing::blake2_256;
 use sp_core::H256 as Hash;
 use system::{EventRecord};
 use phala::{RawEvent};
@@ -48,6 +50,8 @@ mod cryptography;
 
 use light_validation::AuthoritySetChange;
 use cryptography::{ecdh, aead};
+mod receipt;
+use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response, Error};
 
 extern "C" {
     pub fn ocall_sgx_init_quote(
@@ -860,7 +864,7 @@ mod contracts;
 mod types;
 
 use types::TxRef;
-use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS};
+use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM};
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1008,10 +1012,11 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         panic!("No account id found for tx {:?}", pos);
     };
 
-    println!("handle_execution: incominng cmd: {}", String::from_utf8_lossy(&inner_data));
+    let inner_data_string = String::from_utf8_lossy(&inner_data);
+    println!("handle_execution: incominng cmd: {}", inner_data_string);
 
     println!("handle_execution: about to call handle_command");
-    match contract_id {
+    let status = match contract_id {
         DATA_PLAZA => state.contract1.handle_command(
             &origin, pos,
             serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract1 cmd")
@@ -1024,8 +1029,21 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
             &origin, pos,
             serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract3 cmd")
         ),
-        _ => println!("handle_execution: Skipped unknown contract: {}", contract_id)
-    }
+        _ => {
+            println!("handle_execution: Skipped unknown contract: {}", contract_id);
+            TransactionStatus::BadContractId
+        },
+    };
+
+    let mut gr = GLOBAL_RECEIPT.lock().unwrap();
+    gr.add_receipt(pos.tx_hash.clone(), TransactionReceipt {
+        account: AccountIdWrapper(origin),
+        block_num: pos.blocknum,
+        tx_hash: pos.tx_hash.clone(),
+        contract_id,
+        command: inner_data_string.to_string(),
+        status,
+    });
 }
 
 fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
@@ -1035,7 +1053,8 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
             println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
             let pos = TxRef {
                 blocknum: block.block.header.number,
-                index: i as u32
+                index: i as u32,
+                tx_hash: hex::encode_hex_compact(&blake2_256(&xt.encode())),
             };
             handle_execution(state, &pos, xt.signature.clone(), *contract_id, payload, ecdh_privkey);
         }
@@ -1228,6 +1247,12 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
         ).unwrap(),
+        SYSTEM => serde_json::to_value(
+            handle_query_receipt(
+                accid_origin.clone(),
+                types::deopaque_query(opaque_query)
+                    .map_err(|_| error_msg("Malformed request (system::Request)"))?.request)
+        ).unwrap(),
         _ => return Err(Value::Null)
     };
     // Encrypt response if necessary
@@ -1247,6 +1272,31 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
     let res_value = serde_json::to_value(res_payload).unwrap();
     Ok(res_value)
+}
+
+fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) -> Response {
+    let inner = || -> Result<Response, Error> {
+        match req {
+            Request::QueryReceipt{tx_hash} => {
+                let gr = GLOBAL_RECEIPT.lock().unwrap();
+                match gr.get_receipt(tx_hash) {
+                    Some(receipt) => {
+                        if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
+                            Ok(Response::QueryReceipt { receipt: receipt.clone() })
+                        } else {
+                            Ok(Response::Error(Error::NotAuthorized))
+                        }
+                    },
+                    None => Ok(Response::Error(Error::Other(String::from("Transaction hash not found")))),
+                }
+            }
+        }
+    };
+
+    match inner() {
+        Err(error) => Response::Error(error),
+        Ok(resp) => resp
+    }
 }
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1280,4 +1330,10 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "path": path.to_string(),
         "data": data_b64.to_string()
     }))
+}
+
+lazy_static! {
+    static ref GLOBAL_RECEIPT: SgxMutex<ReceiptStore> = {
+        SgxMutex::new(ReceiptStore::new())
+    };
 }
