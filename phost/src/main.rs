@@ -302,7 +302,7 @@ async fn batch_sync_block(
             i -= 1;
         }
         if i < 0 {
-            let window_reached = end_window > end_buffer && end_window > end_set_id_change;
+            let window_reached = end_window < end_buffer && end_window < end_set_id_change;
             if window_reached {
                 println!(
                     "Cannot find justification within BATCH_WINDOW (window: {}, from: {}, to: {})",
