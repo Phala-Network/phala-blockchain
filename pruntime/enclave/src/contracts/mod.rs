@@ -1,7 +1,9 @@
 use crate::std::string::String;
 use crate::std::fmt::Debug;
 
-use serde::{de::DeserializeOwned, Serialize};
+use core::{fmt,str};
+use serde::{de::{self, Visitor, DeserializeOwned}, Serialize, Deserialize, Serializer, Deserializer};
+use super::TransactionStatus;
 
 use crate::types::TxRef;
 
@@ -10,6 +12,7 @@ pub mod balance;
 pub mod assets;
 
 pub type ContractId = u32;
+pub const SYSTEM: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCE: ContractId = 2;
 pub const ASSETS: ContractId = 3;
@@ -21,7 +24,7 @@ where
   QResp: Serialize + DeserializeOwned + Debug
 {
   fn id(&self) -> ContractId;
-  fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Cmd);
+  fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Cmd) -> TransactionStatus;
   fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
 }
 
@@ -43,7 +46,64 @@ pub mod serde_balance {
   }
   pub fn deserialize<'de, D>(deserializer: D) -> Result<chain::Balance, D::Error>
   where D: Deserializer<'de> {
-      let s = String::deserialize(deserializer)?;
-      chain::Balance::from_str(&s).map_err(de::Error::custom)
+    let s = String::deserialize(deserializer)?;
+    chain::Balance::from_str(&s).map_err(de::Error::custom)
+  }
+}
+
+#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+pub struct AccountIdWrapper( pub chain::AccountId );
+
+impl<'a> AccountIdWrapper {
+  fn from(b: &'a [u8]) -> Self {
+    let mut a = AccountIdWrapper::default();
+    use core::convert::TryFrom;
+    a.0 = sp_core::crypto::AccountId32::try_from(b).unwrap();
+    a
+  }
+  fn from_hex(s: &str) -> Self {
+    let bytes = crate::hex::decode_hex(s);  // TODO: error handling
+    AccountIdWrapper::from(&bytes)
+  }
+  fn to_string(&self) -> String {
+        crate::hex::encode_hex_compact(self.0.as_ref())
+    }
+}
+
+impl Serialize for AccountIdWrapper {
+  fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where S: Serializer,
+  {
+    let data_hex = self.to_string();
+    serializer.serialize_str(&data_hex)
+  }
+}
+
+impl<'de> Deserialize<'de> for AccountIdWrapper{
+  fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where D: Deserializer<'de>
+    {
+        deserializer.deserialize_str(AcidVisitor)
+    }
+}
+
+struct AcidVisitor;
+
+impl<'de> Visitor<'de> for AcidVisitor {
+  type Value = AccountIdWrapper;
+
+  fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    formatter.write_str("AccountID is the hex of [u8;32]")
+  }
+
+  fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where E: de::Error,
+  {
+    if v.len() == 64 {
+      let bytes = crate::hex::decode_hex(v);  // TODO: error handling
+      Ok(AccountIdWrapper::from(&bytes))
+    } else {
+      Err(E::custom(format!("AccountId hex length wrong: {}", v)))
+    }
   }
 }
