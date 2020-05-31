@@ -1,7 +1,7 @@
 use crate::std::prelude::v1::*;
 use serde::{Serialize, Deserialize};
 use std::collections::{BTreeMap};
-use crate::contracts::{AccountIdWrapper};
+use crate::contracts::AccountIdWrapper;
 
 pub type TransactionHash = String;
 

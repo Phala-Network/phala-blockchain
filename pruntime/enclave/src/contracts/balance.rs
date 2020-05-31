@@ -6,7 +6,7 @@ use core::cmp::Ord;
 
 use crate::contracts;
 use crate::types::TxRef;
-use crate::contracts::{AccountIdWrapper};
+use crate::contracts::AccountIdWrapper;
 use super::TransactionStatus;
 
 extern crate runtime as chain;

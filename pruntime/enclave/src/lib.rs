@@ -37,7 +37,7 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
-use contracts::{AccountIdWrapper};
+use contracts::AccountIdWrapper;
 use sp_core::hashing::blake2_256;
 use sp_core::H256 as Hash;
 use system::{EventRecord};
