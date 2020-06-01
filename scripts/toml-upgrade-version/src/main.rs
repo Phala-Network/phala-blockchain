@@ -1,8 +1,17 @@
 use std::process::Command;
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
+
 use serde_json::{Value as JValue};
+use structopt::StructOpt;
 use toml_edit::{Document, Table, InlineTable, Value, value};
+
+#[derive(Debug, StructOpt)]
+#[structopt(name = "toml-upgrade-version")]
+struct Args {
+    #[structopt(short = "f", long = "cargo-file", help = "More Cargo.toml files")]
+    cargo_files: Vec<String>,
+}
 
 fn find_tomls() -> Vec<String> {
     let result = Command::new("cargo")
@@ -142,7 +151,10 @@ impl Update {
 }
 
 fn main() {
-    let tomls = find_tomls();
+    let args = Args::from_args();
+
+    let mut tomls = find_tomls();
+    tomls.extend(args.cargo_files.iter().cloned());
     println!("tomls: {:?}", tomls);
 
     let mut update = Update::new();
