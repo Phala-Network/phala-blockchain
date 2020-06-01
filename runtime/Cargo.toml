@@ -22,7 +22,7 @@ static_assertions = "1.1.0"
 # primitives
 sp-authority-discovery = { version = "2.0.0-rc2", default-features = false, path = "../substrate/primitives/authority-discovery" }
 sp-consensus-babe = { version = "0.8.0-rc2", default-features = false, path = "../substrate/primitives/consensus/babe" }
-sp-block-builder = { path = "../substrate/primitives/block-builder", default-features = false, version = "2.0.0-rc2"}
+sp-block-builder = { path = "../substrate/primitives/block-builder", default-features = false, version = "2.0.0-rc2" }
 sp-inherents = { version = "2.0.0-rc2", default-features = false, path = "../substrate/primitives/inherents" }
 node-primitives = { version = "2.0.0-rc2", default-features = false, path = "../substrate/bin/node/primitives" }
 sp-offchain = { version = "2.0.0-rc2", default-features = false, path = "../substrate/primitives/offchain" }
@@ -77,12 +77,12 @@ pallet-transaction-payment = { version = "2.0.0-rc2", default-features = false, 
 pallet-transaction-payment-rpc-runtime-api = { version = "2.0.0-rc2", default-features = false, path = "../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { version = "2.0.0-rc2", default-features = false, path = "../substrate/frame/vesting" }
 
-pallet-phala = { version = "2.0.0-dev", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
+pallet-phala = { version = "2.0.0-rc2", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 
 native-nostd-hasher = { version = "2.0.0-dev", path = "../native-nostd-hasher", optional = true }
 
 [build-dependencies]
-wasm-builder-runner = { version = "1.0.5", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
+wasm-builder-runner = { version = "1.0.6", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
 
 [dev-dependencies]
 sp-io = { version = "2.0.0-rc2", path = "../substrate/primitives/io" }
@@ -90,6 +90,7 @@ sp-io = { version = "2.0.0-rc2", path = "../substrate/primitives/io" }
 [features]
 default = ["std", "include-wasm"]
 include-wasm = []
+native-nostd = ["native-nostd-hasher"]
 std = [
 	"sp-authority-discovery/std",
 	"pallet-authority-discovery/std",

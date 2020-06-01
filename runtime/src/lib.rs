@@ -65,8 +65,10 @@ use static_assertions::const_assert;
 
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
-#[cfg(any(feature = "std", test))]
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
 pub use pallet_balances::Call as BalancesCall;
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
+pub use pallet_timestamp::Call as TimestampCall;
 #[cfg(any(feature = "std", test))]
 pub use frame_system::Call as SystemCall;
 #[cfg(any(feature = "std", test))]

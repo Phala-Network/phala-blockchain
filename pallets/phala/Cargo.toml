@@ -2,7 +2,7 @@
 authors = ['Phala.network']
 edition = '2018'
 name = 'pallet-phala'
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 license = "Apache 2.0"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/substrate/"
@@ -25,27 +25,27 @@ ring = { path = "../../ring", default_features = false, features = ["alloc"] }
 
 [dependencies.frame-support]
 default-features = false
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 path = "../../substrate/frame/support"
 
 [dependencies.frame-system]
 default-features = false
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 path = "../../substrate/frame/system"
 
 [dev-dependencies.sp-core]
 default-features = false
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 path = "../../substrate/primitives/core"
 
 [dev-dependencies.sp-io]
 default-features = false
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 path = "../../substrate/primitives/io"
 
 [dev-dependencies.sp-runtime]
 default-features = false
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 path = "../../substrate/primitives/runtime"
 
 [features]
