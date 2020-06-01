@@ -3237,6 +3237,7 @@ dependencies = [
  "sc-finality-grandpa",
  "sc-finality-grandpa-rpc",
  "sc-keystore",
+ "sc-rpc-api",
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
@@ -3696,7 +3697,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "2.0.0-rc2"
+version = "2.0.0-dev"
 dependencies = [
  "base64 0.11.0",
  "chrono",
@@ -4190,7 +4191,6 @@ name = "phala-node"
 version = "2.0.0-rc2"
 dependencies = [
  "assert_cmd",
- "base64 0.10.1",
  "frame-benchmarking-cli",
  "frame-support",
  "frame-system",
@@ -4213,6 +4213,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
+ "parking_lot 0.10.2",
  "phala-node-runtime",
  "platforms",
  "rand 0.7.3",
@@ -7761,6 +7762,7 @@ name = "toml-upgrade-version"
 version = "0.1.0"
 dependencies = [
  "serde_json",
+ "structopt",
  "toml_edit",
 ]
 

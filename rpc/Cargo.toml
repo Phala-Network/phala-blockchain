@@ -1,6 +1,6 @@
 [package]
 name = "node-rpc"
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 license = "GPL-3.0"
@@ -11,22 +11,23 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-sc-client-api = { version = "2.0.0-dev", path = "../substrate/client/api" }
+sc-client-api = { version = "2.0.0-rc2", path = "../substrate/client/api" }
 jsonrpc-core = "14.0.3"
-node-primitives = { version = "2.0.0-dev", path = "../substrate/bin/node/primitives" }
-node-runtime = { version = "2.0.0-dev", package = "phala-node-runtime", path = "../runtime" }
-sp-runtime = { version = "2.0.0-dev", path = "../substrate/primitives/runtime" }
-sp-api = { version = "2.0.0-dev", path = "../substrate/primitives/api" }
-pallet-contracts-rpc = { version = "0.8.0-dev", path = "../substrate/frame/contracts/rpc/" }
-pallet-transaction-payment-rpc = { version = "2.0.0-dev", path = "../substrate/frame/transaction-payment/rpc/" }
-substrate-frame-rpc-system = { version = "2.0.0-dev", path = "../substrate/utils/frame/rpc/system" }
-sp-transaction-pool = { version = "2.0.0-dev", path = "../substrate/primitives/transaction-pool" }
-sc-consensus-babe = { version = "0.8.0-dev", path = "../substrate/client/consensus/babe" }
-sc-consensus-babe-rpc = { version = "0.8.0-dev", path = "../substrate/client/consensus/babe/rpc" }
-sp-consensus-babe = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/babe" }
-sc-keystore = { version = "2.0.0-dev", path = "../substrate/client/keystore" }
-sc-consensus-epochs = { version = "0.8.0-dev", path = "../substrate/client/consensus/epochs" }
-sp-consensus = { version = "0.8.0-dev", path = "../substrate/primitives/consensus/common" }
-sp-blockchain = { version = "2.0.0-dev", path = "../substrate/primitives/blockchain" }
-sc-finality-grandpa = { version = "0.8.0-dev", path = "../substrate/client/finality-grandpa" }
-sc-finality-grandpa-rpc = { version = "0.8.0-dev", path = "../substrate/client/finality-grandpa/rpc" }
+node-primitives = { version = "2.0.0-rc2", path = "../substrate/bin/node/primitives" }
+node-runtime = { version = "2.0.0-rc2", package = "phala-node-runtime", path = "../runtime" }
+sp-runtime = { version = "2.0.0-rc2", path = "../substrate/primitives/runtime" }
+sp-api = { version = "2.0.0-rc2", path = "../substrate/primitives/api" }
+pallet-contracts-rpc = { version = "0.8.0-rc2", path = "../substrate/frame/contracts/rpc/" }
+pallet-transaction-payment-rpc = { version = "2.0.0-rc2", path = "../substrate/frame/transaction-payment/rpc/" }
+substrate-frame-rpc-system = { version = "2.0.0-rc2", path = "../substrate/utils/frame/rpc/system" }
+sp-transaction-pool = { version = "2.0.0-rc2", path = "../substrate/primitives/transaction-pool" }
+sc-consensus-babe = { version = "0.8.0-rc2", path = "../substrate/client/consensus/babe" }
+sc-consensus-babe-rpc = { version = "0.8.0-rc2", path = "../substrate/client/consensus/babe/rpc" }
+sp-consensus-babe = { version = "0.8.0-rc2", path = "../substrate/primitives/consensus/babe" }
+sc-keystore = { version = "2.0.0-rc2", path = "../substrate/client/keystore" }
+sc-consensus-epochs = { version = "0.8.0-rc2", path = "../substrate/client/consensus/epochs" }
+sp-consensus = { version = "0.8.0-rc2", path = "../substrate/primitives/consensus/common" }
+sp-blockchain = { version = "2.0.0-rc2", path = "../substrate/primitives/blockchain" }
+sc-finality-grandpa = { version = "0.8.0-rc2", path = "../substrate/client/finality-grandpa" }
+sc-finality-grandpa-rpc = { version = "0.8.0-rc2", path = "../substrate/client/finality-grandpa/rpc" }
+sc-rpc-api = { version = "0.8.0-rc2", path = "../substrate/client/rpc-api" }
