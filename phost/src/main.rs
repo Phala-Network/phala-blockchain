@@ -9,6 +9,7 @@ use bytes::buf::BufExt as _;
 
 use phala_node_runtime::{self, BlockNumber};
 use sp_rpc::number::NumberOrHex;
+use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
@@ -66,10 +67,10 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
         None => client.finalized_head().await?
     };
 
-    println!("get_block_at: Got block {:?} hash {:?}", h, hash);
+    println!("get_block_at: Got block {:?} hash {}", h, hash.to_string());
 
     let opaque_block = client.block(Some(hash)).await?
-    .ok_or(Error::BlockNotFound)?;
+        .ok_or(Error::BlockNotFound)?;
 
     let block = deopaque_signedblock(opaque_block);
 
@@ -90,11 +91,12 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
 }
 
 async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
-    Ok(client.storage(storage_key, hash).await?)
+    let storage = client.rpc.storage(storage_key, hash).await?;
+    Ok(storage.map(|data| (&data.0[..]).to_vec()))
 }
 
-async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<subxt::ReadProof<Hash>, Error> {
-    Ok(client.read_proof(vec![storage_key], hash).await?)
+async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<ReadProof<Hash>, Error> {
+    client.read_proof(vec![storage_key], hash).await.map_err(Into::into)
 }
 
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange, Error> {
@@ -112,7 +114,7 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
     }
     // Set id
     let set_id = client
-        .fetch(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+        .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
         .await
         .map_err(|_| Error::NoSetIdAtBlock)?;
     Ok(AuthoritySetChange {
@@ -149,7 +151,7 @@ async fn bisec_setid_change(
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
         let set_id = client
-            .fetch(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+            .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
             .await
             .map_err(|_| Error::NoSetIdAtBlock)?;
         // Left: set_id == last_id, Right: set_id > last_id
@@ -272,7 +274,7 @@ async fn batch_sync_block(
         let hash = header.hash();
         let number = header.number;
         let set_id = client
-            .fetch(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+            .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
             .await
             .map_err(|_| Error::NoSetIdAtBlock)?;
         let set = (number, set_id);
@@ -290,7 +292,7 @@ async fn batch_sync_block(
         let end_window = BATCH_WINDOW as isize - 1;
         let end_buffer = block_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
-            Some(change_at) => (change_at - first_block_number) as isize,
+            Some(change_at) => (change_at as isize - first_block_number as isize),
             None => block_buf.len() as isize,
         };
         let end = std::cmp::min(end_window, std::cmp::min(end_buffer, end_set_id_change));
@@ -403,7 +405,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.remove(0);
         }
         println!("try to upload blocks. next required: {}, finalized tip: {}, buffered {}",
-        info.blocknum, block_tip.block.header.number, sync_state.blocks.len());
+                 info.blocknum, block_tip.block.header.number, sync_state.blocks.len());
 
         // no, then catch up to the chain tip
         let next_block = match sync_state.blocks.last() {

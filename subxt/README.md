@@ -4,7 +4,7 @@ A library to **sub**mit e**xt**rinsics to a [substrate](https://github.com/parit
 
 ## Usage
 
-See [examples](examples).
+See [examples](./examples).
 
 **Alternatives**
 

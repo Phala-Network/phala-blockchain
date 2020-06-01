@@ -24,6 +24,7 @@ subxt = { path = "../subxt", package = "substrate-subxt" }
 system = { version = "2.0.0-rc2", path = "../substrate/frame/system", package = "frame-system" }
 sp-core = { version = "2.0.0-rc2", path = "../substrate/primitives/core" }
 sp-rpc = { version = "2.0.0-rc2", path = "../substrate/primitives/rpc", package = "sp-rpc" }
+sc-rpc-api = { version = "0.8.0-rc2", path = "../substrate/client/rpc-api", package = "sc-rpc-api" }
 sp-runtime = { version = "2.0.0-rc2", path = "../substrate/primitives/runtime", package = "sp-runtime" }
 sc-finality-grandpa = { version = "0.8.0-rc2", path = "../substrate/client/finality-grandpa" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../substrate/primitives/finality-grandpa", default-features = false }

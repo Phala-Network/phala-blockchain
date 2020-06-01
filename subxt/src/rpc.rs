@@ -132,36 +132,15 @@ impl<T: System> Rpc<T> {
     }
 
     /// Fetch a storage key
-    pub async fn fetch<V: Decode>(
-        &self,
-        key: StorageKey,
-        hash: Option<T::Hash>,
-    ) -> Result<Option<V>, Error> {
-        let params = Params::Array(vec![to_json_value(key)?, to_json_value(hash)?]);
-        let data: Option<StorageData> =
-            self.client.request("state_getStorage", params).await?;
-        match data {
-            Some(data) => {
-                log::debug!("state_getStorage {:?}", data.0);
-                let value = Decode::decode(&mut &data.0[..])?;
-                Ok(Some(value))
-            }
-            None => Ok(None),
-        }
-    }
-
-    /// Query a storage key
     pub async fn storage(
         &self,
         key: StorageKey,
         hash: Option<T::Hash>,
-    ) -> Result<Option<Vec<u8>>, Error> {
-        // todo: update jsonrpsee::rpc_api! macro to accept shared Client (currently only RawClient)
-        // until then we manually construct params here and in other methods
+    ) -> Result<Option<StorageData>, Error> {
         let params = Params::Array(vec![to_json_value(key)?, to_json_value(hash)?]);
-        let data: Option<StorageData> =
-            self.client.request("state_getStorage", params).await?;
-        Ok(data.map(|d| d.0))
+        let data = self.client.request("state_getStorage", params).await?;
+        log::debug!("state_getStorage {:?}", data);
+        Ok(data)
     }
 
     /// Query historical storage entries
@@ -356,7 +335,7 @@ impl<T: System> Rpc<T> {
 
     /// Create and submit an extrinsic and return corresponding Event if successful
     pub async fn submit_and_watch_extrinsic<E: Encode + 'static>(
-        self,
+        &self,
         extrinsic: E,
         decoder: EventsDecoder<T>,
     ) -> Result<ExtrinsicSuccess<T>, Error> {

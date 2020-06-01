@@ -4344,6 +4344,7 @@ dependencies = [
  "phala-node-runtime",
  "rand 0.7.3",
  "sc-finality-grandpa",
+ "sc-rpc-api",
  "serde",
  "serde_json",
  "sp-core",
@@ -7057,7 +7058,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-subxt"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "frame-metadata",
  "frame-support",
@@ -7083,7 +7084,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-subxt-proc-macro"
-version = "0.7.0"
+version = "0.8.0"
 dependencies = [
  "heck",
  "proc-macro-crate",
