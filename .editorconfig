@@ -22,3 +22,7 @@ indent_size=4
 [phost/**.rs]
 indent_style=space
 indent_size=4
+
+[scripts/**.rs]
+indent_style=space
+indent_size=4

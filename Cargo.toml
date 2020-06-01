@@ -16,4 +16,5 @@ members = [
 	"phost",
 	"runtime",
 	"rpc",
+	"scripts/toml-upgrade-version"
 ]
