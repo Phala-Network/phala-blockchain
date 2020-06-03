@@ -52,8 +52,8 @@ ring/doc/*.html
 ring/doc/doc.css
 
 # node runtime
-node/scripts/ccwrapper/*.log
-node/scripts/ccwrapper/latest-*
+**/ccwrapper/*.log
+**/ccwrapper/latest-*
 
 # Object files
 *.o
