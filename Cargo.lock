@@ -581,7 +581,6 @@ dependencies = [
  "js-sys",
  "num-integer",
  "num-traits 0.2.11",
- "serde",
  "time",
  "wasm-bindgen",
 ]
@@ -3701,17 +3700,18 @@ name = "pallet-phala"
 version = "2.0.0-rc2"
 dependencies = [
  "base64 0.11.0",
- "chrono",
  "frame-support",
  "frame-system",
  "hex",
  "itertools 0.8.2",
  "parity-scale-codec",
  "ring 0.16.9",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-std",
  "untrusted",
  "webpki 0.21.0",
 ]
@@ -4380,9 +4380,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-lite"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9df32da11d84f3a7d70205549562966279adb900e080fad3dccd8e64afccf0ad"
+checksum = "282adbf10f2698a7a77f8e983a74b2d18176c19a7fd32a45446139ae7b02b715"
 
 [[package]]
 name = "pin-utils"

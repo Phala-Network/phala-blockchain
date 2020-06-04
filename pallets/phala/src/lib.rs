@@ -1,28 +1,20 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// A FRAME pallet template with necessary imports
-
-/// Feel free to remove or edit this file as needed.
-/// If you change the name of this file, make sure to update its references in runtime/src/lib.rs
-/// If you remove this file, you can remove those references
-
-/// For more guidance on Substrate FRAME, see the example pallet
-/// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
-
 extern crate alloc;
 
-extern crate untrusted;
-extern crate base64;
-extern crate itertools;
-extern crate hex;
-extern crate serde_json;
-extern crate webpki;
-extern crate codec;
+// extern crate untrusted;
+// extern crate base64;
+// extern crate itertools;
+// extern crate hex;
+// extern crate serde_json;
+// extern crate webpki;
+// extern crate codec;
 
 use alloc::vec::Vec;
 use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch};
 use frame_system::{self as system, ensure_signed};
 use codec::{Encode, Decode};
+use sp_std::prelude::*;
 
 #[cfg(test)]
 mod mock;
