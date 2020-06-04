@@ -614,9 +614,9 @@ dependencies = [
 
 [[package]]
 name = "clear_on_drop"
-version = "0.2.3"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "97276801e127ffb46b66ce23f35cc96bd454fa311294bced4bbace7baa8b1d17"
+checksum = "c9cc5db465b294c3fa986d5bbb0f3017cd850bff6dd6c52f9ccff8b4d21b7b08"
 dependencies = [
  "cc",
 ]
@@ -3708,7 +3708,6 @@ dependencies = [
  "itertools 0.8.2",
  "parity-scale-codec",
  "ring 0.16.9",
- "serde",
  "serde_json",
  "sp-core",
  "sp-io",
@@ -4361,18 +4360,18 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "0.4.17"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edc93aeee735e60ecb40cf740eb319ff23eab1c5748abfdb5c180e4ce49f7791"
+checksum = "ba3a1acf4a3e70849f8a673497ef984f043f95d2d8252dcdf74d54e6a1e47e8a"
 dependencies = [
  "pin-project-internal",
 ]
 
 [[package]]
 name = "pin-project-internal"
-version = "0.4.17"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e58db2081ba5b4c93bd6be09c40fd36cb9193a8336c384f3b40012e531aa7e40"
+checksum = "194e88048b71a3e02eb4ee36a6995fed9b8236c11a7bb9f7247a9d9835b3f265"
 dependencies = [
  "proc-macro2",
  "quote 1.0.6",
@@ -8249,18 +8248,18 @@ dependencies = [
 
 [[package]]
 name = "wast"
-version = "17.0.0"
+version = "18.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a0e1c36b928fca33dbaf96235188f5fad22ee87100e26cc606bd0fbabdf1932"
+checksum = "01b1f23531740a81f9300bd2febd397a95c76bfa4aa4bfaf4ca8b1ee3438f337"
 dependencies = [
  "leb128",
 ]
 
 [[package]]
 name = "wat"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b50f9e5e5c81e6fd987ae6997a9f4bbb751df2dec1d8cadb0b5778f1ec13bbe"
+checksum = "4006d418d59293172aebfeeadb7673459dc151874a79135946ea7996b6a98515"
 dependencies = [
  "wast",
 ]
