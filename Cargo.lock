@@ -3115,7 +3115,7 @@ dependencies = [
 
 [[package]]
 name = "native-nostd-hasher"
-version = "2.0.0-dev"
+version = "2.0.0-rc2"
 dependencies = [
  "hash256-std-hasher",
  "sp-core",

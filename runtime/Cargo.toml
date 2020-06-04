@@ -79,7 +79,7 @@ pallet-vesting = { version = "2.0.0-rc2", default-features = false, path = "../s
 
 pallet-phala = { version = "2.0.0-rc2", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 
-native-nostd-hasher = { version = "2.0.0-dev", path = "../native-nostd-hasher", optional = true }
+native-nostd-hasher = { version = "2.0.0-rc2", path = "../native-nostd-hasher", optional = true }
 
 [build-dependencies]
 wasm-builder-runner = { version = "1.0.6", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
