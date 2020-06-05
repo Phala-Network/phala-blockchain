@@ -7,6 +7,7 @@ use sp_runtime::{
     OpaqueExtrinsic
 };
 
+use std::vec::Vec;
 
 // Nod Runtime
 
@@ -69,31 +70,83 @@ impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Payload {
+    Plain(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Query {
+    pub contract_id: u32,
+    pub nonce: u32,
+    pub request: ReqData,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum ReqData {
+    PendingChainTransfer {sequence: u32}
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct QueryReq {
+    pub query_payload: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct QueryResp {
+    pub plain: String,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[serde(rename_all = "PascalCase")]
+pub struct PendingChainTransfer {
+    pub pending_chain_transfer: TransferQueue,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TransferQueue {
+    pub transfer_queue_b64: String,
+}
+
+// TODO : need refactoring
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct TransferData {
+    pub dest: [u8; 32],
+    pub amount: u128,
+    pub signature: Option<Vec<u8>>,
+    pub sequence: u32,
+}
+
+impl Resp for QueryReq {
+    type Resp = QueryResp;
+}
+
 // API: init_runtime
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeReq {
-    pub skip_ra: bool,
-    pub bridge_genesis_info_b64: String
+  pub skip_ra: bool,
+  pub bridge_genesis_info_b64: String
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
-    pub public_key: String,
-    pub attestation: InitRespAttestation,
+  pub public_key: String,
+  pub attestation: InitRespAttestation,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRespAttestation {
-    pub version: i32,
-    pub provider: String,
+  pub version: i32,
+  pub provider: String,
 }
 impl Resp for InitRuntimeReq {
-    type Resp = InitRuntimeResp;
+  type Resp = InitRuntimeResp;
 }
 #[derive(Encode, Decode)]
 pub struct GenesisInfo {
-    pub header: Header,
-    pub validators: AuthorityList,
-    pub proof: StorageProof,
+  pub header: Header,
+  pub validators: AuthorityList,
+  pub proof: StorageProof,
 }
 
 // API: sync_block
@@ -119,11 +172,11 @@ pub struct BlockWithEvents {
 }
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
-	pub authority_set: AuthorityList,
-	pub set_id: SetId,
+    pub authority_set: AuthorityList,
+    pub set_id: SetId,
 }
 #[derive(Encode, Decode, Clone, PartialEq)]
 pub struct AuthoritySetChange {
-	pub authority_set: AuthoritySet,
-	pub authority_proof: StorageProof,
+    pub authority_set: AuthoritySet,
+    pub authority_proof: StorageProof,
 }

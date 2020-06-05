@@ -27,6 +27,12 @@ base64 = { version = "0.11", default-features = false, features = ["alloc"] }
 hex = { version = "0.4", default-features = false }
 webpki = { path = "../../webpki", default_features = false }
 serde_json_no_std = { path = "../../serde_json_no_std", version = "1.0", default-features = false, features = ["alloc"] }
+# serde_json_core = {}
+
+[dependencies.pallet-balances]
+default-features = false
+version = "2.0.0-dev"
+path = "../../substrate/frame/balances"
 
 [dev-dependencies]
 sp-core = { version = "2.0.0-rc2", path = "../../substrate/primitives/core", default_features = false }

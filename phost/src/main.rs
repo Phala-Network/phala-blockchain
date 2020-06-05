@@ -11,9 +11,11 @@ use phala_node_runtime::{self, BlockNumber};
 use sp_rpc::number::NumberOrHex;
 use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
-
+use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
 use sp_core::{storage::StorageKey, twox_128};
+
+use sp_keyring::{AccountKeyring};
 
 mod error;
 mod runtimes;
@@ -23,7 +25,7 @@ use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, OpaqueSignedBlock,
     Resp, SignedResp, RuntimeReq,
-    GetInfoReq,
+    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
     SyncBlockReq, SyncBlockResp, BlockWithEvents, AuthoritySet, AuthoritySetChange
 };
@@ -37,13 +39,13 @@ struct Args {
     no_init: bool,
 
     #[structopt(
-        short = "r", long = "remote-attestation",
-        help = "Should enable Remote Attestation")]
+    short = "r", long = "remote-attestation",
+    help = "Should enable Remote Attestation")]
     ra: bool,
 
     #[structopt(
-        default_value = "ws://localhost:9944", long,
-        help = "Substrate rpc websocket endpoint")]
+    default_value = "ws://localhost:9944", long,
+    help = "Substrate rpc websocket endpoint")]
     substrate_ws_endpoint: String,
 }
 
@@ -60,7 +62,7 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
 }
 
 async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
--> Result<BlockWithEvents, Error> {
+                      -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
@@ -232,7 +234,7 @@ async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T:
 }
 
 async fn req_decode<Req>(command: &str, request: Req) -> Result<Req::Resp, Error>
-where Req: Serialize + Resp {
+    where Req: Serialize + Resp {
     let payload = RuntimeReq::new(request);
     let resp = req(command, &payload).await?;
     let result: Req::Resp = serde_json::from_str(&resp.payload)?;
@@ -322,9 +324,9 @@ async fn batch_sync_block(
         /* print collected blocks */ {
             for b in block_batch.iter() {
                 println!("Block {} :: {} :: {}",
-                    b.block.block.header.number,
-                    b.block.block.header.hash().to_string(),
-                    b.block.block.header.parent_hash.to_string()
+                         b.block.block.header.number,
+                         b.block.block.header.hash().to_string(),
+                         b.block.block.header.parent_hash.to_string()
                 );
             }
         }
@@ -360,12 +362,59 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
+async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32) -> Result<(), Error> {
+    let query = Query {
+        contract_id: 2,
+        nonce: 0,
+        request: ReqData::PendingChainTransfer {sequence: *sequence},
+    };
+
+    let query_value = serde_json::to_value(&query)?;
+    let payload = Payload::Plain(query_value.to_string());
+    let query_payload = serde_json::to_string(&payload)?;
+    println!("query_payload:{}", query_payload);
+    let info = req_decode("query", QueryReq { query_payload: query_payload}).await?;
+    println!("info:{:}", info.plain);
+    let pending_chain_transfer: PendingChainTransfer = serde_json::from_str(&info.plain)?;
+    let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
+        .map_err(|_|Error::FailedToDecode)?;
+    let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
+        .map_err(|_|Error::FailedToDecode)?;
+    if transfer_queue.len() == 0 {
+        return Ok(());
+    }
+
+    let mut max_seq = *sequence;
+    for transfer_data in &transfer_queue {
+        if transfer_data.sequence <= *sequence {
+            println!("The tx has been submitted.");
+            continue;
+        }
+        if transfer_data.sequence > max_seq {
+            max_seq = transfer_data.sequence;
+        }
+
+        let call = runtimes::phala::TransferToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
+        let signer = subxt::PairSigner::new(AccountKeyring::Alice.pair());
+        let ret = client.submit(call, &signer).await;
+        if ret.is_ok() {
+            println!("submit tx successfully");
+        } else {
+            println!("Error when submit tx");
+        }
+    }
+
+    *sequence = max_seq;
+
+    Ok(())
+}
+
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(args.substrate_ws_endpoint.clone())
         .build().await?;
-    println!("Connected to substrate at: {}", args.substrate_ws_endpoint);
+    println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
@@ -386,6 +435,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             bridge_genesis_info_b64: info_b64,
         }).await?;
     }
+
+    let mut sequence = 0;
 
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
@@ -419,6 +470,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             }
             sync_state.blocks.push(block.clone());
         }
+
+        sync_tx_to_chain(&client, &mut sequence).await;
 
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(&client, &mut sync_state).await?;
