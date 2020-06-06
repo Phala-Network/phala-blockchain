@@ -196,26 +196,25 @@ decl_module! {
 			// 	Err(_) => panic!("verify cert failed")
 			// };
 
-			// let parsed_report: serde_json::Value = serde_json::from_slice(&report).unwrap();
-			// if !(&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED") {
-			// 	panic!("isvEnclaveQuoteStatus is {}", &parsed_report["isvEnclaveQuoteStatus"]);
-			// }
-			//
-			// let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
-			// let quote_body = base64::decode(&raw_quote_body).unwrap();
-			// let mr_enclave = &quote_body[112..143];
-			// let isv_prod_id = &quote_body[304..305];
-			// let isv_svn = &quote_body[306..307];
-			// let report_data = &quote_body[368..431];
-			//
-			// let mut runtime_info = match TEERuntimeInfo::decode(&mut &encoded_runtime_info[..]) {
-			// 	Ok(x) => x,
-			// 	Err(_) => panic!("decode runtime_info failed")
-			// };
-			//
-			//
-			// Machine::insert(runtime_info.machine_id.to_vec(), (runtime_info.pub_key.to_vec(), runtime_info.score));
-			// <MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who);
+			let parsed_report: serde_json_no_std::Value = serde_json_no_std::from_slice(&report).unwrap();
+			if !(&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED") {
+				panic!("isvEnclaveQuoteStatus is {}", &parsed_report["isvEnclaveQuoteStatus"]);
+			}
+
+			let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
+			let quote_body = base64::decode(&raw_quote_body).unwrap();
+			let mr_enclave = &quote_body[112..143];
+			let isv_prod_id = &quote_body[304..305];
+			let isv_svn = &quote_body[306..307];
+			let report_data = &quote_body[368..431];
+
+			let mut runtime_info = match TEERuntimeInfo::decode(&mut &encoded_runtime_info[..]) {
+				Ok(x) => x,
+				Err(_) => panic!("decode runtime_info failed")
+			};
+
+			Machine::insert(runtime_info.machine_id.to_vec(), (runtime_info.pub_key.to_vec(), runtime_info.score));
+			<MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who);
 
 			Ok(())
 		}
