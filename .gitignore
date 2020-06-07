@@ -50,6 +50,7 @@ ring/build/
 ring/ssl/test/runner/runner
 ring/doc/*.html
 ring/doc/doc.css
+ring/pregenerated/
 
 # node runtime
 **/ccwrapper/*.log

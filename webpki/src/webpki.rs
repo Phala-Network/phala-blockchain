@@ -44,6 +44,9 @@
 #[macro_use]
 extern crate std;
 
+#[cfg(target_arch = "wasm32")]
+extern crate ring_wasmable as ring;
+
 #[macro_use]
 mod der;
 

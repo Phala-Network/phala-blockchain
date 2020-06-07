@@ -63,8 +63,13 @@ default = ["std", "trust_anchor_util"]
 trust_anchor_util = ["std"]
 std = []
 
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+ring_wasmable = { package = "ring", path = "../ring", version = "0.16.0", default-features = false, features = ["alloc"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+ring = { version = "0.16.0", default-features = false, features = ["alloc"] }
+
 [dependencies]
-ring = { version = "0.16.0", path = "../ring", default-features = false, features = ["alloc"] }
 untrusted = "0.7.0"
 
 [dev-dependencies]
