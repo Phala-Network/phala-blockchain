@@ -76,12 +76,12 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 		spki: b"0\r\x06\t*\x86H\x86\xf7\r\x01\x01\x01\x05\x00\x03\x82\x01\x8f\x000\x82\x01\x8a\x02\x82\x01\x81\x00\x9f<d~\xb5w<\xbbQ-\'2\xc0\xd7A^\xbbU\xa0\xfa\x9e\xde.d\x91\x99\xe6\x82\x1d\xb9\x10\xd51w7\twFjj^G\x86\xcc\xd2\xdd\xeb\xd4\x14\x9dj/c%R\x9d\xd1\x0c\xc9\x877\xb0w\x9c\x1a\x07\xe2\x9cG\xa1\xae\x00IHGlH\x9fE\xa5\xa1]z\xc8\xec\xc6\xac\xc6E\xad\xb4=\x87g\x9d\xf5\x9c\t;\xc5\xa2\xe9ilTxT\x1b\x97\x9euKW9\x14\xbeU\xd3/\xf4\xc0\x9d\xdf\'!\x994\xcd\x99\x05\'\xb3\xf9.\xd7\x8f\xbf)$j\xbe\xcbq$\x0e\xf3\x9c-q\x07\xb4GTZ\x7f\xfb\x10\xeb\x06\nh\xa9\x85\x80!\x9e6\x91\tRh8\x92\xd6\xa5\xe2\xa8\x08\x03\x19>@u1@N6\xb3\x15b7\x99\xaa\x82Pt@\x97T\xa2\xdf\xe8\xf5\xaf\xd5\xfec\x1e\x1f\xc2\xaf8\x08\x90o(\xa7\x90\xd9\xdd\x9f\xe0`\x93\x9b\x12W\x90\xc5\x80]\x03}\xf5j\x99S\x1b\x96\xdei\xde3\xed\"l\xc1 }\x10B\xb5\xc9\xab\x7f@O\xc7\x11\xc0\xfeGi\xfb\x95x\xb1\xdc\x0e\xc4i\xea\x1a%\xe0\xff\x99\x14\x88n\xf2i\x9b#[\xb4\x84}\xd6\xff@\xb6\x06\xe6\x17\x07\x93\xc2\xfb\x98\xb3\x14X\x7f\x9c\xfd%sb\xdf\xea\xb1\x0b;\xd2\xd9vs\xa1\xa4\xbdD\xc4S\xaa\xf4\x7f\xc1\xf2\xd3\xd0\xf3\x84\xf7J\x06\xf8\x9c\x08\x9f\r\xa6\xcd\xb7\xfc\xee\xe8\xc9\x82\x1a\x8eT\xf2\\\x04\x16\xd1\x8cF\x83\x9a_\x80\x12\xfb\xdd=\xc7M%by\xad\xc2\xc0\xd5Z\xffo\x06\"B]\x1b\x02\x03\x01\x00\x01",
 		name_constraints: None
 	},
-
 ]);
 
 pub const IAS_REPORT_SAMPLE : &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE : &[u8] = include_bytes!("../sample/report_signature");
 pub const IAS_REPORT_SIGNING_CERTIFICATE : &[u8] = include_bytes!("../sample/report_signing_certificate");
+pub const TEE_REPORT_SAMPLE : [u8; 81] = [134, 222, 118, 78, 114, 234, 214, 152, 216, 8, 81, 21, 74, 185, 3, 20, 111, 16, 131, 225, 173, 51, 55, 231, 229, 20, 50, 207, 201, 22, 55, 187, 120, 215, 27, 51, 149, 5, 111, 67, 127, 156, 66, 148, 183, 235, 242, 76, 220, 25, 28, 66, 140, 176, 130, 100, 237, 227, 138, 153, 232, 44, 157, 57, 133, 189, 198, 179, 210, 150, 79, 135, 254, 52, 7, 1, 5, 45, 234, 22, 10];
 const PANIC: bool = false;
 
 #[test]
@@ -127,4 +127,21 @@ fn test_validate_cert() {
 			Err(_) => panic!("verify sig failed")
 		};
 	}
+}
+
+#[test]
+fn it_works_for_test() {
+	new_test_ext().execute_with(|| {
+		let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
+			Ok(x) => x,
+			Err(_) => panic!("decode sig failed")
+		};
+
+		let sig_cert_dec: Vec<u8> = match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
+			Ok(x) => x,
+			Err(_) => panic!("decode cert failed")
+		};
+
+		assert_ok!(PhalaModule::test(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig, sig_cert_dec));
+	});
 }

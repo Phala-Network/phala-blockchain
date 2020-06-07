@@ -357,6 +357,17 @@ fn maybe_set_toolchain(target: &Target) {
             _ => ()
         }
     }
+    if compatible_tools == None {
+        let clang = String::from("clang");
+        let ar = String::from("ar");
+
+        match (which(&clang), which(&ar)) {
+            (Ok(_), Ok(_)) => {
+                compatible_tools = Some((clang, ar));
+            },
+            _ => ()
+        };
+    }
 
     if let Some((clang, ar)) = compatible_tools {
         std::env::set_var("CC_wasm32-unknown-unknown", &clang);
