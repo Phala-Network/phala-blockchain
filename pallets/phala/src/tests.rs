@@ -142,6 +142,7 @@ fn it_works_for_test() {
 			Err(_) => panic!("decode cert failed")
 		};
 
-		assert_ok!(PhalaModule::test(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig, sig_cert_dec));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 	});
 }

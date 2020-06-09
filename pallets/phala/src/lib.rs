@@ -20,7 +20,7 @@ extern crate webpki;
 
 use alloc::vec::Vec;
 use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, ensure};
+use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch};
 use frame_system::{self as system, ensure_signed};
 use frame_support::{
 	traits::{Currency, ExistenceRequirement::AllowDeath},
@@ -116,9 +116,6 @@ decl_storage! {
 		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
 		CommandNumber get(fn command_number): Option<u32>;
 
-		// Store a map of TEE key and TEE register info, map Vec<u8> => Vec<u8>
-		TEERegisterInfo get(fn tee_register_info): map hasher(blake2_128_concat) Vec<u8> => Vec<u8>;
-
 		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
 		MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 
@@ -150,6 +147,10 @@ decl_error! {
 		/// Value reached maximum and cannot be incremented further
 		StorageOverflow,
 		BadTransactionData,
+		InvalidIASSigningCert,
+		InvalidIASReportSignature,
+		InvalidQuoteStatus,
+		InvalidRuntimeInfo
 	}
 }
 
@@ -186,34 +187,19 @@ decl_module! {
 		}
 
 		#[weight = 0]
-		pub fn register_worker(origin, pubkey: Vec<u8>, info: Vec<u8>) -> dispatch::DispatchResult {
-			ensure_signed(origin)?;
-
-			// if pubkey exists, the info will be updated
-			TEERegisterInfo::insert(pubkey, info);
-
-			Ok(())
-		}
-
-		#[weight = 0]
-		pub fn test(origin, encoded_runtime_info: Vec<u8>, report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8>) -> dispatch::DispatchResult {
+		pub fn register_worker(origin, encoded_runtime_info: Vec<u8>, report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			let sig_cert: webpki::EndEntityCert = match webpki::EndEntityCert::from(&raw_signing_cert) {
-				Ok(x) => x,
-				Err(_) => panic!("parse sig failed")
-			};
+			let sig_cert = webpki::EndEntityCert::from(&raw_signing_cert);
+			ensure!(sig_cert.is_ok(), Error::<T>::InvalidIASSigningCert);
+			let sig_cert = sig_cert.unwrap();
 
 			let verify_result = sig_cert.verify_signature(
 				&webpki::RSA_PKCS1_2048_8192_SHA256,
 				&report,
 				&signature
 			);
-
-			match verify_result {
-				Ok(()) => (),
-				Err(_) => panic!("verify sig failed")
-			};
+			ensure!(verify_result.is_ok(), Error::<T>::InvalidIASSigningCert);
 
 			// let chain: Vec<&[u8]> = Vec::new();
 			// let now_func = webpki::Time::from_seconds_since_unix_epoch(1573419050);
@@ -228,9 +214,10 @@ decl_module! {
 			// };
 
 			let parsed_report: serde_json_no_std::Value = serde_json_no_std::from_slice(&report).unwrap();
-			if !(&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED") {
-				panic!("isvEnclaveQuoteStatus is {}", &parsed_report["isvEnclaveQuoteStatus"]);
-			}
+			ensure!(
+				&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED",
+				Error::<T>::InvalidQuoteStatus
+			);
 
 			let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
 			let quote_body = base64::decode(&raw_quote_body).unwrap();
@@ -239,10 +226,9 @@ decl_module! {
 			let isv_svn = &quote_body[306..307];
 			let report_data = &quote_body[368..431];
 
-			let mut runtime_info = match TEERuntimeInfo::decode(&mut &encoded_runtime_info[..]) {
-				Ok(x) => x,
-				Err(_) => panic!("decode runtime_info failed")
-			};
+			let runtime_info = TEERuntimeInfo::decode(&mut &encoded_runtime_info[..]);
+			ensure!(runtime_info.is_ok(), Error::<T>::InvalidRuntimeInfo);
+			let runtime_info = runtime_info.unwrap();
 
 			Machine::insert(runtime_info.machine_id.to_vec(), (runtime_info.pub_key.to_vec(), runtime_info.score));
 			<MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who);
