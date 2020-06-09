@@ -4,7 +4,7 @@ use crate::std::fmt::Debug;
 use core::{fmt,str};
 use serde::{de::{self, Visitor, DeserializeOwned}, Serialize, Deserialize, Serializer, Deserializer};
 use super::TransactionStatus;
-
+use parity_scale_codec::{Encode, Decode};
 use crate::types::TxRef;
 
 pub mod data_plaza;
@@ -26,6 +26,7 @@ where
   fn id(&self) -> ContractId;
   fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Cmd) -> TransactionStatus;
   fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
+  fn handle_event(&mut self, _re: runtime::Event) {}
 }
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId, ()> {
@@ -52,6 +53,7 @@ pub mod serde_balance {
 }
 
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone)]
+#[derive(Encode, Decode)]
 pub struct AccountIdWrapper( pub chain::AccountId );
 
 impl<'a> AccountIdWrapper {
@@ -66,13 +68,13 @@ impl<'a> AccountIdWrapper {
     AccountIdWrapper::from(&bytes)
   }
   fn to_string(&self) -> String {
-        crate::hex::encode_hex_compact(self.0.as_ref())
-    }
+    crate::hex::encode_hex_compact(self.0.as_ref())
+  }
 }
 
 impl Serialize for AccountIdWrapper {
   fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where S: Serializer,
+  where S: Serializer,
   {
     let data_hex = self.to_string();
     serializer.serialize_str(&data_hex)
@@ -81,10 +83,10 @@ impl Serialize for AccountIdWrapper {
 
 impl<'de> Deserialize<'de> for AccountIdWrapper{
   fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where D: Deserializer<'de>
-    {
-        deserializer.deserialize_str(AcidVisitor)
-    }
+  where D: Deserializer<'de>
+  {
+    deserializer.deserialize_str(AcidVisitor)
+  }
 }
 
 struct AcidVisitor;
@@ -97,7 +99,7 @@ impl<'de> Visitor<'de> for AcidVisitor {
   }
 
   fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where E: de::Error,
+  where E: de::Error,
   {
     if v.len() == 64 {
       let bytes = crate::hex::decode_hex(v);  // TODO: error handling

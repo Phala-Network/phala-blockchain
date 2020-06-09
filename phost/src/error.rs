@@ -10,6 +10,7 @@ pub enum Error {
   NoJustification,
   NoSetIdAtBlock,
   SearchSetIdChangeInEmptyRange,
+  FailedToDecode,
 }
 
 impl From<hyper::error::Error> for Error {

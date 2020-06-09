@@ -597,10 +597,10 @@ struct TestEcdhParam {
 
 #[derive(Encode, Decode, Debug, Clone)]
 struct BlockWithEvents {
-	block: chain::SignedBlock,
-	events: Option<Vec<u8>>,
-	proof: Option<Vec<Vec<u8>>>,
-	key: Option<Vec<u8>>,
+    block: chain::SignedBlock,
+    events: Option<Vec<u8>>,
+    proof: Option<Vec<Vec<u8>>>,
+    key: Option<Vec<u8>>,
 }
 
 #[no_mangle]
@@ -1071,10 +1071,10 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     let blocks_data = parsed_data
         .map_err(|_| error_msg("Failed to parse base64 block"))?;
     // Parse data to blocks
-	let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
-		.iter()
-		.map(|d| Decode::decode(&mut &d[..]))
-		.collect();
+    let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
+        .iter()
+        .map(|d| Decode::decode(&mut &d[..]))
+        .collect();
     let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
     // Light validation when possible
     let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
@@ -1116,15 +1116,15 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
     let mut last_block = 0;
     for block_with_events in blocks.iter() {
-		let block = &block_with_events.block;
+        let block = &block_with_events.block;
         if block.block.header.number != local_state.blocknum {
             return Err(error_msg("Unexpected block"))
         }
         dispatch(block, &ecdh_privkey);
 
-		if block_with_events.events.is_some() {
-			parse_events(&block_with_events)?;
-		}
+        if block_with_events.events.is_some() {
+            parse_events(&block_with_events)?;
+        }
 
         // move forward
         last_block = block.block.header.number;
@@ -1144,30 +1144,27 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
 }
 
 fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
-	let mut state = STATE.lock().unwrap();
-	let missing_field = error_msg("Missing field");
-	let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
-	let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
-	let key = block_with_events.clone().key.ok_or(missing_field)?;
-	let state_root = &block_with_events.block.block.header.state_root;
-	state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
+    let mut state = STATE.lock().unwrap();
+    let missing_field = error_msg("Missing field");
+    let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
+    let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
+    let key = block_with_events.clone().key.ok_or(missing_field)?;
+    let state_root = &block_with_events.block.block.header.state_root;
+    state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
 
-	let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut &events[..]);
-	if let Ok(evts) = events {
-		for evt in evts {
-			if let chain::Event::pallet_phala(be) = &evt.event {
-				println!("pallet_phala event: {:?}", be);
+    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
+    if let Ok(evts) = events {
+        for evt in &evts {
+            if let chain::Event::pallet_phala(pe) = &evt.event {
+                println!("pallet_phala event: {:?}", pe);
+                state.contract2.handle_event(evt.event.clone());
+            }
+        }
 
-				if let RawEvent::CommandPushed(w, _c, _p, _n) = &be {
-					println!("CommandPushed from:{:?}", w);
-				}
-			}
-		}
+        return Ok(());
+    }
 
-		return Ok(());
-	}
-
-	Err(error_msg("decode events error"))
+    Err(error_msg("decode events error"))
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

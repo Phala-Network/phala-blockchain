@@ -46,7 +46,7 @@ impl System for PhalaNodeRuntime {
     type Hash = Hash;
     type Hashing = BlakeTwo256;
     type AccountId = AccountId;
-    type Address = Self::AccountId;
+    type Address = pallet_indices::address::Address<Self::AccountId, u32>;
     type Header = Header;
     type Extrinsic = OpaqueExtrinsic;
     type AccountData = AccountData<<Self as Balances>::Balance>;
@@ -55,6 +55,8 @@ impl System for PhalaNodeRuntime {
 impl Balances for PhalaNodeRuntime {
     type Balance = u128;
 }
+
+impl phala::PhalaModule for PhalaNodeRuntime {}
 
 pub mod grandpa {
     use super::PhalaNodeRuntime;
@@ -80,5 +82,32 @@ pub mod grandpa {
                 _runtime: Default::default()
             }
         }
+    }
+}
+
+pub mod phala {
+    use codec::Encode;
+    use subxt::{module, Call, system::{System, SystemEventsDecoder}, balances::{Balances, BalancesEventsDecoder}};
+    use core::marker::PhantomData;
+
+    /// The subset of the `pallet_phala::Trait` that a client must implement.
+    #[module]
+    pub trait PhalaModule: System + Balances {}
+
+    /// The call to transfer_to_tee
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct TransferToTeeCall<T: PhalaModule> {
+        /// The amount will transfer to tee account
+        #[codec(compact)]
+        pub amount: <T as Balances>::Balance,
+    }
+
+    /// The call to transfer_to_chain
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct TransferToChainCall<T: PhalaModule> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The transfer transaction data, SCALA encoded
+        pub data: Vec<u8>,
     }
 }

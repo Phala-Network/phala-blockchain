@@ -1,18 +1,30 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+/// A FRAME pallet template with necessary imports
+
+/// Feel free to remove or edit this file as needed.
+/// If you change the name of this file, make sure to update its references in runtime/src/lib.rs
+/// If you remove this file, you can remove those references
+
+/// For more guidance on Substrate FRAME, see the example pallet
+/// https://github.com/paritytech/substrate/blob/master/frame/example/src/lib.rs
+
 extern crate alloc;
 
-// extern crate untrusted;
-// extern crate base64;
-// extern crate itertools;
-// extern crate hex;
-// extern crate serde_json;
-// extern crate webpki;
-// extern crate codec;
+extern crate untrusted;
+extern crate base64;
+extern crate itertools;
+extern crate hex;
+
+extern crate webpki;
 
 use alloc::vec::Vec;
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch};
+use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
+use frame_support::{decl_module, decl_storage, decl_event, decl_error, dispatch, ensure};
 use frame_system::{self as system, ensure_signed};
+use frame_support::{
+	traits::{Currency, ExistenceRequirement::AllowDeath},
+};
 use codec::{Encode, Decode};
 use sp_std::prelude::*;
 
@@ -75,12 +87,26 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 	},
 ]);
 
+type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type SequenceType = u32;
+const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
+
+#[derive(Encode, Decode)]
+pub struct TransferData<AccountId, Balance> {
+	pub dest: AccountId,
+	pub amount: Balance,
+	pub signature: Option<Vec<u8>>,
+	pub sequence: SequenceType,
+}
+
 /// The pallet's configuration trait.
 pub trait Trait: system::Trait {
 	// Add other types and constants required to configure this pallet.
 
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
+
+	type Currency: Currency<Self::AccountId>;
 }
 
 decl_storage! {
@@ -98,17 +124,21 @@ decl_storage! {
 
 		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
 		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8);
+
+		Sequence get(fn sequence): SequenceType;
 	}
 }
 
 // The pallet's events
 decl_event!(
-	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId {
+	pub enum Event<T> where AccountId = <T as system::Trait>::AccountId, Balance = BalanceOf<T> {
 		// Just a dummy event.
 		// Event `Something` is declared with a parameter of the type `u32` and `AccountId`
 		// To emit this event, we call the deposit funtion, from our runtime funtions
 		CommandPushed(AccountId, u32, Vec<u8>, u32),
 		LogString(Vec<u8>),
+		TransferToTee(Vec<u8>, Balance),
+		TransferToChain(Vec<u8>, Balance, SequenceType),
 	}
 );
 
@@ -119,6 +149,7 @@ decl_error! {
 		NoneValue,
 		/// Value reached maximum and cannot be incremented further
 		StorageOverflow,
+		BadTransactionData,
 	}
 }
 
@@ -218,5 +249,49 @@ decl_module! {
 
 			Ok(())
 		}
+
+		#[weight = 0]
+		fn transfer_to_tee(origin, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
+			let who = ensure_signed(origin)?;
+
+			T::Currency::transfer(&who, &Self::account_id(), amount, AllowDeath)
+				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to tee"))?;
+
+			Self::deposit_event(RawEvent::TransferToTee(who.encode(), amount));
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+			ensure_signed(origin)?;
+
+			let data = Decode::decode(&mut &data[..]);
+			ensure!(data.is_ok(), "Bad transaction data");
+			let transfer_data: TransferData<<T as system::Trait>::AccountId, BalanceOf<T>> = data.unwrap();
+
+			let sequence = Sequence::get();
+			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
+
+			T::Currency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
+				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
+
+			Sequence::set(sequence + 1);
+
+			Self::deposit_event(RawEvent::TransferToChain(transfer_data.dest.encode(), transfer_data.amount, sequence + 1));
+
+			Ok(())
+		}
+	}
+}
+
+impl<T: Trait> Module<T> {
+
+	pub fn account_id() -> T::AccountId {
+		PALLET_ID.into_account()
+	}
+
+	fn total() -> BalanceOf<T> {
+		T::Currency::free_balance(&Self::account_id())
 	}
 }
