@@ -26,40 +26,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d2e7343e7fc9de883d1b0341e0b13970f764c14101234857d2ddafa1cb1cac2"
 
 [[package]]
-name = "aes-ctr"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2e5b0458ea3beae0d1d8c0f3946564f8e10f90646cf78c06b4351052058d1ee"
-dependencies = [
- "aes-soft",
- "aesni",
- "ctr",
- "stream-cipher",
-]
-
-[[package]]
-name = "aes-soft"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cfd7e7ae3f9a1fb5c03b389fc6bb9a51400d0c13053f0dca698c832bfd893a0d"
-dependencies = [
- "block-cipher-trait",
- "byteorder",
- "opaque-debug",
-]
-
-[[package]]
-name = "aesni"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f70a6b5f971e473091ab7cfb5ffac6cde81666c4556751d8d5620ead8abf100"
-dependencies = [
- "block-cipher-trait",
- "opaque-debug",
- "stream-cipher",
-]
-
-[[package]]
 name = "ahash"
 version = "0.2.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -70,9 +36,9 @@ dependencies = [
 
 [[package]]
 name = "ahash"
-version = "0.3.5"
+version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2f3e0bf23f51883cce372d5d5892211236856e4bb37fb942e1eb135ee0f146e3"
+checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
 
 [[package]]
 name = "aho-corasick"
@@ -430,15 +396,6 @@ dependencies = [
  "block-padding",
  "byte-tools",
  "byteorder",
- "generic-array",
-]
-
-[[package]]
-name = "block-cipher-trait"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c924d49bd09e7c06003acda26cd9742e796e34282ec6c1189404dee0c1f4774"
-dependencies = [
  "generic-array",
 ]
 
@@ -954,16 +911,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ctr"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "022cd691704491df67d25d006fe8eca083098253c4d43516c2206479c58c6736"
-dependencies = [
- "block-cipher-trait",
- "stream-cipher",
-]
-
-[[package]]
 name = "curve25519-dalek"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1274,14 +1221,14 @@ checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
 
 [[package]]
 name = "fork-tree"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
 ]
 
 [[package]]
 name = "frame-benchmarking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1297,7 +1244,7 @@ dependencies = [
 
 [[package]]
 name = "frame-benchmarking-cli"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "parity-scale-codec",
@@ -1314,7 +1261,7 @@ dependencies = [
 
 [[package]]
 name = "frame-executive"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1328,7 +1275,7 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "11.0.0-rc2"
+version = "11.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -1338,7 +1285,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "bitmask",
  "frame-metadata",
@@ -1362,7 +1309,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support-procedural-tools",
  "proc-macro2",
@@ -1372,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural-tools"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
@@ -1383,7 +1330,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural-tools-derive"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -1392,7 +1339,7 @@ dependencies = [
 
 [[package]]
 name = "frame-system"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
@@ -1407,7 +1354,7 @@ dependencies = [
 
 [[package]]
 name = "frame-system-benchmarking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -1420,7 +1367,7 @@ dependencies = [
 
 [[package]]
 name = "frame-system-rpc-runtime-api"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -1830,7 +1777,7 @@ version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "96282e96bfcd3da0d3aa9938bedf1e50df3269b6db08b4876d2da0bb1a0841cf"
 dependencies = [
- "ahash 0.3.5",
+ "ahash 0.3.8",
  "autocfg 1.0.0",
 ]
 
@@ -2487,7 +2434,6 @@ dependencies = [
  "libp2p-mplex",
  "libp2p-noise",
  "libp2p-ping",
- "libp2p-secio",
  "libp2p-swarm",
  "libp2p-tcp",
  "libp2p-wasm-ext",
@@ -2671,36 +2617,6 @@ dependencies = [
  "rand 0.7.3",
  "void",
  "wasm-timer",
-]
-
-[[package]]
-name = "libp2p-secio"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b73f0cc119c83a5b619d6d11074a319fdb4aa4daf8088ade00d511418566e28"
-dependencies = [
- "aes-ctr",
- "ctr",
- "futures 0.3.5",
- "hmac",
- "js-sys",
- "lazy_static",
- "libp2p-core",
- "log",
- "parity-send-wrapper",
- "pin-project",
- "prost",
- "prost-build",
- "quicksink",
- "rand 0.7.3",
- "ring 0.16.14",
- "rw-stream-sink",
- "sha2",
- "static_assertions",
- "twofish",
- "wasm-bindgen",
- "wasm-bindgen-futures",
- "web-sys",
 ]
 
 [[package]]
@@ -3008,7 +2924,7 @@ checksum = "f5e374eff525ce1c5b7687c4cef63943e7686524a387933ad27ca7ec43779cb3"
 dependencies = [
  "log",
  "mio",
- "miow 0.3.4",
+ "miow 0.3.5",
  "winapi 0.3.8",
 ]
 
@@ -3037,9 +2953,9 @@ dependencies = [
 
 [[package]]
 name = "miow"
-version = "0.3.4"
+version = "0.3.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22dfdd1d51b2639a5abd17ed07005c3af05fb7a2a3b1a1d0d7af1000a520c1c7"
+checksum = "07b88fb9795d4d36d62a012dfbf49a8f5cf12751f36d31a9dbe66d528e58979e"
 dependencies = [
  "socket2",
  "winapi 0.3.8",
@@ -3114,7 +3030,7 @@ dependencies = [
 
 [[package]]
 name = "native-nostd-hasher"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "hash256-std-hasher",
  "sp-core",
@@ -3162,7 +3078,7 @@ dependencies = [
 
 [[package]]
 name = "node-executor"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "criterion",
  "frame-benchmarking",
@@ -3195,7 +3111,7 @@ dependencies = [
 
 [[package]]
 name = "node-inspect"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "log",
@@ -3211,7 +3127,7 @@ dependencies = [
 
 [[package]]
 name = "node-primitives"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-system",
  "parity-scale-codec",
@@ -3222,7 +3138,7 @@ dependencies = [
 
 [[package]]
 name = "node-rpc"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "jsonrpc-core",
  "node-primitives",
@@ -3402,7 +3318,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-authority-discovery"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3417,7 +3333,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-authorship"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3431,7 +3347,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-babe"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3452,7 +3368,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-balances"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3465,7 +3381,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-collective"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3480,7 +3396,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3500,7 +3416,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts-primitives"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -3509,7 +3425,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts-rpc"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -3527,7 +3443,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts-rpc-runtime-api"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "pallet-contracts-primitives",
  "parity-scale-codec",
@@ -3538,7 +3454,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-democracy"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3552,21 +3468,21 @@ dependencies = [
 
 [[package]]
 name = "pallet-elections-phragmen"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
  "serde",
- "sp-phragmen",
+ "sp-npos-elections",
  "sp-runtime",
  "sp-std",
 ]
 
 [[package]]
 name = "pallet-finality-tracker"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3581,7 +3497,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-grandpa"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3600,7 +3516,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-identity"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -3615,7 +3531,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-im-online"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3634,8 +3550,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-indices"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -3649,7 +3566,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-membership"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3661,8 +3578,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-multisig"
+version = "2.0.0-rc3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-offences"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3676,7 +3608,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-offences-benchmarking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3696,7 +3628,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "base64 0.11.0",
  "chrono",
@@ -3717,8 +3649,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-proxy"
+version = "2.0.0-rc3"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-randomness-collective-flip"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3730,7 +3677,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-recovery"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -3744,7 +3691,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-scheduler"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3757,7 +3704,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-session"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3774,7 +3721,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-session-benchmarking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3787,7 +3734,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-society"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3800,7 +3747,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-staking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3812,7 +3759,7 @@ dependencies = [
  "serde",
  "sp-application-crypto",
  "sp-io",
- "sp-phragmen",
+ "sp-npos-elections",
  "sp-runtime",
  "sp-staking",
  "sp-std",
@@ -3821,7 +3768,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-staking-reward-curve"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -3831,7 +3778,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sudo"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3844,7 +3791,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-timestamp"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3861,7 +3808,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -3874,7 +3821,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment-rpc"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-core-client",
@@ -3891,7 +3838,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -3903,7 +3850,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-treasury"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3917,7 +3864,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-utility"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -3932,7 +3879,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-vesting"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "enumflags2",
  "frame-benchmarking",
@@ -4190,7 +4137,7 @@ dependencies = [
 
 [[package]]
 name = "phala-node"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "assert_cmd",
  "frame-benchmarking-cli",
@@ -4264,7 +4211,7 @@ dependencies = [
 
 [[package]]
 name = "phala-node-runtime"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
@@ -4291,9 +4238,11 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",
  "pallet-phala",
+ "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
  "pallet-scheduler",
@@ -4510,9 +4459,9 @@ checksum = "7e0456befd48169b9f13ef0f0ad46d492cf9d2dbb918bcf38e01eed4ce3ec5e4"
 
 [[package]]
 name = "proc-macro-nested"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8e946095f9d3ed29ec38de908c22f95d9ac008e424c7bcae54c75a79c527c694"
+checksum = "0afe1bd463b9e9ed51d0e0f0b50b6b146aec855c56fd182bb242388710a9b6de"
 
 [[package]]
 name = "proc-macro2"
@@ -5165,7 +5114,7 @@ dependencies = [
 
 [[package]]
 name = "sc-authority-discovery"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "bytes 0.5.4",
  "derive_more",
@@ -5191,7 +5140,7 @@ dependencies = [
 
 [[package]]
 name = "sc-basic-authorship"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -5214,7 +5163,7 @@ dependencies = [
 
 [[package]]
 name = "sc-block-builder"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sc-client-api",
@@ -5229,7 +5178,7 @@ dependencies = [
 
 [[package]]
 name = "sc-chain-spec"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "impl-trait-for-tuples",
  "sc-chain-spec-derive",
@@ -5244,7 +5193,7 @@ dependencies = [
 
 [[package]]
 name = "sc-chain-spec-derive"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -5254,7 +5203,7 @@ dependencies = [
 
 [[package]]
 name = "sc-cli"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "ansi_term 0.12.1",
  "atty",
@@ -5294,7 +5243,7 @@ dependencies = [
 
 [[package]]
 name = "sc-client-api"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "fnv",
@@ -5329,7 +5278,7 @@ dependencies = [
 
 [[package]]
 name = "sc-client-db"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "blake2-rfc",
  "hash-db",
@@ -5357,7 +5306,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "sc-client-api",
  "sp-blockchain",
@@ -5367,7 +5316,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus-babe"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "fork-tree",
@@ -5408,7 +5357,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus-babe-rpc"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -5430,7 +5379,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus-epochs"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -5442,7 +5391,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus-slots"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -5463,7 +5412,7 @@ dependencies = [
 
 [[package]]
 name = "sc-consensus-uncles"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "log",
  "sc-client-api",
@@ -5476,7 +5425,7 @@ dependencies = [
 
 [[package]]
 name = "sc-executor"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "lazy_static",
@@ -5503,7 +5452,7 @@ dependencies = [
 
 [[package]]
 name = "sc-executor-common"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "log",
@@ -5519,7 +5468,7 @@ dependencies = [
 
 [[package]]
 name = "sc-executor-wasmi"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -5533,7 +5482,7 @@ dependencies = [
 
 [[package]]
 name = "sc-executor-wasmtime"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "cranelift-codegen",
  "cranelift-wasm",
@@ -5553,7 +5502,7 @@ dependencies = [
 
 [[package]]
 name = "sc-finality-grandpa"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "assert_matches",
  "derive_more",
@@ -5575,6 +5524,7 @@ dependencies = [
  "sc-telemetry",
  "serde_json",
  "sp-api",
+ "sp-application-crypto",
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
@@ -5589,7 +5539,7 @@ dependencies = [
 
 [[package]]
 name = "sc-finality-grandpa-rpc"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "finality-grandpa",
@@ -5605,7 +5555,7 @@ dependencies = [
 
 [[package]]
 name = "sc-informant"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "ansi_term 0.12.1",
  "futures 0.3.5",
@@ -5613,15 +5563,16 @@ dependencies = [
  "parity-util-mem",
  "sc-client-api",
  "sc-network",
- "sc-service",
  "sp-blockchain",
  "sp-runtime",
+ "sp-transaction-pool",
+ "sp-utils",
  "wasm-timer",
 ]
 
 [[package]]
 name = "sc-keystore"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "hex",
@@ -5634,8 +5585,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sc-light"
+version = "2.0.0-rc3"
+dependencies = [
+ "hash-db",
+ "lazy_static",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "sc-client-api",
+ "sc-executor",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-externalities",
+ "sp-runtime",
+ "sp-state-machine",
+]
+
+[[package]]
 name = "sc-network"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "bitflags",
  "bs58",
@@ -5686,7 +5655,7 @@ dependencies = [
 
 [[package]]
 name = "sc-network-gossip"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
@@ -5700,7 +5669,7 @@ dependencies = [
 
 [[package]]
 name = "sc-offchain"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "bytes 0.5.4",
  "fnv",
@@ -5726,7 +5695,7 @@ dependencies = [
 
 [[package]]
 name = "sc-peerset"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "libp2p",
@@ -5738,7 +5707,7 @@ dependencies = [
 
 [[package]]
 name = "sc-proposer-metrics"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -5746,7 +5715,7 @@ dependencies = [
 
 [[package]]
 name = "sc-rpc"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "hash-db",
@@ -5777,7 +5746,7 @@ dependencies = [
 
 [[package]]
 name = "sc-rpc-api"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -5800,7 +5769,7 @@ dependencies = [
 
 [[package]]
 name = "sc-rpc-server"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "jsonrpc-core",
  "jsonrpc-http-server",
@@ -5814,7 +5783,7 @@ dependencies = [
 
 [[package]]
 name = "sc-service"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "exit-future",
@@ -5822,6 +5791,7 @@ dependencies = [
  "futures 0.3.5",
  "futures-timer 3.0.2",
  "hash-db",
+ "jsonrpc-pubsub",
  "lazy_static",
  "log",
  "netstat2",
@@ -5837,7 +5807,9 @@ dependencies = [
  "sc-client-api",
  "sc-client-db",
  "sc-executor",
+ "sc-informant",
  "sc-keystore",
+ "sc-light",
  "sc-network",
  "sc-offchain",
  "sc-rpc",
@@ -5871,7 +5843,7 @@ dependencies = [
 
 [[package]]
 name = "sc-service-test"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "env_logger",
  "fdlimit",
@@ -5885,6 +5857,7 @@ dependencies = [
  "sc-client-api",
  "sc-client-db",
  "sc-executor",
+ "sc-light",
  "sc-network",
  "sc-service",
  "sp-api",
@@ -5906,7 +5879,7 @@ dependencies = [
 
 [[package]]
 name = "sc-state-db"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -5919,7 +5892,7 @@ dependencies = [
 
 [[package]]
 name = "sc-telemetry"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "bytes 0.5.4",
  "futures 0.3.5",
@@ -5940,7 +5913,7 @@ dependencies = [
 
 [[package]]
 name = "sc-tracing"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "erased-serde",
  "log",
@@ -5954,7 +5927,7 @@ dependencies = [
 
 [[package]]
 name = "sc-transaction-graph"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -5973,7 +5946,7 @@ dependencies = [
 
 [[package]]
 name = "sc-transaction-pool"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -6342,7 +6315,7 @@ dependencies = [
 
 [[package]]
 name = "sp-allocator"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "log",
@@ -6353,7 +6326,7 @@ dependencies = [
 
 [[package]]
 name = "sp-api"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "hash-db",
  "parity-scale-codec",
@@ -6367,7 +6340,7 @@ dependencies = [
 
 [[package]]
 name = "sp-api-proc-macro"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "blake2-rfc",
  "proc-macro-crate",
@@ -6378,7 +6351,7 @@ dependencies = [
 
 [[package]]
 name = "sp-application-crypto"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "serde",
@@ -6389,7 +6362,7 @@ dependencies = [
 
 [[package]]
 name = "sp-arithmetic"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "integer-sqrt",
  "num-traits 0.2.11",
@@ -6401,7 +6374,7 @@ dependencies = [
 
 [[package]]
 name = "sp-authority-discovery"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -6412,7 +6385,7 @@ dependencies = [
 
 [[package]]
 name = "sp-authorship"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -6422,7 +6395,7 @@ dependencies = [
 
 [[package]]
 name = "sp-block-builder"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -6433,7 +6406,7 @@ dependencies = [
 
 [[package]]
 name = "sp-blockchain"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "log",
@@ -6448,7 +6421,7 @@ dependencies = [
 
 [[package]]
 name = "sp-chain-spec"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "serde",
  "serde_json",
@@ -6456,7 +6429,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -6478,7 +6451,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-aura"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -6491,7 +6464,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-babe"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "merlin",
  "parity-scale-codec",
@@ -6507,7 +6480,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-vrf"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
@@ -6518,7 +6491,7 @@ dependencies = [
 
 [[package]]
 name = "sp-core"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "base58",
  "blake2-rfc",
@@ -6559,7 +6532,7 @@ dependencies = [
 
 [[package]]
 name = "sp-database"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "kvdb",
  "parking_lot 0.10.2",
@@ -6567,7 +6540,7 @@ dependencies = [
 
 [[package]]
 name = "sp-debug-derive"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -6576,7 +6549,7 @@ dependencies = [
 
 [[package]]
 name = "sp-externalities"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -6586,7 +6559,7 @@ dependencies = [
 
 [[package]]
 name = "sp-finality-grandpa"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "finality-grandpa",
  "log",
@@ -6601,7 +6574,7 @@ dependencies = [
 
 [[package]]
 name = "sp-finality-tracker"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -6610,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "sp-inherents"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "parity-scale-codec",
@@ -6621,7 +6594,7 @@ dependencies = [
 
 [[package]]
 name = "sp-io"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "hash-db",
@@ -6640,7 +6613,7 @@ dependencies = [
 
 [[package]]
 name = "sp-keyring"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "lazy_static",
  "sp-core",
@@ -6649,36 +6622,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp-offchain"
-version = "2.0.0-rc2"
-dependencies = [
- "sp-api",
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
-name = "sp-panic-handler"
-version = "2.0.0-rc2"
-dependencies = [
- "backtrace",
- "log",
-]
-
-[[package]]
-name = "sp-phragmen"
-version = "2.0.0-rc2"
+name = "sp-npos-elections"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-arithmetic",
- "sp-phragmen-compact",
+ "sp-npos-elections-compact",
  "sp-std",
 ]
 
 [[package]]
-name = "sp-phragmen-compact"
-version = "2.0.0-rc2"
+name = "sp-npos-elections-compact"
+version = "2.0.0-rc3"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -6687,8 +6643,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-offchain"
+version = "2.0.0-rc3"
+dependencies = [
+ "sp-api",
+ "sp-core",
+ "sp-runtime",
+]
+
+[[package]]
+name = "sp-panic-handler"
+version = "2.0.0-rc3"
+dependencies = [
+ "backtrace",
+ "log",
+]
+
+[[package]]
 name = "sp-rpc"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "serde",
  "sp-core",
@@ -6696,7 +6669,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "hash256-std-hasher",
  "impl-trait-for-tuples",
@@ -6716,7 +6689,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime-interface"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
@@ -6730,7 +6703,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime-interface-proc-macro"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -6741,7 +6714,7 @@ dependencies = [
 
 [[package]]
 name = "sp-sandbox"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -6753,7 +6726,7 @@ dependencies = [
 
 [[package]]
 name = "sp-serializer"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "serde",
  "serde_json",
@@ -6761,7 +6734,7 @@ dependencies = [
 
 [[package]]
 name = "sp-session"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -6773,7 +6746,7 @@ dependencies = [
 
 [[package]]
 name = "sp-staking"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -6782,7 +6755,7 @@ dependencies = [
 
 [[package]]
 name = "sp-state-machine"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "hash-db",
  "log",
@@ -6800,11 +6773,11 @@ dependencies = [
 
 [[package]]
 name = "sp-std"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 
 [[package]]
 name = "sp-storage"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "impl-serde 0.2.3",
  "ref-cast",
@@ -6815,7 +6788,7 @@ dependencies = [
 
 [[package]]
 name = "sp-timestamp"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -6828,14 +6801,14 @@ dependencies = [
 
 [[package]]
 name = "sp-tracing"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "tracing",
 ]
 
 [[package]]
 name = "sp-transaction-pool"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "derive_more",
  "futures 0.3.5",
@@ -6843,13 +6816,14 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-api",
+ "sp-blockchain",
  "sp-runtime",
  "sp-utils",
 ]
 
 [[package]]
 name = "sp-trie"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "hash-db",
  "memory-db",
@@ -6862,7 +6836,7 @@ dependencies = [
 
 [[package]]
 name = "sp-utils"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "futures-core",
@@ -6872,7 +6846,7 @@ dependencies = [
 
 [[package]]
 name = "sp-version"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "impl-serde 0.2.3",
  "parity-scale-codec",
@@ -6883,7 +6857,7 @@ dependencies = [
 
 [[package]]
 name = "sp-wasm-interface"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -6916,15 +6890,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "10102ac8d55e35db2b3fafc26f81ba8647da2e15879ab686a67e6d19af2685e8"
 dependencies = [
  "rand 0.5.6",
-]
-
-[[package]]
-name = "stream-cipher"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8131256a5896cabcf5eb04f4d6dacbe1aefda854b0d9896e09cb58829ec5638c"
-dependencies = [
- "generic-array",
 ]
 
 [[package]]
@@ -7010,7 +6975,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-browser-utils"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "chrono",
  "clear_on_drop",
@@ -7036,14 +7001,14 @@ dependencies = [
 
 [[package]]
 name = "substrate-build-script-utils"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "platforms",
 ]
 
 [[package]]
 name = "substrate-frame-rpc-system"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "frame-system-rpc-runtime-api",
  "futures 0.3.5",
@@ -7063,7 +7028,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-prometheus-endpoint"
-version = "0.8.0-rc2"
+version = "0.8.0-rc3"
 dependencies = [
  "async-std",
  "derive_more",
@@ -7114,7 +7079,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-test-client"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "hash-db",
@@ -7123,6 +7088,7 @@ dependencies = [
  "sc-client-db",
  "sc-consensus",
  "sc-executor",
+ "sc-light",
  "sc-service",
  "sp-blockchain",
  "sp-consensus",
@@ -7134,7 +7100,7 @@ dependencies = [
 
 [[package]]
 name = "substrate-test-runtime"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "cfg-if",
  "frame-executive",
@@ -7173,13 +7139,14 @@ dependencies = [
 
 [[package]]
 name = "substrate-test-runtime-client"
-version = "2.0.0-rc2"
+version = "2.0.0-rc3"
 dependencies = [
  "futures 0.3.5",
  "parity-scale-codec",
  "sc-block-builder",
  "sc-client-api",
  "sc-consensus",
+ "sc-light",
  "sc-service",
  "sp-api",
  "sp-blockchain",
@@ -7339,9 +7306,9 @@ dependencies = [
 
 [[package]]
 name = "synstructure"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67656ea1dc1b41b1451851562ea232ec2e5a80242139f7e679ceccfb5d61f545"
+checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -7866,17 +7833,6 @@ name = "try-lock"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e604eb7b43c06650e854be16a2a03155743d3752dd1c943f6829e26b7a36e382"
-
-[[package]]
-name = "twofish"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712d261e83e727c8e2dbb75dacac67c36e35db36a958ee504f2164fc052434e1"
-dependencies = [
- "block-cipher-trait",
- "byteorder",
- "opaque-debug",
-]
 
 [[package]]
 name = "twox-hash"
