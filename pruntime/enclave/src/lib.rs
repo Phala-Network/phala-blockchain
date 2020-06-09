@@ -109,6 +109,13 @@ struct LocalState {
     ecdh_public_key: Option<ring::agreement::PublicKey>,
 }
 
+#[derive(Encode, Decode)]
+struct RuntimeInfo {
+    machine_id: [u8; 16],
+    pub_key: [u8; 33],
+    score: u8,
+}
+
 fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
     let data = value.encode();
@@ -157,21 +164,6 @@ pub const DEV_HOSTNAME:&'static str = "api.trustedservices.intel.com";
 pub const SIGRL_SUFFIX:&'static str = "/sgx/dev/attestation/v3/sigrl/";
 pub const REPORT_SUFFIX:&'static str = "/sgx/dev/attestation/v3/report";
 
-fn load_spid(filename: &str) -> sgx_spid_t {
-    let mut spidfile = fs::File::open(filename).expect("cannot open spid file");
-    let mut contents = String::new();
-    spidfile.read_to_string(&mut contents).expect("cannot read the spid file");
-
-    hex::decode_spid(&contents)
-}
-
-fn get_ias_api_key() -> String {
-    let mut keyfile = fs::File::open("key.txt").expect("cannot open ias key file");
-    let mut key = String::new();
-    keyfile.read_to_string(&mut key).expect("cannot read the ias key file");
-    key.trim_end().to_owned()
-}
-
 fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
     println!("parse_response_attn_report");
     let mut headers = [httparse::EMPTY_HEADER; 16];
@@ -202,7 +194,7 @@ fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
 
     for i in 0..respp.headers.len() {
         let h = respp.headers[i];
-        //println!("{} : {}", h.name, str::from_utf8(h.value).unwrap());
+        // println!("{} : {}", h.name, str::from_utf8(h.value).unwrap());
         match h.name{
             "Content-Length" => {
                 let len_str = String::from_utf8(h.value.to_vec()).unwrap();
@@ -289,6 +281,8 @@ pub fn make_ias_client_config() -> rustls::ClientConfig {
 pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
     println!("get_sigrl_from_intel fd = {:?}", fd);
     let config = make_ias_client_config();
+    //let sigrl_arg = SigRLArg { group_id : gid };
+    //let sigrl_req = sigrl_arg.to_httpreq();
     let ias_key = get_ias_api_key();
 
     let req = format!("GET {}{:08x} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key: {}\r\nConnection: Close\r\n\r\n",
@@ -296,7 +290,6 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
                       gid,
                       DEV_HOSTNAME,
                       ias_key);
-
     println!("{}", req);
 
     let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
@@ -324,11 +317,13 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
     parse_response_sigrl(&plaintext)
 }
 
+// TODO: support pse
 pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, String) {
     println!("get_report_from_intel fd = {:?}", fd);
     let config = make_ias_client_config();
     let encoded_quote = base64::encode(&quote[..]);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
+
     let ias_key = get_ias_api_key();
 
     let req = format!("POST {} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key:{}\r\nContent-Length:{}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
@@ -337,7 +332,6 @@ pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, St
                       ias_key,
                       encoded_json.len(),
                       encoded_json);
-
     println!("{}", req);
     let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
     let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
@@ -367,8 +361,28 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
         ((array[3] as u32) << 24)
 }
 
-fn create_attestation_report(report_data_payload: &[u8]) -> Result<(String, String, String), sgx_status_t> {
-    // TODO: Check size of report data, it must < 64 bytes
+fn load_spid(filename: &str) -> sgx_spid_t {
+    let mut spidfile = fs::File::open(filename).expect("cannot open spid file");
+    let mut contents = String::new();
+    spidfile.read_to_string(&mut contents).expect("cannot read the spid file");
+
+    hex::decode_spid(&contents)
+}
+
+fn get_ias_api_key() -> String {
+    let mut keyfile = fs::File::open("key.txt").expect("cannot open ias key file");
+    let mut key = String::new();
+    keyfile.read_to_string(&mut key).expect("cannot read the ias key file");
+
+    key.trim_end().to_owned()
+}
+
+#[allow(const_err)]
+pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) -> Result<(String, String, String), sgx_status_t> {
+    let data_len = data.len();
+    if data_len > SGX_REPORT_DATA_SIZE {
+        panic!("data length over 64 bytes");
+    }
 
     // Workflow:
     // (1) ocall to get the target_info structure (ti) and epid group id (eg)
@@ -421,10 +435,9 @@ fn create_attestation_report(report_data_payload: &[u8]) -> Result<(String, Stri
     let sigrl_vec : Vec<u8> = get_sigrl_from_intel(ias_sock, eg_num);
 
     // (2) Generate the report
-    // Fill ecc256 public key into report_data
-    println!("Preparing report data");
+    // Fill data into report_data
     let mut report_data: sgx_report_data_t = sgx_report_data_t::default();
-    report_data.d[..report_data_payload.len()].clone_from_slice(report_data_payload);
+    report_data.d[..data_len].clone_from_slice(data);
 
     let rep = match rsgx_create_report(&ti, &report_data) {
         Ok(r) =>{
@@ -464,7 +477,7 @@ fn create_attestation_report(report_data_payload: &[u8]) -> Result<(String, Stri
             (sigrl_vec.as_ptr(), sigrl_vec.len() as u32)
         };
     let p_report = (&rep.unwrap()) as * const sgx_report_t;
-    let quote_type = sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE;
+    let quote_type = sign_type;
 
     let spid : sgx_spid_t = load_spid("spid.txt");
 
@@ -492,6 +505,7 @@ fn create_attestation_report(report_data_payload: &[u8]) -> Result<(String, Stri
     if result != sgx_status_t::SGX_SUCCESS {
         return Err(result);
     }
+
     if rt != sgx_status_t::SGX_SUCCESS {
         println!("ocall_get_quote returned {}", rt);
         return Err(rt);
@@ -561,6 +575,26 @@ fn create_attestation_report(report_data_payload: &[u8]) -> Result<(String, Stri
 
     let (attn_report, sig, cert) = get_report_from_intel(ias_sock, quote_vec);
     Ok((attn_report, sig, cert))
+}
+
+fn generate_seal_key() -> [u8; 16] {
+    let report = rsgx_self_report();
+    let key_id = sgx_key_id_t::default();
+    let key_request = sgx_key_request_t {
+        key_name: SGX_KEYSELECT_SEAL,
+        key_policy: SGX_KEYPOLICY_MRSIGNER,
+        isv_svn: report.body.isv_svn,
+        reserved1: 0_u16,
+        cpu_svn: report.body.cpu_svn,
+        attribute_mask: sgx_attributes_t{flags: TSEAL_DEFAULT_FLAGSMASK, xfrm: 0},
+        key_id,
+        misc_mask: TSEAL_DEFAULT_MISCMASK,
+        config_svn: report.body.config_svn,
+        reserved2: [0_u8; SGX_KEY_REQUEST_RESERVED2_BYTES],
+    };
+    let seal_key = rsgx_get_align_key(&key_request).unwrap();
+
+    seal_key.key
 }
 
 const ACTION_TEST: u8 = 0;
@@ -770,11 +804,16 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(json!({"message": "Already initialized"}))
     }
 
+    // Generate Seal Key as Machine Id
+    let machine_id = generate_seal_key();
+    println!("Machine id: {:?}", &machine_id);
+
     // Generate identity
     let mut prng = rand::rngs::OsRng::default();
     let sk = SecretKey::random(&mut prng);
     let pk = PublicKey::from_secret_key(&sk);
-    let s_pk = hex::encode_hex_compact(pk.serialize_compressed().as_ref());
+    let serialized_pk = pk.serialize_compressed();
+    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
 
     // ECDH identity
     let raw_pk = hex::decode_hex("0000000000000000000000000000000000000000000000000000000000000001");
@@ -791,10 +830,22 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     local_state.ecdh_private_key = Some(ecdh_sk);
     local_state.ecdh_public_key = Some(ecdh_pk);
 
+    // Build RuntimeInfo
+    let runtime_info = RuntimeInfo {
+        machine_id,
+        pub_key: serialized_pk,
+        score: 10
+    };
+    let encoded_runtime_info = runtime_info.encode();
+    let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
+
+    println!("Encoded runtime info");
+    println!("{:?}", encoded_runtime_info);
+
     // Produce remote attestation report
     let mut map = serde_json::Map::new();
     if !input.skip_ra {
-        let (attn_report, sig, cert) = match create_attestation_report(&pk.serialize_compressed()) {
+        let (attn_report, sig, cert) = match create_attestation_report(&runtime_info_hash, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE) {
             Ok(r) => r,
             Err(e) => {
                 println!("Error in create_attestation_report: {:?}", e);
@@ -825,6 +876,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     Ok(
         json!({
+            "encoded_runtime_info": encoded_runtime_info,
             "public_key": s_pk,
             "ecdh_public_key": s_ecdh_pk,
             "attestation": {
