@@ -75,7 +75,7 @@ pub enum Response {
     Error(Error)
 }
 
-const SUPPLY: u128 = 1_024_000_000_000_000;
+const SUPPLY: u128 = 0;
 
 impl Balance {
     pub fn new() -> Self{

@@ -131,6 +131,7 @@ pub struct InitRuntimeReq {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
+  pub encoded_runtime_info: Vec<u8>,
   pub public_key: String,
   pub attestation: InitRespAttestation,
 }
@@ -138,6 +139,13 @@ pub struct InitRuntimeResp {
 pub struct InitRespAttestation {
   pub version: i32,
   pub provider: String,
+  pub payload: AttestationReport,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AttestationReport {
+  pub report: String,
+  pub signature: String,
+  pub signing_cert: String,
 }
 impl Resp for InitRuntimeReq {
   type Resp = InitRuntimeResp;
