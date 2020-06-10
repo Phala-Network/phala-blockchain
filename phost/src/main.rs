@@ -48,7 +48,7 @@ struct Args {
 
     #[structopt(required = true,
     short = "m", long = "mnemonic",
-    help = "keypair mnemonic")]
+    help = "SR25519 keypair mnemonic")]
     mnemonic: String,
 }
 
