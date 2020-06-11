@@ -110,4 +110,19 @@ pub mod phala {
         /// The transfer transaction data, SCALA encoded
         pub data: Vec<u8>,
     }
+
+    /// The call to register_worker
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct RegisterWorkerCall<T: PhalaModule> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The encoded runtime info
+        pub encoded_runtime_info: Vec<u8>,
+        /// The report
+        pub report: Vec<u8>,
+        /// The signature
+        pub signature: Vec<u8>,
+        /// The signing cert
+        pub raw_signing_cert: Vec<u8>,
+    }
 }

@@ -13,9 +13,7 @@ use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
-use sp_core::{storage::StorageKey, twox_128};
-
-use sp_keyring::{AccountKeyring};
+use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
 
 mod error;
 mod runtimes;
@@ -47,6 +45,11 @@ struct Args {
     default_value = "ws://localhost:9944", long,
     help = "Substrate rpc websocket endpoint")]
     substrate_ws_endpoint: String,
+
+    #[structopt(required = true,
+    short = "m", long = "mnemonic",
+    help = "SR25519 keypair mnemonic")]
+    mnemonic: String,
 }
 
 struct BlockSyncState {
@@ -362,7 +365,7 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32) -> Result<(), Error> {
+async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
     let query = Query {
         contract_id: 2,
         nonce: 0,
@@ -384,6 +387,8 @@ async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32) -> Result<(), E
         return Ok(());
     }
 
+    let signer = subxt::PairSigner::new(pair);
+
     let mut max_seq = *sequence;
     for transfer_data in &transfer_queue {
         if transfer_data.sequence <= *sequence {
@@ -395,12 +400,11 @@ async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32) -> Result<(), E
         }
 
         let call = runtimes::phala::TransferToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
-        let signer = subxt::PairSigner::new(AccountKeyring::Alice.pair());
         let ret = client.submit(call, &signer).await;
         if ret.is_ok() {
-            println!("submit tx successfully");
+            println!("Submit tx successfully");
         } else {
-            println!("Error when submit tx");
+            println!("Failed to submit tx");
         }
     }
 
@@ -416,6 +420,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         .build().await?;
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
+    let (pair, _seed) = <sr25519::Pair as Pair>::from_phrase(&args.mnemonic, None).expect("Bad mnemonic");
+
     let mut info = req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
@@ -430,10 +436,26 @@ async fn bridge(args: Args) -> Result<(), Error> {
         };
 
         let info_b64 = base64::encode(&info.encode());
-        req_decode("init_runtime", InitRuntimeReq {
+        let runtime_info = req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: info_b64,
         }).await?;
+
+        println!("runtime_info:{:?}", runtime_info);
+        let call = runtimes::phala::RegisterWorkerCall {
+            _runtime: PhantomData,
+            encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
+            report: runtime_info.attestation.payload.report.as_bytes().to_vec(),
+            signature: runtime_info.attestation.payload.signature.as_bytes().to_vec(),
+            raw_signing_cert: runtime_info.attestation.payload.signing_cert.as_bytes().to_vec(),
+        };
+        let signer = subxt::PairSigner::new(pair.clone());
+        let ret = client.submit(call, &signer).await;
+        if ret.is_ok() {
+            println!("Submit RegisterWorkerCall successfully");
+        } else {
+            println!("Failed to submit RegisterWorkerCall");
+        }
     }
 
     let mut sequence = 0;
@@ -471,7 +493,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.push(block.clone());
         }
 
-        sync_tx_to_chain(&client, &mut sequence).await;
+        sync_tx_to_chain(&client, &mut sequence, pair.clone()).await;
 
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(&client, &mut sync_state).await?;
