@@ -28,6 +28,8 @@ use frame_support::{
 use codec::{Encode, Decode};
 use sp_std::prelude::*;
 
+mod hashing;
+
 #[cfg(test)]
 mod mock;
 
@@ -155,7 +157,7 @@ decl_error! {
 }
 
 type MachineId = [u8; 16];
-type PublicKey = [u8; 64];
+type PublicKey = [u8; 33];
 type Score = u8;
 #[derive(Encode, Decode)]
 struct TEERuntimeInfo {
@@ -224,8 +226,10 @@ decl_module! {
 			let mr_enclave = &quote_body[112..143];
 			let isv_prod_id = &quote_body[304..305];
 			let isv_svn = &quote_body[306..307];
-			let report_data = &quote_body[368..431];
+			let report_data = &quote_body[368..432];
 
+			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
+			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfo);
 			let runtime_info = TEERuntimeInfo::decode(&mut &encoded_runtime_info[..]);
 			ensure!(runtime_info.is_ok(), Error::<T>::InvalidRuntimeInfo);
 			let runtime_info = runtime_info.unwrap();
