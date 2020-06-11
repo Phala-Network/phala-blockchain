@@ -442,12 +442,14 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }).await?;
 
         println!("runtime_info:{:?}", runtime_info);
+        let signature = base64::decode(&runtime_info.attestation.payload.signature).expect("Failed to decode signature");
+        let raw_signing_cert = base64::decode_config(&runtime_info.attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
         let call = runtimes::phala::RegisterWorkerCall {
             _runtime: PhantomData,
             encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
             report: runtime_info.attestation.payload.report.as_bytes().to_vec(),
-            signature: runtime_info.attestation.payload.signature.as_bytes().to_vec(),
-            raw_signing_cert: runtime_info.attestation.payload.signing_cert.as_bytes().to_vec(),
+            signature,
+            raw_signing_cert,
         };
         let signer = subxt::PairSigner::new(pair.clone());
         let ret = client.submit(call, &signer).await;

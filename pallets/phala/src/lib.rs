@@ -19,7 +19,7 @@ extern crate hex;
 extern crate webpki;
 
 use alloc::vec::Vec;
-use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
+use sp_runtime::{traits::AccountIdConversion, ModuleId};
 use frame_support::{Parameter, decl_module, decl_event, decl_storage, decl_error, ensure, dispatch};
 use frame_system::{self as system, ensure_signed};
 use frame_support::{
@@ -87,7 +87,7 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 	},
 ]);
 
-type BalanceOf<T> = <<T as Trait>::Currency as Currency<<T as system::Trait>::AccountId>>::Balance;
+type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as system::Trait>::AccountId>>::Balance;
 type SequenceType = u32;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 
@@ -106,7 +106,7 @@ pub trait Trait: system::Trait {
 	/// The overarching event type.
 	type Event: From<Event<Self>> + Into<<Self as system::Trait>::Event>;
 
-	type Currency: Currency<Self::AccountId>;
+	type TEECurrency: Currency<Self::AccountId>;
 }
 
 decl_storage! {
@@ -116,13 +116,16 @@ decl_storage! {
 		// `get(fn something)` is the default getter which returns either the stored `u32` or `None` if nothing stored
 		CommandNumber get(fn command_number): Option<u32>;
 
-		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
+		// Store a map of Machine and account, map Vec<u8> => T::AccountId
 		MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 
 		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
 		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8);
 
-		Sequence get(fn sequence): SequenceType;
+		// Store a map of Account and Machine, map T::AccountId => Vec<u8>
+		pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
+
+		pub Sequence get(fn sequence): SequenceType;
 	}
 }
 
@@ -155,7 +158,7 @@ decl_error! {
 }
 
 type MachineId = [u8; 16];
-type PublicKey = [u8; 64];
+type PublicKey = [u8; 33];
 type Score = u8;
 #[derive(Encode, Decode)]
 struct TEERuntimeInfo {
@@ -231,7 +234,8 @@ decl_module! {
 			let runtime_info = runtime_info.unwrap();
 
 			Machine::insert(runtime_info.machine_id.to_vec(), (runtime_info.pub_key.to_vec(), runtime_info.score));
-			<MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who);
+			<MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who.clone());
+			<Miner<T>>::insert(who, runtime_info.machine_id.to_vec());
 
 			Ok(())
 		}
@@ -240,7 +244,7 @@ decl_module! {
 		fn transfer_to_tee(origin, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 
-			T::Currency::transfer(&who, &Self::account_id(), amount, AllowDeath)
+			T::TEECurrency::transfer(&who, &Self::account_id(), amount, AllowDeath)
 				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to tee"))?;
 
 			Self::deposit_event(RawEvent::TransferToTee(who.encode(), amount));
@@ -259,7 +263,7 @@ decl_module! {
 			let sequence = Sequence::get();
 			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
 
-			T::Currency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
+			T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
 				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
 
 			Sequence::set(sequence + 1);
@@ -278,6 +282,10 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn total() -> BalanceOf<T> {
-		T::Currency::free_balance(&Self::account_id())
+		T::TEECurrency::free_balance(&Self::account_id())
+	}
+
+	pub fn is_miner(who: T::AccountId) -> bool {
+		<Miner<T>>::contains_key(&who)
 	}
 }
