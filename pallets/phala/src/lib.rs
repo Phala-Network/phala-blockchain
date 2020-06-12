@@ -127,6 +127,14 @@ decl_storage! {
 
 		pub Sequence get(fn sequence): SequenceType;
 	}
+	add_extra_genesis {
+		config(stakers): Vec<(T::AccountId)>;
+		build(|config: &GenesisConfig<T>| {
+			for controller in &config.stakers {
+				<Miner<T>>::insert(controller.clone(), "Unknown machine id".as_bytes().to_vec());
+			}
+		});
+	}
 }
 
 // The pallet's events

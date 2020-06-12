@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, WASM_BINARY,
+	TechnicalCommitteeConfig, PhalaModuleConfig, WASM_BINARY,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -262,6 +262,11 @@ pub fn testnet_genesis(
 					x.5.clone(),
 				))
 			}).collect::<Vec<_>>(),
+		}),
+		pallet_phala: Some(PhalaModuleConfig {
+			stakers: initial_authorities.iter().map(|x| {
+				x.1.clone()
+			}).collect(),
 		}),
 		pallet_staking: Some(StakingConfig {
 			validator_count: initial_authorities.len() as u32 * 2,
