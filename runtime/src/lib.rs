@@ -805,7 +805,7 @@ impl pallet_vesting::Trait for Runtime {
 
 impl pallet_phala::Trait for Runtime {
 	type Event = Event;
-	type Currency = Balances;
+	type TEECurrency = Balances;
 }
 
 construct_runtime!(
@@ -822,6 +822,7 @@ construct_runtime!(
 		Indices: pallet_indices::{Module, Call, Storage, Config<T>, Event<T>},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
+		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>},
 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>},
@@ -846,7 +847,6 @@ construct_runtime!(
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
-		PhalaModule: pallet_phala::{Module, Call, Storage, Event<T>},
 	}
 );
 

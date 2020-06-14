@@ -86,8 +86,9 @@ pallet-transaction-payment = { version = "2.0.0-rc3", path = "../substrate/frame
 frame-support = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/support" }
 pallet-im-online = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/im-online" }
 pallet-authority-discovery = { version = "2.0.0-rc3", path = "../substrate/frame/authority-discovery" }
-pallet-staking = { version = "2.0.0-rc3", path = "../substrate/frame/staking" }
+pallet-staking = { version = "2.0.0-rc3", package = "phala-staking", path = "../pallets/staking" }
 pallet-grandpa = { version = "2.0.0-rc3", path = "../substrate/frame/grandpa" }
+pallet-phala = { version = "2.0.0-rc3", path = "../pallets/phala" }
 
 # node-specific dependencies
 node-runtime = { version = "2.0.0-rc3", package = "phala-node-runtime", path = "../runtime" }

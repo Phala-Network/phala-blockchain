@@ -3177,9 +3177,9 @@ checksum = "2bf50223579dc7cdcfb3bfcacf7069ff68243f8c363f62ffa99cf000a6b9c451"
 
 [[package]]
 name = "nom"
-version = "5.1.1"
+version = "5.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b471253da97532da4b61552249c521e01e736071f71c1a4f7ebbfbf0a06aad6"
+checksum = "ffb4262d26ed83a1c0a33a38fe2bb15797329c85770da05e6b828ddb782627af"
 dependencies = [
  "memchr",
  "version_check",
@@ -3758,7 +3758,6 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
- "serde",
  "sp-application-crypto",
  "sp-io",
  "sp-npos-elections",
@@ -4160,12 +4159,13 @@ dependencies = [
  "pallet-grandpa",
  "pallet-im-online",
  "pallet-indices",
- "pallet-staking",
+ "pallet-phala",
  "pallet-timestamp",
  "pallet-transaction-payment",
  "parity-scale-codec",
  "parking_lot 0.10.2",
  "phala-node-runtime",
+ "phala-staking",
  "platforms",
  "rand 0.7.3",
  "regex",
@@ -4251,7 +4251,6 @@ dependencies = [
  "pallet-session",
  "pallet-session-benchmarking",
  "pallet-society",
- "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
  "pallet-timestamp",
@@ -4261,6 +4260,7 @@ dependencies = [
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec",
+ "phala-staking",
  "serde",
  "sp-api",
  "sp-authority-discovery",
@@ -4279,6 +4279,37 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder-runner",
+]
+
+[[package]]
+name = "phala-staking"
+version = "2.0.0-rc3"
+dependencies = [
+ "env_logger",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-phala",
+ "pallet-session",
+ "pallet-staking-reward-curve",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "parking_lot 0.10.2",
+ "rand_chacha 0.2.2",
+ "serde",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+ "sp-storage",
+ "static_assertions",
+ "substrate-test-utils",
 ]
 
 [[package]]
@@ -7158,6 +7189,10 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-runtime",
 ]
+
+[[package]]
+name = "substrate-test-utils"
+version = "2.0.0-rc3"
 
 [[package]]
 name = "substrate-wasm-builder-runner"

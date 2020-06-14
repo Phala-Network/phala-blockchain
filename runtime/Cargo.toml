@@ -67,7 +67,7 @@ pallet-randomness-collective-flip = { version = "2.0.0-rc3", default-features = 
 pallet-recovery = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/recovery" }
 pallet-session = { version = "2.0.0-rc3", features = ["historical"], path = "../substrate/frame/session", default-features = false }
 pallet-session-benchmarking = { version = "2.0.0-rc3", path = "../substrate/frame/session/benchmarking", default-features = false, optional = true }
-pallet-staking = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/staking" }
+pallet-staking = { version = "2.0.0-rc3", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-staking-reward-curve = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/staking/reward-curve" }
 pallet-scheduler = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/scheduler" }
 pallet-society = { version = "2.0.0-rc3", default-features = false, path = "../substrate/frame/society" }
