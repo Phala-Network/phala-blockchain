@@ -13,7 +13,7 @@ use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
-use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
+use sp_core::{storage::StorageKey, twox_128, blake2_128, sr25519, crypto::Pair};
 
 mod error;
 mod runtimes;
@@ -209,6 +209,13 @@ async fn fetch_events(client: &XtClient, block: &phala_node_runtime::SignedBlock
 fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     let mut key = twox_128(module.as_bytes()).to_vec();
     key.extend(&twox_128(storage_key_name.as_bytes()));
+    key
+}
+
+fn storage_map_key_vec(module: &str, storage_key_name: &str, storage_item_key: Vec<u8>) -> Vec<u8> {
+    let mut key = storage_value_key_vec(module, storage_key_name);
+    key.extend(blake2_128(&storage_item_key).to_vec());
+    key.extend(storage_item_key);
     key
 }
 
@@ -453,15 +460,13 @@ async fn bridge(args: Args) -> Result<(), Error> {
         };
         let signer = subxt::PairSigner::new(pair.clone());
         let ret = client.submit(call, &signer).await;
-        if ret.is_ok() {
-            println!("Submit RegisterWorkerCall successfully");
-        } else {
-            println!("Failed to submit RegisterWorkerCall");
+        if !ret.is_ok() {
+            return Err(Error::FailedToCallRegisterWorker);
         }
     }
 
     let mut sequence = 0;
-
+    let mut onchain_register_checked = args.no_init;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None
@@ -502,6 +507,17 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
+            // Check if on_chain TEE registration was executed
+            if !onchain_register_checked {
+                let key = storage_map_key_vec("PhalaModule", "Miner", pair.public().to_vec());
+                let hash = client.block_hash(Some(subxt::BlockNumber::from(block_tip.block.header.number))).await?;
+                if get_storage(&client, hash, StorageKey(key)).await?.is_none() {
+                    return Err(Error::ExecRegisterWorkerError);
+                }
+
+                onchain_register_checked = true;
+            }
+
             println!("waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;

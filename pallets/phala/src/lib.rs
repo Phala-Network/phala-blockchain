@@ -130,7 +130,7 @@ decl_storage! {
 		pub Sequence get(fn sequence): SequenceType;
 	}
 	add_extra_genesis {
-		config(stakers): Vec<(T::AccountId)>;
+		config(stakers): Vec<T::AccountId>;
 		build(|config: &GenesisConfig<T>| {
 			for controller in &config.stakers {
 				<Miner<T>>::insert(controller.clone(), "Unknown machine id".as_bytes().to_vec());
@@ -246,7 +246,12 @@ decl_module! {
 			let runtime_info = runtime_info.unwrap();
 
 			Machine::insert(runtime_info.machine_id.to_vec(), (runtime_info.pub_key.to_vec(), runtime_info.score));
-			<MachineOwner<T>>::insert(runtime_info.machine_id.to_vec(), who.clone());
+			let machine_id = runtime_info.machine_id.to_vec();
+			if <MachineOwner<T>>::contains_key(&machine_id) {
+				let last_owner =  <MachineOwner<T>>::get(machine_id.clone());
+				<Miner<T>>::remove(&last_owner);
+			}
+			<MachineOwner<T>>::insert(machine_id, who.clone());
 			<Miner<T>>::insert(who, runtime_info.machine_id.to_vec());
 
 			Ok(())

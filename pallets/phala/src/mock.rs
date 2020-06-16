@@ -7,11 +7,13 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
 };
 use frame_system as system;
+use pallet_balances as balances;
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
 }
 
+pub(crate) type Balance = u128;
 // For testing the pallet, we construct most of a mock runtime. This means
 // first constructing a configuration type (`Test`) which `impl`s each of the
 // configuration traits of pallets we want to use.
@@ -44,13 +46,24 @@ impl system::Trait for Test {
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type ModuleToIndex = ();
-	type AccountData = ();
+	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 }
+impl pallet_balances::Trait for Test {
+	type Balance = Balance;
+	type Event = ();
+	type DustRemoval = ();
+	type ExistentialDeposit = ();
+	type AccountStore = System;
+}
 impl Trait for Test {
 	type Event = ();
+	type TEECurrency = Balances;
 }
+
+pub type System = frame_system::Module<Test>;
+pub type Balances = pallet_balances::Module<Test>;
 pub type PhalaModule = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to

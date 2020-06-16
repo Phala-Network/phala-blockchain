@@ -11,6 +11,8 @@ pub enum Error {
   NoSetIdAtBlock,
   SearchSetIdChangeInEmptyRange,
   FailedToDecode,
+  FailedToCallRegisterWorker,
+  ExecRegisterWorkerError,
 }
 
 impl From<hyper::error::Error> for Error {
