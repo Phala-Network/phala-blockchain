@@ -161,8 +161,8 @@ lazy_static! {
 }
 
 pub const DEV_HOSTNAME:&'static str = "api.trustedservices.intel.com";
-pub const SIGRL_SUFFIX:&'static str = "/sgx/dev/attestation/v3/sigrl/";
-pub const REPORT_SUFFIX:&'static str = "/sgx/dev/attestation/v3/report";
+pub const SIGRL_SUFFIX:&'static str = "/sgx/dev/attestation/v4/sigrl/";
+pub const REPORT_SUFFIX:&'static str = "/sgx/dev/attestation/v4/report";
 
 fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
     println!("parse_response_attn_report");
@@ -251,7 +251,7 @@ fn parse_response_sigrl(resp : &[u8]) -> Vec<u8> {
 
     for i in 0..respp.headers.len() {
         let h = respp.headers[i];
-        if h.name == "content-length" {
+        if h.name == "Content-Length" {
             let len_str = String::from_utf8(h.value.to_vec()).unwrap();
             len_num = len_str.parse::<u32>().unwrap();
             println!("content length = {}", len_num);
