@@ -146,3 +146,21 @@ fn it_works_for_test() {
 		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 	});
 }
+
+#[test]
+fn test_whitelist_works() {
+	new_test_ext().execute_with(|| {
+		let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).expect("decode sig failed");
+		let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).expect("decode cert failed");
+
+		// TODO ： Handle RA report replay attack
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		let machine_id = PhalaModule::miner(1);
+		assert_eq!(true, machine_id.len() > 0);
+		assert_ok!(PhalaModule::register_worker(Origin::signed(2), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		let machine_id2 = PhalaModule::miner(2);
+		assert_eq!(true, machine_id2.len() > 0);
+		let machine_id1 = PhalaModule::miner(1);
+		assert_eq!(true, machine_id1.len() == 0);
+	});
+}

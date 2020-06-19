@@ -2734,7 +2734,6 @@ impl<T: Trait> Module<T> {
 
 		// Set staking information for new era.
 		let maybe_new_validators = Self::select_and_update_validators(current_era);
-
 		maybe_new_validators
 	}
 
@@ -2892,6 +2891,14 @@ impl<T: Trait> Module<T> {
 		let mut all_nominators: Vec<(T::AccountId, VoteWeight, Vec<T::AccountId>)> = Vec::new();
 		let mut all_validators = Vec::new();
 		for (validator, _) in <Validators<T>>::iter() {
+			let controller = <Bonded<T>>::get(validator.clone());
+			if let Some(controller) = controller {
+				if !<pallet_phala::Module<T>>::is_miner(controller) {
+					Self::chill_stash(&validator);
+					continue;
+				}
+			}
+
 			// append self vote
 			let self_vote = (validator.clone(), Self::slashable_balance_of_vote_weight(&validator), vec![validator.clone()]);
 			all_nominators.push(self_vote);
