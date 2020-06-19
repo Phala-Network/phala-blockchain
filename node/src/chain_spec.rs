@@ -388,58 +388,57 @@ fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
 	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/phat/$j/$i; done; done
 	// and
 	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//phat//$j//$i; done; done
-	// for i in 1 2 3 4 ; do for j in session; do subkey --sr25519 inspect "$secret"//phat//$j//$i; done; done
 
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![(
-		// 5CUxw7qvQko4NPVb88Qgg8G36VYTDePDgtjKBuK65Gv7ahYn
-		hex!["1280a479ee3beca7af1636aca17582f30829782e2c9b1b9c72aaf8060563ab37"].into(),
-		// 5ELi5uotM2GU3v4aWJhm1DGYTrKUibtmpcpAn1EEVke8EVv6
-		hex!["64ad2976cd7649cd102ebbc451a6976fd2db0fed678fb90fab2126e5e5ae5113"].into(),
-		// 5HmLqU4HyW2MX47ZmGgGQsiNxFE4bPoZfSRsMnLkd7GyukP9
-		hex!["fc2b7780edac19e87b7705eddeb0d90e37cee014fdb1def2fb71541566faa484"].unchecked_into(),
-		// 5ECBpUbnevxTptrJyAoELV5mBYZGcXoReNyYH39Vw85qaiun
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
-		hex!["5e2d505c7c378afaca2fe65ec12f642f76d4bbe07d9d84bb89b67d9d0c3dc41d"].unchecked_into(),
+	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
+	(
+		// Stash
+		hex!["780d14058a7aa9c1ee50bd5a5061847e873d602f47e3b9aa744cf26c00a67247"].into(),
+		// Controller
+		hex!["a6472df662dd55418f00cca35ba4b07feb3965414075caf56e563b8440ff6865"].into(),
+		// Session key ed25519
+		hex!["f7a4fa3658cc703ae9049b524dc3925e48d45e2e9fa941d500a28f2d247763b3"].unchecked_into(),
+		// Session key sr25519
+		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into()
 	),(
-		// 5GCeVrMPXCLB8epQGMAZqCcSmojBC5zJvauFbWDPZrhgufLr
-		hex!["b6ff9705ce62359dc2a487f426a8fa977ea6420a5a84e6608e62e62089e7fd7b"].into(),
-		// 5DZJfUJPNuiCschPuXrEAVYHddGvrdzosuoQroUarLnWvqfb
-		hex!["420c46802b86f4c6a02f52882e5efac42609f94627e0aca45f1fb4d160435c62"].into(),
-		// 5CE1bT5dXTdDWxaLuXtMGmqPcPHGfcpkUQAY4zLdipi1A2DZ
-		hex!["0718eb34f317d427e2080f0fc37d526ff9321ba361850a06f3336892a3fd3741"].unchecked_into(),
-		// 5EKx9UqC8o72hEWPk2pah3b9ZNhv4FtT3N4m459p8KdbtUdW
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
-		hex!["6419407e78b53b38d70cb27ca4ba1fcb10772b865ab8e54d13757d2afcdd4f62"].unchecked_into(),
+		// Stash
+		hex!["1ef772bec998a0b906f46e0e74e3cfe2b91115cf1cda701c77ebbb8350e0447e"].into(),
+		// Controller
+		hex!["944d92bb3b3a8b776972b86d1a9074e3c18ea508b967f8b7cb0479ce2c059266"].into(),
+		// Session key ed25519
+		hex!["21c4025dd9d433e3792d245b0b5f92509badbe22b0d0d8e188557262f1182c56"].unchecked_into(),
+		// Session key sr25519
+		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into()
 	),(
-		// 5Eh88vAuW767kBXN4G2ivNJViitxjyxnFRKiWSZSqnkrmg1L
-		hex!["743f09263cb6772ec3f050be346751d917b904590b2f958709e11249d08c9007"].into(),
-		// 5GeQy2DPW6kkJ8wJ4AHboYiwnuiWxCFrFCh6NCrV9djbPRNY
-		hex!["caa66b4fa856f986bf27f5f6acec9638f33d3f7399977844d959c8effb3e700b"].into(),
-		// 5CEHGicaLZcT1pQoq7oYGjojKPJHs6HUJYqhAtL3vMvqgqer
-		hex!["074db13f1143914815bf1fc68edb43ccc71ca7e6af44500a6cb1687a1a28369f"].unchecked_into(),
-		// 5Com2ZC4QrUZd87wZDymg5joDTC1i9SyaUqQkx1Mk3uW77XC
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
-		hex!["20d639a223b7b44a3e7d97e1ee9540582ef79688af4162db3626a9a70d07627f"].unchecked_into(),
+		// Stash
+		hex!["520821df5b84c9c5db1fd7196713bab83b9cd958b01ce0abb1760396e3ab627b"].into(),
+		// Controller
+		hex!["08a983924e693bd94877619f5f72763f0408be82069df4b4bb4836286c58f15d"].into(),
+		// Session key ed25519
+		hex!["23cdc8621cfad1645ad1323ee25c8e4efb7f8baafdc57de78041eb8426b77396"].unchecked_into(),
+		// Session key sr25519
+		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into()
 	),(
-		// 5EhmDfbqpoYFPRg2vgJgMZb6KdBLMyAz2WeGwZn2pmihBk3B
-		hex!["74bbdd4d4cac2c519e54bbdf77daf6544c54246b4a4dc076900d63679e4f0838"].into(),
-		// 5FkFp5DTUf4Lg6ANXHTyU6L6wuNpgefzYqaihpgEnaTB1JFm
-		hex!["a2ded794110f25309ad3ce74533b9126c172f776a3b19e323e2d7e4268ee547f"].into(),
-		// 5CRNc8nF5pyP8upNZcquqqiMTZgC9fWaw1oxr76gbK8K93vG
-		hex!["0fc359aa38b5a444ff97a52b7ea0676ca3e1b5f8f4c8032060ba036f257af20a"].unchecked_into(),
-		// 5Dyhz1o4oatt9FYKjhqcUDr2uL8YiNJMQHdMGqSB6ZZRMymi
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-		hex!["54a8aa8e03899fffdb56ed15af017ffe0862230b72e4f67bf8bdf987a3f8181d"].unchecked_into(),
-	)];
+		// Stash
+		hex!["fc3d2b5f8885202bce2534726e9e33b8e47aa7cafa8c0e6331314537671b5c0c"].into(),
+		// Controller
+		hex!["9ae7747b65f53647d52c97e08436402b18bdeee96fb0f0c94078e03d6fe6c575"].into(),
+		// Session key ed25519
+		hex!["6a369d6f98d4cbda264eb2fa4506d381a28c545e2065413b9119767d8e6a779a"].unchecked_into(),
+		// Session key sr25519
+		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into()
+	),];
 
 	// generated with secret: subkey inspect "$secret"/phat
 	let root_key: AccountId = hex![
-		// 5GWqoSBypwgeFaqABPp16RrhALGzPMPQGfUDTDwMc2sopQw7
-		"c4e00e9a9de00c227cb4508fb81ae29a235103cb457c07747ef4750a6f3dd81c"
+		"d4ff035fa06490d7bf02628eafe3e81252150185cd272f3fd5a846563fef861c"
 	].into();
 
 	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
