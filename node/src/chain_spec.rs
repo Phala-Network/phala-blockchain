@@ -157,14 +157,14 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 /// Staging testnet config.
 pub fn staging_testnet_config() -> ChainSpec {
-	let v1_addr: MultiaddrWithPeerId = "/ip4/139.180.155.4/tcp/31333/p2p/12D3KooWR8Bce8DGTtRgf8gmYg9Xx5RwQoSv41pXAYWeJfXtwF6z".parse().unwrap();
-	let v2_addr: MultiaddrWithPeerId = "/ip4/45.77.47.160/tcp/32333/p2p/12D3KooWPGTpv1dg9EBUgJuiMFU3gKExYj7nnRqKF7wrhHtYFR3c".parse().unwrap();
-	let v3_addr: MultiaddrWithPeerId = "/ip4/45.77.47.160/tcp/33333/p2p/12D3KooWHrLP1wgd7qdsRLbYZXzcsoAWPFq5wfwqHrJoHNdByi4w".parse().unwrap();
-	let v4_addr: MultiaddrWithPeerId = "/ip4/45.77.47.160/tcp/34333/p2p/12D3KooWGeRRK2WzXQeUi931fcvF3NGi2nRFZatL7DG3CmkQfjWy".parse().unwrap();
+	let v1_addr: MultiaddrWithPeerId = "/dns4/poc2-1.phala.network/tcp/31333/p2p/12D3KooWR8Bce8DGTtRgf8gmYg9Xx5RwQoSv41pXAYWeJfXtwF6z".parse().unwrap();
+	let v2_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/32333/p2p/12D3KooWPGTpv1dg9EBUgJuiMFU3gKExYj7nnRqKF7wrhHtYFR3c".parse().unwrap();
+	let v3_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/33333/p2p/12D3KooWHrLP1wgd7qdsRLbYZXzcsoAWPFq5wfwqHrJoHNdByi4w".parse().unwrap();
+	let v4_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/34333/p2p/12D3KooWGeRRK2WzXQeUi931fcvF3NGi2nRFZatL7DG3CmkQfjWy".parse().unwrap();
 	let boot_nodes = vec![v1_addr, v2_addr, v3_addr, v4_addr];
 	ChainSpec::from_genesis(
-		"Staging Testnet",
-		"staging_testnet",
+		"Phala PoC2 Testnet",
+		"phala_poc2_testnet",
 		ChainType::Live,
 		staging_testnet_config_genesis,
 		boot_nodes,
