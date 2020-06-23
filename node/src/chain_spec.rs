@@ -40,7 +40,7 @@ use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
 
 pub use node_primitives::{AccountId, Balance, Signature};
 pub use node_runtime::GenesisConfig;
-use sc_network::{Multiaddr, PeerId, config::MultiaddrWithPeerId};
+use sc_network::config::MultiaddrWithPeerId;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
