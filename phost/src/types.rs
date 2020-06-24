@@ -133,6 +133,7 @@ pub struct InitRuntimeReq {
 pub struct InitRuntimeResp {
   pub encoded_runtime_info: Vec<u8>,
   pub public_key: String,
+  pub ecdh_public_key: String,
   pub attestation: InitRespAttestation,
 }
 #[derive(Serialize, Deserialize, Debug)]

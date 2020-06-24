@@ -613,6 +613,25 @@ struct InitRuntimeReq {
     bridge_genesis_info_b64: String
 }
 #[derive(Serialize, Deserialize, Debug)]
+pub struct InitRuntimeResp {
+  pub encoded_runtime_info: Vec<u8>,
+  pub public_key: String,
+  pub ecdh_public_key: String,
+  pub attestation: Option<InitRespAttestation>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct InitRespAttestation {
+  pub version: i32,
+  pub provider: String,
+  pub payload: AttestationReport,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct AttestationReport {
+  pub report: String,
+  pub signature: String,
+  pub signing_cert: String,
+}
+#[derive(Serialize, Deserialize, Debug)]
 struct TestReq {
     test_parse_block: Option<bool>,
     test_bridge: Option<bool>,
@@ -843,7 +862,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     println!("{:?}", encoded_runtime_info);
 
     // Produce remote attestation report
-    let mut map = serde_json::Map::new();
+    let mut attestation: Option<InitRespAttestation> = None;
     if !input.skip_ra {
         let (attn_report, sig, cert) = match create_attestation_report(&runtime_info_hash, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE) {
             Ok(r) => r,
@@ -853,9 +872,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             }
         };
 
-        map.insert("report".to_owned(), json!(attn_report));
-        map.insert("signature".to_owned(), json!(sig));
-        map.insert("signing_cert".to_owned(), json!(cert));
+        attestation = Some(InitRespAttestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: AttestationReport {
+                report: attn_report,
+                signature: sig,
+                signing_cert: cert,
+            }
+        });
     }
 
     // Initialize bridge
@@ -874,32 +899,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.main_bridge = bridge_id;
     local_state.blocknum = 1;
 
-    if !input.skip_ra {
-        return Ok(
-                json!({
-                "encoded_runtime_info": encoded_runtime_info,
-                "public_key": s_pk,
-                "ecdh_public_key": s_ecdh_pk,
-                "attestation": {
-                    "version": 1,
-                    "provider": "SGX",
-                    "payload": map
-                }
-            })
-        );
-    }
-
-    Ok(
-        json!({
-            "encoded_runtime_info": encoded_runtime_info,
-            "public_key": s_pk,
-            "ecdh_public_key": s_ecdh_pk,
-            "attestation": {
-                "version": 1,
-                "provider": "SGX"
-            }
-        })
-    )
+    let resp = InitRuntimeResp {
+        encoded_runtime_info,
+        public_key: s_pk,
+        ecdh_public_key: s_ecdh_pk,
+        attestation
+    };
+    Ok(serde_json::to_value(resp).unwrap())
 }
 
 /*
