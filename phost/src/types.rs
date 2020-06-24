@@ -139,7 +139,7 @@ pub struct InitRuntimeResp {
 pub struct InitRespAttestation {
   pub version: i32,
   pub provider: String,
-  pub payload: AttestationReport,
+  pub payload: Option<AttestationReport>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct AttestationReport {

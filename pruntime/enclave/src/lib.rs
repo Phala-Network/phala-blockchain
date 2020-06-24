@@ -874,6 +874,21 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.main_bridge = bridge_id;
     local_state.blocknum = 1;
 
+    if !input.skip_ra {
+        return Ok(
+                json!({
+                "encoded_runtime_info": encoded_runtime_info,
+                "public_key": s_pk,
+                "ecdh_public_key": s_ecdh_pk,
+                "attestation": {
+                    "version": 1,
+                    "provider": "SGX",
+                    "payload": map
+                }
+            })
+        );
+    }
+
     Ok(
         json!({
             "encoded_runtime_info": encoded_runtime_info,
@@ -881,8 +896,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             "ecdh_public_key": s_ecdh_pk,
             "attestation": {
                 "version": 1,
-                "provider": "SGX",
-                "payload": map
+                "provider": "SGX"
             }
         })
     )
