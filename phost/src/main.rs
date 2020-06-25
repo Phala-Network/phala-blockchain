@@ -442,25 +442,27 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }).await?;
 
         println!("runtime_info:{:?}", runtime_info);
-        let signature = base64::decode(&runtime_info.attestation.payload.signature).expect("Failed to decode signature");
-        let raw_signing_cert = base64::decode_config(&runtime_info.attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
-        let call = runtimes::phala::RegisterWorkerCall {
-            _runtime: PhantomData,
-            encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
-            report: runtime_info.attestation.payload.report.as_bytes().to_vec(),
-            signature,
-            raw_signing_cert,
-        };
-        let signer = subxt::PairSigner::new(pair.clone());
-        let ret = client.watch(call, &signer).await;
-        if !ret.is_ok() {
-            return Err(Error::FailedToCallRegisterWorker);
-        }
+        if let Some(attestation) = runtime_info.attestation {
+            let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
+            let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
+            let call = runtimes::phala::RegisterWorkerCall {
+                _runtime: PhantomData,
+                encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
+                report: attestation.payload.report.as_bytes().to_vec(),
+                signature,
+                raw_signing_cert,
+            };
+            let signer = subxt::PairSigner::new(pair.clone());
+            let ret = client.watch(call, &signer).await;
+            if !ret.is_ok() {
+                return Err(Error::FailedToCallRegisterWorker);
+            }
 
-        let events = ret.unwrap();
-        for sys_event in events.system_events() {
-            if let subxt::system::SystemEvent::ExtrinsicFailed(_de, _di) = sys_event {
-                return Err(Error::ExecRegisterWorkerError);
+            let events = ret.unwrap();
+            for sys_event in events.system_events() {
+                if let subxt::system::SystemEvent::ExtrinsicFailed(_de, _di) = sys_event {
+                    return Err(Error::ExecRegisterWorkerError);
+                }
             }
         }
     }
