@@ -2,11 +2,6 @@ use tokio::time::delay_for;
 use std::time::Duration;
 use structopt::StructOpt;
 
-use serde::Serialize;
-use hyper::Client as HttpClient;
-use hyper::{Body, Method, Request};
-use bytes::buf::BufExt as _;
-
 use phala_node_runtime::{self, BlockNumber};
 use sp_rpc::number::NumberOrHex;
 use sc_rpc_api::state::ReadProof;
@@ -16,25 +11,29 @@ use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORI
 use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
 
 mod error;
+mod pruntime_client;
 mod runtimes;
 mod types;
 
 use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, OpaqueSignedBlock,
-    Resp, SignedResp, RuntimeReq,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
     SyncBlockReq, SyncBlockResp, BlockWithEvents, AuthoritySet, AuthoritySetChange
 };
 
 type XtClient = subxt::Client<Runtime>;
+type PrClient = pruntime_client::PRuntimeClient;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
     #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
+
+    #[structopt(long = "no-sync", help = "Don't sync pRuntime. Quit right after initialization.")]
+    no_sync: bool,
 
     #[structopt(
     short = "r", long = "remote-attestation",
@@ -46,6 +45,11 @@ struct Args {
     help = "Substrate rpc websocket endpoint")]
     substrate_ws_endpoint: String,
 
+    #[structopt(
+    default_value = "http://localhost:8000", long,
+    help = "Substrate rpc websocket endpoint")]
+    pruntime_endpoint: String,
+
     #[structopt(required = true,
     short = "m", long = "mnemonic",
     help = "SR25519 keypair mnemonic")]
@@ -56,8 +60,6 @@ struct BlockSyncState {
     blocks: Vec<BlockWithEvents>,
     authory_set_state: Option<(BlockNumber, SetId)>
 }
-
-const PRUNTIME_RPC_BASE: &'static str = "http://127.0.0.1:8000";
 
 fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::SignedBlock {
     let raw_block = Encode::encode(&opaque_block);
@@ -212,39 +214,8 @@ fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     key
 }
 
-async fn req<T>(command: &str, param: &T) -> Result<SignedResp, Error>  where T: Serialize {
-    let client = HttpClient::new();
-    let endpoint = format!("{}/{}", PRUNTIME_RPC_BASE, command);
 
-    let body_json = serde_json::to_string(param)?;
-
-    let req = Request::builder()
-        .method(Method::POST)
-        .uri(endpoint)
-        .header("content-type", "application/json")
-        .body(Body::from(body_json))?;
-
-    let res = client.request(req).await?;
-
-    println!("Response: {}", res.status());
-
-    let body = hyper::body::aggregate(res.into_body()).await?;
-    let signed_resp: SignedResp = serde_json::from_reader(body.reader())?;
-
-    // TODO: validate the response from pRuntime
-
-    Ok(signed_resp)
-}
-
-async fn req_decode<Req>(command: &str, request: Req) -> Result<Req::Resp, Error>
-    where Req: Serialize + Resp {
-    let payload = RuntimeReq::new(request);
-    let resp = req(command, &payload).await?;
-    let result: Req::Resp = serde_json::from_str(&resp.payload)?;
-    Ok(result)
-}
-
-async fn req_sync_block(blocks: &Vec<BlockWithEvents>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncBlockResp, Error> {
+async fn req_sync_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|block| {
@@ -258,12 +229,13 @@ async fn req_sync_block(blocks: &Vec<BlockWithEvents>, authority_set_change: Opt
     });
 
     let req = SyncBlockReq { blocks_b64, authority_set_change_b64 };
-    let resp = req_decode("sync_block", req).await?;
+    let resp = pr.req_decode("sync_block", req).await?;
     Ok(resp)
 }
 
 async fn batch_sync_block(
     client: &XtClient,
+    pr: &PrClient,
     sync_state: &mut BlockSyncState
 ) -> Result<usize, Error> {
     const BATCH_WINDOW: usize = 500;
@@ -351,7 +323,7 @@ async fn batch_sync_block(
             block_batch.len(), last_block_number,
             authrotiy_change.as_ref().map(|change| &change.authority_set));
 
-        let r = req_sync_block(&block_batch, authrotiy_change.as_ref()).await?;
+        let r = req_sync_block(pr, &block_batch, authrotiy_change.as_ref()).await?;
         println!("  ..sync_block: {:?}", r);
         // Update sync state
         synced_blocks += block_batch.len();
@@ -365,7 +337,7 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
+async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
     let query = Query {
         contract_id: 2,
         nonce: 0,
@@ -376,7 +348,7 @@ async fn sync_tx_to_chain(client: &XtClient, sequence: &mut u32, pair: sr25519::
     let payload = Payload::Plain(query_value.to_string());
     let query_payload = serde_json::to_string(&payload)?;
     println!("query_payload:{}", query_payload);
-    let info = req_decode("query", QueryReq { query_payload: query_payload}).await?;
+    let info = pr.req_decode("query", QueryReq { query_payload: query_payload}).await?;
     println!("info:{:}", info.plain);
     let pending_chain_transfer: PendingChainTransfer = serde_json::from_str(&info.plain)?;
     let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
@@ -420,9 +392,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
         .build().await?;
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
+    // Other initialization
+    let pr = PrClient::new(&args.pruntime_endpoint);
     let (pair, _seed) = <sr25519::Pair as Pair>::from_phrase(&args.mnemonic, None).expect("Bad mnemonic");
 
-    let mut info = req_decode("get_info", GetInfoReq {}).await?;
+    // Try to initialize pRuntime and register on-chain
+    let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
         let block = get_block_at(&client, Some(0), false).await?.block;
@@ -436,7 +411,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         };
 
         let info_b64 = base64::encode(&info.encode());
-        let runtime_info = req_decode("init_runtime", InitRuntimeReq {
+        let runtime_info = pr.req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: info_b64,
         }).await?;
@@ -467,6 +442,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
     }
 
+    if args.no_sync {
+        println!("Block sync disabled.");
+        return Ok(())
+    }
+
     let mut sequence = 0;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
@@ -475,7 +455,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     loop {
         // update the latest pRuntime state
-        info = req_decode("get_info", GetInfoReq {}).await?;
+        info = pr.req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None, false).await?.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
@@ -501,10 +481,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.push(block.clone());
         }
 
-        sync_tx_to_chain(&client, &mut sequence, pair.clone()).await;
+        sync_tx_to_chain(&client, &pr, &mut sequence, pair.clone()).await?;
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &mut sync_state).await?;
+        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state).await?;
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
