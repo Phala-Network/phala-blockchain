@@ -35,6 +35,9 @@ struct Args {
     #[structopt(long = "no-sync", help = "Don't sync pRuntime. Quit right after initialization.")]
     no_sync: bool,
 
+    #[structopt(long = "no-write-back", help = "Don't write pRuntime egress data back to Substarte.")]
+    no_write_back: bool,
+
     #[structopt(
     short = "r", long = "remote-attestation",
     help = "Should enable Remote Attestation")]
@@ -47,13 +50,17 @@ struct Args {
 
     #[structopt(
     default_value = "http://localhost:8000", long,
-    help = "Substrate rpc websocket endpoint")]
+    help = "pRuntime http endpoint")]
     pruntime_endpoint: String,
 
     #[structopt(required = true,
     short = "m", long = "mnemonic",
     help = "SR25519 keypair mnemonic")]
     mnemonic: String,
+
+    #[structopt(default_value = "500", long = "fetch-blocks",
+    help = "The batch size to fetch blocks from Substrate.")]
+    fetch_blocks: u32,
 }
 
 struct BlockSyncState {
@@ -473,7 +480,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             Some(b) => b.block.block.header.number + 1,
             None => info.blocknum
         };
-        for h in next_block ..= block_tip.block.header.number {
+        let batch_end = std::cmp::min(block_tip.block.header.number, next_block + args.fetch_blocks - 1);
+        for h in next_block ..= batch_end {
             let block = get_block_at(&client, Some(h), true).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
@@ -481,7 +489,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.push(block.clone());
         }
 
-        sync_tx_to_chain(&client, &pr, &mut sequence, pair.clone()).await?;
+        if !args.no_write_back {
+            sync_tx_to_chain(&client, &pr, &mut sequence, pair.clone()).await?;
+        }
 
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state).await?;
