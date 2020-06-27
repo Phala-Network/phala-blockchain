@@ -61,6 +61,10 @@ struct Args {
     #[structopt(default_value = "500", long = "fetch-blocks",
     help = "The batch size to fetch blocks from Substrate.")]
     fetch_blocks: u32,
+
+    #[structopt(default_value = "200", long = "sync-blocks",
+    help = "The batch size to sync blocks to pRuntime.")]
+    sync_blocks: usize,
 }
 
 struct BlockSyncState {
@@ -243,9 +247,9 @@ async fn req_sync_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>, authority_
 async fn batch_sync_block(
     client: &XtClient,
     pr: &PrClient,
-    sync_state: &mut BlockSyncState
+    sync_state: &mut BlockSyncState,
+    batch_window: usize
 ) -> Result<usize, Error> {
-    const BATCH_WINDOW: usize = 500;
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
         return Ok(0);
@@ -273,7 +277,7 @@ async fn batch_sync_block(
     while !block_buf.is_empty() {
         // Find the longest batch within the window
         let first_block_number = block_buf.first().unwrap().block.block.header.number;
-        let end_window = BATCH_WINDOW as isize - 1;
+        let end_window = batch_window as isize - 1;
         let end_buffer = block_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
             Some(change_at) => (change_at as isize - first_block_number as isize),
@@ -291,8 +295,8 @@ async fn batch_sync_block(
             let window_reached = end_window < end_buffer && end_window < end_set_id_change;
             if window_reached {
                 println!(
-                    "Cannot find justification within BATCH_WINDOW (window: {}, from: {}, to: {})",
-                    BATCH_WINDOW, first_block_number,
+                    "Cannot find justification within batch_window (window: {}, from: {}, to: {})",
+                    batch_window, first_block_number,
                     block_buf[end as usize].block.block.header.number,
                 );
                 return Err(Error::NoJustification);
@@ -494,7 +498,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state).await?;
+        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
