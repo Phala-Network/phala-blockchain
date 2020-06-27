@@ -739,6 +739,8 @@ pub extern "C" fn ecall_handle(
             ptr::copy_nonoverlapping(output_json_vec.as_ptr(),
                                      output_ptr,
                                      output_json_vec_len);
+        } else {
+            println!("Too much output. Buffer overflow.");
         }
         ptr::copy_nonoverlapping(output_json_vec_len_ptr,
                                  output_len_ptr,

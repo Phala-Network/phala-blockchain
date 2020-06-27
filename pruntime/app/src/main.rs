@@ -45,7 +45,7 @@ use attestation::Attestation;
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_TOKEN: &'static str = "enclave.token";
 
-const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 512*1024 as usize;
+const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 2*2048*1024 as usize;
 
 lazy_static! {
     static ref ENCLAVE: RwLock<Option<SgxEnclave>> = RwLock::new(None);
@@ -260,7 +260,7 @@ fn test(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -301,7 +301,7 @@ fn init_runtime(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -342,7 +342,7 @@ fn get_info(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -383,7 +383,7 @@ fn dump_states(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -424,7 +424,7 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -465,7 +465,7 @@ fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -507,7 +507,7 @@ fn query(contract_input: Json<ContractInput>) -> JsonValue {
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -549,7 +549,7 @@ fn set(contract_input: Json<ContractInput>) -> JsonValue {
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
@@ -591,7 +591,7 @@ fn get(contract_input: Json<ContractInput>) -> JsonValue {
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
-    let mut return_output_buf: [u8; ENCLAVE_OUTPUT_BUF_MAX_LEN] = [0; ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
     let mut output_len : usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
