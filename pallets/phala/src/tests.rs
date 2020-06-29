@@ -4,29 +4,14 @@ use secp256k1;
 use crate::hashing;
 use codec::Encode;
 use crate::{Error, mock::*};
+use crate::RawEvent;
 use frame_support::{assert_ok, assert_noop};
 
-// #[test]
-// fn it_works_for_default_value() {
-// 	new_test_ext().execute_with(|| {
-// 		// Just a dummy test for the dummy function `do_something`
-// 		// calling the `do_something` function with a value 42
-// 		assert_ok!(PhalaModule::do_something(Origin::signed(1), 42));
-// 		// asserting that the stored value is equal to what we stored
-// 		assert_eq!(PhalaModule::something(), Some(42));
-// 	});
-// }
-//
-// #[test]
-// fn correct_error_for_none_value() {
-// 	new_test_ext().execute_with(|| {
-// 		// Ensure the correct error is thrown on None value
-// 		assert_noop!(
-// 			PhalaModule::cause_error(Origin::signed(1)),
-// 			Error::<Test>::NoneValue
-// 		);
-// 	});
-// }
+fn events() -> Vec<TestEvent> {
+	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
+	System::reset_events();
+	evt
+}
 
 type SignatureAlgorithms = &'static [&'static webpki::SignatureAlgorithm];
 static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
@@ -153,10 +138,13 @@ fn it_works_for_test() {
 #[test]
 fn test_whitelist_works() {
 	new_test_ext().execute_with(|| {
+		// Set block number to 1 to test the events
+		System::set_block_number(1);
+
 		let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).expect("decode sig failed");
 		let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).expect("decode cert failed");
 
-		// TODO ： Handle RA report replay attack
+		// TODO: Handle RA report replay attack
 		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id = PhalaModule::miner(1);
 		assert_eq!(true, machine_id.len() > 0);
@@ -165,6 +153,17 @@ fn test_whitelist_works() {
 		assert_eq!(true, machine_id2.len() > 0);
 		let machine_id1 = PhalaModule::miner(1);
 		assert_eq!(true, machine_id1.len() == 0);
+		// Check emitted events
+		assert_eq!(
+			true,
+			match events().as_slice() {[
+					TestEvent::phala(RawEvent::WorkerRegistered(1, _)),
+					TestEvent::phala(RawEvent::WorkerUnregistered(1, _)),
+					TestEvent::phala(RawEvent::WorkerRegistered(2, _))
+				] => true,
+				_ => false
+			}
+		);
 	});
 }
 
