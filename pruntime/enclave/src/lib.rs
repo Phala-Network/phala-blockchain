@@ -134,7 +134,7 @@ lazy_static! {
     static ref STATE: SgxMutex<RuntimeState> = {
         SgxMutex::new(RuntimeState {
             contract1: contracts::data_plaza::DataPlaza::new(),
-            contract2: contracts::balance::Balance::new(),
+            contract2: contracts::balance::Balance::new(None, None),
             contract3: contracts::assets::Assets::new(),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
@@ -853,7 +853,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     // Build RuntimeInfo
     let runtime_info = RuntimeInfo {
-        machine_id,
+        machine_id: machine_id.clone(),
         pub_key: serialized_pk,
         score: 10
     };
@@ -899,6 +899,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
+    state.contract2 = contracts::balance::Balance::new(Some(sk.serialize()), Some(machine_id));
     local_state.blocknum = 1;
 
     let resp = InitRuntimeResp {

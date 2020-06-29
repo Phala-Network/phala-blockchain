@@ -29,6 +29,7 @@ webpki = { path = "../../webpki", default_features = false }
 serde_json_no_std = { path = "../../serde_json_no_std", version = "1.0", default-features = false, features = ["alloc"] }
 # serde_json_core = {}
 blake2-rfc = { version = "0.2.18", default-features = false }
+libsecp256k1 = { version = "0.3.2", default-features = false }
 
 [dependencies.pallet-balances]
 default-features = false

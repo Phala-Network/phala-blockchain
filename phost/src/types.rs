@@ -114,8 +114,9 @@ pub struct TransferQueue {
 pub struct TransferData {
     pub dest: [u8; 32],
     pub amount: u128,
-    pub signature: Option<Vec<u8>>,
+    pub signature: Vec<u8>,
     pub sequence: u32,
+    pub machine_id: [u8; 16],
 }
 
 impl Resp for QueryReq {
