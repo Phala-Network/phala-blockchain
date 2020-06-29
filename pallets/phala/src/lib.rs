@@ -27,6 +27,7 @@ use frame_support::{
 };
 use codec::{Encode, Decode};
 use sp_std::prelude::*;
+use secp256k1;
 
 mod hashing;
 
@@ -97,7 +98,7 @@ const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 pub struct TransferData<AccountId, Balance> {
 	pub dest: AccountId,
 	pub amount: Balance,
-	pub signature: Option<Vec<u8>>,
+	pub signature: Vec<u8>,
 	pub sequence: SequenceType,
 }
 
@@ -163,7 +164,12 @@ decl_error! {
 		InvalidIASSigningCert,
 		InvalidIASReportSignature,
 		InvalidQuoteStatus,
-		InvalidRuntimeInfo
+		InvalidRuntimeInfo,
+		MinerNotFound,
+		BadMachineId,
+		InvalidPubKey,
+		InvalidSignature,
+		FailedToVerify,
 	}
 }
 
@@ -271,7 +277,7 @@ decl_module! {
 
 		#[weight = 0]
 		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 
 			let data = Decode::decode(&mut &data[..]);
 			ensure!(data.is_ok(), "Bad transaction data");
@@ -279,6 +285,28 @@ decl_module! {
 
 			let sequence = Sequence::get();
 			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
+
+			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
+
+			let machine_id = <Miner<T>>::get(who);
+			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
+
+			let serialized_pk = Machine::get(machine_id).0;
+			let mut pk = [0u8; 33];
+			pk.copy_from_slice(&serialized_pk);
+			let pub_key = secp256k1::PublicKey::parse_compressed(&pk);
+			ensure!(pub_key.is_ok(), Error::<T>::InvalidPubKey);
+
+			let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
+			ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
+
+			let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence)));
+			let mut buffer = [0u8; 32];
+			buffer.copy_from_slice(&msg_hash);
+    		let message = secp256k1::Message::parse(&buffer);
+
+			let verified = secp256k1::verify(&message, &signature.unwrap(), &pub_key.unwrap());
+			ensure!(verified, Error::<T>::FailedToVerify);
 
 			T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
 				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
