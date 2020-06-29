@@ -116,7 +116,6 @@ pub struct TransferData {
     pub amount: u128,
     pub signature: Vec<u8>,
     pub sequence: u32,
-    pub machine_id: [u8; 16],
 }
 
 impl Resp for QueryReq {

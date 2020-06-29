@@ -22,8 +22,8 @@ pub struct Balance {
     accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
     sequence: SequenceType,
     queue: Vec<TransferData>,
-    secret: Option<[u8; 32]>,
-    machine_id: Option<[u8; 16]>,
+    #[serde(skip)]
+    secret: Option<SecretKey>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -61,7 +61,6 @@ pub struct TransferData {
     amount: chain::Balance,
     signature: Vec<u8>,
     sequence: SequenceType,
-    machine_id: [u8; 16],
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -82,7 +81,7 @@ pub enum Response {
 const SUPPLY: u128 = 0;
 
 impl Balance {
-    pub fn new(secret: Option<[u8; 32]>, machine_id: Option<[u8; 16]>) -> Self {
+    pub fn new(secret: Option<SecretKey>) -> Self {
         let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
         accounts.insert(AccountIdWrapper::from_hex(ALICE), SUPPLY);
         Balance {
@@ -90,7 +89,6 @@ impl Balance {
             sequence: 0,
             queue: Vec::new(),
             secret,
-            machine_id,
         }
     }
 }
@@ -137,40 +135,29 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                             return TransactionStatus::BadSecret;
                         }
 
-                        if self.machine_id.is_none() {
-                            return TransactionStatus::BadMachineId;
-                        }
+                        let src0 = *src_amount;
+                        *src_amount -= value;
+                        println!("   src: {:>20} -> {:>20}", src0, src0 - value);
+                        let sequence = self.sequence + 1;
 
-                        if let Ok(sk) = SecretKey::parse(&self.secret.unwrap()) {
-                            let src0 = *src_amount;
-                            *src_amount -= value;
-                            println!("   src: {:>20} -> {:>20}", src0, src0 - value);
-                            let sequence = self.sequence + 1;
-                            let machine_id = self.machine_id.unwrap();
+                        let msg_hash = blake2_256(&Encode::encode(&(dest.clone(), value, sequence)));
+                        let mut buffer = [0u8; 32];
+                        buffer.copy_from_slice(&msg_hash);
+                        let message = Message::parse(&buffer);
+                        let signature = secp256k1::sign(&message, &self.secret.as_ref().unwrap());
+                        println!("signature={:?}", signature);
 
-                            let msg_hash = blake2_256(&Encode::encode(&(dest.clone(), value, sequence, machine_id)));
-                            let mut buffer = [0u8; 32];
-                            buffer.copy_from_slice(&msg_hash);
-                            let message = Message::parse(&buffer);
-                            let signature = secp256k1::sign(&message, &sk);
-                            println!("signature={:?}", signature);
+                        let transfer_data = TransferData {
+                            dest,
+                            amount: value,
+                            signature: signature.0.serialize().to_vec(),
+                            sequence,
+                        };
+                        self.queue.push(transfer_data);
 
-                            let transfer_data = TransferData {
-                                dest,
-                                amount: value,
-                                signature: signature.0.serialize().to_vec(),
-                                sequence,
-                                machine_id,
-                            };
-                            self.queue.push(transfer_data);
+                        self.sequence = sequence;
 
-                            self.sequence = sequence;
-
-                            TransactionStatus::Ok
-                        } else {
-                            return TransactionStatus::BadSecret;
-                        }
-
+                        TransactionStatus::Ok
                     } else {
                         TransactionStatus::InsufficientBalance
                     }
@@ -229,7 +216,7 @@ impl contracts::Contract<Command, Request, Response> for Balance {
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
                 let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
-                let transfer_data = TransferData { dest: AccountIdWrapper(account_id), amount, signature: Vec::new(), sequence, machine_id: [0u8; 16] };
+                let transfer_data = TransferData { dest: AccountIdWrapper(account_id), amount, signature: Vec::new(), sequence };
                 println!("transfer data:{:?}", transfer_data);
                 self.queue.retain(|x| x.sequence > transfer_data.sequence);
                 println!("queue len: {:}", self.queue.len());

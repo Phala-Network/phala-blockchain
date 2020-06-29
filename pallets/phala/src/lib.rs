@@ -100,7 +100,6 @@ pub struct TransferData<AccountId, Balance> {
 	pub amount: Balance,
 	pub signature: Vec<u8>,
 	pub sequence: SequenceType,
-	pub machine_id: [u8; 16],
 }
 
 /// The pallet's configuration trait.
@@ -166,6 +165,7 @@ decl_error! {
 		InvalidIASReportSignature,
 		InvalidQuoteStatus,
 		InvalidRuntimeInfo,
+		MinerNotFound,
 		BadMachineId,
 		InvalidPubKey,
 		InvalidSignature,
@@ -277,7 +277,7 @@ decl_module! {
 
 		#[weight = 0]
 		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
 
 			let data = Decode::decode(&mut &data[..]);
 			ensure!(data.is_ok(), "Bad transaction data");
@@ -286,7 +286,9 @@ decl_module! {
 			let sequence = Sequence::get();
 			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
 
-			let machine_id = transfer_data.machine_id.to_vec();
+			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
+
+			let machine_id = <Miner<T>>::get(who);
 			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
 
 			let serialized_pk = Machine::get(machine_id).0;
@@ -298,7 +300,7 @@ decl_module! {
 			let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
 			ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
 
-			let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence, transfer_data.machine_id)));
+			let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence)));
 			let mut buffer = [0u8; 32];
 			buffer.copy_from_slice(&msg_hash);
     		let message = secp256k1::Message::parse(&buffer);
