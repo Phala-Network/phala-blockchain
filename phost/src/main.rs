@@ -348,6 +348,21 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
+//TODO: switch to high level fetch_or_default api
+async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
+    let block_tip = get_block_at(&client, None, false).await?.block;
+    let hash = block_tip.block.header.hash();
+    let key = storage_value_key_vec("PhalaModule", "Sequence");
+    if let Some(value) = get_storage(&client, Some(hash), StorageKey(key)).await? {
+        let mut n: [u8; 4] = [0; 4];
+        n.copy_from_slice(&value[..4]);
+
+        return Ok(u32::from_le_bytes(n));
+    }
+
+    Ok(0)
+}
+
 async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
     let query = Query {
         contract_id: 2,
@@ -458,7 +473,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    let mut sequence = 0;
+    let mut sequence = get_latest_sequence(&client).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None
