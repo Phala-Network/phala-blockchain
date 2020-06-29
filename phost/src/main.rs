@@ -348,11 +348,12 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
+//TODO: switch to high level fetch_or_default api
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     let block_tip = get_block_at(&client, None, false).await?.block;
-    let hash = client.block_hash(Some(subxt::BlockNumber::from(block_tip.block.header.number))).await?;
+    let hash = block_tip.block.header.hash();
     let key = storage_value_key_vec("PhalaModule", "Sequence");
-    if let Some(value) = get_storage(&client, hash, StorageKey(key)).await? {
+    if let Some(value) = get_storage(&client, Some(hash), StorageKey(key)).await? {
         let mut n: [u8; 4] = [0; 4];
         n.copy_from_slice(&value[..4]);
 
