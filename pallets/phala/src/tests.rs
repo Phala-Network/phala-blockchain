@@ -165,18 +165,34 @@ fn test_whitelist_works() {
 
 #[test]
 fn test_verify_signature() {
-	new_test_ext().execute_with(|| {
-		let compressed_pub_key = [2, 113, 172, 27, 100, 70, 210, 83, 24, 5, 247, 181, 82, 118, 220, 206, 188, 83, 194, 109, 46, 50, 241, 249, 159, 178, 29, 64, 115, 242, 178, 208, 51].to_vec();
-		let signature = [191, 169, 225, 110, 224, 89, 229, 7, 57, 76, 125, 253, 55, 207, 80, 21, 159, 240, 105, 249, 65, 186, 119, 122, 220, 46, 104, 84, 74, 111, 177, 81, 100, 113, 38, 107, 57, 38, 8, 249, 19, 225, 92, 239, 207, 252, 32, 8, 101, 108, 16, 57, 10, 183, 64, 235, 244, 139, 151, 95, 130, 166, 240, 240].to_vec();
+	use secp256k1;
+	use crate::hashing;
+	use codec::Encode;
+	use rand;
 
+	new_test_ext().execute_with(|| {
+		let dest = 1u64;
+		let amount = 2u128;
+		let sequence = 3u32;
+
+		let mut prng = rand::rngs::OsRng::default();
+		let sk = secp256k1::SecretKey::random(&mut prng);
+		let pk = secp256k1::PublicKey::from_secret_key(&sk);
+		let serialized_pk = pk.serialize_compressed();
+
+		let msg_hash = hashing::blake2_256(&Encode::encode(&(dest, amount, sequence)));
+		let mut buffer = [0u8; 32];
+		buffer.copy_from_slice(&msg_hash);
+		let message = secp256k1::Message::parse(&buffer);
+		let sig = secp256k1::sign(&message, &sk);
 		let transfer_data = super::TransferData {
-			dest: 1u64,
-			amount: 58000000000000000u128,
-			sequence: 1,
-			signature,
+			dest,
+			amount,
+			sequence,
+			signature: sig.0.serialize().to_vec(),
 		};
 
-		let actual = PhalaModule::verify_signature(compressed_pub_key, &transfer_data);
+		let actual = PhalaModule::verify_signature(serialized_pk.to_vec(), &transfer_data);
 		assert_eq!(true, actual.is_ok());
 	});
 }

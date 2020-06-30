@@ -38,7 +38,7 @@ path = "../../substrate/frame/balances"
 
 [dev-dependencies]
 sp-core = { version = "2.0.0-rc3", path = "../../substrate/primitives/core", default_features = false, features = ["full_crypto"] }
-hex-literal = "0.2.1"
+rand = "0.7.3"
 
 [features]
 default = ['std']
