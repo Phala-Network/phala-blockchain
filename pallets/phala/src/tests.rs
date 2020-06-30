@@ -1,8 +1,4 @@
 // Tests to be written here
-use hex_literal::hex;
-use secp256k1;
-use crate::hashing;
-use codec::Encode;
 use crate::{Error, mock::*};
 use crate::RawEvent;
 use frame_support::{assert_ok, assert_noop};
@@ -169,21 +165,18 @@ fn test_whitelist_works() {
 
 #[test]
 fn test_verify_signature() {
-	let dest = hex!["d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"];
-	let amount = 58000000000000000u128;
-	let sequence = 1u32;
-	let compressed_pub_key = hex!["02cbefc1cd9fb7f0d38651d58a00d74632aa19fbff3058a44f1edea60fe67d2e22"];
-	let sig: [u8; 64] = [137, 180, 28, 24, 132, 133, 139, 153, 251, 255, 99, 182, 94, 20, 77, 127, 74, 163, 27, 207, 221, 18, 77, 26, 195, 73, 30, 184, 57, 105, 26, 178, 78, 95, 21, 190, 226, 161, 43, 63, 51, 195, 57, 114, 251, 91, 166, 185, 54, 120, 74, 227, 181, 213, 103, 18, 247, 120, 174, 100, 224, 70, 68, 140];
+	new_test_ext().execute_with(|| {
+		let compressed_pub_key = [2, 113, 172, 27, 100, 70, 210, 83, 24, 5, 247, 181, 82, 118, 220, 206, 188, 83, 194, 109, 46, 50, 241, 249, 159, 178, 29, 64, 115, 242, 178, 208, 51].to_vec();
+		let signature = [191, 169, 225, 110, 224, 89, 229, 7, 57, 76, 125, 253, 55, 207, 80, 21, 159, 240, 105, 249, 65, 186, 119, 122, 220, 46, 104, 84, 74, 111, 177, 81, 100, 113, 38, 107, 57, 38, 8, 249, 19, 225, 92, 239, 207, 252, 32, 8, 101, 108, 16, 57, 10, 183, 64, 235, 244, 139, 151, 95, 130, 166, 240, 240].to_vec();
 
-	let mut pk = [0u8; 33];
-	pk.copy_from_slice(&compressed_pub_key);
-	let pub_key = secp256k1::PublicKey::parse_compressed(&pk).expect("parse public key failed");
-	let signature = secp256k1::Signature::parse(&sig);
-	let msg_hash = hashing::blake2_256(&Encode::encode(&(dest, amount, sequence)));
-	let mut buffer = [0u8; 32];
-	buffer.copy_from_slice(&msg_hash);
-	let message = secp256k1::Message::parse(&buffer);
+		let transfer_data = super::TransferData {
+			dest: 1u64,
+			amount: 58000000000000000u128,
+			sequence: 1,
+			signature,
+		};
 
-	let verified = secp256k1::verify(&message, &signature, &pub_key);
-	assert_eq!(true, verified);
+		let actual = PhalaModule::verify_signature(compressed_pub_key, &transfer_data);
+		assert_eq!(true, actual.is_ok());
+	});
 }

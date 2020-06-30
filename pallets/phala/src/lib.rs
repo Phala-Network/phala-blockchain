@@ -297,28 +297,14 @@ decl_module! {
 			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
 
 			let serialized_pk = Machine::get(machine_id).0;
-			let mut pk = [0u8; 33];
-			pk.copy_from_slice(&serialized_pk);
-			let pub_key = secp256k1::PublicKey::parse_compressed(&pk);
-			ensure!(pub_key.is_ok(), Error::<T>::InvalidPubKey);
+			if let Ok(()) = Self::verify_signature(serialized_pk, &transfer_data) {
+				T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
+					.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
 
-			let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
-			ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
+				Sequence::set(sequence + 1);
 
-			let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence)));
-			let mut buffer = [0u8; 32];
-			buffer.copy_from_slice(&msg_hash);
-    		let message = secp256k1::Message::parse(&buffer);
-
-			let verified = secp256k1::verify(&message, &signature.unwrap(), &pub_key.unwrap());
-			ensure!(verified, Error::<T>::FailedToVerify);
-
-			T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
-				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
-
-			Sequence::set(sequence + 1);
-
-			Self::deposit_event(RawEvent::TransferToChain(transfer_data.dest.encode(), transfer_data.amount, sequence + 1));
+				Self::deposit_event(RawEvent::TransferToChain(transfer_data.dest.encode(), transfer_data.amount, sequence + 1));
+			}
 
 			Ok(())
 		}
@@ -332,5 +318,25 @@ impl<T: Trait> Module<T> {
 
 	pub fn is_miner(who: T::AccountId) -> bool {
 		<Miner<T>>::contains_key(&who)
+	}
+
+	pub fn verify_signature(serialized_pk: Vec<u8>, transfer_data: &TransferData<<T as system::Trait>::AccountId, BalanceOf<T>>) -> dispatch::DispatchResult {
+		let mut pk = [0u8; 33];
+		pk.copy_from_slice(&serialized_pk);
+		let pub_key = secp256k1::PublicKey::parse_compressed(&pk);
+		ensure!(pub_key.is_ok(), Error::<T>::InvalidPubKey);
+
+		let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
+		ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
+
+		let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence)));
+		let mut buffer = [0u8; 32];
+		buffer.copy_from_slice(&msg_hash);
+		let message = secp256k1::Message::parse(&buffer);
+
+		let verified = secp256k1::verify(&message, &signature.unwrap(), &pub_key.unwrap());
+		ensure!(verified, Error::<T>::FailedToVerify);
+
+		Ok(())
 	}
 }
