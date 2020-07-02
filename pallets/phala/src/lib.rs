@@ -97,11 +97,15 @@ type SequenceType = u32;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 
 #[derive(Encode, Decode)]
-pub struct TransferData<AccountId, Balance> {
+pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
 	pub amount: Balance,
-	pub signature: Vec<u8>,
 	pub sequence: SequenceType,
+}
+#[derive(Encode, Decode)]
+pub struct TransferData<AccountId, Balance> {
+	pub data: Transfer<AccountId, Balance>,
+	pub signature: Vec<u8>,
 }
 
 /// The pallet's configuration trait.
@@ -289,7 +293,7 @@ decl_module! {
 			let transfer_data: TransferData<<T as system::Trait>::AccountId, BalanceOf<T>> = data.unwrap();
 
 			let sequence = Sequence::get();
-			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
+			ensure!(transfer_data.data.sequence == sequence + 1, "Bad sequence");
 
 			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
 
@@ -298,12 +302,12 @@ decl_module! {
 
 			let serialized_pk = Machine::get(machine_id).0;
 			if let Ok(()) = Self::verify_signature(serialized_pk, &transfer_data) {
-				T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
+				T::TEECurrency::transfer(&Self::account_id(), &transfer_data.data.dest, transfer_data.data.amount, AllowDeath)
 					.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
 
 				Sequence::set(sequence + 1);
 
-				Self::deposit_event(RawEvent::TransferToChain(transfer_data.dest.encode(), transfer_data.amount, sequence + 1));
+				Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest.encode(), transfer_data.data.amount, sequence + 1));
 			}
 
 			Ok(())
@@ -329,7 +333,7 @@ impl<T: Trait> Module<T> {
 		let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
 		ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
 
-		let msg_hash = hashing::blake2_256(&Encode::encode(&(transfer_data.dest.clone(), transfer_data.amount, transfer_data.sequence)));
+		let msg_hash = hashing::blake2_256(&Encode::encode(&transfer_data.data));
 		let mut buffer = [0u8; 32];
 		buffer.copy_from_slice(&msg_hash);
 		let message = secp256k1::Message::parse(&buffer);

@@ -171,24 +171,24 @@ fn test_verify_signature() {
 	use rand;
 
 	new_test_ext().execute_with(|| {
-		let dest = 1u64;
-		let amount = 2u128;
-		let sequence = 3u32;
+		let data = super::Transfer {
+			dest: 1u64,
+			amount: 2u128,
+			sequence: 3u32,
+		};
 
 		let mut prng = rand::rngs::OsRng::default();
 		let sk = secp256k1::SecretKey::random(&mut prng);
 		let pk = secp256k1::PublicKey::from_secret_key(&sk);
 		let serialized_pk = pk.serialize_compressed();
 
-		let msg_hash = hashing::blake2_256(&Encode::encode(&(dest, amount, sequence)));
+		let msg_hash = hashing::blake2_256(&Encode::encode(&data));
 		let mut buffer = [0u8; 32];
 		buffer.copy_from_slice(&msg_hash);
 		let message = secp256k1::Message::parse(&buffer);
 		let sig = secp256k1::sign(&message, &sk);
 		let transfer_data = super::TransferData {
-			dest,
-			amount,
-			sequence,
+			data,
 			signature: sig.0.serialize().to_vec(),
 		};
 

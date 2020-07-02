@@ -56,11 +56,16 @@ pub enum Request {
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[derive(Encode, Decode)]
-pub struct TransferData {
+pub struct Transfer {
     dest: AccountIdWrapper,
     amount: chain::Balance,
-    signature: Vec<u8>,
     sequence: SequenceType,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct TransferData {
+    data: Transfer,
+    signature: Vec<u8>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -140,7 +145,13 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                         println!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         let sequence = self.sequence + 1;
 
-                        let msg_hash = blake2_256(&Encode::encode(&(dest.clone(), value, sequence)));
+                        let data = Transfer {
+                            dest,
+                            amount: value,
+                            sequence,
+                        };
+
+                        let msg_hash = blake2_256(&Encode::encode(&data));
                         let mut buffer = [0u8; 32];
                         buffer.copy_from_slice(&msg_hash);
                         let message = Message::parse(&buffer);
@@ -148,10 +159,8 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                         println!("signature={:?}", signature);
 
                         let transfer_data = TransferData {
-                            dest,
-                            amount: value,
+                            data,
                             signature: signature.0.serialize().to_vec(),
-                            sequence,
                         };
                         self.queue.push(transfer_data);
 
@@ -185,7 +194,7 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                 },
                 Request::PendingChainTransfer {sequence} => {
                     println!("PendingChainTransfer");
-                    let transfer_queue: Vec<&TransferData> = self.queue.iter().filter(|x| x.sequence > sequence).collect::<_>();
+                    let transfer_queue: Vec<&TransferData> = self.queue.iter().filter(|x| x.data.sequence > sequence).collect::<_>();
 
                     Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
                 },
@@ -216,9 +225,9 @@ impl contracts::Contract<Command, Request, Response> for Balance {
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
                 let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
-                let transfer_data = TransferData { dest: AccountIdWrapper(account_id), amount, signature: Vec::new(), sequence };
+                let transfer_data = TransferData { data: Transfer { dest: AccountIdWrapper(account_id), amount, sequence }, signature: Vec::new() };
                 println!("transfer data:{:?}", transfer_data);
-                self.queue.retain(|x| x.sequence > transfer_data.sequence);
+                self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
                 println!("queue len: {:}", self.queue.len());
             }
         }
