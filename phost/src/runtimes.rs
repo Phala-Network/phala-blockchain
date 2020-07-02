@@ -87,7 +87,7 @@ pub mod grandpa {
 
 pub mod phala {
     use codec::Encode;
-    use subxt::{module, Call, system::{System, SystemEventsDecoder}, balances::{Balances, BalancesEventsDecoder}};
+    use subxt::{module, Call, Store, system::{System, SystemEventsDecoder}, balances::{Balances, BalancesEventsDecoder}};
     use core::marker::PhantomData;
 
     /// The subset of the `pallet_phala::Trait` that a client must implement.
@@ -124,5 +124,20 @@ pub mod phala {
         pub signature: Vec<u8>,
         /// The signing cert
         pub raw_signing_cert: Vec<u8>,
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct SequenceStore<T: PhalaModule> {
+        #[store(returns = u32)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+    }
+
+    impl<T: PhalaModule> SequenceStore<T> {
+        pub fn new() -> Self {
+            Self {
+                _runtime: Default::default()
+            }
+        }
     }
 }

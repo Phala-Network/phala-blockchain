@@ -97,11 +97,15 @@ type SequenceType = u32;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 
 #[derive(Encode, Decode)]
-pub struct TransferData<AccountId, Balance> {
+pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
 	pub amount: Balance,
-	pub signature: Vec<u8>,
 	pub sequence: SequenceType,
+}
+#[derive(Encode, Decode)]
+pub struct TransferData<AccountId, Balance> {
+	pub data: Transfer<AccountId, Balance>,
+	pub signature: Vec<u8>,
 }
 
 /// The pallet's configuration trait.
@@ -289,7 +293,7 @@ decl_module! {
 			let transfer_data: TransferData<<T as system::Trait>::AccountId, BalanceOf<T>> = data.unwrap();
 
 			let sequence = Sequence::get();
-			ensure!(transfer_data.sequence == sequence + 1, "Bad sequence");
+			ensure!(transfer_data.data.sequence == sequence + 1, "Bad sequence");
 
 			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
 
