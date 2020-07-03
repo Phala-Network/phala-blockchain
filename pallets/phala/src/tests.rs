@@ -1,8 +1,4 @@
 // Tests to be written here
-use hex_literal::hex;
-use secp256k1;
-use crate::hashing;
-use codec::Encode;
 use crate::{Error, mock::*};
 use crate::RawEvent;
 use frame_support::{assert_ok, assert_noop};
@@ -169,21 +165,34 @@ fn test_whitelist_works() {
 
 #[test]
 fn test_verify_signature() {
-	let dest = hex!["d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d"];
-	let amount = 58000000000000000u128;
-	let sequence = 1u32;
-	let compressed_pub_key = hex!["02cbefc1cd9fb7f0d38651d58a00d74632aa19fbff3058a44f1edea60fe67d2e22"];
-	let sig: [u8; 64] = [137, 180, 28, 24, 132, 133, 139, 153, 251, 255, 99, 182, 94, 20, 77, 127, 74, 163, 27, 207, 221, 18, 77, 26, 195, 73, 30, 184, 57, 105, 26, 178, 78, 95, 21, 190, 226, 161, 43, 63, 51, 195, 57, 114, 251, 91, 166, 185, 54, 120, 74, 227, 181, 213, 103, 18, 247, 120, 174, 100, 224, 70, 68, 140];
+	use secp256k1;
+	use crate::hashing;
+	use codec::Encode;
+	use rand;
 
-	let mut pk = [0u8; 33];
-	pk.copy_from_slice(&compressed_pub_key);
-	let pub_key = secp256k1::PublicKey::parse_compressed(&pk).expect("parse public key failed");
-	let signature = secp256k1::Signature::parse(&sig);
-	let msg_hash = hashing::blake2_256(&Encode::encode(&(dest, amount, sequence)));
-	let mut buffer = [0u8; 32];
-	buffer.copy_from_slice(&msg_hash);
-	let message = secp256k1::Message::parse(&buffer);
+	new_test_ext().execute_with(|| {
+		let dest = 1u64;
+		let amount = 2u128;
+		let sequence = 3u32;
 
-	let verified = secp256k1::verify(&message, &signature, &pub_key);
-	assert_eq!(true, verified);
+		let mut prng = rand::rngs::OsRng::default();
+		let sk = secp256k1::SecretKey::random(&mut prng);
+		let pk = secp256k1::PublicKey::from_secret_key(&sk);
+		let serialized_pk = pk.serialize_compressed();
+
+		let msg_hash = hashing::blake2_256(&Encode::encode(&(dest, amount, sequence)));
+		let mut buffer = [0u8; 32];
+		buffer.copy_from_slice(&msg_hash);
+		let message = secp256k1::Message::parse(&buffer);
+		let sig = secp256k1::sign(&message, &sk);
+		let transfer_data = super::TransferData {
+			dest,
+			amount,
+			sequence,
+			signature: sig.0.serialize().to_vec(),
+		};
+
+		let actual = PhalaModule::verify_signature(serialized_pk.to_vec(), &transfer_data);
+		assert_eq!(true, actual.is_ok());
+	});
 }
