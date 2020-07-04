@@ -348,15 +348,10 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-//TODO: switch to high level fetch_or_default api
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     let block_tip = get_block_at(&client, None, false).await?.block;
     let hash = block_tip.block.header.hash();
-    if let Ok(seq) = client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await {
-        return Ok(seq);
-    }
-
-    Ok(0)
+    client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
 async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
