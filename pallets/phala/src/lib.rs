@@ -301,14 +301,14 @@ decl_module! {
 			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
 
 			let serialized_pk = Machine::get(machine_id).0;
-			if let Ok(()) = Self::verify_signature(serialized_pk, &transfer_data) {
-				T::TEECurrency::transfer(&Self::account_id(), &transfer_data.data.dest, transfer_data.data.amount, AllowDeath)
-					.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
+			Self::verify_signature(serialized_pk, &transfer_data)?;
 
-				Sequence::set(sequence + 1);
+			T::TEECurrency::transfer(&Self::account_id(), &transfer_data.dest, transfer_data.amount, AllowDeath)
+				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
 
-				Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest.encode(), transfer_data.data.amount, sequence + 1));
-			}
+			Sequence::set(sequence + 1);
+
+			Self::deposit_event(RawEvent::TransferToChain(transfer_data.dest.encode(), transfer_data.amount, sequence + 1));
 
 			Ok(())
 		}
