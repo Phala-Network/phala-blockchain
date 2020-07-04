@@ -2,6 +2,8 @@
 
 <img align="right" width="320" src="docs/static/web3 foundation_grants_badge_black.svg" alt="Funded by the web3 foundation">
 
+![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
+
 Phala Network is a TEE-Blockchain hybrid architecture implementing Confidential Contract. This repo
 includes:
 
