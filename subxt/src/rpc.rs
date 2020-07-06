@@ -37,7 +37,6 @@ use jsonrpsee::{
     },
     Client,
 };
-use num_traits::bounds::Bounded;
 use sc_rpc_api::state::ReadProof;
 use serde::Serialize;
 use sp_core::{
@@ -68,17 +67,14 @@ use crate::{
     events::{
         EventsDecoder,
         RawEvent,
-        RuntimeEvent,
     },
     frame::{
-        system::{
-            Phase,
-            System,
-            SystemEvent,
-        },
+        system::System,
         Event,
     },
     metadata::Metadata,
+    runtimes::Runtime,
+    subscription::EventSubscription,
 };
 
 pub type ChainBlock<T> =
@@ -86,35 +82,27 @@ pub type ChainBlock<T> =
 
 /// Wrapper for NumberOrHex to allow custom From impls
 #[derive(Serialize)]
-#[serde(bound = "<T as System>::BlockNumber: Serialize")]
-pub struct BlockNumber<T: System>(NumberOrHex<<T as System>::BlockNumber>);
+pub struct BlockNumber(NumberOrHex);
 
-impl<T> From<NumberOrHex<<T as System>::BlockNumber>> for BlockNumber<T>
-where
-    T: System,
-{
-    fn from(x: NumberOrHex<<T as System>::BlockNumber>) -> Self {
+impl From<NumberOrHex> for BlockNumber {
+    fn from(x: NumberOrHex) -> Self {
         BlockNumber(x)
     }
 }
 
-impl<T> From<u32> for BlockNumber<T>
-where
-    T: System,
-    <T as System>::BlockNumber: From<u32>,
-{
+impl From<u32> for BlockNumber {
     fn from(x: u32) -> Self {
         NumberOrHex::Number(x.into()).into()
     }
 }
 
 /// Client for substrate rpc interfaces
-pub struct Rpc<T: System> {
+pub struct Rpc<T: Runtime> {
     client: Client,
     marker: PhantomData<T>,
 }
 
-impl<T: System> Clone for Rpc<T> {
+impl<T: Runtime> Clone for Rpc<T> {
     fn clone(&self) -> Self {
         Self {
             client: self.client.clone(),
@@ -123,7 +111,7 @@ impl<T: System> Clone for Rpc<T> {
     }
 }
 
-impl<T: System> Rpc<T> {
+impl<T: Runtime> Rpc<T> {
     pub fn new(client: Client) -> Self {
         Self {
             client,
@@ -163,9 +151,7 @@ impl<T: System> Rpc<T> {
 
     /// Fetch the genesis hash
     pub async fn genesis_hash(&self) -> Result<T::Hash, Error> {
-        let block_zero = Some(ListOrValue::Value(NumberOrHex::Number(
-            T::BlockNumber::min_value(),
-        )));
+        let block_zero = Some(ListOrValue::Value(NumberOrHex::Number(0)));
         let params = Params::Array(vec![to_json_value(block_zero)?]);
         let list_or_value: ListOrValue<Option<T::Hash>> =
             self.client.request("chain_getBlockHash", params).await?;
@@ -201,7 +187,7 @@ impl<T: System> Rpc<T> {
     /// Get a block hash, returns hash of latest block by default
     pub async fn block_hash(
         &self,
-        block_number: Option<BlockNumber<T>>,
+        block_number: Option<BlockNumber>,
     ) -> Result<Option<T::Hash>, Error> {
         let block_number = block_number.map(ListOrValue::Value);
         let params = Params::Array(vec![to_json_value(block_number)?]);
@@ -258,7 +244,7 @@ impl<T: System> Rpc<T> {
     /// Subscribe to substrate System Events
     pub async fn subscribe_events(
         &self,
-    ) -> Result<Subscription<StorageChangeSet<<T as System>::Hash>>, Error> {
+    ) -> Result<Subscription<StorageChangeSet<T::Hash>>, Error> {
         let mut storage_key = twox_128(b"System").to_vec();
         storage_key.extend(twox_128(b"Events").to_vec());
         log::debug!("Events storage key {:?}", hex::encode(&storage_key));
@@ -362,14 +348,31 @@ impl<T: System> Rpc<T> {
                                 block_hash,
                                 signed_block.block.extrinsics.len()
                             );
-                            wait_for_block_events(
-                                decoder,
-                                ext_hash,
-                                signed_block,
-                                block_hash,
-                                events_sub,
-                            )
-                            .await
+                            let ext_index = signed_block
+                                .block
+                                .extrinsics
+                                .iter()
+                                .position(|ext| {
+                                    let hash = T::Hashing::hash_of(ext);
+                                    hash == ext_hash
+                                })
+                                .ok_or_else(|| {
+                                    Error::Other(format!(
+                                        "Failed to find Extrinsic with hash {:?}",
+                                        ext_hash,
+                                    ))
+                                })?;
+                            let mut sub = EventSubscription::new(events_sub, decoder);
+                            sub.filter_extrinsic(block_hash, ext_index);
+                            let mut events = vec![];
+                            while let Some(event) = sub.next().await {
+                                events.push(event?);
+                            }
+                            Ok(ExtrinsicSuccess {
+                                block: block_hash,
+                                extrinsic: ext_hash,
+                                events,
+                            })
                         }
                         None => {
                             Err(format!("Failed to find block {:?}", block_hash).into())
@@ -393,6 +396,53 @@ impl<T: System> Rpc<T> {
         }
         unreachable!()
     }
+
+    /// Insert a key into the keystore.
+    pub async fn insert_key(
+        &self,
+        key_type: String,
+        suri: String,
+        public: Bytes,
+    ) -> Result<(), Error> {
+        let params = Params::Array(vec![
+            to_json_value(key_type)?,
+            to_json_value(suri)?,
+            to_json_value(public)?,
+        ]);
+        self.client.request("author_insertKey", params).await?;
+        Ok(())
+    }
+
+    /// Generate new session keys and returns the corresponding public keys.
+    pub async fn rotate_keys(&self) -> Result<Bytes, Error> {
+        Ok(self
+            .client
+            .request("author_rotateKeys", Params::None)
+            .await?)
+    }
+
+    /// Checks if the keystore has private keys for the given session public keys.
+    ///
+    /// `session_keys` is the SCALE encoded session keys object from the runtime.
+    ///
+    /// Returns `true` iff all private keys could be found.
+    pub async fn has_session_keys(&self, session_keys: Bytes) -> Result<bool, Error> {
+        let params = Params::Array(vec![to_json_value(session_keys)?]);
+        Ok(self.client.request("author_hasSessionKeys", params).await?)
+    }
+
+    /// Checks if the keystore has private keys for the given public key and key type.
+    ///
+    /// Returns `true` if a private key could be found.
+    pub async fn has_key(
+        &self,
+        public_key: Bytes,
+        key_type: String,
+    ) -> Result<bool, Error> {
+        let params =
+            Params::Array(vec![to_json_value(public_key)?, to_json_value(key_type)?]);
+        Ok(self.client.request("author_hasKey", params).await?)
+    }
 }
 
 /// Captures data for when an extrinsic is successfully included in a block
@@ -403,36 +453,16 @@ pub struct ExtrinsicSuccess<T: System> {
     /// Extrinsic hash.
     pub extrinsic: T::Hash,
     /// Raw runtime events, can be decoded by the caller.
-    pub events: Vec<RuntimeEvent<T>>,
+    pub events: Vec<RawEvent>,
 }
 
 impl<T: System> ExtrinsicSuccess<T> {
     /// Find the Event for the given module/variant, with raw encoded event data.
     /// Returns `None` if the Event is not found.
     pub fn find_event_raw(&self, module: &str, variant: &str) -> Option<&RawEvent> {
-        self.events.iter().find_map(|evt| {
-            match evt {
-                RuntimeEvent::Raw(ref raw)
-                    if raw.module == module && raw.variant == variant =>
-                {
-                    Some(raw)
-                }
-                _ => None,
-            }
-        })
-    }
-
-    /// Returns all System Events
-    pub fn system_events(&self) -> Vec<&SystemEvent<T>> {
         self.events
             .iter()
-            .filter_map(|evt| {
-                match evt {
-                    RuntimeEvent::System(evt) => Some(evt),
-                    _ => None,
-                }
-            })
-            .collect()
+            .find(|raw| raw.module == module && raw.variant == variant)
     }
 
     /// Find the Event for the given module/variant, attempting to decode the event data.
@@ -445,60 +475,4 @@ impl<T: System> ExtrinsicSuccess<T> {
             Ok(None)
         }
     }
-}
-
-/// Waits for events for the block triggered by the extrinsic
-pub async fn wait_for_block_events<T: System>(
-    decoder: EventsDecoder<T>,
-    ext_hash: T::Hash,
-    signed_block: ChainBlock<T>,
-    block_hash: T::Hash,
-    events_subscription: Subscription<StorageChangeSet<T::Hash>>,
-) -> Result<ExtrinsicSuccess<T>, Error> {
-    let ext_index = signed_block
-        .block
-        .extrinsics
-        .iter()
-        .position(|ext| {
-            let hash = T::Hashing::hash_of(ext);
-            hash == ext_hash
-        })
-        .ok_or_else(|| {
-            Error::Other(format!("Failed to find Extrinsic with hash {:?}", ext_hash))
-        })?;
-
-    let mut subscription = events_subscription;
-    while let change_set = subscription.next().await {
-        // only interested in events for the given block
-        if change_set.block != block_hash {
-            continue
-        }
-        let mut events = Vec::new();
-        for (_key, data) in change_set.changes {
-            if let Some(data) = data {
-                match decoder.decode_events(&mut &data.0[..]) {
-                    Ok(raw_events) => {
-                        for (phase, event) in raw_events {
-                            if let Phase::ApplyExtrinsic(i) = phase {
-                                if i as usize == ext_index {
-                                    events.push(event)
-                                }
-                            }
-                        }
-                    }
-                    Err(err) => return Err(err.into()),
-                }
-            }
-        }
-        return if !events.is_empty() {
-            Ok(ExtrinsicSuccess {
-                block: block_hash,
-                extrinsic: ext_hash,
-                events,
-            })
-        } else {
-            Err(format!("No events found for block {}", block_hash).into())
-        }
-    }
-    unreachable!()
 }

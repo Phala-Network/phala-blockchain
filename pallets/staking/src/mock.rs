@@ -35,6 +35,7 @@ use sp_npos_elections::{
 	build_support_map, evaluate_support, reduce, ExtendedBalance, StakedAssignment, ElectionScore,
 	VoteWeight,
 };
+use pallet_phala as phala;
 use crate::*;
 
 pub const INIT_TIMESTAMP: u64 = 30_000;
@@ -176,6 +177,7 @@ impl_outer_event! {
 		balances<T>,
 		session,
 		staking<T>,
+		phala<T>,
 	}
 }
 
@@ -200,10 +202,11 @@ parameter_types! {
 	pub const AvailableBlockRatio: Perbill = Perbill::one();
 }
 impl frame_system::Trait for Test {
+	type BaseCallFilter = ();
 	type Origin = Origin;
+	type Call = Call;
 	type Index = AccountIndex;
 	type BlockNumber = BlockNumber;
-	type Call = Call;
 	type Hash = H256;
 	type Hashing = ::sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
@@ -216,20 +219,22 @@ impl frame_system::Trait for Test {
 	type BlockExecutionWeight = ();
 	type ExtrinsicBaseWeight = ();
 	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type MaximumBlockLength = MaximumBlockLength;
+	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type ModuleToIndex = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
+	type SystemWeightInfo = ();
 }
 impl pallet_balances::Trait for Test {
 	type Balance = Balance;
-	type Event = MetaEvent;
 	type DustRemoval = ();
+	type Event = MetaEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
+	type WeightInfo = ();
 }
 parameter_types! {
 	pub const Offset: BlockNumber = 0;
@@ -242,15 +247,16 @@ sp_runtime::impl_opaque_keys! {
 	}
 }
 impl pallet_session::Trait for Test {
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
-	type Keys = SessionKeys;
-	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-	type SessionHandler = (OtherSessionHandler,);
 	type Event = MetaEvent;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = crate::StashOf<Test>;
-	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
 	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
+	type SessionHandler = (OtherSessionHandler,);
+	type Keys = SessionKeys;
+	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type WeightInfo = ();
 }
 
 impl pallet_session::historical::Trait for Test {
@@ -270,6 +276,7 @@ impl pallet_timestamp::Trait for Test {
 	type Moment = u64;
 	type OnTimestampSet = ();
 	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 pallet_staking_reward_curve::build! {
 	const I_NPOS: PiecewiseLinear<'static> = curve!(
@@ -313,9 +320,9 @@ impl Trait for Test {
 	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
+	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
-	type BondingDuration = BondingDuration;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type NextNewSession = Session;
@@ -325,13 +332,19 @@ impl Trait for Test {
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type UnsignedPriority = UnsignedPriority;
+	type WeightInfo = ();
+}
+
+impl pallet_phala::Trait for Test {
+	type Event = MetaEvent;
+	type TEECurrency = Balances;
 }
 
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test where
 	Call: From<LocalCall>,
 {
-	type OverarchingCall = Call;
 	type Extrinsic = Extrinsic;
+	type OverarchingCall = Call;
 }
 
 pub type Extrinsic = TestXt<Call, ()>;
