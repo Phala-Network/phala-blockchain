@@ -457,7 +457,7 @@ fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn phala_testnet_poc2_config() -> ChainSpec {
+pub fn phala_testnet_poc2_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
 	let protocol_id: &str = "phat2";
 	let properties = {
@@ -479,6 +479,11 @@ pub fn phala_testnet_poc2_config() -> ChainSpec {
 		Some(properties),
 		Default::default(),
 	)
+}
+
+/// Phala PoC-2 testnet generator
+pub fn phala_testnet_poc2_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/poc2.json")[..])
 }
 
 
