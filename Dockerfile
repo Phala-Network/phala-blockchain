@@ -47,8 +47,7 @@ ADD . phala-blockchain
 
 # ====== build phala ======
 
-RUN cd phala-blockchain/node && PATH="$PATH:$HOME/.cargo/bin" bash ./scripts/console.sh wrap-build
-RUN cd phala-blockchain/phost && PATH="$PATH:$HOME/.cargo/bin" bash ./scripts/console.sh build --release
+RUN cd phala-blockchain && PATH="$PATH:$HOME/.cargo/bin" cargo build --release
 RUN cd phala-blockchain/pruntime && PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=SW make
 
 # ====== clean up ======

@@ -52,7 +52,7 @@ start)
   shift
   role=$1
   if [ "${CHAIN_SPEC}" == "local" ]; then
-	role_flag="--${role}"
+  role_flag="--${role}"
   fi
   case $role in
   alice)
@@ -63,9 +63,9 @@ start)
         ${role_flag} \
         --rpc-cors all \
         --node-key 0000000000000000000000000000000000000000000000000000000000000001 \
-		--port "${P2P_PORT[${role}]}" \
-		--rpc-port "${RPC_PORT[${role}]}" \
-		--ws-port "${WS_PORT[${role}]}" \
+        --port "${P2P_PORT[${role}]}" \
+        --rpc-port "${RPC_PORT[${role}]}" \
+        --ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
   bob|charlie|dave)
@@ -76,9 +76,9 @@ start)
         --chain="${CHAIN_SPEC}" \
         ${role_flag} \
         --rpc-cors all \
-		--port "${P2P_PORT[${role}]}" \
-		--rpc-port "${RPC_PORT[${role}]}" \
-		--ws-port "${WS_PORT[${role}]}" \
+        --port "${P2P_PORT[${role}]}" \
+        --rpc-port "${RPC_PORT[${role}]}" \
+        --ws-port "${WS_PORT[${role}]}" \
         --validator "$@"
   ;;
   *)
@@ -90,7 +90,7 @@ insert-keys)
   read -s -p "Enter mnemonic: " SECRET
   echo
   for i in 1 2 3 4; do
-  	echo -e "${SECRET}\n${i}\n${rpc_port_array[${i}]}\n" | ./scripts/insert-keys.sh
+    echo -e "${SECRET}\n${i}\n${rpc_port_array[${i}]}\n" | ./scripts/insert-keys.sh
   done
 ;;
 esac
