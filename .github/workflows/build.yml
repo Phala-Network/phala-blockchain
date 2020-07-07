@@ -28,3 +28,8 @@ jobs:
         submodules: 'true'
     - name: Build
       run: cargo build --verbose --release
+    - name: Save binaries
+      uses: actions/upload-artifact@v1
+      with:
+        name: binaries
+        path: target/release/phala-node
