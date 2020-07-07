@@ -15,21 +15,27 @@
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
 use sp_runtime::{
+    generic::Header,
     traits::{
         BlakeTwo256,
+        IdentifyAccount,
+        Verify,
     },
+    MultiSignature,
     OpaqueExtrinsic,
 };
 
 use subxt::{
+    DefaultExtra,
     balances::{
         AccountData,
         Balances,
     },
+    contracts::Contracts,
+    sudo::Sudo,
     system::System,
+    Runtime
 };
-
-use node_primitives::{BlockNumber, Hash, Header, Index, AccountId};
 
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
@@ -40,14 +46,19 @@ use node_primitives::{BlockNumber, Hash, Header, Index, AccountId};
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PhalaNodeRuntime;
 
+impl Runtime for PhalaNodeRuntime {
+    type Signature = MultiSignature;
+    type Extra = DefaultExtra<Self>;
+}
+
 impl System for PhalaNodeRuntime {
-    type Index = Index;
-    type BlockNumber = BlockNumber;
-    type Hash = Hash;
+    type Index = u32;
+    type BlockNumber = u32;
+    type Hash = sp_core::H256;
     type Hashing = BlakeTwo256;
-    type AccountId = AccountId;
+    type AccountId = <<MultiSignature as Verify>::Signer as IdentifyAccount>::AccountId;
     type Address = pallet_indices::address::Address<Self::AccountId, u32>;
-    type Header = Header;
+    type Header = Header<Self::BlockNumber, BlakeTwo256>;
     type Extrinsic = OpaqueExtrinsic;
     type AccountData = AccountData<<Self as Balances>::Balance>;
 }
@@ -55,6 +66,10 @@ impl System for PhalaNodeRuntime {
 impl Balances for PhalaNodeRuntime {
     type Balance = u128;
 }
+
+impl Contracts for PhalaNodeRuntime {}
+
+impl Sudo for PhalaNodeRuntime {}
 
 impl phala::PhalaModule for PhalaNodeRuntime {}
 
