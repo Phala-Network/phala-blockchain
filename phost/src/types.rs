@@ -108,14 +108,18 @@ pub struct TransferQueue {
     pub transfer_queue_b64: String,
 }
 
-// TODO : need refactoring
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct Transfer {
+    pub dest: [u8; 32],
+    pub amount: u128,
+    pub sequence: u32,
+}
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
 pub struct TransferData {
-    pub dest: [u8; 32],
-    pub amount: u128,
+    pub data: Transfer,
     pub signature: Vec<u8>,
-    pub sequence: u32,
 }
 
 impl Resp for QueryReq {

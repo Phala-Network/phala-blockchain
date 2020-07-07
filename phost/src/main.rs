@@ -348,19 +348,10 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-//TODO: switch to high level fetch_or_default api
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     let block_tip = get_block_at(&client, None, false).await?.block;
     let hash = block_tip.block.header.hash();
-    let key = storage_value_key_vec("PhalaModule", "Sequence");
-    if let Some(value) = get_storage(&client, Some(hash), StorageKey(key)).await? {
-        let mut n: [u8; 4] = [0; 4];
-        n.copy_from_slice(&value[..4]);
-
-        return Ok(u32::from_le_bytes(n));
-    }
-
-    Ok(0)
+    client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
 async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
@@ -389,12 +380,12 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
 
     let mut max_seq = *sequence;
     for transfer_data in &transfer_queue {
-        if transfer_data.sequence <= *sequence {
+        if transfer_data.data.sequence <= *sequence {
             println!("The tx has been submitted.");
             continue;
         }
-        if transfer_data.sequence > max_seq {
-            max_seq = transfer_data.sequence;
+        if transfer_data.data.sequence > max_seq {
+            max_seq = transfer_data.data.sequence;
         }
 
         let call = runtimes::phala::TransferToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
