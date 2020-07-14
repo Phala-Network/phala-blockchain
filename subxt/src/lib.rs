@@ -42,28 +42,24 @@
 #[macro_use]
 extern crate substrate_subxt_proc_macro;
 
+#[cfg(feature = "client")]
+pub use substrate_subxt_client as client;
+
 pub use sp_core;
 pub use sp_runtime;
 
-use codec::{
-    Decode,
-    Encode,
-};
+use codec::Decode;
 use futures::future;
 use jsonrpsee::client::Subscription;
 use sc_rpc_api::state::ReadProof;
-use sp_core::storage::{
-    StorageChangeSet,
-    StorageKey,
-};
-use sp_runtime::{
-    generic::{
-        SignedPayload,
-        UncheckedExtrinsic,
+use sp_core::{
+    storage::{
+        StorageChangeSet,
+        StorageKey,
     },
-    traits::SignedExtension,
-    MultiSignature,
+    Bytes,
 };
+pub use sp_runtime::traits::SignedExtension;
 use sp_version::RuntimeVersion;
 use std::marker::PhantomData;
 
@@ -75,12 +71,12 @@ mod metadata;
 mod rpc;
 mod runtimes;
 mod signer;
+mod subscription;
 
 pub use crate::{
     error::Error,
     events::{
         EventsDecoder,
-        EventsError,
         RawEvent,
     },
     extra::*,
@@ -95,6 +91,7 @@ pub use crate::{
     },
     runtimes::*,
     signer::*,
+    subscription::*,
     substrate_subxt_proc_macro::*,
 };
 use crate::{
@@ -102,7 +99,6 @@ use crate::{
         AccountStoreExt,
         Phase,
         System,
-        SystemEvent,
     },
     rpc::{
         ChainBlock,
@@ -112,13 +108,13 @@ use crate::{
 
 /// ClientBuilder for constructing a Client.
 #[derive(Default)]
-pub struct ClientBuilder<T: System, S = MultiSignature, E = DefaultExtra<T>> {
-    _marker: std::marker::PhantomData<(T, S, E)>,
+pub struct ClientBuilder<T: Runtime> {
+    _marker: std::marker::PhantomData<T>,
     url: Option<String>,
     client: Option<jsonrpsee::Client>,
 }
 
-impl<T: System + Send + Sync, S, E> ClientBuilder<T, S, E> {
+impl<T: Runtime> ClientBuilder<T> {
     /// Creates a new ClientBuilder.
     pub fn new() -> Self {
         Self {
@@ -141,7 +137,7 @@ impl<T: System + Send + Sync, S, E> ClientBuilder<T, S, E> {
     }
 
     /// Creates a new Client.
-    pub async fn build(self) -> Result<Client<T, S, E>, Error> {
+    pub async fn build(self) -> Result<Client<T>, Error> {
         let client = if let Some(client) = self.client {
             client
         } else {
@@ -170,16 +166,16 @@ impl<T: System + Send + Sync, S, E> ClientBuilder<T, S, E> {
 }
 
 /// Client to interface with a substrate node.
-pub struct Client<T: System, S = MultiSignature, E = DefaultExtra<T>> {
-    /// Expose the rpc client for legacy code
+pub struct Client<T: Runtime> {
+    /// RPC
     pub rpc: Rpc<T>,
     genesis_hash: T::Hash,
     metadata: Metadata,
     runtime_version: RuntimeVersion,
-    _marker: PhantomData<(fn() -> S, E)>,
+    _marker: PhantomData<(fn() -> T::Signature, T::Extra)>,
 }
 
-impl<T: System, S, E> Clone for Client<T, S, E> {
+impl<T: Runtime> Clone for Client<T> {
     fn clone(&self) -> Self {
         Self {
             rpc: self.rpc.clone(),
@@ -191,7 +187,7 @@ impl<T: System, S, E> Clone for Client<T, S, E> {
     }
 }
 
-impl<T: System, S, E> Client<T, S, E> {
+impl<T: Runtime> Client<T> {
     /// Returns the genesis hash.
     pub fn genesis(&self) -> &T::Hash {
         &self.genesis_hash
@@ -252,7 +248,7 @@ impl<T: System, S, E> Client<T, S, E> {
     /// Get a block hash. By default returns the latest block hash
     pub async fn block_hash(
         &self,
-        block_number: Option<BlockNumber<T>>,
+        block_number: Option<BlockNumber>,
     ) -> Result<Option<T::Hash>, Error> {
         let hash = self.rpc.block_hash(block_number).await?;
         Ok(hash)
@@ -307,23 +303,28 @@ impl<T: System, S, E> Client<T, S, E> {
         let headers = self.rpc.subscribe_finalized_blocks().await?;
         Ok(headers)
     }
-}
 
-impl<T, S, E> Client<T, S, E>
-where
-    T: System + Send + Sync + 'static,
-    S: Encode + Send + Sync + 'static,
-    E: SignedExtra<T> + SignedExtension + Send + Sync + 'static,
-{
-    /// Creates an unsigned extrinsic.
+    /// Encodes a call.
+    pub fn encode<C: Call<T>>(&self, call: C) -> Result<Encoded, Error> {
+        Ok(self
+            .metadata()
+            .module_with_calls(C::MODULE)
+            .and_then(|module| module.call(C::FUNCTION, call))?)
+    }
+
+    /// Creates an payload for an extrinsic.
     ///
     /// If `nonce` is `None` the nonce will be fetched from the chain.
-    pub async fn create_unsigned<C: Call<T>>(
+    pub async fn create_payload<C: Call<T>>(
         &self,
         call: C,
         account_id: &<T as System>::AccountId,
         nonce: Option<T::Index>,
-    ) -> Result<SignedPayload<Encoded, <E as SignedExtra<T>>::Extra>, Error> {
+    ) -> Result<SignedPayload<T>, Error>
+    where
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+            Send + Sync,
+    {
         let account_nonce = if let Some(nonce) = nonce {
             nonce
         } else {
@@ -332,31 +333,44 @@ where
         let spec_version = self.runtime_version.spec_version;
         let tx_version = self.runtime_version.transaction_version;
         let genesis_hash = self.genesis_hash;
-        let call = self
-            .metadata()
-            .module_with_calls(C::MODULE)
-            .and_then(|module| module.call(C::FUNCTION, call))?;
-        let extra: E = E::new(spec_version, tx_version, account_nonce, genesis_hash);
-        let raw_payload = SignedPayload::new(call, extra.extra())?;
+        let call = self.encode(call)?;
+        let extra: T::Extra =
+            T::Extra::new(spec_version, tx_version, account_nonce, genesis_hash);
+        let raw_payload = SignedPayload::<T>::new(call, extra.extra())?;
         Ok(raw_payload)
+    }
+
+    /// Creates an unsigned extrinsic.
+    pub async fn create_unsigned<C: Call<T> + Send + Sync>(
+        &self,
+        call: C,
+        account_id: &<T as System>::AccountId,
+        nonce: Option<T::Index>,
+    ) -> Result<UncheckedExtrinsic<T>, Error>
+    where
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+            Send + Sync,
+    {
+        let payload = self.create_payload(call, account_id, nonce).await?;
+        let (call, _, _) = payload.deconstruct();
+        let unsigned = UncheckedExtrinsic::<T>::new_unsigned(call);
+        Ok(unsigned)
     }
 
     /// Creates a signed extrinsic.
     pub async fn create_signed<C: Call<T> + Send + Sync>(
         &self,
         call: C,
-        signer: &(dyn Signer<T, S, E> + Send + Sync),
-    ) -> Result<
-        UncheckedExtrinsic<T::Address, Encoded, S, <E as SignedExtra<T>>::Extra>,
-        Error,
-    >
+        signer: &(dyn Signer<T> + Send + Sync),
+    ) -> Result<UncheckedExtrinsic<T>, Error>
     where
-        <<E as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+            Send + Sync,
     {
-        let unsigned = self
-            .create_unsigned(call, signer.account_id(), signer.nonce())
+        let payload = self
+            .create_payload(call, signer.account_id(), signer.nonce())
             .await?;
-        let signed = signer.sign(unsigned).await?;
+        let signed = signer.sign(payload).await?;
         Ok(signed)
     }
 
@@ -371,12 +385,7 @@ where
     /// Create and submit an extrinsic and return corresponding Hash if successful
     pub async fn submit_extrinsic(
         &self,
-        extrinsic: UncheckedExtrinsic<
-            T::Address,
-            Encoded,
-            S,
-            <E as SignedExtra<T>>::Extra,
-        >,
+        extrinsic: UncheckedExtrinsic<T>,
     ) -> Result<T::Hash, Error> {
         self.rpc.submit_extrinsic(extrinsic).await
     }
@@ -384,12 +393,7 @@ where
     /// Create and submit an extrinsic and return corresponding Event if successful
     pub async fn submit_and_watch_extrinsic(
         &self,
-        extrinsic: UncheckedExtrinsic<
-            T::Address,
-            Encoded,
-            S,
-            <E as SignedExtra<T>>::Extra,
-        >,
+        extrinsic: UncheckedExtrinsic<T>,
         decoder: EventsDecoder<T>,
     ) -> Result<ExtrinsicSuccess<T>, Error> {
         self.rpc
@@ -401,10 +405,11 @@ where
     pub async fn submit<C: Call<T> + Send + Sync>(
         &self,
         call: C,
-        signer: &(dyn Signer<T, S, E> + Send + Sync),
+        signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<T::Hash, Error>
     where
-        <<E as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+            Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
         self.submit_extrinsic(extrinsic).await
@@ -414,20 +419,56 @@ where
     pub async fn watch<C: Call<T> + Send + Sync>(
         &self,
         call: C,
-        signer: &(dyn Signer<T, S, E> + Send + Sync),
+        signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<ExtrinsicSuccess<T>, Error>
     where
-        <<E as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+            Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
         let decoder = self.events_decoder::<C>();
         self.submit_and_watch_extrinsic(extrinsic, decoder).await
     }
+
+    /// Insert a key into the keystore.
+    pub async fn insert_key(
+        &self,
+        key_type: String,
+        suri: String,
+        public: Bytes,
+    ) -> Result<(), Error> {
+        self.rpc.insert_key(key_type, suri, public).await
+    }
+
+    /// Generate new session keys and returns the corresponding public keys.
+    pub async fn rotate_keys(&self) -> Result<Bytes, Error> {
+        self.rpc.rotate_keys().await
+    }
+
+    /// Checks if the keystore has private keys for the given session public keys.
+    ///
+    /// `session_keys` is the SCALE encoded session keys object from the runtime.
+    ///
+    /// Returns `true` iff all private keys could be found.
+    pub async fn has_session_keys(&self, session_keys: Bytes) -> Result<bool, Error> {
+        self.rpc.has_session_keys(session_keys).await
+    }
+
+    /// Checks if the keystore has private keys for the given public key and key type.
+    ///
+    /// Returns `true` if a private key could be found.
+    pub async fn has_key(
+        &self,
+        public_key: Bytes,
+        key_type: String,
+    ) -> Result<bool, Error> {
+        self.rpc.has_key(public_key, key_type).await
+    }
 }
 
 /// Wraps an already encoded byte vector, prevents being encoded as a raw byte vector as part of
 /// the transaction payload
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Encoded(pub Vec<u8>);
 
 impl codec::Encode for Encoded {
@@ -438,6 +479,8 @@ impl codec::Encode for Encoded {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+    use codec::Encode;
     use sp_core::{
         storage::{
             well_known_keys,
@@ -449,24 +492,82 @@ mod tests {
         AccountKeyring,
         Ed25519Keyring,
     };
+    use sp_runtime::MultiSignature;
+    use substrate_subxt_client::{
+        DatabaseConfig,
+        KeystoreConfig,
+        Role,
+        SubxtClient,
+        SubxtClientConfig,
+    };
+    use tempdir::TempDir;
 
-    use super::*;
+    pub(crate) type TestRuntime = crate::NodeTemplateRuntime;
 
-    pub(crate) async fn test_client() -> Client<crate::DefaultNodeRuntime> {
-        ClientBuilder::new()
+    pub(crate) async fn test_client_with(
+        key: AccountKeyring,
+    ) -> (Client<TestRuntime>, TempDir) {
+        env_logger::try_init().ok();
+        let tmp = TempDir::new("subxt-").expect("failed to create tempdir");
+        let config = SubxtClientConfig {
+            impl_name: "substrate-subxt-full-client",
+            impl_version: "0.0.1",
+            author: "substrate subxt",
+            copyright_start_year: 2020,
+            db: DatabaseConfig::RocksDb {
+                path: tmp.path().join("db"),
+                cache_size: 128,
+            },
+            keystore: KeystoreConfig::Path {
+                path: tmp.path().join("keystore"),
+                password: None,
+            },
+            builder: test_node::service::new_full,
+            chain_spec: test_node::chain_spec::development_config(),
+            role: Role::Authority(key),
+        };
+        let client = ClientBuilder::new()
+            .set_client(SubxtClient::new(config).expect("Error creating subxt client"))
             .build()
             .await
-            .expect("Error creating client")
+            .expect("Error creating client");
+        (client, tmp)
+    }
+
+    pub(crate) async fn test_client() -> (Client<TestRuntime>, TempDir) {
+        test_client_with(AccountKeyring::Alice).await
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
+    async fn test_insert_key() {
+        // Bob is not an authority, so block production should be disabled.
+        let (client, _tmp) = test_client_with(AccountKeyring::Bob).await;
+        let mut blocks = client.subscribe_blocks().await.unwrap();
+        // get the genesis block.
+        assert_eq!(blocks.next().await.number, 0);
+        let public = AccountKeyring::Alice.public().as_array_ref().to_vec();
+        client
+            .insert_key(
+                "aura".to_string(),
+                "//Alice".to_string(),
+                public.clone().into(),
+            )
+            .await
+            .unwrap();
+        assert!(client
+            .has_key(public.clone().into(), "aura".to_string())
+            .await
+            .unwrap());
+        // Alice is an authority, so blocks should be produced.
+        assert_eq!(blocks.next().await.number, 1);
+    }
+
+    #[async_std::test]
     async fn test_tx_transfer_balance() {
-        env_logger::try_init().ok();
         let mut signer = PairSigner::new(AccountKeyring::Alice.pair());
         let dest = AccountKeyring::Bob.to_account_id().into();
 
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         let nonce = client
             .account(&AccountKeyring::Alice.to_account_id(), None)
             .await
@@ -499,24 +600,21 @@ mod tests {
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_getting_hash() {
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         client.block_hash(None).await.unwrap();
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_getting_block() {
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         let block_hash = client.block_hash(None).await.unwrap();
         client.block(block_hash).await.unwrap();
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_getting_read_proof() {
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         let block_hash = client.block_hash(None).await.unwrap();
         client
             .read_proof(
@@ -531,33 +629,30 @@ mod tests {
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_chain_subscribe_blocks() {
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         let mut blocks = client.subscribe_blocks().await.unwrap();
         blocks.next().await;
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_chain_subscribe_finalized_blocks() {
-        let client = test_client().await;
+        let (client, _) = test_client().await;
         let mut blocks = client.subscribe_finalized_blocks().await.unwrap();
         blocks.next().await;
     }
 
     #[async_std::test]
-    #[ignore] // requires locally running substrate node
     async fn test_create_raw_payload() {
         let signer_pair = Ed25519Keyring::Alice.pair();
         let signer_account_id = Ed25519Keyring::Alice.to_account_id();
         let dest = AccountKeyring::Bob.to_account_id().into();
 
-        let client = test_client().await;
+        let (client, _) = test_client().await;
 
         // create raw payload with AccoundId and sign it
         let raw_payload = client
-            .create_unsigned(
+            .create_payload(
                 balances::TransferCall {
                     to: &dest,
                     amount: 10_000,

@@ -79,7 +79,7 @@ fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::
 
 async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
                       -> Result<BlockWithEvents, Error> {
-    let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h)));
+    let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
         None => client.finalized_head().await?
@@ -450,12 +450,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 return Err(Error::FailedToCallRegisterWorker);
             }
 
-            let events = ret.unwrap();
-            for sys_event in events.system_events() {
-                if let subxt::system::SystemEvent::ExtrinsicFailed(_de, _di) = sys_event {
-                    return Err(Error::ExecRegisterWorkerError);
-                }
-            }
+            ()
         }
     }
 
