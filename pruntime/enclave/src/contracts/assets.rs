@@ -26,7 +26,17 @@ pub struct AssetMetadata {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Assets {
     assets: BTreeMap<u32, BTreeMap<AccountIdWrapper, chain::Balance>>,
-    metadata: Vec<AssetMetadata>
+    metadata: Vec<AssetMetadata>,
+    history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AssetsTx {
+    txref: TxRef,
+    asset_id: u32,
+    from: AccountIdWrapper,
+    to: AccountIdWrapper,
+    #[serde(with = "super::serde_balance")]
+    amount: chain::Balance,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -62,7 +72,10 @@ pub enum Request {
     TotalSupply {
         id: AssetId
     },
-    Metadata
+    Metadata,
+    History {
+        account: AccountIdWrapper
+    }
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -76,6 +89,9 @@ pub enum Response {
     },
     Metadata {
         metadata: Vec<AssetMetadata>
+    },
+    History {
+        history: Vec<AssetsTx>
     },
     Error(Error)
 }
@@ -104,14 +120,14 @@ impl Assets {
         metadata.push(metadatum);
         assets.insert(0, accounts);
 
-        Assets { assets, metadata }
+        Assets { assets, metadata, history: Default::default() }
     }
 }
 
 impl contracts::Contract<Command, Request, Response> for Assets {
     fn id(&self) -> contracts::ContractId { contracts::ASSETS }
 
-    fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
+    fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {
         match cmd {
             Command::Issue {symbol, total} => {
                 let o = AccountIdWrapper(origin.clone());
@@ -176,11 +192,29 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 dest0 = *dest_amount;
                                 *dest_amount += value;
                             } else {
-                                accounts.insert(dest, value);
+                                accounts.insert(dest.clone(), value);
                             }
 
                             println!("   src: {:>20} -> {:>20}", src0, src0 - value);
                             println!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
+
+                            let tx = AssetsTx {
+                                txref: txref.clone(),
+                                asset_id: id,
+                                from: o.clone(),
+                                to: dest.clone(),
+                                amount: value
+                            };
+                            if is_tracked(&o) {
+                                let slot = self.history.entry(o).or_default();
+                                slot.push(tx.clone());
+                                println!(" pushed history (src)");
+                            }
+                            if is_tracked(&dest) {
+                                let slot = self.history.entry(dest).or_default();
+                                slot.push(tx.clone());
+                                println!(" pushed history (dest)");
+                            }
 
                             TransactionStatus::Ok
                         } else {
@@ -227,6 +261,10 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 },
                 Request::Metadata => {
                     Ok(Response::Metadata { metadata: self.metadata.clone() })
+                },
+                Request::History { account } => {
+                    let tx_list = self.history.get(&account).cloned().unwrap_or(Default::default());
+                    Ok(Response::History { history: tx_list })
                 }
             }
         };
@@ -235,4 +273,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             Ok(resp) => resp
         }
     }
+}
+
+fn is_tracked(_id: &AccountIdWrapper) -> bool {
+    false
 }
