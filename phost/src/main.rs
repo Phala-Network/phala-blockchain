@@ -452,6 +452,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
             let events = ret.unwrap();
             for sys_event in events.system_events() {
+                println!("RegisterTEE extriextrinsics events: {:?}", sys_event);
                 if let subxt::system::SystemEvent::ExtrinsicFailed(_de, _di) = sys_event {
                     return Err(Error::ExecRegisterWorkerError);
                 }
