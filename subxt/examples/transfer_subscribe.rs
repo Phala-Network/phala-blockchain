@@ -17,11 +17,15 @@
 use sp_keyring::AccountKeyring;
 use substrate_subxt::{
     balances::{
+        BalancesEventsDecoder,
         TransferCallExt,
-        TransferEventExt,
+        TransferEvent,
     },
+    sp_core::Decode,
     ClientBuilder,
     DefaultNodeRuntime,
+    EventSubscription,
+    EventsDecoder,
     PairSigner,
 };
 
@@ -33,12 +37,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let dest = AccountKeyring::Bob.to_account_id().into();
 
     let client = ClientBuilder::<DefaultNodeRuntime>::new().build().await?;
-    let result = client.transfer_and_watch(&signer, &dest, 10_000).await?;
-
-    if let Some(event) = result.transfer()? {
-        println!("Balance transfer success: value: {:?}", event.amount);
+    let sub = client.subscribe_events().await?;
+    let mut decoder = EventsDecoder::<DefaultNodeRuntime>::new(client.metadata().clone());
+    decoder.with_balances();
+    let mut sub = EventSubscription::<DefaultNodeRuntime>::new(sub, decoder);
+    sub.filter_event::<TransferEvent<_>>();
+    client.transfer(&signer, &dest, 10_000).await?;
+    let raw = sub.next().await.unwrap().unwrap();
+    let event = TransferEvent::<DefaultNodeRuntime>::decode(&mut &raw.data[..]);
+    if let Ok(e) = event {
+        println!("Balance transfer success: value: {:?}", e.amount);
     } else {
-        println!("Failed to find Balances::Transfer Event");
+        println!("Failed to subscribe to Balances::Transfer Event");
     }
     Ok(())
 }

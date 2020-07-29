@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaModuleConfig, WASM_BINARY,
+	TechnicalCommitteeConfig, PhalaModuleConfig, wasm_binary_unwrap,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -40,7 +40,6 @@ use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
 
 pub use node_primitives::{AccountId, Balance, Signature};
 pub use node_runtime::GenesisConfig;
-use sc_network::config::MultiaddrWithPeerId;
 
 type AccountPublic = <Signature as Verify>::Signer;
 
@@ -157,14 +156,10 @@ fn staging_testnet_config_genesis() -> GenesisConfig {
 
 /// Staging testnet config.
 pub fn staging_testnet_config() -> ChainSpec {
-	let v1_addr: MultiaddrWithPeerId = "/dns4/poc2-1.phala.network/tcp/31333/p2p/12D3KooWFKMgePf28263EKSkmuJHSu36vBEkzQa1ddWGJr7o1wMV".parse().unwrap();
-	let v2_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/32333/p2p/12D3KooWJaRHcftjzNDwQV2C83cZJZZX5jjUzZCsuWbfSowGKD1q".parse().unwrap();
-	let v3_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/33333/p2p/12D3KooWKkHx8iAsyaymgWHB17AHsBzH7LoXeCKNtFForWQYVp5W".parse().unwrap();
-	let v4_addr: MultiaddrWithPeerId = "/dns4/poc2-2.phala.network/tcp/34333/p2p/12D3KooWE8EHqGKRiNV6uF7kwDGaSsTj8CoFuhUmkTiyydHdUDkk".parse().unwrap();
-	let boot_nodes = vec![v1_addr, v2_addr, v3_addr, v4_addr];
+	let boot_nodes = vec![];
 	ChainSpec::from_genesis(
-		"Phala PoC2 Testnet",
-		"phala_poc2_testnet",
+		"Staging Testnet",
+		"staging_testnet",
 		ChainType::Live,
 		staging_testnet_config_genesis,
 		boot_nodes,
@@ -246,7 +241,7 @@ pub fn testnet_genesis(
 
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
-			code: WASM_BINARY.to_vec(),
+			code: wasm_binary_unwrap().to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		pallet_balances: Some(BalancesConfig {
@@ -286,17 +281,17 @@ pub fn testnet_genesis(
 		pallet_democracy: Some(DemocracyConfig::default()),
 		pallet_elections_phragmen: Some(ElectionsConfig {
 			members: endowed_accounts.iter()
-				.take((num_endowed_accounts + 1) / 2)
-				.cloned()
-				.map(|member| (member, STASH))
-				.collect(),
+						.take((num_endowed_accounts + 1) / 2)
+						.cloned()
+						.map(|member| (member, STASH))
+						.collect(),
 		}),
 		pallet_collective_Instance1: Some(CouncilConfig::default()),
 		pallet_collective_Instance2: Some(TechnicalCommitteeConfig {
 			members: endowed_accounts.iter()
-				.take((num_endowed_accounts + 1) / 2)
-				.cloned()
-				.collect(),
+						.take((num_endowed_accounts + 1) / 2)
+						.cloned()
+						.collect(),
 			phantom: Default::default(),
 		}),
 		pallet_contracts: Some(ContractsConfig {
@@ -324,9 +319,9 @@ pub fn testnet_genesis(
 		pallet_treasury: Some(Default::default()),
 		pallet_society: Some(SocietyConfig {
 			members: endowed_accounts.iter()
-				.take((num_endowed_accounts + 1) / 2)
-				.cloned()
-				.collect(),
+						.take((num_endowed_accounts + 1) / 2)
+						.cloned()
+						.collect(),
 			pot: 0,
 			max_members: 999,
 		}),
@@ -395,51 +390,51 @@ fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
 	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//phat//$j//$i; done; done
 
 	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
-	(
-		// Stash
-		hex!["780d14058a7aa9c1ee50bd5a5061847e873d602f47e3b9aa744cf26c00a67247"].into(),
-		// Controller
-		hex!["a6472df662dd55418f00cca35ba4b07feb3965414075caf56e563b8440ff6865"].into(),
-		// Session key ed25519
-		hex!["f7a4fa3658cc703ae9049b524dc3925e48d45e2e9fa941d500a28f2d247763b3"].unchecked_into(),
-		// Session key sr25519
-		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
-		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
-		hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into()
-	),(
-		// Stash
-		hex!["1ef772bec998a0b906f46e0e74e3cfe2b91115cf1cda701c77ebbb8350e0447e"].into(),
-		// Controller
-		hex!["944d92bb3b3a8b776972b86d1a9074e3c18ea508b967f8b7cb0479ce2c059266"].into(),
-		// Session key ed25519
-		hex!["21c4025dd9d433e3792d245b0b5f92509badbe22b0d0d8e188557262f1182c56"].unchecked_into(),
-		// Session key sr25519
-		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
-		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
-		hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into()
-	),(
-		// Stash
-		hex!["520821df5b84c9c5db1fd7196713bab83b9cd958b01ce0abb1760396e3ab627b"].into(),
-		// Controller
-		hex!["08a983924e693bd94877619f5f72763f0408be82069df4b4bb4836286c58f15d"].into(),
-		// Session key ed25519
-		hex!["23cdc8621cfad1645ad1323ee25c8e4efb7f8baafdc57de78041eb8426b77396"].unchecked_into(),
-		// Session key sr25519
-		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
-		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
-		hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into()
-	),(
-		// Stash
-		hex!["fc3d2b5f8885202bce2534726e9e33b8e47aa7cafa8c0e6331314537671b5c0c"].into(),
-		// Controller
-		hex!["9ae7747b65f53647d52c97e08436402b18bdeee96fb0f0c94078e03d6fe6c575"].into(),
-		// Session key ed25519
-		hex!["6a369d6f98d4cbda264eb2fa4506d381a28c545e2065413b9119767d8e6a779a"].unchecked_into(),
-		// Session key sr25519
-		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
-		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
-		hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into()
-	),];
+		(
+			// Stash
+			hex!["780d14058a7aa9c1ee50bd5a5061847e873d602f47e3b9aa744cf26c00a67247"].into(),
+			// Controller
+			hex!["a6472df662dd55418f00cca35ba4b07feb3965414075caf56e563b8440ff6865"].into(),
+			// Session key ed25519
+			hex!["f7a4fa3658cc703ae9049b524dc3925e48d45e2e9fa941d500a28f2d247763b3"].unchecked_into(),
+			// Session key sr25519
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into()
+		),(
+			// Stash
+			hex!["1ef772bec998a0b906f46e0e74e3cfe2b91115cf1cda701c77ebbb8350e0447e"].into(),
+			// Controller
+			hex!["944d92bb3b3a8b776972b86d1a9074e3c18ea508b967f8b7cb0479ce2c059266"].into(),
+			// Session key ed25519
+			hex!["21c4025dd9d433e3792d245b0b5f92509badbe22b0d0d8e188557262f1182c56"].unchecked_into(),
+			// Session key sr25519
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into()
+		),(
+			// Stash
+			hex!["520821df5b84c9c5db1fd7196713bab83b9cd958b01ce0abb1760396e3ab627b"].into(),
+			// Controller
+			hex!["08a983924e693bd94877619f5f72763f0408be82069df4b4bb4836286c58f15d"].into(),
+			// Session key ed25519
+			hex!["23cdc8621cfad1645ad1323ee25c8e4efb7f8baafdc57de78041eb8426b77396"].unchecked_into(),
+			// Session key sr25519
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into()
+		),(
+			// Stash
+			hex!["fc3d2b5f8885202bce2534726e9e33b8e47aa7cafa8c0e6331314537671b5c0c"].into(),
+			// Controller
+			hex!["9ae7747b65f53647d52c97e08436402b18bdeee96fb0f0c94078e03d6fe6c575"].into(),
+			// Session key ed25519
+			hex!["6a369d6f98d4cbda264eb2fa4506d381a28c545e2065413b9119767d8e6a779a"].unchecked_into(),
+			// Session key sr25519
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into()
+		),];
 
 	// generated with secret: subkey inspect "$secret"/phat
 	let root_key: AccountId = hex![
@@ -485,8 +480,6 @@ pub fn phala_testnet_poc2_local_config() -> ChainSpec {
 pub fn phala_testnet_poc2_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/poc2.json")[..])
 }
-
-
 
 #[cfg(test)]
 pub(crate) mod tests {
