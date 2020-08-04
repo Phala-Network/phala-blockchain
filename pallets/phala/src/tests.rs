@@ -2,6 +2,8 @@
 use crate::{Error, mock::*};
 use crate::RawEvent;
 use frame_support::{assert_ok, assert_noop};
+use frame_system::RawOrigin;
+use sp_runtime::traits::BadOrigin;
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -194,5 +196,13 @@ fn test_verify_signature() {
 
 		let actual = PhalaModule::verify_signature(serialized_pk.to_vec(), &transfer_data);
 		assert_eq!(true, actual.is_ok());
+	});
+}
+
+#[test]
+fn test_force_register_worker() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
+		assert_noop!(PhalaModule::force_register_worker(Origin::signed(1), 1, vec![0], vec![1]), BadOrigin);
 	});
 }
