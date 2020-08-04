@@ -19,6 +19,7 @@ type SequenceType = u32;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Balance {
+    total_issuance: chain::Balance,
     accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
     sequence: SequenceType,
     queue: Vec<TransferData>,
@@ -90,6 +91,7 @@ impl Balance {
         let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
         accounts.insert(AccountIdWrapper::from_hex(ALICE), SUPPLY);
         Balance {
+            total_issuance: 0,
             accounts,
             sequence: 0,
             queue: Vec::new(),
@@ -142,6 +144,7 @@ impl contracts::Contract<Command, Request, Response> for Balance {
 
                         let src0 = *src_amount;
                         *src_amount -= value;
+                        self.total_issuance -= value;
                         println!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         let sequence = self.sequence + 1;
 
@@ -163,7 +166,6 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                             signature: signature.0.serialize().to_vec(),
                         };
                         self.queue.push(transfer_data);
-
                         self.sequence = sequence;
 
                         TransactionStatus::Ok
@@ -199,7 +201,7 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                     Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
                 },
                 Request::TotalIssuance => {
-                    Ok(Response::TotalIssuance { total_issuance: SUPPLY })
+                    Ok(Response::TotalIssuance { total_issuance: self.total_issuance })
                 }
             }
         };
@@ -215,13 +217,16 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                 println!("TransferToTee from :{:?}, {:}", who, amount);
                 let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
                 let dest = AccountIdWrapper(account_id);
-                println!("dest:{:?}", dest.clone());
+                println!("   dest: {}", dest.to_string());
                 if let Some(dest_amount) = self.accounts.get_mut(&dest) {
+                    let dest_amount0 = *dest_amount;
                     *dest_amount += amount;
-                    println!("{:?}'s balance:{}", dest, *dest_amount);
+                    println!("   value: {:>20} -> {:>20}", dest_amount0, *dest_amount);
                 } else {
                     self.accounts.insert(dest, amount);
+                    println!("   value: {:>20} -> {:>20}", 0, amount);
                 }
+                self.total_issuance += amount;
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
                 let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
