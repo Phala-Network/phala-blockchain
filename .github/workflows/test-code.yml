@@ -1,0 +1,47 @@
+name: Test Code
+
+on:
+  pull_request:
+    branches:
+    - master
+  push:
+    branches:
+    - master
+
+jobs:
+  test-code:
+    runs-on: ubuntu-18.04
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v2
+
+      # Steps taken from https://github.com/actions/cache/blob/master/examples.md#rust---cargo
+    - name: Cache cargo registry
+      uses: actions/cache@v2
+      with:
+        path: |
+          ~/.cargo/registry
+          ~/.cargo/git
+          target
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+
+    - name: Install toolchain
+      uses: actions-rs/toolchain@v1
+      with:
+        profile: minimal
+        toolchain: nightly-2020-05-07
+        components: rustfmt, clippy
+        target: wasm32-unknown-unknown
+        override: true
+        default: true
+
+    # Enable this for clippy linting.
+    # - name: Check and Lint Code
+    #   run: cargo +nightly-2020-05-07 clippy -- -D warnings
+
+    - name: Check Code
+      run: cargo check --all
+
+    - name: Test Code
+      run: cargo test --all
