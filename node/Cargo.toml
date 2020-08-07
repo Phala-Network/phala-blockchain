@@ -1,111 +1,81 @@
 [package]
-authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
+name = 'parachain-collator'
+version = '0.1.0'
+authors = ["Parity Technologies <admin@parity.io>"]
 build = 'build.rs'
-description = 'A fresh FRAME-based Substrate node, ready for hacking.'
 edition = '2018'
-homepage = 'https://substrate.dev'
-license = 'Unlicense'
-name = 'node-template'
-repository = 'https://github.com/substrate-developer-hub/substrate-node-template/'
-version = '2.0.0-rc5'
-
-[package.metadata.docs.rs]
-targets = ['x86_64-unknown-linux-gnu']
 
 [[bin]]
-name = 'node-template'
+name = 'parachain-collator'
+path = 'src/main.rs'
 
-[dependencies.node-template-runtime]
-path = '../runtime'
-version = '2.0.0-rc5'
+[dependencies]
+derive_more = '0.15.0'
+exit-future = '0.1.4'
+futures = { version = "0.3.1", features = ["compat"] }
+log = '0.4.8'
+parking_lot = '0.9.0'
+trie-root = '0.15.2'
+codec = { package = 'parity-scale-codec', version = '1.0.0' }
+structopt = "0.3.3"
+ansi_term = "0.12.1"
+serde = { version = "1.0.101", features = ["derive"] }
 
-[dependencies.sc-basic-authorship]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+# Parachain dependencies
+parachain-runtime = { path = "../runtime" }
 
-[dependencies.sc-cli]
-features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+# Substrate dependencies
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", version = "0.8.0-rc5" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-informant = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
-[dependencies.sc-client-api]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
+# Cumulus dependencies
+cumulus-consensus = { git = "https://github.com/paritytech/cumulus" }
+cumulus-collator = { git = "https://github.com/paritytech/cumulus" }
+cumulus-network = { git = "https://github.com/paritytech/cumulus" }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus" }
 
-[dependencies.sc-consensus]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+# Polkadot dependencies
+polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-collator = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-service = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-cli = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-test-service = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
 
-[dependencies.sc-consensus-aura]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
-[dependencies.sc-executor]
-features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+[dev-dependencies]
+assert_cmd = "0.12"
+nix = "0.17"
+rand = "0.7.3"
+tokio = { version = "0.2.13", features = ["macros"] }
 
-[dependencies.sc-finality-grandpa]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
+# Polkadot dependencies
+polkadot-runtime-common = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-test-runtime = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-test-runtime-client = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
+polkadot-test-service = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
 
-[dependencies.sc-service]
-features = ['wasmtime']
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
-
-[dependencies.sc-transaction-pool]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.sp-consensus]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
-
-[dependencies.sp-consensus-aura]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '0.8.0-rc5'
-
-[dependencies.sp-core]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.sp-finality-grandpa]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.sp-inherents]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.sp-runtime]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.sp-transaction-pool]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
-
-[dependencies.structopt]
-version = '0.3.8'
-
-[build-dependencies.substrate-build-script-utils]
-git = 'https://github.com/paritytech/substrate.git'
-tag = 'v2.0.0-rc5'
-version = '2.0.0-rc5'
+# Substrate dependencies
+pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
