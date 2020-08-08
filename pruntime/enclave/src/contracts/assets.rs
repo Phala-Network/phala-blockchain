@@ -2,8 +2,7 @@ use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;
 use crate::std::vec::Vec;
-use core::{fmt,str};
-use core::cmp::Ord;
+use core::str;
 
 use crate::contracts;
 use crate::types::TxRef;
@@ -22,11 +21,18 @@ pub struct AssetMetadata {
     symbol: String,
     id: u32
 }
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct AssetMetadataBalance {
+    metadata: AssetMetadata,
+    #[serde(with = "super::serde_balance")]
+    balance: chain::Balance,
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Assets {
+    next_id: u32,
     assets: BTreeMap<u32, BTreeMap<AccountIdWrapper, chain::Balance>>,
-    metadata: Vec<AssetMetadata>,
+    metadata: BTreeMap<u32, AssetMetadata>,
     history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -75,7 +81,10 @@ pub enum Request {
     Metadata,
     History {
         account: AccountIdWrapper
-    }
+    },
+    ListAssets {
+        available_only :bool
+    },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -93,6 +102,9 @@ pub enum Response {
     History {
         history: Vec<AssetsTx>
     },
+    ListAssets {
+        assets: Vec<AssetMetadataBalance>
+    },
     Error(Error)
 }
 
@@ -103,7 +115,7 @@ const SYMBOL: &'static str = "TTT";
 impl Assets {
     pub fn new() -> Self{
         let mut assets = BTreeMap::<u32, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
-        let mut metadata = Vec::<AssetMetadata>::new();
+        let mut metadata = BTreeMap::<u32, AssetMetadata>::new();
 
         let owner = AccountIdWrapper::from_hex(ALICE);
         let symbol = String::from(SYMBOL);
@@ -117,10 +129,10 @@ impl Assets {
             id: 0
         };
 
-        metadata.push(metadatum);
+        metadata.insert(0, metadatum);
         assets.insert(0, accounts);
 
-        Assets { assets, metadata, history: Default::default() }
+        Assets { next_id: 1, assets, metadata, history: Default::default() }
     }
 }
 
@@ -133,15 +145,11 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 let o = AccountIdWrapper(origin.clone());
                 println!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
-                if let None = self.metadata.iter().find(|metadatum| metadatum.symbol == symbol) {
+                if let None = self.metadata.iter().find(|(_, metadatum)| metadatum.symbol == symbol) {
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
-                    let id = match self.metadata.last() {
-                        Some(m) => m.id + 1,
-                        None => 0
-                    };
-
+                    let id = self.next_id;
                     let metadatum = AssetMetadata {
                         owner: o.clone(),
                         total_supply: total,
@@ -149,8 +157,9 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                         id
                     };
 
-                    self.metadata.push(metadatum);
+                    self.metadata.insert(id, metadatum);
                     self.assets.insert(id.clone(), accounts);
+                    self.next_id += 1;
 
                     TransactionStatus::Ok
                 } else {
@@ -160,10 +169,9 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             Command::Destroy {id} => {
                 let o = AccountIdWrapper(origin.clone());
 
-                if let Some(position) = self.metadata.iter().position(|metadatum| metadatum.id == id) {
-                    let metadatum = self.metadata.get(position).unwrap();
+                if let Some(metadatum) = self.metadata.get(&id) {
                     if metadatum.owner.to_string() == o.to_string() {
-                        self.metadata.remove(position.clone());
+                        self.metadata.remove(&id);
                         self.assets.remove(&id);
 
                         TransactionStatus::Ok
@@ -177,8 +185,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             Command::Transfer {id, dest, value} => {
                 let o = AccountIdWrapper(origin.clone());
 
-                if let Some(position) = self.metadata.iter().position(|metadatum| metadatum.id == id) {
-                    let metadatum = self.metadata.get(position).unwrap();
+                if let Some(metadatum) = self.metadata.get(&id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
 
                     println!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
@@ -238,10 +245,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                         return Err(Error::NotAuthorized)
                     }
 
-                    if let Some(position) = self.metadata.iter().position(|metadatum| metadatum.id == id) {
-                        let metadatum = self.metadata.get(position).unwrap();
+                    if let Some(metadatum) = self.metadata.get(&id) {
                         let accounts = self.assets.get(&metadatum.id).unwrap();
-
                         let mut balance: chain::Balance = 0;
                         if let Some(ba) = accounts.get(&account) {
                             balance = *ba;
@@ -252,19 +257,51 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     }
                 },
                 Request::TotalSupply { id } => {
-                    if let Some(position) = self.metadata.iter().position(|metadatum| metadatum.id == id) {
-                        let metadatum = self.metadata.get(position).unwrap();
+                    if let Some(metadatum) = self.metadata.get(&id) {
                         Ok(Response::TotalSupply { total_issuance: metadatum.total_supply })
                     } else {
                         Err(Error::Other(String::from("Asset not found")))
                     }
                 },
                 Request::Metadata => {
-                    Ok(Response::Metadata { metadata: self.metadata.clone() })
+                    Ok(Response::Metadata { metadata: self.metadata.values().cloned().collect() })
                 },
                 Request::History { account } => {
                     let tx_list = self.history.get(&account).cloned().unwrap_or(Default::default());
                     Ok(Response::History { history: tx_list })
+                },
+                Request::ListAssets { available_only } => {
+                    let raw_origin = origin.ok_or(Error::NotAuthorized)?;
+                    let o = AccountIdWrapper(raw_origin.clone());
+                    // TODO: simplify the two way logic here?
+                    let assets = if available_only {
+                        self.assets
+                            .iter()
+                            .filter_map(|(id, balances)| {
+                                balances.get(&o).filter(|b| **b > 0).map(|b| (id, *b))
+                            })
+                            .map(|(id, balance)| {
+                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                AssetMetadataBalance {
+                                    metadata,
+                                    balance
+                                }
+                            })
+                            .collect()
+                    } else {
+                        self.assets
+                            .iter()
+                            .map(|(id, balances)| {
+                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                let balance = *balances.get(&o).unwrap_or(&0);
+                                AssetMetadataBalance {
+                                    metadata,
+                                    balance
+                                }
+                            })
+                            .collect()
+                    };
+                    Ok(Response::ListAssets {assets})
                 }
             }
         };
