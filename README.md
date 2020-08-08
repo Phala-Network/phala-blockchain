@@ -1,6 +1,6 @@
-# Substrate Parachain Template
+# Substrate Cumulus Parachain Template
 
-A new FRAME-based Substrate node, ready for hacking :rocket:
+A new Cumulus-based Substrate node, ready for hacking :rocket:
 
 ## Local Development
 
@@ -32,7 +32,7 @@ cargo build --release
 
 ## Run
 
-### Single Node Development Chain
+### Single Staging Node Chain
 
 Purge any existing staging chain state:
 
@@ -62,7 +62,7 @@ Polkadot (rococo-branch):
 ./target/release/polkadot --chain ./rococo_local.json -d cumulus_relay0 --validator --alice --port 50556
 ```
 
-Parachain Template:
+Substrate Parachain Template:
 ```
 ./target/release/parachain-collator -d local-test --validator --ws-port 9945 --parachain-id 200 -- --chain ~/.dev/polkadot/rococo_local.json
 ```

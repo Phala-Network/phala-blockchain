@@ -1,6 +1,7 @@
 [workspace]
 members = [
 	"runtime/",
+	"pallets/parachain-info",
 	"pallets/token-dealer",
 	"pallets/template",
 	"node/",
