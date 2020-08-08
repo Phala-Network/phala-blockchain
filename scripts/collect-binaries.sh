@@ -15,6 +15,7 @@ git status > "${outdir}/git.txt"
 git diff > "${outdir}/changes.patch"
 
 cp ./target/release/phala-node "${outdir}/chain"
+cp ./target/release/wbuild/phala-node-runtime/phala_node_runtime.compact.wasm "${outdir}/chain"
 cp ./target/release/phost "${outdir}/tee"
 cp ./pruntime/bin/app "${outdir}/tee"
 cp pruntime/bin/enclave.signed.so "${outdir}/tee"
