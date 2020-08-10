@@ -64,7 +64,8 @@ Polkadot (rococo-branch):
 
 Substrate Parachain Template:
 ```
-./target/release/parachain-collator -d local-test --validator --ws-port 9945 --parachain-id 200 -- --chain ~/.dev/polkadot/rococo_local.json
+# this command assumes the chain spec is in a directory named polkadot that is a sibling of the working directory
+./target/release/parachain-collator -d local-test --validator --ws-port 9945 --parachain-id 200 -- --chain ../polkadot/rococo_local.json
 ```
 
 If you want to see the multi-node consensus algorithm in action, refer to
