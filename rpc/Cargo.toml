@@ -3,7 +3,7 @@ name = "node-rpc"
 version = "2.0.0-rc5"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
-license = "GPL-3.0"
+license = "Apache-2.0"
 homepage = "https://substrate.dev"
 repository = "https://github.com/paritytech/substrate/"
 
@@ -11,25 +11,25 @@ repository = "https://github.com/paritytech/substrate/"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-sc-client-api = { version = "2.0.0-rc5", path = "../substrate/client/api" }
-sc-rpc = { version = "2.0.0-rc5", path = "../substrate/client/rpc" }
-jsonrpc-core = "14.0.3"
+jsonrpc-core = "14.2.0"
+jsonrpc-pubsub = "14.2.0"
 node-primitives = { version = "2.0.0-rc5", path = "../substrate/bin/node/primitives" }
 node-runtime = { version = "2.0.0-rc5", package = "phala-node-runtime", path = "../runtime" }
-sp-runtime = { version = "2.0.0-rc5", path = "../substrate/primitives/runtime" }
-sp-api = { version = "2.0.0-rc5", path = "../substrate/primitives/api" }
 pallet-contracts-rpc = { version = "0.8.0-rc5", path = "../substrate/frame/contracts/rpc/" }
 pallet-transaction-payment-rpc = { version = "2.0.0-rc5", path = "../substrate/frame/transaction-payment/rpc/" }
-substrate-frame-rpc-system = { version = "2.0.0-rc5", path = "../substrate/utils/frame/rpc/system" }
-sp-transaction-pool = { version = "2.0.0-rc5", path = "../substrate/primitives/transaction-pool" }
+sc-client-api = { version = "2.0.0-rc5", path = "../substrate/client/api" }
 sc-consensus-babe = { version = "0.8.0-rc5", path = "../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { version = "0.8.0-rc5", path = "../substrate/client/consensus/babe/rpc" }
-sp-consensus-babe = { version = "0.8.0-rc5", path = "../substrate/primitives/consensus/babe" }
-sc-keystore = { version = "2.0.0-rc5", path = "../substrate/client/keystore" }
 sc-consensus-epochs = { version = "0.8.0-rc5", path = "../substrate/client/consensus/epochs" }
-sp-consensus = { version = "0.8.0-rc5", path = "../substrate/primitives/consensus/common" }
-sp-blockchain = { version = "2.0.0-rc5", path = "../substrate/primitives/blockchain" }
 sc-finality-grandpa = { version = "0.8.0-rc5", path = "../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { version = "0.8.0-rc5", path = "../substrate/client/finality-grandpa/rpc" }
+sc-keystore = { version = "2.0.0-rc5", path = "../substrate/client/keystore" }
 sc-rpc-api = { version = "0.8.0-rc5", path = "../substrate/client/rpc-api" }
+sc-rpc = { version = "2.0.0-rc5", path = "../substrate/client/rpc" }
+sp-api = { version = "2.0.0-rc5", path = "../substrate/primitives/api" }
 sp-block-builder = { version = "2.0.0-rc5", path = "../substrate/primitives/block-builder" }
+sp-blockchain = { version = "2.0.0-rc5", path = "../substrate/primitives/blockchain" }
+sp-consensus = { version = "0.8.0-rc5", path = "../substrate/primitives/consensus/common" }
+sp-consensus-babe = { version = "0.8.0-rc5", path = "../substrate/primitives/consensus/babe" }
+sp-transaction-pool = { version = "2.0.0-rc5", path = "../substrate/primitives/transaction-pool" }
+substrate-frame-rpc-system = { version = "2.0.0-rc5", path = "../substrate/utils/frame/rpc/system" }
