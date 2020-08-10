@@ -114,7 +114,7 @@ struct LocalState {
 struct RuntimeInfo {
     machine_id: [u8; 16],
     pub_key: [u8; 33],
-    score: u8,
+    score: u32,
 }
 
 fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
@@ -831,6 +831,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let machine_id = generate_seal_key();
     println!("Machine id: {:?}", &machine_id);
 
+    // Measure machine score
+    let cpu_core_num = sgx_trts::enclave::rsgx_get_cpu_core_num();
+    println!("CPU cores: {}", cpu_core_num);
+    // Currently, there is no way to get a trusted time in Enclave
+    // TODO: Find a fair algorithm to measure TEE performance.
+    let score = cpu_core_num * 10;
+
     // Generate identity
     let mut prng = rand::rngs::OsRng::default();
     let sk = SecretKey::random(&mut prng);
@@ -857,7 +864,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let runtime_info = RuntimeInfo {
         machine_id: machine_id.clone(),
         pub_key: serialized_pk,
-        score: 10
+        score
     };
     let encoded_runtime_info = runtime_info.encode();
     let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);

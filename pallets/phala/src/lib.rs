@@ -70,7 +70,7 @@ decl_storage! {
 		MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 
 		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
-		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8);
+		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u32);
 
 		// Store a map of Account and Machine, map T::AccountId => Vec<u8>
 		pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
@@ -124,7 +124,7 @@ decl_error! {
 
 type MachineId = [u8; 16];
 type PublicKey = [u8; 33];
-type Score = u8;
+type Score = u32;
 
 #[derive(Encode, Decode)]
 struct TEERuntimeInfo {
