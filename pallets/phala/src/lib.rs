@@ -14,7 +14,7 @@ extern crate hex;
 extern crate webpki;
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch, traits::Get};
-use frame_system::ensure_signed;
+use frame_system::{self as system, ensure_signed, ensure_root};
 
 use alloc::vec::Vec;
 use sp_runtime::{traits::AccountIdConversion, ModuleId};
@@ -201,12 +201,8 @@ decl_module! {
 			let runtime_info = runtime_info.unwrap();
 			// Associate account with machine id
 			let machine_id = runtime_info.machine_id.to_vec();
+			Self::remove_machine_if_present(&machine_id);
 			Machine::insert(machine_id.clone(), (runtime_info.pub_key.to_vec(), runtime_info.score));
-			if <MachineOwner<T>>::contains_key(&machine_id) {
-				let last_owner =  <MachineOwner<T>>::get(machine_id.clone());
-				<Miner<T>>::remove(&last_owner);
-				Self::deposit_event(RawEvent::WorkerUnregistered(last_owner, machine_id.clone()));
-			}
 			<MachineOwner<T>>::insert(machine_id.clone(), who.clone());
 			<Miner<T>>::insert(who.clone(), machine_id.clone());
 			Self::deposit_event(RawEvent::WorkerRegistered(who, machine_id));
@@ -229,28 +225,50 @@ decl_module! {
 		#[weight = 0]
 		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
-
+			// Decode payload
 			let data = Decode::decode(&mut &data[..]);
 			ensure!(data.is_ok(), "Bad transaction data");
-			let transfer_data: TransferData<<T as frame_system::Trait>::AccountId, BalanceOf<T>> = data.unwrap();
 
+			let transfer_data: TransferData<<T as frame_system::Trait>::AccountId, BalanceOf<T>> = data.unwrap();
+			// Check sequence
 			let sequence = Sequence::get();
 			ensure!(transfer_data.data.sequence == sequence + 1, "Bad sequence");
-
+			// Get Identity key from account
 			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
-
 			let machine_id = <Miner<T>>::get(who);
 			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
-
 			let serialized_pk = Machine::get(machine_id).0;
+			// Validate TEE signature
 			Self::verify_signature(serialized_pk, &transfer_data)?;
 
+			// Release funds
 			T::TEECurrency::transfer(&Self::account_id(), &transfer_data.data.dest, transfer_data.data.amount, AllowDeath)
 				.map_err(|_| dispatch::DispatchError::Other("Can't transfer to chain"))?;
-
+			// Advance sequence
 			Sequence::set(sequence + 1);
-
+			// Emit event
 			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest.encode(), transfer_data.data.amount, sequence + 1));
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn force_register_worker(origin, controller: T::AccountId, machine_id: Vec<u8>, pub_key: Vec<u8>) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+
+			// // Store a map of Machine and account, map Vec<u8> => T::AccountId
+			// MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
+
+			// // Store a map of Machine and account, map Vec<u8> => (pub_key, score)
+			// Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8);
+
+			// // Store a map of Account and Machine, map T::AccountId => Vec<u8>
+			// pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
+
+			Self::remove_machine_if_present(&machine_id);
+			Machine::insert(machine_id.clone(), (pub_key, 0));
+			<MachineOwner<T>>::insert(machine_id.clone(), controller.clone());
+			<Miner<T>>::insert(controller, machine_id);
 
 			Ok(())
 		}
@@ -284,5 +302,13 @@ impl<T: Trait> Module<T> {
 		ensure!(verified, Error::<T>::FailedToVerify);
 
 		Ok(())
+	}
+
+	fn remove_machine_if_present(machine_id: &Vec<u8>) {
+		if <MachineOwner<T>>::contains_key(machine_id) {
+			let last_owner = <MachineOwner<T>>::get(&machine_id);
+			<Miner<T>>::remove(&last_owner);
+			Self::deposit_event(RawEvent::WorkerUnregistered(last_owner, machine_id.clone()));
+		}
 	}
 }

@@ -393,7 +393,7 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
         if ret.is_ok() {
             println!("Submit tx successfully");
         } else {
-            println!("Failed to submit tx");
+            println!("Failed to submit tx: {:?}", ret);
         }
     }
 

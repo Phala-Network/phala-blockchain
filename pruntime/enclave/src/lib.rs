@@ -1092,18 +1092,33 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
 
     println!("handle_execution: about to call handle_command");
     let status = match contract_id {
-        DATA_PLAZA => state.contract1.handle_command(
-            &origin, pos,
-            serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract1 cmd")
-        ),
-        BALANCE => state.contract2.handle_command(
-            &origin, pos,
-            serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract2 cmd")
-        ),
-        ASSETS => state.contract3.handle_command(
-            &origin, pos,
-            serde_json::from_slice(inner_data.as_slice()).expect("Failed to deser contract3 cmd")
-        ),
+        DATA_PLAZA => {
+            match serde_json::from_slice(inner_data.as_slice()) {
+                Ok(cmd) => state.contract1.handle_command(
+                    &origin, pos,
+                    cmd
+                ),
+                _ => TransactionStatus::BadCommand
+            }
+        },
+        BALANCE => {
+            match serde_json::from_slice(inner_data.as_slice()) {
+                Ok(cmd) => state.contract2.handle_command(
+                    &origin, pos,
+                    cmd
+                ),
+                _ => TransactionStatus::BadCommand
+            }
+        },
+        ASSETS => {
+            match serde_json::from_slice(inner_data.as_slice()) {
+                Ok(cmd) => state.contract3.handle_command(
+                    &origin, pos,
+                    cmd
+                ),
+                _ => TransactionStatus::BadCommand
+            }
+        },
         _ => {
             println!("handle_execution: Skipped unknown contract: {}", contract_id);
             TransactionStatus::BadContractId

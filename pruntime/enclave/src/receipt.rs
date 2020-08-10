@@ -12,6 +12,7 @@ pub enum TransactionStatus {
 	NoBalance,
 	UnknownError,
 	BadContractId,
+	BadCommand,
 	SymbolExist,
 	AssetIdNotFound,
 	NotAssetOwner,
