@@ -9,6 +9,13 @@ use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
 use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
+use sp_runtime::{
+    traits::{
+        IdentifyAccount,
+        SignedExtension,
+        Verify,
+    },
+};
 
 mod error;
 mod pruntime_client;
@@ -23,6 +30,8 @@ use crate::types::{
     SyncBlockReq, SyncBlockResp, BlockWithEvents, AuthoritySet, AuthoritySetChange
 };
 
+use subxt::Signer;
+use subxt::system::AccountStoreExt;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
 
@@ -354,6 +363,23 @@ async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
+
+
+async fn update_singer_nonce<S, E, P>(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, S, E, P>) -> Result<(), Error>
+where
+    S: From<<P as Pair>::Signature> + Encode + Verify + 'static + Send + Sync,
+    S::Signer: From<P::Public> + IdentifyAccount<AccountId = <Runtime as subxt::system::System>::AccountId>,
+    E: subxt::SignedExtra<Runtime> + 'static,
+    P: Pair + 'static,
+    P::Signature: Into<S> + 'static,
+    <<E as subxt::SignedExtra<Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+{
+    let account_id = signer.account_id();
+    let nonce = client.account(account_id, None).await?.nonce;
+    signer.set_nonce(nonce);
+    Ok(())
+}
+
 async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
     let query = Query {
         contract_id: 2,
@@ -376,7 +402,8 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
         return Ok(());
     }
 
-    let signer = subxt::PairSigner::new(pair);
+    let mut signer = subxt::PairSigner::new(pair);
+    update_singer_nonce(&client, &mut signer).await?;
 
     let mut max_seq = *sequence;
     for transfer_data in &transfer_queue {
@@ -395,6 +422,7 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
         } else {
             println!("Failed to submit tx: {:?}", ret);
         }
+        signer.increment_nonce();
     }
 
     *sequence = max_seq;
