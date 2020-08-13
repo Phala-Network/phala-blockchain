@@ -11,7 +11,8 @@ outdir=$1
 mkdir -p "${outdir}/chain"
 mkdir -p "${outdir}/tee"
 
-git status > "${outdir}/git.txt"
+git status > "${outdir}/git-status.txt"
+git log > "${outdir}/git-log.txt"
 git diff > "${outdir}/changes.patch"
 
 cp ./target/release/phala-node "${outdir}/chain"
