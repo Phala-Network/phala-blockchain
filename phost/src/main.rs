@@ -365,14 +365,7 @@ async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
 
 
 
-async fn update_singer_nonce<S, E, P>(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, S, E, P>) -> Result<(), Error>
-where
-    S: From<<P as Pair>::Signature> + Encode + Verify + 'static + Send + Sync,
-    S::Signer: From<P::Public> + IdentifyAccount<AccountId = <Runtime as subxt::system::System>::AccountId>,
-    E: subxt::SignedExtra<Runtime> + 'static,
-    P: Pair + 'static,
-    P::Signature: Into<S> + 'static,
-    <<E as subxt::SignedExtra<Runtime>>::Extra as SignedExtension>::AdditionalSigned: Send + Sync,
+async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
 {
     let account_id = signer.account_id();
     let nonce = client.account(account_id, None).await?.nonce;
@@ -402,7 +395,7 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
         return Ok(());
     }
 
-    let mut signer = subxt::PairSigner::new(pair);
+    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
     update_singer_nonce(&client, &mut signer).await?;
 
     let mut max_seq = *sequence;
