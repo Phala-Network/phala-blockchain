@@ -2,7 +2,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use frame_support::{
-	decl_event, decl_module, dispatch::DispatchResult,
+	decl_event, decl_module,
+	dispatch::DispatchResult,
 	traits::{Currency, ExistenceRequirement, WithdrawReason},
 };
 use frame_system::ensure_signed;
@@ -58,7 +59,7 @@ decl_event! {
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin, system = frame_system {
+	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		/// Transfer `amount` of tokens on the relay chain from the Parachain account to
 		/// the given `dest` account.
 		#[weight = 10]

@@ -32,26 +32,6 @@ cargo build --release
 
 ## Run
 
-### Single Staging Node Chain
-
-Purge any existing staging chain state:
-
-```bash
-./target/release/parachain-collator purge-chain --chain staging
-```
-
-Start a staging chain:
-
-```bash
-./target/release/parachain-collator --chain staging
-```
-
-Or, start a staging chain with detailed logging:
-
-```bash
-RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/parachain-collator -lruntime=debug --chain staging
-```
-
 ### Local Testnet
 
 Polkadot (rococo-branch):
@@ -66,6 +46,12 @@ Substrate Parachain Template:
 ```
 # this command assumes the chain spec is in a directory named polkadot that is a sibling of the working directory
 ./target/release/parachain-collator -d local-test --validator --ws-port 9945 --parachain-id 200 -- --chain ../polkadot/rococo_local.json
+```
+
+Or, start a staging chain with detailed logging:
+
+```bash
+RUST_LOG=debug RUST_BACKTRACE=1 ./target/release/parachain-collator -lruntime=debug --chain staging -- --chain ../polkadot/rococo_local.json
 ```
 
 If you want to see the multi-node consensus algorithm in action, refer to
