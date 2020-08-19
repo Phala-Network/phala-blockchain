@@ -71,21 +71,15 @@ pub type DigestItem = generic::DigestItem<Hash>;
 /// to even the core datastructures.
 pub mod opaque {
 	use super::*;
-
 	pub use sp_runtime::OpaqueExtrinsic as UncheckedExtrinsic;
 
-	/// Opaque block header type.
-	pub type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	/// Opaque block type.
 	pub type Block = generic::Block<Header, UncheckedExtrinsic>;
-	/// Opaque block identifier type.
-	pub type BlockId = generic::BlockId<Block>;
+}
 
-	pub type SessionHandlers = ();
+pub type SessionHandlers = ();
 
-	impl_opaque_keys! {
-		pub struct SessionKeys {}
-	}
+impl_opaque_keys! {
+	pub struct SessionKeys {}
 }
 
 /// This runtime version.
@@ -366,11 +360,11 @@ impl_runtime_apis! {
 		fn decode_session_keys(
 			encoded: Vec<u8>,
 		) -> Option<Vec<(Vec<u8>, sp_core::crypto::KeyTypeId)>> {
-			opaque::SessionKeys::decode_into_raw_public_keys(&encoded)
+			SessionKeys::decode_into_raw_public_keys(&encoded)
 		}
 
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
-			opaque::SessionKeys::generate(seed)
+			SessionKeys::generate(seed)
 		}
 	}
 }

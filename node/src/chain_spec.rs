@@ -6,7 +6,7 @@ use parachain_runtime::{
 	ParachainInfoConfig, WASM_BINARY,
 };
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
-use sc_service::ChainType;
+use sc_service::{ChainType, Properties};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
@@ -48,13 +48,18 @@ where
 	AccountPublic::from(get_from_seed::<TPublic>(seed)).into_account()
 }
 
-pub fn get_chain_spec(id: ParaId) -> ChainSpec {
-	ChainSpec::from_genesis(
+pub fn get_chain_spec(id: ParaId) -> Result<ChainSpec, String> {
+	let mut properties = Properties::new();
+	properties.insert("tokenSymbol".into(), "DEV".into());
+	properties.insert("tokenDecimals".into(), 12.into());
+
+	Ok(ChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
 		move || {
 			testnet_genesis(
+				WASM_BINARY,
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				vec![
 					get_account_id_from_seed::<sr25519::Public>("Alice"),
@@ -76,21 +81,26 @@ pub fn get_chain_spec(id: ParaId) -> ChainSpec {
 		vec![],
 		None,
 		None,
-		None,
+		Some(properties),
 		Extensions {
 			relay_chain: "local_testnet".into(),
 			para_id: id.into(),
 		},
-	)
+	))
 }
 
-pub fn staging_test_net(id: ParaId) -> ChainSpec {
-	ChainSpec::from_genesis(
+pub fn staging_test_net(id: ParaId) -> Result<ChainSpec, String> {
+	let mut properties = Properties::new();
+	properties.insert("tokenSymbol".into(), "STG".into());
+	properties.insert("tokenDecimals".into(), 12.into());
+
+	Ok(ChainSpec::from_genesis(
 		"Staging Testnet",
 		"staging_testnet",
 		ChainType::Live,
 		move || {
 			testnet_genesis(
+				WASM_BINARY,
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				vec![get_account_id_from_seed::<sr25519::Public>("Alice")],
 				id,
@@ -99,22 +109,23 @@ pub fn staging_test_net(id: ParaId) -> ChainSpec {
 		Vec::new(),
 		None,
 		None,
-		None,
+		Some(properties),
 		Extensions {
 			relay_chain: "rococo_local_testnet".into(),
 			para_id: id.into(),
 		},
-	)
+	))
 }
 
 fn testnet_genesis(
+	wasm_binary: &[u8],
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
 	id: ParaId,
 ) -> GenesisConfig {
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
-			code: WASM_BINARY.to_vec(),
+			code: wasm_binary.to_vec(),
 			changes_trie_config: Default::default(),
 		}),
 		pallet_balances: Some(BalancesConfig {
