@@ -43,10 +43,26 @@ pub struct Transfer<AccountId, Balance> {
 	pub amount: Balance,
 	pub sequence: SequenceType,
 }
+
+pub trait SignedDataType<T> {
+	fn raw_data(&self) -> Vec<u8>;
+	fn signature(&self) -> T;
+}
+
 #[derive(Encode, Decode)]
 pub struct TransferData<AccountId, Balance> {
 	pub data: Transfer<AccountId, Balance>,
 	pub signature: Vec<u8>,
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
 }
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
@@ -99,6 +115,7 @@ decl_event!(
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		SimpleEvent(u32),
+		Heartbeat(),
 	}
 );
 
@@ -284,16 +301,16 @@ impl<T: Trait> Module<T> {
 		<Miner<T>>::contains_key(&who)
 	}
 
-	pub fn verify_signature(serialized_pk: Vec<u8>, transfer_data: &TransferData<<T as frame_system::Trait>::AccountId, BalanceOf<T>>) -> dispatch::DispatchResult {
+	pub fn verify_signature(serialized_pk: Vec<u8>, data: &impl SignedDataType<Vec<u8>>) -> dispatch::DispatchResult {
 		let mut pk = [0u8; 33];
 		pk.copy_from_slice(&serialized_pk);
 		let pub_key = secp256k1::PublicKey::parse_compressed(&pk);
 		ensure!(pub_key.is_ok(), Error::<T>::InvalidPubKey);
 
-		let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
+		let signature = secp256k1::Signature::parse_slice(&data.signature());
 		ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
 
-		let msg_hash = hashing::blake2_256(&Encode::encode(&transfer_data.data));
+		let msg_hash = hashing::blake2_256(&data.raw_data());
 		let mut buffer = [0u8; 32];
 		buffer.copy_from_slice(&msg_hash);
 		let message = secp256k1::Message::parse(&buffer);
