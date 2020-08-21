@@ -65,6 +65,22 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferDat
 	}
 }
 
+#[derive(Encode, Decode)]
+pub struct HeartbeatData {
+	pub data: Vec<u8>,
+	pub signature: Vec<u8>,
+}
+
+impl SignedDataType<Vec<u8>> for HeartbeatData {
+	fn raw_data(&self) -> Vec<u8> {
+		self.data.clone()
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
 	/// Because this pallet emits events, it depends on the runtime's definition of an event.
@@ -286,6 +302,28 @@ decl_module! {
 			Machine::insert(machine_id.clone(), (pub_key, 0));
 			<MachineOwner<T>>::insert(machine_id.clone(), controller.clone());
 			<Miner<T>>::insert(controller, machine_id);
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn heartbeat(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+			let who = ensure_signed(origin)?;
+			// Decode payload
+			let data = Decode::decode(&mut &data[..]);
+			ensure!(data.is_ok(), "Bad transaction data");
+
+			let heartbeat_data: HeartbeatData = data.unwrap();
+			// Get Identity key from account
+			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
+			let machine_id = <Miner<T>>::get(who);
+			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
+			let serialized_pk = Machine::get(machine_id).0;
+			// Validate TEE signature
+			Self::verify_signature(serialized_pk, &heartbeat_data)?;
+
+			// Emit event
+			Self::deposit_event(RawEvent::Heartbeat());
 
 			Ok(())
 		}
