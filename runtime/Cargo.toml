@@ -41,6 +41,9 @@ cumulus-message-broker = { git = "https://github.com/paritytech/cumulus",  defau
 cumulus-upward-message = { git = "https://github.com/paritytech/cumulus",  default-features = false, rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
 cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-features = false, rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
 
+#phala dependencies
+pallet-phala = { version = "2.0.0-rc5", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
+
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.6" }
 
@@ -76,6 +79,7 @@ std = [
 	"cumulus-primitives/std",
 	"cumulus-token-dealer/std",
 	"template/std",
+	"pallet-phala/std",
 ]
 # Will be enabled by the `wasm-builder` when building the runtime for WASM.
 runtime-wasm = [

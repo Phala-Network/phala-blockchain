@@ -33,6 +33,8 @@ pub use pallet_timestamp::Call as TimestampCall;
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
+pub use pallet_phala;
+
 /// Import the template pallet.
 pub use template;
 
@@ -244,6 +246,11 @@ impl template::Trait for Runtime {
 	type Event = Event;
 }
 
+impl pallet_phala::Trait for Runtime {
+	type Event = Event;
+	type TEECurrency = Balances;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -261,6 +268,7 @@ construct_runtime! {
 		ParachainInfo: parachain_info::{Module, Storage, Config},
 		TokenDealer: cumulus_token_dealer::{Module, Call, Event<T>},
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
+		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 	}
 }
 

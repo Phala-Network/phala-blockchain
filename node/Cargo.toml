@@ -49,6 +49,10 @@ sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "roc
 sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+grandpa-primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+pallet-im-online = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
 # Cumulus dependencies
 cumulus-consensus = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
@@ -84,3 +88,6 @@ polkadot-test-service = { git = "https://github.com/paritytech/polkadot", branch
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+
+# phala dependencies
+pallet-phala = { version = "2.0.0-rc5", path = "../pallets/phala" }

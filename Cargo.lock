@@ -297,7 +297,7 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
- "wasm-bindgen-futures",
+ "wasm-bindgen-futures 0.4.17",
 ]
 
 [[package]]
@@ -314,7 +314,7 @@ checksum = "df097e3f506bec0e1a24f06bb3c962c228f36671de841ff579cb99f371772634"
 dependencies = [
  "futures 0.3.5",
  "rustls",
- "webpki",
+ "webpki 0.21.3",
  "webpki-roots 0.19.0",
 ]
 
@@ -348,6 +348,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "automod"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4a6c9ed761af7400d28c83fe8da778a0a08489839e83ba12cefacaf34f2c559d"
+dependencies = [
+ "proc-macro2 1.0.19",
+ "quote 1.0.7",
+ "syn 1.0.38",
+]
+
+[[package]]
 name = "backtrace"
 version = "0.3.50"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -366,6 +377,16 @@ name = "base58"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5024ee8015f02155eee35c711107ddd9a9bf3cb689cf2a9089c97e79b6e1ae83"
+
+[[package]]
+name = "base64"
+version = "0.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "489d6c0ed21b11d038c31b6ceccca973e65d73ba3bd8ecb9a2babf5546164643"
+dependencies = [
+ "byteorder",
+ "safemem",
+]
 
 [[package]]
 name = "base64"
@@ -731,6 +752,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "30ed07550be01594c6026cff2a1d7fe9c8f683caa798e12b68694ac9e88286a3"
 dependencies = [
  "cache-padded",
+]
+
+[[package]]
+name = "console_error_panic_hook"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b8d976903543e0c48546a91908f21588a680a8c8f984df9a5d69feccb2b2a211"
+dependencies = [
+ "cfg-if",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1279,6 +1310,12 @@ dependencies = [
  "redox_users",
  "winapi 0.3.9",
 ]
+
+[[package]]
+name = "dissimilar"
+version = "1.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fc4b29f4b9bb94bf267d57269fd0706d343a160937108e9619fe380645428abb"
 
 [[package]]
 name = "dns-parser"
@@ -2354,7 +2391,7 @@ dependencies = [
  "rustls-native-certs",
  "tokio 0.2.22",
  "tokio-rustls",
- "webpki",
+ "webpki 0.21.3",
 ]
 
 [[package]]
@@ -2878,7 +2915,7 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.7.3",
- "ring",
+ "ring 0.16.15",
  "rw-stream-sink",
  "sha2 0.8.2",
  "smallvec 1.4.2",
@@ -3069,7 +3106,7 @@ dependencies = [
  "libp2p-core",
  "parity-send-wrapper",
  "wasm-bindgen",
- "wasm-bindgen-futures",
+ "wasm-bindgen-futures 0.4.17",
 ]
 
 [[package]]
@@ -3088,7 +3125,7 @@ dependencies = [
  "rw-stream-sink",
  "soketto",
  "url 2.1.1",
- "webpki",
+ "webpki 0.21.3",
  "webpki-roots 0.18.0",
 ]
 
@@ -3952,6 +3989,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-phala"
+version = "2.0.0-rc5"
+dependencies = [
+ "base64 0.11.0",
+ "blake2-rfc",
+ "chrono",
+ "frame-support",
+ "frame-system",
+ "hex",
+ "itertools 0.8.2",
+ "libsecp256k1",
+ "pallet-balances",
+ "parity-scale-codec",
+ "rand 0.7.3",
+ "serde",
+ "serde_json_no_std",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "untrusted",
+ "webpki 0.21.0",
+]
+
+[[package]]
 name = "pallet-proxy"
 version = "2.0.0-rc5"
 source = "git+https://github.com/paritytech/substrate?branch=rococo-branch#f397f246fd0a0c8c2ef2f0b7576ecbed133ed78d"
@@ -4224,6 +4286,8 @@ dependencies = [
  "futures 0.3.5",
  "log 0.4.11",
  "nix 0.17.0",
+ "pallet-im-online",
+ "pallet-phala",
  "pallet-sudo",
  "parachain-runtime",
  "parity-scale-codec",
@@ -4251,10 +4315,13 @@ dependencies = [
  "sc-transaction-pool",
  "serde",
  "sp-api",
+ "sp-authority-discovery",
  "sp-block-builder",
  "sp-blockchain",
  "sp-consensus",
+ "sp-consensus-babe",
  "sp-core",
+ "sp-finality-grandpa",
  "sp-inherents",
  "sp-io",
  "sp-offchain",
@@ -4296,6 +4363,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-balances",
+ "pallet-phala",
  "pallet-randomness-collective-flip",
  "pallet-sudo",
  "pallet-template",
@@ -5434,6 +5502,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "psm"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "96e0536f6528466dbbbbe6b986c34175a8d0ff25b794c4bacda22e068cd2f2c5"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "quick-error"
 version = "1.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5849,6 +5926,20 @@ checksum = "e005d658ad26eacc2b6c506dfde519f4e277e328d0eb3379ca61647d70a8f531"
 
 [[package]]
 name = "ring"
+version = "0.16.9"
+dependencies = [
+ "cc",
+ "lazy_static",
+ "libc",
+ "spin",
+ "untrusted",
+ "wasm-bindgen-test",
+ "which",
+ "winapi 0.3.9",
+]
+
+[[package]]
+name = "ring"
 version = "0.16.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "952cd6b98c85bbc30efa1ba5783b8abf12fec8b3287ffa52605b9432313e34e4"
@@ -6010,9 +6101,9 @@ checksum = "5d1126dcf58e93cee7d098dbda643b5f92ed724f1f6a63007c1116eed6700c81"
 dependencies = [
  "base64 0.12.3",
  "log 0.4.11",
- "ring",
+ "ring 0.16.15",
  "sct",
- "webpki",
+ "webpki 0.21.3",
 ]
 
 [[package]]
@@ -6025,6 +6116,17 @@ dependencies = [
  "rustls",
  "schannel",
  "security-framework",
+]
+
+[[package]]
+name = "rustversion"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9bdc5e856e51e685846fb6c13a1f5e5432946c2c90501bdc76a1319f19e29da"
+dependencies = [
+ "proc-macro2 1.0.19",
+ "quote 1.0.7",
+ "syn 1.0.38",
 ]
 
 [[package]]
@@ -6052,6 +6154,12 @@ checksum = "6d3d055a2582e6b00ed7a31c1524040aa391092bf636328350813f3a0605215c"
 dependencies = [
  "rustc_version",
 ]
+
+[[package]]
+name = "safemem"
+version = "0.3.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ef703b7cb59335eae2eb93ceb664c0eb7ea6bf567079d843e09420219668e072"
 
 [[package]]
 name = "sc-authority-discovery"
@@ -6995,7 +7103,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3042af939fca8c3453b7af0f1c66e533a15a86169e39de2657310ade8f98d3c"
 dependencies = [
- "ring",
+ "ring 0.16.15",
  "untrusted",
 ]
 
@@ -7068,6 +7176,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bytes"
+version = "0.11.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16ae07dd2f88a366f15bd0632ba725227018c69a1c8550a927324f8eb8368bb9"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.115"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7079,6 +7196,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_derive_no_std"
+version = "1.0.111"
+dependencies = [
+ "proc-macro2 1.0.19",
+ "quote 1.0.7",
+ "serde_no_std",
+ "syn 1.0.38",
+]
+
+[[package]]
 name = "serde_json"
 version = "1.0.57"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7087,6 +7214,39 @@ dependencies = [
  "itoa",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_json_no_std"
+version = "1.0.53"
+dependencies = [
+ "automod",
+ "indexmap",
+ "itoa",
+ "rustversion",
+ "ryu",
+ "serde_bytes",
+ "serde_derive",
+ "serde_no_std",
+ "serde_stacker",
+ "trybuild",
+]
+
+[[package]]
+name = "serde_no_std"
+version = "1.0.111"
+dependencies = [
+ "serde_derive_no_std",
+]
+
+[[package]]
+name = "serde_stacker"
+version = "0.1.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f4c92391a63e3b83f77334d8beaaf11bac4c900f3769483e543bf76a81bf8ee2"
+dependencies = [
+ "serde",
+ "stacker",
 ]
 
 [[package]]
@@ -7279,7 +7439,7 @@ dependencies = [
  "chacha20poly1305",
  "rand 0.7.3",
  "rand_core 0.5.1",
- "ring",
+ "ring 0.16.15",
  "rustc_version",
  "sha2 0.9.1",
  "subtle 2.2.3",
@@ -7932,6 +8092,19 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "stacker"
+version = "0.1.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a92bc346006ae78c539d6ab2cf1a1532bc657b8339c464877a990ec82073c66f"
+dependencies = [
+ "cc",
+ "cfg-if",
+ "libc",
+ "psm",
+ "winapi 0.3.9",
+]
 
 [[package]]
 name = "static_assertions"
@@ -8587,7 +8760,7 @@ dependencies = [
  "futures-core",
  "rustls",
  "tokio 0.2.22",
- "webpki",
+ "webpki 0.21.3",
 ]
 
 [[package]]
@@ -8799,6 +8972,21 @@ name = "try-lock"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59547bce71d9c38b83d9c0e92b6066c4253371f15005def0c30d9657f50c7642"
+
+[[package]]
+name = "trybuild"
+version = "1.0.32"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3fe571fc1c805a7dc57340d2be54d72a96010a46a05c57018863f3b1cb93d28"
+dependencies = [
+ "dissimilar",
+ "glob",
+ "lazy_static",
+ "serde",
+ "serde_json",
+ "termcolor",
+ "toml",
+]
 
 [[package]]
 name = "twox-hash"
@@ -9039,6 +9227,19 @@ dependencies = [
 
 [[package]]
 name = "wasm-bindgen-futures"
+version = "0.3.27"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "83420b37346c311b9ed822af41ec2e82839bfe99867ec6c54e2da43b7538771c"
+dependencies = [
+ "cfg-if",
+ "futures 0.1.29",
+ "js-sys",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
+name = "wasm-bindgen-futures"
 version = "0.4.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "95f8d235a77f880bcef268d379810ea6c0af2eacfa90b1ad5af731776e0c4699"
@@ -9079,6 +9280,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "93b162580e34310e5931c4b792560108b10fd14d64915d7fff8ff00180e70092"
 
 [[package]]
+name = "wasm-bindgen-test"
+version = "0.2.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a2d9693b63a742d481c7f80587e057920e568317b2806988c59cd71618bc26c1"
+dependencies = [
+ "console_error_panic_hook",
+ "futures 0.1.29",
+ "js-sys",
+ "scoped-tls",
+ "wasm-bindgen",
+ "wasm-bindgen-futures 0.3.27",
+ "wasm-bindgen-test-macro",
+]
+
+[[package]]
+name = "wasm-bindgen-test-macro"
+version = "0.2.50"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0789dac148a8840bbcf9efe13905463b733fa96543bfbf263790535c11af7ba5"
+dependencies = [
+ "proc-macro2 0.4.30",
+ "quote 0.6.13",
+]
+
+[[package]]
 name = "wasm-timer"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9090,7 +9316,7 @@ dependencies = [
  "pin-utils",
  "send_wrapper 0.2.0",
  "wasm-bindgen",
- "wasm-bindgen-futures",
+ "wasm-bindgen-futures 0.4.17",
  "web-sys",
 ]
 
@@ -9289,11 +9515,21 @@ dependencies = [
 
 [[package]]
 name = "webpki"
+version = "0.21.0"
+dependencies = [
+ "base64 0.9.3",
+ "ring 0.16.15",
+ "ring 0.16.9",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki"
 version = "0.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ab146130f5f790d45f82aeeb09e55a256573373ec64409fc19a6fb82fb1032ae"
 dependencies = [
- "ring",
+ "ring 0.16.15",
  "untrusted",
 ]
 
@@ -9303,7 +9539,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "91cd5736df7f12a964a5067a12c62fa38e1bd8080aff1f80bc29be7c80d19ab4"
 dependencies = [
- "webpki",
+ "webpki 0.21.3",
 ]
 
 [[package]]
@@ -9312,7 +9548,7 @@ version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8eff4b7516a57307f9349c64bf34caa34b940b66fed4b2fb3136cb7386e5739"
 dependencies = [
- "webpki",
+ "webpki 0.21.3",
 ]
 
 [[package]]
@@ -9399,6 +9635,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
 dependencies = [
+ "failure",
  "libc",
 ]
 

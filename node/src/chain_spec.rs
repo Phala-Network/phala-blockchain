@@ -3,13 +3,17 @@
 use cumulus_primitives::ParaId;
 use parachain_runtime::{
 	AccountId, BalancesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig,
-	ParachainInfoConfig, WASM_BINARY,
+	ParachainInfoConfig, WASM_BINARY, PhalaModuleConfig,
 };
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
 use sc_service::{ChainType, Properties};
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
 use sp_runtime::traits::{IdentifyAccount, Verify};
+use grandpa_primitives::{AuthorityId as GrandpaId};
+use sp_consensus_babe::{AuthorityId as BabeId};
+use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
@@ -19,6 +23,25 @@ pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Pu
 	TPublic::Pair::from_string(&format!("//{}", seed), None)
 		.expect("static values are valid; qed")
 		.public()
+}
+
+/// Helper function to generate stash, controller and session key from seed
+pub fn authority_keys_from_seed(seed: &str) -> (
+	AccountId,
+	AccountId,
+	GrandpaId,
+	BabeId,
+	ImOnlineId,
+	AuthorityDiscoveryId,
+) {
+	(
+		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
+		get_account_id_from_seed::<sr25519::Public>(seed),
+		get_from_seed::<GrandpaId>(seed),
+		get_from_seed::<BabeId>(seed),
+		get_from_seed::<ImOnlineId>(seed),
+		get_from_seed::<AuthorityDiscoveryId>(seed),
+	)
 }
 
 /// The extensions for the [`ChainSpec`].
@@ -59,6 +82,10 @@ pub fn get_chain_spec(id: ParaId) -> Result<ChainSpec, String> {
 		ChainType::Local,
 		move || {
 			testnet_genesis(
+				vec![
+					authority_keys_from_seed("Alice"),
+					authority_keys_from_seed("Bob"),
+				],
 				WASM_BINARY,
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				vec![
@@ -100,6 +127,10 @@ pub fn staging_test_net(id: ParaId) -> Result<ChainSpec, String> {
 		ChainType::Live,
 		move || {
 			testnet_genesis(
+				vec![
+					authority_keys_from_seed("Alice"),
+					authority_keys_from_seed("Bob"),
+				],
 				WASM_BINARY,
 				get_account_id_from_seed::<sr25519::Public>("Alice"),
 				vec![get_account_id_from_seed::<sr25519::Public>("Alice")],
@@ -118,6 +149,14 @@ pub fn staging_test_net(id: ParaId) -> Result<ChainSpec, String> {
 }
 
 fn testnet_genesis(
+	initial_authorities: Vec<(		
+		AccountId,
+		AccountId,
+		GrandpaId,
+		BabeId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+	)>,
 	wasm_binary: &[u8],
 	root_key: AccountId,
 	endowed_accounts: Vec<AccountId>,
@@ -137,5 +176,10 @@ fn testnet_genesis(
 		}),
 		pallet_sudo: Some(SudoConfig { key: root_key }),
 		parachain_info: Some(ParachainInfoConfig { parachain_id: id }),
+		pallet_phala: Some(PhalaModuleConfig {
+			stakers: initial_authorities.iter().map(|x| {
+				x.1.clone()
+			}).collect(),
+		}),
 	}
 }
