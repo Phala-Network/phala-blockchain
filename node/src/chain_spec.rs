@@ -73,7 +73,7 @@ where
 
 pub fn get_chain_spec(id: ParaId) -> Result<ChainSpec, String> {
 	let mut properties = Properties::new();
-	properties.insert("tokenSymbol".into(), "DEV".into());
+	properties.insert("tokenSymbol".into(), "PHA".into());
 	properties.insert("tokenDecimals".into(), 12.into());
 
 	Ok(ChainSpec::from_genesis(
