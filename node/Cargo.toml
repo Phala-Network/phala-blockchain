@@ -50,13 +50,12 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "roco
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
-
 # Cumulus dependencies
-cumulus-consensus = { git = "https://github.com/paritytech/cumulus", rev = '35f60b1e90145714730d372b5067d9c392884ac9' }
-cumulus-collator = { git = "https://github.com/paritytech/cumulus", rev = '35f60b1e90145714730d372b5067d9c392884ac9' }
-cumulus-network = { git = "https://github.com/paritytech/cumulus", rev = '35f60b1e90145714730d372b5067d9c392884ac9' }
-cumulus-primitives = { git = "https://github.com/paritytech/cumulus", rev = '35f60b1e90145714730d372b5067d9c392884ac9' }
-cumulus-service = { git = "https://github.com/paritytech/cumulus", rev = '35f60b1e90145714730d372b5067d9c392884ac9' }
+cumulus-consensus = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
+cumulus-collator = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
+cumulus-network = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
+cumulus-service = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
 
 # Polkadot dependencies
 polkadot-primitives = { git = "https://github.com/paritytech/polkadot", branch = "rococo-branch" }
