@@ -1,10 +1,6 @@
 cd /root && \
-git clone --recursive https://github.com/intel/linux-sgx && \
-cd linux-sgx && \
-git checkout sgx_2.9.1 && \
-./download_prebuilt.sh && \
-make -j "$(nproc)" sdk_install_pkg && \
-echo -e 'no\n/opt' | ./linux/installer/bin/sgx_linux_x64_sdk_2.9.101.2.bin && \
+wget https://download.01.org/intel-sgx/sgx-linux/2.10/distro/ubuntu18.04-server/sgx_linux_x64_sdk_2.10.100.2.bin && \
+chmod +x ./sgx_linux_x64_sdk_2.10.100.2.bin && \
+echo -e 'no\n/opt' | ./sgx_linux_x64_sdk_2.10.100.2.bin && \
 echo 'source /opt/sgxsdk/environment' >> /root/.bashrc && \
-cd /root && \
-rm -rf /root/linux-sgx
+rm -rf ./sgx_linux_x64_sdk_2.10.100.2.bin
