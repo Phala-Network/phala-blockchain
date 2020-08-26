@@ -117,6 +117,19 @@ struct RuntimeInfo {
     score: u32,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct Heartbeat {
+    block_num: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct HeartbeatData {
+    data: Heartbeat,
+    signature: Vec<u8>,
+}
+
 fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
     where S: Serializer {
     let data = value.encode();
@@ -606,6 +619,7 @@ const ACTION_DUMP_STATES: u8 = 3;
 const ACTION_LOAD_STATES: u8 = 4;
 const ACTION_SYNC_BLOCK: u8 = 5;
 const ACTION_QUERY: u8 = 6;
+const ACTION_PING: u8 = 7;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -695,6 +709,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_LOAD_STATES => load_states(payload),
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
+                ACTION_PING => ping(payload),
                 _ => unknown()
             }
         }
@@ -1433,6 +1448,40 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "data": data_b64.to_string()
     }))
 }
+
+fn ping(_input: &Map<String, Value>) -> Result<Value, Value> {
+    let local_state = LOCAL_STATE.lock().unwrap();
+    // TODO: Guard only initialize once
+    if !local_state.initialized {
+        return Err(json!({"status": "not_initialized", "encoded_data": ""}))
+    }
+
+    let block_num = local_state.blocknum;
+
+    let data = Heartbeat {
+        block_num,
+    };
+
+    let msg_hash = blake2_256(&Encode::encode(&data));
+    let mut buffer = [0u8; 32];
+    buffer.copy_from_slice(&msg_hash);
+    let message = secp256k1::Message::parse(&buffer);
+    let signature = secp256k1::sign(&message, &local_state.private_key);
+    println!("signature={:?}", signature);
+
+    let heartbeat_data = HeartbeatData {
+        data,
+        signature: signature.0.serialize().to_vec(),
+    };
+
+    let data_b64 = base64::encode(&heartbeat_data.encode());
+
+    Ok(json!({
+        "status": "ok",
+        "encoded_data": data_b64.to_string()
+    }))
+}
+
 
 lazy_static! {
     static ref GLOBAL_RECEIPT: SgxMutex<ReceiptStore> = {

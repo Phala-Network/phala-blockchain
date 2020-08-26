@@ -148,6 +148,15 @@ pub mod phala {
         pub _runtime: PhantomData<T>,
     }
 
+    /// The call to transfer_to_chain
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct HeartbeatCall<T: PhalaModule> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The heartbeat data, SCALA encoded
+        pub data: Vec<u8>,
+    }
+
     impl<T: PhalaModule> SequenceStore<T> {
         pub fn new() -> Self {
             Self {

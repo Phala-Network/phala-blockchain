@@ -66,14 +66,19 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferDat
 }
 
 #[derive(Encode, Decode)]
+pub struct Heartbeat {
+	block_num: u32,
+}
+
+#[derive(Encode, Decode)]
 pub struct HeartbeatData {
-	pub data: Vec<u8>,
-	pub signature: Vec<u8>,
+	data: Heartbeat,
+	signature: Vec<u8>,
 }
 
 impl SignedDataType<Vec<u8>> for HeartbeatData {
 	fn raw_data(&self) -> Vec<u8> {
-		self.data.clone()
+		Encode::encode(&self.data)
 	}
 
 	fn signature(&self) -> Vec<u8> {
