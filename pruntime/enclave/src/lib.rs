@@ -95,6 +95,7 @@ struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
     contract2: contracts::balance::Balance,
     contract3: contracts::assets::Assets,
+    contract4: contracts::web3analytics::Web3Analytics,
     #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
     light_client: ChainLightValidation,
     main_bridge: u64
@@ -136,6 +137,7 @@ lazy_static! {
             contract1: contracts::data_plaza::DataPlaza::new(),
             contract2: contracts::balance::Balance::new(None),
             contract3: contracts::assets::Assets::new(),
+            contract4: contracts::web3analytics::Web3Analytics::new(),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
         })
@@ -1291,11 +1293,11 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
         .expect("Failed to decode payload");
     let (msg, secret, pubkey) = {
         let local_state = LOCAL_STATE.lock().unwrap();
-        let ecdh_privkey = local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied");
         match payload {
             types::Payload::Plain(data) => (data.into_bytes(), None, None),
             types::Payload::Cipher(cipher) => {
                 println!("cipher: {:?}", cipher);
+                let ecdh_privkey = local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied");
                 let result = cryptography::decrypt(&cipher, ecdh_privkey).expect("Decrypt failed");
                 (result.msg, Some(result.secret), local_state.ecdh_public_key.clone())
             }
@@ -1333,6 +1335,12 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 accid_origin.as_ref(),
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
+        ).unwrap(),
+        W3A => serde_json::to_value(
+            state.contract4.handle_query(
+                accid_origin.as_ref(),
+                types::deopaque_query(opaque_query)
+                    .map_err(|_| error_msg("Malformed request (w3a::Request)"))?.request)
         ).unwrap(),
         SYSTEM => serde_json::to_value(
             handle_query_receipt(
