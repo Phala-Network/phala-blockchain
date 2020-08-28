@@ -32,12 +32,52 @@ pub struct OnlineUser {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HourlyStat {
+pub struct WeeklySite {
+    sid: Sid,
+    path: String,
+    count: u32,
+    timestamp: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WeeklyClient {
+    sid: Sid,
+    cids: Vec<String>,
+    timestamp: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct SiteClient {
+    sid: Sid,
+    cids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HourlyPageView {
     sid: Sid,
     pv_count: u32,
     cid_count: u32,
     avg_duration: u32,
     timestamp: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct HourlyStat {
+    hpv: Vec<HourlyPageView>,
+    sc: Vec<SiteClient>,
+    wc: Vec<WeeklyClient>,
+    ws: Vec<WeeklySite>,
+}
+
+impl HourlyStat {
+    pub fn new() -> Self {
+        Self {
+            hpv: Vec::<HourlyPageView>::new(),
+            sc: Vec::<SiteClient>::new(),
+            wc: Vec::<WeeklyClient>::new(),
+            ws: Vec::<WeeklySite>::new(),
+        }
+    }
 }
 
 // contract
@@ -64,7 +104,8 @@ pub enum Request {
     },
     GetHourlyStats {
         start: Timestamp,
-        end: Timestamp
+        end: Timestamp,
+        start_of_week: Timestamp,
     },
 }
 
@@ -72,14 +113,14 @@ pub enum Request {
 pub enum Response {
     SetPageView {page_views: Vec<PageView>},
     GetOnlineUsers {online_users: Vec<OnlineUser>},
-    GetHourlyStats {hourly_stats: Vec<HourlyStat>}
+    GetHourlyStat {hourly_stat: HourlyStat}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Web3Analytics {
     page_views: Vec<PageView>,
     online_users: Vec<OnlineUser>,
-    hourly_stats: Vec<HourlyStat>
+    hourly_stat: HourlyStat
 }
 
 impl Web3Analytics {
@@ -87,7 +128,7 @@ impl Web3Analytics {
         Self {
             page_views: Vec::<PageView>::new(),
             online_users: Vec::<OnlineUser>::new(),
-            hourly_stats: Vec::<HourlyStat>::new(),
+            hourly_stat: HourlyStat::new(),
         }
     }
 
@@ -157,13 +198,18 @@ impl Web3Analytics {
         }
     }
 
-    pub fn update_hourly_stats(&mut self, start_s: Timestamp, end_s: Timestamp) {
+    pub fn update_hourly_stats(&mut self, start_s: Timestamp, end_s: Timestamp, start_of_week: Timestamp) {
+        const SECONDS_IN_HOUR: u32 = 3600;
+        const SECONDS_IN_WEEK: u32 = 7 * 24 * SECONDS_IN_HOUR;
+
         let mut sids = Vec::<Sid>::new();
+        let mut sid_map = HashMap::<Sid, Vec::<String>>::new();
+        let mut cid_weekly_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut cid_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut pv_count_map = HashMap::<(Sid, Timestamp), u32>::new();
 
-        let start = start_s / 3600 * 3600;
-        let end = end_s / 3600 * 3600;
+        let start = start_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
+        let end = end_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
 
         for pv in self.page_views.clone() {
             if pv.created_at <= start {
@@ -178,29 +224,55 @@ impl Web3Analytics {
                 sids.push(pv.sid.clone());
             }
 
-            let ca = pv.created_at / 3600 * 3600;
+            let ca = pv.created_at / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
             if cid_map.contains_key(&(pv.sid.clone(), ca)) {
                 let mut cids = cid_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
                 if !cids.contains(&pv.cid) {
-                    cids.push(pv.cid);
+                    cids.push(pv.cid.clone());
                 }
                 cid_map.insert((pv.sid.clone(), ca), cids);
             } else {
                 let mut cids = Vec::<String>::new();
-                cids.push(pv.cid);
+                cids.push(pv.cid.clone());
                 cid_map.insert((pv.sid.clone(), ca), cids);
             }
 
             if pv_count_map.contains_key(&(pv.sid.clone(), ca)) {
-                let pc = pv_count_map.get(&(pv.sid.clone(), ca)).unwrap();
+                let pc = pv_count_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
                 pv_count_map.insert((pv.sid.clone(), ca), pc + 1);
             } else {
                 pv_count_map.insert((pv.sid.clone(), ca), 1);
             }
+
+            let mut cids = Vec::<String>::new();
+            if sid_map.contains_key(&pv.sid) {
+                cids = sid_map.get(&pv.sid).unwrap().clone();
+                if !cids.contains(&pv.cid) {
+                    cids.push(pv.cid.clone());
+                }
+            } else {
+                cids.push(pv.cid.clone());
+            }
+            sid_map.insert(pv.sid.clone(), cids);
+
+            let diff = (pv.created_at - start_of_week.clone()) / SECONDS_IN_WEEK;
+            let date_of_week = start_of_week.clone() + diff * SECONDS_IN_WEEK;
+            if cid_weekly_map.contains_key(&(pv.sid.clone(), date_of_week)) {
+                let mut cids = cid_weekly_map.get(&(pv.sid.clone(), date_of_week)).unwrap().clone();
+                if !cids.contains(&pv.cid) {
+                    cids.push(pv.cid.clone());
+                }
+                cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
+            } else {
+                let mut cids = Vec::<String>::new();
+                cids.push(pv.cid.clone());
+                cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
+            }
         }
 
-        self.hourly_stats.clear();
+        self.hourly_stat = HourlyStat::new();
 
+        let mut hpv = Vec::<HourlyPageView>::new();
         let mut index = start;
         while index < end {
             for sid in sids.clone() {
@@ -208,19 +280,53 @@ impl Web3Analytics {
                     continue;
                 }
 
-                let cids = cid_map.get(&(sid.clone(), index)).unwrap();
+                let cids = cid_map.get(&(sid.clone(), index)).unwrap().clone();
                 let pc = pv_count_map.get(&(sid.clone(), index)).unwrap();
-                let hs = HourlyStat {
+                let hs = HourlyPageView {
                     sid,
                     cid_count: cids.len() as u32,
                     pv_count: *pc,
                     avg_duration: 0,
-                    timestamp: index + 3600
+                    timestamp: index + SECONDS_IN_HOUR
                 };
-                self.hourly_stats.push(hs);
+                hpv.push(hs);
             }
-            index += 3600;
+            index += SECONDS_IN_HOUR;
         }
+        self.hourly_stat.hpv = hpv;
+
+        let mut site_clients = Vec::<SiteClient>::new();
+        for sid in sids.clone() {
+            let cids = sid_map.get(&sid).unwrap().clone();
+            let sc = SiteClient {
+                sid,
+                cids,
+            };
+
+            site_clients.push(sc);
+        }
+        self.hourly_stat.sc = site_clients;
+
+        let mut wcs = Vec::<WeeklyClient>::new();
+        let mut index = start_of_week.clone();
+        while index < end {
+            for sid in sids.clone() {
+                if !cid_weekly_map.contains_key(&(sid.clone(), index)) {
+                    continue;
+                }
+
+                let cids = cid_weekly_map.get(&(sid.clone(), index)).unwrap().clone();
+                let wc = WeeklyClient {
+                    sid,
+                    cids,
+                    timestamp: index
+                };
+                wcs.push(wc);
+            }
+            index += SECONDS_IN_WEEK;
+        }
+        self.hourly_stat.wc = wcs;
+
     }
 }
 
@@ -257,9 +363,9 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                 self.update_online_users(start, end);
                 Response::GetOnlineUsers { online_users: self.online_users.clone() }
             },
-            Request::GetHourlyStats { start, end } => {
-                self.update_hourly_stats(start, end);
-                Response::GetHourlyStats { hourly_stats: self.hourly_stats.clone() }
+            Request::GetHourlyStats { start, end, start_of_week } => {
+                self.update_hourly_stats(start, end, start_of_week);
+                Response::GetHourlyStat { hourly_stat: self.hourly_stat.clone() }
             },
         }
     }
