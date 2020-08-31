@@ -40,6 +40,14 @@ pub struct WeeklySite {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct WeeklyDevice {
+    sid: Sid,
+    device: String,
+    count: u32,
+    timestamp: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct WeeklyClient {
     sid: Sid,
     cids: Vec<String>,
@@ -67,6 +75,7 @@ pub struct HourlyStat {
     sc: Vec<SiteClient>,
     wc: Vec<WeeklyClient>,
     ws: Vec<WeeklySite>,
+    wd: Vec<WeeklyDevice>,
 }
 
 impl HourlyStat {
@@ -76,6 +85,7 @@ impl HourlyStat {
             sc: Vec::<SiteClient>::new(),
             wc: Vec::<WeeklyClient>::new(),
             ws: Vec::<WeeklySite>::new(),
+            wd: Vec::<WeeklyDevice>::new(),
         }
     }
 }
@@ -207,6 +217,10 @@ impl Web3Analytics {
         let mut cid_weekly_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut cid_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut pv_count_map = HashMap::<(Sid, Timestamp), u32>::new();
+        let mut path_map = HashMap::<Sid, Vec::<String>>::new();
+        let mut path_weekly_map = HashMap::<(Sid, String, Timestamp), u32>::new();
+        let mut device_map = HashMap::<Sid, Vec::<String>>::new();
+        let mut device_weekly_map = HashMap::<(Sid, String, Timestamp), u32>::new();
 
         let start = start_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
         let end = end_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
@@ -225,17 +239,16 @@ impl Web3Analytics {
             }
 
             let ca = pv.created_at / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
+            let mut cids = Vec::<String>::new();
             if cid_map.contains_key(&(pv.sid.clone(), ca)) {
-                let mut cids = cid_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
+                cids = cid_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
                 if !cids.contains(&pv.cid) {
                     cids.push(pv.cid.clone());
                 }
-                cid_map.insert((pv.sid.clone(), ca), cids);
             } else {
-                let mut cids = Vec::<String>::new();
                 cids.push(pv.cid.clone());
-                cid_map.insert((pv.sid.clone(), ca), cids);
             }
+            cid_map.insert((pv.sid.clone(), ca), cids);
 
             if pv_count_map.contains_key(&(pv.sid.clone(), ca)) {
                 let pc = pv_count_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
@@ -255,18 +268,53 @@ impl Web3Analytics {
             }
             sid_map.insert(pv.sid.clone(), cids);
 
+            let mut paths = Vec::<String>::new();
+            if path_map.contains_key(&pv.sid) {
+                paths = path_map.get(&pv.sid).unwrap().clone();
+                if !paths.contains(&pv.path) {
+                    paths.push(pv.path.clone());
+                }
+            } else {
+                paths.push(pv.path.clone());
+            }
+            path_map.insert(pv.sid.clone(), paths);
+
+            let mut devices = Vec::<String>::new();
+            if device_map.contains_key(&pv.sid) {
+                devices = device_map.get(&pv.sid).unwrap().clone();
+                if !devices.contains(&pv.user_agent) {
+                    devices.push(pv.user_agent.clone());
+                }
+            } else {
+                devices.push(pv.user_agent.clone());
+            }
+            device_map.insert(pv.sid.clone(), devices);
+
             let diff = (pv.created_at - start_of_week.clone()) / SECONDS_IN_WEEK;
             let date_of_week = start_of_week.clone() + diff * SECONDS_IN_WEEK;
+            let mut cids = Vec::<String>::new();
             if cid_weekly_map.contains_key(&(pv.sid.clone(), date_of_week)) {
-                let mut cids = cid_weekly_map.get(&(pv.sid.clone(), date_of_week)).unwrap().clone();
+                cids = cid_weekly_map.get(&(pv.sid.clone(), date_of_week)).unwrap().clone();
                 if !cids.contains(&pv.cid) {
                     cids.push(pv.cid.clone());
                 }
-                cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
             } else {
-                let mut cids = Vec::<String>::new();
                 cids.push(pv.cid.clone());
-                cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
+            }
+            cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
+
+            if path_weekly_map.contains_key(&(pv.sid.clone(), pv.path.clone(), date_of_week)) {
+                let count = path_weekly_map.get(&(pv.sid.clone(), pv.path.clone(), date_of_week)).unwrap().clone();
+                path_weekly_map.insert((pv.sid.clone(), pv.path.clone(), date_of_week), count + 1);
+            } else {
+                path_weekly_map.insert((pv.sid.clone(), pv.path.clone(), date_of_week), 1);
+            }
+
+            if device_weekly_map.contains_key(&(pv.sid.clone(), pv.user_agent.clone(), date_of_week)) {
+                let count = device_weekly_map.get(&(pv.sid.clone(), pv.user_agent.clone(), date_of_week)).unwrap().clone();
+                device_weekly_map.insert((pv.sid.clone(), pv.user_agent.clone(), date_of_week), count + 1);
+            } else {
+                device_weekly_map.insert((pv.sid.clone(), pv.user_agent.clone(), date_of_week), 1);
             }
         }
 
@@ -327,6 +375,53 @@ impl Web3Analytics {
         }
         self.hourly_stat.wc = wcs;
 
+        let mut wss = Vec::<WeeklySite>::new();
+        index = start_of_week.clone();
+        while index < end {
+            for sid in sids.clone() {
+                let paths = path_map.get(&sid).unwrap().clone();
+                for path in paths {
+                    if !path_weekly_map.contains_key(&(sid.clone(), path.clone(), index)) {
+                        continue;
+                    }
+
+                    let count = path_weekly_map.get(&(sid.clone(), path.clone(), index)).unwrap();
+                    let ws = WeeklySite {
+                        sid: sid.clone(),
+                        path,
+                        count: *count,
+                        timestamp: index
+                    };
+                    wss.push(ws);
+                }
+            }
+            index += SECONDS_IN_WEEK;
+        }
+        self.hourly_stat.ws = wss;
+
+        let mut wds = Vec::<WeeklyDevice>::new();
+        index = start_of_week.clone();
+        while index < end {
+            for sid in sids.clone() {
+                let devices = device_map.get(&sid).unwrap().clone();
+                for device in devices {
+                    if !device_weekly_map.contains_key(&(sid.clone(), device.clone(), index)) {
+                        continue;
+                    }
+
+                    let count = device_weekly_map.get(&(sid.clone(), device.clone(), index)).unwrap();
+                    let wd = WeeklyDevice {
+                        sid: sid.clone(),
+                        device,
+                        count: *count,
+                        timestamp: index
+                    };
+                    wds.push(wd);
+                }
+            }
+            index += SECONDS_IN_WEEK;
+        }
+        self.hourly_stat.wd = wds;
     }
 }
 
