@@ -143,6 +143,8 @@ impl Web3Analytics {
     }
 
     pub fn update_online_users(&mut self, start: Timestamp, end: Timestamp) {
+        const MINUTE_IN_SECONDS: u32 = 60;
+
         let mut sids = Vec::<Sid>::new();
         let mut cid_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut ip_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
@@ -160,34 +162,33 @@ impl Web3Analytics {
                 sids.push(pv.sid.clone());
             }
 
-            if cid_map.contains_key(&(pv.sid.clone(), pv.created_at)) {
-                let mut cids = cid_map.get(&(pv.sid.clone(), pv.created_at)).unwrap().clone();
+            let ca = pv.created_at / MINUTE_IN_SECONDS * MINUTE_IN_SECONDS;
+            let mut cids = Vec::<String>::new();
+            if cid_map.contains_key(&(pv.sid.clone(), ca)) {
+                cids = cid_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
                 if !cids.contains(&pv.cid) {
                     cids.push(pv.cid);
                 }
-                cid_map.insert((pv.sid.clone(), pv.created_at), cids);
             } else {
-                let mut cids = Vec::<String>::new();
                 cids.push(pv.cid);
-                cid_map.insert((pv.sid.clone(), pv.created_at), cids);
             }
+            cid_map.insert((pv.sid.clone(), ca), cids);
 
-            if ip_map.contains_key(&(pv.sid.clone(), pv.created_at)) {
-                let mut ips = ip_map.get(&(pv.sid.clone(), pv.created_at)).unwrap().clone();
+            let mut ips = Vec::<String>::new();
+            if ip_map.contains_key(&(pv.sid.clone(), ca)) {
+                ips = ip_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
                 if !ips.contains(&pv.ip) {
                     ips.push(pv.ip);
                 }
-                ip_map.insert((pv.sid.clone(), pv.created_at), ips);
             } else {
-                let mut ips = Vec::<String>::new();
                 ips.push(pv.ip);
-                ip_map.insert((pv.sid.clone(), pv.created_at), ips);
             }
+            ip_map.insert((pv.sid.clone(), ca), ips);
         }
 
         self.online_users.clear();
 
-        let mut index = start + 60;
+        let mut index = start + MINUTE_IN_SECONDS;
         while index <= end {
             for sid in sids.clone() {
                 if !cid_map.contains_key(&(sid.clone(), index)) {
@@ -204,13 +205,13 @@ impl Web3Analytics {
                 };
                 self.online_users.push(ou);
             }
-            index += 60;
+            index += MINUTE_IN_SECONDS;
         }
     }
 
     pub fn update_hourly_stats(&mut self, start_s: Timestamp, end_s: Timestamp, start_of_week: Timestamp) {
-        const SECONDS_IN_HOUR: u32 = 3600;
-        const SECONDS_IN_WEEK: u32 = 7 * 24 * SECONDS_IN_HOUR;
+        const HOUR_IN_SECONDS: u32 = 3600;
+        const WEEK_IN_SECONDS: u32 = 7 * 24 * HOUR_IN_SECONDS;
 
         let mut sids = Vec::<Sid>::new();
         let mut sid_map = HashMap::<Sid, Vec::<String>>::new();
@@ -222,8 +223,10 @@ impl Web3Analytics {
         let mut device_map = HashMap::<Sid, Vec::<String>>::new();
         let mut device_weekly_map = HashMap::<(Sid, String, Timestamp), u32>::new();
 
-        let start = start_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
-        let end = end_s / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
+        let mut cid_timestamp_map = HashMap::<(String, Timestamp), Vec::<Timestamp>>::new();
+
+        let start = start_s / HOUR_IN_SECONDS * HOUR_IN_SECONDS;
+        let end = end_s / HOUR_IN_SECONDS * HOUR_IN_SECONDS;
 
         for pv in self.page_views.clone() {
             if pv.created_at <= start {
@@ -238,7 +241,7 @@ impl Web3Analytics {
                 sids.push(pv.sid.clone());
             }
 
-            let ca = pv.created_at / SECONDS_IN_HOUR * SECONDS_IN_HOUR;
+            let ca = pv.created_at / HOUR_IN_SECONDS * HOUR_IN_SECONDS;
             let mut cids = Vec::<String>::new();
             if cid_map.contains_key(&(pv.sid.clone(), ca)) {
                 cids = cid_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
@@ -249,6 +252,15 @@ impl Web3Analytics {
                 cids.push(pv.cid.clone());
             }
             cid_map.insert((pv.sid.clone(), ca), cids);
+
+            let mut tss = Vec::<Timestamp>::new();
+            if cid_timestamp_map.contains_key(&(pv.cid.clone(), ca)) {
+                tss = cid_timestamp_map.get(&(pv.cid.clone(), ca)).unwrap().clone();
+                tss.push(pv.created_at);
+            } else {
+                tss.push(pv.created_at);
+            }
+            cid_timestamp_map.insert((pv.cid.clone(), ca), tss);
 
             if pv_count_map.contains_key(&(pv.sid.clone(), ca)) {
                 let pc = pv_count_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
@@ -290,8 +302,8 @@ impl Web3Analytics {
             }
             device_map.insert(pv.sid.clone(), devices);
 
-            let diff = (pv.created_at - start_of_week.clone()) / SECONDS_IN_WEEK;
-            let date_of_week = start_of_week.clone() + diff * SECONDS_IN_WEEK;
+            let diff = (pv.created_at - start_of_week.clone()) / WEEK_IN_SECONDS;
+            let date_of_week = start_of_week.clone() + diff * WEEK_IN_SECONDS;
             let mut cids = Vec::<String>::new();
             if cid_weekly_map.contains_key(&(pv.sid.clone(), date_of_week)) {
                 cids = cid_weekly_map.get(&(pv.sid.clone(), date_of_week)).unwrap().clone();
@@ -329,17 +341,33 @@ impl Web3Analytics {
                 }
 
                 let cids = cid_map.get(&(sid.clone(), index)).unwrap().clone();
+                let mut total_duration: u32 = 0;
+                for cid in cids.clone() {
+                    let tss = cid_timestamp_map.get(&(cid.clone(), index)).unwrap();
+                    if tss.len() <= 2 {
+                        total_duration += 60;
+                    } else {
+                        let mut sum:u32 = 0;
+                        for i in 1..tss.len() {
+                            sum += tss[i] - tss[i-1];
+                        }
+                        total_duration += sum / (tss.len() as u32 - 1);
+                    }
+                }
+
+                let avg_duration: u32 = total_duration / (cids.len() as u32);
+
                 let pc = pv_count_map.get(&(sid.clone(), index)).unwrap();
                 let hs = HourlyPageView {
                     sid,
                     cid_count: cids.len() as u32,
                     pv_count: *pc,
-                    avg_duration: 0,
-                    timestamp: index + SECONDS_IN_HOUR
+                    avg_duration,
+                    timestamp: index + HOUR_IN_SECONDS
                 };
                 hpv.push(hs);
             }
-            index += SECONDS_IN_HOUR;
+            index += HOUR_IN_SECONDS;
         }
         self.hourly_stat.hpv = hpv;
 
@@ -371,7 +399,7 @@ impl Web3Analytics {
                 };
                 wcs.push(wc);
             }
-            index += SECONDS_IN_WEEK;
+            index += WEEK_IN_SECONDS;
         }
         self.hourly_stat.wc = wcs;
 
@@ -395,7 +423,7 @@ impl Web3Analytics {
                     wss.push(ws);
                 }
             }
-            index += SECONDS_IN_WEEK;
+            index += WEEK_IN_SECONDS;
         }
         self.hourly_stat.ws = wss;
 
@@ -419,14 +447,14 @@ impl Web3Analytics {
                     wds.push(wd);
                 }
             }
-            index += SECONDS_IN_WEEK;
+            index += WEEK_IN_SECONDS;
         }
         self.hourly_stat.wd = wds;
     }
 }
 
 impl contracts::Contract<Command, Request, Response> for Web3Analytics {
-    fn id(&self) -> contracts::ContractId { contracts::W3A }
+    fn id(&self) -> contracts::ContractId { contracts::WEB3_ANALYTICS }
 
     fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, _cmd: Command) -> TransactionStatus {
         TransactionStatus::Ok

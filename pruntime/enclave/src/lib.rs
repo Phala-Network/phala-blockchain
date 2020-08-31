@@ -941,7 +941,7 @@ mod contracts;
 mod types;
 
 use types::TxRef;
-use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM};
+use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM, WEB3_ANALYTICS};
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1336,7 +1336,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
         ).unwrap(),
-        W3A => serde_json::to_value(
+        WEB3_ANALYTICS => serde_json::to_value(
             state.contract4.handle_query(
                 accid_origin.as_ref(),
                 types::deopaque_query(opaque_query)

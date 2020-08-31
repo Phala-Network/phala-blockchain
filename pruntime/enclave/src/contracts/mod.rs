@@ -17,7 +17,7 @@ pub const SYSTEM: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCE: ContractId = 2;
 pub const ASSETS: ContractId = 3;
-pub const W3A: ContractId = 4;
+pub const WEB3_ANALYTICS: ContractId = 4;
 
 pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
 where
