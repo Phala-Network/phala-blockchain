@@ -17,10 +17,10 @@ futures = { version = "0.3.5", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 jsonrpsee = "0.1.0"
 log = "0.4.11"
-sc-network = { version = "0.8.0-rc5", default-features = false, path = "../../substrate/client/network" }
-sc-service = { version = "0.8.0-rc5", default-features = false, path = "../../substrate/client/service" }
+sc-network = { version = "0.8.0-rc6", default-features = false, path = "../../substrate/client/network" }
+sc-service = { version = "0.8.0-rc6", default-features = false, path = "../../substrate/client/service" }
 serde_json = "1.0.56"
-sp-keyring = { version = "2.0.0-rc5", path = "../../substrate/primitives/keyring" }
+sp-keyring = { version = "2.0.0-rc6", path = "../../substrate/primitives/keyring" }
 thiserror = "1.0.20"
 
 [dev-dependencies]

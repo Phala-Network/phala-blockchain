@@ -25,7 +25,7 @@ RUN bash /root/03_sdk.sh
 
 # Seventh, Rust
 
-ENV rust_toolchain  nightly-2020-04-07
+ENV rust_toolchain  nightly
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 ADD ./dockerfile.d/06_wasm.sh /root

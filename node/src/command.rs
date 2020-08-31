@@ -25,7 +25,7 @@ use crate::service::new_partial;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
-		"Phala Substrate Node".into()
+		"Substrate Node".into()
 	}
 
 	fn impl_version() -> String {
@@ -45,16 +45,15 @@ impl SubstrateCli for Cli {
 	}
 
 	fn copyright_start_year() -> i32 {
-		2019
+		2017
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
 			"dev" => Box::new(chain_spec::development_config()),
 			"local" => Box::new(chain_spec::local_testnet_config()),
-			"" | "phala" | "poc2" => Box::new(chain_spec::phala_testnet_poc2_config()?),
-			"phala-local" => Box::new(chain_spec::phala_testnet_poc2_local_config()),
 			"fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
+			"" | "phala" | "poc2" => Box::new(chain_spec::phala_testnet_poc2_config()?),
 			"staging" => Box::new(chain_spec::staging_testnet_config()),
 			path => Box::new(chain_spec::ChainSpec::from_json_file(
 				std::path::PathBuf::from(path),
@@ -95,6 +94,10 @@ pub fn run() -> Result<()> {
 				Ok(())
 			}
 		}
+		Some(Subcommand::Key(cmd)) => cmd.run(),
+		Some(Subcommand::Sign(cmd)) => cmd.run(),
+		Some(Subcommand::Verify(cmd)) => cmd.run(),
+		Some(Subcommand::Vanity(cmd)) => cmd.run(),
 		Some(Subcommand::Base(subcommand)) => {
 			let runner = cli.create_runner(subcommand)?;
 			runner.run_subcommand(subcommand, |config| {
