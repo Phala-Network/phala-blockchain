@@ -10,6 +10,11 @@ use crate::types::TxRef;
 pub type Sid = String;
 pub type Timestamp = u32;
 
+const MINUTE_IN_SECONDS: u32 = 60;
+const HOUR_IN_SECONDS: u32 = 60 * MINUTE_IN_SECONDS;
+const DAY_IN_SECONDS: u32 = 24 * HOUR_IN_SECONDS;
+const WEEK_IN_SECONDS: u32 = 7 * DAY_IN_SECONDS;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PageView {
     id: String,
@@ -90,6 +95,19 @@ impl HourlyStat {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DailyStat {
+    stats: Vec<HourlyPageView>,
+}
+
+impl DailyStat {
+    pub fn new() -> Self {
+        Self {
+            stats: Vec::<HourlyPageView>::new(),
+        }
+    }
+}
+
 // contract
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
@@ -117,20 +135,25 @@ pub enum Request {
         end: Timestamp,
         start_of_week: Timestamp,
     },
+    GetDailyStats {
+        daily_stat: DailyStat,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     SetPageView {page_views: Vec<PageView>},
     GetOnlineUsers {online_users: Vec<OnlineUser>},
-    GetHourlyStat {hourly_stat: HourlyStat}
+    GetHourlyStats {hourly_stat: HourlyStat},
+    GetDailyStats {daily_stat: DailyStat}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Web3Analytics {
     page_views: Vec<PageView>,
     online_users: Vec<OnlineUser>,
-    hourly_stat: HourlyStat
+    hourly_stat: HourlyStat,
+    daily_stat: DailyStat
 }
 
 impl Web3Analytics {
@@ -139,12 +162,11 @@ impl Web3Analytics {
             page_views: Vec::<PageView>::new(),
             online_users: Vec::<OnlineUser>::new(),
             hourly_stat: HourlyStat::new(),
+            daily_stat: DailyStat::new()
         }
     }
 
     pub fn update_online_users(&mut self, start: Timestamp, end: Timestamp) {
-        const MINUTE_IN_SECONDS: u32 = 60;
-
         let mut sids = Vec::<Sid>::new();
         let mut cid_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
         let mut ip_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
@@ -210,9 +232,6 @@ impl Web3Analytics {
     }
 
     pub fn update_hourly_stats(&mut self, start_s: Timestamp, end_s: Timestamp, start_of_week: Timestamp) {
-        const HOUR_IN_SECONDS: u32 = 3600;
-        const WEEK_IN_SECONDS: u32 = 7 * 24 * HOUR_IN_SECONDS;
-
         let mut sids = Vec::<Sid>::new();
         let mut sid_map = HashMap::<Sid, Vec::<String>>::new();
         let mut cid_weekly_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
@@ -451,6 +470,60 @@ impl Web3Analytics {
         }
         self.hourly_stat.wd = wds;
     }
+
+    fn update_daily_stats(&mut self, daily_stat: DailyStat) {
+        let mut sids = Vec::<Sid>::new();
+        let mut daily_map = HashMap::<(Sid, Timestamp), (u32, u32, u32)>::new();
+        let mut first_date: Timestamp = 0;
+        let mut last_date: Timestamp = 0;
+        for hourly_stat in daily_stat.stats.clone() {
+            let ts = hourly_stat.timestamp;
+            let sid = hourly_stat.sid.clone();
+
+            if first_date == 0 {
+                first_date = ts;
+            }
+            last_date = ts;
+
+            if !sids.contains(&sid) {
+                sids.push(sid.clone());
+            }
+
+            if daily_map.contains_key(&(sid.clone(), ts)) {
+                let (pv_count, cid_count, avg_duration) = daily_map.get(&(sid.clone(), ts)).unwrap().clone();
+                daily_map.insert((sid.clone(), ts), (hourly_stat.pv_count + pv_count, hourly_stat.cid_count + cid_count, hourly_stat.avg_duration + avg_duration));
+            } else {
+                daily_map.insert((sid.clone(), ts), (hourly_stat.pv_count, hourly_stat.cid_count, hourly_stat.avg_duration));
+            }
+        }
+
+        if first_date == 0 {
+            return;
+        }
+
+        self.daily_stat = DailyStat::new();
+
+        let mut dss = Vec::<HourlyPageView>::new();
+        while first_date <= last_date {
+            for sid in sids.clone() {
+                if daily_map.contains_key(&(sid.clone(), first_date.clone())) {
+                    let (pv_count, cid_count, avg_duration) = daily_map.get(&(sid.clone(), first_date.clone())).unwrap().clone();
+                    let ds = HourlyPageView {
+                        sid,
+                        pv_count,
+                        cid_count,
+                        avg_duration,
+                        timestamp: first_date.clone(),
+                    };
+
+                    dss.push(ds);
+                }
+            }
+            first_date += DAY_IN_SECONDS;
+        }
+
+        self.daily_stat.stats = dss;
+    }
 }
 
 impl contracts::Contract<Command, Request, Response> for Web3Analytics {
@@ -488,7 +561,11 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
             },
             Request::GetHourlyStats { start, end, start_of_week } => {
                 self.update_hourly_stats(start, end, start_of_week);
-                Response::GetHourlyStat { hourly_stat: self.hourly_stat.clone() }
+                Response::GetHourlyStats { hourly_stat: self.hourly_stat.clone() }
+            },
+            Request::GetDailyStats { daily_stat } => {
+                self.update_daily_stats(daily_stat);
+                Response::GetDailyStats { daily_stat: self.daily_stat.clone() }
             },
         }
     }
