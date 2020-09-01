@@ -116,15 +116,7 @@ pub enum Command {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     SetPageView {
-        id: String,
-        sid: Sid,
-        cid: String,
-        host: String,
-        path: String,
-        referrer: String,
-        ip: String,
-        user_agent: String,
-        created_at: Timestamp,
+        page_views: Vec<PageView>,
     },
     GetOnlineUsers {
         start: Timestamp,
@@ -142,7 +134,7 @@ pub enum Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-    SetPageView {page_views: Vec<PageView>},
+    SetPageView {page_views: u32},
     GetOnlineUsers {online_users: Vec<OnlineUser>},
     GetHourlyStats {hourly_stat: HourlyStat},
     GetDailyStats {daily_stat: DailyStat}
@@ -535,25 +527,15 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
-            Request::SetPageView { id, sid, cid, host, path, referrer, ip, user_agent, created_at } => {
-                let pv = PageView {
-                    id,
-                    sid,
-                    cid,
-                    host,
-                    path,
-                    referrer,
-                    ip,
-                    user_agent,
-                    created_at
-                };
-
-                let b = self.page_views.clone().into_iter().any(|x| x.id == pv.id);
-                if !b {
-                    self.page_views.push(pv);
+            Request::SetPageView { page_views } => {
+                for page_view in page_views {
+                    let b = self.page_views.clone().into_iter().any(|x| x.id == page_view.id);
+                    if !b {
+                        self.page_views.push(page_view);
+                    }
                 }
 
-                Response::SetPageView { page_views: self.page_views.clone() }
+                Response::SetPageView { page_views: self.page_views.len() as u32 }
             }
             Request::GetOnlineUsers { start, end } => {
                 self.update_online_users(start, end);
