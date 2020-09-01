@@ -76,21 +76,21 @@ pub struct HourlyPageView {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HourlyStat {
-    hpv: Vec<HourlyPageView>,
-    sc: Vec<SiteClient>,
-    wc: Vec<WeeklyClient>,
-    ws: Vec<WeeklySite>,
-    wd: Vec<WeeklyDevice>,
+    hourly_page_views: Vec<HourlyPageView>,
+    site_clients: Vec<SiteClient>,
+    weekly_clients: Vec<WeeklyClient>,
+    weekly_sites: Vec<WeeklySite>,
+    weekly_devices: Vec<WeeklyDevice>,
 }
 
 impl HourlyStat {
     pub fn new() -> Self {
         Self {
-            hpv: Vec::<HourlyPageView>::new(),
-            sc: Vec::<SiteClient>::new(),
-            wc: Vec::<WeeklyClient>::new(),
-            ws: Vec::<WeeklySite>::new(),
-            wd: Vec::<WeeklyDevice>::new(),
+            hourly_page_views: Vec::<HourlyPageView>::new(),
+            site_clients: Vec::<SiteClient>::new(),
+            weekly_clients: Vec::<WeeklyClient>::new(),
+            weekly_sites: Vec::<WeeklySite>::new(),
+            weekly_devices: Vec::<WeeklyDevice>::new(),
         }
     }
 }
@@ -164,7 +164,7 @@ impl Web3Analytics {
         let mut ip_map = HashMap::<(Sid, Timestamp), Vec::<String>>::new();
 
         for pv in self.page_views.clone() {
-            if pv.created_at <= start {
+            if pv.created_at < start {
                 continue;
             }
 
@@ -202,8 +202,8 @@ impl Web3Analytics {
 
         self.online_users.clear();
 
-        let mut index = start + MINUTE_IN_SECONDS;
-        while index <= end {
+        let mut index = start.clone();
+        while index < end {
             for sid in sids.clone() {
                 if !cid_map.contains_key(&(sid.clone(), index)) {
                     continue;
@@ -380,7 +380,7 @@ impl Web3Analytics {
             }
             index += HOUR_IN_SECONDS;
         }
-        self.hourly_stat.hpv = hpv;
+        self.hourly_stat.hourly_page_views = hpv;
 
         let mut site_clients = Vec::<SiteClient>::new();
         for sid in sids.clone() {
@@ -392,7 +392,7 @@ impl Web3Analytics {
 
             site_clients.push(sc);
         }
-        self.hourly_stat.sc = site_clients;
+        self.hourly_stat.site_clients = site_clients;
 
         let mut wcs = Vec::<WeeklyClient>::new();
         let mut index = start_of_week.clone();
@@ -412,7 +412,7 @@ impl Web3Analytics {
             }
             index += WEEK_IN_SECONDS;
         }
-        self.hourly_stat.wc = wcs;
+        self.hourly_stat.weekly_clients = wcs;
 
         let mut wss = Vec::<WeeklySite>::new();
         index = start_of_week.clone();
@@ -436,7 +436,7 @@ impl Web3Analytics {
             }
             index += WEEK_IN_SECONDS;
         }
-        self.hourly_stat.ws = wss;
+        self.hourly_stat.weekly_sites = wss;
 
         let mut wds = Vec::<WeeklyDevice>::new();
         index = start_of_week.clone();
@@ -460,7 +460,7 @@ impl Web3Analytics {
             }
             index += WEEK_IN_SECONDS;
         }
-        self.hourly_stat.wd = wds;
+        self.hourly_stat.weekly_devices = wds;
     }
 
     fn update_daily_stats(&mut self, daily_stat: DailyStat) {
