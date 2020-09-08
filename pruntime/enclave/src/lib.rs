@@ -43,6 +43,9 @@ use sp_core::H256 as Hash;
 use system::{EventRecord};
 use phala::{RawEvent};
 
+#[macro_use]
+use sgx_trts::cpu_feature;
+
 mod cert;
 mod hex;
 mod light_validation;
@@ -114,7 +117,9 @@ struct LocalState {
 struct RuntimeInfo {
     machine_id: [u8; 16],
     pub_key: [u8; 33],
-    score: u32,
+    version: u8,
+    cpu_core_num: u32,
+    cpu_feature_level: u8,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -847,11 +852,22 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     println!("Machine id: {:?}", &machine_id);
 
     // Measure machine score
-    let cpu_core_num = sgx_trts::enclave::rsgx_get_cpu_core_num();
-    println!("CPU cores: {}", cpu_core_num);
-    // Currently, there is no way to get a trusted time in Enclave
     // TODO: Find a fair algorithm to measure TEE performance.
-    let score = cpu_core_num * 10;
+    let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
+    println!("CPU cores: {}", cpu_core_num);
+
+    let mut cpu_feature_level: u8 = 1;
+    // Atom doesn't support AVX
+    if is_x86_feature_detected!("avx2") {
+        println!("CPU Support AVX2");
+        cpu_feature_level += 1;
+
+        // Customer-level Core doesn't support AVX512
+        if is_x86_feature_detected!("avx512f") {
+            println!("CPU Support AVX512");
+            cpu_feature_level += 1;
+        }
+    }
 
     // Generate identity
     let mut prng = rand::rngs::OsRng::default();
@@ -879,7 +895,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let runtime_info = RuntimeInfo {
         machine_id: machine_id.clone(),
         pub_key: serialized_pk,
-        score
+        version: 1,
+        cpu_core_num,
+        cpu_feature_level
     };
     let encoded_runtime_info = runtime_info.encode();
     let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);

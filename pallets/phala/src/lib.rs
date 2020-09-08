@@ -37,6 +37,18 @@ type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::T
 type SequenceType = u32;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 
+type MachineId = [u8; 16];
+type PublicKey = [u8; 33];
+
+#[derive(Encode, Decode)]
+struct TEERuntimeInfo {
+	machine_id: MachineId,
+	pub_key: PublicKey,
+	version: u8,
+	cpu_core_num: u32,
+	cpu_feature_level: u8,
+}
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
@@ -106,8 +118,8 @@ decl_storage! {
 		// Store a map of Machine and account, map Vec<u8> => T::AccountId
 		MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 
-		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
-		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u32);
+		// Store a map of Machine and account, map Vec<u8> => (pub_key, version, cpu_core_num, cpu_feature_num)
+		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8, u32, u8);
 
 		// Store a map of Account and Machine, map T::AccountId => Vec<u8>
 		pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
@@ -158,17 +170,6 @@ decl_error! {
 		InvalidSignature,
 		FailedToVerify,
 	}
-}
-
-type MachineId = [u8; 16];
-type PublicKey = [u8; 33];
-type Score = u32;
-
-#[derive(Encode, Decode)]
-struct TEERuntimeInfo {
-	machine_id: MachineId,
-	pub_key: PublicKey,
-	score: Score
 }
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -240,7 +241,13 @@ decl_module! {
 			// Associate account with machine id
 			let machine_id = runtime_info.machine_id.to_vec();
 			Self::remove_machine_if_present(&machine_id);
-			Machine::insert(machine_id.clone(), (runtime_info.pub_key.to_vec(), runtime_info.score));
+			Machine::insert(
+				machine_id.clone(), (
+					runtime_info.pub_key.to_vec(),
+					runtime_info.version,
+					runtime_info.cpu_core_num,
+					runtime_info.cpu_feature_level
+			));
 			<MachineOwner<T>>::insert(machine_id.clone(), who.clone());
 			<Miner<T>>::insert(who.clone(), machine_id.clone());
 			Self::deposit_event(RawEvent::WorkerRegistered(who, machine_id));
@@ -304,7 +311,7 @@ decl_module! {
 			// pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
 
 			Self::remove_machine_if_present(&machine_id);
-			Machine::insert(machine_id.clone(), (pub_key, 0));
+			Machine::insert(machine_id.clone(), (pub_key, 1, 4, 1));
 			<MachineOwner<T>>::insert(machine_id.clone(), controller.clone());
 			<Miner<T>>::insert(controller, machine_id);
 
