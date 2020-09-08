@@ -121,6 +121,7 @@ pub enum Command {
 pub enum Request {
     SetPageView {
         page_views: Vec<PageView>,
+        encrypted: bool
     },
     GetOnlineUsers {
         start: Timestamp,
@@ -146,6 +147,7 @@ pub enum Response {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Web3Analytics {
+    encrypted: bool,
     page_views: Vec<PageView>,
     online_users: Vec<OnlineUser>,
     hourly_stat: HourlyStat,
@@ -157,6 +159,7 @@ pub struct Web3Analytics {
 impl Web3Analytics {
     pub fn new() -> Self {
         Self {
+            encrypted: false,
             page_views: Vec::<PageView>::new(),
             online_users: Vec::<OnlineUser>::new(),
             hourly_stat: HourlyStat::new(),
@@ -183,7 +186,7 @@ impl Web3Analytics {
                 sids.push(pv.sid.clone());
             }
 
-            let cid = self.decrypt(pv.cid);
+            let cid = pv.cid;
             let ca = pv.created_at / MINUTE_IN_SECONDS * MINUTE_IN_SECONDS;
             let mut cids = Vec::<String>::new();
             if cid_map.contains_key(&(pv.sid.clone(), ca)) {
@@ -196,7 +199,7 @@ impl Web3Analytics {
             }
             cid_map.insert((pv.sid.clone(), ca), cids);
 
-            let ip = self.decrypt(pv.ip);
+            let ip = if self.encrypted {self.decrypt(pv.ip)} else {pv.ip};
             let mut ips = Vec::<String>::new();
             if ip_map.contains_key(&(pv.sid.clone(), ca)) {
                 ips = ip_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
@@ -220,10 +223,12 @@ impl Web3Analytics {
 
                 let cids = cid_map.get(&(sid.clone(), index)).unwrap();
                 let ips = ip_map.get(&(sid.clone(), index)).unwrap();
+                let cid_count = if self.encrypted {self.encrypt(cids.len().to_string())} else {cids.len().to_string()};
+                let ip_count = if self.encrypted {self.encrypt(ips.len().to_string())} else {ips.len().to_string()};
                 let ou = OnlineUser {
                     sid,
-                    cid_count: cids.len().to_string(),
-                    ip_count: ips.len().to_string(),
+                    cid_count,
+                    ip_count,
                     timestamp: index
                 };
                 self.online_users.push(ou);
@@ -261,7 +266,7 @@ impl Web3Analytics {
                 sids.push(pv.sid.clone());
             }
 
-            let cid = self.decrypt(pv.cid);
+            let cid = pv.cid;
             let ca = pv.created_at / HOUR_IN_SECONDS * HOUR_IN_SECONDS;
             let mut cids = Vec::<String>::new();
             if cid_map.contains_key(&(pv.sid.clone(), ca)) {
@@ -301,7 +306,7 @@ impl Web3Analytics {
             }
             sid_map.insert(pv.sid.clone(), cids);
 
-            let path = self.decrypt(pv.path);
+            let path = if self.encrypted {self.decrypt(pv.path)} else {pv.path};
             let mut paths = Vec::<String>::new();
             if path_map.contains_key(&pv.sid) {
                 paths = path_map.get(&pv.sid).unwrap().clone();
@@ -313,7 +318,7 @@ impl Web3Analytics {
             }
             path_map.insert(pv.sid.clone(), paths);
 
-            let user_agent = self.decrypt(pv.user_agent);
+            let user_agent = if self.encrypted {self.decrypt(pv.user_agent)} else {pv.user_agent};
             let mut devices = Vec::<String>::new();
             if device_map.contains_key(&pv.sid) {
                 devices = device_map.get(&pv.sid).unwrap().clone();
@@ -378,14 +383,17 @@ impl Web3Analytics {
                     }
                 }
 
-                let avg_duration: u32 = total_duration / (cids.len() as u32);
+                let avg_duration_str = (total_duration / (cids.len() as u32)).to_string();
 
                 let pc = pv_count_map.get(&(sid.clone(), index)).unwrap();
+                let cid_count = if self.encrypted {self.encrypt(cids.len().to_string())} else {cids.len().to_string()};
+                let pv_count = if self.encrypted {self.encrypt((*pc).to_string())} else {(*pc).to_string()};
+                let avg_duration = if self.encrypted {self.encrypt(avg_duration_str)} else {avg_duration_str};
                 let hs = HourlyPageView {
                     sid,
-                    cid_count: cids.len().to_string(),
-                    pv_count: (*pc).to_string(),
-                    avg_duration: avg_duration.to_string(),
+                    cid_count,
+                    pv_count,
+                    avg_duration,
                     timestamp: index + HOUR_IN_SECONDS
                 };
                 hpv.push(hs);
@@ -431,16 +439,18 @@ impl Web3Analytics {
         while index < end {
             for sid in sids.clone() {
                 let paths = path_map.get(&sid).unwrap().clone();
-                for path in paths {
-                    if !path_weekly_map.contains_key(&(sid.clone(), path.clone(), index)) {
+                for p in paths {
+                    if !path_weekly_map.contains_key(&(sid.clone(), p.clone(), index)) {
                         continue;
                     }
 
-                    let count = path_weekly_map.get(&(sid.clone(), path.clone(), index)).unwrap();
+                    let count = path_weekly_map.get(&(sid.clone(), p.clone(), index)).unwrap();
+                    let path = if self.encrypted {self.encrypt(p.clone())} else {p.clone()};
+                    let count = if self.encrypted {self.encrypt((*count).to_string())} else {(*count).to_string()};
                     let ws = WeeklySite {
                         sid: sid.clone(),
                         path,
-                        count: (*count).to_string(),
+                        count,
                         timestamp: index
                     };
                     wss.push(ws);
@@ -455,16 +465,18 @@ impl Web3Analytics {
         while index < end {
             for sid in sids.clone() {
                 let devices = device_map.get(&sid).unwrap().clone();
-                for device in devices {
-                    if !device_weekly_map.contains_key(&(sid.clone(), device.clone(), index)) {
+                for dev in devices {
+                    if !device_weekly_map.contains_key(&(sid.clone(), dev.clone(), index)) {
                         continue;
                     }
 
-                    let count = device_weekly_map.get(&(sid.clone(), device.clone(), index)).unwrap();
+                    let count = device_weekly_map.get(&(sid.clone(), dev.clone(), index)).unwrap();
+                    let device = if self.encrypted {self.encrypt(dev.clone())} else {dev.clone()};
+                    let count = if self.encrypted {self.encrypt((*count).to_string())} else {(*count).to_string()};
                     let wd = WeeklyDevice {
                         sid: sid.clone(),
                         device,
-                        count: (*count).to_string(),
+                        count,
                         timestamp: index
                     };
                     wds.push(wd);
@@ -566,7 +578,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
-            Request::SetPageView { page_views } => {
+            Request::SetPageView { page_views, encrypted } => {
                 for page_view in page_views {
                     let b = self.page_views.clone().into_iter().any(|x| x.id == page_view.id);
                     if !b {
@@ -574,19 +586,21 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     }
                 }
 
+                self.encrypted = encrypted;
+
                 Response::SetPageView { page_views: self.page_views.len() as u32 }
             }
             Request::GetOnlineUsers { start, end } => {
                 self.update_online_users(start, end);
-                Response::GetOnlineUsers { online_users: self.online_users.clone(), encrypted: false }
+                Response::GetOnlineUsers { online_users: self.online_users.clone(), encrypted: self.encrypted.clone() }
             },
             Request::GetHourlyStats { start, end, start_of_week } => {
                 self.update_hourly_stats(start, end, start_of_week);
-                Response::GetHourlyStats { hourly_stat: self.hourly_stat.clone(), encrypted: false }
+                Response::GetHourlyStats { hourly_stat: self.hourly_stat.clone(), encrypted: self.encrypted.clone() }
             },
             Request::GetDailyStats { daily_stat } => {
                 self.update_daily_stats(daily_stat);
-                Response::GetDailyStats { daily_stat: self.daily_stat.clone(), encrypted: false }
+                Response::GetDailyStats { daily_stat: self.daily_stat.clone(), encrypted: self.encrypted.clone() }
             },
         }
     }
