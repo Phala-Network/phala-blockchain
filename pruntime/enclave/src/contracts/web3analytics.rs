@@ -135,6 +135,14 @@ pub enum Request {
     GetDailyStats {
         daily_stat: DailyStat,
     },
+    GetWeeklySites {
+        weekly_sites_in_db: Vec<WeeklySite>,
+        weekly_sites_new: Vec<WeeklySite>,
+    },
+    GetWeeklyDevices {
+        weekly_devices_in_db: Vec<WeeklyDevice>,
+        weekly_devices_new: Vec<WeeklyDevice>,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -142,7 +150,9 @@ pub enum Response {
     SetPageView {page_views: u32},
     GetOnlineUsers {online_users: Vec<OnlineUser>, encrypted: bool},
     GetHourlyStats {hourly_stat: HourlyStat, encrypted: bool},
-    GetDailyStats {daily_stat: DailyStat, encrypted: bool}
+    GetDailyStats {daily_stat: DailyStat, encrypted: bool},
+    GetWeeklySites {weekly_sites: Vec<WeeklySite>, encrypted: bool},
+    GetWeeklyDevices {weekly_devices: Vec<WeeklyDevice>, encrypted: bool},
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -152,6 +162,8 @@ pub struct Web3Analytics {
     online_users: Vec<OnlineUser>,
     hourly_stat: HourlyStat,
     daily_stat: DailyStat,
+    weekly_sites: Vec<WeeklySite>,
+    weekly_devices: Vec<WeeklyDevice>,
 
     key: Vec<u8>
 }
@@ -164,6 +176,8 @@ impl Web3Analytics {
             online_users: Vec::<OnlineUser>::new(),
             hourly_stat: HourlyStat::new(),
             daily_stat: DailyStat::new(),
+            weekly_sites: Vec::<WeeklySite>::new(),
+            weekly_devices: Vec::<WeeklyDevice>::new(),
             key: hex::decode_hex(KEY)
         }
     }
@@ -547,6 +561,68 @@ impl Web3Analytics {
         self.daily_stat.stats = dss;
     }
 
+    fn update_weekly_sites(&mut self, weekly_sites_in_db: Vec<WeeklySite>, weekly_sites_new: Vec<WeeklySite>) {
+        self.weekly_sites.clear();
+
+        for ws in weekly_sites_new {
+            let path = if self.encrypted { self.decrypt(ws.path.clone())} else { ws.path.clone() };
+            let mut matched = false;
+            for ws_db in weekly_sites_in_db.clone() {
+                let path_db = if self.encrypted { self.decrypt(ws_db.path.clone())} else { ws_db.path.clone() };
+                if ws.sid == ws_db.sid && ws.timestamp == ws_db.timestamp && path == path_db {
+                    matched = true;
+                    let count = if self.encrypted { self.decrypt(ws.count.clone()).parse::<u32>().unwrap() } else { ws.count.clone().parse::<u32>().unwrap() };
+                    let count_db = if self.encrypted { self.decrypt(ws_db.count).parse::<u32>().unwrap() } else { ws_db.count.parse::<u32>().unwrap() };
+                    let total = if self.encrypted { self.encrypt((count + count_db).to_string()) } else { (count + count_db).to_string() };
+                    let w = WeeklySite {
+                        sid: ws.sid.clone(),
+                        count: total,
+                        path: ws.path.clone(),
+                        timestamp: ws.timestamp
+                    };
+                    self.weekly_sites.push(w);
+
+                    break;
+                }
+            }
+
+            if !matched {
+                self.weekly_sites.push(ws);
+            }
+        }
+    }
+
+    fn update_weekly_devices(&mut self, weekly_devices_in_db: Vec<WeeklyDevice>, weekly_devices_new: Vec<WeeklyDevice>) {
+        self.weekly_devices.clear();
+
+        for wd in weekly_devices_new {
+            let device = if self.encrypted { self.decrypt(wd.device.clone())} else { wd.device.clone() };
+            let mut matched = false;
+            for wd_db in weekly_devices_in_db.clone() {
+                let device_db = if self.encrypted { self.decrypt(wd_db.device.clone())} else { wd_db.device.clone() };
+                if wd.sid == wd_db.sid && wd.timestamp == wd_db.timestamp && device == device_db {
+                    matched = true;
+                    let count = if self.encrypted { self.decrypt(wd.count.clone()).parse::<u32>().unwrap() } else { wd.count.clone().parse::<u32>().unwrap() };
+                    let count_db = if self.encrypted { self.decrypt(wd_db.count).parse::<u32>().unwrap() } else { wd_db.count.parse::<u32>().unwrap() };
+                    let total = if self.encrypted { self.encrypt((count + count_db).to_string()) } else { (count + count_db).to_string() };
+                    let w = WeeklyDevice {
+                        sid: wd.sid.clone(),
+                        count: total,
+                        device: wd.device.clone(),
+                        timestamp: wd.timestamp
+                    };
+                    self.weekly_devices.push(w);
+
+                    break;
+                }
+            }
+
+            if !matched {
+                self.weekly_devices.push(wd);
+            }
+        }
+    }
+
     fn encrypt(&mut self, data: String) -> String {
         let mut msg = data.as_bytes().to_vec();
         let iv = aead::generate_iv();
@@ -601,6 +677,14 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
             Request::GetDailyStats { daily_stat } => {
                 self.update_daily_stats(daily_stat);
                 Response::GetDailyStats { daily_stat: self.daily_stat.clone(), encrypted: self.encrypted.clone() }
+            },
+            Request::GetWeeklySites { weekly_sites_in_db, weekly_sites_new } => {
+                self.update_weekly_sites(weekly_sites_in_db, weekly_sites_new);
+                Response::GetWeeklySites { weekly_sites: self.weekly_sites.clone(), encrypted: self.encrypted.clone() }
+            },
+            Request::GetWeeklyDevices { weekly_devices_in_db, weekly_devices_new } => {
+                self.update_weekly_devices(weekly_devices_in_db, weekly_devices_new);
+                Response::GetWeeklyDevices { weekly_devices: self.weekly_devices.clone(), encrypted: self.encrypted.clone() }
             },
         }
     }
