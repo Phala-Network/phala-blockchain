@@ -52,5 +52,4 @@ sp-keyring = { version = "2.0.0-rc6", package = "sp-keyring", path = "../substra
 substrate-subxt-client = { version = "0.2.0", path = "client" }
 tempdir = "0.3.7"
 test-node = { path = "test-node" }
-wabt = "0.10.0"
-wabt-sys = "0.7.2"
+wat = "1.0"
