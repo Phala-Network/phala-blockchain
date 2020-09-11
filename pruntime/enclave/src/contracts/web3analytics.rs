@@ -40,8 +40,8 @@ pub struct OnlineUser {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct HourlyPageView {
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct HourlyPageViewStat {
     sid: Sid,
     pv_count: String,
     cid_count: String,
@@ -80,34 +80,36 @@ pub struct SiteClient {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HourlyStat {
-    hourly_page_views: Vec<HourlyPageView>,
+    hourly_page_view_stats: Vec<HourlyPageViewStat>,
     site_clients: Vec<SiteClient>,
     weekly_clients: Vec<WeeklyClient>,
     weekly_sites: Vec<WeeklySite>,
     weekly_devices: Vec<WeeklyDevice>,
+    total_stats: Vec<HourlyPageViewStat>
 }
 
 impl HourlyStat {
     pub fn new() -> Self {
         Self {
-            hourly_page_views: Vec::<HourlyPageView>::new(),
+            hourly_page_view_stats: Vec::<HourlyPageViewStat>::new(),
             site_clients: Vec::<SiteClient>::new(),
             weekly_clients: Vec::<WeeklyClient>::new(),
             weekly_sites: Vec::<WeeklySite>::new(),
             weekly_devices: Vec::<WeeklyDevice>::new(),
+            total_stats: Vec::<HourlyPageViewStat>::new(),
         }
     }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DailyStat {
-    stats: Vec<HourlyPageView>,
+    stats: Vec<HourlyPageViewStat>,
 }
 
 impl DailyStat {
     pub fn new() -> Self {
         Self {
-            stats: Vec::<HourlyPageView>::new(),
+            stats: Vec::<HourlyPageViewStat>::new(),
         }
     }
 }
@@ -142,17 +144,22 @@ pub enum Request {
     GetWeeklyDevices {
         weekly_devices_in_db: Vec<WeeklyDevice>,
         weekly_devices_new: Vec<WeeklyDevice>,
+    },
+    GetTotalStat {
+        total_stat: HourlyPageViewStat,
+        count: String
     }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-    SetPageView {page_views: u32},
-    GetOnlineUsers {online_users: Vec<OnlineUser>, encrypted: bool},
-    GetHourlyStats {hourly_stat: HourlyStat, encrypted: bool},
-    GetDailyStats {daily_stat: DailyStat, encrypted: bool},
-    GetWeeklySites {weekly_sites: Vec<WeeklySite>, encrypted: bool},
-    GetWeeklyDevices {weekly_devices: Vec<WeeklyDevice>, encrypted: bool},
+    SetPageView { page_views: u32 },
+    GetOnlineUsers { online_users: Vec<OnlineUser>, encrypted: bool },
+    GetHourlyStats { hourly_stat: HourlyStat, encrypted: bool },
+    GetDailyStats { daily_stat: DailyStat, encrypted: bool },
+    GetWeeklySites { weekly_sites: Vec<WeeklySite>, encrypted: bool },
+    GetWeeklyDevices { weekly_devices: Vec<WeeklyDevice>, encrypted: bool },
+    GetTotalStat { total_stat: HourlyPageViewStat, encrypted: bool }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -164,6 +171,7 @@ pub struct Web3Analytics {
     daily_stat: DailyStat,
     weekly_sites: Vec<WeeklySite>,
     weekly_devices: Vec<WeeklyDevice>,
+    total_stat: HourlyPageViewStat,
 
     key: Vec<u8>
 }
@@ -178,6 +186,8 @@ impl Web3Analytics {
             daily_stat: DailyStat::new(),
             weekly_sites: Vec::<WeeklySite>::new(),
             weekly_devices: Vec::<WeeklyDevice>::new(),
+            total_stat: HourlyPageViewStat::default(),
+
             key: hex::decode_hex(KEY)
         }
     }
@@ -374,7 +384,7 @@ impl Web3Analytics {
 
         self.hourly_stat = HourlyStat::new();
 
-        let mut hpv = Vec::<HourlyPageView>::new();
+        let mut hpv = Vec::<HourlyPageViewStat>::new();
         let mut index = start;
         while index < end {
             for sid in sids.clone() {
@@ -403,7 +413,7 @@ impl Web3Analytics {
                 let cid_count = if self.encrypted {self.encrypt(cids.len().to_string())} else {cids.len().to_string()};
                 let pv_count = if self.encrypted {self.encrypt((*pc).to_string())} else {(*pc).to_string()};
                 let avg_duration = if self.encrypted {self.encrypt(avg_duration_str)} else {avg_duration_str};
-                let hs = HourlyPageView {
+                let hs = HourlyPageViewStat {
                     sid,
                     cid_count,
                     pv_count,
@@ -414,7 +424,7 @@ impl Web3Analytics {
             }
             index += HOUR_IN_SECONDS;
         }
-        self.hourly_stat.hourly_page_views = hpv;
+        self.hourly_stat.hourly_page_view_stats = hpv;
 
         let mut site_clients = Vec::<SiteClient>::new();
         for sid in sids.clone() {
@@ -519,18 +529,19 @@ impl Web3Analytics {
                 sids.push(sid.clone());
             }
 
+            let pv_count = if self.encrypted { self.decrypt(hourly_stat.pv_count) } else { hourly_stat.pv_count };
+            let cid_count = if self.encrypted { self.decrypt(hourly_stat.cid_count) } else { hourly_stat.cid_count };
+            let avg_duration = if self.encrypted { self.decrypt(hourly_stat.avg_duration) } else { hourly_stat.avg_duration };
+            let mut hourly_stat_pv_count = pv_count.parse::<u32>().unwrap();
+            let mut hourly_stat_cid_count = cid_count.parse::<u32>().unwrap();
+            let mut hourly_stat_avg_duration = avg_duration.parse::<u32>().unwrap();
             if daily_map.contains_key(&(sid.clone(), ts)) {
-                let (pv_count, cid_count, avg_duration) = daily_map.get(&(sid.clone(), ts)).unwrap().clone();
-                let hourly_stat_pv_count = hourly_stat.pv_count.parse::<u32>().unwrap() + pv_count;
-                let hourly_stat_cid_count = hourly_stat.cid_count.parse::<u32>().unwrap() + cid_count;
-                let hourly_stat_avg_duration = hourly_stat.avg_duration.parse::<u32>().unwrap() + avg_duration;
-                daily_map.insert((sid.clone(), ts), (hourly_stat_pv_count, hourly_stat_cid_count, hourly_stat_avg_duration));
-            } else {
-                let hourly_stat_pv_count = hourly_stat.pv_count.parse::<u32>().unwrap();
-                let hourly_stat_cid_count = hourly_stat.cid_count.parse::<u32>().unwrap();
-                let hourly_stat_avg_duration = hourly_stat.avg_duration.parse::<u32>().unwrap();
-                daily_map.insert((sid.clone(), ts), (hourly_stat_pv_count, hourly_stat_cid_count, hourly_stat_avg_duration));
+                let (pv_count0, cid_count0, avg_duration0) = daily_map.get(&(sid.clone(), ts)).unwrap().clone();
+                hourly_stat_pv_count += pv_count0;
+                hourly_stat_cid_count += cid_count0;
+                hourly_stat_avg_duration += avg_duration0;
             }
+            daily_map.insert((sid.clone(), ts), (hourly_stat_pv_count, hourly_stat_cid_count, hourly_stat_avg_duration));
         }
 
         if first_date == 0 {
@@ -539,16 +550,16 @@ impl Web3Analytics {
 
         self.daily_stat = DailyStat::new();
 
-        let mut dss = Vec::<HourlyPageView>::new();
+        let mut dss = Vec::<HourlyPageViewStat>::new();
         while first_date <= last_date {
             for sid in sids.clone() {
                 if daily_map.contains_key(&(sid.clone(), first_date.clone())) {
                     let (pv_count, cid_count, avg_duration) = daily_map.get(&(sid.clone(), first_date.clone())).unwrap().clone();
-                    let ds = HourlyPageView {
+                    let ds = HourlyPageViewStat {
                         sid,
-                        pv_count: pv_count.to_string(),
-                        cid_count: cid_count.to_string(),
-                        avg_duration: avg_duration.to_string(),
+                        pv_count: if self.encrypted { self.encrypt(pv_count.to_string()) } else { pv_count.to_string() },
+                        cid_count: if self.encrypted { self.encrypt(cid_count.to_string()) } else { cid_count.to_string() },
+                        avg_duration: if self.encrypted { self.encrypt(avg_duration.to_string()) } else { avg_duration.to_string() },
                         timestamp: first_date.clone(),
                     };
 
@@ -623,6 +634,29 @@ impl Web3Analytics {
         }
     }
 
+    fn update_total_stat(&mut self, total_stat: HourlyPageViewStat, count_str: String) {
+        self.total_stat = HourlyPageViewStat::default();
+
+        if !self.encrypted.clone() {
+            return;
+        }
+
+        let mut count = self.decrypt(total_stat.pv_count).parse::<u32>().unwrap();
+        if count_str != "" {
+            count += self.decrypt(count_str).parse::<u32>().unwrap();
+        }
+
+        let avg_duration = self.decrypt(total_stat.avg_duration).parse::<u32>().unwrap() / 2;
+
+        self.total_stat = HourlyPageViewStat {
+            sid: total_stat.sid,
+            cid_count: total_stat.cid_count,
+            pv_count: self.encrypt(count.to_string()),
+            avg_duration: self.encrypt(avg_duration.to_string()),
+            timestamp: total_stat.timestamp
+        }
+     }
+
     fn encrypt(&mut self, data: String) -> String {
         let mut msg = data.as_bytes().to_vec();
         let iv = aead::generate_iv();
@@ -685,6 +719,10 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
             Request::GetWeeklyDevices { weekly_devices_in_db, weekly_devices_new } => {
                 self.update_weekly_devices(weekly_devices_in_db, weekly_devices_new);
                 Response::GetWeeklyDevices { weekly_devices: self.weekly_devices.clone(), encrypted: self.encrypted.clone() }
+            },
+            Request::GetTotalStat { total_stat, count } => {
+                self.update_total_stat(total_stat, count);
+                Response::GetTotalStat { total_stat: self.total_stat.clone(), encrypted: self.encrypted.clone() }
             },
         }
     }
