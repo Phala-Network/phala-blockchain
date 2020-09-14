@@ -11,6 +11,7 @@ pub mod data_plaza;
 pub mod balance;
 pub mod assets;
 pub mod web3analytics;
+pub mod woothee;
 
 pub type ContractId = u32;
 pub const SYSTEM: ContractId = 0;

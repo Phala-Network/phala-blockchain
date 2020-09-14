@@ -9,6 +9,8 @@ use crate::hex;
 use crate::contracts;
 use crate::types::TxRef;
 
+use super::woothee;
+
 pub type Sid = String;
 pub type Timestamp = u32;
 
@@ -173,7 +175,10 @@ pub struct Web3Analytics {
     weekly_devices: Vec<WeeklyDevice>,
     total_stat: HourlyPageViewStat,
 
-    key: Vec<u8>
+    key: Vec<u8>,
+    #[serde(skip)]
+    parser: woothee::parser::Parser
+
 }
 
 impl Web3Analytics {
@@ -188,7 +193,9 @@ impl Web3Analytics {
             weekly_devices: Vec::<WeeklyDevice>::new(),
             total_stat: HourlyPageViewStat::default(),
 
-            key: hex::decode_hex(KEY)
+            key: hex::decode_hex(KEY),
+
+            parser: woothee::parser::Parser::new()
         }
     }
 
@@ -343,14 +350,18 @@ impl Web3Analytics {
             path_map.insert(pv.sid.clone(), paths);
 
             let user_agent = if self.encrypted {self.decrypt(pv.user_agent)} else {pv.user_agent};
+            let device = match self.parser.parse(&user_agent) {
+                Some(wr) => wr.name.to_string(),
+                None => "Unknown".to_string()
+            };
             let mut devices = Vec::<String>::new();
             if device_map.contains_key(&pv.sid) {
                 devices = device_map.get(&pv.sid).unwrap().clone();
-                if !devices.contains(&user_agent) {
-                    devices.push(user_agent.clone());
+                if !devices.contains(&device) {
+                    devices.push(device.clone());
                 }
             } else {
-                devices.push(user_agent.clone());
+                devices.push(device.clone());
             }
             device_map.insert(pv.sid.clone(), devices);
 
@@ -374,11 +385,11 @@ impl Web3Analytics {
                 path_weekly_map.insert((pv.sid.clone(), path.clone(), date_of_week), 1);
             }
 
-            if device_weekly_map.contains_key(&(pv.sid.clone(), user_agent.clone(), date_of_week)) {
-                let count = device_weekly_map.get(&(pv.sid.clone(), user_agent.clone(), date_of_week)).unwrap().clone();
-                device_weekly_map.insert((pv.sid.clone(), user_agent.clone(), date_of_week), count + 1);
+            if device_weekly_map.contains_key(&(pv.sid.clone(), device.clone(), date_of_week)) {
+                let count = device_weekly_map.get(&(pv.sid.clone(), device.clone(), date_of_week)).unwrap().clone();
+                device_weekly_map.insert((pv.sid.clone(), device.clone(), date_of_week), count + 1);
             } else {
-                device_weekly_map.insert((pv.sid.clone(), user_agent.clone(), date_of_week), 1);
+                device_weekly_map.insert((pv.sid.clone(), device.clone(), date_of_week), 1);
             }
         }
 
@@ -666,7 +677,6 @@ impl Web3Analytics {
     }
 
     fn decrypt(&mut self, data: String) -> String {
-        //let key = hex::decode_hex(KEY);
         let v: Vec<&str> = data.split("|").collect();
         let iv_b64 = v[0];
         let cipher_b64 = v[1];
