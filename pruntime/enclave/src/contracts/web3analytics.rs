@@ -433,7 +433,7 @@ impl Web3Analytics {
                     cid_count,
                     pv_count,
                     avg_duration,
-                    timestamp: index + HOUR_IN_SECONDS
+                    timestamp: index
                 };
                 hpv.push(hs);
             }
