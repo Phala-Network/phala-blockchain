@@ -409,8 +409,8 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
     }
 }
 
-#[post("/sync_block", format = "json", data = "<contract_input>")]
-fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
+#[post("/sync_header", format = "json", data = "<contract_input>")]
+fn sync_header(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
@@ -595,7 +595,7 @@ fn rocket() -> rocket::Rocket {
         .mount("/", routes![
             test, init_runtime, get_info,
             dump_states, load_states,
-            sync_block, query,
+            sync_header, query,
             set, get])
         .attach(cors_options().to_cors().expect("To not fail"))
     // .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes

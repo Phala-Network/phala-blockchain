@@ -604,7 +604,7 @@ const ACTION_INIT_RUNTIME: u8 = 1;
 const ACTION_GET_INFO: u8 = 2;
 const ACTION_DUMP_STATES: u8 = 3;
 const ACTION_LOAD_STATES: u8 = 4;
-const ACTION_SYNC_BLOCK: u8 = 5;
+const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
@@ -640,8 +640,8 @@ struct TestReq {
     test_ecdh: Option<TestEcdhParam>,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SyncBlockReq {
-    blocks_b64: Vec<String>,
+struct SyncHeaderReq {
+    headers_b64: Vec<String>,
     authority_set_change_b64: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
@@ -651,8 +651,9 @@ struct TestEcdhParam {
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
-struct BlockWithEvents {
-    block: chain::SignedBlock,
+struct HeaderWithEvents {
+    header: chain::Header,
+    justification: Option<Vec<u8>>,
     events: Option<Vec<u8>>,
     proof: Option<Vec<Vec<u8>>>,
     key: Option<Vec<u8>>,
@@ -686,7 +687,7 @@ pub extern "C" fn ecall_handle(
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_BLOCK => sync_block(load_param(input_value)),
+        ACTION_SYNC_HEADER=> sync_header(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -1154,38 +1155,38 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
     }
 }
 
-fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
+fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     // Parse base64 to data
-    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64)
+    let parsed_data: Result<Vec<_>, _> = (&input.headers_b64)
         .iter()
         .map(base64::decode)
         .collect();
-    let blocks_data = parsed_data
-        .map_err(|_| error_msg("Failed to parse base64 block"))?;
+    let headers_data = parsed_data
+        .map_err(|_| error_msg("Failed to parse base64 header"))?;
     // Parse data to blocks
-    let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
+    let parsed_headers: Result<Vec<HeaderWithEvents>, _> = headers_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
-    let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
+    let headers = parsed_headers.map_err(|_| error_msg("Invalid header"))?;
     // Light validation when possible
-    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
+    let last_header = &headers.last().ok_or_else(|| error_msg("No header in the request"))?;
     {
         // 1. the last block must has justification
-        let justification = last_block.justification.as_ref()
+        let justification = last_header.justification.as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
             .clone();
-        let header = last_block.block.header.clone();
+        let header = last_header.header.clone();
         // 2. check block sequence
-        for (i, block) in blocks.iter().enumerate() {
-            if i > 0 && blocks[i-1].block.block.header.hash() != block.block.block.header.parent_hash {
+        for (i, header) in headers.iter().enumerate() {
+            if i > 0 && headers[i-1].header.hash() != header.header.parent_hash {
                 return Err(error_msg("Incorrect block order"));
             }
         }
         // 3. generate accenstor proof
-        let mut accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
+        let mut accenstor_proof: Vec<_> = headers[0..headers.len()-1]
             .iter()
-            .map(|b| b.block.block.header.clone())
+            .map(|h| h.header.clone())
             .collect();
         accenstor_proof.reverse();  // from high to low
         // 4. submit to light client
@@ -1207,19 +1208,20 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
     let ecdh_privkey = ecdh::clone_key(
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
     let mut last_block = 0;
-    for block_with_events in blocks.iter() {
-        let block = &block_with_events.block;
-        if block.block.header.number != local_state.blocknum {
+    for header_with_events in headers.iter() {
+        let header = &header_with_events.header;
+        if header.number != local_state.blocknum {
             return Err(error_msg("Unexpected block"))
         }
-        dispatch(block, &ecdh_privkey);
+        // temporarily diable contract execution in block_sync
+        // dispatch(header_with_events, &ecdh_privkey);
 
-        if block_with_events.events.is_some() {
-            parse_events(&block_with_events)?;
+        if header_with_events.events.is_some() {
+            parse_events(&header_with_events)?;
         }
 
         // move forward
-        last_block = block.block.header.number;
+        last_block = header.number;
         (*local_state).blocknum = last_block + 1;
     }
 
@@ -1235,13 +1237,13 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
         .map_err(|_| error_msg("cannot decode authority_set_change"))
 }
 
-fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
+fn parse_events(header_with_events: &HeaderWithEvents) -> Result<(), Value> {
     let mut state = STATE.lock().unwrap();
     let missing_field = error_msg("Missing field");
-    let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
-    let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
-    let key = block_with_events.clone().key.ok_or(missing_field)?;
-    let state_root = &block_with_events.block.block.header.state_root;
+    let events = header_with_events.clone().events.ok_or(missing_field.clone())?;
+    let proof = header_with_events.clone().proof.ok_or(missing_field.clone())?;
+    let key = header_with_events.clone().key.ok_or(missing_field)?;
+    let state_root = &header_with_events.header.state_root;
     state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
 
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
