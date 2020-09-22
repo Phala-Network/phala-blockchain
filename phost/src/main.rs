@@ -256,8 +256,7 @@ async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderWithEvents>, authori
 async fn batch_sync_header(
     client: &XtClient,
     pr: &PrClient,
-    sync_state: &mut HeaderSyncState,
-    batch_window: usize
+    sync_state: &mut HeaderSyncState
 ) -> Result<usize, Error> {
     let header_buf = &mut sync_state.headers;
     if header_buf.is_empty() {
@@ -286,13 +285,12 @@ async fn batch_sync_header(
     while !header_buf.is_empty() {
         // Find the longest batch within the window
         let first_block_number = header_buf.first().unwrap().header.number;
-        let end_window = batch_window as isize - 1;
         let end_buffer = header_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
             Some(change_at) => (change_at as isize - first_block_number as isize),
             None => header_buf.len() as isize,
         };
-        let end = std::cmp::min(end_window, std::cmp::min(end_buffer, end_set_id_change));
+        let end = std::cmp::min(end_buffer, end_set_id_change);
         let mut i = end;
         while i >= 0 {
             if header_buf[i as usize].justification.is_some() {
@@ -301,17 +299,12 @@ async fn batch_sync_header(
             i -= 1;
         }
         if i < 0 {
-            let window_reached = end_window < end_buffer && end_window < end_set_id_change;
-            if window_reached {
-                println!(
-                    "Cannot find justification within batch_window (window: {}, from: {}, to: {})",
-                    batch_window, first_block_number,
-                    header_buf[end as usize].header.number,
-                );
-                return Err(Error::NoJustification);
-            } else {
-                break;
-            }
+            println!(
+                "Cannot find justification within window (from: {}, to: {})",
+                first_block_number,
+                header_buf[end as usize].header.number,
+            );
+            return Err(Error::NoJustification);
         }
         // send out the longest batch and remove it from the input buffer
         let header_batch: Vec<HeaderWithEvents> = header_buf.drain(..=(i as usize)).collect();
@@ -358,8 +351,8 @@ async fn batch_sync_header(
 }
 
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
-    let block_tip = get_block_at(&client, None, false).await?.block;
-    let hash = block_tip.block.header.hash();
+    let latest_block = get_block_at(&client, None, false).await?.block;
+    let hash = latest_block.block.header.hash();
     client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
@@ -438,12 +431,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        let block = get_block_at(&client, Some(0), false).await?.block;
+        let genesis_block = get_block_at(&client, Some(0), false).await?.block;
         let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
             .expect("No genesis block?");
         let set_proof = get_authority_with_proof_at(&client, hash).await?;
         let info = GenesisInfo {
-            header: block.block.header,
+            header: genesis_block.block.header,
             validators: set_proof.authority_set.authority_set,
             proof: set_proof.authority_proof,
         };
@@ -490,7 +483,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // update the latest pRuntime state
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
-        let block_tip = get_block_at(&client, None, false).await?.block;
+        let latest_block = get_block_at(&client, None, false).await?.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref h) = sync_state.headers.first() {
             if h.header.number >= info.blocknum {
@@ -499,15 +492,14 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.headers.remove(0);
         }
         println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
-                 info.blocknum, block_tip.block.header.number, sync_state.headers.len());
+                 info.blocknum, latest_block.block.header.number, sync_state.headers.len());
 
         // no, then catch up to the chain tip
         let next_header = match sync_state.headers.last() {
             Some(h) => h.header.number + 1,
             None => info.blocknum
         };
-        let batch_end = std::cmp::min(block_tip.block.header.number, next_header + args.fetch_blocks - 1);
-        for h in next_header ..= batch_end {
+        for h in next_header ..= latest_block.block.header.number {
             let block = get_block_at(&client, Some(h), true).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
@@ -526,7 +518,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_headers = batch_sync_header(&client, &pr, &mut sync_state, args.sync_blocks).await?;
+        let synced_headers = batch_sync_header(&client, &pr, &mut sync_state).await?;
 
         // check if pRuntime has already reached the chain tip.
         if synced_headers == 0 {
