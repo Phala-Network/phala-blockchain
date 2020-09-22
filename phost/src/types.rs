@@ -62,6 +62,7 @@ impl<T: Serialize> RuntimeReq<T> {
 pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
+    pub headernum: phala_node_runtime::BlockNumber,
     pub blocknum: phala_node_runtime::BlockNumber,
     pub initialized: bool,
     pub public_key: String,

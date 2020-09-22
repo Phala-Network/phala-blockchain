@@ -105,7 +105,9 @@ struct LocalState {
     initialized: bool,
     public_key: Box<PublicKey>,
     private_key: Box<SecretKey>,
-    blocknum: u32,
+    headernum: u32, // the height of synced block
+    blocknum: u32,  // the height of dispatched block
+    block_hashes: Vec<Hash>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
 }
@@ -154,7 +156,9 @@ lazy_static! {
                 initialized: false,
                 public_key: Box::new(pk),
                 private_key: Box::new(sk),
+                headernum: 0,
                 blocknum: 0,
+                block_hashes: Vec::new(),
                 ecdh_private_key: None,
                 ecdh_public_key: None,
             }
@@ -903,6 +907,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
     state.contract2 = contracts::balance::Balance::new(Some(sk));
+    local_state.headernum = 1;
     local_state.blocknum = 1;
 
     let resp = InitRuntimeResp {
@@ -1163,7 +1168,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
         .collect();
     let headers_data = parsed_data
         .map_err(|_| error_msg("Failed to parse base64 header"))?;
-    // Parse data to blocks
+    // Parse data to headers
     let parsed_headers: Result<Vec<HeaderWithEvents>, _> = headers_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
@@ -1172,15 +1177,15 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     // Light validation when possible
     let last_header = &headers.last().ok_or_else(|| error_msg("No header in the request"))?;
     {
-        // 1. the last block must has justification
+        // 1. the last header must has justification
         let justification = last_header.justification.as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
             .clone();
-        let header = last_header.header.clone();
-        // 2. check block sequence
+        let last_header = last_header.header.clone();
+        // 2. check header sequence
         for (i, header) in headers.iter().enumerate() {
             if i > 0 && headers[i-1].header.hash() != header.header.parent_hash {
-                return Err(error_msg("Incorrect block order"));
+                return Err(error_msg("Incorrect header order"));
             }
         }
         // 3. generate accenstor proof
@@ -1197,7 +1202,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
             .transpose()?;
         state.light_client.submit_finalized_headers(
             bridge_id,
-            header,
+            last_header,
             accenstor_proof,
             justification,
             authority_set_change
@@ -1210,8 +1215,8 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     let mut last_block = 0;
     for header_with_events in headers.iter() {
         let header = &header_with_events.header;
-        if header.number != local_state.blocknum {
-            return Err(error_msg("Unexpected block"))
+        if header.number != local_state.headernum {
+            return Err(error_msg("Unexpected header"))
         }
         // temporarily diable contract execution in block_sync
         // dispatch(header_with_events, &ecdh_privkey);
@@ -1222,8 +1227,14 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
 
         // move forward
         last_block = header.number;
-        (*local_state).blocknum = last_block + 1;
+        local_state.headernum = last_block + 1;
     }
+
+    // Save the block hashes for future dispatch
+    for header in headers.iter() {
+        local_state.block_hashes.push(header.header.hash());
+    }
+    println!("block_hashes len: {}", local_state.block_hashes.len());
 
     Ok(json!({
         "synced_to": last_block
@@ -1271,12 +1282,14 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         Some(ecdh_public_key) => hex::encode_hex_compact(ecdh_public_key.as_ref()),
         None => "".to_string()
     };
+    let headernum = local_state.headernum;
     let blocknum = local_state.blocknum;
 
     Ok(json!({
         "initialized": initialized,
         "public_key": s_pk,
         "ecdh_public_key": s_ecdh_pk,
+        "headernum": headernum,
         "blocknum": blocknum
     }))
 }
