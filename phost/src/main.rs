@@ -27,7 +27,7 @@ use crate::types::{
     Runtime, Header, Hash, OpaqueSignedBlock,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
-    SyncBlockReq, SyncBlockResp, BlockWithEvents, AuthoritySet, AuthoritySetChange
+    SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderWithEvents, AuthoritySet, AuthoritySetChange
 };
 
 use subxt::Signer;
@@ -76,8 +76,8 @@ struct Args {
     sync_blocks: usize,
 }
 
-struct BlockSyncState {
-    blocks: Vec<BlockWithEvents>,
+struct HeaderSyncState {
+    headers: Vec<HeaderWithEvents>,
     authory_set_state: Option<(BlockNumber, SetId)>
 }
 
@@ -155,22 +155,22 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
 
 /// Returns the next set_id change by a binary search on the known blocks
 ///
-/// `known_blocks` must have at least one block with block justification, otherwise raise an error
+/// `known_headers` must have at least one block header with block justification, otherwise raise an error
 /// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
 async fn bisec_setid_change(
     client: &XtClient,
     last_set: (BlockNumber, SetId),
-    known_blocks: &Vec<BlockWithEvents>
+    known_headers: &Vec<HeaderWithEvents>
 ) -> Result<Option<BlockNumber>, Error> {
-    if known_blocks.is_empty() {
+    if known_headers.is_empty() {
         return Err(Error::SearchSetIdChangeInEmptyRange);
     }
     let (last_block, last_id) = last_set;
     // Run binary search only on blocks with justification
-    let headers: Vec<&Header> = known_blocks
+    let headers: Vec<&Header> = known_headers
         .iter()
-        .filter(|b| b.block.block.header.number > last_block && b.block.justification.is_some())
-        .map(|b| &b.block.block.header)
+        .filter(|h| h.header.number > last_block && h.justification.is_some())
+        .map(|h| &h.header)
         .collect();
     let mut l = 0i64;
     let mut r = (headers.len() as i64) - 1;
@@ -235,12 +235,12 @@ fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
 }
 
 
-async fn req_sync_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncBlockResp, Error> {
-    let blocks_b64 = blocks
+async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderWithEvents>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
+    let headers_b64 = headers
         .iter()
-        .map(|block| {
-            let raw_block = Encode::encode(&block);
-            base64::encode(&raw_block)
+        .map(|header| {
+            let raw_header = Encode::encode(&header);
+            base64::encode(&raw_header)
         })
         .collect();
     let authority_set_change_b64 = authority_set_change.map(|change| {
@@ -248,26 +248,26 @@ async fn req_sync_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>, authority_
         base64::encode(&raw_change)
     });
 
-    let req = SyncBlockReq { blocks_b64, authority_set_change_b64 };
-    let resp = pr.req_decode("sync_block", req).await?;
+    let req = SyncHeaderReq { headers_b64, authority_set_change_b64 };
+    let resp = pr.req_decode("sync_header", req).await?;
     Ok(resp)
 }
 
-async fn batch_sync_block(
+async fn batch_sync_header(
     client: &XtClient,
     pr: &PrClient,
-    sync_state: &mut BlockSyncState,
+    sync_state: &mut HeaderSyncState,
     batch_window: usize
 ) -> Result<usize, Error> {
-    let block_buf = &mut sync_state.blocks;
-    if block_buf.is_empty() {
+    let header_buf = &mut sync_state.headers;
+    if header_buf.is_empty() {
         return Ok(0);
     }
     // Current authority set id
     let last_set = if let Some(set) = sync_state.authory_set_state {
         set
     } else {
-        let header = &block_buf.first().unwrap().block.block.header;
+        let header = &header_buf.first().unwrap().header;
         let hash = header.hash();
         let number = header.number;
         let set_id = client
@@ -279,23 +279,23 @@ async fn batch_sync_block(
         set
     };
     // Find the next set id change
-    let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
-    let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
+    let set_id_change_at = bisec_setid_change(client, last_set, header_buf).await?;
+    let last_number_in_buff = header_buf.last().unwrap().header.number;
     // Search
-    let mut synced_blocks: usize = 0;
-    while !block_buf.is_empty() {
+    let mut synced_headers: usize = 0;
+    while !header_buf.is_empty() {
         // Find the longest batch within the window
-        let first_block_number = block_buf.first().unwrap().block.block.header.number;
+        let first_block_number = header_buf.first().unwrap().header.number;
         let end_window = batch_window as isize - 1;
-        let end_buffer = block_buf.len() as isize - 1;
+        let end_buffer = header_buf.len() as isize - 1;
         let end_set_id_change = match set_id_change_at {
             Some(change_at) => (change_at as isize - first_block_number as isize),
-            None => block_buf.len() as isize,
+            None => header_buf.len() as isize,
         };
         let end = std::cmp::min(end_window, std::cmp::min(end_buffer, end_set_id_change));
         let mut i = end;
         while i >= 0 {
-            if block_buf[i as usize].block.justification.is_some() {
+            if header_buf[i as usize].justification.is_some() {
                 break;
             }
             i -= 1;
@@ -306,7 +306,7 @@ async fn batch_sync_block(
                 println!(
                     "Cannot find justification within batch_window (window: {}, from: {}, to: {})",
                     batch_window, first_block_number,
-                    block_buf[end as usize].block.block.header.number,
+                    header_buf[end as usize].header.number,
                 );
                 return Err(Error::NoJustification);
             } else {
@@ -314,39 +314,39 @@ async fn batch_sync_block(
             }
         }
         // send out the longest batch and remove it from the input buffer
-        let block_batch: Vec<BlockWithEvents> = block_buf.drain(..=(i as usize)).collect();
+        let header_batch: Vec<HeaderWithEvents> = header_buf.drain(..=(i as usize)).collect();
 
         /* print collected blocks */ {
-            for b in block_batch.iter() {
-                println!("Block {} :: {} :: {}",
-                         b.block.block.header.number,
-                         b.block.block.header.hash().to_string(),
-                         b.block.block.header.parent_hash.to_string()
+            for h in header_batch.iter() {
+                println!("Header {} :: {} :: {}",
+                         h.header.number,
+                         h.header.hash().to_string(),
+                         h.header.parent_hash.to_string()
                 );
             }
         }
 
-        let last_block = &block_batch.last().unwrap();
-        let last_block_hash = last_block.block.block.header.hash();
-        let last_block_number = last_block.block.block.header.number;
+        let last_header = &header_batch.last().unwrap();
+        let last_header_hash = last_header.header.hash();
+        let last_header_number = last_header.header.number;
 
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
-            if change_at == last_block_number {
+            if change_at == last_header_number {
                 authrotiy_change = Some(
-                    get_authority_with_proof_at(&client, last_block_hash).await?);
+                    get_authority_with_proof_at(&client, last_header_hash).await?);
             }
         }
 
         println!(
-            "sending a batch of {} blocks (last: {}, change: {:?})",
-            block_batch.len(), last_block_number,
+            "sending a batch of {} headers (last: {}, change: {:?})",
+            header_batch.len(), last_header_number,
             authrotiy_change.as_ref().map(|change| &change.authority_set));
 
-        let r = req_sync_block(pr, &block_batch, authrotiy_change.as_ref()).await?;
-        println!("  ..sync_block: {:?}", r);
+        let r = req_sync_header(pr, &header_batch, authrotiy_change.as_ref()).await?;
+        println!("  ..sync_header: {:?}", r);
         // Update sync state
-        synced_blocks += block_batch.len();
+        synced_headers += header_batch.len();
     }
     sync_state.authory_set_state = Some(match set_id_change_at {
         // set_id changed at next block
@@ -354,7 +354,7 @@ async fn batch_sync_block(
         // not changed
         None => (last_number_in_buff, last_set.1),
     });
-    Ok(synced_blocks)
+    Ok(synced_headers)
 }
 
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
@@ -494,8 +494,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 
     let mut sequence = get_latest_sequence(&client).await?;
-    let mut sync_state = BlockSyncState {
-        blocks: Vec::new(),
+    let mut sync_state = HeaderSyncState {
+        headers: Vec::new(),
         authory_set_state: None
     };
 
@@ -505,27 +505,33 @@ async fn bridge(args: Args) -> Result<(), Error> {
         println!("pRuntime get_info response: {:?}", info);
         let block_tip = get_block_at(&client, None, false).await?.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
-        while let Some(ref b) = sync_state.blocks.first() {
-            if b.block.block.header.number >= info.blocknum {
+        while let Some(ref h) = sync_state.headers.first() {
+            if h.header.number >= info.blocknum {
                 break;
             }
-            sync_state.blocks.remove(0);
+            sync_state.headers.remove(0);
         }
-        println!("try to upload blocks. next required: {}, finalized tip: {}, buffered {}",
-                 info.blocknum, block_tip.block.header.number, sync_state.blocks.len());
+        println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
+                 info.blocknum, block_tip.block.header.number, sync_state.headers.len());
 
         // no, then catch up to the chain tip
-        let next_block = match sync_state.blocks.last() {
-            Some(b) => b.block.block.header.number + 1,
+        let next_header = match sync_state.headers.last() {
+            Some(h) => h.header.number + 1,
             None => info.blocknum
         };
-        let batch_end = std::cmp::min(block_tip.block.header.number, next_block + args.fetch_blocks - 1);
-        for h in next_block ..= batch_end {
+        let batch_end = std::cmp::min(block_tip.block.header.number, next_header + args.fetch_blocks - 1);
+        for h in next_header ..= batch_end {
             let block = get_block_at(&client, Some(h), true).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
             }
-            sync_state.blocks.push(block.clone());
+            sync_state.headers.push(HeaderWithEvents {
+                header: block.block.block.header.clone(),
+                justification: block.block.justification.clone(),
+                events: block.events.clone(),
+                proof: block.proof.clone(),
+                key: block.key.clone()
+            });
         }
 
         if !args.no_write_back {
@@ -533,11 +539,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
+        let synced_headers = batch_sync_header(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
-        if synced_blocks == 0 {
-            println!("waiting for new blocks");
+        if synced_headers == 0 {
+            println!("waiting for new headers");
             delay_for(Duration::from_millis(5000)).await;
             continue;
         }
