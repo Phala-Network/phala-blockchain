@@ -302,7 +302,7 @@ async fn batch_sync_header(
             println!(
                 "Cannot find justification within window (from: {}, to: {})",
                 first_block_number,
-                header_buf[end as usize].header.number,
+                header_buf.last().unwrap().header.number,
             );
             return Err(Error::NoJustification);
         }
@@ -497,20 +497,20 @@ async fn bridge(args: Args) -> Result<(), Error> {
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
         let latest_block = get_block_at(&client, None, false).await?.block;
-        // remove the blocks not needed in the buffer. info.blocknum is the next required block
+        // remove the headers not needed in the buffer. info.headernum is the next required header
         while let Some(ref h) = sync_state.headers.first() {
-            if h.header.number >= info.blocknum {
+            if h.header.number >= info.headernum {
                 break;
             }
             sync_state.headers.remove(0);
         }
         println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
-                 info.blocknum, latest_block.block.header.number, sync_state.headers.len());
+                 info.headernum, latest_block.block.header.number, sync_state.headers.len());
 
         // no, then catch up to the chain tip
         let next_header = match sync_state.headers.last() {
             Some(h) => h.header.number + 1,
-            None => info.blocknum
+            None => info.headernum
         };
         for h in next_header ..= latest_block.block.header.number {
             let block = get_block_at(&client, Some(h), true).await?;
