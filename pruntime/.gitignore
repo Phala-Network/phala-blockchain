@@ -39,6 +39,7 @@ Cargo.lock
 
 # Executables
 bin/**
+!bin/Rocket.toml
 
 # SGX EDL generated stubs
 Enclave_u.c
