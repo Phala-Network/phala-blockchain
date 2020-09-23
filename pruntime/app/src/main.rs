@@ -17,6 +17,15 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+extern crate ring_aead;
+#[cfg(test)]
+extern crate base64;
+#[cfg(test)]
+extern crate hex_literal;
+
 mod attestation;
 mod contract_input;
 mod contract_output;
