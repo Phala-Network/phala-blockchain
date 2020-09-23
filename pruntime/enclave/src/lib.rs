@@ -608,6 +608,7 @@ const ACTION_DUMP_STATES: u8 = 3;
 const ACTION_LOAD_STATES: u8 = 4;
 const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
+const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -645,6 +646,10 @@ struct TestReq {
 struct SyncHeaderReq {
     headers_b64: Vec<String>,
     authority_set_change_b64: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct DispatchBlockReq {
+    blocks_b64: Vec<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
@@ -689,7 +694,8 @@ pub extern "C" fn ecall_handle(
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_HEADER=> sync_header(load_param(input_value)),
+        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
+        ACTION_DISPATCH_BLOCK => dispatch_block(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -1208,34 +1214,77 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     }
     // Passed the validation
     let mut local_state = LOCAL_STATE.lock().unwrap();
-    let ecdh_privkey = ecdh::clone_key(
-        local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
-    let mut last_block = 0;
+    let mut last_header = 0;
     for header_with_events in headers.iter() {
         let header = &header_with_events.header;
         if header.number != local_state.headernum {
             return Err(error_msg("Unexpected header"))
         }
-        // temporarily diable contract execution in block_sync
-        // dispatch(header_with_events, &ecdh_privkey);
 
         if header_with_events.events.is_some() {
             parse_events(&header_with_events)?;
         }
 
         // move forward
-        last_block = header.number;
-        local_state.headernum = last_block + 1;
+        last_header = header.number;
+        local_state.headernum = last_header + 1;
     }
 
     // Save the block hashes for future dispatch
     for header in headers.iter() {
         local_state.block_hashes.push(header.header.hash());
     }
-    println!("block_hashes len: {}", local_state.block_hashes.len());
 
     Ok(json!({
-        "synced_to": last_block
+        "synced_to": last_header
+    }))
+}
+
+fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
+    // Parse base64 to data
+    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64)
+        .iter()
+        .map(base64::decode)
+        .collect();
+    let blocks_data = parsed_data
+        .map_err(|_| error_msg("Failed to parse base64 block"))?;
+    // Parse data to blocks
+    let parsed_blocks: Result<Vec<chain::SignedBlock>, _> = blocks_data
+        .iter()
+        .map(|d| Decode::decode(&mut &d[..]))
+        .collect();
+    let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
+
+    // validate blocks
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    let first_block = &blocks.first().ok_or_else(|| error_msg("No block in the request"))?;
+    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?;
+    if first_block.block.header.number != local_state.blocknum {
+        return Err(error_msg("Unexpected block"))
+    }
+    if last_block.block.header.number >= local_state.headernum {
+        return Err(error_msg("Unsynced block"))
+    }
+    for (i, block) in blocks.iter().enumerate() {
+        let expected_hash = &local_state.block_hashes[i];
+        if block.block.header.hash() != *expected_hash {
+            return Err(error_msg("Unexpected block hash"))
+        }
+        // TODO: examine extrinsic merkle tree
+    }
+
+    let ecdh_privkey = ecdh::clone_key(
+        local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
+    let mut last_block = 0;
+    for block in blocks.iter() {
+        dispatch(&block, &ecdh_privkey);
+
+        last_block = block.block.header.number;
+        local_state.blocknum = last_block + 1;
+    }
+
+    Ok(json!({
+        "dispatched_to": last_block
     }))
 }
 
