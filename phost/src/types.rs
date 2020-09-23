@@ -203,3 +203,17 @@ pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
 }
+
+// API: dispatch_block
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockReq {
+    pub blocks_b64: Vec<String>
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockResp {
+    pub dispatched_to: phala_node_runtime::BlockNumber
+}
+impl Resp for DispatchBlockReq {
+    type Resp = DispatchBlockResp;
+}
