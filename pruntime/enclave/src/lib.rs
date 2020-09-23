@@ -10,7 +10,7 @@
 #[cfg(not(target_env = "sgx"))]
 #[macro_use] extern crate sgx_tstd as std;
 
-// #[macro_use] extern crate serde;
+#[macro_use] extern crate serde;
 #[macro_use] extern crate serde_json;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
@@ -22,6 +22,10 @@ use sgx_tse::*;
 use sgx_tcrypto::*;
 use sgx_rand::*;
 
+use sgx_types::{sgx_status_t, sgx_sealed_data_t};
+use sgx_types::marker::ContiguousMemory;
+use sgx_tseal::{SgxSealedData};
+
 use crate::std::prelude::v1::*;
 use crate::std::sync::Arc;
 use crate::std::net::TcpStream;
@@ -32,9 +36,11 @@ use crate::std::io::{Write, Read};
 use crate::std::untrusted::fs;
 use crate::std::vec::Vec;
 use crate::std::sync::SgxMutex;
+use core::convert::TryInto;
 use itertools::Itertools;
 use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use serde_json::{Map, Value};
+use serde_cbor;
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
 use contracts::AccountIdWrapper;
@@ -87,6 +93,16 @@ extern "C" {
         output_ptr : *mut u8,
         output_len_ptr: *mut usize,
         output_buf_len: usize
+    ) -> sgx_status_t;
+
+    pub fn ocall_save_persistent_data(
+        ret_val: *mut sgx_status_t,
+        input_ptr: *const u8, input_len: usize
+    ) -> sgx_status_t;
+
+    pub fn ocall_load_persistent_data(
+        ret_val: *mut sgx_status_t,
+        output_ptr : *mut u8, output_len_ptr: *mut usize, output_buf_len: usize
     ) -> sgx_status_t;
 }
 
@@ -148,6 +164,18 @@ fn de_from_b64<'de, D>(deserializer: D) -> Result<ChainLightValidation, D::Error
     let s = String::deserialize(deserializer)?;
     let data = base64::decode(&s).map_err(de::Error::custom)?;
     ChainLightValidation::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
+}
+
+fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(sealed_data: &SgxSealedData<[T]>, sealed_log: * mut u8, sealed_log_size: u32) -> Option<* mut sgx_sealed_data_t> {
+    unsafe {
+        sealed_data.to_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+    }
+}
+
+fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(sealed_log: * mut u8, sealed_log_size: u32) -> Option<SgxSealedData<'a, [T]>> {
+    unsafe {
+        SgxSealedData::<[T]>::from_raw_sealed_data_t(sealed_log as * mut sgx_sealed_data_t, sealed_log_size)
+    }
 }
 
 lazy_static! {
@@ -774,6 +802,143 @@ pub extern "C" fn ecall_handle(
     sgx_status_t::SGX_SUCCESS
 }
 
+const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
+
+// A sample struct to show the usage of serde + seal
+// This struct could not be used in sgx_seal directly because it is
+// **not** continuous in memory. The `vec` is the bad member.
+// However, it is serializable. So we can serialize it first and
+// put convert the Vec<u8> to [u8] then put [u8] to sgx_seal API!
+#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+struct PersistentRuntimeData {
+    sk: String,
+    ecdh_sk: String
+}
+
+#[no_mangle]
+pub extern "C" fn ecall_init() -> sgx_status_t {
+    let mut data = PersistentRuntimeData::default();
+
+    // Try load persisted sealed data
+    let mut sealed_data_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
+    let mut sealed_data_len : usize = 0;
+    let sealed_data_slice = &mut sealed_data_buf;
+    let sealed_data_ptr = sealed_data_slice.as_mut_ptr();
+    let sealed_data_len_ptr = &mut sealed_data_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ocall_load_persistent_data(
+            &mut retval,
+            sealed_data_ptr, sealed_data_len_ptr, SEAL_DATA_BUF_MAX_LEN
+        )
+    };
+
+    if sealed_data_len == 0 as usize {
+        println!("Persistent data not found.");
+
+        // Generate identity
+        let mut prng = rand::rngs::OsRng::default();
+        let sk = SecretKey::random(&mut prng);
+        let pk = PublicKey::from_secret_key(&sk);
+        let serialized_pk = pk.serialize_compressed();
+        let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
+        println!("identity pubkey: {:?}", s_pk);
+
+        // ECDH identity
+        let ecdh_sk = ecdh::generate_key();
+        let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
+        let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+        println!("ECDH pubkey: {:?}", ecdh_pk);
+
+        let serialized_sk = sk.serialize();
+        let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
+        data.sk = hex::encode_hex_compact(serialized_sk.as_ref());
+        data.ecdh_sk = hex::encode_hex_compact(serialized_ecdh_sk.as_ref());
+
+        let encoded_vec = serde_cbor::to_vec(&data).unwrap();
+        let encoded_slice = encoded_vec.as_slice();
+        println!("Length of encoded slice: {}", encoded_slice.len());
+        println!("Encoded slice: {:?}", encoded_slice);
+
+        let aad: [u8; 0] = [0_u8; 0];
+        let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
+        let sealed_data = match result {
+            Ok(x) => x,
+            Err(ret) => { return ret; },
+        };
+
+        let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
+        let mut output_len: usize = return_output_buf.len();
+
+        let output_slice = &mut return_output_buf;
+        let output_ptr = output_slice.as_mut_ptr();
+
+        let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
+        if opt.is_none() {
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+
+        let mut retval = sgx_status_t::SGX_SUCCESS;
+        let result = unsafe {
+            ocall_save_persistent_data(
+                &mut retval,
+                output_ptr, output_len
+            )
+        };
+    } else {
+        let opt = from_sealed_log_for_slice::<u8>(sealed_data_ptr, sealed_data_len as u32);
+        let sealed_data = match opt {
+            Some(x) => x,
+            None => {
+                panic!("Sealed data corrupted or outdated, please delete it.")
+            },
+        };
+
+        let result = sealed_data.unseal_data();
+        let unsealed_data = match result {
+            Ok(x) => x,
+            Err(ret) => {
+                return ret;
+            },
+        };
+
+        let encoded_slice = unsealed_data.get_decrypt_txt();
+        println!("Length of encoded slice: {}", encoded_slice.len());
+        println!("Encoded slice: {:?}", encoded_slice);
+        data = serde_cbor::from_slice(encoded_slice).unwrap();
+    }
+
+    // load identity
+    let raw_key: [u8; 32] = hex::decode_hex(&data.sk).as_slice().try_into().expect("slice with incorrect length");
+    let sk = SecretKey::parse(&raw_key).expect("can't parse private key");
+    let pk = PublicKey::from_secret_key(&sk);
+    let serialized_pk = pk.serialize_compressed();
+    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
+    println!("identity pubkey: {:?}", s_pk);
+
+    // load ECDH identity
+    let raw_key = hex::decode_hex(&data.ecdh_sk);
+    let ecdh_sk = ecdh::create_key(raw_key.as_slice()).expect("can't create ecdh key");
+    let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
+    let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    println!("ECDH pubkey: {:?}", ecdh_pk);
+
+    // Generate Seal Key as Machine Id
+    // This SHOULD be stable on the same CPU
+    let machine_id = generate_seal_key();
+    println!("Machine id: {:?}", &machine_id);
+
+    // Save
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    *local_state.public_key = pk.clone();
+    *local_state.private_key = sk.clone();
+    local_state.ecdh_private_key = Some(ecdh_sk);
+    local_state.ecdh_public_key = Some(ecdh_pk);
+    local_state.machine_id = machine_id.clone();
+
+    sgx_status_t::SGX_SUCCESS
+}
 
 // --------------------------------
 
@@ -849,12 +1014,22 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(json!({"message": "Already initialized"}))
     }
 
-    // Generate Seal Key as Machine Id
-    let machine_id = generate_seal_key();
-    println!("Machine id: {:?}", &machine_id);
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    (*local_state).initialized = true;
+
+    // load identity
+    let sk = *local_state.private_key.clone();
+    let pk = &local_state.public_key;
+    let serialized_pk = pk.serialize_compressed();
+    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
+    println!("identity pubkey: {:?}", s_pk);
+
+    // load ECDH identity
+    let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
+    let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    println!("ECDH pubkey: {:?}", ecdh_pk);
 
     // Measure machine score
-    // TODO: Find a fair algorithm to measure TEE performance.
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
     println!("CPU cores: {}", cpu_core_num);
 
@@ -871,32 +1046,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         }
     }
 
-    // Generate identity
-    let mut prng = rand::rngs::OsRng::default();
-    let sk = SecretKey::random(&mut prng);
-    let pk = PublicKey::from_secret_key(&sk);
-    let serialized_pk = pk.serialize_compressed();
-    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
-
-    // ECDH identity
-    let raw_key = hex::decode_hex("e71f37bc68ad82ec70ddf75ee787bccbb1b70e7293f710faee042f97db8a3ba3");
-    let ecdh_sk = ecdh::create_key(raw_key.as_slice()).expect("can't create ecdh key");
-    let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
-    let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
-    println!("ECDH pubkey: {:?}", ecdh_pk);
-
-    // Save identity
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    (*local_state).initialized = true;
-    *local_state.public_key = pk.clone();
-    *local_state.private_key = sk.clone();
-    local_state.ecdh_private_key = Some(ecdh_sk);
-    local_state.ecdh_public_key = Some(ecdh_pk);
-    local_state.machine_id = machine_id.clone();
-
     // Build RuntimeInfo
     let runtime_info = RuntimeInfo {
-        machine_id: machine_id.clone(),
+        machine_id: local_state.machine_id.clone(),
         pub_key: serialized_pk,
         version: 1,
         cpu_core_num,

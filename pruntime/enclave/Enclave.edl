@@ -19,6 +19,8 @@ enclave {
             [out] size_t *output_len_ptr, size_t output_buf_len
         );
 
+        public sgx_status_t ecall_init();
+
         public sgx_status_t ecall_set_state(
             [in, size = input_len] uint8_t *input_ptr, size_t input_len
         );
@@ -29,9 +31,11 @@ enclave {
             [out] sgx_target_info_t *ret_ti,
             [out] sgx_epid_group_id_t *ret_gid
         );
+
         sgx_status_t ocall_get_ias_socket(
             [out] int *ret_fd
         );
+
         sgx_status_t ocall_get_quote(
             [in, size = sigrl_len] uint8_t * p_sigrl,
             uint32_t sigrl_len,
@@ -44,12 +48,23 @@ enclave {
             uint32_t maxlen,
             [out] uint32_t* p_quote_len
         );
+
         sgx_status_t ocall_get_update_info(
             [in] sgx_platform_info_t * platformBlob,
             int32_t enclaveTrusted,
             [out] sgx_update_info_bit_t * update_info
         );
+
         sgx_status_t ocall_dump_state(
+            [out, size = output_buf_len] uint8_t *output_ptr,
+            [out] size_t *output_len_ptr, size_t output_buf_len
+        );
+
+        sgx_status_t ocall_save_persistent_data(
+            [in, size = input_len] uint8_t *input_ptr, size_t input_len
+        );
+
+        sgx_status_t ocall_load_persistent_data(
             [out, size = output_buf_len] uint8_t *output_ptr,
             [out] size_t *output_len_ptr, size_t output_buf_len
         );
