@@ -7,6 +7,7 @@ pub enum Error {
   SerdeError(serde_json::error::Error),
   BlockHashNotFound,
   BlockNotFound,
+  BlockHeaderMismatch,
   NoJustification,
   NoSetIdAtBlock,
   SearchSetIdChangeInEmptyRange,
