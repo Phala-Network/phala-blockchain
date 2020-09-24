@@ -100,6 +100,23 @@ struct GetHourlyStats {
     GetHourlyStats: HourlyStats
 }
 
+//GetDailyStats
+#[derive(Serialize, Deserialize)]
+pub struct DailyStat {
+    stats: Vec<HourlyPageViewStat>
+}
+
+#[derive(Serialize, Deserialize)]
+struct DailyStats {
+    daily_stat: DailyStat,
+    encrypted: bool
+}
+
+#[derive(Serialize, Deserialize)]
+struct GetDailyStats {
+    GetDailyStats: DailyStats
+}
+
 //ClearPageView
 #[derive(Serialize, Deserialize)]
 struct ClearPageView {
@@ -119,9 +136,6 @@ fn test_w3a_setpageview() {
         "id": 1
       }
     }"#;
-
-    //let contract_input: ContractInput = serde_json::from_str(input_string).unwrap();
-    //assert_eq!(true, contract_input.nonce.get("id").unwrap() == 1);
 
     let (result, output_value) = call_in_enclave(input_string);
 
@@ -249,6 +263,37 @@ fn test_w3a_gethourlystats() {
 }
 
 #[test]
+fn test_w3a_getdailystats() {
+
+    init_enclave_for_test();
+
+    let input_string = r#"{
+      "input": {
+        "query_payload": "{\"Plain\":\"{\\\"contract_id\\\":4,\\\"nonce\\\":627023,\\\"request\\\":{\\\"GetDailyStats\\\":{\\\"daily_stat\\\":{\\\"stats\\\":[{\\\"sid\\\":\\\"1\\\",\\\"pv_count\\\":\\\"3\\\",\\\"cid_count\\\":\\\"1\\\",\\\"avg_duration\\\":\\\"26\\\",\\\"timestamp\\\":1600819200},{\\\"sid\\\":\\\"1\\\",\\\"pv_count\\\":\\\"2\\\",\\\"cid_count\\\":\\\"1\\\",\\\"avg_duration\\\":\\\"60\\\",\\\"timestamp\\\":1600819200}]}}}}\"}"
+      },
+      "nonce": {
+        "id": 1
+      }
+    }"#;
+
+    let (result, output_value) = call_in_enclave(input_string);
+    assert_eq!(result, sgx_status_t::SGX_SUCCESS);
+    assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
+
+    let plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let gds: GetDailyStats = serde_json::from_str(&plain.Plain).unwrap();
+
+    assert_eq!(gds.GetDailyStats.encrypted, false);
+
+    assert_eq!(gds.GetDailyStats.daily_stat.stats.len(), 1);
+    assert_eq!(gds.GetDailyStats.daily_stat.stats[0].cid_count, "2");
+    assert_eq!(gds.GetDailyStats.daily_stat.stats[0].pv_count, "5");
+    assert_eq!(gds.GetDailyStats.daily_stat.stats[0].avg_duration, "86");
+
+    destroy_enclave();
+}
+
+#[test]
 fn test_w3a_clearpageview() {
 
     init_enclave_for_test();
@@ -341,9 +386,122 @@ fn test_w3a_encrypted_getonlineusers() {
     destroy_enclave();
 }
 
+#[test]
+fn test_w3a_encrypted_gethourlystats() {
+
+    init_enclave_for_test();
+
+    let mut input_string = r#"{
+      "input": {
+        "query_payload": "{\"Plain\":\"{\\\"contract_id\\\":4,\\\"nonce\\\":545691,\\\"request\\\":{\\\"SetPageView\\\":{\\\"page_views\\\":[{\\\"id\\\":\\\"47ca3f6f-d296-447e-90e8-5ef10e4b713e\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"FtQA33sGdPDvSyxF|Jdsv5XME/P9CS/wKDSBbnoHTD0ziW19vB4R/KBkOXq43+O5+Ug==\\\",\\\"path\\\":\\\"cAiW+neSQQgKgzxK|bXT9fgwMJ/jCnBQ4yUTvCrt2wMZHoQTthe1t\\\",\\\"referrer\\\":\\\"oJZgGO1rkokNkxFQ|RG742mfs/tmxoKa7IgIf57wyHBXOKU6LTFex\\\",\\\"ip\\\":\\\"tg/sHe6tw3+5qxvQ|Nt/oU4Z+m4Q65j+QivJwGwyPsA==\\\",\\\"user_agent\\\":\\\"Tl8jKhJwK437PJyE|kU6rS8ZUS1I6pr+C8pUaJqSTmPcJjBEkYjWugcIj9PxGKOCLz5kNkrBgkTQ3eHCE790O4wFtQeA+ectpvhwPqG4aPPy+CxNCPLm79i+zyUaAgQPEvZfyoui5b35A4V8zH6kB3KHs77ZOX8Y/AfdUY4bcn3MeVJYHDQ==\\\",\\\"created_at\\\":1600822028},{\\\"id\\\":\\\"81bee3d3-3b3c-4366-ba08-1ee9884e29ee\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"kdg4FwbuCaNIe1N2|CKRaZd93Me87UtQ7DSNfB/vsDZAc2olri5Mu7FgLpPfwOkSfHw==\\\",\\\"path\\\":\\\"9V4pIkq1NH9BS4Ff|8aeZHcRcyJwupgq+FDECwxPsnNoLvPw2s1WH\\\",\\\"referrer\\\":\\\"fzNM5mJGVoJGcf3+|X5xWc8oWFGrusYNMruYRmtiUSOXncFMEBFR0\\\",\\\"ip\\\":\\\"XGAskyzn0fpSJOCM|d22loW3Xq8mKBGkfLn1IIwbPXQ==\\\",\\\"user_agent\\\":\\\"A42kO++N47wL9qIj|/fzJGVQq297JtOrbD4FlxcZ/QdRuqS5N6wdWKzKoSfWaWGmAJh9X4SjmSczCk4aSaPQlvt/N+DFzrzVhygLj4HWMx3KPWamTeCFfn30yYBN0SgfZ5Xcup8qAoOduzJz1wLC1uKz6YRRsx2jGuKQ45JGBAa1y7je6fQ==\\\",\\\"created_at\\\":1600822045},{\\\"id\\\":\\\"5effeb8f-b62e-43ae-a7ab-69fc49efb8ab\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"1/i9ec00/9XqKDQk|9YahTCR4CLB3y0tClKcJoclqCQV7iNIVwDeDzL8yl1wqzLCmdw==\\\",\\\"path\\\":\\\"UZ8ctCVjiOjTjNeA|woAlibmVqumKswBSp61kumOrOxD03z/xYLmm\\\",\\\"referrer\\\":\\\"fnwNh1B57GpHOkAt|2z7j6Mwiqii5chLSeWTqDB1alqK8/dYoditv\\\",\\\"ip\\\":\\\"XFe1Wsk6AngoLCT1|sZsFyF5mvmUcbn5UawsHocClwQ==\\\",\\\"user_agent\\\":\\\"rrzy2qlU8eHc2sls|YCQj1I/Hq/6nmxO1VDxX3bUwy4d/zaDjT7qD980oeTGtheyGiyKCCj4tCF9sQi0SpQDdj2YaWq0fvn6suPVmGwRElGzE6B7wGm7Howt/Tu5gOb53y+9I/+fcO+VL5T3SDz6u2N/p4bt4GtsNppVUHcitMw62z4Z0Uw==\\\",\\\"created_at\\\":1600822081}],\\\"encrypted\\\":true}}}\"}"
+      },
+      "nonce": {
+        "id": 1
+      }
+    }"#;
+
+    let (result, output_value) = call_in_enclave(input_string);
+
+    assert_eq!(result, sgx_status_t::SGX_SUCCESS);
+    assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
+
+    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
+    assert_eq!(spv.SetPageView.page_view_count, 3);
+
+    input_string = r#"{
+      "input": {
+        "query_payload": "{\"Plain\":\"{\\\"contract_id\\\":4,\\\"nonce\\\":448170,\\\"request\\\":{\\\"GetHourlyStats\\\":{\\\"start\\\":1600822020,\\\"end\\\":1600822800,\\\"start_of_week\\\":1600646400}}}\"}"
+      },
+      "nonce": {
+        "id": 1
+      }
+    }"#;
+
+    let (result, output_value) = call_in_enclave(input_string);
+    assert_eq!(result, sgx_status_t::SGX_SUCCESS);
+    assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
+
+    plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let ghs: GetHourlyStats = serde_json::from_str(&plain.Plain).unwrap();
+
+    assert_eq!(ghs.GetHourlyStats.encrypted, true);
+
+    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats.len(), 1);
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].cid_count.clone()), "1");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].pv_count.clone()), "3");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].avg_duration.clone()), "26");
+
+    assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients.len(), 1);
+    assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients[0].cids.len(), 1);
+
+    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_devices.len(), 1);
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].count.clone()), "3");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].device.clone()), "Chrome");
+
+    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites.len(), 3);
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].count.clone()), "1");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].path.clone()), "/page2.html");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].count.clone()), "1");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].path.clone()), "/index.html");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].count.clone()), "1");
+    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].path.clone()), "/page1.html");
+
+    destroy_enclave();
+}
+
+#[test]
+fn test_w3a_encrypted_getdailystats() {
+
+    init_enclave_for_test();
+
+    // Sending SetPageView request just tell TEE it works in encrypted mode
+    let mut input_string = r#"{
+      "input": {
+        "query_payload": "{\"Plain\":\"{\\\"contract_id\\\":4,\\\"nonce\\\":545691,\\\"request\\\":{\\\"SetPageView\\\":{\\\"page_views\\\":[{\\\"id\\\":\\\"47ca3f6f-d296-447e-90e8-5ef10e4b713e\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"FtQA33sGdPDvSyxF|Jdsv5XME/P9CS/wKDSBbnoHTD0ziW19vB4R/KBkOXq43+O5+Ug==\\\",\\\"path\\\":\\\"cAiW+neSQQgKgzxK|bXT9fgwMJ/jCnBQ4yUTvCrt2wMZHoQTthe1t\\\",\\\"referrer\\\":\\\"oJZgGO1rkokNkxFQ|RG742mfs/tmxoKa7IgIf57wyHBXOKU6LTFex\\\",\\\"ip\\\":\\\"tg/sHe6tw3+5qxvQ|Nt/oU4Z+m4Q65j+QivJwGwyPsA==\\\",\\\"user_agent\\\":\\\"Tl8jKhJwK437PJyE|kU6rS8ZUS1I6pr+C8pUaJqSTmPcJjBEkYjWugcIj9PxGKOCLz5kNkrBgkTQ3eHCE790O4wFtQeA+ectpvhwPqG4aPPy+CxNCPLm79i+zyUaAgQPEvZfyoui5b35A4V8zH6kB3KHs77ZOX8Y/AfdUY4bcn3MeVJYHDQ==\\\",\\\"created_at\\\":1600822028},{\\\"id\\\":\\\"81bee3d3-3b3c-4366-ba08-1ee9884e29ee\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"kdg4FwbuCaNIe1N2|CKRaZd93Me87UtQ7DSNfB/vsDZAc2olri5Mu7FgLpPfwOkSfHw==\\\",\\\"path\\\":\\\"9V4pIkq1NH9BS4Ff|8aeZHcRcyJwupgq+FDECwxPsnNoLvPw2s1WH\\\",\\\"referrer\\\":\\\"fzNM5mJGVoJGcf3+|X5xWc8oWFGrusYNMruYRmtiUSOXncFMEBFR0\\\",\\\"ip\\\":\\\"XGAskyzn0fpSJOCM|d22loW3Xq8mKBGkfLn1IIwbPXQ==\\\",\\\"user_agent\\\":\\\"A42kO++N47wL9qIj|/fzJGVQq297JtOrbD4FlxcZ/QdRuqS5N6wdWKzKoSfWaWGmAJh9X4SjmSczCk4aSaPQlvt/N+DFzrzVhygLj4HWMx3KPWamTeCFfn30yYBN0SgfZ5Xcup8qAoOduzJz1wLC1uKz6YRRsx2jGuKQ45JGBAa1y7je6fQ==\\\",\\\"created_at\\\":1600822045},{\\\"id\\\":\\\"5effeb8f-b62e-43ae-a7ab-69fc49efb8ab\\\",\\\"sid\\\":\\\"1\\\",\\\"cid\\\":\\\"d540041d837820e4a5a868c9c45d40ad\\\",\\\"host\\\":\\\"1/i9ec00/9XqKDQk|9YahTCR4CLB3y0tClKcJoclqCQV7iNIVwDeDzL8yl1wqzLCmdw==\\\",\\\"path\\\":\\\"UZ8ctCVjiOjTjNeA|woAlibmVqumKswBSp61kumOrOxD03z/xYLmm\\\",\\\"referrer\\\":\\\"fnwNh1B57GpHOkAt|2z7j6Mwiqii5chLSeWTqDB1alqK8/dYoditv\\\",\\\"ip\\\":\\\"XFe1Wsk6AngoLCT1|sZsFyF5mvmUcbn5UawsHocClwQ==\\\",\\\"user_agent\\\":\\\"rrzy2qlU8eHc2sls|YCQj1I/Hq/6nmxO1VDxX3bUwy4d/zaDjT7qD980oeTGtheyGiyKCCj4tCF9sQi0SpQDdj2YaWq0fvn6suPVmGwRElGzE6B7wGm7Howt/Tu5gOb53y+9I/+fcO+VL5T3SDz6u2N/p4bt4GtsNppVUHcitMw62z4Z0Uw==\\\",\\\"created_at\\\":1600822081}],\\\"encrypted\\\":true}}}\"}"
+      },
+      "nonce": {
+        "id": 1
+      }
+    }"#;
+
+    let (result, output_value) = call_in_enclave(input_string);
+
+    assert_eq!(result, sgx_status_t::SGX_SUCCESS);
+    assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
+
+    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
+    assert_eq!(spv.SetPageView.page_view_count, 3);
+
+    input_string = r#"{
+      "input": {
+        "query_payload": "{\"Plain\":\"{\\\"contract_id\\\":4,\\\"nonce\\\":37195,\\\"request\\\":{\\\"GetDailyStats\\\":{\\\"daily_stat\\\":{\\\"stats\\\":[{\\\"sid\\\":\\\"1\\\",\\\"pv_count\\\":\\\"fvXWUioac4WL9jj2|02iFuuNAviYgRopgqfKQUvA=\\\",\\\"cid_count\\\":\\\"C/OBOCrTyKVrVnbT|LuZUsF53vRcb+/jKPQzmal8=\\\",\\\"avg_duration\\\":\\\"UswKJKb4bRrDvh5S|p4/mGawyN2wGgak3f4gPD/Dq\\\",\\\"timestamp\\\":1600819200},{\\\"sid\\\":\\\"1\\\",\\\"pv_count\\\":\\\"SE/g5UJ82uqsQ6Ke|b8KXIS0AfhzUaWPOl7pyQcU=\\\",\\\"cid_count\\\":\\\"hFXYbIz0Gi74rQyH|3h+LQhpPgpiqA/0mR7J0XSM=\\\",\\\"avg_duration\\\":\\\"hovy9QLnaKbBMEqf|doJAPultnH7hDdSggN92aqFL\\\",\\\"timestamp\\\":1600819200}]}}}}\"}"
+      },
+      "nonce": {
+        "id": 1
+      }
+    }"#;
+
+    let (result, output_value) = call_in_enclave(input_string);
+    assert_eq!(result, sgx_status_t::SGX_SUCCESS);
+    assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
+
+    plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let gds: GetDailyStats = serde_json::from_str(&plain.Plain).unwrap();
+
+    assert_eq!(gds.GetDailyStats.encrypted, true);
+
+    assert_eq!(gds.GetDailyStats.daily_stat.stats.len(), 1);
+    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].cid_count.clone()), "2");
+    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].pv_count.clone()), "5");
+    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].avg_duration.clone()), "86");
+
+    destroy_enclave();
+}
+
 fn init_enclave_for_test() {
-    env::set_var("RUST_BACKTRACE", "1");
-    env::set_var("ROCKET_ENV", "dev");
+    //env::set_var("RUST_BACKTRACE", "1");
 
     let enclave = match init_enclave() {
         Ok(r) => {
