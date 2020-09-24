@@ -1282,6 +1282,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         dispatch(&block, &ecdh_privkey);
 
         last_block = block.block.header.number;
+        local_state.block_hashes.remove(0);
         local_state.blocknum = last_block + 1;
     }
 
