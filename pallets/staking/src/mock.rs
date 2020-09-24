@@ -33,7 +33,6 @@ use frame_support::{
 use sp_io;
 use sp_npos_elections::{
 	build_support_map, evaluate_support, reduce, ExtendedBalance, StakedAssignment, ElectionScore,
-	VoteWeight,
 };
 use pallet_phala as phala;
 use crate::*;
@@ -200,13 +199,14 @@ parameter_types! {
 	pub const MaximumBlockWeight: Weight = 1024;
 	pub const MaximumBlockLength: u32 = 2 * 1024;
 	pub const AvailableBlockRatio: Perbill = Perbill::one();
+	pub const MaxLocks: u32 = 1024;
 }
 impl frame_system::Trait for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
-	type Call = Call;
 	type Index = AccountIndex;
 	type BlockNumber = BlockNumber;
+	type Call = Call;
 	type Hash = H256;
 	type Hashing = ::sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
@@ -219,19 +219,20 @@ impl frame_system::Trait for Test {
 	type BlockExecutionWeight = ();
 	type ExtrinsicBaseWeight = ();
 	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
+	type MaximumBlockLength = MaximumBlockLength;
 	type Version = ();
-	type ModuleToIndex = ();
+	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
 }
 impl pallet_balances::Trait for Test {
+	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type DustRemoval = ();
 	type Event = MetaEvent;
+	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -247,15 +248,15 @@ sp_runtime::impl_opaque_keys! {
 	}
 }
 impl pallet_session::Trait for Test {
+	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
+	type Keys = SessionKeys;
+	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
+	type SessionHandler = (OtherSessionHandler,);
 	type Event = MetaEvent;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = crate::StashOf<Test>;
-	type ShouldEndSession = pallet_session::PeriodicSessions<Period, Offset>;
-	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
-	type SessionManager = pallet_session::historical::NoteHistoricalRoot<Test, Staking>;
-	type SessionHandler = (OtherSessionHandler,);
-	type Keys = SessionKeys;
 	type DisabledValidatorsThreshold = DisabledValidatorsThreshold;
+	type NextSessionRotation = pallet_session::PeriodicSessions<Period, Offset>;
 	type WeightInfo = ();
 }
 
@@ -343,8 +344,8 @@ impl pallet_phala::Trait for Test {
 impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test where
 	Call: From<LocalCall>,
 {
-	type Extrinsic = Extrinsic;
 	type OverarchingCall = Call;
+	type Extrinsic = Extrinsic;
 }
 
 pub type Extrinsic = TestXt<Call, ()>;
@@ -444,7 +445,7 @@ impl ExtBuilder {
 		self.max_offchain_iterations = iterations;
 		self
 	}
-	pub fn offchain_phragmen_ext(self) -> Self {
+	pub fn offchain_election_ext(self) -> Self {
 		self.session_per_era(4)
 			.session_length(5)
 			.election_lookahead(3)
@@ -458,7 +459,7 @@ impl ExtBuilder {
 		MAX_ITERATIONS.with(|v| *v.borrow_mut() = self.max_offchain_iterations);
 	}
 	pub fn build(self) -> sp_io::TestExternalities {
-		let _ = env_logger::try_init();
+		sp_tracing::try_init_simple();
 		self.set_associated_constants();
 		let mut storage = frame_system::GenesisConfig::default()
 			.build_storage::<Test>()
@@ -794,7 +795,7 @@ pub(crate) fn add_slash(who: &AccountId) {
 
 // winners will be chosen by simply their unweighted total backing stake. Nominator stake is
 // distributed evenly.
-pub(crate) fn horrible_phragmen_with_post_processing(
+pub(crate) fn horrible_npos_solution(
 	do_reduce: bool,
 ) -> (CompactAssignments, Vec<ValidatorIndex>, ElectionScore) {
 	let mut backing_stake_of: BTreeMap<AccountId, Balance> = BTreeMap::new();
@@ -863,9 +864,9 @@ pub(crate) fn horrible_phragmen_with_post_processing(
 	// Ensure that this result is worse than seq-phragmen. Otherwise, it should not have been used
 	// for testing.
 	let score = {
-		let (_, _, better_score) = prepare_submission_with(true, 0, |_| {});
+		let (_, _, better_score) = prepare_submission_with(true, true, 0, |_| {});
 
-		let support = build_support_map::<AccountId>(&winners, &staked_assignment).0;
+		let support = build_support_map::<AccountId>(&winners, &staked_assignment).unwrap();
 		let score = evaluate_support(&support);
 
 		assert!(sp_npos_elections::is_score_better::<Perbill>(
@@ -904,9 +905,13 @@ pub(crate) fn horrible_phragmen_with_post_processing(
 	(compact, winners, score)
 }
 
-// Note: this should always logically reproduce [`offchain_election::prepare_submission`], yet we
-// cannot do it since we want to have `tweak` injected into the process.
+/// Note: this should always logically reproduce [`offchain_election::prepare_submission`], yet we
+/// cannot do it since we want to have `tweak` injected into the process.
+///
+/// If the input is being tweaked in a way that the score cannot be compute accurately,
+/// `compute_real_score` can be set to true. In this case a `Default` score is returned.
 pub(crate) fn prepare_submission_with(
+	compute_real_score: bool,
 	do_reduce: bool,
 	iterations: usize,
 	tweak: impl FnOnce(&mut Vec<StakedAssignment<AccountId>>),
@@ -915,26 +920,13 @@ pub(crate) fn prepare_submission_with(
 	let sp_npos_elections::ElectionResult {
 		winners,
 		assignments,
-	} = Staking::do_phragmen::<OffchainAccuracy>().unwrap();
+	} = Staking::do_phragmen::<OffchainAccuracy>(iterations).unwrap();
 	let winners = sp_npos_elections::to_without_backing(winners);
 
-	let stake_of = |who: &AccountId| -> VoteWeight {
-		<CurrencyToVoteHandler as Convert<Balance, VoteWeight>>::convert(
-			Staking::slashable_balance_of(&who)
-		)
-	};
-
-	let mut staked = sp_npos_elections::assignment_ratio_to_staked(assignments, stake_of);
-	let (mut support_map, _) = build_support_map::<AccountId>(&winners, &staked);
-
-	if iterations > 0 {
-		sp_npos_elections::balance_solution(
-			&mut staked,
-			&mut support_map,
-			Zero::zero(),
-			iterations,
-		);
-	}
+	let mut staked = sp_npos_elections::assignment_ratio_to_staked(
+		assignments,
+		Staking::slashable_balance_of_vote_weight,
+	);
 
 	// apply custom tweaks. awesome for testing.
 	tweak(&mut staked);
@@ -968,17 +960,19 @@ pub(crate) fn prepare_submission_with(
 	let assignments_reduced = sp_npos_elections::assignment_staked_to_ratio(staked);
 
 	// re-compute score by converting, yet again, into staked type
-	let score = {
+	let score = if compute_real_score {
 		let staked = sp_npos_elections::assignment_ratio_to_staked(
 			assignments_reduced.clone(),
 			Staking::slashable_balance_of_vote_weight,
 		);
 
-		let (support_map, _) = build_support_map::<AccountId>(
+		let support_map = build_support_map::<AccountId>(
 			winners.as_slice(),
 			staked.as_slice(),
-		);
+		).unwrap();
 		evaluate_support::<AccountId>(&support_map)
+	} else {
+		Default::default()
 	};
 
 	let compact =
