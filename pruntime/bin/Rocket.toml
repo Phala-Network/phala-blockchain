@@ -1,0 +1,5 @@
+[global]
+address = "0.0.0.0"
+port = 8000
+workers = 1
+limits = { json = 10485760 }
