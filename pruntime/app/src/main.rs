@@ -281,11 +281,10 @@ fn test(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -322,11 +321,10 @@ fn init_runtime(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -363,11 +361,10 @@ fn get_info(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -404,11 +401,10 @@ fn dump_states(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -445,11 +441,10 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -486,11 +481,10 @@ fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -528,11 +522,10 @@ fn query(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -570,11 +563,10 @@ fn set(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -612,11 +604,10 @@ fn get(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -654,11 +645,10 @@ fn ping(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -719,21 +709,9 @@ fn main() {
         ecall_init(eid, &mut retval)
     };
 
-    // let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    // let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
-    // match result {
-    //     sgx_status_t::SGX_SUCCESS => {
-    //         json!(output_value)
-    //     },
-    //     _ => {
-    //         println!("[-] ECALL Enclave Failed {}!", result.as_str());
-    //         json!({
-    //             "status": "error",
-    //             "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
-    //         })
-    //     }
-    // }
+    if result != sgx_status_t::SGX_SUCCESS {
+        panic!("Initialize Failed");
+    }
 
     rocket().launch();
 

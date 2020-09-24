@@ -727,10 +727,12 @@ pub extern "C" fn ecall_handle(
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
     let input: serde_json::value::Value = serde_json::from_slice(input_slice).unwrap();
     let input_value = input.get("input").unwrap().clone();
+
     // Strong typed
     fn load_param<T: de::DeserializeOwned>(input_value: serde_json::value::Value) -> T {
         serde_json::from_value(input_value).unwrap()
     }
+
     let result = match action {
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
@@ -936,6 +938,8 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     local_state.ecdh_private_key = Some(ecdh_sk);
     local_state.ecdh_public_key = Some(ecdh_pk);
     local_state.machine_id = machine_id.clone();
+
+    println!("Init done.");
 
     sgx_status_t::SGX_SUCCESS
 }
