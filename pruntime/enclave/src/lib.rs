@@ -104,7 +104,9 @@ struct LocalState {
     initialized: bool,
     public_key: Box<PublicKey>,
     private_key: Box<SecretKey>,
-    blocknum: u32,
+    headernum: u32, // the height of synced block
+    blocknum: u32,  // the height of dispatched block
+    block_hashes: Vec<Hash>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
 }
@@ -152,7 +154,9 @@ lazy_static! {
                 initialized: false,
                 public_key: Box::new(pk),
                 private_key: Box::new(sk),
+                headernum: 0,
                 blocknum: 0,
+                block_hashes: Vec::new(),
                 ecdh_private_key: None,
                 ecdh_public_key: None,
             }
@@ -602,8 +606,9 @@ const ACTION_INIT_RUNTIME: u8 = 1;
 const ACTION_GET_INFO: u8 = 2;
 const ACTION_DUMP_STATES: u8 = 3;
 const ACTION_LOAD_STATES: u8 = 4;
-const ACTION_SYNC_BLOCK: u8 = 5;
+const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
+const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -638,14 +643,24 @@ struct TestReq {
     test_ecdh: Option<TestEcdhParam>,
 }
 #[derive(Serialize, Deserialize, Debug)]
-struct SyncBlockReq {
-    blocks_b64: Vec<String>,
+struct SyncHeaderReq {
+    headers_b64: Vec<String>,
     authority_set_change_b64: Option<String>,
+}
+#[derive(Serialize, Deserialize, Debug)]
+struct DispatchBlockReq {
+    blocks_b64: Vec<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
 struct TestEcdhParam {
     pubkey_hex: Option<String>,
     message_b64: Option<String>,
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
+struct HeaderToSync {
+    header: chain::Header,
+    justification: Option<Vec<u8>>,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -684,7 +699,8 @@ pub extern "C" fn ecall_handle(
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST =>  test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_BLOCK => sync_block(load_param(input_value)),
+        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
+        ACTION_DISPATCH_BLOCK => dispatch_block(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -900,6 +916,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
     state.contract2 = contracts::balance::Balance::new(Some(sk));
+    local_state.headernum = 1;
     local_state.blocknum = 1;
 
     let resp = InitRuntimeResp {
@@ -1136,13 +1153,13 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
     });
 }
 
-fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
+fn dispatch(block: &BlockWithEvents, ecdh_privkey: &EcdhKey) {
     let ref mut state = STATE.lock().unwrap();
-    for (i, xt) in block.block.extrinsics.iter().enumerate() {
+    for (i, xt) in block.block.block.extrinsics.iter().enumerate() {
         if let chain::Call::PhalaModule(chain::pallet_phala::Call::push_command(contract_id, payload)) = &xt.function {
             println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
             let pos = TxRef {
-                blocknum: block.block.header.number,
+                blocknum: block.block.block.header.number,
                 index: i as u32,
                 tx_hash: hex::encode_hex_compact(&blake2_256(&xt.encode())),
             };
@@ -1152,7 +1169,79 @@ fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
     }
 }
 
-fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
+fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
+    // Parse base64 to data
+    let parsed_data: Result<Vec<_>, _> = (&input.headers_b64)
+        .iter()
+        .map(base64::decode)
+        .collect();
+    let headers_data = parsed_data
+        .map_err(|_| error_msg("Failed to parse base64 header"))?;
+    // Parse data to headers
+    let parsed_headers: Result<Vec<HeaderToSync>, _> = headers_data
+        .iter()
+        .map(|d| Decode::decode(&mut &d[..]))
+        .collect();
+    let headers = parsed_headers.map_err(|_| error_msg("Invalid header"))?;
+    // Light validation when possible
+    let last_header = &headers.last().ok_or_else(|| error_msg("No header in the request"))?;
+    {
+        // 1. the last header must has justification
+        let justification = last_header.justification.as_ref()
+            .ok_or_else(|| error_msg("Missing justification"))?
+            .clone();
+        let last_header = last_header.header.clone();
+        // 2. check header sequence
+        for (i, header) in headers.iter().enumerate() {
+            if i > 0 && headers[i-1].header.hash() != header.header.parent_hash {
+                return Err(error_msg("Incorrect header order"));
+            }
+        }
+        // 3. generate accenstor proof
+        let mut accenstor_proof: Vec<_> = headers[0..headers.len()-1]
+            .iter()
+            .map(|h| h.header.clone())
+            .collect();
+        accenstor_proof.reverse();  // from high to low
+        // 4. submit to light client
+        let mut state = STATE.lock().unwrap();
+        let bridge_id = state.main_bridge;
+        let authority_set_change = input.authority_set_change_b64
+            .map(|b64| parse_authority_set_change(b64))
+            .transpose()?;
+        state.light_client.submit_finalized_headers(
+            bridge_id,
+            last_header,
+            accenstor_proof,
+            justification,
+            authority_set_change
+        ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
+    }
+    // Passed the validation
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    let mut last_header = 0;
+    for header_with_events in headers.iter() {
+        let header = &header_with_events.header;
+        if header.number != local_state.headernum {
+            return Err(error_msg("Unexpected header"))
+        }
+
+        // move forward
+        last_header = header.number;
+        local_state.headernum = last_header + 1;
+    }
+
+    // Save the block hashes for future dispatch
+    for header in headers.iter() {
+        local_state.block_hashes.push(header.header.hash());
+    }
+
+    Ok(json!({
+        "synced_to": last_header
+    }))
+}
+
+fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     // Parse base64 to data
     let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64)
         .iter()
@@ -1166,63 +1255,42 @@ fn sync_block(input: SyncBlockReq) -> Result<Value, Value> {
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
     let blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
-    // Light validation when possible
-    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?.block;
-    {
-        // 1. the last block must has justification
-        let justification = last_block.justification.as_ref()
-            .ok_or_else(|| error_msg("Missing justification"))?
-            .clone();
-        let header = last_block.block.header.clone();
-        // 2. check block sequence
-        for (i, block) in blocks.iter().enumerate() {
-            if i > 0 && blocks[i-1].block.block.header.hash() != block.block.block.header.parent_hash {
-                return Err(error_msg("Incorrect block order"));
-            }
-        }
-        // 3. generate accenstor proof
-        let mut accenstor_proof: Vec<_> = blocks[0..blocks.len()-1]
-            .iter()
-            .map(|b| b.block.block.header.clone())
-            .collect();
-        accenstor_proof.reverse();  // from high to low
-        // 4. submit to light client
-        let mut state = STATE.lock().unwrap();
-        let bridge_id = state.main_bridge;
-        let authority_set_change = input.authority_set_change_b64
-            .map(|b64| parse_authority_set_change(b64))
-            .transpose()?;
-        state.light_client.submit_finalized_headers(
-            bridge_id,
-            header,
-            accenstor_proof,
-            justification,
-            authority_set_change
-        ).map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
-    }
-    // Passed the validation
+
+    // validate blocks
     let mut local_state = LOCAL_STATE.lock().unwrap();
+    let first_block = &blocks.first().ok_or_else(|| error_msg("No block in the request"))?;
+    let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?;
+    if first_block.block.block.header.number != local_state.blocknum {
+        return Err(error_msg("Unexpected block"))
+    }
+    if last_block.block.block.header.number >= local_state.headernum {
+        return Err(error_msg("Unsynced block"))
+    }
+    for (i, block) in blocks.iter().enumerate() {
+        let expected_hash = &local_state.block_hashes[i];
+        if block.block.block.header.hash() != *expected_hash {
+            return Err(error_msg("Unexpected block hash"))
+        }
+        // TODO: examine extrinsic merkle tree
+    }
+
     let ecdh_privkey = ecdh::clone_key(
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
     let mut last_block = 0;
-    for block_with_events in blocks.iter() {
-        let block = &block_with_events.block;
-        if block.block.header.number != local_state.blocknum {
-            return Err(error_msg("Unexpected block"))
-        }
-        dispatch(block, &ecdh_privkey);
+    for block in blocks.iter() {
+        dispatch(&block, &ecdh_privkey);
 
-        if block_with_events.events.is_some() {
-            parse_events(&block_with_events)?;
+        if block.events.is_some() {
+            parse_events(&block)?;
         }
 
-        // move forward
-        last_block = block.block.header.number;
-        (*local_state).blocknum = last_block + 1;
+        last_block = block.block.block.header.number;
+        local_state.block_hashes.remove(0);
+        local_state.blocknum = last_block + 1;
     }
 
     Ok(json!({
-        "synced_to": last_block
+        "dispatched_to": last_block
     }))
 }
 
@@ -1267,12 +1335,14 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         Some(ecdh_public_key) => hex::encode_hex_compact(ecdh_public_key.as_ref()),
         None => "".to_string()
     };
+    let headernum = local_state.headernum;
     let blocknum = local_state.blocknum;
 
     Ok(json!({
         "initialized": initialized,
         "public_key": s_pk,
         "ecdh_public_key": s_ecdh_pk,
+        "headernum": headernum,
         "blocknum": blocknum
     }))
 }

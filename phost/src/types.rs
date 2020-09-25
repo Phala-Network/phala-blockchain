@@ -4,6 +4,7 @@ use codec::{Encode, Decode};
 use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{
     generic::SignedBlock,
+    Justification,
     OpaqueExtrinsic
 };
 
@@ -61,6 +62,7 @@ impl<T: Serialize> RuntimeReq<T> {
 pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
+    pub headernum: phala_node_runtime::BlockNumber,
     pub blocknum: phala_node_runtime::BlockNumber,
     pub initialized: bool,
     pub public_key: String,
@@ -162,19 +164,19 @@ pub struct GenesisInfo {
   pub proof: StorageProof,
 }
 
-// API: sync_block
+// API: sync_header
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SyncBlockReq {
-    pub blocks_b64: Vec<String>,
+pub struct SyncHeaderReq {
+    pub headers_b64: Vec<String>,
     pub authority_set_change_b64: Option<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SyncBlockResp {
+pub struct SyncHeaderResp {
     pub synced_to: phala_node_runtime::BlockNumber
 }
-impl Resp for SyncBlockReq {
-    type Resp = SyncBlockResp;
+impl Resp for SyncHeaderReq {
+    type Resp = SyncHeaderResp;
 }
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct BlockWithEvents {
@@ -182,6 +184,11 @@ pub struct BlockWithEvents {
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,
+}
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct HeaderToSync {
+    pub header: phala_node_runtime::Header,
+    pub justification: Option<Justification>,
 }
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
@@ -192,4 +199,18 @@ pub struct AuthoritySet {
 pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
+}
+
+// API: dispatch_block
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockReq {
+    pub blocks_b64: Vec<String>
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockResp {
+    pub dispatched_to: phala_node_runtime::BlockNumber
+}
+impl Resp for DispatchBlockReq {
+    type Resp = DispatchBlockResp;
 }

@@ -457,8 +457,8 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
     }
 }
 
-#[post("/sync_block", format = "json", data = "<contract_input>")]
-fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
+#[post("/sync_header", format = "json", data = "<contract_input>")]
+fn sync_header(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
@@ -518,6 +518,47 @@ fn query(contract_input: Json<ContractInput>) -> JsonValue {
         ecall_handle(
             eid, &mut retval,
             6,
+            input_string.as_ptr(), input_string.len(),
+            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
+        )
+    };
+
+    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+
+    match result {
+        sgx_status_t::SGX_SUCCESS => {
+            json!(output_value)
+        },
+        _ => {
+            println!("[-] ECALL Enclave Failed {}!", result.as_str());
+            json!({
+                "status": "error",
+                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
+            })
+        }
+    }
+}
+
+#[post("/dispatch_block", format = "json", data = "<contract_input>")]
+fn dispatch_block(contract_input: Json<ContractInput>) -> JsonValue {
+    println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
+
+    let eid = get_eid();
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+
+    let input_string = serde_json::to_string(&*contract_input).unwrap();
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
+    let mut output_len : usize = 0;
+    let output_slice = &mut return_output_buf;
+    let output_ptr = output_slice.as_mut_ptr();
+    let output_len_ptr = &mut output_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ecall_handle(
+            eid, &mut retval,
+            7,
             input_string.as_ptr(), input_string.len(),
             output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
         )
@@ -643,7 +684,7 @@ fn rocket() -> rocket::Rocket {
         .mount("/", routes![
             test, init_runtime, get_info,
             dump_states, load_states,
-            sync_block, query,
+            sync_header, dispatch_block, query,
             set, get])
         .attach(cors_options().to_cors().expect("To not fail"))
     // .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
