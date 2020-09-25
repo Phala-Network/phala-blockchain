@@ -186,12 +186,9 @@ pub struct BlockWithEvents {
     pub key: Option<Vec<u8>>,
 }
 #[derive(Encode, Decode, Clone, Debug)]
-pub struct HeaderWithEvents {
+pub struct HeaderToSync {
     pub header: phala_node_runtime::Header,
     pub justification: Option<Justification>,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<StorageProof>,
-    pub key: Option<Vec<u8>>,
 }
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
