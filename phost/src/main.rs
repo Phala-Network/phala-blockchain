@@ -27,7 +27,7 @@ use crate::types::{
     Runtime, Header, Hash, OpaqueSignedBlock,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
-    SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderWithEvents, AuthoritySet, AuthoritySetChange,
+    SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     DispatchBlockReq, DispatchBlockResp
 };
 
@@ -236,7 +236,7 @@ fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
 }
 
 
-async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderWithEvents>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
+async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
     let headers_b64 = headers
         .iter()
         .map(|header| {
@@ -328,14 +328,11 @@ async fn batch_sync_block(
         let mut block_batch: Vec<BlockWithEvents> =  block_buf
             .drain(..=(header_idx as usize))
             .collect();
-        let header_batch: Vec<HeaderWithEvents> = block_batch
+        let header_batch: Vec<HeaderToSync> = block_batch
             .iter()
-            .map(|b| HeaderWithEvents {
+            .map(|b| HeaderToSync {
                 header: b.block.block.header.clone(),
                 justification: b.block.justification.clone(),
-                events: b.events.clone(),
-                proof: b.proof.clone(),
-                key: b.key.clone()
             })
             .collect();
 

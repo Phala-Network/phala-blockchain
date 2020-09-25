@@ -660,12 +660,17 @@ struct TestEcdhParam {
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
-struct HeaderWithEvents {
+struct HeaderToSync {
     header: chain::Header,
     justification: Option<Vec<u8>>,
-    events: Option<Vec<u8>>,
-    proof: Option<Vec<Vec<u8>>>,
-    key: Option<Vec<u8>>,
+}
+
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct BlockWithEvents {
+    pub block: chain::SignedBlock,
+    pub events: Option<Vec<u8>>,
+    pub proof: Option<Vec<Vec<u8>>>,
+    pub key: Option<Vec<u8>>,
 }
 
 #[no_mangle]
@@ -1150,13 +1155,13 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
     });
 }
 
-fn dispatch(block: &chain::SignedBlock, ecdh_privkey: &EcdhKey) {
+fn dispatch(block: &BlockWithEvents, ecdh_privkey: &EcdhKey) {
     let ref mut state = STATE.lock().unwrap();
-    for (i, xt) in block.block.extrinsics.iter().enumerate() {
+    for (i, xt) in block.block.block.extrinsics.iter().enumerate() {
         if let chain::Call::PhalaModule(chain::pallet_phala::Call::push_command(contract_id, payload)) = &xt.function {
             println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
             let pos = TxRef {
-                blocknum: block.block.header.number,
+                blocknum: block.block.block.header.number,
                 index: i as u32,
                 tx_hash: hex::encode_hex_compact(&blake2_256(&xt.encode())),
             };
@@ -1175,7 +1180,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     let headers_data = parsed_data
         .map_err(|_| error_msg("Failed to parse base64 header"))?;
     // Parse data to headers
-    let parsed_headers: Result<Vec<HeaderWithEvents>, _> = headers_data
+    let parsed_headers: Result<Vec<HeaderToSync>, _> = headers_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
@@ -1223,10 +1228,6 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
             return Err(error_msg("Unexpected header"))
         }
 
-        if header_with_events.events.is_some() {
-            parse_events(&header_with_events)?;
-        }
-
         // move forward
         last_header = header.number;
         local_state.headernum = last_header + 1;
@@ -1251,7 +1252,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let blocks_data = parsed_data
         .map_err(|_| error_msg("Failed to parse base64 block"))?;
     // Parse data to blocks
-    let parsed_blocks: Result<Vec<chain::SignedBlock>, _> = blocks_data
+    let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
@@ -1261,15 +1262,15 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let mut local_state = LOCAL_STATE.lock().unwrap();
     let first_block = &blocks.first().ok_or_else(|| error_msg("No block in the request"))?;
     let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?;
-    if first_block.block.header.number != local_state.blocknum {
+    if first_block.block.block.header.number != local_state.blocknum {
         return Err(error_msg("Unexpected block"))
     }
-    if last_block.block.header.number >= local_state.headernum {
+    if last_block.block.block.header.number >= local_state.headernum {
         return Err(error_msg("Unsynced block"))
     }
     for (i, block) in blocks.iter().enumerate() {
         let expected_hash = &local_state.block_hashes[i];
-        if block.block.header.hash() != *expected_hash {
+        if block.block.block.header.hash() != *expected_hash {
             return Err(error_msg("Unexpected block hash"))
         }
         // TODO: examine extrinsic merkle tree
@@ -1281,7 +1282,11 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     for block in blocks.iter() {
         dispatch(&block, &ecdh_privkey);
 
-        last_block = block.block.header.number;
+        if block.events.is_some() {
+            parse_events(&block)?;
+        }
+
+        last_block = block.block.block.header.number;
         local_state.block_hashes.remove(0);
         local_state.blocknum = last_block + 1;
     }
@@ -1298,13 +1303,13 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
         .map_err(|_| error_msg("cannot decode authority_set_change"))
 }
 
-fn parse_events(header_with_events: &HeaderWithEvents) -> Result<(), Value> {
+fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
     let mut state = STATE.lock().unwrap();
     let missing_field = error_msg("Missing field");
-    let events = header_with_events.clone().events.ok_or(missing_field.clone())?;
-    let proof = header_with_events.clone().proof.ok_or(missing_field.clone())?;
-    let key = header_with_events.clone().key.ok_or(missing_field)?;
-    let state_root = &header_with_events.header.state_root;
+    let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
+    let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
+    let key = block_with_events.clone().key.ok_or(missing_field)?;
+    let state_root = &block_with_events.block.block.header.state_root;
     state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
 
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
