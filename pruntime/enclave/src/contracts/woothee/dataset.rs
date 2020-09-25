@@ -1,7 +1,5 @@
-// This file is auto-generated! Any changes to this file will be lost!
 use super::parser::WootheeResult;
 use crate::std::collections::HashMap;
-use crate::std::sync::SgxMutex;
 
 lazy_static! {
     pub static ref DATASET: HashMap<&'static str, WootheeResult<'static>> = {
@@ -1115,5 +1113,4 @@ lazy_static! {
     };
 }
 
-#[macro_use]
 use lazy_static;

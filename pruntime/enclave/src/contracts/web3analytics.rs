@@ -1,6 +1,6 @@
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
-use crate::std::collections::{HashSet, HashMap};
+use crate::std::collections::HashMap;
 use serde::{Serialize, Deserialize};
 use super::TransactionStatus;
 use crate::cryptography::aead;
@@ -127,6 +127,9 @@ pub enum Request {
         page_views: Vec<PageView>,
         encrypted: bool
     },
+    ClearPageView {
+        timestamp: Timestamp,
+    },
     GetOnlineUsers {
         start: Timestamp,
         end: Timestamp
@@ -155,7 +158,8 @@ pub enum Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-    SetPageView { page_views: u32 },
+    SetPageView { page_view_count: u32 },
+    ClearPageView { page_view_count: u32 },
     GetOnlineUsers { online_users: Vec<OnlineUser>, encrypted: bool },
     GetHourlyStats { hourly_stat: HourlyStat, encrypted: bool },
     GetDailyStats { daily_stat: DailyStat, encrypted: bool },
@@ -429,7 +433,7 @@ impl Web3Analytics {
                     cid_count,
                     pv_count,
                     avg_duration,
-                    timestamp: index + HOUR_IN_SECONDS
+                    timestamp: index
                 };
                 hpv.push(hs);
             }
@@ -708,7 +712,11 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
 
                 self.encrypted = encrypted;
 
-                Response::SetPageView { page_views: self.page_views.len() as u32 }
+                Response::SetPageView { page_view_count: self.page_views.len() as u32 }
+            }
+            Request::ClearPageView { timestamp: _ } => {
+                self.page_views.clear();
+                Response::ClearPageView { page_view_count: self.page_views.len() as u32 }
             }
             Request::GetOnlineUsers { start, end } => {
                 self.update_online_users(start, end);
