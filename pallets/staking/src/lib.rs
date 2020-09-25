@@ -1354,7 +1354,7 @@ decl_module! {
 			// Set the start of the first era.
 			if let Some(mut active_era) = Self::active_era() {
 				if active_era.start.is_none() {
-					let now_as_millis_u64 = T::UnixTime::now().as_millis().saturated_into::<u64>();
+					let now_as_millis_u64 = <T as Trait>::UnixTime::now().as_millis().saturated_into::<u64>();
 					active_era.start = Some(now_as_millis_u64);
 					// This write only ever happens once, we don't include it in the weight in general
 					ActiveEra::put(active_era);
@@ -1653,7 +1653,7 @@ decl_module! {
 		pub fn validate(origin, prefs: ValidatorPrefs) {
 			ensure!(Self::era_election_status().is_closed(), Error::<T>::CallNotAllowed);
 			let controller = ensure_signed(origin)?;
-			ensure!(<pallet_phala::Module<T>>::is_miner(controller.clone()), "Not a miner");
+			ensure!(<pallet_phala::Module<T>>::is_controller(controller.clone()), "Not a miner");
 			let ledger = Self::ledger(&controller).ok_or(Error::<T>::NotController)?;
 			let stash = &ledger.stash;
 			<Nominators<T>>::remove(stash);
@@ -2704,7 +2704,7 @@ impl<T: Trait> Module<T> {
 	fn end_era(active_era: ActiveEraInfo, _session_index: SessionIndex) {
 		// Note: active_era_start can be None if end era is called during genesis config.
 		if let Some(active_era_start) = active_era.start {
-			let now_as_millis_u64 = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			let now_as_millis_u64 = <T as Trait>::UnixTime::now().as_millis().saturated_into::<u64>();
 
 			let era_duration = now_as_millis_u64 - active_era_start;
 			let (validator_payout, max_payout) = inflation::compute_total_payout(
@@ -2905,7 +2905,7 @@ impl<T: Trait> Module<T> {
 		for (validator, _) in <Validators<T>>::iter() {
 			let controller = <Bonded<T>>::get(validator.clone());
 			if let Some(controller) = controller {
-				if !<pallet_phala::Module<T>>::is_miner(controller) {
+				if !<pallet_phala::Module<T>>::is_controller(controller) {
 					Self::chill_stash(&validator);
 					continue;
 				}

@@ -15,7 +15,7 @@ extern crate runtime as chain;
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
-type SequenceType = u32;
+type SequenceType = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Balance {

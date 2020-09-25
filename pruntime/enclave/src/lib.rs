@@ -138,13 +138,14 @@ struct LocalState {
     dev_mode: bool,
 }
 
+// TODO: Move the type definitions to a central repo
+
 #[derive(Encode, Decode)]
 struct RuntimeInfo {
+	version: u8,
     machine_id: [u8; 16],
     pubkey: [u8; 33],
-    version: u8,
-    cpu_core_num: u32,
-    cpu_feature_level: u8,
+    features: Vec<u32>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -1081,7 +1082,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
     println!("CPU cores: {}", cpu_core_num);
 
-    let mut cpu_feature_level: u8 = 1;
+    let mut cpu_feature_level: u32 = 1;
     // Atom doesn't support AVX
     if is_x86_feature_detected!("avx2") {
         println!("CPU Support AVX2");
@@ -1096,11 +1097,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     // Build RuntimeInfo
     let runtime_info = RuntimeInfo {
+        version: 1,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_serialized_pk,
-        version: 1,
-        cpu_core_num,
-        cpu_feature_level
+        features: vec![cpu_core_num, cpu_feature_level],
     };
     let encoded_runtime_info = runtime_info.encode();
     let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);

@@ -265,7 +265,7 @@ pub fn testnet_genesis(
 		}),
 		pallet_phala: Some(PhalaModuleConfig {
 			stakers: initial_authorities.iter().map(|x| {
-				x.1.clone()
+				(x.0.clone(), x.1.clone())
 			}).collect(),
 		}),
 		pallet_staking: Some(StakingConfig {
