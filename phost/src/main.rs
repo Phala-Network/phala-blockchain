@@ -68,7 +68,11 @@ struct Args {
     help = "SR25519 keypair mnemonic")]
     mnemonic: String,
 
-    #[structopt(default_value = "200", long = "sync-blocks",
+    #[structopt(default_value = "1000", long = "fetch-blocks",
+    help = "The batch size to fetch blocks from Substrate.")]
+    fetch_blocks: u32,
+
+    #[structopt(default_value = "100", long = "sync-blocks",
     help = "The batch size to sync blocks to pRuntime.")]
     sync_blocks: usize,
 }
@@ -274,27 +278,28 @@ async fn batch_sync_block(
     if block_buf.is_empty() {
         return Ok(0);
     }
-    // Current authority set id
-    let last_set = if let Some(set) = sync_state.authory_set_state {
-        set
-    } else {
-        let header = &block_buf.first().unwrap().block.block.header;
-        let hash = header.hash();
-        let number = header.number;
-        let set_id = client
-            .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
-            .await
-            .map_err(|_| Error::NoSetIdAtBlock)?;
-        let set = (number, set_id);
-        sync_state.authory_set_state = Some(set.clone());
-        set
-    };
-    // Find the next set id change
-    let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
-    let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
-    // Search
+
     let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
+        // Current authority set id
+        let last_set = if let Some(set) = sync_state.authory_set_state {
+            set
+        } else {
+            let header = &block_buf.first().unwrap().block.block.header;
+            let hash = header.hash();
+            let number = header.number;
+            let set_id = client
+                .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+                .await
+                .map_err(|_| Error::NoSetIdAtBlock)?;
+            let set = (number, set_id);
+            sync_state.authory_set_state = Some(set.clone());
+            set
+        };
+        // Find the next set id change
+        let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
+        let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
+        // Search
         // Find the longest batch within the window
         let first_block_number = block_buf.first().unwrap().block.block.header.number;
         // TODO: fix the potential overflow here
@@ -317,7 +322,7 @@ async fn batch_sync_block(
                 first_block_number,
                 block_buf.last().unwrap().block.block.header.number,
             );
-            return Err(Error::NoJustification);
+            break;
         }
         // send out the longest batch and remove it from the input buffer
         let mut block_batch: Vec<BlockWithEvents> =  block_buf
@@ -380,13 +385,13 @@ async fn batch_sync_block(
                 synced_blocks += dispatch_batch.len();
             }
         }
+        sync_state.authory_set_state = Some(match set_id_change_at {
+            // set_id changed at next block
+            Some(change_at) => (change_at + 1, last_set.1 + 1),
+            // not changed
+            None => (last_number_in_buff, last_set.1),
+        });
     }
-    sync_state.authory_set_state = Some(match set_id_change_at {
-        // set_id changed at next block
-        Some(change_at) => (change_at + 1, last_set.1 + 1),
-        // not changed
-        None => (last_number_in_buff, last_set.1),
-    });
     Ok(synced_blocks)
 }
 
@@ -556,7 +561,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             Some(b) => b.block.block.header.number + 1,
             None => info.headernum
         };
-        for b in next_block ..= latest_block.block.header.number {
+        let batch_end = std::cmp::min(latest_block.block.header.number, next_block + args.fetch_blocks - 1);
+        for b in next_block ..= batch_end {
             let block = get_block_at(&client, Some(b), true).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
