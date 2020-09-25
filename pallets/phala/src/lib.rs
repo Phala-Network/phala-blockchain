@@ -37,16 +37,65 @@ type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::T
 type SequenceType = u32;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 
+type MachineId = [u8; 16];
+type PublicKey = [u8; 33];
+
+#[derive(Encode, Decode)]
+struct TEERuntimeInfo {
+	machine_id: MachineId,
+	pub_key: PublicKey,
+	version: u8,
+	cpu_core_num: u32,
+	cpu_feature_level: u8,
+}
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
 	pub amount: Balance,
 	pub sequence: SequenceType,
 }
+
+pub trait SignedDataType<T> {
+	fn raw_data(&self) -> Vec<u8>;
+	fn signature(&self) -> T;
+}
+
 #[derive(Encode, Decode)]
 pub struct TransferData<AccountId, Balance> {
 	pub data: Transfer<AccountId, Balance>,
 	pub signature: Vec<u8>,
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
+#[derive(Encode, Decode)]
+pub struct Heartbeat {
+	block_num: u32,
+}
+
+#[derive(Encode, Decode)]
+pub struct HeartbeatData {
+	data: Heartbeat,
+	signature: Vec<u8>,
+}
+
+impl SignedDataType<Vec<u8>> for HeartbeatData {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
 }
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
@@ -69,8 +118,8 @@ decl_storage! {
 		// Store a map of Machine and account, map Vec<u8> => T::AccountId
 		MachineOwner get(fn owners): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 
-		// Store a map of Machine and account, map Vec<u8> => (pub_key, score)
-		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8);
+		// Store a map of Machine and account, map Vec<u8> => (pub_key, version, cpu_core_num, cpu_feature_num)
+		Machine get(fn machines): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u8, u32, u8);
 
 		// Store a map of Account and Machine, map T::AccountId => Vec<u8>
 		pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
@@ -99,6 +148,7 @@ decl_event!(
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		SimpleEvent(u32),
+		Heartbeat(),
 	}
 );
 
@@ -120,17 +170,6 @@ decl_error! {
 		InvalidSignature,
 		FailedToVerify,
 	}
-}
-
-type MachineId = [u8; 16];
-type PublicKey = [u8; 33];
-type Score = u8;
-
-#[derive(Encode, Decode)]
-struct TEERuntimeInfo {
-	machine_id: MachineId,
-	pub_key: PublicKey,
-	score: Score
 }
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -202,7 +241,13 @@ decl_module! {
 			// Associate account with machine id
 			let machine_id = runtime_info.machine_id.to_vec();
 			Self::remove_machine_if_present(&machine_id);
-			Machine::insert(machine_id.clone(), (runtime_info.pub_key.to_vec(), runtime_info.score));
+			Machine::insert(
+				machine_id.clone(), (
+					runtime_info.pub_key.to_vec(),
+					runtime_info.version,
+					runtime_info.cpu_core_num,
+					runtime_info.cpu_feature_level
+			));
 			<MachineOwner<T>>::insert(machine_id.clone(), who.clone());
 			<Miner<T>>::insert(who.clone(), machine_id.clone());
 			Self::deposit_event(RawEvent::WorkerRegistered(who, machine_id));
@@ -266,9 +311,31 @@ decl_module! {
 			// pub Miner get(fn miner): map hasher(blake2_128_concat) T::AccountId => Vec<u8>;
 
 			Self::remove_machine_if_present(&machine_id);
-			Machine::insert(machine_id.clone(), (pub_key, 0));
+			Machine::insert(machine_id.clone(), (pub_key, 1, 4, 1));
 			<MachineOwner<T>>::insert(machine_id.clone(), controller.clone());
 			<Miner<T>>::insert(controller, machine_id);
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn heartbeat(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+			let who = ensure_signed(origin)?;
+			// Decode payload
+			let data = Decode::decode(&mut &data[..]);
+			ensure!(data.is_ok(), "Bad transaction data");
+
+			let heartbeat_data: HeartbeatData = data.unwrap();
+			// Get Identity key from account
+			ensure!(<Miner<T>>::contains_key(&who), Error::<T>::MinerNotFound);
+			let machine_id = <Miner<T>>::get(who);
+			ensure!(Machine::contains_key(&machine_id), Error::<T>::BadMachineId);
+			let serialized_pk = Machine::get(machine_id).0;
+			// Validate TEE signature
+			Self::verify_signature(serialized_pk, &heartbeat_data)?;
+
+			// Emit event
+			Self::deposit_event(RawEvent::Heartbeat());
 
 			Ok(())
 		}
@@ -284,16 +351,16 @@ impl<T: Trait> Module<T> {
 		<Miner<T>>::contains_key(&who)
 	}
 
-	pub fn verify_signature(serialized_pk: Vec<u8>, transfer_data: &TransferData<<T as frame_system::Trait>::AccountId, BalanceOf<T>>) -> dispatch::DispatchResult {
+	pub fn verify_signature(serialized_pk: Vec<u8>, data: &impl SignedDataType<Vec<u8>>) -> dispatch::DispatchResult {
 		let mut pk = [0u8; 33];
 		pk.copy_from_slice(&serialized_pk);
 		let pub_key = secp256k1::PublicKey::parse_compressed(&pk);
 		ensure!(pub_key.is_ok(), Error::<T>::InvalidPubKey);
 
-		let signature = secp256k1::Signature::parse_slice(&transfer_data.signature);
+		let signature = secp256k1::Signature::parse_slice(&data.signature());
 		ensure!(signature.is_ok(), Error::<T>::InvalidSignature);
 
-		let msg_hash = hashing::blake2_256(&Encode::encode(&transfer_data.data));
+		let msg_hash = hashing::blake2_256(&data.raw_data());
 		let mut buffer = [0u8; 32];
 		buffer.copy_from_slice(&msg_hash);
 		let message = secp256k1::Message::parse(&buffer);

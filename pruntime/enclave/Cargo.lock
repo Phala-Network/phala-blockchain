@@ -23,10 +23,12 @@ dependencies = [
  "parity-scale-codec",
  "phala-node-runtime",
  "rand 0.7.3 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.2)",
+ "regex 1.3.1",
  "ring 0.16.11",
  "rust-crypto",
  "rustls",
  "serde 1.0.106",
+ "serde_cbor",
  "serde_json",
  "sgx_backtrace",
  "sgx_rand",
@@ -34,6 +36,7 @@ dependencies = [
  "sgx_tcrypto",
  "sgx_trts",
  "sgx_tse",
+ "sgx_tseal",
  "sgx_tstd",
  "sgx_types",
  "sp-application-crypto",
@@ -55,7 +58,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe438c63458706e03479442743baae6c88256498e6431708f6dfc520a26515d3"
 dependencies = [
  "lazy_static",
- "regex",
+ "regex 1.3.9",
 ]
 
 [[package]]
@@ -81,11 +84,20 @@ checksum = "e8fd72866655d1904d6b0997d0b07ba561047d070fbe29de039031c641b61217"
 
 [[package]]
 name = "aho-corasick"
+version = "0.7.10"
+source = "git+https://github.com/mesalock-linux/aho-corasick-sgx#ae5c0d76d21a127af6c61015d5fc6299fc119c15"
+dependencies = [
+ "memchr 2.2.1",
+ "sgx_tstd",
+]
+
+[[package]]
+name = "aho-corasick"
 version = "0.7.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "043164d8ba5c4c3035fec9bbee8647c0261d788f3474306f93bb65901cae0e86"
 dependencies = [
- "memchr",
+ "memchr 2.3.3",
 ]
 
 [[package]]
@@ -348,7 +360,7 @@ version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b2466559f260f48ad25fe6317b3c8dac77b5bdb5763ac7d9d6103530663bc90"
 dependencies = [
- "memchr",
+ "memchr 2.3.3",
 ]
 
 [[package]]
@@ -513,11 +525,12 @@ dependencies = [
 
 [[package]]
 name = "frame-executive"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
+ "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -526,7 +539,7 @@ dependencies = [
 
 [[package]]
 name = "frame-metadata"
-version = "11.0.0-rc6"
+version = "12.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -535,7 +548,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "bitmask",
  "frame-metadata",
@@ -556,7 +569,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support-procedural-tools",
  "proc-macro2",
@@ -566,7 +579,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural-tools"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate",
@@ -577,7 +590,7 @@ dependencies = [
 
 [[package]]
 name = "frame-support-procedural-tools-derive"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -586,7 +599,7 @@ dependencies = [
 
 [[package]]
 name = "frame-system"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
@@ -600,7 +613,7 @@ dependencies = [
 
 [[package]]
 name = "frame-system-rpc-runtime-api"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -708,6 +721,12 @@ name = "gimli"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "aaf91faf136cb47367fa430cd46e37a788775e7fa104f8b4bcb3861dc389b724"
+
+[[package]]
+name = "half"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d36fab90f82edc3c747f9d438e06cf0a491055896f2a279638bb5beed6c40177"
 
 [[package]]
 name = "hash-db"
@@ -927,6 +946,16 @@ dependencies = [
 
 [[package]]
 name = "memchr"
+version = "2.2.1"
+source = "git+https://github.com/mesalock-linux/rust-memchr-sgx#44e36be54075a1afdf8180e443fd7f8cbd9d4c7b"
+dependencies = [
+ "sgx_libc",
+ "sgx_tstd",
+ "sgx_types",
+]
+
+[[package]]
+name = "memchr"
 version = "2.3.3"
 
 [[package]]
@@ -964,7 +993,7 @@ dependencies = [
 
 [[package]]
 name = "native-nostd-hasher"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "hash256-std-hasher",
  "sp-core",
@@ -974,7 +1003,7 @@ dependencies = [
 
 [[package]]
 name = "node-primitives"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-system",
  "parity-scale-codec",
@@ -1058,7 +1087,7 @@ checksum = "624a8340c38c1b80fd549087862da4ba43e08858af025b236e509b6649fc13d5"
 
 [[package]]
 name = "pallet-authority-discovery"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1072,7 +1101,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-authorship"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1086,7 +1115,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-babe"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1108,7 +1137,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-balances"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1119,7 +1148,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-collective"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1132,7 +1161,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "bitflags",
  "frame-support",
@@ -1151,7 +1180,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts-primitives"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -1160,7 +1189,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-contracts-rpc-runtime-api"
-version = "0.8.0-rc6"
+version = "0.8.0"
 dependencies = [
  "pallet-contracts-primitives",
  "parity-scale-codec",
@@ -1171,7 +1200,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-democracy"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1183,7 +1212,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-elections-phragmen"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1195,7 +1224,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-finality-tracker"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1210,7 +1239,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-grandpa"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1229,7 +1258,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-identity"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -1242,7 +1271,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-im-online"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1259,7 +1288,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-indices"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1272,7 +1301,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-membership"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1284,7 +1313,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-multisig"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1297,7 +1326,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-offences"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1310,7 +1339,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "base64 0.11.0",
  "blake2-rfc",
@@ -1332,7 +1361,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-proxy"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1345,7 +1374,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-randomness-collective-flip"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1357,7 +1386,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-recovery"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -1370,7 +1399,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-scheduler"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1382,7 +1411,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-session"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1400,7 +1429,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-society"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1412,7 +1441,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-staking-reward-curve"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -1422,7 +1451,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-sudo"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1434,7 +1463,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-timestamp"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1448,7 +1477,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1463,7 +1492,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -1474,7 +1503,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-treasury"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1486,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-utility"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1499,7 +1528,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-vesting"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "enumflags2",
  "frame-support",
@@ -1584,7 +1613,7 @@ dependencies = [
 
 [[package]]
 name = "phala-node-runtime"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-executive",
  "frame-support",
@@ -1647,7 +1676,7 @@ dependencies = [
 
 [[package]]
 name = "phala-staking"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -1850,14 +1879,34 @@ dependencies = [
 
 [[package]]
 name = "regex"
+version = "1.3.1"
+source = "git+https://github.com/mesalock-linux/regex-sgx#cf45cc1a0c0472300fea7dc353c660e531ba5f2c"
+dependencies = [
+ "aho-corasick 0.7.10",
+ "memchr 2.2.1",
+ "regex-syntax 0.6.12",
+ "sgx_tstd",
+ "thread_local 1.0.0",
+]
+
+[[package]]
+name = "regex"
 version = "1.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c3780fcf44b193bc4d09f36d2a3c87b251da4a046c87795a0d35f4f927ad8e6"
 dependencies = [
- "aho-corasick",
- "memchr",
- "regex-syntax",
- "thread_local",
+ "aho-corasick 0.7.13",
+ "memchr 2.3.3",
+ "regex-syntax 0.6.18",
+ "thread_local 1.0.1",
+]
+
+[[package]]
+name = "regex-syntax"
+version = "0.6.12"
+source = "git+https://github.com/mesalock-linux/regex-sgx#cf45cc1a0c0472300fea7dc353c660e531ba5f2c"
+dependencies = [
+ "sgx_tstd",
 ]
 
 [[package]]
@@ -2041,6 +2090,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_cbor"
+version = "0.11.1"
+source = "git+https://github.com/mesalock-linux/cbor-sgx#463d759988cf333549b9a3792dd67d2d62d81c5e"
+dependencies = [
+ "half",
+ "serde 1.0.106",
+ "sgx_tstd",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.106"
 source = "git+https://github.com/mesalock-linux/serde-sgx#58ff0793d46f96124132110880d0f4d44050d6ee"
@@ -2204,6 +2263,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sgx_tseal"
+version = "1.1.2"
+source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.2#8f065be7a442157bf16dc7106feb795ea1c578eb"
+dependencies = [
+ "sgx_tcrypto",
+ "sgx_trts",
+ "sgx_tse",
+ "sgx_types",
+]
+
+[[package]]
 name = "sgx_tstd"
 version = "1.1.2"
 source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.2#8f065be7a442157bf16dc7106feb795ea1c578eb"
@@ -2283,7 +2353,7 @@ checksum = "fbee7696b84bbf3d89a1c2eccff0850e3047ed46bfcd2e92c29a2d074d57e252"
 
 [[package]]
 name = "sp-api"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-api-proc-macro",
@@ -2295,7 +2365,7 @@ dependencies = [
 
 [[package]]
 name = "sp-api-proc-macro"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "blake2-rfc",
  "proc-macro-crate",
@@ -2306,7 +2376,7 @@ dependencies = [
 
 [[package]]
 name = "sp-application-crypto"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -2316,7 +2386,7 @@ dependencies = [
 
 [[package]]
 name = "sp-arithmetic"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "integer-sqrt",
  "num-traits 0.2.12",
@@ -2327,7 +2397,7 @@ dependencies = [
 
 [[package]]
 name = "sp-authority-discovery"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2338,7 +2408,7 @@ dependencies = [
 
 [[package]]
 name = "sp-authorship"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -2348,7 +2418,7 @@ dependencies = [
 
 [[package]]
 name = "sp-block-builder"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2359,7 +2429,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-babe"
-version = "0.8.0-rc6"
+version = "0.8.0"
 dependencies = [
  "merlin",
  "parity-scale-codec",
@@ -2376,7 +2446,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-slots"
-version = "0.8.0-rc6"
+version = "0.8.0"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -2384,7 +2454,7 @@ dependencies = [
 
 [[package]]
 name = "sp-consensus-vrf"
-version = "0.8.0-rc6"
+version = "0.8.0"
 dependencies = [
  "parity-scale-codec",
  "schnorrkel",
@@ -2395,7 +2465,7 @@ dependencies = [
 
 [[package]]
 name = "sp-core"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "blake2-rfc",
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -2425,7 +2495,7 @@ dependencies = [
 
 [[package]]
 name = "sp-debug-derive"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.7",
@@ -2434,7 +2504,7 @@ dependencies = [
 
 [[package]]
 name = "sp-finality-grandpa"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "finality-grandpa 0.12.3",
  "parity-scale-codec",
@@ -2447,7 +2517,7 @@ dependencies = [
 
 [[package]]
 name = "sp-finality-tracker"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-inherents",
@@ -2456,7 +2526,7 @@ dependencies = [
 
 [[package]]
 name = "sp-inherents"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -2465,7 +2535,7 @@ dependencies = [
 
 [[package]]
 name = "sp-io"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "hash-db",
  "parity-scale-codec",
@@ -2474,11 +2544,13 @@ dependencies = [
  "sp-std",
  "sp-tracing",
  "sp-wasm-interface",
+ "tracing",
+ "tracing-core",
 ]
 
 [[package]]
 name = "sp-npos-elections"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-arithmetic",
@@ -2488,7 +2560,7 @@ dependencies = [
 
 [[package]]
 name = "sp-npos-elections-compact"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -2498,7 +2570,7 @@ dependencies = [
 
 [[package]]
 name = "sp-offchain"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -2507,7 +2579,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -2525,7 +2597,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime-interface"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "primitive-types",
@@ -2539,7 +2611,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime-interface-proc-macro"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "Inflector",
  "proc-macro-crate",
@@ -2550,7 +2622,7 @@ dependencies = [
 
 [[package]]
 name = "sp-sandbox"
-version = "0.8.0-rc6"
+version = "0.8.0"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -2561,7 +2633,7 @@ dependencies = [
 
 [[package]]
 name = "sp-session"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -2572,7 +2644,7 @@ dependencies = [
 
 [[package]]
 name = "sp-staking"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -2581,11 +2653,11 @@ dependencies = [
 
 [[package]]
 name = "sp-std"
-version = "2.0.0-rc6"
+version = "2.0.0"
 
 [[package]]
 name = "sp-storage"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "ref-cast",
@@ -2595,7 +2667,7 @@ dependencies = [
 
 [[package]]
 name = "sp-timestamp"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -2607,11 +2679,17 @@ dependencies = [
 
 [[package]]
 name = "sp-tracing"
-version = "2.0.0-rc6"
+version = "2.0.0"
+dependencies = [
+ "parity-scale-codec",
+ "sp-std",
+ "tracing",
+ "tracing-core",
+]
 
 [[package]]
 name = "sp-transaction-pool"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "sp-api",
  "sp-runtime",
@@ -2619,7 +2697,7 @@ dependencies = [
 
 [[package]]
 name = "sp-trie"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "hash-db",
  "memory-db",
@@ -2632,7 +2710,7 @@ dependencies = [
 
 [[package]]
 name = "sp-version"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "parity-scale-codec",
  "sp-runtime",
@@ -2641,7 +2719,7 @@ dependencies = [
 
 [[package]]
 name = "sp-wasm-interface"
-version = "2.0.0-rc6"
+version = "2.0.0"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -2737,6 +2815,15 @@ dependencies = [
 
 [[package]]
 name = "thread_local"
+version = "1.0.0"
+source = "git+https://github.com/mesalock-linux/thread_local-rs-sgx#eb03eee1141108bef5b1e60631580c026d2408e8"
+dependencies = [
+ "lazy_static",
+ "sgx_tstd",
+]
+
+[[package]]
+name = "thread_local"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d40c6d1b69745a6ec6fb1ca717914848da4b44ae29d9b3080cbee91d72a69b14"
@@ -2761,6 +2848,22 @@ checksum = "ffc92d160b1eef40665be3a05630d003936a3bc7da7421277846c2613e92c71a"
 dependencies = [
  "serde 1.0.116",
 ]
+
+[[package]]
+name = "tracing"
+version = "0.1.19"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d79ca061b032d6ce30c660fded31189ca0b9922bf483cd70759f13a2d86786c"
+dependencies = [
+ "cfg-if",
+ "tracing-core",
+]
+
+[[package]]
+name = "tracing-core"
+version = "0.1.16"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5bcf46c1f1f06aeea2d6b81f3c863d0930a596c86ad1920d4e5bad6dd1d7119a"
 
 [[package]]
 name = "trie-db"

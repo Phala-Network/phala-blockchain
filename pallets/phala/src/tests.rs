@@ -67,7 +67,7 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 pub const IAS_REPORT_SAMPLE : &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE : &[u8] = include_bytes!("../sample/report_signature");
 pub const IAS_REPORT_SIGNING_CERTIFICATE : &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const TEE_REPORT_SAMPLE : [u8; 50] = [122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 3, 112, 2, 252, 133, 29, 40, 76, 40, 15, 226, 174, 6, 152, 240, 177, 9, 219, 131, 230, 169, 139, 40, 85, 76, 93, 200, 191, 143, 71, 74, 105, 82, 10];
+pub const TEE_REPORT_SAMPLE : [u8; 84] = [134, 222, 118, 78, 114, 234, 214, 152, 216, 8, 81, 21, 74, 185, 3, 20, 94, 86, 50, 217, 38, 6, 207, 126, 193, 213, 116, 158, 165, 3, 240, 52, 152, 244, 211, 227, 176, 63, 91, 64, 75, 255, 58, 155, 45, 184, 227, 42, 136, 168, 214, 4, 170, 88, 87, 19, 140, 173, 116, 12, 194, 233, 181, 179, 174, 91, 242, 172, 70, 33, 88, 178, 202, 201, 201, 211, 39, 66, 56, 86, 40, 0, 0, 0];
 const PANIC: bool = false;
 
 #[test]

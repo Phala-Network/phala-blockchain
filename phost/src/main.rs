@@ -28,7 +28,7 @@ use crate::types::{
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    DispatchBlockReq, DispatchBlockResp
+    DispatchBlockReq, DispatchBlockResp, PingReq, PingResp, HeartbeatData, Heartbeat
 };
 
 use subxt::Signer;
@@ -235,7 +235,6 @@ fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     key
 }
 
-
 async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
     let headers_b64 = headers
         .iter()
@@ -398,8 +397,6 @@ async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
-
-
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
 {
     let account_id = signer.account_id();
@@ -419,7 +416,7 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
     let payload = Payload::Plain(query_value.to_string());
     let query_payload = serde_json::to_string(&payload)?;
     println!("query_payload:{}", query_payload);
-    let info = pr.req_decode("query", QueryReq { query_payload: query_payload}).await?;
+    let info = pr.req_decode("query", QueryReq { query_payload }).await?;
     println!("info:{:}", info.plain);
     let pending_chain_transfer: PendingChainTransfer = serde_json::from_str(&info.plain)?;
     let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
@@ -454,6 +451,33 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
     }
 
     *sequence = max_seq;
+
+    Ok(())
+}
+
+async fn send_heartbeat_to_chain(client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
+    let result = pr.req_decode("ping", PingReq {}).await?;
+    if result.status != "ok" {
+        print!("ping api returns: {}, skip", result.status);
+        return Ok(())
+    }
+
+    let data = base64::decode(&mut &result.encoded_data).unwrap();
+
+    let heartbeat_data = HeartbeatData::decode(&mut &data[..]).unwrap();
+    print!("Heartbeat: {}", heartbeat_data.data.block_num);
+
+    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
+    update_singer_nonce(&client, &mut signer).await?;
+
+    let call = runtimes::phala::HeartbeatCall { _runtime: PhantomData, data };
+    let ret = client.submit(call, &signer).await;
+    if ret.is_ok() {
+        println!("Submit heartbeat successfully");
+    } else {
+        println!("Failed to submit heartbeat: {:?}", ret);
+    }
+    signer.increment_nonce();
 
     Ok(())
 }
@@ -563,6 +587,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
+            // Send heartbeat
+            if info.initialized && !args.no_write_back && next_block % 5 == 0 {
+                println!("send heartbeat");
+                send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
+            }
+
             println!("waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;

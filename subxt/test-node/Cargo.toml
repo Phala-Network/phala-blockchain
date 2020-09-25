@@ -1,6 +1,6 @@
 [package]
 name = "test-node"
-version = "2.0.0-rc6"
+version = "2.0.0"
 authors = ["Anonymous"]
 description = "Substrate Node template"
 edition = "2018"
@@ -18,25 +18,25 @@ log = "0.4.11"
 structopt = "0.3.15"
 parking_lot = "0.11.0"
 
-sc-cli = { version = "0.8.0-rc6", features = ["wasmtime"], path = "../../substrate/client/cli" }
-sp-core = { version = "2.0.0-rc6", path = "../../substrate/primitives/core" }
-sc-executor = { version = "0.8.0-rc6", features = ["wasmtime"], path = "../../substrate/client/executor" }
-sc-service = { version = "0.8.0-rc6", features = ["wasmtime"], path = "../../substrate/client/service" }
-sp-inherents = { version = "2.0.0-rc6", path = "../../substrate/primitives/inherents" }
-sc-transaction-pool = { version = "2.0.0-rc6", path = "../../substrate/client/transaction-pool" }
-sp-transaction-pool = { version = "2.0.0-rc6", path = "../../substrate/primitives/transaction-pool" }
-sc-network = { version = "0.8.0-rc6", path = "../../substrate/client/network" }
-sc-consensus-aura = { version = "0.8.0-rc6", path = "../../substrate/client/consensus/aura" }
-sp-consensus-aura = { version = "0.8.0-rc6", path = "../../substrate/primitives/consensus/aura" }
-sp-consensus = { version = "0.8.0-rc6", path = "../../substrate/primitives/consensus" }
-sc-consensus = { version = "0.8.0-rc6", path = "../../substrate/client/consensus" }
-sc-finality-grandpa = { version = "0.8.0-rc6", path = "../../substrate/client/finality-grandpa" }
-sp-finality-grandpa = { version = "2.0.0-rc6", path = "../../substrate/primitives/finality-grandpa" }
-sc-client-api = { version = "2.0.0-rc6", path = "../../substrate/client/api" }
-sp-runtime = { version = "2.0.0-rc6", path = "../../substrate/primitives/runtime" }
-sc-basic-authorship = { version = "0.8.0-rc6", path = "../../substrate/client/basic-authorship" }
+sc-cli = { version = "0.8.0", features = ["wasmtime"], path = "../../substrate/client/cli" }
+sp-core = { version = "2.0.0", path = "../../substrate/primitives/core" }
+sc-executor = { version = "0.8.0", features = ["wasmtime"], path = "../../substrate/client/executor" }
+sc-service = { version = "0.8.0", features = ["wasmtime"], path = "../../substrate/client/service" }
+sp-inherents = { version = "2.0.0", path = "../../substrate/primitives/inherents" }
+sc-transaction-pool = { version = "2.0.0", path = "../../substrate/client/transaction-pool" }
+sp-transaction-pool = { version = "2.0.0", path = "../../substrate/primitives/transaction-pool" }
+sc-network = { version = "0.8.0", path = "../../substrate/client/network" }
+sc-consensus-aura = { version = "0.8.0", path = "../../substrate/client/consensus/aura" }
+sp-consensus-aura = { version = "0.8.0", path = "../../substrate/primitives/consensus/aura" }
+sp-consensus = { version = "0.8.0", path = "../../substrate/primitives/consensus" }
+sc-consensus = { version = "0.8.0", path = "../../substrate/client/consensus" }
+sc-finality-grandpa = { version = "0.8.0", path = "../../substrate/client/finality-grandpa" }
+sp-finality-grandpa = { version = "2.0.0", path = "../../substrate/primitives/finality-grandpa" }
+sc-client-api = { version = "2.0.0", path = "../../substrate/client/api" }
+sp-runtime = { version = "2.0.0", path = "../../substrate/primitives/runtime" }
+sc-basic-authorship = { version = "0.8.0", path = "../../substrate/client/basic-authorship" }
 
-test-node-runtime = { version = "2.0.0-rc6", path = "runtime" }
+test-node-runtime = { version = "2.0.0", path = "runtime" }
 
 [build-dependencies]
-substrate-build-script-utils = { version = "2.0.0-rc6", path = "../../substrate/utils/build-script-utils" }
+substrate-build-script-utils = { version = "2.0.0", path = "../../substrate/utils/build-script-utils" }

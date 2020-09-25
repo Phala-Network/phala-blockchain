@@ -1,3 +1,5 @@
+// This file is part of Substrate.
+
 // Copyright (C) 2020 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
@@ -13,35 +15,37 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc5
+//! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 2.0.0-rc6
+
+#![allow(unused_parens)]
+#![allow(unused_imports)]
 
 use frame_support::{traits::Get, weights::Weight};
 use sp_std::marker::PhantomData;
 
 pub struct WeightInfo<T>(PhantomData<T>);
-impl<T: frame_system::Trait> pallet_balances::WeightInfo for WeightInfo<T> {
-	fn transfer() -> Weight {
-		(65949000 as Weight)
+impl<T: frame_system::Trait> pallet_scheduler::WeightInfo for WeightInfo<T> {
+	fn schedule(s: u32, ) -> Weight {
+		(37_835_000 as Weight)
+			.saturating_add((81_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
-	fn transfer_keep_alive() -> Weight {
-		(46665000 as Weight)
+	fn cancel(s: u32, ) -> Weight {
+		(34_707_000 as Weight)
+			.saturating_add((3_125_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn set_balance_creating() -> Weight {
-		(27086000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	fn schedule_named(s: u32, ) -> Weight {
+		(48_065_000 as Weight)
+			.saturating_add((110_000 as Weight).saturating_mul(s as Weight))
+			.saturating_add(T::DbWeight::get().reads(2 as Weight))
+			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}
-	fn set_balance_killing() -> Weight {
-		(33424000 as Weight)
-			.saturating_add(T::DbWeight::get().reads(1 as Weight))
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
-	}
-	fn force_transfer() -> Weight {
-		(65343000 as Weight)
+	fn cancel_named(s: u32, ) -> Weight {
+		(38_776_000 as Weight)
+			.saturating_add((3_138_000 as Weight).saturating_mul(s as Weight))
 			.saturating_add(T::DbWeight::get().reads(2 as Weight))
 			.saturating_add(T::DbWeight::get().writes(2 as Weight))
 	}

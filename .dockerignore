@@ -73,6 +73,7 @@ node/scripts/ccwrapper/latest-*
 
 # Executables
 pruntime/bin/**
+!pruntime/bin/Rocket.toml
 
 # SGX EDL generated stubs
 pruntime/Enclave_u.c

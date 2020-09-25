@@ -201,6 +201,32 @@ pub struct AuthoritySetChange {
     pub authority_proof: StorageProof,
 }
 
+// API: ping
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct Heartbeat {
+    pub block_num: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct HeartbeatData {
+    pub data: Heartbeat,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PingReq {}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PingResp {
+    pub status: String,
+    pub encoded_data: String
+}
+impl Resp for PingReq {
+    type Resp = PingResp;
+}
+
 // API: dispatch_block
 
 #[derive(Serialize, Deserialize, Debug)]
