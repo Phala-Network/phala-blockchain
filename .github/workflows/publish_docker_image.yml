@@ -31,6 +31,6 @@ jobs:
         username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
         password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
-        repository: phala-network/phala-blockchain:latest
+        repository: phala-network/phala-blockchain
         tag_with_ref: true
         tag_with_sha: true
