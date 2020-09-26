@@ -24,12 +24,12 @@ jobs:
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Build binaries
-      run: cargo build --verbose --release
+    # - name: Build binaries
+    #   run: cargo build --verbose --release
     - uses: docker/build-push-action@v1.1.1
       with:
-        username: ${{ secrets.GITHUB_NAME }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
+        password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
         repository: phala-network/phala-blockchain:latest
         tag_with_ref: true
