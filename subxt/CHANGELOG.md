@@ -1,3 +1,23 @@
+# Version 0.12.0
+
+* Only return an error if the extrinsic failed. [#156](https://github.com/paritytech/substrate-subxt/pull/156)
+* Update to rc6. [#155](https://github.com/paritytech/substrate-subxt/pull/155)
+* Different assert. [#153](https://github.com/paritytech/substrate-subxt/pull/153)
+* Add a method to fetch an unhashed key, close #100 [#152](https://github.com/paritytech/substrate-subxt/pull/152)
+* Fix port number. [#151](https://github.com/paritytech/substrate-subxt/pull/151)
+* Implement the `concat` in `twox_64_concat` [#150](https://github.com/paritytech/substrate-subxt/pull/150)
+* Storage map iter [#148](https://github.com/paritytech/substrate-subxt/pull/148)
+
+# Version 0.11.0
+
+* Fix build error, wabt 0.9.2 is yanked [#146](https://github.com/paritytech/substrate-subxt/pull/146)
+* Rc5 [#143](https://github.com/paritytech/substrate-subxt/pull/143)
+* Refactor: extract functions and types for creating extrinsics [#138](https://github.com/paritytech/substrate-subxt/pull/138)
+* event subscription example [#140](https://github.com/paritytech/substrate-subxt/pull/140)
+* Document the `Call` derive macro [#137](https://github.com/paritytech/substrate-subxt/pull/137)
+* Document the #[module] macro [#135](https://github.com/paritytech/substrate-subxt/pull/135)
+* Support authors api. [#134](https://github.com/paritytech/substrate-subxt/pull/134)
+
 # Version 0.10.1 (2020-06-19)
 
 * Release client v0.2.0 [#133](https://github.com/paritytech/substrate-subxt/pull/133)
@@ -19,7 +39,7 @@
 # Version 0.8.0 (2020-05-26)
 
 * Update to Substrate release candidate [#116](https://github.com/paritytech/substrate-subxt/pull/116)
-* Update to alpha.8 [#114]c
+* Update to alpha.8 [#114](https://github.com/paritytech/substrate-subxt/pull/114)
 * Refactors the api [#113](https://github.com/paritytech/substrate-subxt/pull/113)
 
 # Version 0.7.0 (2020-05-13)

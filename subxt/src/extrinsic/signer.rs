@@ -50,10 +50,11 @@ pub trait Signer<T: Runtime> {
     fn sign(
         &self,
         extrinsic: SignedPayload<T>,
-    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send + Sync>>;
+    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send>>;
 }
 
 /// Extrinsic signer using a private key.
+#[derive(Debug)]
 pub struct PairSigner<T: Runtime, P: Pair> {
     account_id: T::AccountId,
     nonce: Option<T::Index>,
@@ -99,8 +100,7 @@ impl<T, P> Signer<T> for PairSigner<T, P>
 where
     T: Runtime,
     T::AccountId: Into<T::Address> + 'static,
-    <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
-        Send + Sync,
+    <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned: Send,
     P: Pair + 'static,
     P::Signature: Into<T::Signature> + 'static,
 {
@@ -115,8 +115,7 @@ where
     fn sign(
         &self,
         extrinsic: SignedPayload<T>,
-    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send + Sync>>
-    {
+    ) -> Pin<Box<dyn Future<Output = Result<UncheckedExtrinsic<T>, String>> + Send>> {
         let signature = extrinsic.using_encoded(|payload| self.signer.sign(payload));
         let (call, extra, _) = extrinsic.deconstruct();
         let extrinsic = UncheckedExtrinsic::<T>::new_signed(

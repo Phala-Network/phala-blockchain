@@ -34,7 +34,10 @@ use subxt::{
     contracts::Contracts,
     sudo::Sudo,
     system::System,
-    Runtime
+    session::Session,
+    staking::Staking,
+    Runtime,
+    BasicSessionKeys
 };
 
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
@@ -45,6 +48,8 @@ use subxt::{
 /// Also the contracts module is not part of the kusama runtime.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct PhalaNodeRuntime;
+
+impl Staking for PhalaNodeRuntime {}
 
 impl Runtime for PhalaNodeRuntime {
     type Signature = MultiSignature;
@@ -70,6 +75,11 @@ impl Balances for PhalaNodeRuntime {
 impl Contracts for PhalaNodeRuntime {}
 
 impl Sudo for PhalaNodeRuntime {}
+
+impl Session for PhalaNodeRuntime {
+    type ValidatorId = <Self as System>::AccountId;
+    type Keys = BasicSessionKeys;
+}
 
 impl phala::PhalaModule for PhalaNodeRuntime {}
 

@@ -73,7 +73,7 @@ pub enum MetadataError {
 }
 
 /// Runtime metadata.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Metadata {
     modules: HashMap<String, ModuleMetadata>,
     modules_with_calls: HashMap<String, ModuleWithCalls>,
@@ -93,10 +93,8 @@ impl Metadata {
             .ok_or(MetadataError::ModuleNotFound(name))
     }
 
-    pub(crate) fn module_with_calls<S>(
-        &self,
-        name: S,
-    ) -> Result<&ModuleWithCalls, MetadataError>
+    /// Returns `ModuleWithCalls`.
+    pub fn module_with_calls<S>(&self, name: S) -> Result<&ModuleWithCalls, MetadataError>
     where
         S: ToString,
     {
@@ -106,11 +104,13 @@ impl Metadata {
             .ok_or(MetadataError::ModuleNotFound(name))
     }
 
-    pub(crate) fn modules_with_events(&self) -> impl Iterator<Item = &ModuleWithEvents> {
+    /// Returns Iterator of `ModuleWithEvents`.
+    pub fn modules_with_events(&self) -> impl Iterator<Item = &ModuleWithEvents> {
         self.modules_with_events.values()
     }
 
-    pub(crate) fn module_with_events(
+    /// Returns `ModuleWithEvents`.
+    pub fn module_with_events(
         &self,
         module_index: u8,
     ) -> Result<&ModuleWithEvents, MetadataError> {
@@ -120,7 +120,8 @@ impl Metadata {
             .ok_or(MetadataError::ModuleIndexNotFound(module_index))
     }
 
-    pub(crate) fn module_with_errors(
+    /// Returns `ModuleWithErrors`.
+    pub fn module_with_errors(
         &self,
         module_index: u8,
     ) -> Result<&ModuleWithErrors, MetadataError> {
@@ -162,6 +163,7 @@ impl Metadata {
 
 #[derive(Clone, Debug)]
 pub struct ModuleMetadata {
+    index: u8,
     name: String,
     storage: HashMap<String, StorageMetadata>,
     // constants
@@ -249,10 +251,10 @@ pub struct StorageMetadata {
 }
 
 impl StorageMetadata {
-    pub fn prefix(&self) -> Vec<u8> {
+    pub fn prefix(&self) -> StorageKey {
         let mut bytes = sp_core::twox_128(self.module_prefix.as_bytes()).to_vec();
         bytes.extend(&sp_core::twox_128(self.storage_prefix.as_bytes())[..]);
-        bytes
+        StorageKey(bytes)
     }
 
     pub fn default<V: Decode>(&self) -> Result<V, MetadataError> {
@@ -274,7 +276,13 @@ impl StorageMetadata {
             StorageHasher::Blake2_256 => sp_core::blake2_256(bytes).to_vec(),
             StorageHasher::Twox128 => sp_core::twox_128(bytes).to_vec(),
             StorageHasher::Twox256 => sp_core::twox_256(bytes).to_vec(),
-            StorageHasher::Twox64Concat => sp_core::twox_64(bytes).to_vec(),
+            StorageHasher::Twox64Concat => {
+                sp_core::twox_64(bytes)
+                    .iter()
+                    .chain(bytes)
+                    .cloned()
+                    .collect()
+            }
         }
     }
 
@@ -286,7 +294,7 @@ impl StorageMetadata {
         match &self.ty {
             StorageEntryType::Plain(_) => {
                 Ok(StoragePlain {
-                    prefix: self.prefix(),
+                    prefix: self.prefix().0,
                 })
             }
             _ => Err(MetadataError::StorageTypeError),
@@ -298,7 +306,7 @@ impl StorageMetadata {
             StorageEntryType::Map { hasher, .. } => {
                 Ok(StorageMap {
                     _marker: PhantomData,
-                    prefix: self.prefix(),
+                    prefix: self.prefix().0,
                     hasher: hasher.clone(),
                 })
             }
@@ -317,7 +325,7 @@ impl StorageMetadata {
             } => {
                 Ok(StorageDoubleMap {
                     _marker: PhantomData,
-                    prefix: self.prefix(),
+                    prefix: self.prefix().0,
                     hasher1: hasher.clone(),
                     hasher2: key2_hasher.clone(),
                 })
@@ -392,6 +400,7 @@ pub enum EventArg {
     Primitive(String),
     Vec(Box<EventArg>),
     Tuple(Vec<EventArg>),
+    Option(Box<EventArg>),
 }
 
 impl FromStr for EventArg {
@@ -405,6 +414,15 @@ impl FromStr for EventArg {
                 Err(ConversionError::InvalidEventArg(
                     s.to_string(),
                     "Expected closing `>` for `Vec`",
+                ))
+            }
+        } else if s.starts_with("Option<") {
+            if s.ends_with('>') {
+                Ok(EventArg::Option(Box::new(s[7..s.len() - 1].parse()?)))
+            } else {
+                Err(ConversionError::InvalidEventArg(
+                    s.to_string(),
+                    "Expected closing `>` for `Option`",
                 ))
             }
         } else if s.starts_with('(') {
@@ -433,6 +451,7 @@ impl EventArg {
         match self {
             EventArg::Primitive(p) => vec![p.clone()],
             EventArg::Vec(arg) => arg.primitives(),
+            EventArg::Option(arg) => arg.primitives(),
             EventArg::Tuple(args) => {
                 let mut primitives = Vec::new();
                 for arg in args {
@@ -491,6 +510,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
             modules.insert(
                 module_name.clone(),
                 ModuleMetadata {
+                    index: module.index,
                     name: module_name.clone(),
                     storage: storage_map,
                 },
@@ -505,7 +525,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
                 modules_with_calls.insert(
                     module_name.clone(),
                     ModuleWithCalls {
-                        index: modules_with_calls.len() as u8,
+                        index: module.index,
                         calls: call_map,
                     },
                 );
@@ -518,7 +538,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
                 modules_with_events.insert(
                     module_name.clone(),
                     ModuleWithEvents {
-                        index: modules_with_events.len() as u8,
+                        index: module.index,
                         name: module_name.clone(),
                         events: event_map,
                     },
@@ -531,7 +551,7 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
             modules_with_errors.insert(
                 module_name.clone(),
                 ModuleWithErrors {
-                    index: modules_with_errors.len() as u8,
+                    index: module.index,
                     name: module_name.clone(),
                     errors: error_map,
                 },

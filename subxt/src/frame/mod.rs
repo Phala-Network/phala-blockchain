@@ -31,6 +31,8 @@ use sp_core::storage::StorageKey;
 
 pub mod balances;
 pub mod contracts;
+pub mod session;
+pub mod staking;
 pub mod sudo;
 pub mod system;
 
@@ -42,6 +44,8 @@ pub trait Store<T>: Encode {
     const FIELD: &'static str;
     /// Return type.
     type Returns: Decode;
+    /// Returns the key prefix for storage maps
+    fn prefix(metadata: &Metadata) -> Result<StorageKey, MetadataError>;
     /// Returns the `StorageKey`.
     fn key(&self, metadata: &Metadata) -> Result<StorageKey, MetadataError>;
     /// Returns the default value.

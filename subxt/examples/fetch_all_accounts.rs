@@ -14,13 +14,20 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
-use substrate_wasm_builder_runner::WasmBuilder;
+use substrate_subxt::{
+    system::AccountStoreExt,
+    ClientBuilder,
+    DefaultNodeRuntime,
+};
 
-fn main() {
-    WasmBuilder::new()
-        .with_current_project()
-        .with_wasm_builder_from_crates("1.0.11")
-        .export_heap_base()
-        .import_memory()
-        .build()
+#[async_std::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    env_logger::init();
+
+    let client = ClientBuilder::<DefaultNodeRuntime>::new().build().await?;
+    let mut iter = client.account_iter(None).await?;
+    while let Some((key, account)) = iter.next().await? {
+        println!("{:?}: {}", key, account.data.free);
+    }
+    Ok(())
 }

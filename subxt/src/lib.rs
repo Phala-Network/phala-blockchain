@@ -35,7 +35,8 @@
     while_true,
     trivial_casts,
     trivial_numeric_casts,
-    unused_extern_crates
+    unused_extern_crates,
+    clippy::all
 )]
 #![allow(clippy::type_complexity)]
 
@@ -55,6 +56,7 @@ use sc_rpc_api::state::ReadProof;
 use sp_core::{
     storage::{
         StorageChangeSet,
+        StorageData,
         StorageKey,
     },
     Bytes,
@@ -92,6 +94,7 @@ pub use crate::{
     rpc::{
         BlockNumber,
         ExtrinsicSuccess,
+        SystemProperties,
     },
     runtimes::*,
     subscription::*,
@@ -115,6 +118,7 @@ pub struct ClientBuilder<T: Runtime> {
     _marker: std::marker::PhantomData<T>,
     url: Option<String>,
     client: Option<jsonrpsee::Client>,
+    page_size: Option<u32>,
 }
 
 impl<T: Runtime> ClientBuilder<T> {
@@ -124,6 +128,7 @@ impl<T: Runtime> ClientBuilder<T> {
             _marker: std::marker::PhantomData,
             url: None,
             client: None,
+            page_size: None,
         }
     }
 
@@ -136,6 +141,12 @@ impl<T: Runtime> ClientBuilder<T> {
     /// Set the substrate rpc address.
     pub fn set_url<P: Into<String>>(mut self, url: P) -> Self {
         self.url = Some(url.into());
+        self
+    }
+
+    /// Set the page size.
+    pub fn set_page_size(mut self, size: u32) -> Self {
+        self.page_size = Some(size);
         self
     }
 
@@ -152,18 +163,21 @@ impl<T: Runtime> ClientBuilder<T> {
             }
         };
         let rpc = Rpc::new(client);
-        let (metadata, genesis_hash, runtime_version) = future::join3(
+        let (metadata, genesis_hash, runtime_version, properties) = future::join4(
             rpc.metadata(),
             rpc.genesis_hash(),
             rpc.runtime_version(None),
+            rpc.system_properties(),
         )
         .await;
         Ok(Client {
             rpc,
             genesis_hash: genesis_hash?,
             metadata: metadata?,
+            properties: properties.unwrap_or_else(|_| Default::default()),
             runtime_version: runtime_version?,
             _marker: PhantomData,
+            page_size: self.page_size.unwrap_or(10),
         })
     }
 }
@@ -174,8 +188,10 @@ pub struct Client<T: Runtime> {
     pub rpc: Rpc<T>,
     genesis_hash: T::Hash,
     metadata: Metadata,
+    properties: SystemProperties,
     runtime_version: RuntimeVersion,
     _marker: PhantomData<(fn() -> T::Signature, T::Extra)>,
+    page_size: u32,
 }
 
 impl<T: Runtime> Clone for Client<T> {
@@ -184,8 +200,56 @@ impl<T: Runtime> Clone for Client<T> {
             rpc: self.rpc.clone(),
             genesis_hash: self.genesis_hash,
             metadata: self.metadata.clone(),
+            properties: self.properties.clone(),
             runtime_version: self.runtime_version.clone(),
             _marker: PhantomData,
+            page_size: self.page_size,
+        }
+    }
+}
+
+/// Iterates over key value pairs in a map.
+pub struct KeyIter<T: Runtime, F: Store<T>> {
+    client: Client<T>,
+    _marker: PhantomData<F>,
+    count: u32,
+    hash: T::Hash,
+    start_key: Option<StorageKey>,
+    buffer: Vec<(StorageKey, StorageData)>,
+}
+
+impl<T: Runtime, F: Store<T>> KeyIter<T, F> {
+    /// Returns the next key value pair from a map.
+    pub async fn next(&mut self) -> Result<Option<(StorageKey, F::Returns)>, Error> {
+        loop {
+            if let Some((k, v)) = self.buffer.pop() {
+                return Ok(Some((k, Decode::decode(&mut &v.0[..])?)))
+            } else {
+                let keys = self
+                    .client
+                    .fetch_keys::<F>(self.count, self.start_key.take(), Some(self.hash))
+                    .await?;
+
+                if keys.is_empty() {
+                    return Ok(None)
+                }
+
+                self.start_key = keys.last().cloned();
+
+                let change_sets = self
+                    .client
+                    .rpc
+                    .query_storage_at(&keys, Some(self.hash))
+                    .await?;
+                for change_set in change_sets {
+                    for (k, v) in change_set.changes {
+                        if let Some(v) = v {
+                            self.buffer.push((k, v));
+                        }
+                    }
+                }
+                debug_assert_eq!(self.buffer.len(), keys.len());
+            }
         }
     }
 }
@@ -201,32 +265,84 @@ impl<T: Runtime> Client<T> {
         &self.metadata
     }
 
-    /// Fetch a StorageKey with default value.
+    /// Returns the system properties
+    pub fn properties(&self) -> &SystemProperties {
+        &self.properties
+    }
+
+    /// Fetch the value under an unhashed storage key
+    pub async fn fetch_unhashed<V: Decode>(
+        &self,
+        key: StorageKey,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<V>, Error> {
+        if let Some(data) = self.rpc.storage(&key, hash).await? {
+            Ok(Some(Decode::decode(&mut &data.0[..])?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    /// Fetch a StorageKey with an optional block hash.
+    pub async fn fetch<F: Store<T>>(
+        &self,
+        store: &F,
+        hash: Option<T::Hash>,
+    ) -> Result<Option<F::Returns>, Error> {
+        let key = store.key(&self.metadata)?;
+        self.fetch_unhashed::<F::Returns>(key, hash).await
+    }
+
+    /// Fetch a StorageKey that has a default value with an optional block hash.
     pub async fn fetch_or_default<F: Store<T>>(
         &self,
-        store: F,
+        store: &F,
         hash: Option<T::Hash>,
     ) -> Result<F::Returns, Error> {
-        let key = store.key(&self.metadata)?;
-        if let Some(data) = self.rpc.storage(key, hash).await? {
-            Ok(Decode::decode(&mut &data.0[..])?)
+        if let Some(data) = self.fetch(store, hash).await? {
+            Ok(data)
         } else {
             Ok(store.default(&self.metadata)?)
         }
     }
 
-    /// Fetch a StorageKey an optional storage key.
-    pub async fn fetch<F: Store<T>>(
+    /// Returns an iterator of key value pairs.
+    pub async fn iter<F: Store<T>>(
         &self,
-        store: F,
         hash: Option<T::Hash>,
-    ) -> Result<Option<F::Returns>, Error> {
-        let key = store.key(&self.metadata)?;
-        if let Some(data) = self.rpc.storage(key, hash).await? {
-            Ok(Some(Decode::decode(&mut &data.0[..])?))
+    ) -> Result<KeyIter<T, F>, Error> {
+        let hash = if let Some(hash) = hash {
+            hash
         } else {
-            Ok(None)
-        }
+            self.block_hash(None)
+                .await?
+                .expect("didn't pass a block number; qed")
+        };
+        Ok(KeyIter {
+            client: self.clone(),
+            hash,
+            count: self.page_size,
+            start_key: None,
+            buffer: Default::default(),
+            _marker: PhantomData,
+        })
+    }
+
+    /// Fetch up to `count` keys for a storage map in lexicographic order.
+    ///
+    /// Supports pagination by passing a value to `start_key`.
+    pub async fn fetch_keys<F: Store<T>>(
+        &self,
+        count: u32,
+        start_key: Option<StorageKey>,
+        hash: Option<T::Hash>,
+    ) -> Result<Vec<StorageKey>, Error> {
+        let prefix = <F as Store<T>>::prefix(&self.metadata)?;
+        let keys = self
+            .rpc
+            .storage_keys_paged(Some(prefix), count, start_key, hash)
+            .await?;
+        Ok(keys)
     }
 
     /// Query historical storage entries
@@ -493,13 +609,14 @@ mod tests {
             },
             chain_spec: test_node::chain_spec::development_config().unwrap(),
             role: Role::Authority(key),
-            enable_telemetry: false,
+            telemetry: None,
         };
         let client = ClientBuilder::new()
             .set_client(
                 SubxtClient::from_config(config, test_node::service::new_full)
                     .expect("Error creating subxt client"),
             )
+            .set_page_size(3)
             .build()
             .await
             .expect("Error creating client");
@@ -612,5 +729,26 @@ mod tests {
         let (client, _) = test_client().await;
         let mut blocks = client.subscribe_finalized_blocks().await.unwrap();
         blocks.next().await;
+    }
+
+    #[async_std::test]
+    async fn test_fetch_keys() {
+        let (client, _) = test_client().await;
+        let keys = client
+            .fetch_keys::<system::AccountStore<_>>(4, None, None)
+            .await
+            .unwrap();
+        assert_eq!(keys.len(), 4)
+    }
+
+    #[async_std::test]
+    async fn test_iter() {
+        let (client, _) = test_client().await;
+        let mut iter = client.iter::<system::AccountStore<_>>(None).await.unwrap();
+        let mut i = 0;
+        while let Some(_) = iter.next().await.unwrap() {
+            i += 1;
+        }
+        assert_eq!(i, 4);
     }
 }

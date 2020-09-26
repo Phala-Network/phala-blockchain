@@ -119,7 +119,7 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
 }
 
 async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
-    let storage = client.rpc.storage(storage_key, hash).await?;
+    let storage = client.rpc.storage(&storage_key, hash).await?;
     Ok(storage.map(|data| (&data.0[..]).to_vec()))
 }
 
@@ -142,7 +142,7 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
     }
     // Set id
     let set_id = client
-        .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+        .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
         .await
         .map_err(|_| Error::NoSetIdAtBlock)?;
     Ok(AuthoritySetChange {
@@ -179,7 +179,7 @@ async fn bisec_setid_change(
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
         let set_id = client
-            .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+            .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
             .await
             .map_err(|_| Error::NoSetIdAtBlock)?;
         // Left: set_id == last_id, Right: set_id > last_id
@@ -288,7 +288,7 @@ async fn batch_sync_block(
             let hash = header.hash();
             let number = header.number;
             let set_id = client
-                .fetch_or_default(runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
                 .await
                 .map_err(|_| Error::NoSetIdAtBlock)?;
             let set = (number, set_id);
@@ -394,7 +394,7 @@ async fn batch_sync_block(
 async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
     let latest_block = get_block_at(&client, None, false).await?.block;
     let hash = latest_block.block.header.hash();
-    client.fetch_or_default(runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
+    client.fetch_or_default(&runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
 }
 
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
@@ -586,6 +586,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
+        // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
             if info.initialized && !args.no_write_back && next_block % 5 == 0 {
