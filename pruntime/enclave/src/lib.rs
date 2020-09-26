@@ -632,21 +632,26 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
 }
 
 fn generate_seal_key() -> [u8; 16] {
-    let report = rsgx_self_report();
-    let key_id = sgx_key_id_t::default();
     let key_request = sgx_key_request_t {
         key_name: SGX_KEYSELECT_SEAL,
         key_policy: SGX_KEYPOLICY_MRSIGNER,
-        isv_svn: report.body.isv_svn,
+        isv_svn: 0_u16,
         reserved1: 0_u16,
-        cpu_svn: report.body.cpu_svn,
-        attribute_mask: sgx_attributes_t{flags: TSEAL_DEFAULT_FLAGSMASK, xfrm: 0},
-        key_id,
-        misc_mask: TSEAL_DEFAULT_MISCMASK,
-        config_svn: report.body.config_svn,
+        cpu_svn: sgx_cpu_svn_t { svn: [0_u8; 16] },
+        attribute_mask: sgx_attributes_t { flags: 0, xfrm: 0 },
+        key_id: sgx_key_id_t::default(),
+        misc_mask: 0,
+        config_svn: 0_u16,
         reserved2: [0_u8; SGX_KEY_REQUEST_RESERVED2_BYTES],
     };
     let seal_key = rsgx_get_align_key(&key_request).unwrap();
+
+    // println!("SGX_KEYSELECT_SEAL             : {}", SGX_KEYSELECT_SEAL);
+    // println!("SGX_KEYPOLICY_MRSIGNER         : {}", SGX_KEYPOLICY_MRSIGNER);
+    // println!("report.body.isv_svn            : {}", report.body.isv_svn);
+    // println!("report.body.config_svn         : {:?}", report.body.config_svn);
+    // println!("TSEAL_DEFAULT_MISCMASK         : {}", TSEAL_DEFAULT_MISCMASK);
+    println!("seal_key.key                   : {:?}", seal_key.key);
 
     seal_key.key
 }
