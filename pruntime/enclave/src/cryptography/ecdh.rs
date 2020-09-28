@@ -39,9 +39,8 @@ pub fn create_key(key: &[u8]) -> Result<EphemeralPrivateKey, ()> {
 
 pub fn dump_key(key: &EphemeralPrivateKey) -> [u8; 32] {
   let memlayout: [u8; 64] = unsafe {
-    std::mem::transmute_copy(&key)
+    std::mem::transmute_copy(key)
   };
-
   memlayout[8..40].try_into().expect("slice with incorrect length")
 }
 
