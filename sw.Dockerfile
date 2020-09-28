@@ -47,13 +47,24 @@ ADD . phala-blockchain
 RUN cd phala-blockchain && PATH="$PATH:$HOME/.cargo/bin" cargo build --release
 RUN cd phala-blockchain/pruntime && PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=SW make
 
+# ====== copy compiled ======
+
+RUN mkdir prebuilt
+RUN cp phala-blockchain/target/release/phost prebuilt
+RUN cp phala-blockchain/target/release/phala-node prebuilt
+RUN cp phala-blockchain/pruntime/bin/app prebuilt
+RUN cp phala-blockchain/pruntime/bin/enclave.signed.so prebuilt
+RUN cp phala-blockchain/pruntime/bin/Rocket.toml prebuilt
+
 # ====== clean up ======
 
 ADD dockerfile.d/cleanup.sh .
 RUN bash cleanup.sh
+RUN rm -rf phala-blockchain
 
 # ====== start phala ======
 ADD dockerfile.d/startup.sh ./startup.sh
+ADD dockerfile.d/console.sh ./console.sh
 ADD dockerfile.d/api.nginx.conf /etc/nginx/sites-enabled/default
 CMD bash ./startup.sh
 
