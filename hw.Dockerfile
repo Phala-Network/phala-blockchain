@@ -45,7 +45,7 @@ ADD . phala-blockchain
 # ====== build phala ======
 
 RUN cd phala-blockchain && PATH="$PATH:$HOME/.cargo/bin" cargo build --release
-RUN cd phala-blockchain/pruntime && PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=SW make
+RUN cd phala-blockchain/pruntime && PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=HW make
 
 # ====== clean up ======
 
@@ -53,7 +53,7 @@ ADD dockerfile.d/cleanup.sh .
 RUN bash cleanup.sh
 
 # ====== start phala ======
-ADD dockerfile.d/startup.sh ./startup.sh
+ADD dockerfile.d/startup.hw.sh ./startup.sh
 ADD dockerfile.d/api.nginx.conf /etc/nginx/sites-enabled/default
 CMD bash ./startup.sh
 
