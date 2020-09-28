@@ -10,7 +10,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build_sw:
     runs-on: ubuntu-18.04
     steps:
     - uses: actions/checkout@v2
@@ -21,6 +21,24 @@ jobs:
         username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
         password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
-        repository: phala-network/phala-blockchain/phala-blockchain
+        repository: phala-network/phala-blockchain/sw
         tag_with_ref: true
         tag_with_sha: true
+        tags: sw,ubuntu-1804,sw-ubuntu-1804,latest-ubuntu-1804,latest-sw,latest-sw-ubuntu-1804
+        dockerfile: {path}/sw.Dockerfile
+  build_hw:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: docker/build-push-action@v1.1.1
+      with:
+        username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
+        password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
+        registry: docker.pkg.github.com
+        repository: phala-network/phala-blockchain/hw
+        tag_with_ref: true
+        tag_with_sha: true
+        tags: hw,ubuntu-1804,hw-ubuntu-1804,latest-ubuntu-1804,latest-hw,latest-hw-ubuntu-1804
+        dockerfile: {path}/hw.Dockerfile
