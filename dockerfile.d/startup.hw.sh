@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 
+# For hardware mode PRuntime
+export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/sgx-aesm-service/aesm"
+cd /opt/intel/sgx-aesm-service/aesm && ./aesm_service
+
 nginx
 
 echo "----------- starting blockchain ----------"

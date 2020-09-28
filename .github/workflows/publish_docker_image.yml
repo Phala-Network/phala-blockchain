@@ -10,27 +10,35 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build_sw:
     runs-on: ubuntu-18.04
     steps:
-    - name: Install latest nightly
-      uses: actions-rs/toolchain@v1
-      with:
-          toolchain: nightly
-          override: true
-          target: wasm32-unknown-unknown
-    - name: Install llvm-10
-      run: sudo apt-get install llvm-10 clang-10
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Build binaries
-      run: cargo build --verbose --release
     - uses: docker/build-push-action@v1.1.1
       with:
         username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
         password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
-        repository: phala-network/phala-blockchain:latest
+        repository: phala-network/phala-blockchain/sw
         tag_with_ref: true
         tag_with_sha: true
+        tags: sw,ubuntu-1804,sw-ubuntu-1804,latest-ubuntu-1804,latest-sw,latest-sw-ubuntu-1804
+        dockerfile: './sw.Dockerfile'
+  build_hw:
+    runs-on: ubuntu-18.04
+    steps:
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: docker/build-push-action@v1.1.1
+      with:
+        username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
+        password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
+        registry: docker.pkg.github.com
+        repository: phala-network/phala-blockchain/hw
+        tag_with_ref: true
+        tag_with_sha: true
+        tags: hw,ubuntu-1804,hw-ubuntu-1804,latest-ubuntu-1804,latest-hw,latest-hw-ubuntu-1804
+        dockerfile: './hw.Dockerfile'
