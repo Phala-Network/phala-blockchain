@@ -10,7 +10,6 @@
 #[cfg(not(target_env = "sgx"))]
 #[macro_use] extern crate sgx_tstd as std;
 
-#[macro_use] extern crate serde;
 #[macro_use] extern crate serde_json;
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
@@ -26,41 +25,40 @@ use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
 
-use crate::std::prelude::v1::*;
-use crate::std::sync::Arc;
+use core::convert::TryInto;
+use crate::std::io::{Write, Read};
 use crate::std::net::TcpStream;
-use crate::std::string::String;
+use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
-use crate::std::io::{Write, Read};
+use crate::std::string::String;
+use crate::std::sync::Arc;
+use crate::std::sync::SgxMutex;
 use crate::std::untrusted::fs;
 use crate::std::vec::Vec;
-use crate::std::sync::SgxMutex;
-use core::convert::TryInto;
 use itertools::Itertools;
-use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
-use serde_json::{Map, Value};
-use serde_cbor;
 use parity_scale_codec::{Encode, Decode};
 use secp256k1::{SecretKey, PublicKey};
-use contracts::AccountIdWrapper;
-use sp_core::hashing::blake2_256;
+use serde_cbor;
+use serde_json::{Map, Value};
+use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use sp_core::H256 as Hash;
-use system::{EventRecord};
-use phala::{RawEvent};
-
-#[macro_use]
-use sgx_trts::cpu_feature;
+use sp_core::hashing::blake2_256;
+use system::EventRecord;
 
 mod cert;
+mod contracts;
+mod cryptography;
 mod hex;
 mod light_validation;
-mod cryptography;
-
-use light_validation::AuthoritySetChange;
-use cryptography::{ecdh, aead};
 mod receipt;
-use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response, Error};
+mod types;
+
+use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM, WEB3_ANALYTICS};
+use cryptography::{ecdh, aead};
+use light_validation::AuthoritySetChange;
+use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response};
+use types::{TxRef, Error};
 
 extern "C" {
     pub fn ocall_sgx_init_quote(
@@ -135,7 +133,7 @@ struct LocalState {
 #[derive(Encode, Decode)]
 struct RuntimeInfo {
     machine_id: [u8; 16],
-    pub_key: [u8; 33],
+    pubkey: [u8; 33],
     version: u8,
     cpu_core_num: u32,
     cpu_feature_level: u8,
@@ -671,7 +669,8 @@ const ACTION_GET: u8 = 22;
 #[derive(Serialize, Deserialize, Debug)]
 struct InitRuntimeReq {
     skip_ra: bool,
-    bridge_genesis_info_b64: String
+    bridge_genesis_info_b64: String,
+    debug_set_key: Option<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
@@ -827,21 +826,56 @@ pub extern "C" fn ecall_handle(
 
 const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
 
-// A sample struct to show the usage of serde + seal
-// This struct could not be used in sgx_seal directly because it is
-// **not** continuous in memory. The `vec` is the bad member.
-// However, it is serializable. So we can serialize it first and
-// put convert the Vec<u8> to [u8] then put [u8] to sgx_seal API!
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct PersistentRuntimeData {
     sk: String,
     ecdh_sk: String
 }
 
-#[no_mangle]
-pub extern "C" fn ecall_init() -> sgx_status_t {
+fn save_secret_keys(ecdsa_sk: SecretKey,
+                    ecdh_sk: EcdhKey)
+                    -> Result<PersistentRuntimeData, Error> {
     let mut data = PersistentRuntimeData::default();
+    // Put in PresistentRuntimeData
+    let serialized_sk = ecdsa_sk.serialize();
+    let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
+    data.sk = hex::encode_hex_compact(serialized_sk.as_ref());
+    data.ecdh_sk = hex::encode_hex_compact(serialized_ecdh_sk.as_ref());
 
+    let encoded_vec = serde_cbor::to_vec(&data).unwrap();
+    let encoded_slice = encoded_vec.as_slice();
+    println!("Length of encoded slice: {}", encoded_slice.len());
+    println!("Encoded slice: {:?}", encoded_slice);
+
+    // Seal
+    let aad: [u8; 0] = [0_u8; 0];
+    let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
+    let sealed_data = result.map_err(|e| Error::SgxError(e))?;
+
+    let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
+    let output_len: usize = return_output_buf.len();
+
+    let output_slice = &mut return_output_buf;
+    let output_ptr = output_slice.as_mut_ptr();
+
+    let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
+    if opt.is_none() {
+        return Err(Error::SgxError(sgx_status_t::SGX_ERROR_INVALID_PARAMETER));
+    }
+
+    // TODO: check retval and result
+    let mut _retval = sgx_status_t::SGX_SUCCESS;
+    let _result = unsafe {
+        ocall_save_persistent_data(
+            &mut _retval,
+            output_ptr, output_len
+        )
+    };
+    println!("Persistent Runtime Data saved");
+    Ok(data)
+}
+
+fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
     // Try load persisted sealed data
     let mut sealed_data_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
     let mut sealed_data_len : usize = 0;
@@ -850,102 +884,64 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     let sealed_data_len_ptr = &mut sealed_data_len as *mut usize;
 
     let mut retval = sgx_status_t::SGX_SUCCESS;
-    let result = unsafe {
+    let load_result = unsafe {
         ocall_load_persistent_data(
             &mut retval,
             sealed_data_ptr, sealed_data_len_ptr, SEAL_DATA_BUF_MAX_LEN
         )
     };
-
-    if sealed_data_len == 0 as usize {
-        println!("Persistent data not found.");
-
-        // Generate identity
-        let mut prng = rand::rngs::OsRng::default();
-        let sk = SecretKey::random(&mut prng);
-        let pk = PublicKey::from_secret_key(&sk);
-        let serialized_pk = pk.serialize_compressed();
-        let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
-        println!("identity pubkey: {:?}", s_pk);
-
-        // ECDH identity
-        let ecdh_sk = ecdh::generate_key();
-        let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
-        let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
-        println!("ECDH pubkey: {:?}", ecdh_pk);
-
-        let serialized_sk = sk.serialize();
-        let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
-        data.sk = hex::encode_hex_compact(serialized_sk.as_ref());
-        data.ecdh_sk = hex::encode_hex_compact(serialized_ecdh_sk.as_ref());
-
-        let encoded_vec = serde_cbor::to_vec(&data).unwrap();
-        let encoded_slice = encoded_vec.as_slice();
-        println!("Length of encoded slice: {}", encoded_slice.len());
-        println!("Encoded slice: {:?}", encoded_slice);
-
-        let aad: [u8; 0] = [0_u8; 0];
-        let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
-        let sealed_data = match result {
-            Ok(x) => x,
-            Err(ret) => { return ret; },
-        };
-
-        let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
-        let mut output_len: usize = return_output_buf.len();
-
-        let output_slice = &mut return_output_buf;
-        let output_ptr = output_slice.as_mut_ptr();
-
-        let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
-        if opt.is_none() {
-            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
-        }
-
-        let mut retval = sgx_status_t::SGX_SUCCESS;
-        let result = unsafe {
-            ocall_save_persistent_data(
-                &mut retval,
-                output_ptr, output_len
-            )
-        };
-    } else {
-        let opt = from_sealed_log_for_slice::<u8>(sealed_data_ptr, sealed_data_len as u32);
-        let sealed_data = match opt {
-            Some(x) => x,
-            None => {
-                panic!("Sealed data corrupted or outdated, please delete it.")
-            },
-        };
-
-        let result = sealed_data.unseal_data();
-        let unsealed_data = match result {
-            Ok(x) => x,
-            Err(ret) => {
-                return ret;
-            },
-        };
-
-        let encoded_slice = unsealed_data.get_decrypt_txt();
-        println!("Length of encoded slice: {}", encoded_slice.len());
-        println!("Encoded slice: {:?}", encoded_slice);
-        data = serde_cbor::from_slice(encoded_slice).unwrap();
+    if load_result != sgx_status_t::SGX_SUCCESS || sealed_data_len == 0 {
+        return Err(Error::PersistentRuntimeNotFound);
     }
 
+    let opt = from_sealed_log_for_slice::<u8>(sealed_data_ptr, sealed_data_len as u32);
+    let sealed_data = match opt {
+        Some(x) => x,
+        None => {
+            panic!("Sealed data corrupted or outdated, please delete it.")
+        },
+    };
+
+    let unsealed_data = sealed_data.unseal_data().map_err(|e| Error::SgxError(e))?;
+    let encoded_slice = unsealed_data.get_decrypt_txt();
+    println!("Length of encoded slice: {}", encoded_slice.len());
+    println!("Encoded slice: {:?}", encoded_slice);
+
+    serde_cbor::from_slice(encoded_slice).map_err(|_| Error::DecodeError)
+}
+
+fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(SecretKey, EcdhKey)>)
+-> Result<(), Error> {
+    let data = if let Some((ecdsa_sk, ecdh_sk)) = predefined_keys {
+        save_secret_keys(ecdsa_sk, ecdh_sk)?
+    } else {
+        match load_secret_keys() {
+            Ok(data) => data,
+            Err(Error::PersistentRuntimeNotFound) => {
+                println!("Persistent data not found.");
+                let mut prng = rand::rngs::OsRng::default();
+                let ecdsa_sk = SecretKey::random(&mut prng);
+                let ecdh_sk = ecdh::generate_key();
+                save_secret_keys(ecdsa_sk, ecdh_sk)?
+            },
+            other_err => return other_err.map(|_| ())
+        }
+    };
+
     // load identity
-    let raw_key: [u8; 32] = hex::decode_hex(&data.sk).as_slice().try_into().expect("slice with incorrect length");
-    let sk = SecretKey::parse(&raw_key).expect("can't parse private key");
-    let pk = PublicKey::from_secret_key(&sk);
-    let serialized_pk = pk.serialize_compressed();
-    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
-    println!("identity pubkey: {:?}", s_pk);
+    let ecdsa_raw_key: [u8; 32] = hex::decode_hex(&data.sk).as_slice().try_into().expect("slice with incorrect length");
+    let ecdsa_sk = SecretKey::parse(&ecdsa_raw_key).expect("can't parse private key");
+    let ecdsa_pk = PublicKey::from_secret_key(&ecdsa_sk);
+    let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
+    let ecdsa_hex_pk = hex::encode_hex_compact(ecdsa_serialized_pk.as_ref());
+    println!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
-    let raw_key = hex::decode_hex(&data.ecdh_sk);
-    let ecdh_sk = ecdh::create_key(raw_key.as_slice()).expect("can't create ecdh key");
+    let ecdh_raw_key = hex::decode_hex(&data.ecdh_sk);
+    let ecdh_sk = ecdh::create_key(ecdh_raw_key.as_slice()).expect("can't create ecdh key");
     let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
-    let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
-    println!("ECDH pubkey: {:?}", ecdh_pk);
+    let ecdh_hex_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    println!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
     // Generate Seal Key as Machine Id
     // This SHOULD be stable on the same CPU
@@ -953,16 +949,23 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     println!("Machine id: {:?}", &machine_id);
 
     // Save
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    *local_state.public_key = pk.clone();
-    *local_state.private_key = sk.clone();
+    *local_state.public_key = ecdsa_pk.clone();
+    *local_state.private_key = ecdsa_sk.clone();
     local_state.ecdh_private_key = Some(ecdh_sk);
     local_state.ecdh_public_key = Some(ecdh_pk);
     local_state.machine_id = machine_id.clone();
 
     println!("Init done.");
+    Ok(())
+}
 
-    sgx_status_t::SGX_SUCCESS
+#[no_mangle]
+pub extern "C" fn ecall_init() -> sgx_status_t {
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    match init_secret_keys(&mut local_state, None) {
+        Err(Error::SgxError(sgx_err)) => sgx_err,
+        _ => sgx_status_t::SGX_SUCCESS
+    }
 }
 
 // --------------------------------
@@ -1035,24 +1038,35 @@ fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     // TODO: Guard only initialize once
-    if LOCAL_STATE.lock().unwrap().initialized {
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    if local_state.initialized {
         return Err(json!({"message": "Already initialized"}))
     }
-
-    let mut local_state = LOCAL_STATE.lock().unwrap();
     (*local_state).initialized = true;
 
     // load identity
-    let sk = *local_state.private_key.clone();
-    let pk = &local_state.public_key;
-    let serialized_pk = pk.serialize_compressed();
-    let s_pk = hex::encode_hex_compact(serialized_pk.as_ref());
-    println!("identity pubkey: {:?}", s_pk);
+    if let Some(key) = input.debug_set_key {
+        if input.skip_ra == false {
+            return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
+        }
+        let raw_key = hex::decode_hex(&key);
+        let ecdsa_key = SecretKey::parse_slice(raw_key.as_slice())
+            .map_err(|_| error_msg("can't parse private key"))?;
+        let ecdh_key = ecdh::create_key(raw_key.as_slice())
+            .map_err(|_| error_msg("can't create ecdh key"))?;
+        init_secret_keys(&mut local_state, Some((ecdsa_key, ecdh_key)))
+            .map_err(|_| error_msg("failed to update secret key"))?;
+    }
+    let ecdsa_sk = *local_state.private_key.clone();
+    let ecdsa_pk = &local_state.public_key;
+    let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
+    let ecdsa_hex_pk = hex::encode_hex_compact(ecdsa_serialized_pk.as_ref());
+    println!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
     let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
-    let s_ecdh_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
-    println!("ECDH pubkey: {:?}", ecdh_pk);
+    let ecdh_hex_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    println!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
     // Measure machine score
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
@@ -1074,7 +1088,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     // Build RuntimeInfo
     let runtime_info = RuntimeInfo {
         machine_id: local_state.machine_id.clone(),
-        pub_key: serialized_pk,
+        pubkey: ecdsa_serialized_pk,
         version: 1,
         cpu_core_num,
         cpu_feature_level
@@ -1111,7 +1125,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let raw_genesis = base64::decode(&input.bridge_genesis_info_b64)
         .expect("Bad bridge_genesis_info_b64");
     let genesis = light_validation::BridgeInitInfo::<chain::Runtime>
-    ::decode(&mut raw_genesis.as_slice())
+        ::decode(&mut raw_genesis.as_slice())
         .expect("Can't decode bridge_genesis_info_b64");
 
     let mut state = STATE.lock().unwrap();
@@ -1121,14 +1135,14 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
-    state.contract2 = contracts::balance::Balance::new(Some(sk));
+    state.contract2 = contracts::balance::Balance::new(Some(ecdsa_sk));
     local_state.headernum = 1;
     local_state.blocknum = 1;
 
     let resp = InitRuntimeResp {
         encoded_runtime_info,
-        public_key: s_pk,
-        ecdh_public_key: s_ecdh_pk,
+        public_key: ecdsa_hex_pk,
+        ecdh_public_key: ecdh_hex_pk,
         attestation
     };
     Ok(serde_json::to_value(resp).unwrap())
@@ -1157,12 +1171,6 @@ SignedBlock {
     justification: Some([86, 0, 0, 0, 0, 0, 0, 0, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 8, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 141, 255, 155, 44, 167, 84, 203, 94, 128, 3, 102, 71, 170, 179, 253, 37, 204, 196, 228, 35, 108, 159, 236, 214, 25, 104, 241, 33, 20, 17, 73, 167, 196, 2, 235, 211, 205, 212, 55, 121, 167, 232, 217, 175, 255, 238, 25, 137, 25, 125, 52, 62, 217, 233, 54, 114, 17, 104, 48, 90, 109, 160, 157, 1, 136, 220, 52, 23, 213, 5, 142, 196, 180, 80, 62, 12, 18, 234, 26, 10, 137, 190, 32, 15, 233, 137, 34, 66, 61, 67, 52, 1, 79, 166, 176, 238, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 144, 168, 112, 235, 59, 226, 23, 170, 153, 71, 105, 25, 178, 134, 69, 57, 131, 10, 98, 46, 130, 169, 53, 93, 15, 145, 242, 138, 119, 115, 114, 236, 176, 195, 161, 22, 79, 104, 36, 108, 250, 85, 119, 104, 42, 183, 80, 90, 255, 19, 150, 129, 149, 63, 224, 204, 116, 87, 48, 10, 83, 128, 115, 3, 209, 124, 45, 120, 35, 235, 242, 96, 253, 19, 143, 45, 126, 39, 209, 20, 192, 20, 93, 150, 139, 95, 245, 0, 97, 37, 242, 65, 79, 173, 174, 105, 0])
 }
 */
-
-mod contracts;
-mod types;
-
-use types::TxRef;
-use contracts::{Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM, WEB3_ANALYTICS};
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1646,7 +1654,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 }
 
 fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) -> Response {
-    let inner = || -> Result<Response, Error> {
+    let inner = || -> Result<Response, receipt::Error> {
         match req {
             Request::QueryReceipt{tx_hash} => {
                 let gr = GLOBAL_RECEIPT.lock().unwrap();
@@ -1655,10 +1663,10 @@ fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) ->
                         if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
                             Ok(Response::QueryReceipt { receipt: receipt.clone() })
                         } else {
-                            Ok(Response::Error(Error::NotAuthorized))
+                            Err(receipt::Error::NotAuthorized)
                         }
                     },
-                    None => Ok(Response::Error(Error::Other(String::from("Transaction hash not found")))),
+                    None => Err(receipt::Error::Other(String::from("Transaction hash not found"))),
                 }
             }
         }

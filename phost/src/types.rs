@@ -133,7 +133,8 @@ impl Resp for QueryReq {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeReq {
   pub skip_ra: bool,
-  pub bridge_genesis_info_b64: String
+  pub bridge_genesis_info_b64: String,
+  pub debug_set_key: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
