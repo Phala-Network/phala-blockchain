@@ -25,7 +25,7 @@ jobs:
         tag_with_ref: true
         tag_with_sha: true
         tags: sw,ubuntu-1804,sw-ubuntu-1804,latest-ubuntu-1804,latest-sw,latest-sw-ubuntu-1804
-        dockerfile: {path}/sw.Dockerfile
+        dockerfile: '{path}/sw.Dockerfile'
   build_hw:
     runs-on: ubuntu-18.04
     steps:
@@ -41,4 +41,4 @@ jobs:
         tag_with_ref: true
         tag_with_sha: true
         tags: hw,ubuntu-1804,hw-ubuntu-1804,latest-ubuntu-1804,latest-hw,latest-hw-ubuntu-1804
-        dockerfile: {path}/hw.Dockerfile
+        dockerfile: '{path}/hw.Dockerfile'
