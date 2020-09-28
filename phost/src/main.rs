@@ -48,6 +48,9 @@ struct Args {
     #[structopt(long = "no-write-back", help = "Don't write pRuntime egress data back to Substarte.")]
     no_write_back: bool,
 
+    #[structopt(long, help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled.")]
+    use_dev_key: bool,
+
     #[structopt(
     short = "r", long = "remote-attestation",
     help = "Should enable Remote Attestation")]
@@ -511,6 +514,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         let runtime_info = pr.req_decode("init_runtime", InitRuntimeReq {
             skip_ra: !args.ra,
             bridge_genesis_info_b64: info_b64,
+            debug_set_key: match args.use_dev_key {
+                true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
+                false => None
+            }
         }).await?;
 
         println!("runtime_info:{:?}", runtime_info);
