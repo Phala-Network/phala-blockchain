@@ -128,6 +128,7 @@ struct LocalState {
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
+    dev_mode: bool,
 }
 
 #[derive(Encode, Decode)]
@@ -206,7 +207,8 @@ lazy_static! {
                 block_hashes: Vec::new(),
                 ecdh_private_key: None,
                 ecdh_public_key: None,
-                machine_id: [0; 16]
+                machine_id: [0; 16],
+                dev_mode: true,
             }
         )
     };
@@ -828,20 +830,24 @@ const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct PersistentRuntimeData {
+    version: u32,
     sk: String,
-    ecdh_sk: String
+    ecdh_sk: String,
+    dev_mode: bool,
 }
 
-fn save_secret_keys(ecdsa_sk: SecretKey,
-                    ecdh_sk: EcdhKey)
-                    -> Result<PersistentRuntimeData, Error> {
-    let mut data = PersistentRuntimeData::default();
+fn save_secret_keys(ecdsa_sk: SecretKey, ecdh_sk: EcdhKey, dev_mode: bool)
+-> Result<PersistentRuntimeData, Error> {
     // Put in PresistentRuntimeData
     let serialized_sk = ecdsa_sk.serialize();
     let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
-    data.sk = hex::encode_hex_compact(serialized_sk.as_ref());
-    data.ecdh_sk = hex::encode_hex_compact(serialized_ecdh_sk.as_ref());
 
+    let data = PersistentRuntimeData {
+        version: 1,
+        sk: hex::encode_hex_compact(serialized_sk.as_ref()),
+        ecdh_sk: hex::encode_hex_compact(serialized_ecdh_sk.as_ref()),
+        dev_mode
+    };
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     println!("Length of encoded slice: {}", encoded_slice.len());
@@ -911,9 +917,9 @@ fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
 }
 
 fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(SecretKey, EcdhKey)>)
--> Result<(), Error> {
+-> Result<PersistentRuntimeData, Error> {
     let data = if let Some((ecdsa_sk, ecdh_sk)) = predefined_keys {
-        save_secret_keys(ecdsa_sk, ecdh_sk)?
+        save_secret_keys(ecdsa_sk, ecdh_sk, true)?
     } else {
         match load_secret_keys() {
             Ok(data) => data,
@@ -922,9 +928,9 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
                 let mut prng = rand::rngs::OsRng::default();
                 let ecdsa_sk = SecretKey::random(&mut prng);
                 let ecdh_sk = ecdh::generate_key();
-                save_secret_keys(ecdsa_sk, ecdh_sk)?
+                save_secret_keys(ecdsa_sk, ecdh_sk, false)?
             },
-            other_err => return other_err.map(|_| ())
+            other_err => return other_err
         }
     };
 
@@ -954,9 +960,10 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
     local_state.ecdh_private_key = Some(ecdh_sk);
     local_state.ecdh_public_key = Some(ecdh_pk);
     local_state.machine_id = machine_id.clone();
+    local_state.dev_mode = data.dev_mode;
 
     println!("Init done.");
-    Ok(())
+    Ok(data)
 }
 
 #[no_mangle]
@@ -1057,6 +1064,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         init_secret_keys(&mut local_state, Some((ecdsa_key, ecdh_key)))
             .map_err(|_| error_msg("failed to update secret key"))?;
     }
+    if !input.skip_ra && local_state.dev_mode {
+        return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
+    }
+
     let ecdsa_sk = *local_state.private_key.clone();
     let ecdsa_pk = &local_state.public_key;
     let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
@@ -1560,6 +1571,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "headernum": headernum,
         "blocknum": blocknum,
         "machine_id": machine_id,
+        "dev_mode": local_state.dev_mode,
     }))
 }
 
