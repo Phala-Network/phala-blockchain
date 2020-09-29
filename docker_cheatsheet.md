@@ -5,13 +5,13 @@ Phala Docker Cheatsheet
 
 ### Build image
 
-Software mode
+(Local dev) Software mode
 
-`docker build -f Dockerfile -t phala:dev .`
+`docker build -f sw.Dockerfile -t phala:dev .`
 
-Hardware mode
+(Local dev) Hardware mode
 
-`docker build -f Dockerfile --build-arg SGX_SPID='SGX_SPID' --build-arg SGX_IAS_API_KEY='SGX_IAS_API_KEY' -t phala:dev .`
+`docker build -f hw.Dockerfile --build-arg SGX_SPID='SGX_SPID' --build-arg SGX_IAS_API_KEY='SGX_IAS_API_KEY' -t phala:dev .`
 
 ### Run container
 
