@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
 # For hardware mode PRuntime
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/sgx-aesm-service/aesm"
-cd /opt/intel/sgx-aesm-service/aesm && ./aesm_service
+LD_LIBRARY_PATH=/opt/intel/sgx-aesm-service/aesm /opt/intel/sgx-aesm-service/aesm/aesm_service &
 
 nginx
 
@@ -17,11 +16,7 @@ echo "----------- starting pruntime ----------"
 source /opt/sgxsdk/environment
 cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
 
-sleep 6
-
-if [ ! -f "/tmp/alice/chains/local_testnet/genesis-info.txt" ]; then
-    echo "WARNING! no genesis-info.txt"
-fi
+sleep 12 # HW PRuntime start time longer than SW
 
 echo "----------- starting phost -------------"
 cd /root/prebuilt && ./phost -r --mnemonic "then prefer table fatal bus portion refuse chunk attend real horror cat" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &

@@ -15,10 +15,6 @@ cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
 
 sleep 6
 
-if [ ! -f "/tmp/alice/chains/local_testnet/genesis-info.txt" ]; then
-    echo "WARNING! no genesis-info.txt"
-fi
-
 echo "----------- starting phost -------------"
 cd /root/prebuilt && ./phost --mnemonic "then prefer table fatal bus portion refuse chunk attend real horror cat" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
 

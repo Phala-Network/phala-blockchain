@@ -14,6 +14,4 @@ apt-get update && apt-get install -y dkms gnupg2 apt-transport-https software-pr
         libsgx-quote-ex-dev=$VERSION \
         libsgx-uae-service=$VERSION \
         libsgx-urts=$VERSION && \
-    mkdir /var/run/aesmd && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -rf /var/cache/apt/archives/*
+    mkdir /var/run/aesmd
