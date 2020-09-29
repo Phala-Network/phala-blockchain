@@ -104,6 +104,9 @@ extern "C" {
     ) -> sgx_status_t;
 }
 
+const SGX_SPID_STR: &str = env!("SGX_SPID");
+const SGX_IAS_API_KEY_STR: &str = env!("SGX_IAS_API_KEY");
+
 type ChainLightValidation = light_validation::LightValidation::<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
@@ -211,6 +214,15 @@ lazy_static! {
                 dev_mode: true,
             }
         )
+    };
+
+    static ref SGX_SPID: sgx_spid_t = {
+        hex::decode_spid(SGX_SPID_STR)
+    };
+
+    static ref SGX_IAS_API_KEY: String = {
+        let stringify_key: String = SGX_IAS_API_KEY_STR.into();
+        stringify_key.trim_end().to_owned()
     };
 }
 
@@ -337,7 +349,7 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
     let config = make_ias_client_config();
     //let sigrl_arg = SigRLArg { group_id : gid };
     //let sigrl_req = sigrl_arg.to_httpreq();
-    let ias_key = get_ias_api_key();
+    let ias_key = SGX_IAS_API_KEY.clone();
 
     let req = format!("GET {}{:08x} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key: {}\r\nConnection: Close\r\n\r\n",
                       SIGRL_SUFFIX,
@@ -378,7 +390,7 @@ pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, St
     let encoded_quote = base64::encode(&quote[..]);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
 
-    let ias_key = get_ias_api_key();
+    let ias_key = SGX_IAS_API_KEY.clone();
 
     let req = format!("POST {} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key:{}\r\nContent-Length:{}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
                       REPORT_SUFFIX,
@@ -413,22 +425,6 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
         ((array[1] as u32) <<  8) +
         ((array[2] as u32) << 16) +
         ((array[3] as u32) << 24)
-}
-
-fn load_spid(filename: &str) -> sgx_spid_t {
-    let mut spidfile = fs::File::open(filename).expect("cannot open spid file");
-    let mut contents = String::new();
-    spidfile.read_to_string(&mut contents).expect("cannot read the spid file");
-
-    hex::decode_spid(&contents)
-}
-
-fn get_ias_api_key() -> String {
-    let mut keyfile = fs::File::open("key.txt").expect("cannot open ias key file");
-    let mut key = String::new();
-    keyfile.read_to_string(&mut key).expect("cannot read the ias key file");
-
-    key.trim_end().to_owned()
 }
 
 #[allow(const_err)]
@@ -533,7 +529,7 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
     let p_report = (&rep.unwrap()) as * const sgx_report_t;
     let quote_type = sign_type;
 
-    let spid : sgx_spid_t = load_spid("spid.txt");
+    let spid : sgx_spid_t = *SGX_SPID;
 
     let p_spid = &spid as *const sgx_spid_t;
     let p_nonce = &quote_nonce as * const sgx_quote_nonce_t;
@@ -968,6 +964,8 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
+    println!("spid: {:?}, key: {}", SGX_SPID.id, SGX_IAS_API_KEY.clone());
+
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
         Err(Error::SgxError(sgx_err)) => sgx_err,
