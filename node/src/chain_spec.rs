@@ -385,7 +385,7 @@ pub fn local_testnet_config() -> ChainSpec {
 	)
 }
 
-fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
+fn phala_testnet_poc3_config_genesis() -> GenesisConfig {
 	// stash, controller, session-key
 	// generated with secret:
 	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/phat/$j/$i; done; done
@@ -455,9 +455,9 @@ fn phala_testnet_poc2_config_genesis() -> GenesisConfig {
 }
 
 /// Local testnet config (multivalidator Alice + Bob)
-pub fn phala_testnet_poc2_local_config() -> ChainSpec {
+pub fn phala_testnet_poc3_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	let protocol_id: &str = "phat2";
+	let protocol_id: &str = "phat3";
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
@@ -466,10 +466,10 @@ pub fn phala_testnet_poc2_local_config() -> ChainSpec {
 	};
 
 	ChainSpec::from_genesis(
-		"Phala PoC-2",
-		"phala_poc_2",
+		"Phala PoC-3",
+		"phala_poc_3",
 		ChainType::Live,
-		phala_testnet_poc2_config_genesis,
+		phala_testnet_poc3_config_genesis,
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Staging telemetry url is valid; qed")),
@@ -479,9 +479,9 @@ pub fn phala_testnet_poc2_local_config() -> ChainSpec {
 	)
 }
 
-/// Phala PoC-2 testnet generator
-pub fn phala_testnet_poc2_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_json_bytes(&include_bytes!("../res/poc2.json")[..])
+/// Phala PoC-3 testnet generator
+pub fn phala_testnet_poc3_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/poc3.json")[..])
 }
 
 #[cfg(test)]
