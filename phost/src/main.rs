@@ -39,6 +39,9 @@ type PrClient = pruntime_client::PRuntimeClient;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
+    #[structopt(long, help = "Dev mode (equivalent to `--ra=false --use-dev-key --mnenomic='//Alice'`)")]
+    dev: bool,
+
     #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
     no_init: bool,
 
@@ -66,9 +69,11 @@ struct Args {
     help = "pRuntime http endpoint")]
     pruntime_endpoint: String,
 
-    #[structopt(required = true,
-    short = "m", long = "mnemonic",
-    help = "SR25519 keypair mnemonic")]
+    #[structopt(
+        required = true,
+        default_value = "//Alice",
+        short = "m", long = "mnemonic",
+        help = "Controller SR25519 private key mnemonic, private key seed, or derive path")]
     mnemonic: String,
 
     #[structopt(default_value = "1000", long = "fetch-blocks",
@@ -494,7 +499,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
-    let (pair, _seed) = <sr25519::Pair as Pair>::from_phrase(&args.mnemonic, None).expect("Bad mnemonic");
+    let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
+        .expect("Bad privkey derive path");
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
@@ -608,9 +614,18 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 }
 
+fn preprocess_args(args: &mut Args) {
+    if args.dev {
+        args.ra = false;
+        args.use_dev_key = true;
+        args.mnemonic = String::from("//Alice");
+    }
+}
+
 #[tokio::main]
 async fn main() {
-    let args = Args::from_args();
+    let mut args = Args::from_args();
+    preprocess_args(&mut args);
     let r = bridge(args).await;
     println!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.

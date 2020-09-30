@@ -476,6 +476,8 @@ decl_module! {
 		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
 			// This is a specialized Contract-to-Chain message passing where the confidential
 			// contract is always Balances (id = 2)
+			// Anyone can call this method. As long as the message meets all the requirements
+			// (signature, sequence id, etc), it's considered as a valid message.
 			const CONTRACT_ID: u32 = 2;
 			ensure_signed(origin)?;
 			let transfer_data: TransferData<<T as frame_system::Trait>::AccountId, BalanceOf<T>>

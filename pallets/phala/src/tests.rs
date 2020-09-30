@@ -1,10 +1,13 @@
-// Tests to be written here
-use crate::{Error, mock::*};
-use crate::RawEvent;
+use codec::Encode;
 use frame_support::{assert_ok, assert_noop, traits::{Currency}};
 use frame_system::RawOrigin;
-use sp_runtime::traits::BadOrigin;
 use hex_literal::hex;
+use secp256k1;
+use sp_runtime::traits::BadOrigin;
+
+use crate::{Error, mock::*};
+use crate::{RawEvent, Transfer, TransferData};
+use crate::hashing;
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -172,9 +175,6 @@ fn test_whitelist_works() {
 
 #[test]
 fn test_verify_signature() {
-	use secp256k1;
-	use crate::hashing;
-	use codec::Encode;
 	use rand;
 
 	new_test_ext().execute_with(|| {
@@ -227,18 +227,45 @@ fn test_mine() {
 #[test]
 fn test_transfer() {
 	new_test_ext().execute_with(|| {
+		// set contract key
+		let raw_sk = hex!["0000000000000000000000000000000000000000000000000000000000000001"];
+		let pubkey = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+		let sk = ecdsa_load_sk(&raw_sk);
+		assert_ok!(PhalaModule::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey));
 		// Get some coins
 		let imbalance = Balances::deposit_creating(&1, 100);
 		drop(imbalance);
 		// tranfer_to_tee(some coin)
 		assert_ok!(PhalaModule::transfer_to_tee(Origin::signed(1), 50));
 		assert_eq!(50, Balances::free_balance(1));
-		// +. set contract key
-		let pubkey = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
-		assert_ok!(PhalaModule::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey));
-		// 3. transfer_to_chain
-		let data = hex!["deadbeef"].to_vec();
-		assert_ok!(PhalaModule::transfer_to_chain(Origin::signed(1), data));
-		// 4. check balance
+		// transfer_to_chain
+		let transfer = Transfer::<u64, Balance> {
+			dest: 2u64,
+			amount: 10,
+			sequence: 1,
+		};
+		let signature = ecdsa_sign(&sk, &transfer);
+		let data = TransferData {
+			data: transfer,
+			signature,
+		};
+		assert_ok!(PhalaModule::transfer_to_chain(Origin::signed(1), data.encode()));
+		// check balance
+		assert_eq!(10, Balances::free_balance(2));
 	});
+}
+
+fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {;
+    secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
+}
+
+fn ecdsa_sign(sk: &secp256k1::SecretKey, data: &impl Encode) -> Vec<u8> {
+
+	let msg_hash = hashing::blake2_256(&Encode::encode(&data));
+	let mut buffer = [0u8; 32];
+	buffer.copy_from_slice(&msg_hash);
+
+	let message = secp256k1::Message::parse(&buffer);
+	let sig = secp256k1::sign(&message, &sk);
+	sig.0.serialize().to_vec()
 }
