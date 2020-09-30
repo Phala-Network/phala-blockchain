@@ -309,9 +309,9 @@ dependencies = [
 
 [[package]]
 name = "chrono"
-version = "0.4.18"
+version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d021fddb7bd3e734370acfa4a83f34095571d8570c039f1420d77540f68d5772"
+checksum = "670ad68c9088c2a963aaa298cb369688cf3f9465ce5e2d4ca10e6e0098a1ce73"
 dependencies = [
  "num-integer 0.1.43",
  "num-traits 0.2.12",
@@ -1343,7 +1343,7 @@ version = "2.0.0"
 dependencies = [
  "base64 0.11.0",
  "blake2-rfc",
- "chrono 0.4.18",
+ "chrono 0.4.19",
  "frame-support",
  "frame-system",
  "hex",
@@ -1361,7 +1361,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-proxy"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "frame-support",
  "frame-system",
