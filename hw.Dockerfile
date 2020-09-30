@@ -46,8 +46,11 @@ ADD . phala-blockchain
 
 RUN cd phala-blockchain && PATH="$PATH:$HOME/.cargo/bin" cargo build --release
 
-ARG SGX_SPID=''
-ARG SGX_IAS_API_KEY=''
+ARG IAS_SPID=''
+ARG IAS_API_KEY=''
+ARG IAS_ENV='DEV'
+ARG SGX_SIGN_KEY_URL=''
+ARG SGX_ENCLAVE_CONFIG_URL=''
 RUN cd phala-blockchain/pruntime && PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=HW make
 
 # ====== copy compiled ======

@@ -42,4 +42,4 @@ jobs:
         tag_with_sha: true
         tags: hw,ubuntu-1804,hw-ubuntu-1804,latest-ubuntu-1804,latest-hw,latest-hw-ubuntu-1804
         dockerfile: './hw.Dockerfile'
-        build_args: SGX_SPID=${{ secrets.SGX_SPID }},SGX_IAS_API_KEY=${{ secrets.SGX_IAS_API_KEY }}
+        build_args: IAS_SPID=${{ secrets.IAS_SPID }},IAS_API_KEY=${{ secrets.IAS_API_KEY }}

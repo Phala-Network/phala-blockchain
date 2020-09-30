@@ -11,7 +11,7 @@ Phala Docker Cheatsheet
 
 (Local dev) Hardware mode
 
-`docker build -f hw.Dockerfile --build-arg SGX_SPID='SGX_SPID' --build-arg SGX_IAS_API_KEY='SGX_IAS_API_KEY' -t phala:dev .`
+`docker build -f hw.Dockerfile --build-arg IAS_SPID='IAS_SPID' --build-arg IAS_API_KEY='IAS_API_KEY' -t phala:dev .`
 
 ### Run container
 

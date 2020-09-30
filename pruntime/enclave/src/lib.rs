@@ -104,8 +104,12 @@ extern "C" {
     ) -> sgx_status_t;
 }
 
-const SGX_SPID_STR: &str = env!("SGX_SPID");
-const SGX_IAS_API_KEY_STR: &str = env!("SGX_IAS_API_KEY");
+const IAS_SPID_STR: &str = env!("IAS_SPID");
+const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+
+pub const IAS_HOST:&'static str = env!("IAS_HOST");
+pub const IAS_SIGRL_ENDPOINT:&'static str = env!("IAS_SIGRL_ENDPOINT");
+pub const IAS_REPORT_ENDPOINT:&'static str = env!("IAS_REPORT_ENDPOINT");
 
 type ChainLightValidation = light_validation::LightValidation::<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
@@ -216,19 +220,15 @@ lazy_static! {
         )
     };
 
-    static ref SGX_SPID: sgx_spid_t = {
-        hex::decode_spid(SGX_SPID_STR)
+    static ref IAS_SPID: sgx_spid_t = {
+        hex::decode_spid(IAS_SPID_STR)
     };
 
-    static ref SGX_IAS_API_KEY: String = {
-        let stringify_key: String = SGX_IAS_API_KEY_STR.into();
+    static ref IAS_API_KEY: String = {
+        let stringify_key: String = IAS_API_KEY_STR.into();
         stringify_key.trim_end().to_owned()
     };
 }
-
-pub const DEV_HOSTNAME:&'static str = "api.trustedservices.intel.com";
-pub const SIGRL_SUFFIX:&'static str = "/sgx/dev/attestation/v4/sigrl/";
-pub const REPORT_SUFFIX:&'static str = "/sgx/dev/attestation/v4/report";
 
 fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
     println!("parse_response_attn_report");
@@ -349,16 +349,16 @@ pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
     let config = make_ias_client_config();
     //let sigrl_arg = SigRLArg { group_id : gid };
     //let sigrl_req = sigrl_arg.to_httpreq();
-    let ias_key = SGX_IAS_API_KEY.clone();
+    let ias_key = IAS_API_KEY.clone();
 
     let req = format!("GET {}{:08x} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key: {}\r\nConnection: Close\r\n\r\n",
-                      SIGRL_SUFFIX,
+                      IAS_SIGRL_ENDPOINT,
                       gid,
-                      DEV_HOSTNAME,
+                      IAS_HOST,
                       ias_key);
     println!("{}", req);
 
-    let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
+    let dns_name = webpki::DNSNameRef::try_from_ascii_str(IAS_HOST).unwrap();
     let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
     let mut sock = TcpStream::new(fd).unwrap();
     let mut tls = rustls::Stream::new(&mut sess, &mut sock);
@@ -390,16 +390,16 @@ pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, St
     let encoded_quote = base64::encode(&quote[..]);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
 
-    let ias_key = SGX_IAS_API_KEY.clone();
+    let ias_key = IAS_API_KEY.clone();
 
     let req = format!("POST {} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key:{}\r\nContent-Length:{}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
-                      REPORT_SUFFIX,
-                      DEV_HOSTNAME,
+                      IAS_REPORT_ENDPOINT,
+                      IAS_HOST,
                       ias_key,
                       encoded_json.len(),
                       encoded_json);
     println!("{}", req);
-    let dns_name = webpki::DNSNameRef::try_from_ascii_str(DEV_HOSTNAME).unwrap();
+    let dns_name = webpki::DNSNameRef::try_from_ascii_str(IAS_HOST).unwrap();
     let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
     let mut sock = TcpStream::new(fd).unwrap();
     let mut tls = rustls::Stream::new(&mut sess, &mut sock);
@@ -529,7 +529,7 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
     let p_report = (&rep.unwrap()) as * const sgx_report_t;
     let quote_type = sign_type;
 
-    let spid : sgx_spid_t = *SGX_SPID;
+    let spid : sgx_spid_t = *IAS_SPID;
 
     let p_spid = &spid as *const sgx_spid_t;
     let p_nonce = &quote_nonce as * const sgx_quote_nonce_t;
@@ -964,7 +964,7 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
-    println!("spid: {:?}, key: {}", SGX_SPID.id, SGX_IAS_API_KEY.clone());
+    println!("spid: {:?}, key: {}", IAS_SPID.id, IAS_API_KEY.clone());
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
