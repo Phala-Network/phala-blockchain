@@ -1,9 +1,10 @@
 // Tests to be written here
 use crate::{Error, mock::*};
 use crate::RawEvent;
-use frame_support::{assert_ok, assert_noop};
+use frame_support::{assert_ok, assert_noop, traits::{Currency}};
 use frame_system::RawOrigin;
 use sp_runtime::traits::BadOrigin;
+use hex_literal::hex;
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -64,10 +65,10 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 	},
 ]);
 
-pub const IAS_REPORT_SAMPLE : &[u8] = include_bytes!("../sample/report");
-pub const IAS_REPORT_SIGNATURE : &[u8] = include_bytes!("../sample/report_signature");
-pub const IAS_REPORT_SIGNING_CERTIFICATE : &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const TEE_REPORT_SAMPLE : [u8; 84] = [134, 222, 118, 78, 114, 234, 214, 152, 216, 8, 81, 21, 74, 185, 3, 20, 94, 86, 50, 217, 38, 6, 207, 126, 193, 213, 116, 158, 165, 3, 240, 52, 152, 244, 211, 227, 176, 63, 91, 64, 75, 255, 58, 155, 45, 184, 227, 42, 136, 168, 214, 4, 170, 88, 87, 19, 140, 173, 116, 12, 194, 233, 181, 179, 174, 91, 242, 172, 70, 33, 88, 178, 202, 201, 201, 211, 39, 66, 56, 86, 40, 0, 0, 0];
+pub const IAS_REPORT_SAMPLE: &[u8] = include_bytes!("../sample/report");
+pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signature");
+pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] = include_bytes!("../sample/report_signing_certificate");
+pub const TEE_REPORT_SAMPLE: &[u8] =  &[1, 132, 108, 64, 138, 39, 136, 214, 69, 230, 14, 76, 13, 147, 212, 21, 61, 2, 121, 190, 102, 126, 249, 220, 187, 172, 85, 160, 98, 149, 206, 135, 11, 7, 2, 155, 252, 219, 45, 206, 40, 217, 89, 242, 129, 91, 22,  248, 23, 152, 8, 0, 0, 0, 0, 1, 0, 0, 0];
 const PANIC: bool = false;
 
 #[test]
@@ -116,7 +117,7 @@ fn test_validate_cert() {
 }
 
 #[test]
-fn it_works_for_test() {
+fn test_register_worker() {
 	new_test_ext().execute_with(|| {
 		let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
 			Ok(x) => x,
@@ -128,6 +129,7 @@ fn it_works_for_test() {
 			Err(_) => panic!("decode cert failed")
 		};
 
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 	});
@@ -142,14 +144,17 @@ fn test_whitelist_works() {
 		let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).expect("decode sig failed");
 		let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).expect("decode cert failed");
 
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
+
 		// TODO: Handle RA report replay attack
 		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
-		let machine_id = PhalaModule::miner(1);
+		let machine_id = &PhalaModule::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);
 		assert_ok!(PhalaModule::register_worker(Origin::signed(2), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
-		let machine_id2 = PhalaModule::miner(2);
+		let machine_id2 = &PhalaModule::worker_state(2).machine_id;
 		assert_eq!(true, machine_id2.len() > 0);
-		let machine_id1 = PhalaModule::miner(1);
+		let machine_id1 = &PhalaModule::worker_state(1).machine_id;
 		assert_eq!(true, machine_id1.len() == 0);
 		// Check emitted events
 		assert_eq!(
@@ -176,13 +181,13 @@ fn test_verify_signature() {
 		let data = super::Transfer {
 			dest: 1u64,
 			amount: 2u128,
-			sequence: 3u32,
+			sequence: 3u64,
 		};
 
 		let mut prng = rand::rngs::OsRng::default();
 		let sk = secp256k1::SecretKey::random(&mut prng);
 		let pk = secp256k1::PublicKey::from_secret_key(&sk);
-		let serialized_pk = pk.serialize_compressed();
+		let serialized_pk = pk.serialize_compressed().to_vec();
 
 		let msg_hash = hashing::blake2_256(&Encode::encode(&data));
 		let mut buffer = [0u8; 32];
@@ -194,7 +199,7 @@ fn test_verify_signature() {
 			signature: sig.0.serialize().to_vec(),
 		};
 
-		let actual = PhalaModule::verify_signature(serialized_pk.to_vec(), &transfer_data);
+		let actual = PhalaModule::verify_signature(&serialized_pk, &transfer_data);
 		assert_eq!(true, actual.is_ok());
 	});
 }
@@ -202,7 +207,38 @@ fn test_verify_signature() {
 #[test]
 fn test_force_register_worker() {
 	new_test_ext().execute_with(|| {
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
 		assert_noop!(PhalaModule::force_register_worker(Origin::signed(1), 1, vec![0], vec![1]), BadOrigin);
+	});
+}
+
+#[test]
+fn test_mine() {
+	new_test_ext().execute_with(|| {
+		assert_noop!(PhalaModule::start_mine(Origin::signed(1)), Error::<Test>::ControllerNotFound);
+		assert_noop!(PhalaModule::stop_mine(Origin::signed(1)), Error::<Test>::ControllerNotFound);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::start_mine(Origin::signed(1)));
+		assert_ok!(PhalaModule::stop_mine(Origin::signed(1)));
+	});
+}
+
+#[test]
+fn test_transfer() {
+	new_test_ext().execute_with(|| {
+		// Get some coins
+		let imbalance = Balances::deposit_creating(&1, 100);
+		drop(imbalance);
+		// tranfer_to_tee(some coin)
+		assert_ok!(PhalaModule::transfer_to_tee(Origin::signed(1), 50));
+		assert_eq!(50, Balances::free_balance(1));
+		// +. set contract key
+		let pubkey = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+		assert_ok!(PhalaModule::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey));
+		// 3. transfer_to_chain
+		let data = hex!["deadbeef"].to_vec();
+		assert_ok!(PhalaModule::transfer_to_chain(Origin::signed(1), data));
+		// 4. check balance
 	});
 }

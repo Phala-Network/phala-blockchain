@@ -147,6 +147,12 @@ struct RuntimeInfo {
     pubkey: [u8; 33],
     features: Vec<u32>
 }
+struct PRuntimeInfo {
+	pub version: u8,
+	pub machine_id: MachineId,
+	pub pubkey: WorkerPublicKey,
+	pub features: Vec<u32>
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[derive(Encode, Decode)]

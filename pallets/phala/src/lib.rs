@@ -107,9 +107,9 @@ decl_storage! {
 
 		// Worker registry
 		/// Map from stash account to worker info (indexed: MachineOwner)
-		WorkerState get(fn worker_info): map hasher(blake2_128_concat) T::AccountId => WorkerInfo;
+		WorkerState get(fn worker_state): map hasher(blake2_128_concat) T::AccountId => WorkerInfo;
 		/// Map from stash account to stash info (indexed: Stash)
-		StashState get(fn stash_info): map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
+		StashState get(fn stash_state): map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
 
 		// Indices
 		/// Map from machine_id to stash
@@ -125,9 +125,13 @@ decl_storage! {
 
 	add_extra_genesis {
 		config(stakers): Vec<(T::AccountId, T::AccountId)>;
+		config(contract_keys): Vec<Vec<u8>>;
 		build(|config: &GenesisConfig<T>| {
-			for (stash, controller) in &config.stakers {
+			let base_mid = BUILTIN_MACHINE_ID.as_bytes().to_vec();
+			for (i, (stash, controller)) in config.stakers.iter().enumerate() {
 				// Mock worker / stash info
+				let mut machine_id = base_mid.clone();
+				machine_id.push(b'0' + (i as u8));
 				let worker_info = WorkerInfo {
 					machine_id: BUILTIN_MACHINE_ID.as_bytes().to_vec(),
 					..Default::default()
@@ -143,7 +147,10 @@ decl_storage! {
 				StashState::<T>::insert(&stash, stash_info);
 				// Update indices (skip MachineOwenr because we won't use it in anyway)
 				Stash::<T>::insert(&controller, &stash);
-				// TODO: insert the default contract key here
+			}
+			// Insert the default contract key here
+			for (i, key) in config.contract_keys.iter().enumerate() {
+				ContractKey::insert(i as u32, key);
 			}
 		});
 	}
@@ -171,6 +178,7 @@ decl_error! {
 		InvalidIASReportSignature,
 		InvalidQuoteStatus,
 		InvalidRuntimeInfo,
+		InvalidRuntimeInfoHash,
 		MinerNotFound,
 		BadMachineId,
 		InvalidPubKey,
@@ -364,7 +372,7 @@ decl_module! {
 			let report_data = &quote_body[368..432];
 			// Validate report data
 			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
-			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfo);
+			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let machine_id = runtime_info.machine_id.to_vec();
 			// Add into the registry
@@ -448,6 +456,7 @@ decl_module! {
 
 		#[weight = 0]
 		fn claim_reward(origin, stash: T::AccountId) -> dispatch::DispatchResult {
+			ensure_signed(origin)?;
 			// invoked by anyone
 			Ok(())
 		}
