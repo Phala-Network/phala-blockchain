@@ -71,7 +71,7 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 pub const IAS_REPORT_SAMPLE: &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signature");
 pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const TEE_REPORT_SAMPLE: &[u8] =  &[1, 132, 108, 64, 138, 39, 136, 214, 69, 230, 14, 76, 13, 147, 212, 21, 61, 2, 121, 190, 102, 126, 249, 220, 187, 172, 85, 160, 98, 149, 206, 135, 11, 7, 2, 155, 252, 219, 45, 206, 40, 217, 89, 242, 129, 91, 22,  248, 23, 152, 8, 0, 0, 0, 0, 1, 0, 0, 0];
+pub const TEE_REPORT_SAMPLE: &[u8] =  &[1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90, 188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50, 211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0];
 const PANIC: bool = false;
 
 #[test]
@@ -255,7 +255,7 @@ fn test_transfer() {
 	});
 }
 
-fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {;
+fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
     secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
 }
 
