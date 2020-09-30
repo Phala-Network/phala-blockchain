@@ -142,16 +142,10 @@ struct LocalState {
 
 #[derive(Encode, Decode)]
 struct RuntimeInfo {
-	version: u8,
+    version: u8,
     machine_id: [u8; 16],
     pubkey: [u8; 33],
     features: Vec<u32>
-}
-struct PRuntimeInfo {
-	pub version: u8,
-	pub machine_id: MachineId,
-	pub pubkey: WorkerPublicKey,
-	pub features: Vec<u32>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
