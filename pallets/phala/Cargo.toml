@@ -38,6 +38,8 @@ path = "../../substrate/frame/balances"
 
 [dev-dependencies]
 sp-core = { version = "2.0.0", path = "../../substrate/primitives/core", default_features = false, features = ["full_crypto"] }
+pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
+hex-literal = "0.3.1"
 rand = "0.7.3"
 
 [features]

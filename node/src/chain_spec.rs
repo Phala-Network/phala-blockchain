@@ -238,6 +238,8 @@ pub fn testnet_genesis(
 
 	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
 	const STASH: Balance = 100 * DOLLARS;
+	// The pubkey of "0x1"
+	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
 
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
@@ -265,8 +267,9 @@ pub fn testnet_genesis(
 		}),
 		pallet_phala: Some(PhalaModuleConfig {
 			stakers: initial_authorities.iter().map(|x| {
-				x.1.clone()
+				(x.0.clone(), x.1.clone())
 			}).collect(),
+			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(4).collect(),
 		}),
 		pallet_staking: Some(StakingConfig {
 			validator_count: initial_authorities.len() as u32 * 2,

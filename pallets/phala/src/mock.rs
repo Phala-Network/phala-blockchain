@@ -35,6 +35,7 @@ parameter_types! {
 	pub const MaximumBlockWeight: Weight = 1024;
 	pub const MaximumBlockLength: u32 = 2 * 1024;
 	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub const MinimumPeriod: u64 = 1;
 }
 
 impl system::Trait for Test {
@@ -58,7 +59,7 @@ impl system::Trait for Test {
 	type MaximumBlockLength = MaximumBlockLength;
 	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
-	type ModuleToIndex = ();
+	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -66,6 +67,7 @@ impl system::Trait for Test {
 }
 
 impl pallet_balances::Trait for Test {
+	type MaxLocks = ();
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = TestEvent;
@@ -74,9 +76,17 @@ impl pallet_balances::Trait for Test {
 	type WeightInfo = ();
 }
 
+impl pallet_timestamp::Trait for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
+}
+
 impl Trait for Test {
 	type Event = TestEvent;
 	type TEECurrency = Balances;
+	type UnixTime = pallet_timestamp::Module<Test>;
 }
 
 mod test_events {
