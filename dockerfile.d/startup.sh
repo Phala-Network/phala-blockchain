@@ -16,7 +16,7 @@ cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
 sleep 6
 
 echo "----------- starting phost -------------"
-cd /root/prebuilt && ./phost --mnemonic "then prefer table fatal bus portion refuse chunk attend real horror cat" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
+cd /root/prebuilt && ./phost --dev --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
 
 # tail -f /root/alice.out /root/bob.out /root/pruntime.out /root/phost.out
 tail -f /root/node.out /root/pruntime.out /root/phost.out
