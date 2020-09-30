@@ -39,7 +39,7 @@ pub use pallet_phala;
 pub use template;
 
 /// Import the message pallet.
-pub use cumulus_token_dealer;
+pub use phala_xtoken;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -224,17 +224,18 @@ impl cumulus_parachain_upgrade::Trait for Runtime {
 
 impl cumulus_message_broker::Trait for Runtime {
 	type Event = Event;
-	type DownwardMessageHandlers = TokenDealer;
+	type DownwardMessageHandlers = PhalaXToken;
 	type UpwardMessage = cumulus_upward_message::RococoUpwardMessage;
 	type ParachainId = ParachainInfo;
-	type XCMPMessage = cumulus_token_dealer::XCMPMessage<AccountId, Balance>;
-	type XCMPMessageHandlers = TokenDealer;
+	type XCMPMessage = phala_xtoken::XCMPMessage<AccountId, Balance>;
+	type XCMPMessageHandlers = PhalaXToken;
 }
 
 impl parachain_info::Trait for Runtime {}
 
-impl cumulus_token_dealer::Trait for Runtime {
+impl phala_xtoken::Trait for Runtime {
 	type Event = Event;
+	type Balance = Balance;
 	type UpwardMessageSender = MessageBroker;
 	type UpwardMessage = cumulus_upward_message::RococoUpwardMessage;
 	type Currency = Balances;
@@ -266,7 +267,7 @@ construct_runtime! {
 		MessageBroker: cumulus_message_broker::{Module, Call, Inherent, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
-		TokenDealer: cumulus_token_dealer::{Module, Call, Event<T>},
+		PhalaXToken: phala_xtoken::{Module, Call, Event<T>},
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 	}
