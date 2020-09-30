@@ -164,8 +164,8 @@ $(RustEnclave_Name): enclave enclave/Enclave_t.o
 
 $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 	@mkdir -p priv
-	@if [ ! -z "$(SGX_SIGN_KEY_URL)" ]; then wget $(SGX_SIGN_KEY_URL) -t 3 -O $(SGX_SIGN_KEY); fi
-	@if [ ! -z "$(SGX_ENCLAVE_CONFIG_URL)" ]; then wget $(SGX_ENCLAVE_CONFIG_URL) -t 3 -O $(SGX_ENCLAVE_CONFIG); fi
+	@if [ ! -z "$(SGX_SIGN_KEY_URL)" ]; then wget $(SGX_SIGN_KEY_URL) -q -t 3 -O $(SGX_SIGN_KEY); fi
+	@if [ ! -z "$(SGX_ENCLAVE_CONFIG_URL)" ]; then wget $(SGX_ENCLAVE_CONFIG_URL) -q -t 3 -O $(SGX_ENCLAVE_CONFIG); fi
 	@mkdir -p bin
 	$(SGX_ENCLAVE_SIGNER) sign -key $(SGX_SIGN_KEY) -enclave $(RustEnclave_Name) -out $@ -config $(SGX_ENCLAVE_CONFIG)
 	@rm -rf priv
