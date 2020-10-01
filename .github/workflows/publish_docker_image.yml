@@ -18,6 +18,7 @@ jobs:
         submodules: 'true'
     - uses: docker/build-push-action@v1.1.1
       with:
+        cache_froms: docker.pkg.github.com/phala-network/phala-blockchain/sw:latest
         username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
         password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
@@ -34,6 +35,7 @@ jobs:
         submodules: 'true'
     - uses: docker/build-push-action@v1.1.1
       with:
+        cache_froms: docker.pkg.github.com/phala-network/phala-blockchain/hw:latest
         username: ${{ secrets.PACKAGE_MANAGER_USERNAME }}
         password: ${{ secrets.PACKAGE_MANAGER_TOKEN }}
         registry: docker.pkg.github.com
