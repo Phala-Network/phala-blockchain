@@ -1,5 +1,7 @@
 #!/bin/bash
 
+network=phat
+
 read -s -p "Enter mnemonic: " secret
 echo "[Generated code]"
 
@@ -16,10 +18,10 @@ printf """    let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, Bab
     """
 
 for i in 1 2 3 4 ; do
-    stash=$(get_pubkey -s inspect "$secret"/phat/stash/$i)
-    controller=$(get_pubkey -s inspect "$secret"/phat/controller/$i)
-    session_gran=$(get_pubkey -e inspect "$secret"//phat//session//$i)
-    session_babe=$(get_pubkey -s inspect "$secret"//phat//session//$i)
+    stash=$(get_pubkey -s inspect "$secret"/"$network"/stash/$i)
+    controller=$(get_pubkey -s inspect "$secret"/"$network"/controller/$i)
+    session_gran=$(get_pubkey -e inspect "$secret"//"$network"//session//$i)
+    session_babe=$(get_pubkey -s inspect "$secret"//"$network"//session//$i)
 
     printf """(
         // Stash
@@ -37,9 +39,9 @@ done
 
 echo """];
 
-    // generated with secret: subkey inspect \"\$secret\"/phat
+    // generated with secret: subkey inspect \"\$secret\"/"$network"
     let root_key: AccountId = hex![
-        \"$(get_pubkey -s inspect "$secret"/fir)\"
+        \"$(get_pubkey -s inspect "$secret"/"$network")\"
     ].into();
 """
 
