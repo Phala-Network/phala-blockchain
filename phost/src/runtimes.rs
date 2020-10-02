@@ -119,6 +119,13 @@ pub mod phala {
     #[module]
     pub trait PhalaModule: System + Balances {}
 
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct PushCommandCall<T: PhalaModule> {
+        pub _runtime: PhantomData<T>,
+        pub contract_id: u32,
+        pub payload: Vec<u8>,
+    }
+
     /// The call to transfer_to_tee
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct TransferToTeeCall<T: PhalaModule> {
