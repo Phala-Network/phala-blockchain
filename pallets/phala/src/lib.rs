@@ -124,16 +124,17 @@ decl_storage! {
 	}
 
 	add_extra_genesis {
-		config(stakers): Vec<(T::AccountId, T::AccountId)>;
+		config(stakers): Vec<(T::AccountId, T::AccountId, Vec<u8>)>;  // <stash, controller, pubkey>
 		config(contract_keys): Vec<Vec<u8>>;
 		build(|config: &GenesisConfig<T>| {
 			let base_mid = BUILTIN_MACHINE_ID.as_bytes().to_vec();
-			for (i, (stash, controller)) in config.stakers.iter().enumerate() {
+			for (i, (stash, controller, pubkey)) in config.stakers.iter().enumerate() {
 				// Mock worker / stash info
 				let mut machine_id = base_mid.clone();
 				machine_id.push(b'0' + (i as u8));
 				let worker_info = WorkerInfo {
-					machine_id: BUILTIN_MACHINE_ID.as_bytes().to_vec(),
+					machine_id,
+					pubkey: pubkey.clone(),
 					..Default::default()
 				};
 				WorkerState::<T>::insert(&stash, worker_info);
@@ -156,18 +157,18 @@ decl_storage! {
 	}
 }
 
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
 decl_event!(
 	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId, Balance = BalanceOf<T> {
-		CommandPushed(AccountId, u32, Vec<u8>, u64),
+		// Debug events
 		LogString(Vec<u8>),
+		LogI32(i32),
+		// Chain events
+		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(Vec<u8>, Balance),
 		TransferToChain(Vec<u8>, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
-		SimpleEvent(u32),
-		Heartbeat(),
+		Heartbeat(AccountId, u32),
 	}
 );
 
@@ -213,6 +214,8 @@ decl_error! {
 		InvalidInput,
 		/// Invalid contract
 		InvalidContract,
+		/// Internal Error
+		InternalError,
 	}
 }
 
@@ -513,7 +516,7 @@ decl_module! {
 			// Validate TEE signature
 			Self::verify_signature(&worker_info.pubkey, &heartbeat_data)?;
 			// Emit event
-			Self::deposit_event(RawEvent::Heartbeat());
+			Self::deposit_event(RawEvent::Heartbeat(stash, heartbeat_data.data.block_num));
 			Ok(())
 		}
 
@@ -530,10 +533,7 @@ impl<T: Trait> Module<T> {
 		Stash::<T>::contains_key(&controller)
 	}
 	pub fn verify_signature(serialized_pk: &Vec<u8>, data: &impl SignedDataType<Vec<u8>>) -> dispatch::DispatchResult {
-		let mut pk = [0u8; 33];
-		pk.copy_from_slice(&serialized_pk);
-		let pub_key = secp256k1::PublicKey::parse_compressed(&pk)
-			.map_err(|_| Error::<T>::InvalidPubKey)?;
+		let pub_key = Self::try_parse_ecdsa_key(serialized_pk)?;
 		let signature = secp256k1::Signature::parse_slice(&data.signature())
 			.map_err(|_| Error::<T>::InvalidSignature)?;
 
@@ -558,6 +558,16 @@ impl<T: Trait> Module<T> {
 		let worker_info = WorkerState::<T>::take(&stash);
 		Self::deposit_event(RawEvent::WorkerUnregistered(stash, machine_id.clone()));
 		Some(worker_info)
+	}
+
+	fn try_parse_ecdsa_key(serialized_pk: &Vec<u8>) -> Result<secp256k1::PublicKey, Error<T>> {
+		let mut pk = [0u8; 33];
+		if serialized_pk.len() != 33 {
+			return Err(Error::<T>::InvalidPubKey);
+		}
+		pk.copy_from_slice(&serialized_pk);
+		secp256k1::PublicKey::parse_compressed(&pk)
+			.map_err(|_| Error::<T>::InvalidPubKey)
 	}
 }
 

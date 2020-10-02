@@ -267,7 +267,7 @@ pub fn testnet_genesis(
 		}),
 		pallet_phala: Some(PhalaModuleConfig {
 			stakers: initial_authorities.iter().map(|x| {
-				(x.0.clone(), x.1.clone())
+				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
 			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(4).collect(),
 		}),

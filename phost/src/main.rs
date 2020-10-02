@@ -466,14 +466,14 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, 
 async fn send_heartbeat_to_chain(client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
     let result = pr.req_decode("ping", PingReq {}).await?;
     if result.status != "ok" {
-        print!("ping api returns: {}, skip", result.status);
+        println!("Ping api returns: {}, skip", result.status);
         return Ok(())
     }
 
     let data = base64::decode(&mut &result.encoded_data).unwrap();
 
     let heartbeat_data = HeartbeatData::decode(&mut &data[..]).unwrap();
-    print!("Heartbeat: {}", heartbeat_data.data.block_num);
+    println!("Heartbeat at block {}", heartbeat_data.data.block_num);
 
     let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
     update_singer_nonce(&client, &mut signer).await?;
