@@ -15,11 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
+SHELL := /bin/bash
+
 ######## SGX SDK Settings ########
 
 SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
+
+# Changing SGX_MODE will trigger rebuild
+define DEPENDABLE_VAR
+.PHONY: phony
+$1: phony
+	@if [[ `cat $1 2>&1` != '$($1)' ]]; then \
+		echo -n $($1) > $1 ; \
+	fi
+endef
+$(eval $(call DEPENDABLE_VAR,SGX_MODE))
 
 TOP_DIR := .
 include $(TOP_DIR)/buildenv.mk
@@ -146,7 +158,7 @@ $(App_Enclave_u_Object): app/Enclave_u.o
 	$(AR) rcsD $@ $^
 	cp $(App_Enclave_u_Object) ./lib
 
-$(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files)
+$(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files) SGX_MODE
 	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 	@echo "Cargo  =>  $@"
 	mkdir -p bin

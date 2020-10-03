@@ -62,3 +62,4 @@ Enclave_t.h
 /vendor/ring/doc/doc.css
 
 tmp
+SGX_MODE
