@@ -19,7 +19,7 @@ cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
 sleep 12 # HW PRuntime start time longer than SW
 
 echo "----------- starting phost -------------"
-cd /root/prebuilt && ./phost --ra --mnemonic "//Alice" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
+cd /root/prebuilt && ./phost --skip-ra false --mnemonic "//Alice" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
 
 # tail -f /root/alice.out /root/bob.out /root/pruntime.out /root/phost.out
 tail -f /root/node.out /root/pruntime.out /root/phost.out

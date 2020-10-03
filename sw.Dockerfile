@@ -56,7 +56,7 @@ ADD dockerfile.d/startup.sh ./startup.sh
 ADD dockerfile.d/api.nginx.conf /etc/nginx/sites-enabled/default
 CMD bash ./startup.sh
 
-EXPOSE 8080
+EXPOSE 8000
 EXPOSE 9933
 EXPOSE 9944
 EXPOSE 30333

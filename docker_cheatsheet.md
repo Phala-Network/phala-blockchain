@@ -15,13 +15,17 @@ Phala Docker Cheatsheet
 
 ### Run container
 
-Hardware mode
+Hardware mode (SGX Driver)
 
-`docker run -ti --device /dev/sgx/enclave --device /dev/sgx/provision --name phala -d -p 9944:9944 -p 30333:30333 -v $(pwd)/data:/root/data phala:dev`
+`docker run -ti --device /dev/isgx --name phala -d -p 9944:9944 -p 30333:30333 -p 8000:8000 -v $(pwd)/data:/root/data phala:dev`
+
+Hardware mode (DCAP Driver)
+
+`docker run -ti --device /dev/sgx/enclave --device /dev/sgx/provision --name phala -d -p 9944:9944 -p 30333:30333 -p 8000:8000 -v $(pwd)/data:/root/data phala:dev`
 
 Software mode
 
-`docker run -ti --name phala -d -p 8080:8080 -p 30333:30333 -v $(pwd)/data:/root/data phala:dev`
+`docker run -ti --name phala -d -p 8000:8000 -p 30333:30333 -v $(pwd)/data:/root/data phala:dev`
 
 ### Start & stop container
 
