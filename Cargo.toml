@@ -1,10 +1,24 @@
 [workspace]
+
+exclude = [
+	"subxt",
+	"webpki",
+	"ring",
+	"native-nostd-hasher",
+	"serde_no_std",
+	"serde_derive_no_std",
+	"serde_json_no_std",
+	"pruntime",
+]
+
 members = [
 	"runtime/",
 	"pallets/parachain-info",
-	"pallets/token-dealer",
+	"pallets/phala-xtoken",
 	"pallets/template",
+	"pallets/phala",
 	"node/",
+	"phost"
 ]
 
 [profile.release]
