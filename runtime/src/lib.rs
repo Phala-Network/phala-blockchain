@@ -27,13 +27,22 @@ pub use frame_support::{
 	weights::{constants::WEIGHT_PER_SECOND, IdentityFee, Weight},
 	StorageValue,
 };
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
 pub use pallet_balances::Call as BalancesCall;
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
 pub use pallet_timestamp::Call as TimestampCall;
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
+pub use frame_system::Call as SystemCall;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 pub use sp_runtime::{Perbill, Permill};
 
 pub use pallet_phala;
+
+#[cfg(not(feature = "native-nostd-hasher"))]
+type Hasher = sp_runtime::traits::BlakeTwo256;
+#[cfg(feature = "native-nostd-hasher")]
+type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 /// Import the template pallet.
 pub use template;
@@ -144,7 +153,7 @@ impl frame_system::Trait for Runtime {
 	/// The type for hashing blocks and tries.
 	type Hash = Hash;
 	/// The hashing algorithm used.
-	type Hashing = BlakeTwo256;
+	type Hashing = Hasher;
 	/// The header type.
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
 	/// The ubiquitous event type.

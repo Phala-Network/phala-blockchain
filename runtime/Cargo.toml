@@ -44,11 +44,17 @@ cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-f
 #phala dependencies
 pallet-phala = { version = "2.0.0-rc5", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 
+
+native-nostd-hasher = { version = "2.0.0-rc6", path = "../native-nostd-hasher", optional = true }
+
+
 [build-dependencies]
 wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.6" }
 
 [features]
-default = [ "std" ]
+default = ["std", "include-wasm"]
+include-wasm = []
+native-nostd = ["native-nostd-hasher"]
 std = [
 	"codec/std",
 	"serde",
