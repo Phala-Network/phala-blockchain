@@ -355,7 +355,7 @@ checksum = "4a6c9ed761af7400d28c83fe8da778a0a08489839e83ba12cefacaf34f2c559d"
 dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
- "syn 1.0.38",
+ "syn 1.0.39",
 ]
 
 [[package]]
@@ -4357,7 +4357,6 @@ dependencies = [
  "cumulus-parachain-upgrade",
  "cumulus-primitives",
  "cumulus-runtime",
- "cumulus-token-dealer",
  "cumulus-upward-message",
  "frame-executive",
  "frame-support",
@@ -4371,6 +4370,7 @@ dependencies = [
  "pallet-transaction-payment",
  "parachain-info",
  "parity-scale-codec",
+ "phala-xtoken",
  "serde",
  "sp-api",
  "sp-block-builder",
@@ -4673,6 +4673,20 @@ checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
 dependencies = [
  "fixedbitset",
  "indexmap",
+]
+
+[[package]]
+name = "phala-xtoken"
+version = "0.1.0"
+dependencies = [
+ "cumulus-primitives",
+ "cumulus-upward-message",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-runtime",
+ "sp-std",
 ]
 
 [[package]]
@@ -6126,7 +6140,7 @@ checksum = "b9bdc5e856e51e685846fb6c13a1f5e5432946c2c90501bdc76a1319f19e29da"
 dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
- "syn 1.0.38",
+ "syn 1.0.39",
 ]
 
 [[package]]
@@ -7202,7 +7216,7 @@ dependencies = [
  "proc-macro2 1.0.19",
  "quote 1.0.7",
  "serde_no_std",
- "syn 1.0.38",
+ "syn 1.0.39",
 ]
 
 [[package]]
