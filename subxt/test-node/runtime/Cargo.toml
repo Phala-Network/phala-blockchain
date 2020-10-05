@@ -1,0 +1,70 @@
+[package]
+name = "test-node-runtime"
+version = "2.0.0-rc6"
+authors = ["Anonymous"]
+edition = "2018"
+license = "Unlicense"
+homepage = "https://substrate.dev"
+repository = "https://github.com/paritytech/substrate/"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.1", default-features = false, features = ["derive"] }
+
+aura = {  default-features = false, package = "pallet-aura", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+balances = {  default-features = false, package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+frame-support = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+grandpa = {  default-features = false, package = "pallet-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+randomness-collective-flip = {  default-features = false, package = "pallet-randomness-collective-flip", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sudo = {  default-features = false, package = "pallet-sudo", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+system = {  default-features = false, package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+timestamp = {  default-features = false, package = "pallet-timestamp", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+transaction-payment = {  default-features = false, package = "pallet-transaction-payment", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+frame-executive = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+serde = { version = "1.0.114", optional = true, features = ["derive"] }
+sp-api = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-block-builder = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-consensus-aura = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-core = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-inherents = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-io = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-offchain = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-runtime = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-session = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-std = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-transaction-pool = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sp-version = {  default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+
+[build-dependencies]
+wasm-builder-runner = { package = "substrate-wasm-builder-runner", version = "1.0.6" }
+
+[features]
+default = ["std"]
+std = [
+	"aura/std",
+	"balances/std",
+	"codec/std",
+	"frame-executive/std",
+	"frame-support/std",
+	"grandpa/std",
+	"randomness-collective-flip/std",
+	"serde",
+	"sp-api/std",
+	"sp-block-builder/std",
+	"sp-consensus-aura/std",
+	"sp-core/std",
+	"sp-inherents/std",
+	"sp-io/std",
+	"sp-offchain/std",
+	"sp-runtime/std",
+	"sp-session/std",
+	"sp-std/std",
+	"sp-transaction-pool/std",
+	"sp-version/std",
+	"sudo/std",
+	"system/std",
+	"timestamp/std",
+	"transaction-payment/std",
+]
