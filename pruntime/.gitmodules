@@ -1,0 +1,4 @@
+[submodule "rust-sgx-sdk"]
+	path = rust-sgx-sdk
+	url = https://github.com/apache/incubator-teaclave-sgx-sdk.git
+	ignore = dirty
