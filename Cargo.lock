@@ -3609,18 +3609,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "node-primitives"
-version = "2.0.0-rc5"
-source = "git+https://github.com/paritytech/substrate?branch=rococo-branch#83544d41abcc0e3d3cbbd6aa510e04dc50863e5c"
-dependencies = [
- "frame-system",
- "parity-scale-codec",
- "sp-application-crypto",
- "sp-core",
- "sp-runtime",
-]
-
-[[package]]
 name = "nodrop"
 version = "0.1.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4749,7 +4737,6 @@ dependencies = [
  "futures 0.3.5",
  "hex",
  "hyper 0.13.7",
- "node-primitives",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
