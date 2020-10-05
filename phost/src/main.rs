@@ -2,20 +2,12 @@ use tokio::time::delay_for;
 use std::time::Duration;
 use structopt::StructOpt;
 
-use phala_node_runtime::{self, BlockNumber};
 use sp_rpc::number::NumberOrHex;
 use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
 use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
-use sp_runtime::{
-    traits::{
-        IdentifyAccount,
-        SignedExtension,
-        Verify,
-    },
-};
 
 mod error;
 mod pruntime_client;
@@ -24,11 +16,11 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Runtime, Header, Hash, OpaqueSignedBlock,
+    Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    DispatchBlockReq, DispatchBlockResp, PingReq, PingResp, HeartbeatData, Heartbeat
+    DispatchBlockReq, DispatchBlockResp, PingReq, /*PingResp,*/ HeartbeatData, /*Heartbeat*/
 };
 
 use subxt::Signer;
@@ -90,11 +82,6 @@ struct BlockSyncState {
     authory_set_state: Option<(BlockNumber, SetId)>
 }
 
-fn deopaque_signedblock(opaque_block: OpaqueSignedBlock) -> phala_node_runtime::SignedBlock {
-    let raw_block = Encode::encode(&opaque_block);
-    phala_node_runtime::SignedBlock::decode(&mut raw_block.as_slice()).expect("Block decode failed")
-}
-
 async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
                       -> Result<BlockWithEvents, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
@@ -105,25 +92,22 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
 
     println!("get_block_at: Got block {:?} hash {}", h, hash.to_string());
 
-    let opaque_block = client.block(Some(hash)).await?
+    let block = client.block(Some(hash.clone())).await?
         .ok_or(Error::BlockNotFound)?;
 
-    let block = deopaque_signedblock(opaque_block);
-
-    if with_events {
-        let block_with_events = fetch_events(&client, &block).await?;
-        if let Some(ref events) = block_with_events.events {
-            println!("          ... with events {} bytes", events.len());
+    let (events, proof, key) = if with_events {
+        let events_with_proof = fetch_events(&client, &hash).await?;
+        if let Some((raw_events, proof, key)) = events_with_proof {
+            println!("          ... with events {} bytes", raw_events.len());
+            (Some(raw_events), Some(proof), Some(key))
+        } else {
+            (None, None, None)
         }
-        return Ok(block_with_events)
-    }
+    } else {
+        (None, None, None)
+    };
 
-    Ok(BlockWithEvents {
-        block,
-        events: None,
-        proof: None,
-        key: None,
-    })
+    Ok(BlockWithEvents { block, events, proof, key })
 }
 
 async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
@@ -206,35 +190,23 @@ async fn bisec_setid_change(
     Ok(result)
 }
 
-async fn fetch_events(client: &XtClient, block: &phala_node_runtime::SignedBlock) -> Result<BlockWithEvents, Error> {
-    let hash = client.block_hash(Some(subxt::BlockNumber::from(block.block.header.number))).await?;
+async fn fetch_events(client: &XtClient, hash: &Hash)
+-> Result<Option<(RawEvents, StorageProof, RawStorageKey)>, Error> {
+    // let hash = client.block_hash(Some(subxt::BlockNumber::from(block_number))).await?;
     let key = storage_value_key_vec("System", "Events");
     let storage_key = StorageKey(key.clone());
-    let block_with_events = match get_storage(&client, hash, storage_key.clone()).await? {
+    let result = match get_storage(&client, Some(hash.clone()), storage_key.clone()).await? {
         Some(value) => {
-            let proof = read_proof(&client, hash, storage_key).await?.proof;
-            let mut prf = Vec::new();
-            for p in proof {
-                prf.push(p.to_vec());
-            }
-
-            BlockWithEvents {
-                block: block.clone(),
-                events: Some(value),
-                proof: Some(prf),
-                key: Some(key),
-            }
+            let proof = read_proof(&client, Some(hash.clone()), storage_key).await?
+                .proof
+                .iter()
+                .map(|x| x.to_vec())
+                .collect();
+            Some((value, proof, key))
         },
-
-        None => BlockWithEvents {
-            block: block.clone(),
-            events: None,
-            proof: None,
-            key: None,
-        }
+        None => None,
     };
-
-    Ok(block_with_events)
+    Ok(result)
 }
 
 fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
