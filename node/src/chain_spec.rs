@@ -2,7 +2,7 @@
 
 use cumulus_primitives::ParaId;
 use parachain_runtime::{
-	AccountId, BalancesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig,
+	AccountId, BalancesConfig, IndicesConfig, GenesisConfig, Signature, SudoConfig, SystemConfig,
 	ParachainInfoConfig, WASM_BINARY, PhalaModuleConfig,
 };
 use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
@@ -173,6 +173,9 @@ fn testnet_genesis(
 				.cloned()
 				.map(|k| (k, 1 << 60))
 				.collect(),
+		}),
+		pallet_indices: Some(IndicesConfig {
+			indices: vec![],
 		}),
 		pallet_sudo: Some(SudoConfig { key: root_key }),
 		parachain_info: Some(ParachainInfoConfig { parachain_id: id }),

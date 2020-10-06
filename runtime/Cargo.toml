@@ -33,6 +33,7 @@ pallet-randomness-collective-flip = { git = "https://github.com/paritytech/subst
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+pallet-indices = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
 # Cumulus dependencies
 cumulus-runtime = { git = "https://github.com/paritytech/cumulus",  default-features = false, rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }

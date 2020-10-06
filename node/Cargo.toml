@@ -53,6 +53,7 @@ sp-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 grandpa-primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 pallet-im-online = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+pallet-indices = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
 # Cumulus dependencies
 cumulus-consensus = { git = "https://github.com/paritytech/cumulus", rev = '4e7f138c828bcf118df1c988a400d4dac8e904d9' }
