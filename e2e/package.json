@@ -10,6 +10,7 @@
     "test": "mocha tests/fullstack.js"
   },
   "dependencies": {
+    "@polkadot/api": "^2.1.1",
     "axios": "^0.20.0",
     "chai": "^4.2.0",
     "dotenv": "^8.2.0",
