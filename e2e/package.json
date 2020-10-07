@@ -1,0 +1,20 @@
+{
+  "name": "phala-e2e-test",
+  "version": "1.0.0",
+  "main": "index.js",
+  "repository": "git@github.com:Phala-Network/phala-blockchain.git",
+  "author": "h4x3rotab <h4x3rotab@gmail.com>",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "test": "mocha tests/fullstack.js"
+  },
+  "dependencies": {
+    "@polkadot/api": "^2.1.1",
+    "axios": "^0.20.0",
+    "chai": "^4.2.0",
+    "dotenv": "^8.2.0",
+    "mocha": "^8.1.3",
+    "mochawesome": "^6.1.1"
+  }
+}

@@ -1,0 +1,21 @@
+{
+    "WorkerInfo": {
+        "machineId": "Vec<u8>",
+        "pubkey": "Vec<u8>",
+        "lastUpdated": "u64",
+        "status": "i32",
+        "score": "Option<Score>"
+    },
+    "Score": {
+        "overallScore": "u32",
+        "features": "Vec<u32>"
+    },
+    "StashInfo": {
+        "controller": "AccountId",
+        "payoutPrefs": "PayoutPrefs"
+    },
+    "PayoutPrefs": {
+        "commission": "u32",
+        "target": "AccountId"
+    }
+}
