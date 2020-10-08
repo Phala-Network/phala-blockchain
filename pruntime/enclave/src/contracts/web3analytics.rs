@@ -201,7 +201,7 @@ pub struct Web3Analytics {
     #[serde(skip)]
     parser: woothee::parser::Parser,
 
-    configuration: BTreeMap<AccountIdWrapper, bool>
+    no_tracking: BTreeMap<AccountIdWrapper, bool>
 
 }
 
@@ -221,7 +221,7 @@ impl Web3Analytics {
 
             parser: woothee::parser::Parser::new(),
 
-            configuration: BTreeMap::<AccountIdWrapper, bool>::new(),
+            no_tracking: BTreeMap::<AccountIdWrapper, bool>::new(),
         }
     }
 
@@ -725,9 +725,9 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                 println!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
 
                 if skip_stat {
-                    self.configuration.insert(o, skip_stat);
+                    self.no_tracking.insert(o, skip_stat);
                 } else {
-                    self.configuration.remove(&o);
+                    self.no_tracking.remove(&o);
                 }
 
                 TransactionStatus::Ok
@@ -742,7 +742,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
             match req {
                 Request::SetPageView { page_views, encrypted } => {
                     for page_view in page_views {
-                        if page_view.uid.len() == 64 && self.configuration.contains_key(&AccountIdWrapper::from_hex(&page_view.uid)) {
+                        if page_view.uid.len() == 64 && self.no_tracking.contains_key(&AccountIdWrapper::from_hex(&page_view.uid)) {
                             continue;
                         }
                         let b = self.page_views.clone().into_iter().any(|x| x.id == page_view.id);
@@ -789,7 +789,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     }
 
                     let mut off = false;
-                    if let Some(o) = self.configuration.get(&account) {
+                    if let Some(o) = self.no_tracking.get(&account) {
                         off = *o;
                     }
                     Ok(Response::GetConfiguration { skip_stat: off })
