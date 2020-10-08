@@ -269,7 +269,8 @@ pub fn testnet_genesis(
 			stakers: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
-			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(4).collect(),
+			// Now we have 4 contracts but reserver 10 for convenience
+			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
 		}),
 		pallet_staking: Some(StakingConfig {
 			validator_count: initial_authorities.len() as u32 * 2,
