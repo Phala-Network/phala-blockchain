@@ -11,6 +11,7 @@ pub mod data_plaza;
 pub mod balance;
 pub mod assets;
 pub mod web3analytics;
+pub mod helloworld;
 pub mod woothee;
 
 pub type ContractId = u32;
@@ -19,6 +20,7 @@ pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCE: ContractId = 2;
 pub const ASSETS: ContractId = 3;
 pub const WEB3_ANALYTICS: ContractId = 4;
+pub const HELLO_WORLD: ContractId = 5;
 
 pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
 where
