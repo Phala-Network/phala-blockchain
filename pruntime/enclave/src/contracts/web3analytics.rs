@@ -1,7 +1,9 @@
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use crate::std::collections::HashMap;
+use crate::std::collections::BTreeMap;
 use serde::{Serialize, Deserialize};
+use crate::contracts::AccountIdWrapper;
 use super::TransactionStatus;
 use crate::cryptography::aead;
 use crate::hex;
@@ -26,6 +28,7 @@ pub struct PageView {
     id: String,
     sid: Sid,
     cid: String,
+    uid: String,
     host: String,
     path: String,
     referrer: String,
@@ -118,7 +121,16 @@ impl DailyStat {
 
 // contract
 #[derive(Serialize, Deserialize, Debug)]
+pub enum Error {
+    NotAuthorized,
+    Other(String),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
+    SetConfiguration {
+        skip_stat: bool
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -153,6 +165,9 @@ pub enum Request {
     GetTotalStat {
         total_stat: HourlyPageViewStat,
         count: String
+    },
+    GetConfiguration {
+        account: AccountIdWrapper
     }
 }
 
@@ -165,7 +180,10 @@ pub enum Response {
     GetDailyStats { daily_stat: DailyStat, encrypted: bool },
     GetWeeklySites { weekly_sites: Vec<WeeklySite>, encrypted: bool },
     GetWeeklyDevices { weekly_devices: Vec<WeeklyDevice>, encrypted: bool },
-    GetTotalStat { total_stat: HourlyPageViewStat, encrypted: bool }
+    GetTotalStat { total_stat: HourlyPageViewStat, encrypted: bool },
+    GetConfiguration { skip_stat: bool },
+
+    Error(Error)
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -181,7 +199,9 @@ pub struct Web3Analytics {
 
     key: Vec<u8>,
     #[serde(skip)]
-    parser: woothee::parser::Parser
+    parser: woothee::parser::Parser,
+
+    no_tracking: BTreeMap<AccountIdWrapper, bool>
 
 }
 
@@ -199,7 +219,9 @@ impl Web3Analytics {
 
             key: hex::decode_hex(KEY),
 
-            parser: woothee::parser::Parser::new()
+            parser: woothee::parser::Parser::new(),
+
+            no_tracking: BTreeMap::<AccountIdWrapper, bool>::new(),
         }
     }
 
@@ -696,52 +718,87 @@ impl Web3Analytics {
 impl contracts::Contract<Command, Request, Response> for Web3Analytics {
     fn id(&self) -> contracts::ContractId { contracts::WEB3_ANALYTICS }
 
-    fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, _cmd: Command) -> TransactionStatus {
-        TransactionStatus::Ok
-    }
+    fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
+        let status = match cmd {
+            Command::SetConfiguration { skip_stat } => {
+                let o = AccountIdWrapper(origin.clone());
+                println!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
-        match req {
-            Request::SetPageView { page_views, encrypted } => {
-                for page_view in page_views {
-                    let b = self.page_views.clone().into_iter().any(|x| x.id == page_view.id);
-                    if !b {
-                        self.page_views.push(page_view);
-                    }
+                if skip_stat {
+                    self.no_tracking.insert(o, skip_stat);
+                } else {
+                    self.no_tracking.remove(&o);
                 }
 
-                self.encrypted = encrypted;
+                TransactionStatus::Ok
+            }
+        };
 
-                Response::SetPageView { page_view_count: self.page_views.len() as u32 }
+        status
+    }
+
+    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+        let inner = || -> Result<Response, Error> {
+            match req {
+                Request::SetPageView { page_views, encrypted } => {
+                    for page_view in page_views {
+                        if page_view.uid.len() == 64 && self.no_tracking.contains_key(&AccountIdWrapper::from_hex(&page_view.uid)) {
+                            continue;
+                        }
+                        let b = self.page_views.clone().into_iter().any(|x| x.id == page_view.id);
+                        if !b {
+                            self.page_views.push(page_view);
+                        }
+                    }
+
+                    self.encrypted = encrypted;
+
+                    Ok(Response::SetPageView { page_view_count: self.page_views.len() as u32 })
+                }
+                Request::ClearPageView { timestamp: _ } => {
+                    self.page_views.clear();
+                    Ok(Response::ClearPageView { page_view_count: self.page_views.len() as u32 })
+                }
+                Request::GetOnlineUsers { start, end } => {
+                    self.update_online_users(start, end);
+                    Ok(Response::GetOnlineUsers { online_users: self.online_users.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetHourlyStats { start, end, start_of_week } => {
+                    self.update_hourly_stats(start, end, start_of_week);
+                    Ok(Response::GetHourlyStats { hourly_stat: self.hourly_stat.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetDailyStats { daily_stat } => {
+                    self.update_daily_stats(daily_stat);
+                    Ok(Response::GetDailyStats { daily_stat: self.daily_stat.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetWeeklySites { weekly_sites_in_db, weekly_sites_new } => {
+                    self.update_weekly_sites(weekly_sites_in_db, weekly_sites_new);
+                    Ok(Response::GetWeeklySites { weekly_sites: self.weekly_sites.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetWeeklyDevices { weekly_devices_in_db, weekly_devices_new } => {
+                    self.update_weekly_devices(weekly_devices_in_db, weekly_devices_new);
+                    Ok(Response::GetWeeklyDevices { weekly_devices: self.weekly_devices.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetTotalStat { total_stat, count } => {
+                    self.update_total_stat(total_stat, count);
+                    Ok(Response::GetTotalStat { total_stat: self.total_stat.clone(), encrypted: self.encrypted.clone() })
+                },
+                Request::GetConfiguration { account } => {
+                    if origin == None || origin.unwrap() != &account.0 {
+                        return Err(Error::NotAuthorized)
+                    }
+
+                    let mut off = false;
+                    if let Some(o) = self.no_tracking.get(&account) {
+                        off = *o;
+                    }
+                    Ok(Response::GetConfiguration { skip_stat: off })
+                }
             }
-            Request::ClearPageView { timestamp: _ } => {
-                self.page_views.clear();
-                Response::ClearPageView { page_view_count: self.page_views.len() as u32 }
-            }
-            Request::GetOnlineUsers { start, end } => {
-                self.update_online_users(start, end);
-                Response::GetOnlineUsers { online_users: self.online_users.clone(), encrypted: self.encrypted.clone() }
-            },
-            Request::GetHourlyStats { start, end, start_of_week } => {
-                self.update_hourly_stats(start, end, start_of_week);
-                Response::GetHourlyStats { hourly_stat: self.hourly_stat.clone(), encrypted: self.encrypted.clone() }
-            },
-            Request::GetDailyStats { daily_stat } => {
-                self.update_daily_stats(daily_stat);
-                Response::GetDailyStats { daily_stat: self.daily_stat.clone(), encrypted: self.encrypted.clone() }
-            },
-            Request::GetWeeklySites { weekly_sites_in_db, weekly_sites_new } => {
-                self.update_weekly_sites(weekly_sites_in_db, weekly_sites_new);
-                Response::GetWeeklySites { weekly_sites: self.weekly_sites.clone(), encrypted: self.encrypted.clone() }
-            },
-            Request::GetWeeklyDevices { weekly_devices_in_db, weekly_devices_new } => {
-                self.update_weekly_devices(weekly_devices_in_db, weekly_devices_new);
-                Response::GetWeeklyDevices { weekly_devices: self.weekly_devices.clone(), encrypted: self.encrypted.clone() }
-            },
-            Request::GetTotalStat { total_stat, count } => {
-                self.update_total_stat(total_stat, count);
-                Response::GetTotalStat { total_stat: self.total_stat.clone(), encrypted: self.encrypted.clone() }
-            },
+        };
+        match inner() {
+            Err(error) => Response::Error(error),
+            Ok(resp) => resp
         }
     }
 }

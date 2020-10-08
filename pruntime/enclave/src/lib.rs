@@ -1359,6 +1359,15 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
                 _ => TransactionStatus::BadCommand
             }
         },
+        WEB3_ANALYTICS => {
+            match serde_json::from_slice(inner_data.as_slice()) {
+                Ok(cmd) => state.contract4.handle_command(
+                    &origin, pos,
+                    cmd
+                ),
+                _ => TransactionStatus::BadCommand
+            }
+        },
         _ => {
             println!("handle_execution: Skipped unknown contract: {}", contract_id);
             TransactionStatus::BadContractId
