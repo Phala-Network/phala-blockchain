@@ -34,7 +34,6 @@ use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::Arc;
 use crate::std::sync::SgxMutex;
-use crate::std::untrusted::fs;
 use crate::std::vec::Vec;
 use itertools::Itertools;
 use parity_scale_codec::{Encode, Decode};
