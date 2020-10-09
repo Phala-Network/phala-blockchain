@@ -28,6 +28,7 @@ sc-rpc = { version = "2.0.0", path = "../substrate/client/rpc" }
 sp-api = { version = "2.0.0", path = "../substrate/primitives/api" }
 sp-block-builder = { version = "2.0.0", path = "../substrate/primitives/block-builder" }
 sp-blockchain = { version = "2.0.0", path = "../substrate/primitives/blockchain" }
+sp-keystore = { version = "0.8.0", path = "../substrate/primitives/keystore" }
 sp-consensus = { version = "0.8.0", path = "../substrate/primitives/consensus/common" }
 sp-consensus-babe = { version = "0.8.0", path = "../substrate/primitives/consensus/babe" }
 sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime" }

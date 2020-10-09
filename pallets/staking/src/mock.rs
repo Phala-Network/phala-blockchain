@@ -17,25 +17,26 @@
 
 //! Test utilities
 
-use std::{collections::HashSet, cell::RefCell};
-use sp_runtime::Perbill;
-use sp_runtime::curve::PiecewiseLinear;
-use sp_runtime::traits::{IdentityLookup, Convert, SaturatedConversion, Zero};
-use sp_runtime::testing::{Header, UintAuthorityId, TestXt};
-use sp_staking::{SessionIndex, offence::{OffenceDetails, OnOffenceHandler}};
-use sp_core::H256;
+use crate::*;
 use frame_support::{
-	assert_ok, impl_outer_origin, parameter_types, impl_outer_dispatch, impl_outer_event,
-	StorageValue, StorageMap, StorageDoubleMap, IterableStorageMap,
-	traits::{Currency, Get, FindAuthor, OnFinalize, OnInitialize},
-	weights::{Weight, constants::RocksDbWeight},
+	assert_ok, impl_outer_dispatch, impl_outer_event, impl_outer_origin, parameter_types,
+	traits::{Currency, FindAuthor, Get, OnFinalize, OnInitialize},
+	weights::{constants::RocksDbWeight, Weight},
+	IterableStorageMap, StorageDoubleMap, StorageMap, StorageValue,
 };
+use sp_core::H256;
 use sp_io;
 use sp_npos_elections::{
 	build_support_map, evaluate_support, reduce, ExtendedBalance, StakedAssignment, ElectionScore,
 };
-use pallet_phala as phala;
-use crate::*;
+use sp_runtime::{
+	curve::PiecewiseLinear,
+	testing::{Header, TestXt, UintAuthorityId},
+	traits::{IdentityLookup, Zero},
+};
+use sp_staking::offence::{OffenceDetails, OnOffenceHandler};
+use std::{cell::RefCell, collections::HashSet};
+use pallet_phala as phala
 
 pub const INIT_TIMESTAMP: u64 = 30_000;
 
@@ -44,19 +45,6 @@ pub(crate) type AccountId = u64;
 pub(crate) type AccountIndex = u64;
 pub(crate) type BlockNumber = u64;
 pub(crate) type Balance = u128;
-
-/// Simple structure that exposes how u64 currency can be represented as... u64.
-pub struct CurrencyToVoteHandler;
-impl Convert<Balance, u64> for CurrencyToVoteHandler {
-	fn convert(x: Balance) -> u64 {
-		x.saturated_into()
-	}
-}
-impl Convert<u128, Balance> for CurrencyToVoteHandler {
-	fn convert(x: u128) -> Balance {
-		x
-	}
-}
 
 thread_local! {
 	static SESSION: RefCell<(Vec<AccountId>, HashSet<AccountId>)> = RefCell::new(Default::default());
@@ -196,7 +184,7 @@ pub struct Test;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub const MaximumBlockWeight: Weight = 1024;
+	pub const MaximumBlockWeight: Weight = frame_support::weights::constants::WEIGHT_PER_SECOND * 2;
 	pub const MaximumBlockLength: u32 = 2 * 1024;
 	pub const AvailableBlockRatio: Perbill = Perbill::one();
 	pub const MaxLocks: u32 = 1024;
@@ -295,6 +283,7 @@ parameter_types! {
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const UnsignedPriority: u64 = 1 << 20;
 	pub const MinSolutionScoreBump: Perbill = Perbill::zero();
+	pub const OffchainSolutionWeightLimit: Weight = MaximumBlockWeight::get();
 }
 
 thread_local! {
@@ -315,15 +304,15 @@ impl OnUnbalanced<NegativeImbalanceOf<Test>> for RewardRemainderMock {
 impl Trait for Test {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
-	type CurrencyToVote = CurrencyToVoteHandler;
+	type CurrencyToVote = frame_support::traits::SaturatingCurrencyToVote;
 	type RewardRemainder = RewardRemainderMock;
 	type Event = MetaEvent;
 	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
-	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
 	type SlashCancelOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BondingDuration = BondingDuration;
 	type SessionInterface = Self;
 	type RewardCurve = RewardCurve;
 	type NextNewSession = Session;
@@ -333,15 +322,18 @@ impl Trait for Test {
 	type MinSolutionScoreBump = MinSolutionScoreBump;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type UnsignedPriority = UnsignedPriority;
+	type OffchainSolutionWeightLimit = OffchainSolutionWeightLimit;
 	type WeightInfo = ();
 }
 
 impl pallet_phala::Trait for Test {
 	type Event = MetaEvent;
 	type TEECurrency = Balances;
+	type UnixTime = Timestamp;
 }
 
-impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test where
+impl<LocalCall> frame_system::offchain::SendTransactionTypes<LocalCall> for Test
+where
 	Call: From<LocalCall>,
 {
 	type OverarchingCall = Call;
@@ -925,7 +917,7 @@ pub(crate) fn prepare_submission_with(
 
 	let mut staked = sp_npos_elections::assignment_ratio_to_staked(
 		assignments,
-		Staking::slashable_balance_of_vote_weight,
+		Staking::slashable_balance_of_fn(),
 	);
 
 	// apply custom tweaks. awesome for testing.
@@ -963,7 +955,7 @@ pub(crate) fn prepare_submission_with(
 	let score = if compute_real_score {
 		let staked = sp_npos_elections::assignment_ratio_to_staked(
 			assignments_reduced.clone(),
-			Staking::slashable_balance_of_vote_weight,
+			Staking::slashable_balance_of_fn(),
 		);
 
 		let support_map = build_support_map::<AccountId>(
@@ -977,9 +969,7 @@ pub(crate) fn prepare_submission_with(
 
 	let compact =
 		CompactAssignments::from_assignment(assignments_reduced, nominator_index, validator_index)
-			.map_err(|e| { println!("error in compact: {:?}", e); e })
 			.expect("Failed to create compact");
-
 
 	// winner ids to index
 	let winners = winners.into_iter().map(|w| validator_index(&w).unwrap()).collect::<Vec<_>>();

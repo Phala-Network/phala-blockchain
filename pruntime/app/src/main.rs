@@ -20,7 +20,7 @@ extern crate serde_derive;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-extern crate ring_aead;
+extern crate ring_compat;
 #[cfg(test)]
 extern crate base64;
 #[cfg(test)]
