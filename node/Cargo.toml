@@ -1,7 +1,7 @@
 [package]
 name = "phala-node"
 version = "2.0.0"
-authors = ["Jasl"]
+authors = ["Phala Network"]
 description = "Phala Substrate Node"
 build = "build.rs"
 edition = "2018"
