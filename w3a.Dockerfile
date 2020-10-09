@@ -45,9 +45,6 @@ RUN rm -rf phala-blockchain
 ADD dockerfile.d/cleanup.sh .
 RUN bash cleanup.sh
 
-SHELL ["/bin/bash", "-c"]
-RUN source /opt/sgxsdk/environment
-
 # ===== build gateway =====
 
 WORKDIR /root
