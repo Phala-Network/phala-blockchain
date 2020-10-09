@@ -17,7 +17,7 @@ RUN bash /root/02_llvm.sh
 ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 
-ARG RUST_TOOLCHAIN='nightly'
+ARG RUST_TOOLCHAIN='nightly-2020-09-27'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 
@@ -75,8 +75,6 @@ RUN cp config/credentials.yml.example config/credentials.yml
 RUN cp config/database.yml.sqlite3 config/database.yml
 RUN rails db:migrate
 RUN rails db:seed
-
-CMD ["rails", "s", "-b", "0.0.0.0", "-p", "7000"]
 
 # ===== build backend =====
 
