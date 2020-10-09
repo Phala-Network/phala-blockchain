@@ -463,13 +463,14 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
 		p.insert("tokenDecimals".into(), 12.into());
+		p.insert("ss58Format".into(), 30.into());
 		p
 	};
 
 	ChainSpec::from_genesis(
 		"Phala PoC-3",
 		"phala_poc_3",
-		ChainType::Live,
+		ChainType::Local,
 		phala_testnet_config_genesis,
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
