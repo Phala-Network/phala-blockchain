@@ -1,6 +1,6 @@
 [package]
 name = "test-node"
-
+version = "2.0.0-rc5"
 authors = ["Anonymous"]
 description = "Substrate Node template"
 edition = "2018"
@@ -18,16 +18,14 @@ log = "0.4.11"
 structopt = "0.3.15"
 parking_lot = "0.11.0"
 
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-
-sc-cli = { features = ["wasmtime"], git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", features = ["wasmtime"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sc-executor = { features = ["wasmtime"], git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sc-service = { features = ["wasmtime"], git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sp-inherents = {  git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", features = ["wasmtime"] }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", features = ["wasmtime"] }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch"}
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-consensus-aura = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
@@ -38,7 +36,7 @@ sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "roc
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
-test-node-runtime = { path = "runtime" }
+test-node-runtime = { version = "2.0.0-rc5", path = "runtime" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }

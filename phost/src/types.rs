@@ -4,6 +4,7 @@ use codec::{Encode, Decode};
 use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{
     generic::SignedBlock,
+    Justification,
     OpaqueExtrinsic
 };
 
@@ -61,6 +62,7 @@ impl<T: Serialize> RuntimeReq<T> {
 pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
+    pub headernum: parachain_runtime::BlockNumber,
     pub blocknum: parachain_runtime::BlockNumber,
     pub initialized: bool,
     pub public_key: String,
@@ -131,7 +133,8 @@ impl Resp for QueryReq {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeReq {
   pub skip_ra: bool,
-  pub bridge_genesis_info_b64: String
+  pub bridge_genesis_info_b64: String,
+  pub debug_set_key: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
@@ -162,19 +165,19 @@ pub struct GenesisInfo {
   pub proof: StorageProof,
 }
 
-// API: sync_block
+// API: sync_header
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SyncBlockReq {
-    pub blocks_b64: Vec<String>,
+pub struct SyncHeaderReq {
+    pub headers_b64: Vec<String>,
     pub authority_set_change_b64: Option<String>
 }
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SyncBlockResp {
+pub struct SyncHeaderResp {
     pub synced_to: parachain_runtime::BlockNumber
 }
-impl Resp for SyncBlockReq {
-    type Resp = SyncBlockResp;
+impl Resp for SyncHeaderReq {
+    type Resp = SyncHeaderResp;
 }
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct BlockWithEvents {
@@ -182,6 +185,11 @@ pub struct BlockWithEvents {
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,
+}
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct HeaderToSync {
+    pub header: parachain_runtime::Header,
+    pub justification: Option<Justification>,
 }
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
@@ -192,4 +200,44 @@ pub struct AuthoritySet {
 pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
+}
+
+// API: ping
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct Heartbeat {
+    pub block_num: u32,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct HeartbeatData {
+    pub data: Heartbeat,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PingReq {}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct PingResp {
+    pub status: String,
+    pub encoded_data: String
+}
+impl Resp for PingReq {
+    type Resp = PingResp;
+}
+
+// API: dispatch_block
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockReq {
+    pub blocks_b64: Vec<String>
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct DispatchBlockResp {
+    pub dispatched_to: parachain_runtime::BlockNumber
+}
+impl Resp for DispatchBlockReq {
+    type Resp = DispatchBlockResp;
 }

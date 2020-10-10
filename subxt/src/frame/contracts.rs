@@ -128,7 +128,7 @@ mod tests {
     (func (export "deploy"))
 )
 "#;
-            let wasm = wat::parse_str(CONTRACT).expect("invalid wat");
+            let wasm = wabt::wat2wasm(CONTRACT).expect("invalid wabt");
             let code_hash;
         },
         step: {

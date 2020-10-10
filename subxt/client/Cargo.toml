@@ -1,6 +1,6 @@
 [package]
 name = "substrate-subxt-client"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["David Craven <david@craven.ch>", "Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -17,10 +17,8 @@ futures = { version = "0.3.5", features = ["compat"] }
 futures01 = { package = "futures", version = "0.1.29" }
 jsonrpsee = "0.1.0"
 log = "0.4.11"
-sc-network = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sc-service = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 serde_json = "1.0.56"
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 thiserror = "1.0.20"

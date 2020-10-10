@@ -27,12 +27,12 @@ use sp_runtime::{
 
 use subxt::{
     extrinsic::DefaultExtra,
+    contracts::Contracts,
+    sudo::Sudo,
     balances::{
         AccountData,
         Balances,
     },
-    contracts::Contracts,
-    sudo::Sudo,
     system::System,
     Runtime
 };
@@ -68,8 +68,6 @@ impl Balances for PhalaNodeRuntime {
 }
 
 impl Contracts for PhalaNodeRuntime {}
-
-impl Sudo for PhalaNodeRuntime {}
 
 impl phala::PhalaModule for PhalaNodeRuntime {}
 
@@ -126,6 +124,13 @@ pub mod phala {
         pub data: Vec<u8>,
     }
 
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct SequenceStore<T: PhalaModule> {
+        #[store(returns = u32)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+    }
+
     /// The call to register_worker
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct RegisterWorkerCall<T: PhalaModule> {
@@ -141,11 +146,13 @@ pub mod phala {
         pub raw_signing_cert: Vec<u8>,
     }
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct SequenceStore<T: PhalaModule> {
-        #[store(returns = u32)]
-        /// Runtime marker.
+    /// The call to transfer_to_chain
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct HeartbeatCall<T: PhalaModule> {
+        /// Runtime marker
         pub _runtime: PhantomData<T>,
+        /// The heartbeat data, SCALA encoded
+        pub data: Vec<u8>,
     }
 
     impl<T: PhalaModule> SequenceStore<T> {
