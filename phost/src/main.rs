@@ -371,10 +371,10 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_latest_sequence(client: &XtClient) -> Result<u32, Error> {
+async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
     let latest_block = get_block_at(&client, None, false).await?.block;
     let hash = latest_block.block.header.hash();
-    client.fetch_or_default(&runtimes::phala::SequenceStore::new(), Some(hash)).await.or(Ok(0))
+    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), Some(hash)).await.or(Ok(0))
 }
 
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
@@ -385,7 +385,7 @@ async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<R
     Ok(())
 }
 
-async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u32, pair: sr25519::Pair) -> Result<(), Error> {
+async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, pair: sr25519::Pair) -> Result<(), Error> {
     let query = Query {
         contract_id: 2,
         nonce: 0,
@@ -524,7 +524,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    let mut sequence = get_latest_sequence(&client).await?;
+    let mut sequence = get_balances_ingress_seq(&client).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None

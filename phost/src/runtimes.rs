@@ -159,10 +159,19 @@ pub mod phala {
     }
 
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct SequenceStore<T: PhalaModule> {
-        #[store(returns = u32)]
+    pub struct IngressSequenceStore<T: PhalaModule> {
+        #[store(returns = u64)]
         /// Runtime marker.
         pub _runtime: PhantomData<T>,
+        pub contract_id: u32,
+    }
+    impl<T: PhalaModule> IngressSequenceStore<T> {
+        pub fn new(contract_id: u32) -> Self {
+            Self {
+                _runtime: Default::default(),
+                contract_id,
+            }
+        }
     }
 
     /// The call to transfer_to_chain
@@ -174,11 +183,4 @@ pub mod phala {
         pub data: Vec<u8>,
     }
 
-    impl<T: PhalaModule> SequenceStore<T> {
-        pub fn new() -> Self {
-            Self {
-                _runtime: Default::default()
-            }
-        }
-    }
 }

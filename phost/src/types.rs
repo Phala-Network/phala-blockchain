@@ -89,7 +89,7 @@ pub struct Query {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
-    PendingChainTransfer {sequence: u32}
+    PendingChainTransfer {sequence: u64}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -118,7 +118,7 @@ pub struct TransferQueue {
 pub struct Transfer {
     pub dest: [u8; 32],
     pub amount: u128,
-    pub sequence: u32,
+    pub sequence: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
