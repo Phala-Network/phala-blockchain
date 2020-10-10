@@ -14,6 +14,7 @@ use grandpa_primitives::{AuthorityId as GrandpaId};
 use sp_consensus_babe::{AuthorityId as BabeId};
 use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use hex_literal::hex;
 
 /// Specialized `ChainSpec`. This is a specialization of the general Substrate ChainSpec type.
 pub type ChainSpec = sc_service::GenericChainSpec<GenesisConfig, Extensions>;
@@ -162,6 +163,10 @@ fn testnet_genesis(
 	endowed_accounts: Vec<AccountId>,
 	id: ParaId,
 ) -> GenesisConfig {
+
+	// The pubkey of "0x1"
+	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+
 	GenesisConfig {
 		frame_system: Some(SystemConfig {
 			code: wasm_binary.to_vec(),
@@ -181,8 +186,10 @@ fn testnet_genesis(
 		parachain_info: Some(ParachainInfoConfig { parachain_id: id }),
 		pallet_phala: Some(PhalaModuleConfig {
 			stakers: initial_authorities.iter().map(|x| {
-				x.1.clone()
+				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
+			// Now we have 4 contracts but reserver 10 for convenience
+			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
 		}),
 	}
 }
