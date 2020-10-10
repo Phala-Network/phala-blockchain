@@ -1,4 +1,5 @@
 use crate::std::vec::Vec;
+use core::convert::TryInto;
 use ring::agreement::{EphemeralPrivateKey, UnparsedPublicKey};
 use ring::rand::SystemRandom;
 
@@ -34,6 +35,13 @@ pub fn create_key(key: &[u8]) -> Result<EphemeralPrivateKey, ()> {
     key_slice.copy_from_slice(key);
     return Ok(std::mem::transmute_copy(&memlayout));
   };
+}
+
+pub fn dump_key(key: &EphemeralPrivateKey) -> [u8; 32] {
+  let memlayout: [u8; 64] = unsafe {
+    std::mem::transmute_copy(key)
+  };
+  memlayout[8..40].try_into().expect("slice with incorrect length")
 }
 
 fn agree_longlived<B: AsRef<[u8]>, F, R, E>(

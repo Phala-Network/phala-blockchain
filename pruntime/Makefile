@@ -15,14 +15,40 @@
 # specific language governing permissions and limitations
 # under the License.
 
+SHELL := /bin/bash
+
 ######## SGX SDK Settings ########
 
 SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
+# Changing SGX_MODE will trigger rebuild
+define DEPENDABLE_VAR
+.PHONY: phony
+$1: phony
+	@if [[ `cat $1 2>&1` != '$($1)' ]]; then \
+		echo -n $($1) > $1 ; \
+	fi
+endef
+$(eval $(call DEPENDABLE_VAR,SGX_MODE))
+
 TOP_DIR := .
 include $(TOP_DIR)/buildenv.mk
+
+SGX_SIGN_KEY ?= enclave/Enclave_private.dev.pem
+ifdef SGX_SIGN_KEY_URL
+ifneq ($(SGX_SIGN_KEY_URL),)
+	SGX_SIGN_KEY := priv/Enclave_private.pem
+endif
+endif
+
+SGX_ENCLAVE_CONFIG ?= enclave/Enclave.config.dev.xml
+ifdef SGX_ENCLAVE_CONFIG_URL
+ifneq ($(SGX_ENCLAVE_CONFIG_URL),)
+	SGX_ENCLAVE_CONFIG := priv/Enclave.config.xml
+endif
+endif
 
 ifeq ($(shell getconf LONG_BIT), 32)
 	SGX_ARCH := x86
@@ -132,7 +158,7 @@ $(App_Enclave_u_Object): app/Enclave_u.o
 	$(AR) rcsD $@ $^
 	cp $(App_Enclave_u_Object) ./lib
 
-$(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files)
+$(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files) SGX_MODE
 	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 	@echo "Cargo  =>  $@"
 	mkdir -p bin
@@ -149,8 +175,12 @@ $(RustEnclave_Name): enclave enclave/Enclave_t.o
 	@echo "LINK =>  $@"
 
 $(Signed_RustEnclave_Name): $(RustEnclave_Name)
-	mkdir -p bin
-	@$(SGX_ENCLAVE_SIGNER) sign -key enclave/Enclave_private.pem -enclave $(RustEnclave_Name) -out $@ -config enclave/Enclave.config.xml
+	@mkdir -p priv
+	@if [ ! -z "$(SGX_SIGN_KEY_URL)" ]; then wget $(SGX_SIGN_KEY_URL) -q -t 3 -O $(SGX_SIGN_KEY); fi
+	@if [ ! -z "$(SGX_ENCLAVE_CONFIG_URL)" ]; then wget $(SGX_ENCLAVE_CONFIG_URL) -q -t 3 -O $(SGX_ENCLAVE_CONFIG); fi
+	@mkdir -p bin
+	$(SGX_ENCLAVE_SIGNER) sign -key $(SGX_SIGN_KEY) -enclave $(RustEnclave_Name) -out $@ -config $(SGX_ENCLAVE_CONFIG)
+	@rm -rf priv
 	@echo "SIGN =>  $@"
 
 .PHONY: enclave

@@ -17,6 +17,15 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 
+#[cfg(test)]
+mod tests;
+#[cfg(test)]
+extern crate ring_compat;
+#[cfg(test)]
+extern crate base64;
+#[cfg(test)]
+extern crate hex_literal;
+
 mod attestation;
 mod contract_input;
 mod contract_output;
@@ -42,6 +51,7 @@ use contract_output::ContractOutput;
 use attestation::Attestation;
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
+static ENCLAVE_STATE_FILE: &'static str = "enclave.token";
 
 const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 2*2048*1024 as usize;
 
@@ -70,6 +80,10 @@ extern {
         eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
         input_ptr: *const u8, input_len: usize,
     ) -> sgx_status_t;
+
+    fn ecall_init(
+        eid: sgx_enclave_id_t, retval: *mut sgx_status_t
+    ) -> sgx_status_t;
 }
 
 pub fn lookup_ipv4(host: &str, port: u16) -> SocketAddr {
@@ -90,7 +104,7 @@ pub extern "C"
 fn ocall_sgx_init_quote(ret_ti: *mut sgx_target_info_t,
                         ret_gid : *mut sgx_epid_group_id_t) -> sgx_status_t {
     println!("Entering ocall_sgx_init_quote");
-    unsafe {sgx_init_quote(ret_ti, ret_gid)}
+    unsafe { sgx_init_quote(ret_ti, ret_gid) }
 }
 
 #[no_mangle]
@@ -180,6 +194,63 @@ fn ocall_dump_state(
     sgx_status_t::SGX_SUCCESS
 }
 
+#[no_mangle]
+pub extern "C"
+fn ocall_save_persistent_data(
+    input_ptr: *const u8,
+    input_len: usize
+) -> sgx_status_t {
+    let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
+    println!("Sealed data {:}: {:?}", input_len, input_slice);
+
+    let executable = env::current_exe().unwrap();
+    let path = executable.parent().unwrap();
+    let state_path: path::PathBuf = path.join(ENCLAVE_STATE_FILE);
+    println!("Save seal data to {}", state_path.as_path().to_str().unwrap());
+
+    fs::write(state_path.as_path().to_str().unwrap(), input_slice);
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C"
+fn ocall_load_persistent_data(
+    output_ptr : *mut u8,
+    output_len_ptr: *mut usize,
+    output_buf_len: usize
+) -> sgx_status_t {
+    let executable = env::current_exe().unwrap();
+    let path = executable.parent().unwrap();
+    let state_path: path::PathBuf = path.join(ENCLAVE_STATE_FILE);
+
+    let state = match fs::read(state_path.as_path().to_str().unwrap()) {
+        Ok(data) => data,
+        _ => Vec::<u8>::new()
+    };
+    let state_len = state.len();
+
+    if state_len == 0 {
+        return sgx_status_t::SGX_SUCCESS
+    }
+
+    println!("Loaded sealed data {:}: {:?}", state_len, state);
+
+    unsafe {
+        if state_len <= output_buf_len {
+            std::ptr::copy_nonoverlapping(state.as_ptr(),
+                                          output_ptr,
+                                          state_len);
+        } else {
+            panic!("State too long. Buffer overflow.");
+        }
+        std::ptr::copy_nonoverlapping(&state_len as *const usize,
+                                      output_len_ptr,
+                                      std::mem::size_of_val(&state_len));
+    }
+
+    sgx_status_t::SGX_SUCCESS
+}
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
     let mut launch_token: sgx_launch_token_t = [0; 1024];
@@ -219,11 +290,10 @@ fn test(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -260,11 +330,10 @@ fn init_runtime(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -301,11 +370,10 @@ fn get_info(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -342,11 +410,10 @@ fn dump_states(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -383,11 +450,10 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -400,8 +466,8 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
     }
 }
 
-#[post("/sync_block", format = "json", data = "<contract_input>")]
-fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
+#[post("/sync_header", format = "json", data = "<contract_input>")]
+fn sync_header(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
@@ -424,11 +490,10 @@ fn sync_block(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -466,11 +531,50 @@ fn query(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+    match result {
+        sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+            json!(output_value)
+        },
+        _ => {
+            println!("[-] ECALL Enclave Failed {}!", result.as_str());
+            json!({
+                "status": "error",
+                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
+            })
+        }
+    }
+}
+
+#[post("/dispatch_block", format = "json", data = "<contract_input>")]
+fn dispatch_block(contract_input: Json<ContractInput>) -> JsonValue {
+    println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
+
+    let eid = get_eid();
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+
+    let input_string = serde_json::to_string(&*contract_input).unwrap();
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
+    let mut output_len : usize = 0;
+    let output_slice = &mut return_output_buf;
+    let output_ptr = output_slice.as_mut_ptr();
+    let output_len_ptr = &mut output_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ecall_handle(
+            eid, &mut retval,
+            7,
+            input_string.as_ptr(), input_string.len(),
+            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
+        )
+    };
 
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -508,11 +612,10 @@ fn set(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -550,11 +653,51 @@ fn get(contract_input: Json<ContractInput>) -> JsonValue {
         )
     };
 
-    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+    match result {
+        sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+            json!(output_value)
+        },
+        _ => {
+            println!("[-] ECALL Enclave Failed {}!", result.as_str());
+            json!({
+                "status": "error",
+                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
+            })
+        }
+    }
+}
+
+#[post("/ping", format = "json", data = "<contract_input>")]
+fn ping(contract_input: Json<ContractInput>) -> JsonValue {
+    println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
+
+    let eid = get_eid();
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+
+    let input_string = serde_json::to_string(&*contract_input).unwrap();
+
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
+    let mut output_len : usize = 0;
+    let output_slice = &mut return_output_buf;
+    let output_ptr = output_slice.as_mut_ptr();
+    let output_len_ptr = &mut output_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ecall_handle(
+            eid, &mut retval,
+            8,
+            input_string.as_ptr(), input_string.len(),
+            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
+        )
+    };
 
     match result {
         sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
             json!(output_value)
         },
         _ => {
@@ -586,14 +729,14 @@ fn rocket() -> rocket::Rocket {
         .mount("/", routes![
             test, init_runtime, get_info,
             dump_states, load_states,
-            sync_block, query,
-            set, get])
+            sync_header, dispatch_block, query,
+            set, get, ping])
         .attach(cors_options().to_cors().expect("To not fail"))
     // .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
     // .manage(cors_options().to_cors().expect("To not fail"))
 }
 
-fn main() { ;
+fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
 
@@ -608,6 +751,16 @@ fn main() { ;
     };
 
     ENCLAVE.write().unwrap().replace(enclave);
+
+    let eid = get_eid();
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ecall_init(eid, &mut retval)
+    };
+
+    if result != sgx_status_t::SGX_SUCCESS {
+        panic!("Initialize Failed");
+    }
 
     rocket().launch();
 

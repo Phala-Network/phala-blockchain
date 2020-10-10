@@ -39,6 +39,7 @@ Cargo.lock
 
 # Executables
 bin/**
+!bin/Rocket.toml
 
 # SGX EDL generated stubs
 Enclave_u.c
@@ -61,3 +62,4 @@ Enclave_t.h
 /vendor/ring/doc/doc.css
 
 tmp
+SGX_MODE

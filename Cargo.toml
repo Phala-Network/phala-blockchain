@@ -18,7 +18,7 @@ members = [
 	"pallets/template",
 	"pallets/phala",
 	"node/",
-	"phost"
+	"phost",
 ]
 
 [profile.release]

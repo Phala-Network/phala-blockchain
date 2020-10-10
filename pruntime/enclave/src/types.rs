@@ -1,5 +1,6 @@
 use crate::std::string::String;
 use crate::std::fmt::Debug;
+use sgx_types::sgx_status_t;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
 use crate::cryptography::{AeadCipher, Origin};
@@ -47,4 +48,6 @@ where T: Serialize + DeserializeOwned + Debug + Clone {
 
 pub enum Error {
   DecodeError,
+  PersistentRuntimeNotFound,
+  SgxError(sgx_status_t),
 }

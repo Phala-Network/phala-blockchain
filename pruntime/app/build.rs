@@ -34,6 +34,8 @@ fn main () {
 
     println!("cargo:rustc-link-search=native=../lib");
     println!("cargo:rustc-link-lib=static=Enclave_u");
+    println!("cargo:rerun-if-env-changed=SGX_SDK");
+    println!("cargo:rerun-if-env-changed=SGX_MODE");
 
     println!("cargo:rustc-link-search=native={}/lib64", sdk_dir);
     match is_sim.as_ref() {

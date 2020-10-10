@@ -15,6 +15,7 @@ sgx_tstd        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sg
 sgx_tcrypto     = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tcrypto" }
 sgx_tse         = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tse" }
 sgx_trts        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_trts" }
+sgx_tseal       = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand" }
 sgx_rand_derive = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand_derive" }
 
@@ -30,6 +31,7 @@ rustls      = { git = "https://github.com/mesalock-linux/rustls", branch = "mesa
 webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch = "mesalock_sgx" } # { path = "../vendor/webpki-roots" }
 serde       = { git = "https://github.com/mesalock-linux/serde-sgx", features = ["derive"] } #{ path = "../vendor/serde/serde", features = ["derive"] }
 serde_json  = { git = "https://github.com/mesalock-linux/serde-json-sgx" } # { path = "../vendor/serde-json" }
+serde_cbor  = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" } # { path = "../vendor/libsecp256k1" }
 rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.2" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
 regex 		= { git = "https://github.com/mesalock-linux/regex-sgx" }

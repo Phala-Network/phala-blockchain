@@ -1,11 +1,9 @@
 use crate::std::borrow::Cow;
-
 use regex::Regex;
 
 use super::dataset;
 use super::woothee::VALUE_UNKNOWN;
 
-#[macro_use]
 use lazy_static;
 
 lazy_static! {

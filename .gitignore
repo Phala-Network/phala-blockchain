@@ -13,3 +13,5 @@
 .local
 
 local-test
+
+pruntime/rust-sgx-sdk/

@@ -276,6 +276,7 @@ impl template::Trait for Runtime {
 impl pallet_phala::Trait for Runtime {
 	type Event = Event;
 	type TEECurrency = Balances;
+	type UnixTime = Timestamp;
 }
 
 construct_runtime! {
