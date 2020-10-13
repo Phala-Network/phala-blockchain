@@ -347,8 +347,8 @@ fn development_config_genesis() -> GenesisConfig {
 /// Development config (single validator Alice)
 pub fn development_config() -> ChainSpec {
 	ChainSpec::from_genesis(
-		"Development",
-		"dev",
+		"Phala Development",
+		"phala_dev",
 		ChainType::Development,
 		development_config_genesis,
 		vec![],
