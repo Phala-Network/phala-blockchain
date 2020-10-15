@@ -4771,7 +4771,6 @@ dependencies = [
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
- "parachain-runtime",
  "parity-scale-codec",
  "rand 0.7.3",
  "sc-finality-grandpa",

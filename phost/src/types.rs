@@ -10,7 +10,7 @@ use sp_runtime::{
 
 use std::vec::Vec;
 
-// Nod Runtime
+// Node Runtime
 
 use crate::runtimes::PhalaNodeRuntime;
 pub type Runtime = PhalaNodeRuntime;
@@ -18,8 +18,11 @@ pub type Header = <Runtime as subxt::system::System>::Header;
 pub type Hash = <Runtime as subxt::system::System>::Hash;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
+pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
 
+pub type RawStorageKey = Vec<u8>;
 pub type StorageProof = Vec<Vec<u8>>;
+pub type RawEvents = Vec<u8>;
 
 // pRuntime APIs
 
@@ -62,8 +65,8 @@ impl<T: Serialize> RuntimeReq<T> {
 pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
-    pub headernum: parachain_runtime::BlockNumber,
-    pub blocknum: parachain_runtime::BlockNumber,
+    pub headernum: BlockNumber,
+    pub blocknum: BlockNumber,
     pub initialized: bool,
     pub public_key: String,
     pub ecdh_public_key: String,
@@ -86,7 +89,7 @@ pub struct Query {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
-    PendingChainTransfer {sequence: u32}
+    PendingChainTransfer {sequence: u64}
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -115,7 +118,7 @@ pub struct TransferQueue {
 pub struct Transfer {
     pub dest: [u8; 32],
     pub amount: u128,
-    pub sequence: u32,
+    pub sequence: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
@@ -174,21 +177,21 @@ pub struct SyncHeaderReq {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SyncHeaderResp {
-    pub synced_to: parachain_runtime::BlockNumber
+    pub synced_to: BlockNumber
 }
 impl Resp for SyncHeaderReq {
     type Resp = SyncHeaderResp;
 }
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct BlockWithEvents {
-    pub block: parachain_runtime::SignedBlock,
+    pub block: OpaqueSignedBlock,
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,
 }
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct HeaderToSync {
-    pub header: parachain_runtime::Header,
+    pub header: Header,
     pub justification: Option<Justification>,
 }
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
@@ -236,7 +239,7 @@ pub struct DispatchBlockReq {
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DispatchBlockResp {
-    pub dispatched_to: parachain_runtime::BlockNumber
+    pub dispatched_to: BlockNumber
 }
 impl Resp for DispatchBlockReq {
     type Resp = DispatchBlockResp;

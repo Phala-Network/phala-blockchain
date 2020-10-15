@@ -69,6 +69,8 @@ impl Balances for PhalaNodeRuntime {
 
 impl Contracts for PhalaNodeRuntime {}
 
+impl Sudo for PhalaNodeRuntime {}
+
 impl phala::PhalaModule for PhalaNodeRuntime {}
 
 pub mod grandpa {
@@ -107,6 +109,13 @@ pub mod phala {
     #[module]
     pub trait PhalaModule: System + Balances {}
 
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct PushCommandCall<T: PhalaModule> {
+        pub _runtime: PhantomData<T>,
+        pub contract_id: u32,
+        pub payload: Vec<u8>,
+    }
+
     /// The call to transfer_to_tee
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct TransferToTeeCall<T: PhalaModule> {
@@ -124,13 +133,6 @@ pub mod phala {
         pub data: Vec<u8>,
     }
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct SequenceStore<T: PhalaModule> {
-        #[store(returns = u32)]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-    }
-
     /// The call to register_worker
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct RegisterWorkerCall<T: PhalaModule> {
@@ -146,6 +148,22 @@ pub mod phala {
         pub raw_signing_cert: Vec<u8>,
     }
 
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct IngressSequenceStore<T: PhalaModule> {
+        #[store(returns = u64)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+        pub contract_id: u32,
+    }
+    impl<T: PhalaModule> IngressSequenceStore<T> {
+        pub fn new(contract_id: u32) -> Self {
+            Self {
+                _runtime: Default::default(),
+                contract_id,
+            }
+        }
+    }
+
     /// The call to transfer_to_chain
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct HeartbeatCall<T: PhalaModule> {
@@ -155,11 +173,4 @@ pub mod phala {
         pub data: Vec<u8>,
     }
 
-    impl<T: PhalaModule> SequenceStore<T> {
-        pub fn new() -> Self {
-            Self {
-                _runtime: Default::default()
-            }
-        }
-    }
 }

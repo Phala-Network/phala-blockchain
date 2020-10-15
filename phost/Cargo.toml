@@ -18,7 +18,6 @@ rand = "0.7"
 bytes = "0.5"
 structopt = { version = "0.3" }
 
-parachain-runtime = { path = "../runtime", default-features = false, features = ["std"]}
 subxt = { path = "../subxt", package = "substrate-subxt" }
 system = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch", package = "frame-system" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
