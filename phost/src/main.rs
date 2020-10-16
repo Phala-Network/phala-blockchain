@@ -7,7 +7,7 @@ use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
-use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
+use sp_core::{storage::StorageKey, twox_128, twox_64, sr25519, crypto::Pair, H256};
 
 mod error;
 mod pruntime_client;
@@ -220,6 +220,24 @@ fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     key
 }
 
+fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &str) -> Vec<u8> {
+    let mut key = storage_value_key_vec(module, storage_item);
+    let item_key = hex::decode(storage_item_key).unwrap();
+    let hash = twox_64(&item_key);
+    key.extend(&hash);
+    key.extend(&item_key);
+    key
+}
+
+async fn get_parachain_heads(client: &XtClient, paraclient: &XtClient, hash: Option<Hash>) -> Vec<u8> {
+    let mut para_key = storage_value_key_vec("ParachainUpgrade", "ParachainId"); //ParachainUpgrade?
+    let para_id = get_storage(&paraclient, None, StorageKey(para_key)).await.unwrap().unwrap();
+
+    let key = storage_map_key_vec("Parachains", "Heads", &hex::encode(para_id));
+    let value = get_storage(&client, hash, StorageKey(key)).await.unwrap().unwrap();
+    value
+}
+
 async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
     let headers_b64 = headers
         .iter()
@@ -254,15 +272,18 @@ async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>) -> Res
 
 async fn batch_sync_block(
     client: &XtClient,
+    paraclient: &XtClient,
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
-    batch_window: usize
+    batch_window: usize,
+    blocknumber: BlockNumber
 ) -> Result<usize, Error> {
     let block_buf = &mut sync_state.blocks;
-    if block_buf.is_empty() {
-        return Ok(0);
-    }
+    //if block_buf.is_empty() {
+    //    return Ok(0);
+    //}
 
+    let mut blocknum = blocknumber;
     let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
         // Current authority set id
@@ -350,13 +371,26 @@ async fn batch_sync_block(
         let r = req_sync_header(pr, &header_batch, authrotiy_change.as_ref()).await?;
         println!("  ..sync_header: {:?}", r);
 
+        let value = get_parachain_heads(&client, &paraclient, Some(last_header_hash)).await;
+        let para_fin_hash = &value[2..34];
+        let para_fin_block = paraclient.block(Some(H256::from_slice(para_fin_hash))).await?.unwrap();
+        let para_fin_block_number = para_fin_block.block.header.number;
+        let mut para_blocks = Vec::new();
+        for b in blocknum ..= para_fin_block_number {
+            let block = get_block_at(&paraclient, Some(b), true).await?;
+            if block.block.justification.is_some() {
+                println!("block with justification at: {}", block.block.block.header.number);
+            }
+            para_blocks.push(block.clone());
+        }
+
         let dispatch_window = batch_window - 1;
-        while !block_batch.is_empty() {
+        while !para_blocks.is_empty() {
             // TODO: fix the potential overflow here
-            let end_batch = block_batch.len() as isize - 1;
+            let end_batch = para_blocks.len() as isize - 1;
             let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockWithEvents> = block_batch
+                let dispatch_batch: Vec<BlockWithEvents> = para_blocks
                     .drain(..=(batch_end as usize))
                     .collect();
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
@@ -366,6 +400,8 @@ async fn batch_sync_block(
                 synced_blocks += dispatch_batch.len();
             }
         }
+        blocknum = para_fin_block_number + 1;
+
         sync_state.authory_set_state = Some(match set_id_change_at {
             // set_id changed at next block
             Some(change_at) => (change_at + 1, last_set.1 + 1),
@@ -521,9 +557,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
             };
             let signer = subxt::PairSigner::new(pair.clone());
             let ret = client.watch(call, &signer).await;
-            if !ret.is_ok() {
-                return Err(Error::FailedToCallRegisterWorker);
-            }
+            // ignore register error temporarily
+            //if !ret.is_ok() {
+            //    return Err(Error::FailedToCallRegisterWorker);
+            //}
 
             ()
         }
@@ -534,7 +571,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    let mut sequence = get_balances_ingress_seq(&client).await?;
+    let mut sequence = get_balances_ingress_seq(&paraclient).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None
@@ -544,10 +581,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // update the latest pRuntime state
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
         println!("pRuntime get_info response: {:?}", info);
-        // for now, we require info.headernum == info.blocknum for simplification
-        if info.headernum != info.blocknum {
-            return Err(Error::BlockHeaderMismatch);
-        }
+        // for parachain, they are not equal
+        //if info.headernum != info.blocknum {
+        //    return Err(Error::BlockHeaderMismatch);
+        //}
         let latest_block = get_block_at(&client, None, false).await?.block;
         // remove the headers not needed in the buffer. info.headernum is the next required header
         while let Some(ref b) = sync_state.blocks.first() {
@@ -574,11 +611,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         if !args.no_write_back {
-            sync_tx_to_chain(&client, &pr, &mut sequence, pair.clone()).await?;
+            sync_tx_to_chain(&paraclient, &pr, &mut sequence, pair.clone()).await?;
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
+        let synced_blocks = batch_sync_block(&client, &paraclient, &pr, &mut sync_state, args.sync_blocks, info.blocknum).await?;
 
         // check if pRuntime has already reached the chain tip.
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
@@ -586,7 +623,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             // Send heartbeat
             if info.initialized && !args.no_write_back && next_block % 5 == 0 {
                 println!("send heartbeat");
-                send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
+                send_heartbeat_to_chain(&paraclient, &pr, pair.clone()).await?;
             }
 
             println!("waiting for new blocks");

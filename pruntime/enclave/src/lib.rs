@@ -1463,9 +1463,9 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     }
 
     // Save the block hashes for future dispatch
-    for header in headers.iter() {
-        local_state.block_hashes.push(header.header.hash());
-    }
+    //for header in headers.iter() {
+    //    local_state.block_hashes.push(header.header.hash());
+    //}
 
     Ok(json!({
         "synced_to": last_header
@@ -1497,13 +1497,13 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     if last_block.block.block.header.number >= local_state.headernum {
         return Err(error_msg("Unsynced block"))
     }
-    for (i, block) in blocks.iter().enumerate() {
+    /*for (i, block) in blocks.iter().enumerate() {
         let expected_hash = &local_state.block_hashes[i];
         if block.block.block.header.hash() != *expected_hash {
             return Err(error_msg("Unexpected block hash"))
         }
         // TODO: examine extrinsic merkle tree
-    }
+    }*/
 
     let ecdh_privkey = ecdh::clone_key(
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
