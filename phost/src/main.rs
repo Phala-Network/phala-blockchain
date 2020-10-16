@@ -229,13 +229,11 @@ fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &str)
     key
 }
 
-async fn get_parachain_heads(client: &XtClient, paraclient: &XtClient, hash: Option<Hash>) -> Vec<u8> {
+async fn get_parachain_heads(client: &XtClient, paraclient: &XtClient, hash: Option<Hash>) -> Option<Vec<u8>> {
     let mut para_key = storage_value_key_vec("ParachainUpgrade", "ParachainId"); //ParachainUpgrade?
     let para_id = get_storage(&paraclient, None, StorageKey(para_key)).await.unwrap().unwrap();
-
     let key = storage_map_key_vec("Parachains", "Heads", &hex::encode(para_id));
-    let value = get_storage(&client, hash, StorageKey(key)).await.unwrap().unwrap();
-    value
+    get_storage(&client, hash, StorageKey(key)).await.unwrap()
 }
 
 async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
@@ -372,9 +370,17 @@ async fn batch_sync_block(
         println!("  ..sync_header: {:?}", r);
 
         let value = get_parachain_heads(&client, &paraclient, Some(last_header_hash)).await;
-        let para_fin_hash = &value[2..34];
-        let para_fin_block = paraclient.block(Some(H256::from_slice(para_fin_hash))).await?.unwrap();
-        let para_fin_block_number = para_fin_block.block.header.number;
+        if value.is_none() {
+            println!("not found parachain head on relay chain");
+            continue;
+        }
+        let para_fin_hash = &value.unwrap()[2..34];
+        let para_fin_block = paraclient.block(Some(H256::from_slice(para_fin_hash))).await?;
+        if para_fin_block.is_none() {
+            println!("not found block {:?} on parachain.", hex::encode(para_fin_hash));
+            continue;
+        }
+        let para_fin_block_number = para_fin_block.unwrap().block.header.number;
         let mut para_blocks = Vec::new();
         for b in blocknum ..= para_fin_block_number {
             let block = get_block_at(&paraclient, Some(b), true).await?;
@@ -556,7 +562,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 raw_signing_cert,
             };
             let signer = subxt::PairSigner::new(pair.clone());
-            let ret = client.watch(call, &signer).await;
+            let ret = paraclient.watch(call, &signer).await;
             // ignore register error temporarily
             //if !ret.is_ok() {
             //    return Err(Error::FailedToCallRegisterWorker);
