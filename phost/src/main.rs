@@ -369,44 +369,41 @@ async fn batch_sync_block(
         let r = req_sync_header(pr, &header_batch, authrotiy_change.as_ref()).await?;
         println!("  ..sync_header: {:?}", r);
 
-        let value = get_parachain_heads(&client, &paraclient, Some(last_header_hash)).await;
-        if value.is_none() {
+        let para_fin_header = get_parachain_heads(&client, &paraclient, Some(last_header_hash)).await;
+        if para_fin_header.is_some() {
+            let para_fin_hash = &para_fin_header.unwrap()[2..34];
+            let para_fin_block = paraclient.block(Some(H256::from_slice(para_fin_hash))).await?;
+            if para_fin_block.is_some() {
+                let para_fin_block_number = para_fin_block.unwrap().block.header.number;
+                let mut para_blocks = Vec::new();
+                for b in blocknum..=para_fin_block_number {
+                    let block = get_block_at(&paraclient, Some(b), true).await?;
+                    para_blocks.push(block.clone());
+                }
+
+                let dispatch_window = batch_window - 1;
+                while !para_blocks.is_empty() {
+                    // TODO: fix the potential overflow here
+                    let end_batch = para_blocks.len() as isize - 1;
+                    let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
+                    if batch_end >= 0 {
+                        let dispatch_batch: Vec<BlockWithEvents> = para_blocks
+                            .drain(..=(batch_end as usize))
+                            .collect();
+                        let r = req_dispatch_block(pr, &dispatch_batch).await?;
+                        println!("  ..dispatch_block: {:?}", r);
+
+                        // Update sync state
+                        synced_blocks += dispatch_batch.len();
+                    }
+                }
+                blocknum = para_fin_block_number + 1;
+            } else {
+                println!("not found block {:?} on parachain.", hex::encode(para_fin_hash));
+            }
+        } else {
             println!("not found parachain head on relay chain");
-            continue;
         }
-        let para_fin_hash = &value.unwrap()[2..34];
-        let para_fin_block = paraclient.block(Some(H256::from_slice(para_fin_hash))).await?;
-        if para_fin_block.is_none() {
-            println!("not found block {:?} on parachain.", hex::encode(para_fin_hash));
-            continue;
-        }
-        let para_fin_block_number = para_fin_block.unwrap().block.header.number;
-        let mut para_blocks = Vec::new();
-        for b in blocknum ..= para_fin_block_number {
-            let block = get_block_at(&paraclient, Some(b), true).await?;
-            if block.block.justification.is_some() {
-                println!("block with justification at: {}", block.block.block.header.number);
-            }
-            para_blocks.push(block.clone());
-        }
-
-        let dispatch_window = batch_window - 1;
-        while !para_blocks.is_empty() {
-            // TODO: fix the potential overflow here
-            let end_batch = para_blocks.len() as isize - 1;
-            let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
-            if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockWithEvents> = para_blocks
-                    .drain(..=(batch_end as usize))
-                    .collect();
-                let r = req_dispatch_block(pr, &dispatch_batch).await?;
-                println!("  ..dispatch_block: {:?}", r);
-
-                // Update sync state
-                synced_blocks += dispatch_batch.len();
-            }
-        }
-        blocknum = para_fin_block_number + 1;
 
         sync_state.authory_set_state = Some(match set_id_change_at {
             // set_id changed at next block
