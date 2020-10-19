@@ -7,7 +7,6 @@ use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
 use crate::{RawEvent, types::{Transfer, TransferData}};
-use crate::hashing;
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -188,15 +187,9 @@ fn test_verify_signature() {
 		let sk = secp256k1::SecretKey::random(&mut prng);
 		let pk = secp256k1::PublicKey::from_secret_key(&sk);
 		let serialized_pk = pk.serialize_compressed().to_vec();
-
-		let msg_hash = hashing::blake2_256(&Encode::encode(&data));
-		let mut buffer = [0u8; 32];
-		buffer.copy_from_slice(&msg_hash);
-		let message = secp256k1::Message::parse(&buffer);
-		let sig = secp256k1::sign(&message, &sk);
+		let signature = ecdsa_sign(&sk, &data);
 		let transfer_data = super::TransferData {
-			data,
-			signature: sig.0.serialize().to_vec(),
+			data, signature,
 		};
 
 		let actual = PhalaModule::verify_signature(&serialized_pk, &transfer_data);
@@ -260,12 +253,12 @@ fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
 }
 
 fn ecdsa_sign(sk: &secp256k1::SecretKey, data: &impl Encode) -> Vec<u8> {
-
-	let msg_hash = hashing::blake2_256(&Encode::encode(&data));
+	let msg_hash = sp_core::hashing::blake2_256(&Encode::encode(&data));
 	let mut buffer = [0u8; 32];
 	buffer.copy_from_slice(&msg_hash);
 
 	let message = secp256k1::Message::parse(&buffer);
 	let sig = secp256k1::sign(&message, &sk);
-	sig.0.serialize().to_vec()
+	let raw_sig: sp_core::ecdsa::Signature = sig.into();
+	raw_sig.0.to_vec()
 }

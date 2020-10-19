@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
+use sp_std::prelude::*;
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
 use frame_system::{ensure_signed, ensure_root};
@@ -10,8 +11,6 @@ use frame_support::{
 	traits::{Currency, ExistenceRequirement::AllowDeath, UnixTime},
 };
 use codec::{Encode, Decode};
-use sp_std::prelude::*;
-use secp256k1;
 
 mod hashing;
 pub mod types;
@@ -129,6 +128,7 @@ decl_error! {
 		BadMachineId,
 		InvalidPubKey,
 		InvalidSignature,
+		InvalidSignatureBadLen,
 		FailedToVerify,
 		/// Not a controller account.
 		NotController,
@@ -436,18 +436,17 @@ impl<T: Trait> Module<T> {
 		Stash::<T>::contains_key(&controller)
 	}
 	pub fn verify_signature(serialized_pk: &Vec<u8>, data: &impl SignedDataType<Vec<u8>>) -> dispatch::DispatchResult {
-		let pub_key = Self::try_parse_ecdsa_key(serialized_pk)?;
-		let signature = secp256k1::Signature::parse_slice(&data.signature())
+		use sp_std::convert::TryFrom;
+		ensure!(serialized_pk.len() == 33, Error::<T>::InvalidPubKey);
+		let pubkey = sp_core::ecdsa::Public::try_from(serialized_pk.as_slice())
+			.map_err(|_| Error::<T>::InvalidPubKey)?;
+		let raw_sig = data.signature();
+		ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureBadLen);
+		let sig = sp_core::ecdsa::Signature::try_from(raw_sig.as_slice())
 			.map_err(|_| Error::<T>::InvalidSignature)?;
+		let data = data.raw_data();
 
-		let msg_hash = hashing::blake2_256(&data.raw_data());
-		let mut buffer = [0u8; 32];
-		buffer.copy_from_slice(&msg_hash);
-		let message = secp256k1::Message::parse(&buffer);
-
-		let verified = secp256k1::verify(&message, &signature, &pub_key);
-		ensure!(verified, Error::<T>::FailedToVerify);
-
+		ensure!(sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey), Error::<T>::FailedToVerify);
 		Ok(())
 	}
 
@@ -461,16 +460,6 @@ impl<T: Trait> Module<T> {
 		let worker_info = WorkerState::<T>::take(&stash);
 		Self::deposit_event(RawEvent::WorkerUnregistered(stash, machine_id.clone()));
 		Some(worker_info)
-	}
-
-	fn try_parse_ecdsa_key(serialized_pk: &Vec<u8>) -> Result<secp256k1::PublicKey, Error<T>> {
-		let mut pk = [0u8; 33];
-		if serialized_pk.len() != 33 {
-			return Err(Error::<T>::InvalidPubKey);
-		}
-		pk.copy_from_slice(&serialized_pk);
-		secp256k1::PublicKey::parse_compressed(&pk)
-			.map_err(|_| Error::<T>::InvalidPubKey)
 	}
 }
 

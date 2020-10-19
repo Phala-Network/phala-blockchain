@@ -4,9 +4,10 @@ use crate::std::vec::Vec;
 
 use core::str;
 use parity_scale_codec::{Encode, Decode};
-use secp256k1::{SecretKey, Message};
 use serde::{Serialize, Deserialize};
 use sp_core::hashing::blake2_256;
+use sp_core::ecdsa;
+use sp_core::crypto::Pair;
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
@@ -18,14 +19,14 @@ const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5
 
 type SequenceType = u64;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Balance {
     total_issuance: chain::Balance,
     accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
     sequence: SequenceType,
     queue: Vec<TransferData>,
     #[serde(skip)]
-    secret: Option<SecretKey>,
+    id: Option<ecdsa::Pair>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -88,7 +89,7 @@ pub enum Response {
 const SUPPLY: u128 = 0;
 
 impl Balance {
-    pub fn new(secret: Option<SecretKey>) -> Self {
+    pub fn new(id: Option<ecdsa::Pair>) -> Self {
         let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
         accounts.insert(AccountIdWrapper::from_hex(ALICE), SUPPLY);
         Balance {
@@ -96,7 +97,7 @@ impl Balance {
             accounts,
             sequence: 0,
             queue: Vec::new(),
-            secret,
+            id,
         }
     }
 }
@@ -138,8 +139,7 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                 println!("Transfer to chain: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
                     if *src_amount >= value {
-
-                        if self.secret.is_none() {
+                        if self.id.is_none() {
                             return TransactionStatus::BadSecret;
                         }
 
@@ -155,16 +155,11 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                             sequence,
                         };
 
-                        let msg_hash = blake2_256(&Encode::encode(&data));
-                        let mut buffer = [0u8; 32];
-                        buffer.copy_from_slice(&msg_hash);
-                        let message = Message::parse(&buffer);
-                        let signature = secp256k1::sign(&message, &self.secret.as_ref().unwrap());
-                        println!("signature={:?}", signature);
-
+                        let id = self.id.as_ref().unwrap();
+                        let sig = id.sign(&Encode::encode(&data));
                         let transfer_data = TransferData {
                             data,
-                            signature: signature.0.serialize().to_vec(),
+                            signature: sig.0.to_vec(),
                         };
                         self.queue.push(transfer_data);
                         self.sequence = sequence;
@@ -237,5 +232,16 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                 println!("queue len: {:}", self.queue.len());
             }
         }
+    }
+}
+
+impl core::fmt::Debug for Balance {
+    fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
+        write!(f, r#"Balances {{
+    total_issuance: {:?},
+    accounts: {:?},
+    sequence: {:?},
+    queue: {:?},
+}}"#, self.total_issuance, self.accounts, self.sequence, self.queue)
     }
 }
