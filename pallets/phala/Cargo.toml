@@ -19,6 +19,7 @@ frame-system = { version = "2.0.0", default-features = false, path = "../../subs
 sp-runtime = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
 sp-std = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/io" }
+sp-core = { version = "2.0.0", default_features = false, path = "../../substrate/primitives/core" }
 
 chrono = { version = "0.4", default-features = false }
 itertools = { version = "0.8", default-features = false }
@@ -29,7 +30,6 @@ webpki = { path = "../../webpki", default_features = false }
 serde_json_no_std = { path = "../../serde_json_no_std", version = "1.0", default-features = false, features = ["alloc"] }
 # serde_json_core = {}
 blake2-rfc = { version = "0.2.18", default-features = false }
-libsecp256k1 = { version = "0.3.2", default-features = false }
 
 [dependencies.pallet-balances]
 default-features = false
@@ -37,9 +37,9 @@ version = "2.0.0"
 path = "../../substrate/frame/balances"
 
 [dev-dependencies]
-sp-core = { version = "2.0.0", path = "../../substrate/primitives/core", default_features = false, features = ["full_crypto"] }
 pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
 hex-literal = "0.3.1"
+libsecp256k1 = { version = "0.3.2", default-features = false }
 rand = "0.7.3"
 
 [features]
@@ -51,5 +51,9 @@ std = [
     "frame-support/std",
     "frame-system/std",
     "sp-io/std",
-    "sp-std/std"
+    "sp-std/std",
+    "sp-core/full_crypto"
+]
+test = [
+    "sp-core/full_crypto"
 ]

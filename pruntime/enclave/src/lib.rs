@@ -43,6 +43,7 @@ use serde_json::{Map, Value};
 use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use sp_core::H256 as Hash;
 use sp_core::hashing::blake2_256;
+use sp_core::crypto::Pair;
 use system::EventRecord;
 
 mod cert;
@@ -1066,7 +1067,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
     }
 
-    let ecdsa_sk = *local_state.private_key.clone();
     let ecdsa_pk = &local_state.public_key;
     let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
     let ecdsa_hex_pk = hex::encode_hex_compact(ecdsa_serialized_pk.as_ref());
@@ -1143,7 +1143,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
-    state.contract2 = contracts::balance::Balance::new(Some(ecdsa_sk));
+    let ecdsa_seed = local_state.private_key.serialize();
+    let id_pair = sp_core::ecdsa::Pair::from_seed_slice(&ecdsa_seed)
+        .expect("Unexpected ecdsa key error in init_runtime");
+    state.contract2 = contracts::balance::Balance::new(Some(id_pair));
     local_state.headernum = 1;
     local_state.blocknum = 1;
 
