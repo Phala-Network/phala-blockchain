@@ -3,7 +3,7 @@ extern crate alloc;
 use sp_std::prelude::*;
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
-use frame_system::{ensure_signed, ensure_root};
+use frame_system::{Module as System, ensure_signed, ensure_root};
 
 use alloc::vec::Vec;
 use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
@@ -17,7 +17,7 @@ pub mod types;
 
 use types::{
 	TransferData, HeartbeatData, SignedDataType,
-	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo
+	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, MiningInfo
 };
 
 #[cfg(test)]
@@ -54,12 +54,21 @@ decl_storage! {
 		WorkerState get(fn worker_state): map hasher(blake2_128_concat) T::AccountId => WorkerInfo;
 		/// Map from stash account to stash info (indexed: Stash)
 		StashState get(fn stash_state): map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
+		/// Map from stash account to mining info (indexed: MiningDirty)
+		MiningState get(fn mining_state): map hasher(blake2_128_concat) T::AccountId => MiningInfo<T::BlockNumber>;
+		/// TODO: the credits got so far
+		Credits get(fn credits): map hasher(blake2_128_concat) T::AccountId => u32;
 
 		// Indices
 		/// Map from machine_id to stash
 		MachineOwner get(fn machine_owner): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 		/// Map from controller to stash
 		Stash get(fn stash): map hasher(blake2_128_concat) T::AccountId => T::AccountId;
+
+		// Round Management
+		Round get(fn round): u64;
+		/// Accounts with pending updates
+		PendingUpdate get(fn pending_updates): Vec<T::AccountId>;
 
 		// Key Management
 		/// Map from contract id to contract public key (TODO: migrate to real contract key from
@@ -113,6 +122,7 @@ decl_event!(
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
+		MiningStateUpdated(Vec<AccountId>),
 	}
 );
 
@@ -348,6 +358,7 @@ decl_module! {
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(who);
 			WorkerState::<T>::mutate(&stash, |worker_info| worker_info.status = 1);
+			Self::mark_dirty(stash);
 			Ok(())
 		}
 
@@ -357,6 +368,7 @@ decl_module! {
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(who);
 			WorkerState::<T>::mutate(&stash, |worker_info| worker_info.status = 0);
+			Self::mark_dirty(stash);
 			Ok(())
 		}
 
@@ -364,6 +376,15 @@ decl_module! {
 		fn claim_reward(origin, stash: T::AccountId) -> dispatch::DispatchResult {
 			ensure_signed(origin)?;
 			// invoked by anyone
+
+			// online rewards
+
+			// check miner.last_payout
+			// periods = last_period - last_payout
+			// set last_payout = last_period
+
+			// computation rewards
+			// TODO
 			Ok(())
 		}
 
@@ -424,6 +445,61 @@ decl_module! {
 		}
 
 		// Borrowing
+
+		// Debug only
+
+		#[weight = 0]
+		fn dbg_next_round(origin) -> dispatch::DispatchResult {
+			let now = System::<T>::block_number();
+			let dirty_accounts = PendingUpdate::<T>::get();
+			for account in dirty_accounts.iter() {
+				let mut updated = false;
+				let worker_info = WorkerState::<T>::get(&account);
+				let mut mining_info = MiningState::<T>::get(&account);
+				let intention = worker_info.status == 1;
+				if mining_info.is_mining != intention {
+					// TODO: check enough stake, etc
+					mining_info.is_mining = intention;
+					if intention {
+						mining_info.start_block = Some(now);
+					} else {
+						Self::clean_account(
+							&account, mining_info.start_block.unwrap(), now);
+						mining_info.start_block = None;
+					}
+					updated = true;
+				}
+				// TODO: slash
+				if updated {
+					MiningState::<T>::insert(&account, mining_info);
+				}
+			}
+
+			// dispatch tasks
+			//	 TODO: ?????
+
+			// Start new round
+			Self::clear_dirty();
+			let round = Round::get();
+			Round::put(round + 1);
+
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn dbg_mark_violation(origin, stash: T::AccountId) -> dispatch::DispatchResult {
+			// 1. disable miner
+			ensure!(MiningState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
+			let mut mining_info = MiningState::<T>::get(&stash);
+			// 2. force stop
+			mining_info.is_mining = false;
+			mining_info.start_block = None;
+			MiningState::<T>::insert(&stash, mining_info);
+			// 3. TODO: add slash
+			// 4. Create events
+			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));
+			Ok(())
+		}
 	}
 }
 
@@ -460,6 +536,35 @@ impl<T: Trait> Module<T> {
 		let worker_info = WorkerState::<T>::take(&stash);
 		Self::deposit_event(RawEvent::WorkerUnregistered(stash, machine_id.clone()));
 		Some(worker_info)
+	}
+
+	fn clear_dirty() {
+		PendingUpdate::<T>::kill();
+	}
+
+	fn mark_dirty(account: T::AccountId) {
+		let mut updates = PendingUpdate::<T>::get();
+		let existed = updates.iter().find(|x| x == &&account);
+		if existed == None {
+			updates.push(account);
+			PendingUpdate::<T>::put(updates);
+		}
+	}
+
+	fn clean_account(account: &T::AccountId, start: T::BlockNumber, now: T::BlockNumber) {
+		if start >= now {
+			return;
+		}
+		let blocks = now - start;
+		let worker_info = WorkerState::<T>::get(account);
+		let score = match worker_info.score {
+			Some(score) => score.overall_score,
+			None => 1  // TODO: change to zero
+		};
+		let points: u32 = score * blocks.saturated_into::<u32>();
+		// Add credits
+		let credits = Credits::<T>::get(account);
+		Credits::<T>::insert(account, credits + points);
 	}
 }
 
