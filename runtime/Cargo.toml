@@ -82,6 +82,7 @@ pallet-vesting = { version = "2.0.0", default-features = false, path = "../subst
 
 pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-phala = { version = "2.0.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
+pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets/claim", package = "pallet-claim" }
 
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 

@@ -93,6 +93,7 @@ use sp_runtime::generic::Era;
 mod weights;
 
 pub use pallet_phala;
+pub use pallet_claim;
 
 #[cfg(not(feature = "native-nostd-hasher"))]
 type Hasher = sp_runtime::traits::BlakeTwo256;
@@ -920,6 +921,10 @@ impl pallet_phala::Trait for Runtime {
 	type UnixTime = Timestamp;
 }
 
+impl pallet_claim::Trait for Runtime {
+	type Event = Event;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -935,6 +940,7 @@ construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
+		ClaimModule: pallet_claim::{Module, Call, Storage, Event<T>},
 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>},
