@@ -7962,26 +7962,9 @@ dependencies = [
  "sp-std",
  "sp-transaction-pool",
  "sp-version",
- "substrate-subxt-client",
  "substrate-subxt-proc-macro",
  "thiserror",
  "url 2.1.1",
-]
-
-[[package]]
-name = "substrate-subxt-client"
-version = "0.4.0"
-dependencies = [
- "async-std",
- "futures 0.1.30",
- "futures 0.3.6",
- "jsonrpsee",
- "log",
- "sc-network",
- "sc-service",
- "serde_json",
- "sp-keyring",
- "thiserror",
 ]
 
 [[package]]

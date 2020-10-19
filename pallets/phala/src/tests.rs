@@ -6,7 +6,7 @@ use secp256k1;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
-use crate::{RawEvent, Transfer, TransferData};
+use crate::{RawEvent, types::{Transfer, TransferData}};
 use crate::hashing;
 
 fn events() -> Vec<TestEvent> {
@@ -178,7 +178,7 @@ fn test_verify_signature() {
 	use rand;
 
 	new_test_ext().execute_with(|| {
-		let data = super::Transfer {
+		let data = Transfer {
 			dest: 1u64,
 			amount: 2u128,
 			sequence: 3u64,

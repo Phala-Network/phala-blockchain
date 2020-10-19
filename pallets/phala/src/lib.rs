@@ -1,17 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
-
 extern crate alloc;
-
-extern crate untrusted;
-extern crate base64;
-extern crate itertools;
-extern crate hex;
-
-extern crate webpki;
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
 use frame_system::{ensure_signed, ensure_root};
@@ -26,6 +14,12 @@ use sp_std::prelude::*;
 use secp256k1;
 
 mod hashing;
+pub mod types;
+
+use types::{
+	TransferData, HeartbeatData, SignedDataType,
+	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo
+};
 
 #[cfg(test)]
 mod mock;
@@ -36,55 +30,6 @@ mod tests;
 type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
-
-#[derive(Encode, Decode)]
-pub struct Transfer<AccountId, Balance> {
-	pub dest: AccountId,
-	pub amount: Balance,
-	pub sequence: u64,
-}
-
-pub trait SignedDataType<T> {
-	fn raw_data(&self) -> Vec<u8>;
-	fn signature(&self) -> T;
-}
-
-#[derive(Encode, Decode)]
-pub struct TransferData<AccountId, Balance> {
-	pub data: Transfer<AccountId, Balance>,
-	pub signature: Vec<u8>,
-}
-
-impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferData<AccountId, Balance> {
-	fn raw_data(&self) -> Vec<u8> {
-		Encode::encode(&self.data)
-	}
-
-	fn signature(&self) -> Vec<u8> {
-		self.signature.clone()
-	}
-}
-
-#[derive(Encode, Decode)]
-pub struct Heartbeat {
-	block_num: u32,
-}
-
-#[derive(Encode, Decode)]
-pub struct HeartbeatData {
-	data: Heartbeat,
-	signature: Vec<u8>,
-}
-
-impl SignedDataType<Vec<u8>> for HeartbeatData {
-	fn raw_data(&self) -> Vec<u8> {
-		Encode::encode(&self.data)
-	}
-
-	fn signature(&self) -> Vec<u8> {
-		self.signature.clone()
-	}
-}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
@@ -217,48 +162,6 @@ decl_error! {
 		/// Internal Error
 		InternalError,
 	}
-}
-
-#[derive(Encode, Decode, Default)]
-pub struct WorkerInfo {
-	// identity
-	pub machine_id: Vec<u8>,
-	pub pubkey: Vec<u8>,
-	pub last_updated: u64,
-	// contract
-	// ...
-	// mining
-	pub status: i32,
-	// preformance
-	pub score: Option<Score>
-}
-
-#[derive(Encode, Decode, Default)]
-pub struct StashInfo<AccountId: Default> {
-	pub controller: AccountId,
-	pub payout_prefs: PayoutPrefs::<AccountId>,
-}
-
-#[derive(Encode, Decode, Default)]
-pub struct PayoutPrefs<AccountId: Default> {
-	pub commission: u32,
-	pub target: AccountId,
-}
-
-#[derive(Encode, Decode, Default)]
-pub struct Score {
-	pub overall_score: u32,
-	pub features: Vec<u32>
-}
-
-type MachineId = [u8; 16];
-type WorkerPublicKey = [u8; 33];
-#[derive(Encode, Decode)]
-struct PRuntimeInfo {
-	pub version: u8,
-	pub machine_id: MachineId,
-	pub pubkey: WorkerPublicKey,
-	pub features: Vec<u32>
 }
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
