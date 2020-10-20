@@ -8,7 +8,7 @@ use parity_scale_codec::{Encode, Decode};
 use crate::types::TxRef;
 
 pub mod data_plaza;
-pub mod balance;
+pub mod balances;
 pub mod assets;
 pub mod web3analytics;
 pub mod woothee;
@@ -16,7 +16,7 @@ pub mod woothee;
 pub type ContractId = u32;
 pub const SYSTEM: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
-pub const BALANCE: ContractId = 2;
+pub const BALANCES: ContractId = 2;
 pub const ASSETS: ContractId = 3;
 pub const WEB3_ANALYTICS: ContractId = 4;
 

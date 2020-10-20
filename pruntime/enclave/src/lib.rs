@@ -54,7 +54,7 @@ mod light_validation;
 mod receipt;
 mod types;
 
-use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCE, ASSETS, SYSTEM, WEB3_ANALYTICS};
+use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS};
 use cryptography::{ecdh, aead};
 use light_validation::AuthoritySetChange;
 use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response};
@@ -117,7 +117,7 @@ type EcdhKey = ring::agreement::EphemeralPrivateKey;
 #[derive(Serialize, Deserialize, Debug)]
 struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
-    contract2: contracts::balance::Balance,
+    contract2: contracts::balances::Balances,
     contract3: contracts::assets::Assets,
     contract4: contracts::web3analytics::Web3Analytics,
     #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
@@ -191,7 +191,7 @@ lazy_static! {
     static ref STATE: SgxMutex<RuntimeState> = {
         SgxMutex::new(RuntimeState {
             contract1: contracts::data_plaza::DataPlaza::new(),
-            contract2: contracts::balance::Balance::new(None),
+            contract2: contracts::balances::Balances::new(None),
             contract3: contracts::assets::Assets::new(),
             contract4: contracts::web3analytics::Web3Analytics::new(),
             light_client: ChainLightValidation::new(),
@@ -1146,7 +1146,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let ecdsa_seed = local_state.private_key.serialize();
     let id_pair = sp_core::ecdsa::Pair::from_seed_slice(&ecdsa_seed)
         .expect("Unexpected ecdsa key error in init_runtime");
-    state.contract2 = contracts::balance::Balance::new(Some(id_pair));
+    state.contract2 = contracts::balances::Balances::new(Some(id_pair));
     local_state.headernum = 1;
     local_state.blocknum = 1;
 
@@ -1343,7 +1343,7 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
                 _ => TransactionStatus::BadCommand
             }
         },
-        BALANCE => {
+        BALANCES => {
             match serde_json::from_slice(inner_data.as_slice()) {
                 Ok(cmd) => state.contract2.handle_command(
                     &origin, pos,
@@ -1629,11 +1629,11 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
         ).unwrap(),
-        BALANCE => serde_json::to_value(
+        BALANCES => serde_json::to_value(
             state.contract2.handle_query(
                 accid_origin.as_ref(),
                 types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (balance::Request)"))?.request)
+                    .map_err(|_| error_msg("Malformed request (balances::Request)"))?.request)
         ).unwrap(),
         ASSETS => serde_json::to_value(
             state.contract3.handle_query(
