@@ -450,6 +450,7 @@ decl_module! {
 
 		#[weight = 0]
 		fn dbg_next_round(origin) -> dispatch::DispatchResult {
+			// Process the pending update miner accoutns
 			let now = System::<T>::block_number();
 			let dirty_accounts = PendingUpdate::<T>::get();
 			for account in dirty_accounts.iter() {
@@ -476,7 +477,7 @@ decl_module! {
 			}
 
 			// dispatch tasks
-			//	 TODO: ?????
+			//	 TODO: randomly dispatch tasks and rewards
 
 			// Start new round
 			Self::clear_dirty();
@@ -497,6 +498,7 @@ decl_module! {
 			MiningState::<T>::insert(&stash, mining_info);
 			// 3. TODO: add slash
 			// 4. Create events
+			Self::mark_dirty(&stash);
 			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));
 			Ok(())
 		}
