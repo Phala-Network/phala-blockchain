@@ -52,6 +52,12 @@ struct Args {
     ra: bool,
 
     #[structopt(
+    default_value = "5",
+    short = "hb-freq", long = "heartbeat-frequency",
+    help = "Frequency of sending heartbeat")]
+    heartbeat_freq: u32,
+
+    #[structopt(
     default_value = "ws://localhost:9944", long,
     help = "Substrate rpc websocket endpoint")]
     substrate_ws_endpoint: String,
@@ -586,7 +592,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
-            if info.initialized && !args.no_write_back && next_block % 5 == 0 {
+            if info.initialized && !args.no_write_back && args.heartbeat_freq > 0 && next_block % args.heartbeat_freq == 0 {
                 println!("send heartbeat");
                 send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
             }
