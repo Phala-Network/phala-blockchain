@@ -107,7 +107,7 @@ decl_event!(
 		LogString(Vec<u8>),
 		LogI32(i32),
 		// Chain events
-		CommandPushed(AccountId, u32, Vec<u8>, u64),
+		CommandPushed(Vec<u8>, u32, Vec<u8>, u64),
 		TransferToTee(Vec<u8>, Balance),
 		TransferToChain(Vec<u8>, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
@@ -179,7 +179,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
 			CommandNumber::put(num + 1);
-			Self::deposit_event(RawEvent::CommandPushed(who, contract_id, payload, num));
+			Self::deposit_event(RawEvent::CommandPushed(who.encode(), contract_id, payload, num));
 			Ok(())
 		}
 
