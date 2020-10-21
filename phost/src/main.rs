@@ -51,14 +51,14 @@ struct Args {
     help = "Should enable Remote Attestation")]
     ra: bool,
 
-    #[structopt(long = "manual-fetch-heartbeat", help = "Manual fetch heartbeat data")]
-    manual_fetch_heartbeat: bool,
+    #[structopt(long = "fetch-heartbeat-from-buffer", help = "Manual fetch heartbeat data")]
+    fetch_heartbeat_from_buffer: bool,
 
     #[structopt(
     default_value = "5",
-    short = "hb-freq", long = "heartbeat-frequency",
+    long = "heartbeat-interval",
     help = "Frequency of sending heartbeat")]
-    heartbeat_freq: u32,
+    heartbeat_interval: u32,
 
     #[structopt(
     default_value = "ws://localhost:9944", long,
@@ -456,8 +456,8 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
     Ok(())
 }
 
-async fn send_heartbeat_to_chain(manual: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
-    let command = if manual { "fetch_from_heartbeat_buffer" } else { "ping" };
+async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
+    let command = if fetch_heartbeat_from_buffer { "fetch_from_heartbeat_buffer" } else { "ping" };
     let result = pr.req_decode(command, PingReq {}).await?;
     if result.status != "ok" {
         println!("{} api returns: {}, skip", command, result.status);
@@ -596,9 +596,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
-            if info.initialized && !args.no_write_back && args.heartbeat_freq > 0 && next_block % args.heartbeat_freq == 0 {
+            if info.initialized && !args.no_write_back && args.heartbeat_interval > 0 && next_block % args.heartbeat_interval == 0 {
                 println!("send heartbeat");
-                send_heartbeat_to_chain(args.manual_fetch_heartbeat, &client, &pr, pair.clone()).await?;
+                send_heartbeat_to_chain(args.fetch_heartbeat_from_buffer, &client, &pr, pair.clone()).await?;
             }
 
             println!("waiting for new blocks");
