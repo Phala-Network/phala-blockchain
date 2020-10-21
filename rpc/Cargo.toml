@@ -20,11 +20,13 @@ sc-client-api = { version = "2.0.0", path = "../substrate/client/api" }
 sc-consensus-babe = { version = "0.8.0", path = "../substrate/client/consensus/babe" }
 sc-consensus-babe-rpc = { version = "0.8.0", path = "../substrate/client/consensus/babe/rpc" }
 sc-consensus-epochs = { version = "0.8.0", path = "../substrate/client/consensus/epochs" }
+sc-chain-spec = { version = "2.0.0", path = "../substrate/client/chain-spec" }
 sc-finality-grandpa = { version = "0.8.0", path = "../substrate/client/finality-grandpa" }
 sc-finality-grandpa-rpc = { version = "0.8.0", path = "../substrate/client/finality-grandpa/rpc" }
 sc-keystore = { version = "2.0.0", path = "../substrate/client/keystore" }
 sc-rpc-api = { version = "0.8.0", path = "../substrate/client/rpc-api" }
 sc-rpc = { version = "2.0.0", path = "../substrate/client/rpc" }
+sc-sync-state-rpc = { version = "0.8.0", path = "../substrate/client/sync-state-rpc" }
 sp-api = { version = "2.0.0", path = "../substrate/primitives/api" }
 sp-block-builder = { version = "2.0.0", path = "../substrate/primitives/block-builder" }
 sp-blockchain = { version = "2.0.0", path = "../substrate/primitives/blockchain" }
