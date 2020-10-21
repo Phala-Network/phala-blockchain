@@ -107,9 +107,9 @@ decl_event!(
 		LogString(Vec<u8>),
 		LogI32(i32),
 		// Chain events
-		CommandPushed(Vec<u8>, u32, Vec<u8>, u64),
-		TransferToTee(Vec<u8>, Balance),
-		TransferToChain(Vec<u8>, Balance, u64),
+		CommandPushed(AccountId, u32, Vec<u8>, u64),
+		TransferToTee(AccountId, Balance),
+		TransferToChain(AccountId, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
@@ -179,7 +179,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
 			CommandNumber::put(num + 1);
-			Self::deposit_event(RawEvent::CommandPushed(who.encode(), contract_id, payload, num));
+			Self::deposit_event(RawEvent::CommandPushed(who, contract_id, payload, num));
 			Ok(())
 		}
 
@@ -374,7 +374,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			T::TEECurrency::transfer(&who, &Self::account_id(), amount, AllowDeath)
 				.map_err(|_| Error::<T>::CannotDeposit)?;
-			Self::deposit_event(RawEvent::TransferToTee(who.encode(), amount));
+			Self::deposit_event(RawEvent::TransferToTee(who, amount));
 			Ok(())
 		}
 
@@ -403,7 +403,7 @@ decl_module! {
 				.map_err(|_| Error::<T>::CannotWithdraw)?;
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest.encode(), transfer_data.data.amount, sequence + 1));
+			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest, transfer_data.data.amount, sequence + 1));
 			Ok(())
 		}
 

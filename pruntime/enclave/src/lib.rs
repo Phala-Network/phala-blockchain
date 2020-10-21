@@ -1533,8 +1533,7 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
                         blocknum: block_with_events.block_header.number,
                         index: *num,
                     };
-                    let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
-                    handle_execution(state, &pos, account_id, *contract_id, payload, *num, ecdh_privkey);
+                    handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
                 } else {
                     state.contract2.handle_event(evt.event.clone());
                 }
