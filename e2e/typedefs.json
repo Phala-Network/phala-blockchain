@@ -1,4 +1,6 @@
 {
+    "Address": "GenericAddress",
+    "LookupSource": "GenericLookupSource",
     "WorkerInfo": {
         "machineId": "Vec<u8>",
         "pubkey": "Vec<u8>",
