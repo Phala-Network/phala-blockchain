@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use std::collections::{BTreeMap};
 use crate::contracts::AccountIdWrapper;
 
-pub type TransactionHash = String;
+pub type CommandIndex = u64;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
@@ -25,27 +25,26 @@ pub enum TransactionStatus {
 pub struct TransactionReceipt {
 	pub account: AccountIdWrapper,
 	pub block_num: chain::BlockNumber,
-	pub tx_hash: TransactionHash,
 	pub contract_id: u32,
 	pub command: String,
 	pub status: TransactionStatus,
 }
 
 pub struct ReceiptStore {
-	pub receipts: BTreeMap<TransactionHash, TransactionReceipt>,
+	pub receipts: BTreeMap<CommandIndex, TransactionReceipt>,
 }
 
 impl ReceiptStore {
 	pub fn new() -> Self {
-		ReceiptStore { receipts: BTreeMap::<TransactionHash, TransactionReceipt>::new() }
+		ReceiptStore { receipts: BTreeMap::<CommandIndex, TransactionReceipt>::new() }
 	}
 
-	pub fn add_receipt(&mut self, tx_hash: TransactionHash, tr: TransactionReceipt) {
-		self.receipts.insert(tx_hash, tr);
+	pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
+		self.receipts.insert(command_index, tr);
 	}
 
-	pub fn get_receipt(&self, tx_hash: TransactionHash) -> Option<&TransactionReceipt> {
-		self.receipts.get(&tx_hash)
+	pub fn get_receipt(&self, command_index: CommandIndex) -> Option<&TransactionReceipt> {
+		self.receipts.get(&command_index)
 	}
 }
 
@@ -59,7 +58,7 @@ pub enum Error {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
 	QueryReceipt {
-		tx_hash: String,
+		command_index: CommandIndex,
 	},
 }
 

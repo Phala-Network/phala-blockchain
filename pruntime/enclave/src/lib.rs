@@ -57,7 +57,7 @@ mod types;
 use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS};
 use cryptography::{ecdh, aead};
 use light_validation::AuthoritySetChange;
-use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response};
+use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response, CommandIndex};
 use types::{TxRef, Error};
 
 extern "C" {
@@ -718,8 +718,8 @@ struct HeaderToSync {
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
-pub struct BlockWithEvents {
-    pub block: chain::SignedBlock,
+pub struct BlockHeaderWithEvents {
+    pub block_header: chain::Header,
     pub events: Option<Vec<u8>>,
     pub proof: Option<Vec<Vec<u8>>>,
     pub key: Option<Vec<u8>>,
@@ -1311,8 +1311,9 @@ fn test_ecdh(params: TestEcdhParam) {
 }
 
 fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
-                    origin: Option<(chain::Address, chain::Signature, chain::SignedExtra)>,
+                    origin: chain::AccountId,
                     contract_id: ContractId, payload: &Vec<u8>,
+                    command_index: CommandIndex,
                     ecdh_privkey: &EcdhKey) {
     let payload: types::Payload = serde_json::from_slice(payload.as_slice())
         .expect("Failed to decode payload");
@@ -1321,12 +1322,6 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         types::Payload::Cipher(cipher) => {
             cryptography::decrypt(&cipher, ecdh_privkey).expect("Decrypt failed").msg
         }
-    };
-
-    let origin = if let Some((chain::Address::Id(account_id), _, _)) = origin {
-        account_id
-    } else {
-        panic!("No account id found for tx {:?}", pos);
     };
 
     let inner_data_string = String::from_utf8_lossy(&inner_data);
@@ -1377,30 +1372,13 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
     };
 
     let mut gr = GLOBAL_RECEIPT.lock().unwrap();
-    gr.add_receipt(pos.tx_hash.clone(), TransactionReceipt {
+    gr.add_receipt(command_index, TransactionReceipt {
         account: AccountIdWrapper(origin),
         block_num: pos.blocknum,
-        tx_hash: pos.tx_hash.clone(),
         contract_id,
         command: inner_data_string.to_string(),
         status,
     });
-}
-
-fn dispatch(block: &BlockWithEvents, ecdh_privkey: &EcdhKey) {
-    let ref mut state = STATE.lock().unwrap();
-    for (i, xt) in block.block.block.extrinsics.iter().enumerate() {
-        if let chain::Call::PhalaModule(chain::pallet_phala::Call::push_command(contract_id, payload)) = &xt.function {
-            println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
-            let pos = TxRef {
-                blocknum: block.block.block.header.number,
-                index: i as u32,
-                tx_hash: hex::encode_hex_compact(&blake2_256(&xt.encode())),
-            };
-            handle_execution(state, &pos, xt.signature.clone(), *contract_id, payload, ecdh_privkey);
-        }
-        // skip other unknown extrinsics
-    }
 }
 
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
@@ -1484,7 +1462,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let blocks_data = parsed_data
         .map_err(|_| error_msg("Failed to parse base64 block"))?;
     // Parse data to blocks
-    let parsed_blocks: Result<Vec<BlockWithEvents>, _> = blocks_data
+    let parsed_blocks: Result<Vec<BlockHeaderWithEvents>, _> = blocks_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
@@ -1494,15 +1472,15 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let mut local_state = LOCAL_STATE.lock().unwrap();
     let first_block = &blocks.first().ok_or_else(|| error_msg("No block in the request"))?;
     let last_block = &blocks.last().ok_or_else(|| error_msg("No block in the request"))?;
-    if first_block.block.block.header.number != local_state.blocknum {
+    if first_block.block_header.number != local_state.blocknum {
         return Err(error_msg("Unexpected block"))
     }
-    if last_block.block.block.header.number >= local_state.headernum {
+    if last_block.block_header.number >= local_state.headernum {
         return Err(error_msg("Unsynced block"))
     }
     for (i, block) in blocks.iter().enumerate() {
         let expected_hash = &local_state.block_hashes[i];
-        if block.block.block.header.hash() != *expected_hash {
+        if block.block_header.hash() != *expected_hash {
             return Err(error_msg("Unexpected block hash"))
         }
         // TODO: examine extrinsic merkle tree
@@ -1512,13 +1490,13 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
     let mut last_block = 0;
     for block in blocks.iter() {
-        dispatch(&block, &ecdh_privkey);
-
-        if block.events.is_some() {
-            parse_events(&block)?;
+        if block.events.is_none() {
+            return Err(error_msg("Event was required"))
         }
 
-        last_block = block.block.block.header.number;
+        parse_events(&block, &ecdh_privkey)?;
+
+        last_block = block.block_header.number;
         local_state.block_hashes.remove(0);
         local_state.blocknum = last_block + 1;
     }
@@ -1535,13 +1513,13 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
         .map_err(|_| error_msg("cannot decode authority_set_change"))
 }
 
-fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
-    let mut state = STATE.lock().unwrap();
+fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKey) -> Result<(), Value> {
+    let ref mut state = STATE.lock().unwrap();
     let missing_field = error_msg("Missing field");
     let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
     let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
     let key = block_with_events.clone().key.ok_or(missing_field)?;
-    let state_root = &block_with_events.block.block.header.state_root;
+    let state_root = &block_with_events.block_header.state_root;
     state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
 
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
@@ -1549,7 +1527,16 @@ fn parse_events(block_with_events: &BlockWithEvents) -> Result<(), Value> {
         for evt in &evts {
             if let chain::Event::pallet_phala(pe) = &evt.event {
                 println!("pallet_phala event: {:?}", pe);
-                state.contract2.handle_event(evt.event.clone());
+                if let phala::RawEvent::CommandPushed(who, contract_id, payload, num) = pe {
+                    println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
+                    let pos = TxRef {
+                        blocknum: block_with_events.block_header.number,
+                        index: *num,
+                    };
+                    handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
+                } else {
+                    state.contract2.handle_event(evt.event.clone());
+                }
             }
         }
 
@@ -1677,9 +1664,9 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) -> Response {
     let inner = || -> Result<Response, receipt::Error> {
         match req {
-            Request::QueryReceipt{tx_hash} => {
+            Request::QueryReceipt{command_index} => {
                 let gr = GLOBAL_RECEIPT.lock().unwrap();
-                match gr.get_receipt(tx_hash) {
+                match gr.get_receipt(command_index) {
                     Some(receipt) => {
                         if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
                             Ok(Response::QueryReceipt { receipt: receipt.clone() })

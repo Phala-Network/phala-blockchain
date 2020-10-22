@@ -211,8 +211,7 @@ impl contracts::Contract<Command, Request, Response> for Balances {
         if let chain::Event::pallet_phala(pe) = ce {
             if let phala::RawEvent::TransferToTee(who, amount) = pe {
                 println!("TransferToTee from :{:?}, {:}", who, amount);
-                let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
-                let dest = AccountIdWrapper(account_id);
+                let dest = AccountIdWrapper(who);
                 println!("   dest: {}", dest.to_string());
                 if let Some(dest_amount) = self.accounts.get_mut(&dest) {
                     let dest_amount0 = *dest_amount;
@@ -225,8 +224,7 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                 self.total_issuance += amount;
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
-                let account_id = chain::AccountId::decode(&mut who.as_slice()).expect("Bad account id");
-                let transfer_data = TransferData { data: Transfer { dest: AccountIdWrapper(account_id), amount, sequence }, signature: Vec::new() };
+                let transfer_data = TransferData { data: Transfer { dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
                 println!("transfer data:{:?}", transfer_data);
                 self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
                 println!("queue len: {:}", self.queue.len());
