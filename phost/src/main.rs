@@ -51,6 +51,15 @@ struct Args {
     help = "Should enable Remote Attestation")]
     ra: bool,
 
+    #[structopt(long = "fetch-heartbeat-from-buffer", help = "Manual fetch heartbeat data")]
+    fetch_heartbeat_from_buffer: bool,
+
+    #[structopt(
+    default_value = "5",
+    long = "heartbeat-interval",
+    help = "Frequency of sending heartbeat")]
+    heartbeat_interval: u32,
+
     #[structopt(
     default_value = "ws://localhost:9944", long,
     help = "Substrate rpc websocket endpoint")]
@@ -447,10 +456,11 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
     Ok(())
 }
 
-async fn send_heartbeat_to_chain(client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
-    let result = pr.req_decode("ping", PingReq {}).await?;
+async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
+    let command = if fetch_heartbeat_from_buffer { "fetch_from_heartbeat_buffer" } else { "ping" };
+    let result = pr.req_decode(command, PingReq {}).await?;
     if result.status != "ok" {
-        println!("Ping api returns: {}, skip", result.status);
+        println!("{} api returns: {}, skip", command, result.status);
         return Ok(())
     }
 
@@ -586,9 +596,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
-            if info.initialized && !args.no_write_back && next_block % 5 == 0 {
+            if info.initialized && !args.no_write_back && args.heartbeat_interval > 0 && next_block % args.heartbeat_interval == 0 {
                 println!("send heartbeat");
-                send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
+                send_heartbeat_to_chain(args.fetch_heartbeat_from_buffer, &client, &pr, pair.clone()).await?;
             }
 
             println!("waiting for new blocks");

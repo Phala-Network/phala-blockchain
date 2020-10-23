@@ -229,6 +229,10 @@ lazy_static! {
         let stringify_key: String = IAS_API_KEY_STR.into();
         stringify_key.trim_end().to_owned()
     };
+
+    static ref HEARTBEAT_DATA_BUFFER: SgxMutex<Option<HeartbeatData>> = {
+        SgxMutex::new(None)
+    };
 }
 
 fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
@@ -662,6 +666,7 @@ const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
 const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_PING: u8 = 8;
+const ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER: u8 = 9;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -766,6 +771,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
                 ACTION_PING => ping(payload),
+                ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER => fetch_from_heartbeat_buffer(payload),
                 _ => unknown()
             }
         }
@@ -1744,6 +1750,9 @@ fn ping(_input: &Map<String, Value>) -> Result<Value, Value> {
         signature: signature.0.serialize().to_vec(),
     };
 
+    let mut heartbeat_data_buffer = HEARTBEAT_DATA_BUFFER.lock().unwrap();
+    (*heartbeat_data_buffer) = Some(heartbeat_data.clone());
+
     let data_b64 = base64::encode(&heartbeat_data.encode());
 
     Ok(json!({
@@ -1752,6 +1761,32 @@ fn ping(_input: &Map<String, Value>) -> Result<Value, Value> {
     }))
 }
 
+fn fetch_from_heartbeat_buffer(_input: &Map<String, Value>) -> Result<Value, Value> {
+    let local_state = LOCAL_STATE.lock().unwrap();
+    // TODO: Guard only initialize once
+    if !local_state.initialized {
+        return Err(json!({"status": "not_initialized", "encoded_data": ""}))
+    }
+
+    let mut heartbeat_data_buffer = HEARTBEAT_DATA_BUFFER.lock().unwrap();
+    match &*heartbeat_data_buffer {
+        Some(heartbeat_data) => {
+            let data_b64 = base64::encode(&heartbeat_data.encode());
+            (*heartbeat_data_buffer) = None;
+
+            Ok(json!({
+                "status": "ok",
+                "encoded_data": data_b64.to_string()
+            }))
+        },
+        _ => {
+            Ok(json!({
+                "status": "empty_buffer",
+                "encoded_data": ""
+            }))
+        }
+    }
+}
 
 lazy_static! {
     static ref GLOBAL_RECEIPT: SgxMutex<ReceiptStore> = {
