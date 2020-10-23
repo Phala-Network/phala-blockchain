@@ -93,7 +93,6 @@ impl<'de> Deserialize<'de> for EthereumTxHash {
 }
 
 
-
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
 	/// Because this pallet emits events, it depends on the runtime's definition of an event.
@@ -103,86 +102,96 @@ pub trait Trait: frame_system::Trait {
 // The pallet's runtime storage items.
 // https://substrate.dev/docs/en/knowledgebase/runtime/storage
 decl_storage! {
-	trait Store for Module<T: Trait> as ClaimModule {
-	    EndHeight get(fn end_height): u64;
-       	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, u64);
-		ClaimState get(fn claim_state): map hasher(blake2_128_concat) EthereumTxHash => bool;
-	}
+    trait Store for Module<T: Trait> as ClaimModule {
+    	AdminId get(fn admin_id): T::AccountId;
+    	EndHeight get(fn end_height): u64;
+    	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, u64);
+    	ClaimState get(fn claim_state): map hasher(blake2_128_concat) EthereumTxHash => bool;
+    }
 }
 
 // Pallets use events to inform users when important changes are made.
 // https://substrate.dev/docs/en/knowledgebase/runtime/events
 decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
-		/// Event emitted when a transaction has been stored.
-		ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u64),
-		/// Event emitted when a transaction has been claimed.
-		ERC20TokenClaimed(AccountId, EthereumTxHash),
-		// ClaimDebug(AccountId, Vec<u8>, EthereumTxHash, EthereumAddress, EthereumAddress),
-	}
+    pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
+        /// Event emitted when a transaction has been stored.
+        ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u64),
+        /// Event emitted when a transaction has been claimed.
+        ERC20TokenClaimed(AccountId, EthereumTxHash),
+        // ClaimDebug(AccountId, Vec<u8>, EthereumTxHash, EthereumAddress, EthereumAddress),
+    }
 );
 
 // Errors inform users that something went wrong.
 decl_error! {
-	pub enum Error for Module<T: Trait> {
-		/// The transaction signature is invalid.
-		InvalidSignature,
-		/// The signer is not transaction sender.
-		NotTransactionSender,
-		/// The transaction hash doesn't exist
-		TxHashNotFound,
-		/// The transaction hash already exit
-		TxHashAlreadyExist,
-		/// The transaction has been claimed
-		TxAlreadyClaimed,
-		/// The transaction height less than end height
-		LessThanEndHeight,
-	}
+    pub enum Error for Module<T: Trait> {
+        /// Not administrator
+        NotAdministrator,
+        /// The transaction signature is invalid.
+        InvalidSignature,
+        /// The signer is not transaction sender.
+        NotTransactionSender,
+        /// The transaction hash doesn't exist
+        TxHashNotFound,
+        /// The transaction hash already exit
+        TxHashAlreadyExist,
+        /// The transaction has been claimed
+        TxAlreadyClaimed,
+        /// The transaction height less than end height
+        LessThanEndHeight,
+    }
 }
-
-
-
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
 // These functions materialize as "extrinsics", which are often compared to transactions.
 // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
-		// Errors must be initialized if they are used by the pallet.
+      	// Errors must be initialized if they are used by the pallet.
 		type Error = Error<T>;
-		fn deposit_event() = default;
+      	fn deposit_event() = default;
 
-		#[weight = 0]
-		pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
-			// ensure_root(origin)?;
-			let who = ensure_signed(origin)?;
-			ensure!(!BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
-			let end_height = EndHeight::get();
-			if height > end_height {
-				EndHeight::put(height);
-			}
-			BurnedTransactions::insert(&eth_tx_hash, (eth_address.clone(), amount.clone()));
-			ClaimState::insert(&eth_tx_hash, false);
-			Self::deposit_event(RawEvent::ERC20TransactionStored(who, eth_tx_hash, eth_address, amount));
-			Ok(())
-		}
+      	#[weight = 0]
+      	pub fn set_admin(origin, admin: T::AccountId) -> dispatch::DispatchResult {
+      		ensure_root(origin)?;
+      		Admin_Id::<T>::put(admin);
+            Ok(())
+        }
 
-		#[weight = 0]
-		pub fn claim_erc20_token(origin, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
-			ensure!(BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
-			ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
-			let who = ensure_signed(origin)?;
-			let address = Encode::encode(&who);
-			let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
-				.ok_or(Error::<T>::InvalidSignature)?;
-			let tx = BurnedTransactions::get(&eth_tx_hash);
-			ensure!((signer == tx.0), Error::<T>::NotTransactionSender);
-			ClaimState::insert(&eth_tx_hash, true);
-			Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash));
-			// 	Self::deposit_event(RawEvent::ClaimDebug(who, address.to_vec(), eth_tx_hash, signer, tx.0));
-			Ok(())
-		}
-	}
+
+        #[weight = 0]
+        pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
+            // let admin = Admin_Id::<T>::get();
+            // ensure!(who == admin, Error::<T>::NotAdministrator)
+            ensure!(!BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
+            let end_height = EndHeight::get();
+            if height > end_height {
+                EndHeight::put(height);
+            }
+            BurnedTransactions::insert(&eth_tx_hash, (eth_address.clone(), amount.clone()));
+            ClaimState::insert(&eth_tx_hash, false);
+            Self::deposit_event(RawEvent::ERC20TransactionStored(who, eth_tx_hash, eth_address, amount));
+            Ok(())
+        }
+
+
+        #[weight = 0]
+        pub fn claim_erc20_token(origin, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+            ensure!(BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
+            ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
+            let who = ensure_signed(origin)?;
+            let address = Encode::encode(&who);
+            let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
+                .ok_or(Error::<T>::InvalidSignature)?;
+            let tx = BurnedTransactions::get(&eth_tx_hash);
+            ensure!((signer == tx.0), Error::<T>::NotTransactionSender);
+            ClaimState::insert(&eth_tx_hash, true);
+            Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash));
+            //     Self::deposit_event(RawEvent::ClaimDebug(who, address.to_vec(), eth_tx_hash, signer, tx.0));
+            Ok(())
+        }
+    }
 }
 
 impl<T: Trait> Module<T> {
@@ -210,3 +219,4 @@ impl<T: Trait> Module<T> {
 		Some(res)
 	}
 }
+
