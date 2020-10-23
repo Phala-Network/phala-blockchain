@@ -18,52 +18,6 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-/// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Trait: frame_system::Trait {
-	/// Because this pallet emits events, it depends on the runtime's definition of an event.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
-}
-
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
-decl_storage! {
-	trait Store for Module<T: Trait> as ClaimModule {
-	    EndHeight get(fn end_height): u64;
-       	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) Vec<u8> => (EthereumAddress, u64);
-		ClaimState get(fn claim_state): map hasher(blake2_128_concat) Vec<u8> => bool;
-	}
-}
-
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
-decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
-		/// Event emitted when a transaction has been stored.
-		ERC20TransactionStored(AccountId, Vec<u8>, EthereumAddress, u64),
-		/// Event emitted when a transaction has been claimed.
-		ERC20TokenClaimed(AccountId, Vec<u8>),
-		// ClaimDebug(AccountId, Vec<u8>, Vec<u8>, EthereumAddress, EthereumAddress),
-	}
-);
-
-// Errors inform users that something went wrong.
-decl_error! {
-	pub enum Error for Module<T: Trait> {
-		/// The transaction signature is invalid.
-		InvalidSignature,
-		/// The signer is not transaction sender.
-		NotTransactionSender,
-		/// The transaction hash doesn't exist
-		TxHashNotFound,
-		/// The transaction hash already exit
-		TxHashAlreadyExist,
-		/// The transaction has been claimed
-		TxAlreadyClaimed,
-		/// The transaction height less than end height
-		LessThanEndHeight,
-	}
-}
-
 /// An Ethereum address (i.e. 20 bytes, used to represent an Ethereum account).
 ///
 /// This gets serialized to the 0x-prefixed hex representation.
@@ -110,6 +64,83 @@ impl sp_std::fmt::Debug for EcdsaSignature {
 	}
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug)]
+pub struct EthereumTxHash(pub [u8; 32]);
+
+#[cfg(feature = "std")]
+impl Serialize for EthereumTxHash {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error> where S: Serializer {
+		let hex: String = rustc_hex::ToHex::to_hex(&self.0[..]);
+		serializer.serialize_str(&format!("0x{}", hex))
+	}
+}
+
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for EthereumTxHash {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error> where D: Deserializer<'de> {
+		let base_string = String::deserialize(deserializer)?;
+		let offset = if base_string.starts_with("0x") { 2 } else { 0 };
+		let s = &base_string[offset..];
+		if s.len() != 64 {
+			Err(serde::de::Error::custom("Bad length of Ethereum tx hash (should be 66 including '0x')"))?;
+		}
+		let raw: Vec<u8> = rustc_hex::FromHex::from_hex(s)
+			.map_err(|e| serde::de::Error::custom(format!("{:?}", e)))?;
+		let mut r = Self::default();
+		r.0.copy_from_slice(&raw);
+		Ok(r)
+	}
+}
+
+
+
+/// Configure the pallet by specifying the parameters and types on which it depends.
+pub trait Trait: frame_system::Trait {
+	/// Because this pallet emits events, it depends on the runtime's definition of an event.
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+}
+
+// The pallet's runtime storage items.
+// https://substrate.dev/docs/en/knowledgebase/runtime/storage
+decl_storage! {
+	trait Store for Module<T: Trait> as ClaimModule {
+	    EndHeight get(fn end_height): u64;
+       	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, u64);
+		ClaimState get(fn claim_state): map hasher(blake2_128_concat) EthereumTxHash => bool;
+	}
+}
+
+// Pallets use events to inform users when important changes are made.
+// https://substrate.dev/docs/en/knowledgebase/runtime/events
+decl_event!(
+	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
+		/// Event emitted when a transaction has been stored.
+		ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u64),
+		/// Event emitted when a transaction has been claimed.
+		ERC20TokenClaimed(AccountId, EthereumTxHash),
+		// ClaimDebug(AccountId, Vec<u8>, EthereumTxHash, EthereumAddress, EthereumAddress),
+	}
+);
+
+// Errors inform users that something went wrong.
+decl_error! {
+	pub enum Error for Module<T: Trait> {
+		/// The transaction signature is invalid.
+		InvalidSignature,
+		/// The signer is not transaction sender.
+		NotTransactionSender,
+		/// The transaction hash doesn't exist
+		TxHashNotFound,
+		/// The transaction hash already exit
+		TxHashAlreadyExist,
+		/// The transaction has been claimed
+		TxAlreadyClaimed,
+		/// The transaction height less than end height
+		LessThanEndHeight,
+	}
+}
+
+
 
 
 // Dispatchable functions allows users to interact with the pallet and invoke state changes.
@@ -122,7 +153,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		#[weight = 0]
-		pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: Vec<u8>, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
+		pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
 			// ensure_root(origin)?;
 			let who = ensure_signed(origin)?;
 			ensure!(!BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
@@ -137,12 +168,12 @@ decl_module! {
 		}
 
 		#[weight = 0]
-		pub fn claim_erc20_token(origin, eth_tx_hash: Vec<u8>, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+		pub fn claim_erc20_token(origin, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
 			ensure!(BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
 			ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
 			let who = ensure_signed(origin)?;
 			let address = Encode::encode(&who);
-			let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash)
+			let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
 				.ok_or(Error::<T>::InvalidSignature)?;
 			let tx = BurnedTransactions::get(&eth_tx_hash);
 			ensure!((signer == tx.0), Error::<T>::NotTransactionSender);
