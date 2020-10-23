@@ -190,6 +190,13 @@ pub struct BlockWithEvents {
     pub key: Option<Vec<u8>>,
 }
 #[derive(Encode, Decode, Clone, Debug)]
+pub struct BlockHeaderWithEvents {
+    pub block_header: Header,
+    pub events: Option<Vec<u8>>,
+    pub proof: Option<StorageProof>,
+    pub key: Option<Vec<u8>>,
+}
+#[derive(Encode, Decode, Clone, Debug)]
 pub struct HeaderToSync {
     pub header: Header,
     pub justification: Option<Justification>,

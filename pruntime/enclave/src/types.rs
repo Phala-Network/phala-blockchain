@@ -12,8 +12,7 @@ extern crate runtime as chain;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TxRef {
   pub blocknum: chain::BlockNumber,
-  pub index: u32,
-  pub tx_hash: String,
+  pub index: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
