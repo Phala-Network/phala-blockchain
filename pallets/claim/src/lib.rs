@@ -4,10 +4,10 @@
 /// Learn more about FRAME and the core library of Substrate FRAME pallets:
 /// https://substrate.dev/docs/en/knowledgebase/runtime/frame
 
-use sp_std::{prelude::*, fmt::Debug};
+use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
-use frame_support::{decl_module, decl_storage, decl_event, decl_error, ensure, dispatch, traits::Get, RuntimeDebug};
-use frame_system::{self as system, ensure_signed, ensure_root};
+use frame_support::{decl_module, decl_storage, decl_event, decl_error, ensure, dispatch, RuntimeDebug};
+use frame_system::{ensure_signed, ensure_root};
 use codec::{Encode, Decode};
 #[cfg(feature = "std")]
 use serde::{self, Serialize, Deserialize, Serializer, Deserializer};
@@ -29,7 +29,7 @@ pub trait Trait: frame_system::Trait {
 decl_storage! {
 	trait Store for Module<T: Trait> as ClaimModule {
 	    EndHeight get(fn end_height): u64;
-       	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) Vec<u8> => (Vec<u8>, u64);
+       	BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) Vec<u8> => (EthereumAddress, u64);
 		ClaimState get(fn claim_state): map hasher(blake2_128_concat) Vec<u8> => bool;
 	}
 }
@@ -39,10 +39,10 @@ decl_storage! {
 decl_event!(
 	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
 		/// Event emitted when a transaction has been stored.
-		TransactionStored(Vec<u8>, Vec<u8>, u64),
+		ERC20TransactionStored(AccountId, Vec<u8>, EthereumAddress, u64),
 		/// Event emitted when a transaction has been claimed.
-		TransactionClaimed(AccountId, Vec<u8>),
-
+		ERC20TokenClaimed(AccountId, Vec<u8>),
+		// ClaimDebug(AccountId, Vec<u8>, Vec<u8>, EthereumAddress, EthereumAddress),
 	}
 );
 
@@ -50,15 +50,15 @@ decl_event!(
 decl_error! {
 	pub enum Error for Module<T: Trait> {
 		/// The transaction signature is invalid.
-		TransactionSignatureInvalid,
-		/// The transaction infomation is invalid.
-		TransactionInfoInvalid,
-		/// The transaction doesn't exist
-		TransactionNotFound,
-		/// The transaction already exit
-		TransactionAlreadyExist,
+		InvalidSignature,
+		/// The signer is not transaction sender.
+		NotTransactionSender,
+		/// The transaction hash doesn't exist
+		TxHashNotFound,
+		/// The transaction hash already exit
+		TxHashAlreadyExist,
 		/// The transaction has been claimed
-		TransactionAlreadyClaimed,
+		TxAlreadyClaimed,
 		/// The transaction height less than end height
 		LessThanEndHeight,
 	}
@@ -122,52 +122,42 @@ decl_module! {
 		fn deposit_event() = default;
 
 		#[weight = 0]
-		pub fn sync_eth_burn_transaction(origin, height: u64, txHash: Vec<u8>, fromAddress: Vec<u8>, amount:u64) -> dispatch::DispatchResult {
+		pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: Vec<u8>, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
 			// ensure_root(origin)?;
-			ensure!(!BurnedTransactions::contains_key(&txHash), Error::<T>::TransactionAlreadyExist);
-			let endHeight = EndHeight::get();
-			ensure!(!(height < endHeight), Error::<T>::LessThanEndHeight);
-			if (height > endHeight) {
+			let who = ensure_signed(origin)?;
+			ensure!(!BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
+			let end_height = EndHeight::get();
+			if height > end_height {
 				EndHeight::put(height);
 			}
-			BurnedTransactions::insert(&txHash, (fromAddress.clone(), amount.clone()));
-			Self::deposit_event(RawEvent::TransactionStored(txHash, fromAddress, amount));
+			BurnedTransactions::insert(&eth_tx_hash, (eth_address.clone(), amount.clone()));
+			ClaimState::insert(&eth_tx_hash, false);
+			Self::deposit_event(RawEvent::ERC20TransactionStored(who, eth_tx_hash, eth_address, amount));
 			Ok(())
 		}
 
-		// #[weight = 0]
-		// pub fn claim(origin, txHash: Vec<u8>, sig: Vec<u8>) -> dispatch::DispatchResult {
-		// 	ensure!(!ClaimState::get(&txHash), Error::<T>::TransactionAlreadyClaimed);
-		// 	let who = ensure_signed(origin)?;
-		// 	let data = who.using_encoded(to_ascii_hex);
-		// 	let signer = Self::eth_recover(&sig, &data, &txHash)
-		// 		.ok_or(Error::<T>::TransactionSignatureInvalid)?;
-		// 	let tx = BurnedTransactions::get(&txHash);
-		//
-		// 	// TODO
-		// 	ensure!(!(), Error::<T>::TransactionInfoInvalid);
-		// 	ClaimState::insert(&txHash, true);
-		// 	Self::deposit_event(RawEvent::TransactionClaimed(who, txHash));
-		// 	Ok(())
-		// }
+		#[weight = 0]
+		pub fn claim_erc20_token(origin, eth_tx_hash: Vec<u8>, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+			ensure!(BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
+			ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
+			let who = ensure_signed(origin)?;
+			let address = Encode::encode(&who);
+			let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash)
+				.ok_or(Error::<T>::InvalidSignature)?;
+			let tx = BurnedTransactions::get(&eth_tx_hash);
+			ensure!((signer == tx.0), Error::<T>::NotTransactionSender);
+			ClaimState::insert(&eth_tx_hash, true);
+			Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash));
+			// 	Self::deposit_event(RawEvent::ClaimDebug(who, address.to_vec(), eth_tx_hash, signer, tx.0));
+			Ok(())
+		}
 	}
-}
-
-/// Converts the given binary data into ASCII-encoded hex. It will be twice the length.
-fn to_ascii_hex(data: &[u8]) -> Vec<u8> {
-	let mut r = Vec::with_capacity(data.len() * 2);
-	let mut push_nibble = |n| r.push(if n < 10 { b'0' + n } else { b'a' - 10 + n });
-	for &b in data.iter() {
-		push_nibble(b / 16);
-		push_nibble(b % 16);
-	}
-	r
 }
 
 impl<T: Trait> Module<T> {
 	// Constructs the message that Ethereum RPC's `personal_sign` and `eth_sign` would sign.
 	fn ethereum_signable_message(what: &[u8], extra: &[u8]) -> Vec<u8> {
-		let mut l =  what.len() + extra.len();
+		let mut l = what.len() + extra.len();
 		let mut rev = Vec::new();
 		while l > 0 {
 			rev.push(b'0' + (l % 10) as u8);
