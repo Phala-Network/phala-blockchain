@@ -57,6 +57,11 @@ const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 2*2048*1024 as usize;
 
 lazy_static! {
     static ref ENCLAVE: RwLock<Option<SgxEnclave>> = RwLock::new(None);
+    static ref ENCLAVE_STATE_FILE_PATH: &'static str = {
+        Box::leak(
+            env::var("STATE_FILE_PATH").unwrap_or_else(|_| "./".to_string()).into_boxed_str()
+        )
+    };
 }
 
 fn destroy_enclave() {
@@ -205,7 +210,7 @@ fn ocall_save_persistent_data(
 
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
-    let state_path: path::PathBuf = path.join(ENCLAVE_STATE_FILE);
+    let state_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH).join(ENCLAVE_STATE_FILE);
     println!("Save seal data to {}", state_path.as_path().to_str().unwrap());
 
     fs::write(state_path.as_path().to_str().unwrap(), input_slice);
@@ -222,7 +227,7 @@ fn ocall_load_persistent_data(
 ) -> sgx_status_t {
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
-    let state_path: path::PathBuf = path.join(ENCLAVE_STATE_FILE);
+    let state_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH).join(ENCLAVE_STATE_FILE);
 
     let state = match fs::read(state_path.as_path().to_str().unwrap()) {
         Ok(data) => data,
