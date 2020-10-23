@@ -20,7 +20,7 @@ use crate::types::{
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    DispatchBlockReq, DispatchBlockResp, PingReq, /*PingResp,*/ HeartbeatData, /*Heartbeat*/
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
 };
 
 use subxt::Signer;
@@ -87,8 +87,8 @@ struct BlockSyncState {
     authory_set_state: Option<(BlockNumber, SetId)>
 }
 
-async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
-                      -> Result<BlockWithEvents, Error> {
+async fn get_block_at(client: &XtClient, h: Option<u32>)
+                      -> Result<OpaqueSignedBlock, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
@@ -100,19 +100,41 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
     let block = client.block(Some(hash.clone())).await?
         .ok_or(Error::BlockNotFound)?;
 
-    let (events, proof, key) = if with_events {
-        let events_with_proof = fetch_events(&client, &hash).await?;
-        if let Some((raw_events, proof, key)) = events_with_proof {
-            println!("          ... with events {} bytes", raw_events.len());
-            (Some(raw_events), Some(proof), Some(key))
-        } else {
-            (None, None, None)
-        }
-    } else {
-        (None, None, None)
-    };
+    Ok(block)
+}
 
-    Ok(BlockWithEvents { block, events, proof, key })
+async fn get_block_with_events(client: &XtClient, h: Option<u32>)
+                               -> Result<BlockWithEvents, Error> {
+    let block = get_block_at(&client, h).await?;
+    let hash = block.block.header.hash();
+
+    let events_with_proof = fetch_events(&client, &hash).await?;
+    if let Some((raw_events, proof, key)) = events_with_proof {
+        println!("          ... with events {} bytes", raw_events.len());
+        let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
+        return Ok(BlockWithEvents { block, events, proof, key });
+    }
+
+    return Err(Error::EventNotFound);
+}
+
+async fn get_block_header_with_events(client: &XtClient, h: Option<u32>)
+                               -> Result<BlockHeaderWithEvents, Error> {
+    let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
+    let hash = match pos {
+        Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
+        None => client.finalized_head().await?
+    };
+    let header = client.header(Some(hash)).await?.unwrap();
+
+    let events_with_proof = fetch_events(&client, &hash).await?;
+    if let Some((raw_events, proof, key)) = events_with_proof {
+        println!("          ... with events {} bytes", raw_events.len());
+        let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
+        return Ok(BlockHeaderWithEvents { block_header: header, events, proof, key });
+    }
+
+    return Err(Error::EventNotFound);
 }
 
 async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
@@ -254,7 +276,7 @@ async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_s
     Ok(resp)
 }
 
-async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>) -> Result<DispatchBlockResp, Error> {
+async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockHeaderWithEvents>) -> Result<DispatchBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|block| {
@@ -377,7 +399,7 @@ async fn batch_sync_block(
                 let para_fin_block_number = para_fin_block.unwrap().block.header.number;
                 let mut para_blocks = Vec::new();
                 for b in blocknum..=para_fin_block_number {
-                    let block = get_block_at(&paraclient, Some(b), true).await?;
+                    let block = get_block_header_with_events(&paraclient, Some(b)).await?;
                     para_blocks.push(block.clone());
                 }
 
@@ -387,7 +409,7 @@ async fn batch_sync_block(
                     let end_batch = para_blocks.len() as isize - 1;
                     let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
                     if batch_end >= 0 {
-                        let dispatch_batch: Vec<BlockWithEvents> = para_blocks
+                        let dispatch_batch: Vec<BlockHeaderWithEvents> = para_blocks
                             .drain(..=(batch_end as usize))
                             .collect();
                         let r = req_dispatch_block(pr, &dispatch_batch).await?;
@@ -416,8 +438,8 @@ async fn batch_sync_block(
 }
 
 async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
-    let latest_block = get_block_at(&client, None, false).await?.block;
-    let hash = latest_block.block.header.hash();
+    let latest_block = get_block_at(&client, None).await?.block;
+    let hash = latest_block.header.hash();
     client.fetch_or_default(runtimes::phala::IngressSequenceStore::new(2), Some(hash)).await.or(Ok(0))
 }
 
@@ -527,12 +549,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !info.initialized && !args.no_init {
         println!("pRuntime not initialized. Requesting init");
-        let genesis_block = get_block_at(&client, Some(0), false).await?.block;
+        let genesis_block = get_block_at(&client, Some(0)).await?.block;
         let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
             .expect("No genesis block?");
         let set_proof = get_authority_with_proof_at(&client, hash).await?;
         let info = GenesisInfo {
-            header: genesis_block.block.header,
+            header: genesis_block.header,
             validators: set_proof.authority_set.authority_set,
             proof: set_proof.authority_proof,
         };
@@ -560,10 +582,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
             };
             let signer = subxt::PairSigner::new(pair.clone());
             let ret = paraclient.watch(call, &signer).await;
-            // ignore register error temporarily
-            //if !ret.is_ok() {
-            //    return Err(Error::FailedToCallRegisterWorker);
-            //}
+            if !ret.is_ok() {
+                return Err(Error::FailedToCallRegisterWorker);
+            }
 
             ()
         }
@@ -588,7 +609,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         //if info.headernum != info.blocknum {
         //    return Err(Error::BlockHeaderMismatch);
         //}
-        let latest_block = get_block_at(&client, None, false).await?.block;
+        let latest_block = get_block_at(&client, None).await?.block;
         // remove the headers not needed in the buffer. info.headernum is the next required header
         while let Some(ref b) = sync_state.blocks.first() {
             if b.block.block.header.number >= info.headernum {
@@ -597,16 +618,16 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.remove(0);
         }
         println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
-                 info.headernum, latest_block.block.header.number, sync_state.blocks.len());
+                 info.headernum, latest_block.header.number, sync_state.blocks.len());
 
         // no, then catch up to the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
             None => info.headernum
         };
-        let batch_end = std::cmp::min(latest_block.block.header.number, next_block + args.fetch_blocks - 1);
+        let batch_end = std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
         for b in next_block ..= batch_end {
-            let block = get_block_at(&client, Some(b), true).await?;
+            let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
             }
