@@ -15,6 +15,7 @@
     "chai": "^4.2.0",
     "dotenv": "^8.2.0",
     "mocha": "^8.1.3",
-    "mochawesome": "^6.1.1"
+    "mochawesome": "^6.1.1",
+    "portfinder": "^1.0.28"
   }
 }
