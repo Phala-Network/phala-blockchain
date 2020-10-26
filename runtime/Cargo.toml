@@ -153,6 +153,7 @@ std = [
 	"pallet-recovery/std",
 	"pallet-vesting/std",
 	"pallet-phala/std",
+	"pallet-claim/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

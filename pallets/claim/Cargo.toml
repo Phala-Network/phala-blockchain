@@ -1,11 +1,11 @@
 [package]
-authors = ['Phala.network']
+authors = ['Phala Network']
 edition = '2018'
 name = 'pallet-claim'
 version = "2.0.0"
 license = "Apache 2.0"
 homepage = "https://substrate.dev"
-repository = "https://github.com/paritytech/substrate/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
 description = "FRAME pallet template"
 
 [package.metadata.docs.rs]

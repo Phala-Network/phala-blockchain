@@ -1,9 +1,5 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-/// Edit this file to define custom logic or remove it if it is not needed.
-/// Learn more about FRAME and the core library of Substrate FRAME pallets:
-/// https://substrate.dev/docs/en/knowledgebase/runtime/frame
-
 use sp_std::prelude::*;
 use sp_io::{hashing::keccak_256, crypto::secp256k1_ecdsa_recover};
 use frame_support::{decl_module, decl_storage, decl_event, decl_error, ensure, dispatch, RuntimeDebug};
@@ -99,8 +95,6 @@ pub trait Trait: frame_system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 }
 
-// The pallet's runtime storage items.
-// https://substrate.dev/docs/en/knowledgebase/runtime/storage
 decl_storage! {
     trait Store for Module<T: Trait> as ClaimModule {
     	AdminId get(fn admin_id): T::AccountId;
@@ -110,15 +104,12 @@ decl_storage! {
     }
 }
 
-// Pallets use events to inform users when important changes are made.
-// https://substrate.dev/docs/en/knowledgebase/runtime/events
 decl_event!(
     pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId {
         /// Event emitted when a transaction has been stored.
         ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u64),
         /// Event emitted when a transaction has been claimed.
-        ERC20TokenClaimed(AccountId, EthereumTxHash),
-        // ClaimDebug(AccountId, Vec<u8>, EthereumTxHash, EthereumAddress, EthereumAddress),
+        ERC20TokenClaimed(AccountId, EthereumTxHash, u64),
     }
 );
 
@@ -178,17 +169,16 @@ decl_module! {
 
         #[weight = 0]
         pub fn claim_erc20_token(origin, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+            let who = ensure_signed(origin)?;
             ensure!(BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
             ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
-            let who = ensure_signed(origin)?;
             let address = Encode::encode(&who);
             let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
                 .ok_or(Error::<T>::InvalidSignature)?;
             let tx = BurnedTransactions::get(&eth_tx_hash);
-            ensure!((signer == tx.0), Error::<T>::NotTransactionSender);
+            ensure!(signer == tx.0, Error::<T>::NotTransactionSender);
             ClaimState::insert(&eth_tx_hash, true);
-            Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash));
-            //     Self::deposit_event(RawEvent::ClaimDebug(who, address.to_vec(), eth_tx_hash, signer, tx.0));
+            Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash, tx.1));
             Ok(())
         }
     }
