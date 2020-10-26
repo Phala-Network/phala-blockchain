@@ -1000,7 +1000,7 @@ dependencies = [
 [[package]]
 name = "cumulus-collator"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-consensus",
  "cumulus-network",
@@ -1028,7 +1028,7 @@ dependencies = [
 [[package]]
 name = "cumulus-consensus"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "futures 0.3.6",
  "log 0.4.11",
@@ -1050,10 +1050,9 @@ dependencies = [
 [[package]]
 name = "cumulus-message-broker"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-primitives",
- "cumulus-upward-message",
  "frame-support",
  "frame-system",
  "parity-scale-codec",
@@ -1061,12 +1060,13 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "xcm",
 ]
 
 [[package]]
 name = "cumulus-network"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-primitives",
  "futures 0.3.6",
@@ -1088,7 +1088,7 @@ dependencies = [
 [[package]]
 name = "cumulus-parachain-upgrade"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-primitives",
  "cumulus-runtime",
@@ -1109,7 +1109,7 @@ dependencies = [
 [[package]]
 name = "cumulus-primitives"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -1119,12 +1119,13 @@ dependencies = [
  "sp-inherents",
  "sp-runtime",
  "sp-std",
+ "xcm",
 ]
 
 [[package]]
 name = "cumulus-runtime"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-primitives",
  "frame-executive",
@@ -1143,7 +1144,7 @@ dependencies = [
 [[package]]
 name = "cumulus-service"
 version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-collator",
  "cumulus-consensus",
@@ -1160,20 +1161,6 @@ dependencies = [
  "sp-core",
  "sp-inherents",
  "sp-runtime",
-]
-
-[[package]]
-name = "cumulus-upward-message"
-version = "0.1.0"
-source = "git+https://github.com/paritytech/cumulus?rev=4e7f138c828bcf118df1c988a400d4dac8e904d9#4e7f138c828bcf118df1c988a400d4dac8e904d9"
-dependencies = [
- "kusama-runtime",
- "polkadot-core-primitives",
- "polkadot-parachain",
- "polkadot-runtime",
- "rococo-runtime",
- "sp-std",
- "westend-runtime",
 ]
 
 [[package]]
@@ -2753,7 +2740,7 @@ dependencies = [
 [[package]]
 name = "kusama-runtime"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -3790,6 +3777,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77af24da69f9d9341038eba93a073b1fdaaa1b788221b00a69bce9e762cb32de"
 
 [[package]]
+name = "orml-utilities"
+version = "0.1.3-dev"
+source = "git+https://github.com/open-web3-stack/open-runtime-module-library?branch=sw/xcmp#1a6c08876e5a3ff7f14db226bafad787f9d7c538"
+dependencies = [
+ "frame-support",
+ "parity-scale-codec",
+ "serde",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "owning_ref"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4342,6 +4341,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-xcm-handler"
+version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
+]
+
+[[package]]
 name = "parachain-collator"
 version = "0.1.0"
 dependencies = [
@@ -4371,9 +4383,6 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-service",
- "polkadot-test-runtime",
- "polkadot-test-runtime-client",
- "polkadot-test-service",
  "rand 0.7.3",
  "sc-basic-authorship",
  "sc-chain-spec",
@@ -4414,6 +4423,7 @@ dependencies = [
 [[package]]
 name = "parachain-info"
 version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=gav-xcmp#23ca78747a65cc1ead5b9134f65bd56e841dad7c"
 dependencies = [
  "cumulus-primitives",
  "frame-support",
@@ -4430,7 +4440,6 @@ dependencies = [
  "cumulus-parachain-upgrade",
  "cumulus-primitives",
  "cumulus-runtime",
- "cumulus-upward-message",
  "frame-executive",
  "frame-support",
  "frame-system",
@@ -4443,9 +4452,10 @@ dependencies = [
  "pallet-template",
  "pallet-timestamp",
  "pallet-transaction-payment",
+ "pallet-xcm-handler",
  "parachain-info",
  "parity-scale-codec",
- "phala-xtoken",
+ "polkadot-parachain",
  "serde",
  "sp-api",
  "sp-block-builder",
@@ -4459,6 +4469,10 @@ dependencies = [
  "sp-transaction-pool",
  "sp-version",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
+ "xtoken",
 ]
 
 [[package]]
@@ -4745,20 +4759,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "phala-xtoken"
-version = "0.1.0"
-dependencies = [
- "cumulus-primitives",
- "cumulus-upward-message",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "polkadot-parachain",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "phost"
 version = "0.1.0"
 dependencies = [
@@ -4834,7 +4834,7 @@ checksum = "feb3b2b1033b8a60b4da6ee470325f887758c95d5320f52f9ce0df055a55940e"
 [[package]]
 name = "polkadot-availability-store"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "derive_more 0.99.11",
  "exit-future 0.2.0",
@@ -4861,7 +4861,7 @@ dependencies = [
 [[package]]
 name = "polkadot-cli"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "frame-benchmarking-cli",
  "futures 0.3.6",
@@ -4884,7 +4884,7 @@ dependencies = [
 [[package]]
 name = "polkadot-collator"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "futures 0.3.6",
  "futures-timer 2.0.2",
@@ -4911,7 +4911,7 @@ dependencies = [
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.7.30"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "parity-scale-codec",
  "sp-core",
@@ -4922,7 +4922,7 @@ dependencies = [
 [[package]]
 name = "polkadot-erasure-coding"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "derive_more 0.15.0",
  "parity-scale-codec",
@@ -4935,7 +4935,7 @@ dependencies = [
 [[package]]
 name = "polkadot-network"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "arrayvec 0.4.12",
  "bytes 0.5.6",
@@ -4964,7 +4964,7 @@ dependencies = [
 [[package]]
 name = "polkadot-parachain"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "derive_more 0.99.11",
  "futures 0.3.6",
@@ -4978,14 +4978,16 @@ dependencies = [
  "sp-core",
  "sp-externalities",
  "sp-io",
+ "sp-runtime",
  "sp-std",
  "sp-wasm-interface",
+ "xcm",
 ]
 
 [[package]]
 name = "polkadot-primitives"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-system",
@@ -5008,7 +5010,7 @@ dependencies = [
 [[package]]
 name = "polkadot-rpc"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "jsonrpc-core",
  "pallet-transaction-payment-rpc",
@@ -5035,7 +5037,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -5100,7 +5102,7 @@ dependencies = [
 [[package]]
 name = "polkadot-runtime-common"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-support",
@@ -5115,6 +5117,7 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-vesting",
  "parity-scale-codec",
+ "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-runtime-parachains",
  "rustc-hex",
@@ -5129,12 +5132,13 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "static_assertions",
+ "xcm",
 ]
 
 [[package]]
 name = "polkadot-runtime-parachains"
 version = "0.8.0"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-support",
@@ -5165,7 +5169,7 @@ dependencies = [
 [[package]]
 name = "polkadot-service"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "frame-benchmarking",
  "frame-system-rpc-runtime-api",
@@ -5225,142 +5229,17 @@ dependencies = [
 [[package]]
 name = "polkadot-statement-table"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "sp-core",
-]
-
-[[package]]
-name = "polkadot-test-runtime"
-version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
-dependencies = [
- "bitvec",
- "frame-executive",
- "frame-support",
- "frame-system",
- "frame-system-rpc-runtime-api",
- "log 0.3.9",
- "pallet-authority-discovery",
- "pallet-authorship",
- "pallet-babe",
- "pallet-balances",
- "pallet-finality-tracker",
- "pallet-grandpa",
- "pallet-indices",
- "pallet-nicks",
- "pallet-offences",
- "pallet-randomness-collective-flip",
- "pallet-session",
- "pallet-staking",
- "pallet-staking-reward-curve",
- "pallet-sudo",
- "pallet-timestamp",
- "pallet-transaction-payment",
- "pallet-transaction-payment-rpc-runtime-api",
- "pallet-vesting",
- "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "rustc-hex",
- "serde",
- "serde_derive",
- "smallvec 1.4.2",
- "sp-api",
- "sp-authority-discovery",
- "sp-block-builder",
- "sp-consensus-babe",
- "sp-core",
- "sp-inherents",
- "sp-io",
- "sp-offchain",
- "sp-runtime",
- "sp-session",
- "sp-staking",
- "sp-std",
- "sp-transaction-pool",
- "sp-version",
- "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "polkadot-test-runtime-client"
-version = "2.0.0"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
-dependencies = [
- "futures 0.3.6",
- "pallet-timestamp",
- "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-test-runtime",
- "polkadot-test-service",
- "sc-block-builder",
- "sc-client-api",
- "sc-consensus",
- "sc-light",
- "sc-service",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-runtime",
- "substrate-test-client",
-]
-
-[[package]]
-name = "polkadot-test-service"
-version = "0.8.2"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
-dependencies = [
- "frame-benchmarking",
- "frame-system",
- "futures 0.1.30",
- "futures 0.3.6",
- "hex",
- "log 0.4.11",
- "pallet-staking",
- "pallet-transaction-payment",
- "polkadot-availability-store",
- "polkadot-network",
- "polkadot-primitives",
- "polkadot-rpc",
- "polkadot-runtime-common",
- "polkadot-service",
- "polkadot-test-runtime",
- "polkadot-validation",
- "rand 0.7.3",
- "sc-authority-discovery",
- "sc-chain-spec",
- "sc-client-api",
- "sc-consensus",
- "sc-consensus-babe",
- "sc-executor",
- "sc-finality-grandpa",
- "sc-informant",
- "sc-network",
- "sc-service",
- "sc-transaction-pool",
- "sp-arithmetic",
- "sp-blockchain",
- "sp-consensus",
- "sp-consensus-babe",
- "sp-core",
- "sp-finality-grandpa",
- "sp-inherents",
- "sp-keyring",
- "sp-runtime",
- "sp-state-machine",
- "substrate-test-client",
- "tempfile",
 ]
 
 [[package]]
 name = "polkadot-validation"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "ansi_term 0.12.1",
  "bitvec",
@@ -6074,7 +5953,7 @@ dependencies = [
 [[package]]
 name = "rococo-runtime"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -6138,6 +6017,9 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder-runner 1.0.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "xcm",
+ "xcm-builder",
+ "xcm-executor",
 ]
 
 [[package]]
@@ -9625,7 +9507,7 @@ dependencies = [
 [[package]]
 name = "westend-runtime"
 version = "0.8.22"
-source = "git+https://github.com/paritytech/polkadot?branch=rococo-branch#93f0029184a6c1749ce9420f4df1628a313a117d"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
 dependencies = [
  "bitvec",
  "frame-executive",
@@ -9792,6 +9674,68 @@ dependencies = [
  "curve25519-dalek 3.0.0",
  "rand_core 0.5.1",
  "zeroize",
+]
+
+[[package]]
+name = "xcm"
+version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
+dependencies = [
+ "parity-scale-codec",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "xcm-builder"
+version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
+]
+
+[[package]]
+name = "xcm-executor"
+version = "0.8.22"
+source = "git+https://github.com/paritytech/polkadot?branch=gav-xcmp#33ecb02d0ce2b700208c1f83dcc402ee68fb1a94"
+dependencies = [
+ "frame-support",
+ "impl-trait-for-tuples",
+ "parity-scale-codec",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
+]
+
+[[package]]
+name = "xtoken"
+version = "0.1.0"
+dependencies = [
+ "cumulus-primitives",
+ "frame-support",
+ "frame-system",
+ "orml-utilities",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcm",
+ "xcm-executor",
 ]
 
 [[package]]

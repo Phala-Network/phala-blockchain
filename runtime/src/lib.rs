@@ -11,9 +11,9 @@ use sp_api::impl_runtime_apis;
 use sp_core::OpaqueMetadata;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
-	traits::{BlakeTwo256, Block as BlockT, StaticLookup, IdentifyAccount, IdentityLookup, Saturating, Verify},
+	traits::{BlakeTwo256, Block as BlockT, StaticLookup, IdentifyAccount, IdentityLookup, Saturating, Verify, Convert},
 	transaction_validity::{TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, MultiSignature,
+	ApplyExtrinsicResult, MultiSignature, DispatchResult,
 };
 use sp_std::prelude::*;
 #[cfg(feature = "std")]
@@ -44,11 +44,22 @@ type Hasher = sp_runtime::traits::BlakeTwo256;
 #[cfg(feature = "native-nostd-hasher")]
 type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
+// use xtoken::{AssetIdConverter, IsConcreteWithGeneralKey, XCMAdapter, XcmHandler as HandleXcm};
+use xtoken::xcmadapter::{XCMAdapter, XcmHandler as HandleXcm};
+use xtoken;
+
+use xcm::v0::{Junction, MultiLocation, NetworkId, Xcm};
+use xcm_builder::{
+	AccountId32Aliases, LocationInverter, ParentIsDefault, RelayChainAsNative, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SovereignSignedViaLocation,
+};
+use xcm_executor::{traits::NativeAsset, Config, XcmExecutor};
+use polkadot_parachain::primitives::Sibling;
+
+use cumulus_primitives::relay_chain::Balance as RelayChainBalance;
+
 /// Import the template pallet.
 pub use template;
-
-/// Import the message pallet.
-pub use phala_xtoken;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -75,6 +86,8 @@ pub type Hash = sp_core::H256;
 
 /// Digest item type.
 pub type DigestItem = generic::DigestItem<Hash>;
+
+pub type CurrencyId = Vec<u8>;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -243,31 +256,6 @@ impl pallet_sudo::Trait for Runtime {
 	type Event = Event;
 }
 
-impl cumulus_parachain_upgrade::Trait for Runtime {
-	type Event = Event;
-	type OnValidationFunctionParams = ();
-}
-
-impl cumulus_message_broker::Trait for Runtime {
-	type Event = Event;
-	type DownwardMessageHandlers = PhalaXToken;
-	type UpwardMessage = cumulus_upward_message::RococoUpwardMessage;
-	type ParachainId = ParachainInfo;
-	type XCMPMessage = phala_xtoken::XCMPMessage<AccountId, Balance>;
-	type XCMPMessageHandlers = PhalaXToken;
-}
-
-impl parachain_info::Trait for Runtime {}
-
-impl phala_xtoken::Trait for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type UpwardMessageSender = MessageBroker;
-	type UpwardMessage = cumulus_upward_message::RococoUpwardMessage;
-	type Currency = Balances;
-	type XCMPMessageSender = MessageBroker;
-}
-
 /// Configure the pallet template in pallets/template.
 impl template::Trait for Runtime {
 	type Event = Event;
@@ -277,6 +265,120 @@ impl pallet_phala::Trait for Runtime {
 	type Event = Event;
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
+}
+
+impl cumulus_parachain_upgrade::Trait for Runtime {
+	type Event = Event;
+	type OnValidationFunctionParams = ();
+}
+
+impl cumulus_message_broker::Trait for Runtime {
+	type Event = Event;
+	// type DownwardMessageHandlers = PhalaXToken;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type ParachainId = ParachainInfo;
+	type SendDownward = ();
+}
+
+impl parachain_info::Trait for Runtime {}
+
+pub struct RelayToNative;
+impl Convert<RelayChainBalance, Balance> for RelayToNative {
+	fn convert(val: u128) -> Balance {
+		// native is 18
+		// relay is 12
+		val * 1_000_000
+	}
+}
+
+pub struct NativeToRelay;
+impl Convert<Balance, RelayChainBalance> for NativeToRelay {
+	fn convert(val: u128) -> Balance {
+		// native is 18
+		// relay is 12
+		val / 1_000_000
+	}
+}
+
+parameter_types! {
+	pub const PolkadotNetworkId: NetworkId = NetworkId::Polkadot;
+}
+
+pub struct XcmHandlerWrapper;
+impl HandleXcm for XcmHandlerWrapper {
+	type Origin = Origin;
+	type Xcm = Xcm;
+	fn execute(origin: Self::Origin, xcm: Self::Xcm) -> DispatchResult {
+		XcmHandler::execute(origin, xcm::VersionedXcm::V0(xcm))
+	}
+}
+
+pub struct AccountId32Convert;
+impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
+	fn convert(account_id: AccountId) -> [u8; 32] {
+		account_id.into()
+	}
+}
+
+impl xtoken::Trait for Runtime {
+	type Event = Event;
+	type ToRelayChainBalance = NativeToRelay;
+	type AccountId32Convert = AccountId32Convert;
+	//TODO: change network id if kusama
+	type RelayChainNetworkId = PolkadotNetworkId;
+	type ParaId = ParachainInfo;
+	type XcmHandler = XcmHandlerWrapper;
+}
+
+parameter_types! {
+	pub PhalaNetwork: NetworkId = NetworkId::Named("phala".into());
+	pub RelayChainOrigin: Origin = cumulus_message_broker::Origin::Relay.into();
+	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
+		id: ParachainInfo::get().into(),
+	});
+	pub const RelayChainCurrencyId: CurrencyId = b"DOT".to_vec();
+}
+
+pub type LocationConverter = (
+	ParentIsDefault<AccountId>,
+	SiblingParachainConvertsVia<Sibling, AccountId>,
+	AccountId32Aliases<PhalaNetwork, AccountId>,
+);
+
+// pub type LocalAssetTransactor = XCMAdapter<
+// 	PhalaXToken,
+// 	Balance,
+// 	AssetIdConverter<CurrencyId>,
+// 	IsConcreteWithGeneralKey<CurrencyId, RelayToNative>,
+// 	LocationConverter,
+// 	AccountId,
+// >;
+
+pub type LocalAssetTransactor = XCMAdapter;
+
+pub type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	RelayChainAsNative<RelayChainOrigin, Origin>,
+	SiblingParachainAsNative<cumulus_message_broker::Origin, Origin>,
+	SignedAccountId32AsNative<PhalaNetwork, Origin>,
+);
+
+pub struct XcmConfig;
+impl Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = MessageBroker;
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	//TODO: might need to add other assets based on orml-tokens
+	type IsReserve = NativeAsset;
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
+impl pallet_xcm_handler::Trait for Runtime {
+	type Event = Event;
+	type AccountIdConverter = LocationConverter;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 construct_runtime! {
@@ -295,9 +397,10 @@ construct_runtime! {
 		MessageBroker: cumulus_message_broker::{Module, Call, Inherent, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
-		PhalaXToken: phala_xtoken::{Module, Call, Event<T>},
 		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
+		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
+		XcmHandler: pallet_xcm_handler::{Module, Call, Event},
 	}
 }
 
