@@ -1,0 +1,41 @@
+[package]
+name = "xtoken"
+version = "0.1.0"
+authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
+serde = { version = "1.0.111", optional = true }
+
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+
+# Cumulus dependencies
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
+
+# Polkadot dependencies
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
+xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
+
+orml-utilities = { git = "https://github.com/open-web3-stack/open-runtime-module-library", branch = "sw/xcmp", default-features = false }
+
+[features]
+default = ["std"]
+std = [
+    "serde",
+    "codec/std",
+    "sp-std/std",
+    "sp-runtime/std",
+    "sp-io/std",
+    "cumulus-primitives/std",
+    "frame-support/std",
+    "frame-system/std",
+    "polkadot-parachain/std",
+    "orml-utilities/std",
+]
