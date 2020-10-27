@@ -136,6 +136,8 @@ struct LocalState {
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    encoded_runtime_info: Vec<u8>,
+    attestation: Option<InitRespAttestation>,
 }
 
 // TODO: Move the type definitions to a central repo
@@ -217,6 +219,8 @@ lazy_static! {
                 ecdh_public_key: None,
                 machine_id: [0; 16],
                 dev_mode: true,
+                encoded_runtime_info: Vec::new(),
+                attestation: None,
             }
         )
     };
@@ -667,6 +671,7 @@ const ACTION_QUERY: u8 = 6;
 const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_PING: u8 = 8;
 const ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER: u8 = 9;
+const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -683,13 +688,13 @@ pub struct InitRuntimeResp {
   pub ecdh_public_key: String,
   pub attestation: Option<InitRespAttestation>,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InitRespAttestation {
   pub version: i32,
   pub provider: String,
   pub payload: AttestationReport,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AttestationReport {
   pub report: String,
   pub signature: String,
@@ -772,6 +777,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_SET => set(payload),
                 ACTION_PING => ping(payload),
                 ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER => fetch_from_heartbeat_buffer(payload),
+                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 _ => unknown()
             }
         }
@@ -1155,6 +1161,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.contract2 = contracts::balances::Balances::new(Some(id_pair));
     local_state.headernum = 1;
     local_state.blocknum = 1;
+    local_state.encoded_runtime_info = encoded_runtime_info.clone();
+    local_state.attestation = attestation.clone();
 
     let resp = InitRuntimeResp {
         encoded_runtime_info,
@@ -1575,6 +1583,28 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "machine_id": machine_id,
         "dev_mode": local_state.dev_mode,
     }))
+}
+
+fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
+    let local_state = LOCAL_STATE.lock().unwrap();
+
+    let pk = &local_state.public_key;
+    let s_pk = hex::encode_hex_compact(pk.serialize_compressed().as_ref());
+    let s_ecdh_pk = match &local_state.ecdh_public_key {
+        Some(ecdh_public_key) => hex::encode_hex_compact(ecdh_public_key.as_ref()),
+        None => "".to_string()
+    };
+    //let machine_id = local_state.machine_id;
+    let encoded_runtime_info = local_state.encoded_runtime_info.clone();
+    let attestation = local_state.attestation.clone();
+
+    let resp = InitRuntimeResp {
+        encoded_runtime_info,
+        public_key: s_pk,
+        ecdh_public_key: s_ecdh_pk,
+        attestation,
+    };
+    Ok(serde_json::to_value(resp).unwrap())
 }
 
 fn query(q: types::SignedQuery) -> Result<Value, Value> {
