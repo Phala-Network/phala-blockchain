@@ -190,7 +190,7 @@ lazy_static! {
         SgxMutex::new(RuntimeState {
             contract1: contracts::data_plaza::DataPlaza::new(),
             contract2: contracts::balance::Balance::new(None),
-            contract3: contracts::assets::Assets::new(),
+            contract3: contracts::assets::Assets::new(None),
             contract4: contracts::web3analytics::Web3Analytics::new(),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
@@ -1141,7 +1141,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         genesis.validator_set_proof)
         .expect("Bridge initialize failed");
     state.main_bridge = bridge_id;
-    state.contract2 = contracts::balance::Balance::new(Some(ecdsa_sk));
+    state.contract2 = contracts::balance::Balance::new(Some(ecdsa_sk.clone()));
+    state.contract3 = contracts::assets::Assets::new(Some(ecdsa_sk));
     local_state.headernum = 1;
     local_state.blocknum = 1;
 
@@ -1515,8 +1516,16 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
                         index: *num,
                     };
                     handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
-                } else {
+                } else if let phala::RawEvent::TransferToTee(_, _) = pe {
                     state.contract2.handle_event(evt.event.clone());
+                } else if let phala::RawEvent::TransferToChain(_, _, _) = pe {
+                    state.contract2.handle_event(evt.event.clone());
+                } else if let phala::RawEvent::TransferTokenToTee(_, _, _) = pe {
+                    state.contract3.handle_event(evt.event.clone());
+                } else if let phala::RawEvent::TransferTokenToChain(_, _, _, _) = pe {
+                    state.contract3.handle_event(evt.event.clone());
+                } else {
+
                 }
             }
         }

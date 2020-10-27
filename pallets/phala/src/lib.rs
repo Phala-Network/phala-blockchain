@@ -37,16 +37,16 @@ type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::T
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 
+pub trait SignedDataType<T> {
+	fn raw_data(&self) -> Vec<u8>;
+	fn signature(&self) -> T;
+}
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
 	pub amount: Balance,
 	pub sequence: u64,
-}
-
-pub trait SignedDataType<T> {
-	fn raw_data(&self) -> Vec<u8>;
-	fn signature(&self) -> T;
 }
 
 #[derive(Encode, Decode)]
@@ -56,6 +56,30 @@ pub struct TransferData<AccountId, Balance> {
 }
 
 impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferToken<AccountId, Balance> {
+	pub token_id: u32,
+	pub dest: AccountId,
+	pub amount: Balance,
+	pub sequence: u64,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferTokenData<AccountId, Balance> {
+	pub data: TransferToken<AccountId, Balance>,
+	pub signature: Vec<u8>,
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferTokenData<AccountId, Balance> {
 	fn raw_data(&self) -> Vec<u8> {
 		Encode::encode(&self.data)
 	}
@@ -166,6 +190,8 @@ decl_event!(
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
+		TransferTokenToTee(AccountId, u32, Balance),
+		TransferTokenToChain(AccountId, u32, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
@@ -501,6 +527,33 @@ decl_module! {
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
 			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest, transfer_data.data.amount, sequence + 1));
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn transfer_token_to_tee(origin, token_id: u32, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
+			let who = ensure_signed(origin)?;
+			Self::deposit_event(RawEvent::TransferTokenToTee(who, token_id, amount));
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn transfer_token_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+			const CONTRACT_ID: u32 = 3;
+			ensure_signed(origin)?;
+			let transfer_data: TransferTokenData<<T as frame_system::Trait>::AccountId, BalanceOf<T>>
+				= Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
+			// Check sequence
+			let sequence = IngressSequence::get(CONTRACT_ID);
+			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::BadMessageSequence);
+			// Contract key
+			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
+			let pubkey = ContractKey::get(CONTRACT_ID);
+			// Validate TEE signature
+			Self::verify_signature(&pubkey, &transfer_data)?;
+			// Announce the successful execution
+			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			Self::deposit_event(RawEvent::TransferTokenToChain(transfer_data.data.dest, transfer_data.data.token_id, transfer_data.data.amount, sequence + 1));
 			Ok(())
 		}
 
