@@ -1,4 +1,6 @@
 {
+    "Address": "GenericAddress",
+    "LookupSource": "GenericLookupSource",
     "WorkerInfo": {
         "machineId": "Vec<u8>",
         "pubkey": "Vec<u8>",
@@ -17,5 +19,9 @@
     "PayoutPrefs": {
         "commission": "u32",
         "target": "AccountId"
-    }
+	},
+	"MiningInfo": {
+		"isMining": "bool",
+		"startBlock": "Option<BlockNumber>"
+	}
 }
