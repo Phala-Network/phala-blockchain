@@ -1,15 +1,9 @@
 {
     "Address": "GenericAddress",
     "LookupSource": "GenericLookupSource",
-	"EthereumAddress": {
-		"": "[u8; 20]"
-	},
-	"EcdsaSignature": {
-		"": "[u8; 65]"
-	},
-	"EthereumTxHash": {
-		"": "[u8; 32]"
-	},
+    "EthereumAddress": "H160",
+    "EcdsaSignature": "[u8; 65]",
+    "EthereumTxHash": "H256",
     "WorkerInfo": {
         "machineId": "Vec<u8>",
         "pubkey": "Vec<u8>",
