@@ -119,7 +119,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
         return Ok(BlockWithEvents { block, events, proof, key });
     }
 
-    if h.is_some() && h.unwrap() == 0 {
+    if h == Some(0) {
         return Ok(BlockWithEvents { block, events: None, proof: None, key: None });
     }
 
