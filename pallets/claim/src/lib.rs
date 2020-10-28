@@ -105,7 +105,7 @@ pub trait Trait: frame_system::Trait {
 decl_storage! {
     trait Store for Module<T: Trait> as PhaClaim {
         EndHeight get(fn end_height): u64;
-        BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, u64);
+        BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, u128);
         ClaimState get(fn claim_state): map hasher(blake2_128_concat) EthereumTxHash => bool;
     }
 }
@@ -116,9 +116,9 @@ decl_event!(
         AccountId = <T as frame_system::Trait>::AccountId,
     {
         /// Event emitted when a transaction has been stored.
-        ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u64),
+        ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, u128),
         /// Event emitted when a transaction has been claimed.
-        ERC20TokenClaimed(AccountId, EthereumTxHash, u64),
+        ERC20TokenClaimed(AccountId, EthereumTxHash, u128),
     }
 );
 
@@ -162,7 +162,7 @@ decl_module! {
         }
 
         #[weight = 0]
-        pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:u64) -> dispatch::DispatchResult {
+        pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:u128) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
             ensure!(!BurnedTransactions::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
             let end_height = EndHeight::get();
