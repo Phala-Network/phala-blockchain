@@ -69,6 +69,12 @@ impl Into<MultiLocation> for XCurrencyId {
 	}
 }
 
+impl Into<Vec<u8>> for XCurrencyId {
+	fn into(self) -> Vec<u8> {
+		self.currency_id
+	}
+}
+
 /// Configuration trait of this pallet.
 pub trait Trait: frame_system::Trait {
 	/// Event type used by the runtime.
@@ -98,14 +104,12 @@ decl_event! {
 	pub enum Event<T> where
 		<T as frame_system::Trait>::AccountId,
 		<T as Trait>::Balance,
-		XCurrencyId = XCurrencyId,
-		NetworkId = NetworkId,
 	{
 		/// Transferred to relay chain. [src, dest, amount]
 		TransferredToRelayChain(AccountId, AccountId, Balance),
 
-		/// Transferred to parachain. [x_currency_id, src, para_id, dest, dest_network, amount]
-		TransferredToParachain(XCurrencyId, AccountId, ParaId, AccountId, NetworkId, Balance),
+		/// Transferred to parachain. [currency_identity, src, para_id, dest, amount]
+		TransferredToParachain(Vec<u8>, AccountId, ParaId, AccountId, Balance),
 	}
 }
 
@@ -156,7 +160,7 @@ decl_module! {
 				T::XcmHandler::execute(origin, xcm)?;
 
 				Self::deposit_event(
-					Event::<T>::TransferredToParachain(x_currency_id, who, para_id, dest, dest_network, amount),
+					Event::<T>::TransferredToParachain(x_currency_id.into(), who, para_id, dest, amount),
 				);
 
 				Ok(())

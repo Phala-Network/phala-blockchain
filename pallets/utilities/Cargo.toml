@@ -1,0 +1,32 @@
+[package]
+name = "orml-utilities"
+description = "Various utilities including `FixedU128` and `LinkedList`."
+repository = "https://github.com/open-web3-stack/open-runtime-module-library/tree/master/utilities"
+license = "Apache-2.0"
+version = "0.1.3-dev"
+authors = ["Laminar Developers <hello@laminar.one>"]
+edition = "2018"
+
+[dependencies]
+serde = { version = "1.0.111", optional = true }
+codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+
+[dev-dependencies]
+serde_json = "1.0.53"
+frame-system = { version = "2.0.0-rc5" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
+
+clear_on_drop = { version = "0.2.4", features = ["no_cc"] }	# https://github.com/paritytech/substrate/issues/4179
+
+[features]
+default = ["std"]
+std = [
+	"serde",
+	"codec/std",
+	"frame-support/std",
+	"sp-runtime/std",
+	"sp-std/std",
+]

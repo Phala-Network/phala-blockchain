@@ -8,10 +8,6 @@ edition = '2018'
 serde = { version = "1.0.101", default-features = false, optional = true, features = ["derive"] }
 codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
 
-#phala-xtoken = { path = "../pallets/phala-xtoken", default-features = false}
-xtoken = { path = "../pallets/xtoken", default-features = false}
-template = { package = "pallet-template", path = "../pallets/template", version = "2.0.0-rc5", default-features = false}
-
 # Substrate dependencies
 sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 sp-api = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
@@ -36,23 +32,23 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 pallet-indices = { default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 
 # Cumulus dependencies
-cumulus-message-broker = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
-cumulus-parachain-upgrade = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
-cumulus-primitives = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
-cumulus-runtime = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
-#cumulus-upward-message = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
-parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
+cumulus-runtime = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+cumulus-parachain-upgrade = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+cumulus-message-broker = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+#cumulus-upward-message = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+parachain-info = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "gav-xcmp" }
 
 # polkadot dependencies
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
-pallet-xcm-handler  = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
+xcm-handler  = { path = "../pallets/xcm-handler", default-features = false }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 
 #phala dependencies
 pallet-phala = { version = "2.0.0-rc5", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
-
+xtoken = { path = "../pallets/xtoken", default-features = false}
 
 native-nostd-hasher = { version = "2.0.0-rc6", path = "../native-nostd-hasher", optional = true }
 
@@ -93,7 +89,6 @@ std = [
 	#"cumulus-upward-message/std",
 	"cumulus-primitives/std",
 	"xtoken/std",
-	"template/std",
 	"pallet-phala/std",
 ]
 # Will be enabled by the `wasm-builder` when building the runtime for WASM.

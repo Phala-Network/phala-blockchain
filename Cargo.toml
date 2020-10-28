@@ -1,3 +1,28 @@
+[workspace]
+
+exclude = [
+	"subxt",
+	"webpki",
+	"ring",
+	"native-nostd-hasher",
+	"serde_no_std",
+	"serde_derive_no_std",
+	"serde_json_no_std",
+	"pruntime",
+]
+
+members = [
+	"runtime/",
+	"pallets/xtoken",
+	"pallets/phala",
+	"pallets/utilities",
+	"node/",
+	"phost",
+]
+
+[profile.release]
+panic = 'unwind'
+
 [patch.crates-io]
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
@@ -68,28 +93,3 @@ sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "roco
 sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 substrate-frame-rpc-system = { git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
-
-[workspace]
-
-exclude = [
-	"subxt",
-	"webpki",
-	"ring",
-	"native-nostd-hasher",
-	"serde_no_std",
-	"serde_derive_no_std",
-	"serde_json_no_std",
-	"pruntime",
-]
-
-members = [
-	"runtime/",
-	"pallets/xtoken",
-	"pallets/template",
-	"pallets/phala",
-	"node/",
-	"phost",
-]
-
-[profile.release]
-panic = 'unwind'

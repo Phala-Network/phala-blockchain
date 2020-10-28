@@ -23,7 +23,7 @@ use sp_version::RuntimeVersion;
 // A few exports that help ease life for downstream crates.
 pub use frame_support::{
 	construct_runtime, parameter_types,
-	traits::Randomness,
+	traits::{Randomness, Get},
 	weights::{constants::WEIGHT_PER_SECOND, IdentityFee, Weight},
 	StorageValue,
 };
@@ -45,8 +45,7 @@ type Hasher = sp_runtime::traits::BlakeTwo256;
 type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 // use xtoken::{AssetIdConverter, IsConcreteWithGeneralKey, XCMAdapter, XcmHandler as HandleXcm};
-use xtoken::xcmadapter::{XCMAdapter, XcmHandler as HandleXcm};
-use xtoken;
+pub use xtoken::xcmadapter::{XCMAdapter, XcmHandler as HandleXcm};
 
 use xcm::v0::{Junction, MultiLocation, NetworkId, Xcm};
 use xcm_builder::{
@@ -57,9 +56,6 @@ use xcm_executor::{traits::NativeAsset, Config, XcmExecutor};
 use polkadot_parachain::primitives::Sibling;
 
 use cumulus_primitives::relay_chain::Balance as RelayChainBalance;
-
-/// Import the template pallet.
-pub use template;
 
 /// An index to a block.
 pub type BlockNumber = u32;
@@ -108,8 +104,8 @@ impl_opaque_keys! {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("parachain-template"),
-	impl_name: create_runtime_str!("parachain-template"),
+	spec_name: create_runtime_str!("phala-collator"),
+	impl_name: create_runtime_str!("phala-collator"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 1,
@@ -256,11 +252,6 @@ impl pallet_sudo::Trait for Runtime {
 	type Event = Event;
 }
 
-/// Configure the pallet template in pallets/template.
-impl template::Trait for Runtime {
-	type Event = Event;
-}
-
 impl pallet_phala::Trait for Runtime {
 	type Event = Event;
 	type TEECurrency = Balances;
@@ -309,7 +300,7 @@ impl HandleXcm for XcmHandlerWrapper {
 	type Origin = Origin;
 	type Xcm = Xcm;
 	fn execute(origin: Self::Origin, xcm: Self::Xcm) -> DispatchResult {
-		XcmHandler::execute(origin, xcm::VersionedXcm::V0(xcm))
+		LocalXcmHandler::execute(origin, xcm::VersionedXcm::V0(xcm))
 	}
 }
 
@@ -322,6 +313,7 @@ impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
 
 impl xtoken::Trait for Runtime {
 	type Event = Event;
+	type Balance = Balance;
 	type ToRelayChainBalance = NativeToRelay;
 	type AccountId32Convert = AccountId32Convert;
 	//TODO: change network id if kusama
@@ -336,7 +328,7 @@ parameter_types! {
 	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
 		id: ParachainInfo::get().into(),
 	});
-	pub const RelayChainCurrencyId: CurrencyId = b"DOT".to_vec();
+	// pub const RelayChainCurrencyId: CurrencyId = b"DOT".to_vec();
 }
 
 pub type LocationConverter = (
@@ -375,7 +367,7 @@ impl Config for XcmConfig {
 	type LocationInverter = LocationInverter<Ancestry>;
 }
 
-impl pallet_xcm_handler::Trait for Runtime {
+impl xcm_handler::Trait for Runtime {
 	type Event = Event;
 	type AccountIdConverter = LocationConverter;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
@@ -394,13 +386,12 @@ construct_runtime! {
 		Sudo: pallet_sudo::{Module, Call, Storage, Config<T>, Event<T>},
 		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Module, Call, Storage},
 		ParachainUpgrade: cumulus_parachain_upgrade::{Module, Call, Storage, Inherent, Event},
-		MessageBroker: cumulus_message_broker::{Module, Call, Inherent, Event<T>},
+		MessageBroker: cumulus_message_broker::{Module, Call, Inherent, Event<T>, Origin},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
-		TemplateModule: template::{Module, Call, Storage, Event<T>},
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
-		XcmHandler: pallet_xcm_handler::{Module, Call, Event},
+		LocalXcmHandler: xcm_handler::{Module, Call, Event},
 	}
 }
 

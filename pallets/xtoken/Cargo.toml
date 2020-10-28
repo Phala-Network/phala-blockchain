@@ -16,14 +16,13 @@ frame-system = { git = "https://github.com/paritytech/substrate", default-featur
 sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-branch" }
 
 # Cumulus dependencies
-cumulus-primitives = { git = "https://github.com/paritytech/cumulus", branch = "gav-xcmp", default-features = false }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
 
 # Polkadot dependencies
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 
-orml-utilities = { git = "https://github.com/open-web3-stack/open-runtime-module-library", branch = "sw/xcmp", default-features = false }
+orml-utilities = { path = "../utilities", default-features = false }
 
 [features]
 default = ["std"]
@@ -36,6 +35,5 @@ std = [
     "cumulus-primitives/std",
     "frame-support/std",
     "frame-system/std",
-    "polkadot-parachain/std",
     "orml-utilities/std",
 ]
