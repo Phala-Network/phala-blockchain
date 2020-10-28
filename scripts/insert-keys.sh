@@ -8,10 +8,11 @@ read -s -p "Enter port: " PORT
 echo
 
 ENDPOINT="http://localhost:${PORT}"
+NETWORK="phat3"
 
 function get_pubkey {
   tmp=tmp.key
-  subkey "$@" > "$tmp"
+  ./phala-node "$@" > "$tmp"
   awk '/Public key \(hex\): +(\w+?)/{print $4}' "$tmp"
   rm tmp.key
 }
@@ -19,13 +20,13 @@ function get_pubkey {
 function insert_key {
   type="$1"
   suri="$2"
+
   if [ "$type" = 'gran' ]; then
-    key_flag='-e'
+    pubkey=$(get_pubkey key inspect-key -n phala --scheme Ed25519 "$suri")
   else
-    key_flag='-s'
+    pubkey=$(get_pubkey key inspect-key -n phala --scheme Sr25519 "$suri")
   fi
 
-  pubkey=$(get_pubkey "$key_flag" inspect "$suri")
   curl "$ENDPOINT" -H "Content-Type:application/json;charset=utf-8" -d \
     """{
       \"jsonrpc\":\"2.0\",
@@ -39,5 +40,5 @@ function insert_key {
     }"""
 }
 
-insert_key babe "${SECRET}//phat//session//${n}"
-insert_key gran "${SECRET}//phat//session//${n}"
+insert_key babe "${SECRET}//${NETWORK}//session//${n}"
+insert_key gran "${SECRET}//${NETWORK}//session//${n}"

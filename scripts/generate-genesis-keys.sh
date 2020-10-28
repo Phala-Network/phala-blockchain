@@ -39,7 +39,7 @@ done
 
 echo """];
 
-    // generated with secret: subkey inspect \"\$secret\"/"$network"
+    // generated with secret: phala-node inspect-key -n phala --scheme Sr25519 \"\$secret\"/"$network"
     let root_key: AccountId = hex![
         \"$(get_pubkey inspect-key -n phala --scheme Sr25519 "$secret"/"$network")\"
     ].into();
