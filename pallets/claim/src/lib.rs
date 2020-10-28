@@ -146,11 +146,13 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 0]
-        pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, u64)>) -> dispatch::DispatchResult {
+        pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, u128)>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
             for(tx_hash, address, amount) in claims.iter() {
             	ensure!(!BurnedTransactions::contains_key(&tx_hash), Error::<T>::TxHashAlreadyExist);
-            	BurnedTransactions::insert(&tx_hash, (address.clone(), amount.clone()));
+            }
+            for(tx_hash, address, amount) in claims.iter() {
+                BurnedTransactions::insert(&tx_hash, (address.clone(), amount.clone()));
             	ClaimState::insert(&tx_hash, false);
             	Self::deposit_event(RawEvent::ERC20TransactionStored(who.clone(), *tx_hash, *address, *amount));
             }
