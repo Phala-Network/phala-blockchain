@@ -462,7 +462,7 @@ async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<R
     Ok(())
 }
 
-async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, mut sequence: &mut u64, pair: sr25519::Pair, contract_id: u32) -> Result<(), Error> {
+async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, pair: sr25519::Pair, contract_id: u32) -> Result<(), Error> {
     let query = Query {
         contract_id,
         nonce: 0,
@@ -479,9 +479,9 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, mut sequence: &mut u
     let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
         .map_err(|_| Error::FailedToDecode)?;
     if contract_id == BALANCES {
-        submit_balance_transactions(&client, &mut sequence, pair, transfer_data).await
+        submit_balance_transactions(&client, sequence, pair, transfer_data).await
     } else {
-        submit_asset_transactions(&client, &mut sequence, pair, transfer_data).await
+        submit_asset_transactions(&client, sequence, pair, transfer_data).await
     }
 }
 
