@@ -70,6 +70,7 @@ pub struct GetInfoResp {
     pub initialized: bool,
     pub public_key: String,
     pub ecdh_public_key: String,
+    pub machine_id: Vec<u8>,
 }
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
@@ -161,6 +162,12 @@ pub struct AttestationReport {
 impl Resp for InitRuntimeReq {
   type Resp = InitRuntimeResp;
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetRuntimeInfoReq {}
+impl Resp for GetRuntimeInfoReq {
+    type Resp = InitRuntimeResp;
+}
+
 #[derive(Encode, Decode)]
 pub struct GenesisInfo {
   pub header: Header,
