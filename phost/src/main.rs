@@ -538,8 +538,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             }
         }
         println!("runtime_info:{:?}", runtime_info);
-        if runtime_info.is_some() {
-            let runtime_info = runtime_info.unwrap();
+        if let Some(runtime_info) = runtime_info {
             if let Some(attestation) = runtime_info.attestation {
                 let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
                 let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
