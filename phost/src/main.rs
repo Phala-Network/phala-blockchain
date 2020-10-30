@@ -552,6 +552,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 let signer = subxt::PairSigner::new(pair.clone());
                 let ret = client.watch(call, &signer).await;
                 if !ret.is_ok() {
+                    println!("FailedToCallRegisterWorker: {:?}", ret);
                     return Err(Error::FailedToCallRegisterWorker);
                 }
             }

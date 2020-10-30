@@ -1586,9 +1586,8 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
 
 fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let local_state = LOCAL_STATE.lock().unwrap();
-
-    let resp = local_state.runtime_info.as_ref().ok_or_else(|| error_msg("Uninitiated runtime info"));
-
+    let resp = local_state.runtime_info.as_ref()
+        .ok_or_else(|| error_msg("Uninitiated runtime info"))?;
     Ok(serde_json::to_value(resp).unwrap())
 }
 
