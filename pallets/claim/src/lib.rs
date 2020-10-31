@@ -1,6 +1,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 use codec::{Decode, Encode};
 use frame_support::{
+	traits::Currency,
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure, RuntimeDebug,
 };
 use frame_system::{ensure_root, ensure_signed};
@@ -96,10 +97,14 @@ impl<'de> Deserialize<'de> for EthereumTxHash {
     }
 }
 
+pub type BalanceOf<T> =
+<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Currency: Currency<Self::AccountId>;
 }
 
 decl_storage! {
@@ -148,6 +153,7 @@ decl_module! {
         #[weight = 0]
         pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, u128)>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
+            // check first
             for(tx_hash, address, amount) in claims.iter() {
             	ensure!(!BurnedTransactions::contains_key(&tx_hash), Error::<T>::TxHashAlreadyExist);
             }
@@ -188,6 +194,9 @@ decl_module! {
             let tx = BurnedTransactions::get(&eth_tx_hash);
             ensure!(signer == tx.0, Error::<T>::NotTransactionSender);
             ClaimState::insert(&eth_tx_hash, true);
+            // mint coins
+            let imbalance = T::Currency::deposit_creating(&who, tx.1);
+			drop(imbalance);
             Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash, tx.1));
             Ok(())
         }

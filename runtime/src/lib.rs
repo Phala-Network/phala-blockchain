@@ -923,6 +923,8 @@ impl pallet_phala::Trait for Runtime {
 
 impl pallet_claim::Trait for Runtime {
 	type Event = Event;
+	type Currency = Balances;
+
 }
 
 construct_runtime!(
