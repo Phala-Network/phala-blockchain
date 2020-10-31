@@ -17,7 +17,7 @@ mod types;
 use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
-    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
+    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData, TransferTokenData,
     InitRuntimeReq, GenesisInfo,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
@@ -27,6 +27,9 @@ use subxt::Signer;
 use subxt::system::AccountStoreExt;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
+
+pub const BALANCES: u32 = 2;
+pub const ASSETS: u32 = 3;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
@@ -252,7 +255,7 @@ fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &str)
 }
 
 async fn get_parachain_heads(client: &XtClient, paraclient: &XtClient, hash: Option<Hash>) -> Option<Vec<u8>> {
-    let mut para_key = storage_value_key_vec("ParachainUpgrade", "ParachainId"); //ParachainUpgrade?
+    let para_key = storage_value_key_vec("ParachainUpgrade", "ParachainId"); //ParachainUpgrade?
     let para_id = get_storage(&paraclient, None, StorageKey(para_key)).await.unwrap().unwrap();
     let key = storage_map_key_vec("Parachains", "Heads", &hex::encode(para_id));
     get_storage(&client, hash, StorageKey(key)).await.unwrap()
@@ -350,7 +353,7 @@ async fn batch_sync_block(
             break;
         }
         // send out the longest batch and remove it from the input buffer
-        let mut block_batch: Vec<BlockWithEvents> =  block_buf
+        let block_batch: Vec<BlockWithEvents> =  block_buf
             .drain(..=(header_idx as usize))
             .collect();
         let header_batch: Vec<HeaderToSync> = block_batch
@@ -437,10 +440,18 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
+async fn get_ingress_seq(client: &XtClient, contract_id: u32) -> Result<u64, Error> {
     let latest_block = get_block_at(&client, None).await?.block;
     let hash = latest_block.header.hash();
-    client.fetch_or_default(runtimes::phala::IngressSequenceStore::new(2), Some(hash)).await.or(Ok(0))
+    client.fetch_or_default(runtimes::phala::IngressSequenceStore::new(contract_id), Some(hash)).await.or(Ok(0))
+}
+
+async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
+    get_ingress_seq(&client, BALANCES).await
+}
+
+async fn get_assets_ingress_seq(client: &XtClient) -> Result<u64, Error> {
+    get_ingress_seq(&client, ASSETS).await
 }
 
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
@@ -451,11 +462,11 @@ async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<R
     Ok(())
 }
 
-async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, pair: sr25519::Pair) -> Result<(), Error> {
+async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, pair: sr25519::Pair, contract_id: u32) -> Result<(), Error> {
     let query = Query {
-        contract_id: 2,
+        contract_id,
         nonce: 0,
-        request: ReqData::PendingChainTransfer {sequence: *sequence},
+        request: ReqData::PendingChainTransfer { sequence: *sequence },
     };
 
     let query_value = serde_json::to_value(&query)?;
@@ -466,7 +477,15 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
     println!("info:{:}", info.plain);
     let pending_chain_transfer: PendingChainTransfer = serde_json::from_str(&info.plain)?;
     let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
-        .map_err(|_|Error::FailedToDecode)?;
+        .map_err(|_| Error::FailedToDecode)?;
+    if contract_id == BALANCES {
+        submit_balance_transactions(&client, sequence, pair, transfer_data).await
+    } else {
+        submit_asset_transactions(&client, sequence, pair, transfer_data).await
+    }
+}
+
+async fn submit_balance_transactions(client: &XtClient, sequence: &mut u64, pair: sr25519::Pair, transfer_data: Vec<u8>) -> Result<(), Error> {
     let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
         .map_err(|_|Error::FailedToDecode)?;
     if transfer_queue.len() == 0 {
@@ -489,9 +508,44 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
         let call = runtimes::phala::TransferToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
         let ret = client.submit(call, &signer).await;
         if ret.is_ok() {
-            println!("Submit tx successfully");
+            println!("Submit balance tx successfully");
         } else {
-            println!("Failed to submit tx: {:?}", ret);
+            println!("Failed to submit balance tx: {:?}", ret);
+        }
+        signer.increment_nonce();
+    }
+
+    *sequence = max_seq;
+
+    Ok(())
+}
+
+async fn submit_asset_transactions(client: &XtClient, sequence: &mut u64, pair: sr25519::Pair, transfer_data: Vec<u8>) -> Result<(), Error> {
+    let transfer_queue: Vec<TransferTokenData> = Decode::decode(&mut &transfer_data[..])
+        .map_err(|_|Error::FailedToDecode)?;
+    if transfer_queue.len() == 0 {
+        return Ok(());
+    }
+
+    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
+    update_singer_nonce(&client, &mut signer).await?;
+
+    let mut max_seq = *sequence;
+    for transfer_data in &transfer_queue {
+        if transfer_data.data.sequence <= *sequence {
+            println!("The tx has been submitted.");
+            continue;
+        }
+        if transfer_data.data.sequence > max_seq {
+            max_seq = transfer_data.data.sequence;
+        }
+
+        let call = runtimes::phala::TransferTokenToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
+        let ret = client.submit(call, &signer).await;
+        if ret.is_ok() {
+            println!("Submit asset tx successfully");
+        } else {
+            println!("Failed to submit asset tx: {:?}", ret);
         }
         signer.increment_nonce();
     }
@@ -595,7 +649,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    let mut sequence = get_balances_ingress_seq(&paraclient).await?;
+    let mut balance_sequence = get_balances_ingress_seq(&paraclient).await?;
+    let mut asset_sequence = get_assets_ingress_seq(&paraclient).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None
@@ -635,7 +690,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         if !args.no_write_back {
-            sync_tx_to_chain(&paraclient, &pr, &mut sequence, pair.clone()).await?;
+            sync_tx_to_chain(&paraclient, &pr, &mut balance_sequence, pair.clone(), BALANCES).await?;
+            sync_tx_to_chain(&paraclient, &pr, &mut asset_sequence, pair.clone(), ASSETS).await?;
         }
 
         // send the blocks to pRuntime in batch

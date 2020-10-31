@@ -9,14 +9,12 @@ use serde::{Serialize, Deserialize};
 use sp_core::hashing::blake2_256;
 
 use crate::contracts;
-use crate::contracts::AccountIdWrapper;
+use crate::contracts::{AccountIdWrapper, SequenceType};
 use crate::TransactionStatus;
 use crate::types::TxRef;
 extern crate runtime as chain;
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
-
-type SequenceType = u64;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Balance {
@@ -146,8 +144,8 @@ impl contracts::Contract<Command, Request, Response> for Balance {
                         let src0 = *src_amount;
                         *src_amount -= value;
                         self.total_issuance -= value;
-                        println!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         let sequence = self.sequence + 1;
+                        println!("   src: {:>20} -> {:>20}, sequence:{:}", src0, src0 - value, sequence);
 
                         let data = Transfer {
                             dest,

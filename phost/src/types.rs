@@ -127,6 +127,21 @@ pub struct TransferData {
     pub signature: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct TransferToken {
+    pub token_id: u32,
+    pub dest: [u8; 32],
+    pub amount: u128,
+    pub sequence: u64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct TransferTokenData {
+    pub data: TransferToken,
+    pub signature: Vec<u8>,
+}
+
 impl Resp for QueryReq {
     type Resp = QueryResp;
 }
