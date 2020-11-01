@@ -975,7 +975,7 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
-    println!("spid: {:?}, key: {}", IAS_SPID.id, IAS_API_KEY.clone());
+    // println!("spid: {:?}, key: {}", IAS_SPID.id, IAS_API_KEY.clone());
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
@@ -1756,12 +1756,17 @@ fn ping(_input: &Map<String, Value>) -> Result<Value, Value> {
     let mut buffer = [0u8; 32];
     buffer.copy_from_slice(&msg_hash);
     let message = secp256k1::Message::parse(&buffer);
-    let signature = secp256k1::sign(&message, &local_state.private_key);
+
+    let sign_result = secp256k1::sign(&message, &local_state.private_key);
+    let mut raw_signature: [u8; 65] = [0u8; 65];
+    raw_signature[0..64].copy_from_slice(&sign_result.0.serialize()[..]);
+    raw_signature[64] = sign_result.1.serialize();
+    let signature = raw_signature.to_vec();
     println!("signature={:?}", signature);
 
     let heartbeat_data = HeartbeatData {
         data,
-        signature: signature.0.serialize().to_vec(),
+        signature,
     };
 
     let mut heartbeat_data_buffer = HEARTBEAT_DATA_BUFFER.lock().unwrap();

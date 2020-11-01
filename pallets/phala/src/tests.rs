@@ -248,6 +248,29 @@ fn test_transfer() {
 	});
 }
 
+use crate::types::HeartbeatData;
+use codec::Decode;
+
+#[test]
+fn test_heartbeat() {
+	new_test_ext().execute_with(|| {
+		let machine_id = hex!["f59715bec175f87ae09ffdd51528da56"].to_vec();
+		let pubkey = hex!["02effbf21d3b4b00cc25b19ab2accaa9db7942b16c9c5d3f3705b829b41d8ab881"].to_vec();
+
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
+		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, machine_id, pubkey));
+
+		let encoded_heartbeat_data = "djkAAAUB/6kP4m8OHyYl/WTZG7ygK+PU2DgLwsSpBxqhuLQPvopaTYQ4GKRpCj4GVaOkW18tT/PdmtXA7sv2bCv0L8fH/gE=";
+		let heartbeat_data: Vec<u8> = match base64::decode(encoded_heartbeat_data) {
+			Ok(x) => x,
+			Err(_) => panic!("decode encoded_heartbeat_data failed")
+		};
+
+		assert_ok!(PhalaModule::heartbeat(Origin::signed(2), heartbeat_data));
+	});
+}
+
 #[test]
 fn test_heartbeat_offline() {
 	new_test_ext().execute_with(|| {
