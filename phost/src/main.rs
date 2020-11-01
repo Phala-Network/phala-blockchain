@@ -18,7 +18,7 @@ use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData, TransferTokenData,
-    InitRuntimeReq, GenesisInfo,
+    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
 };
@@ -116,6 +116,10 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
         println!("          ... with events {} bytes", raw_events.len());
         let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
         return Ok(BlockWithEvents { block, events, proof, key });
+    }
+
+    if h == Some(0) {
+        return Ok(BlockWithEvents { block, events: None, proof: None, key: None });
     }
 
     return Err(Error::EventNotFound);
@@ -454,6 +458,12 @@ async fn get_assets_ingress_seq(client: &XtClient) -> Result<u64, Error> {
     get_ingress_seq(&client, ASSETS).await
 }
 
+async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32], Error> {
+    let latest_block = get_block_at(&client, None).await?.block;
+    let hash = latest_block.header.hash();
+    client.fetch_or_default(runtimes::phala::MachineOwnerStore::new(machine_id), Some(hash)).await.or(Ok([0u8; 32]))
+}
+
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
 {
     let account_id = signer.account_id();
@@ -601,52 +611,62 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
-    if !info.initialized && !args.no_init {
-        println!("pRuntime not initialized. Requesting init");
-        let genesis_block = get_block_at(&client, Some(0)).await?.block;
-        let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
-            .expect("No genesis block?");
-        let set_proof = get_authority_with_proof_at(&client, hash).await?;
-        let info = GenesisInfo {
-            header: genesis_block.header,
-            validators: set_proof.authority_set.authority_set,
-            proof: set_proof.authority_proof,
-        };
+    if !args.no_init {
+        let mut runtime_info: Option<InitRuntimeResp> = None;
+        if !info.initialized {
+            println!("pRuntime not initialized. Requesting init");
+            let genesis_block = get_block_at(&client, Some(0)).await?.block;
+            let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
+                .expect("No genesis block?");
+            let set_proof = get_authority_with_proof_at(&client, hash).await?;
+            let info = GenesisInfo {
+                header: genesis_block.header,
+                validators: set_proof.authority_set.authority_set,
+                proof: set_proof.authority_proof,
+            };
 
-        let info_b64 = base64::encode(&info.encode());
-        let runtime_info = pr.req_decode("init_runtime", InitRuntimeReq {
-            skip_ra: !args.ra,
-            bridge_genesis_info_b64: info_b64,
-            debug_set_key: match args.use_dev_key {
-                true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
-                false => None
+            let info_b64 = base64::encode(&info.encode());
+            runtime_info = Some(pr.req_decode("init_runtime", InitRuntimeReq {
+                skip_ra: !args.ra,
+                bridge_genesis_info_b64: info_b64,
+                debug_set_key: match args.use_dev_key {
+                    true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
+                    false => None
+                }
+            }).await?);
+        } else {
+            let machine_owner = get_machine_owner(&paraclient, info.machine_id).await?;
+            if machine_owner == [0u8; 32] { //not registered
+                runtime_info = Some(pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
             }
-        }).await?;
+        }
 
         println!("runtime_info:{:?}", runtime_info);
-        if let Some(attestation) = runtime_info.attestation {
-            let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
-            let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
-            let call = runtimes::phala::RegisterWorkerCall {
-                _runtime: PhantomData,
-                encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
-                report: attestation.payload.report.as_bytes().to_vec(),
-                signature,
-                raw_signing_cert,
-            };
-            let signer = subxt::PairSigner::new(pair.clone());
-            let ret = paraclient.watch(call, &signer).await;
-            if !ret.is_ok() {
-                return Err(Error::FailedToCallRegisterWorker);
-            }
 
-            ()
+        if let Some(runtime_info) = runtime_info {
+            if let Some(attestation) = runtime_info.attestation {
+                let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
+                let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
+                let call = runtimes::phala::RegisterWorkerCall {
+                    _runtime: PhantomData,
+                    encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
+                    report: attestation.payload.report.as_bytes().to_vec(),
+                    signature,
+                    raw_signing_cert,
+                };
+                let signer = subxt::PairSigner::new(pair.clone());
+                let ret = paraclient.watch(call, &signer).await;
+                if !ret.is_ok() {
+                    println!("FailedToCallRegisterWorker: {:?}", ret);
+                    return Err(Error::FailedToCallRegisterWorker);
+                }
+            }
         }
     }
 
     if args.no_sync {
         println!("Block sync disabled.");
-        return Ok(())
+        return Ok(());
     }
 
     let mut balance_sequence = get_balances_ingress_seq(&paraclient).await?;
