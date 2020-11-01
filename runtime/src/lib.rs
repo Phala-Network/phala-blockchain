@@ -328,7 +328,6 @@ parameter_types! {
 	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
 		id: ParachainInfo::get().into(),
 	});
-	// pub const RelayChainCurrencyId: CurrencyId = b"DOT".to_vec();
 }
 
 pub type LocationConverter = (
@@ -336,15 +335,6 @@ pub type LocationConverter = (
 	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<PhalaNetwork, AccountId>,
 );
-
-// pub type LocalAssetTransactor = XCMAdapter<
-// 	PhalaXToken,
-// 	Balance,
-// 	AssetIdConverter<CurrencyId>,
-// 	IsConcreteWithGeneralKey<CurrencyId, RelayToNative>,
-// 	LocationConverter,
-// 	AccountId,
-// >;
 
 pub type LocalAssetTransactor = XCMAdapter;
 

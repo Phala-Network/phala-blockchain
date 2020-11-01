@@ -56,7 +56,6 @@ pub struct XCurrencyId {
 	pub currency_id: Vec<u8>,
 }
 
-#[cfg(test)]
 impl XCurrencyId {
 	pub fn new(chain_id: ChainId, currency_id: Vec<u8>) -> Self {
 		XCurrencyId { chain_id, currency_id }
@@ -71,7 +70,7 @@ impl Into<MultiLocation> for XCurrencyId {
 
 impl Into<Vec<u8>> for XCurrencyId {
 	fn into(self) -> Vec<u8> {
-		self.currency_id
+		[ChainId::encode(&self.chain_id), self.currency_id].concat()
 	}
 }
 
@@ -160,7 +159,7 @@ decl_module! {
 				T::XcmHandler::execute(origin, xcm)?;
 
 				Self::deposit_event(
-					Event::<T>::TransferredToParachain(x_currency_id.into(), who, para_id, dest, amount),
+					Event::<T>::TransferredToParachain(x_currency_id.clone().into(), who, para_id, dest, amount),
 				);
 
 				Ok(())
