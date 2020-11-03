@@ -255,10 +255,11 @@ impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
 			_ => return Err(InvalidTransaction::Call.into()),
 		};
 
-		let signer = maybe_signer
-			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidSignature.into()))?;
 		let e = InvalidTransaction::Custom(ValidityError::TxHashNotFound.into());
 		ensure!(BurnedTransactions::<T>::contains_key(&tx_hash), e);
+
+		let signer = maybe_signer
+			.ok_or(InvalidTransaction::BadProof)?;
 
 		let e = InvalidTransaction::Custom(ValidityError::InvalidSigner.into());
 		let stored_tx = BurnedTransactions::<T>::get(&tx_hash);
