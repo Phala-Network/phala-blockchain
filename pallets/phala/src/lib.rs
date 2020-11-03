@@ -12,7 +12,7 @@ use frame_support::{
 	storage::IterableStorageDoubleMap,
 	traits::{Currency, ExistenceRequirement::AllowDeath, UnixTime},
 };
-use codec::{Encode, Decode};
+use codec::Decode;
 
 mod hashing;
 pub mod types;

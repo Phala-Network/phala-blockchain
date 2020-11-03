@@ -1,17 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 use codec::{Decode, Encode};
 use frame_support::{
-	debug, traits::Currency,
+	traits::Currency,
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure, RuntimeDebug,
 };
-use frame_system::{ensure_root, ensure_signed, ensure_none};
+use frame_system::{ensure_signed, ensure_none};
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
-use sp_std::{
-	prelude::*,
-	collections::vec_deque::VecDeque,
-};
+use sp_std::prelude::*;
 use sp_runtime::{transaction_validity::{
 	TransactionLongevity, InvalidTransaction, TransactionSource,
 	TransactionValidity, ValidTransaction,
