@@ -223,24 +223,50 @@ impl<T: Trait> Module<T> {
     }
 }
 
+/// Custom validity errors used in Polkadot while validating transactions.
+#[repr(u8)]
+pub enum ValidityError {
+	/// The transaction signature is invalid.
+	InvalidSignature = 0,
+	/// The transaction hash doesn't exist
+	TxHashNotFound = 1,
+	/// The transaction has been claimed
+	TxAlreadyClaimed = 2,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
+	}
+}
+
 impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
 		const PRIORITY: u64 = 100;
 
-		let maybe_signer = match call {
+		let (maybe_signer, tx_hash) = match call {
 			Call::claim_erc20_token(account, eth_tx_hash, eth_signature) => {
 				let address = Encode::encode(&account);
-				Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
+				(Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0), eth_tx_hash)
 			}
 			_ => return Err(InvalidTransaction::Call.into()),
 		};
 
+		let signer = maybe_signer
+			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidSignature.into()))?;
+
+		let e = InvalidTransaction::Custom(ValidityError::TxHashNotFound.into());
+		ensure!(BurnedTransactions::<T>::contains_key(&tx_hash), e);
+
+		let e = InvalidTransaction::Custom(ValidityError::TxAlreadyClaimed.into());
+		ensure!(!ClaimState::get(&tx_hash), e);
+
 		Ok(ValidTransaction {
 			priority: PRIORITY,
 			requires: vec![],
-			provides: vec![("claims", maybe_signer).encode()],
+			provides: vec![("claims", signer).encode()],
 			longevity: TransactionLongevity::max_value(),
 			propagate: true,
 		})
