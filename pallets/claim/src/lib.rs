@@ -13,11 +13,9 @@ use sp_std::{
 	collections::vec_deque::VecDeque,
 };
 use sp_runtime::{transaction_validity::{
-	InvalidTransaction, TransactionSource, TransactionValidity,
-	ValidTransaction,
+	TransactionLongevity, InvalidTransaction, TransactionSource,
+	TransactionValidity, ValidTransaction,
 }};
-
-pub const UNSIGNED_TXS_PRIORITY: u64 = 100;
 
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug)]
 pub struct EthereumAddress([u8; 20]);
@@ -143,8 +141,8 @@ decl_error! {
     pub enum Error for Module<T: Trait> {
         /// The transaction signature is invalid.
         InvalidSignature,
-        /// The signer is not transaction sender.
-        NotTransactionSender,
+        /// The signer is not claim transaction sender.
+        InvalidSigner,
         /// The transaction hash doesn't exist
         TxHashNotFound,
         /// The transaction hash already exit
@@ -182,20 +180,20 @@ decl_module! {
         }
 
        	#[weight = 0]
-		pub fn claim_erc20_token(origin, who:T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+		pub fn claim_erc20_token(origin, account:T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
 			let _ = ensure_none(origin)?;
 			ensure!(BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
             ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
-            let address = Encode::encode(&who);
+            let address = Encode::encode(&account);
             let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
                 .ok_or(Error::<T>::InvalidSignature)?;
             let tx = BurnedTransactions::<T>::get(&eth_tx_hash);
-            ensure!(signer == tx.0, Error::<T>::NotTransactionSender);
+            ensure!(signer == tx.0, Error::<T>::InvalidSigner);
             ClaimState::insert(&eth_tx_hash, true);
             // mint coins
-            let imbalance = T::Currency::deposit_creating(&who, tx.1);
+            let imbalance = T::Currency::deposit_creating(&account, tx.1);
 			drop(imbalance);
-            Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash, tx.1));
+            Self::deposit_event(RawEvent::ERC20TokenClaimed(account, eth_tx_hash, tx.1));
 			Ok(())
 		}
     }
@@ -232,16 +230,22 @@ impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
 	type Call = Call<T>;
 
 	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
-		let valid_tx = |provide| ValidTransaction::with_tag_prefix("PhaClaim")
-			.priority(UNSIGNED_TXS_PRIORITY)
-			.and_provides([&provide])
-			.longevity(3)
-			.propagate(true)
-			.build();
+		const PRIORITY: u64 = 100;
 
-		match call {
-			Call::claim_erc20_token(_who, _eth_tx_hash, _eth_signature) => valid_tx(b"claim_erc20_token_unsigned".to_vec()),
-			_ => InvalidTransaction::Call.into(),
-		}
+		let maybe_signer = match call {
+			Call::claim_erc20_token(account, eth_tx_hash, eth_signature) => {
+				let address = Encode::encode(&account);
+				Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
+			}
+			_ => return Err(InvalidTransaction::Call.into()),
+		};
+
+		Ok(ValidTransaction {
+			priority: PRIORITY,
+			requires: vec![],
+			provides: vec![("claims", maybe_signer).encode()],
+			longevity: TransactionLongevity::max_value(),
+			propagate: true,
+		})
 	}
 }
