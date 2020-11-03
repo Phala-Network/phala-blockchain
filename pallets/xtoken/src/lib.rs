@@ -6,13 +6,11 @@ use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Get, Currency, ExistenceRequirement, WithdrawReason},
 	Parameter,
-	debug
 };
 
 use frame_system::ensure_signed;
 use sp_runtime::{
 	traits::{AtLeast32Bit, CheckedSub, Convert, CheckedConversion, MaybeSerializeDeserialize, Member},
-	RuntimeDebug,
 };
 
 use codec::{Decode, Encode};
@@ -34,45 +32,7 @@ use xcm_executor::traits::{FilterAssetLocation, LocationConversion, MatchesFungi
 
 use orml_utilities::with_transaction_result;
 
-pub mod xcmadapter;
-use xcmadapter::XcmHandler;
-
-#[derive(Encode, Decode, Eq, PartialEq, Clone, Copy, RuntimeDebug)]
-/// Identity of chain.
-pub enum ChainId {
-	/// The relay chain.
-	RelayChain,
-	/// A parachain.
-	ParaChain(ParaId),
-}
-
-#[derive(Encode, Decode, Eq, PartialEq, Clone, RuntimeDebug)]
-/// Identity of cross chain currency.
-pub struct XCurrencyId {
-	/// The reserve chain of the currency. For instance, the reserve chain of
-	/// DOT is Polkadot.
-	pub chain_id: ChainId,
-	/// The identity of the currency.
-	pub currency_id: Vec<u8>,
-}
-
-impl XCurrencyId {
-	pub fn new(chain_id: ChainId, currency_id: Vec<u8>) -> Self {
-		XCurrencyId { chain_id, currency_id }
-	}
-}
-
-impl Into<MultiLocation> for XCurrencyId {
-	fn into(self) -> MultiLocation {
-		MultiLocation::X1(Junction::GeneralKey(self.currency_id))
-	}
-}
-
-impl Into<Vec<u8>> for XCurrencyId {
-	fn into(self) -> Vec<u8> {
-		[ChainId::encode(&self.chain_id), self.currency_id].concat()
-	}
-}
+use xcm_adapter::{XcmHandler,ChainId, PHAXCurrencyId as XCurrencyId};
 
 /// Configuration trait of this pallet.
 pub trait Trait: frame_system::Trait {

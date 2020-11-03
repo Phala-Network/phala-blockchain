@@ -45,7 +45,7 @@ type Hasher = sp_runtime::traits::BlakeTwo256;
 type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 // use xtoken::{AssetIdConverter, IsConcreteWithGeneralKey, XCMAdapter, XcmHandler as HandleXcm};
-pub use xtoken::xcmadapter::{XCMAdapter, XcmHandler as HandleXcm};
+pub use xcm_adapter::{XCurrencyIdConverter, IsConcreteWithGeneralKey, XcmHandler as HandleXcm};
 
 use xcm::v0::{Junction, MultiLocation, NetworkId, Xcm};
 use xcm_builder::{
@@ -84,6 +84,8 @@ pub type Hash = sp_core::H256;
 pub type DigestItem = generic::DigestItem<Hash>;
 
 pub type CurrencyId = Vec<u8>;
+
+pub type EncodedXCurrencyId = Vec<u8>;
 
 /// Opaque types. These are used by the CLI to instantiate machinery that don't need to know
 /// the specifics of the runtime. They can then be made to be agnostic over specific formats
@@ -276,18 +278,18 @@ impl parachain_info::Trait for Runtime {}
 pub struct RelayToNative;
 impl Convert<RelayChainBalance, Balance> for RelayToNative {
 	fn convert(val: u128) -> Balance {
-		// native is 18
+		// native is 12
 		// relay is 12
-		val * 1_000_000
+		val * 1
 	}
 }
 
 pub struct NativeToRelay;
 impl Convert<Balance, RelayChainBalance> for NativeToRelay {
 	fn convert(val: u128) -> Balance {
-		// native is 18
+		// native is 12
 		// relay is 12
-		val / 1_000_000
+		val / 1
 	}
 }
 
@@ -363,6 +365,15 @@ impl xcm_handler::Trait for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
+impl xcm_adapter::Trait for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
+	type AccountIdConverter = LocationConverter;
+	type EncodedXCurrencyId = EncodedXCurrencyId;
+	type XCurrencyIdConverter = XCurrencyIdConverter<EncodedXCurrencyId>;
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -382,6 +393,7 @@ construct_runtime! {
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
 		LocalXcmHandler: xcm_handler::{Module, Call, Event},
+		XCMAdapter: xcm_adapter::{Module, Call, Event<T>},
 	}
 }
 

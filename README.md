@@ -12,7 +12,7 @@ Note:
 
 Compile source code with command ```cargo build --release```
 
-Currently collator can only run xcm V0 with polkadot ```gav-xcmp``` branch. To make rococo local testnet run three validators, modify function at file ```<gav-xcmp polkadot dir>/service/src/chain_spec.rs```
+Currently collator can only run xcm V0 with polkadot [gav-xcmp](https://github.com/paritytech/polkadot/tree/gav-xcmp) branch. To make rococo local testnet run three validators, modify function at file ```<polkadot root>/service/src/chain_spec.rs```
 
 ```sh
 fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
@@ -34,8 +34,8 @@ After build, export new chain spec json file:
  - export genesis data
 
 ```sh
-./target/release/parachain-collator export-genesis-state --parachain-id 200 > para-200-genesis
-./target/release/parachain-collator export-genesis-state --parachain-id 500 > para-500-genesis
+./target/release/parachain-collator export-genesis-state --parachain-id 2000 > para-2000-genesis
+./target/release/parachain-collator export-genesis-state --parachain-id 5000 > para-5000-genesis
 ```
 
  - export wasm data
@@ -53,28 +53,28 @@ After build, export new chain spec json file:
 ```
 
 Got Alice chain identity:
-```12D3KooWMXMuKeHobyhPEQfwQCga7hXyDk8gTsC5wAqNy9uohXc3```
+```12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW```
 
  - run Bob (set Alice as bootnodes)
 
  ```sh
 ./target/release/polkadot --validator --chain rococo_local.json --tmp --rpc-cors all --ws-port 9955 --port 30334 --bob \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWMXMuKeHobyhPEQfwQCga7hXyDk8gTsC5wAqNy9uohXc3
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW
 ```
 
 Got Bob chain identity
-```12D3KooWMNgyjkNZPzwqdt8eQDEkMhTUE1Sk6nUp2RybqD9AnQMz```
+```12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK```
 
  - run Charlie (set Alice and Bob as bootnodes)
 
  ```sh
 ./target/release/polkadot --validator --chain rococo_local.json --tmp --rpc-cors all --ws-port 9966 --port 30335 --charlie \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWMXMuKeHobyhPEQfwQCga7hXyDk8gTsC5wAqNy9uohXc3 \
-  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWMNgyjkNZPzwqdt8eQDEkMhTUE1Sk6nUp2RybqD9AnQMz
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW \
+  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK
 ```
 
 Got Charlie chain identity
-```12D3KooWNj5yXpeAswHeA7P8PmuWz7sfoPti3SDqFWFViJSjp1pa```
+```12D3KooWHXAbtuFDLjpynQyVc7XyQqrG9qSWmUMTZH92LNgiDCBw```
 
 ## Step3 Run parachain collator 
 
@@ -91,19 +91,19 @@ Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
   --validator \
   -- \
   --chain ../polkadot/rococo_local.json \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWMXMuKeHobyhPEQfwQCga7hXyDk8gTsC5wAqNy9uohXc3 \
-  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWMNgyjkNZPzwqdt8eQDEkMhTUE1Sk6nUp2RybqD9AnQMz \
-  --bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWNj5yXpeAswHeA7P8PmuWz7sfoPti3SDqFWFViJSjp1pa
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW \
+  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK \
+  --bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWHXAbtuFDLjpynQyVc7XyQqrG9qSWmUMTZH92LNgiDCBw
 ```
 
 Got the first parachain identity:
-```12D3KooWPLBKKYNFXZy3y6UncYMTuycSH4Pcv264R3YPBANMrYXL```
+```12D3KooWHGMhkSHP1zfQEs4powiDq2WPRNKyDugdD3vbE6hxLtPw```
 
  - run the second parachain collator (set first parachain as bootnodes)
 
  ```sh
 ./target/release/parachain-collator \
-  --bootnodes /ip4/127.0.0.1/tcp/30336/p2p/12D3KooWPLBKKYNFXZy3y6UncYMTuycSH4Pcv264R3YPBANMrYXL \
+  --bootnodes /ip4/127.0.0.1/tcp/30336/p2p/12D3KooWDiBGAPj5VKuXQgHmb1KJiAiCmYbHvMUqoCtteEu9TudB \
   --tmp \
   --rpc-cors all --ws-port 9988 \
   --port 30337 \
@@ -111,9 +111,9 @@ Got the first parachain identity:
   --validator \
   -- \
   --chain ../polkadot/rococo_local.json \
-  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWMXMuKeHobyhPEQfwQCga7hXyDk8gTsC5wAqNy9uohXc3 \
-  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWMNgyjkNZPzwqdt8eQDEkMhTUE1Sk6nUp2RybqD9AnQMz \
-  --bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWNj5yXpeAswHeA7P8PmuWz7sfoPti3SDqFWFViJSjp1pa
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW \
+  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK \
+  --bootnodes /ip4/127.0.0.1/tcp/30335/p2p/12D3KooWHXAbtuFDLjpynQyVc7XyQqrG9qSWmUMTZH92LNgiDCBw
 ```
 
 Got the second parachain identity (used if you want to run more parachains):
@@ -136,6 +136,25 @@ At web UI, browser into ```settings/developer```, paste following json into the 
   "XCurrencyId": {
     "chain_id": "ChainId",
     "currency_id": "String"
+  },
+  "CurrencyId": "String",
+  "EncodedXCurrencyId": "String",
+  "XcmError": {
+    "_enum": {
+    	"Undefined": "Null",
+      "Unimplemented": "Null",
+      "UnhandledXcmVersion": "Null",
+      "UnhandledXcmMessage": "Null",
+      "UnhandledEffect": "Null",
+      "EscalationOfPrivilege": "Null",
+      "UntrustedReserveLocation": "Null",
+      "UntrustedTeleportLocation": "Null",
+      "DestinationBufferOverflow": "Null",
+      "CannotReachDestination": "Null",
+      "MultiLocationFull": "Null",
+      "FailedToDecode": "Null",
+      "BadOrigin": "Null"
+    }
   }
 }
 ```

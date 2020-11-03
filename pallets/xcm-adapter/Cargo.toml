@@ -1,8 +1,10 @@
 [package]
-name = "xtoken"
+name = "xcm-adapter"
 version = "0.1.0"
 authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
 edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "1.3.0", default-features = false, features = ["derive"] }
@@ -22,9 +24,6 @@ cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-f
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
 
-orml-utilities = { path = "../utilities", default-features = false }
-xcm-adapter = {path = "../xcm-adapter", default-features = false }
-
 [features]
 default = ["std"]
 std = [
@@ -36,5 +35,4 @@ std = [
     "cumulus-primitives/std",
     "frame-support/std",
     "frame-system/std",
-    "orml-utilities/std",
 ]
