@@ -223,7 +223,6 @@ impl<T: Trait> Module<T> {
     }
 }
 
-/// Custom validity errors used in Polkadot while validating transactions.
 #[repr(u8)]
 pub enum ValidityError {
 	/// The transaction signature is invalid.
@@ -232,6 +231,8 @@ pub enum ValidityError {
 	TxHashNotFound = 1,
 	/// The transaction has been claimed
 	TxAlreadyClaimed = 2,
+	/// The signer is not claim transaction sender.
+	InvalidSigner = 3,
 }
 
 impl From<ValidityError> for u8 {
@@ -256,9 +257,13 @@ impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
 
 		let signer = maybe_signer
 			.ok_or(InvalidTransaction::Custom(ValidityError::InvalidSignature.into()))?;
-
 		let e = InvalidTransaction::Custom(ValidityError::TxHashNotFound.into());
 		ensure!(BurnedTransactions::<T>::contains_key(&tx_hash), e);
+
+		let e = InvalidTransaction::Custom(ValidityError::InvalidSigner.into());
+		let stored_tx = BurnedTransactions::<T>::get(&tx_hash);
+		let stored_signer = stored_tx.0;
+		ensure!(signer == stored_signer, e);
 
 		let e = InvalidTransaction::Custom(ValidityError::TxAlreadyClaimed.into());
 		ensure!(!ClaimState::get(&tx_hash), e);
