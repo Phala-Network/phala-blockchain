@@ -91,7 +91,7 @@ cargo build --release
 ```
 
 The build script enforces LLVM-9 or newer is used. LLVM-9 is needed because of the wasm port of rust
-crypto library, `ring`. We have to compile the C code into wasm while keeping the compatibiliy with
+crypto library, `ring`. We have to compile the C code into wasm while keeping the compatibility with
 the _current_ rustc.
 
 ## Run

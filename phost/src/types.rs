@@ -70,6 +70,7 @@ pub struct GetInfoResp {
     pub initialized: bool,
     pub public_key: String,
     pub ecdh_public_key: String,
+    pub machine_id: Vec<u8>,
 }
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
@@ -161,6 +162,12 @@ pub struct AttestationReport {
 impl Resp for InitRuntimeReq {
   type Resp = InitRuntimeResp;
 }
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetRuntimeInfoReq {}
+impl Resp for GetRuntimeInfoReq {
+    type Resp = InitRuntimeResp;
+}
+
 #[derive(Encode, Decode)]
 pub struct GenesisInfo {
   pub header: Header,
@@ -185,6 +192,13 @@ impl Resp for SyncHeaderReq {
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
+    pub events: Option<Vec<u8>>,
+    pub proof: Option<StorageProof>,
+    pub key: Option<Vec<u8>>,
+}
+#[derive(Encode, Decode, Clone, Debug)]
+pub struct BlockHeaderWithEvents {
+    pub block_header: Header,
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,

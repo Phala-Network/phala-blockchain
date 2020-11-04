@@ -1,5 +1,6 @@
 const { assert } = require('chai');
 const path = require('path');
+const portfinder = require('portfinder');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
@@ -17,7 +18,7 @@ const EPS = 1e-8;
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
 describe('A full stack', function () {
-	this.timeout(30000);
+	this.timeout(60000);
 	let processNode;
 	let processRelayer;
 	let processPRuntime;
@@ -28,19 +29,28 @@ describe('A full stack', function () {
 	const tmpPath = tmpDir.dir;
 
 	before(async () => {
-		processNode = new Process(pathNode, ['--dev', '--base-path=' + path.resolve(tmpPath, 'phala-node'), '--ws-port=9944']);
-		processRelayer = new Process(pathRelayer, ['--dev']);
+		const wsPort = await portfinder.getPortPromise({port: 9944});
+		const teePort = await portfinder.getPortPromise({port: 8000, stopPort: 9900});
+		processNode = new Process(pathNode, [
+			'--dev', '--base-path=' + path.resolve(tmpPath, 'phala-node'), `--ws-port=${wsPort}`]);
+		processRelayer = new Process(pathRelayer, [
+			'--dev', `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
+			`--pruntime-endpoint=http://localhost:${teePort}`]);
 		processPRuntime = new Process(pathPRuntime, [], {
 			cwd: path.dirname(pathPRuntime),
+			env: {
+				...process.env,
+				ROCKET_PORT: teePort.toString(),
+			}
 		});
 		// launch nodes
 		await Promise.all([
-			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:9944/),
-			processPRuntime.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:8000/),
+			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/),
+			processPRuntime.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/),
 		]);
 		await processRelayer.startAndWaitForOutput(/runtime_info:InitRuntimeResp/);
 		// create polkadot api and keyring
-		api = await ApiPromise.create({ provider: new WsProvider('ws://localhost:9944'), types });
+		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types });
 		await cryptoWaitReady();
 		keyring = new Keyring({ type: 'sr25519' });
 		root = alice = keyring.addFromUri('//Alice');
@@ -147,20 +157,46 @@ describe('A full stack', function () {
 
 		it('can start mining', async function () {
 			await assertSuccess(
-				api.tx.phalaModule.startMine(),
+				api.tx.phalaModule.startMiningIntention(),
 				controller);
+			// Get into the next mining round
+			const { events } = await assertSuccess(
+				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
+				root);
+
+			assertEvents(events, [
+				['sudo', 'Sudid'],
+				['system', 'ExtrinsicSuccess']
+			]);
 
 			const { status } = await api.query.phalaModule.workerState(stash.address);
 			assert.equal(status.toNumber(), 1);
+			// MiningState
+			const miningStatus = await api.query.phalaModule.miningState(stash.address);
+			assert.isTrue(miningStatus.isMining.valueOf());
+			assert.isTrue(miningStatus.startBlock.isSome);
 		});
 
 		it('can stop mining', async function () {
 			await assertSuccess(
-				api.tx.phalaModule.stopMine(),
+				api.tx.phalaModule.stopMiningIntention(),
 				controller);
+			const { events } = await assertSuccess(
+				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
+				root);
+
+			assertEvents(events, [
+				['phalaModule', 'GotCredits', [undefined, 200, 200]],
+				['sudo', 'Sudid'],
+				['system', 'ExtrinsicSuccess'],
+			], true);
 
 			const { status } = await api.query.phalaModule.workerState(stash.address);
 			assert.equal(status.toNumber(), 0);
+			// MiningState
+			const miningStatus = await api.query.phalaModule.miningState(stash.address);
+			assert.isFalse(miningStatus.isMining.valueOf());
+			assert.isTrue(miningStatus.startBlock.isNone);
 		});
 	})
 
@@ -192,7 +228,10 @@ async function assertSuccess(txBuilder, signer) {
 					assert.fail(`Extrinsic failed with error: ${error}`);
 				}
 				unsub();
-				resolve(result.status.asInBlock);
+				resolve({
+					hash: result.status.asInBlock,
+					events: result.events,
+				});
 			} else if (result.status.isInvalid) {
 				assert.fail('Invalid transaction');
 				unsub();
@@ -200,4 +239,36 @@ async function assertSuccess(txBuilder, signer) {
 			}
 		});
 	});
+}
+
+function fillPartialArray(obj, pattern) {
+	for (const [idx, v] of obj.entries()) {
+		if (pattern[idx] === undefined) {
+			pattern[idx] = v;
+		} else if (v instanceof Array && pattern[idx] instanceof Array) {
+			fillPartialArray(v, pattern[idx]);
+		}
+	}
+}
+
+function assertEvents(actualEvents, expectedEvents, partial = true) {
+	const simpleEvents = simplifyEvents(actualEvents, true);
+	if (partial) {
+		fillPartialArray(simpleEvents, expectedEvents);
+	}
+	assert.deepEqual(simpleEvents, expectedEvents, 'Events not equal');
+}
+
+function simplifyEvents (events, keepData = false) {
+	const simpleEvents = [];
+	for (const e of events) {
+		const { event } = e;
+		const { method, section } = event;
+		if (keepData) {
+			simpleEvents.push([section, method, event.toJSON().data]);
+		} else {
+			simpleEvents.push([section, method]);
+		}
+	}
+	return simpleEvents;
 }

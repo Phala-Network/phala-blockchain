@@ -18,9 +18,9 @@ use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
-    InitRuntimeReq, GenesisInfo,
+    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    DispatchBlockReq, DispatchBlockResp, PingReq, /*PingResp,*/ HeartbeatData, /*Heartbeat*/
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
 };
 
 use subxt::Signer;
@@ -50,6 +50,15 @@ struct Args {
     short = "r", long = "remote-attestation",
     help = "Should enable Remote Attestation")]
     ra: bool,
+
+    #[structopt(long = "fetch-heartbeat-from-buffer", help = "Manual fetch heartbeat data")]
+    fetch_heartbeat_from_buffer: bool,
+
+    #[structopt(
+    default_value = "5",
+    long = "heartbeat-interval",
+    help = "Frequency of sending heartbeat")]
+    heartbeat_interval: u32,
 
     #[structopt(
     default_value = "ws://localhost:9944", long,
@@ -82,8 +91,8 @@ struct BlockSyncState {
     authory_set_state: Option<(BlockNumber, SetId)>
 }
 
-async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
-                      -> Result<BlockWithEvents, Error> {
+async fn get_block_at(client: &XtClient, h: Option<u32>)
+                      -> Result<OpaqueSignedBlock, Error> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
@@ -95,19 +104,26 @@ async fn get_block_at(client: &XtClient, h: Option<u32>, with_events: bool)
     let block = client.block(Some(hash.clone())).await?
         .ok_or(Error::BlockNotFound)?;
 
-    let (events, proof, key) = if with_events {
-        let events_with_proof = fetch_events(&client, &hash).await?;
-        if let Some((raw_events, proof, key)) = events_with_proof {
-            println!("          ... with events {} bytes", raw_events.len());
-            (Some(raw_events), Some(proof), Some(key))
-        } else {
-            (None, None, None)
-        }
-    } else {
-        (None, None, None)
-    };
+    Ok(block)
+}
 
-    Ok(BlockWithEvents { block, events, proof, key })
+async fn get_block_with_events(client: &XtClient, h: Option<u32>)
+                      -> Result<BlockWithEvents, Error> {
+    let block = get_block_at(&client, h).await?;
+    let hash = block.block.header.hash();
+
+    let events_with_proof = fetch_events(&client, &hash).await?;
+    if let Some((raw_events, proof, key)) = events_with_proof {
+        println!("          ... with events {} bytes", raw_events.len());
+        let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
+        return Ok(BlockWithEvents { block, events, proof, key });
+    }
+
+    if h == Some(0) {
+        return Ok(BlockWithEvents { block, events: None, proof: None, key: None });
+    }
+
+    return Err(Error::EventNotFound);
 }
 
 async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
@@ -233,7 +249,7 @@ async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_s
     Ok(resp)
 }
 
-async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockWithEvents>) -> Result<DispatchBlockResp, Error> {
+async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockHeaderWithEvents>) -> Result<DispatchBlockResp, Error> {
     let blocks_b64 = blocks
         .iter()
         .map(|block| {
@@ -351,9 +367,18 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockWithEvents> = block_batch
+                let block_with_events: Vec<BlockWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
                     .collect();
+                let mut dispatch_batch = Vec::<BlockHeaderWithEvents>::new();
+                for bwe in block_with_events {
+                    dispatch_batch.push(BlockHeaderWithEvents {
+                        block_header: bwe.block.block.header,
+                        events: bwe.events,
+                        proof: bwe.proof,
+                        key: bwe.key
+                    });
+                }
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 println!("  ..dispatch_block: {:?}", r);
 
@@ -372,9 +397,15 @@ async fn batch_sync_block(
 }
 
 async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
-    let latest_block = get_block_at(&client, None, false).await?.block;
-    let hash = latest_block.block.header.hash();
+    let latest_block = get_block_at(&client, None).await?.block;
+    let hash = latest_block.header.hash();
     client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), Some(hash)).await.or(Ok(0))
+}
+
+async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32], Error> {
+    let latest_block = get_block_at(&client, None).await?.block;
+    let hash = latest_block.header.hash();
+    client.fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), Some(hash)).await.or(Ok([0u8; 32]))
 }
 
 async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
@@ -435,10 +466,11 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
     Ok(())
 }
 
-async fn send_heartbeat_to_chain(client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
-    let result = pr.req_decode("ping", PingReq {}).await?;
+async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
+    let command = if fetch_heartbeat_from_buffer { "fetch_from_heartbeat_buffer" } else { "ping" };
+    let result = pr.req_decode(command, PingReq {}).await?;
     if result.status != "ok" {
-        println!("Ping api returns: {}, skip", result.status);
+        println!("{} api returns: {}, skip", command, result.status);
         return Ok(())
     }
 
@@ -476,46 +508,54 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
-    if !info.initialized && !args.no_init {
-        println!("pRuntime not initialized. Requesting init");
-        let genesis_block = get_block_at(&client, Some(0), false).await?.block;
-        let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
-            .expect("No genesis block?");
-        let set_proof = get_authority_with_proof_at(&client, hash).await?;
-        let info = GenesisInfo {
-            header: genesis_block.block.header,
-            validators: set_proof.authority_set.authority_set,
-            proof: set_proof.authority_proof,
-        };
-
-        let info_b64 = base64::encode(&info.encode());
-        let runtime_info = pr.req_decode("init_runtime", InitRuntimeReq {
-            skip_ra: !args.ra,
-            bridge_genesis_info_b64: info_b64,
-            debug_set_key: match args.use_dev_key {
-                true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
-                false => None
-            }
-        }).await?;
-
-        println!("runtime_info:{:?}", runtime_info);
-        if let Some(attestation) = runtime_info.attestation {
-            let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
-            let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
-            let call = runtimes::phala::RegisterWorkerCall {
-                _runtime: PhantomData,
-                encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
-                report: attestation.payload.report.as_bytes().to_vec(),
-                signature,
-                raw_signing_cert,
+    if !args.no_init {
+        let mut runtime_info: Option<InitRuntimeResp> = None;
+        if !info.initialized {
+            println!("pRuntime not initialized. Requesting init");
+            let genesis_block = get_block_at(&client, Some(0)).await?.block;
+            let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
+                .expect("No genesis block?");
+            let set_proof = get_authority_with_proof_at(&client, hash).await?;
+            let info = GenesisInfo {
+                header: genesis_block.header,
+                validators: set_proof.authority_set.authority_set,
+                proof: set_proof.authority_proof,
             };
-            let signer = subxt::PairSigner::new(pair.clone());
-            let ret = client.watch(call, &signer).await;
-            if !ret.is_ok() {
-                return Err(Error::FailedToCallRegisterWorker);
-            }
 
-            ()
+            let info_b64 = base64::encode(&info.encode());
+            runtime_info = Some(pr.req_decode("init_runtime", InitRuntimeReq {
+                skip_ra: !args.ra,
+                bridge_genesis_info_b64: info_b64,
+                debug_set_key: match args.use_dev_key {
+                    true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
+                    false => None
+                }
+            }).await?);
+        } else {
+            let machine_owner = get_machine_owner(&client, info.machine_id).await?;
+            if machine_owner == [0u8; 32] { //not registered
+                runtime_info = Some(pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
+            }
+        }
+        println!("runtime_info:{:?}", runtime_info);
+        if let Some(runtime_info) = runtime_info {
+            if let Some(attestation) = runtime_info.attestation {
+                let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
+                let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
+                let call = runtimes::phala::RegisterWorkerCall {
+                    _runtime: PhantomData,
+                    encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
+                    report: attestation.payload.report.as_bytes().to_vec(),
+                    signature,
+                    raw_signing_cert,
+                };
+                let signer = subxt::PairSigner::new(pair.clone());
+                let ret = client.watch(call, &signer).await;
+                if !ret.is_ok() {
+                    println!("FailedToCallRegisterWorker: {:?}", ret);
+                    return Err(Error::FailedToCallRegisterWorker);
+                }
+            }
         }
     }
 
@@ -538,7 +578,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         if info.headernum != info.blocknum {
             return Err(Error::BlockHeaderMismatch);
         }
-        let latest_block = get_block_at(&client, None, false).await?.block;
+        let latest_block = get_block_at(&client, None).await?.block;
         // remove the headers not needed in the buffer. info.headernum is the next required header
         while let Some(ref b) = sync_state.blocks.first() {
             if b.block.block.header.number >= info.headernum {
@@ -547,16 +587,16 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.remove(0);
         }
         println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
-                 info.headernum, latest_block.block.header.number, sync_state.blocks.len());
+                 info.headernum, latest_block.header.number, sync_state.blocks.len());
 
         // no, then catch up to the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
             None => info.headernum
         };
-        let batch_end = std::cmp::min(latest_block.block.header.number, next_block + args.fetch_blocks - 1);
+        let batch_end = std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
         for b in next_block ..= batch_end {
-            let block = get_block_at(&client, Some(b), true).await?;
+            let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
             }
@@ -574,9 +614,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
-            if info.initialized && !args.no_write_back && next_block % 5 == 0 {
+            if info.initialized && !args.no_write_back && args.heartbeat_interval > 0 && next_block % args.heartbeat_interval == 0 {
                 println!("send heartbeat");
-                send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
+                send_heartbeat_to_chain(args.fetch_heartbeat_from_buffer, &client, &pr, pair.clone()).await?;
             }
 
             println!("waiting for new blocks");

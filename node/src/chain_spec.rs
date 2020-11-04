@@ -396,54 +396,54 @@ fn phala_testnet_config_genesis() -> GenesisConfig {
 	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
 		(
 			// Stash
-			hex!["780d14058a7aa9c1ee50bd5a5061847e873d602f47e3b9aa744cf26c00a67247"].into(),
+			hex!["544800e501c99f8d5c0098623e95d601964acc71c0c466d62c3f34689c9f703d"].into(),
 			// Controller
-			hex!["a6472df662dd55418f00cca35ba4b07feb3965414075caf56e563b8440ff6865"].into(),
+			hex!["60f74f7c5328afcd03f12f37bd8180c53feac6eb13e1f9464b17a197094f1727"].into(),
 			// Session key ed25519
-			hex!["f7a4fa3658cc703ae9049b524dc3925e48d45e2e9fa941d500a28f2d247763b3"].unchecked_into(),
+			hex!["2e35d14137e19180c069341a9f9b92f2d70256a3a5ca5c1be8f4fdb4d99038d7"].unchecked_into(),
 			// Session key sr25519
-			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
-			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
-			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into()
+			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into(),
+			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into(),
+			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into()
 		),(
 			// Stash
-			hex!["1ef772bec998a0b906f46e0e74e3cfe2b91115cf1cda701c77ebbb8350e0447e"].into(),
+			hex!["366f684703bf253334139b202ab2e0601afade59af411cd2504335b33fcebb6e"].into(),
 			// Controller
-			hex!["944d92bb3b3a8b776972b86d1a9074e3c18ea508b967f8b7cb0479ce2c059266"].into(),
+			hex!["7ae944db02c95e2d41445ebec574838d056650813ed1ac01917f4411a50ea834"].into(),
 			// Session key ed25519
-			hex!["21c4025dd9d433e3792d245b0b5f92509badbe22b0d0d8e188557262f1182c56"].unchecked_into(),
+			hex!["8196afb955833a5509b114d3260dd27a660d057e661311fbeace8cdb713e6d8c"].unchecked_into(),
 			// Session key sr25519
-			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
-			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
-			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into()
+			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into(),
+			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into(),
+			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into()
 		),(
 			// Stash
-			hex!["520821df5b84c9c5db1fd7196713bab83b9cd958b01ce0abb1760396e3ab627b"].into(),
+			hex!["46d84366c34f5a2958323a93cff5ae9d410a644ffce9858dad56f756bacac07f"].into(),
 			// Controller
-			hex!["08a983924e693bd94877619f5f72763f0408be82069df4b4bb4836286c58f15d"].into(),
+			hex!["56edf4106c3c5bb7a603f6785481ab7a7dd77360d09653bda484223965e1100c"].into(),
 			// Session key ed25519
-			hex!["23cdc8621cfad1645ad1323ee25c8e4efb7f8baafdc57de78041eb8426b77396"].unchecked_into(),
+			hex!["e627ec282819e2efe16633b358f9b3ab5d95fab7d22444d4440d9b76a262db0c"].unchecked_into(),
 			// Session key sr25519
-			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
-			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
-			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into()
+			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into(),
+			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into(),
+			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into()
 		),(
 			// Stash
-			hex!["fc3d2b5f8885202bce2534726e9e33b8e47aa7cafa8c0e6331314537671b5c0c"].into(),
+			hex!["32b21ddc880ff7042a65cbe854e19617578caeb75541d42848b78bc8313e0056"].into(),
 			// Controller
-			hex!["9ae7747b65f53647d52c97e08436402b18bdeee96fb0f0c94078e03d6fe6c575"].into(),
+			hex!["1ef788ca003889a138bd9a9f2f14f664b58458871696357f1a0d124d0e4acc06"].into(),
 			// Session key ed25519
-			hex!["6a369d6f98d4cbda264eb2fa4506d381a28c545e2065413b9119767d8e6a779a"].unchecked_into(),
+			hex!["f430e3f80ece8bfb9728ab157756c001dc45891b3f6ad32902b73310ca262c17"].unchecked_into(),
 			// Session key sr25519
-			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
-			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
-			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into()
+			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into(),
+			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into(),
+			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into()
 		),];
 
-	// generated with secret: subkey inspect "$secret"/phat
+	// generated with secret: subkey inspect "$secret"/phat3
 	let root_key: AccountId = hex![
-		"d4ff035fa06490d7bf02628eafe3e81252150185cd272f3fd5a846563fef861c"
-	].into();
+        "3499d3a5284c3c920c139ae425f33b8d01f1b141e141a63ef21a2a928019d446"
+    ].into();
 
 	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
 

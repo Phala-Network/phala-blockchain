@@ -93,3 +93,9 @@ pub struct PRuntimeInfo {
 	pub pubkey: WorkerPublicKey,
 	pub features: Vec<u32>
 }
+
+#[derive(Encode, Decode, Debug, Default)]
+pub struct MiningInfo<BlockNumber> {
+	pub is_mining: bool,
+	pub start_block: Option<BlockNumber>,
+}
