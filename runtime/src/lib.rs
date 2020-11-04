@@ -923,6 +923,7 @@ impl pallet_phala::Trait for Runtime {
 
 impl pallet_claim::Trait for Runtime {
 	type Event = Event;
+	type Call = Call;
 	type Currency = Balances;
 }
 
@@ -941,7 +942,7 @@ construct_runtime!(
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Module, Storage},
 		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
-		PhaClaim: pallet_claim::{Module, Call, Storage, Event<T>},
+		PhaClaim: pallet_claim::{Module, Call, Storage, Event<T>, ValidateUnsigned},
 		Staking: pallet_staking::{Module, Call, Config<T>, Storage, Event<T>, ValidateUnsigned},
 		Session: pallet_session::{Module, Call, Storage, Event, Config<T>},
 		Democracy: pallet_democracy::{Module, Call, Storage, Config, Event<T>},

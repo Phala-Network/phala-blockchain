@@ -4,11 +4,15 @@ use frame_support::{
 	traits::Currency,
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure, RuntimeDebug,
 };
-use frame_system::{ensure_root, ensure_signed};
+use frame_system::{ensure_signed, ensure_none};
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
 use sp_std::prelude::*;
+use sp_runtime::{transaction_validity::{
+	TransactionLongevity, InvalidTransaction, TransactionSource,
+	TransactionValidity, ValidTransaction,
+}};
 
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug)]
 pub struct EthereumAddress([u8; 20]);
@@ -105,6 +109,7 @@ pub type BalanceOf<T> =
 pub trait Trait: frame_system::Trait {
     /// Because this pallet emits events, it depends on the runtime's definition of an event.
     type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Call: From<Call<Self>>;
 	type Currency: Currency<Self::AccountId>;
 }
 
@@ -133,8 +138,8 @@ decl_error! {
     pub enum Error for Module<T: Trait> {
         /// The transaction signature is invalid.
         InvalidSignature,
-        /// The signer is not transaction sender.
-        NotTransactionSender,
+        /// The signer is not claim transaction sender.
+        InvalidSigner,
         /// The transaction hash doesn't exist
         TxHashNotFound,
         /// The transaction hash already exit
@@ -156,13 +161,13 @@ decl_module! {
         pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, BalanceOf<T>)>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
             // check first
-            for(tx_hash, address, amount) in claims.iter() {
-            	ensure!(!BurnedTransactions::<T>::contains_key(&tx_hash), Error::<T>::TxHashAlreadyExist);
+            for (eth_tx_hash, _, _) in claims.iter() {
+            	ensure!(!BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
             }
-            for(tx_hash, address, amount) in claims.iter() {
-                BurnedTransactions::<T>::insert(&tx_hash, (address.clone(), amount.clone()));
-            	ClaimState::insert(&tx_hash, false);
-            	Self::deposit_event(RawEvent::ERC20TransactionStored(who.clone(), *tx_hash, *address, *amount));
+            for (eth_tx_hash, eth_address, erc20_amount) in claims.iter() {
+                BurnedTransactions::<T>::insert(&eth_tx_hash, (eth_address.clone(), erc20_amount.clone()));
+            	ClaimState::insert(&eth_tx_hash, false);
+            	Self::deposit_event(RawEvent::ERC20TransactionStored(who.clone(), *eth_tx_hash, *eth_address, *erc20_amount));
             }
             let end_height = EndHeight::get();
            	if height > end_height {
@@ -171,37 +176,23 @@ decl_module! {
             Ok(())
         }
 
-        #[weight = 0]
-        pub fn store_erc20_burned_transaction(origin, height: u64, eth_tx_hash: EthereumTxHash, eth_address: EthereumAddress, amount:BalanceOf<T>) -> dispatch::DispatchResult {
-            let who = ensure_signed(origin)?;
-            ensure!(!BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
-            let end_height = EndHeight::get();
-            if height > end_height {
-                EndHeight::put(height);
-            }
-            BurnedTransactions::<T>::insert(&eth_tx_hash, (eth_address.clone(), amount.clone()));
-            ClaimState::insert(&eth_tx_hash, false);
-            Self::deposit_event(RawEvent::ERC20TransactionStored(who, eth_tx_hash, eth_address, amount));
-            Ok(())
-        }
-
-        #[weight = 0]
-        pub fn claim_erc20_token(origin, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
-            let who = ensure_signed(origin)?;
-            ensure!(BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
+       	#[weight = 0]
+		pub fn claim_erc20_token(origin, account: T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+			let _ = ensure_none(origin)?;
+			ensure!(BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
             ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
-            let address = Encode::encode(&who);
+            let address = Encode::encode(&account);
             let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
                 .ok_or(Error::<T>::InvalidSignature)?;
             let tx = BurnedTransactions::<T>::get(&eth_tx_hash);
-            ensure!(signer == tx.0, Error::<T>::NotTransactionSender);
+            ensure!(signer == tx.0, Error::<T>::InvalidSigner);
             ClaimState::insert(&eth_tx_hash, true);
             // mint coins
-            let imbalance = T::Currency::deposit_creating(&who, tx.1);
+            let imbalance = T::Currency::deposit_creating(&account, tx.1);
 			drop(imbalance);
-            Self::deposit_event(RawEvent::ERC20TokenClaimed(who, eth_tx_hash, tx.1));
-            Ok(())
-        }
+            Self::deposit_event(RawEvent::ERC20TokenClaimed(account, eth_tx_hash, tx.1));
+			Ok(())
+		}
     }
 }
 
@@ -230,4 +221,60 @@ impl<T: Trait> Module<T> {
             .copy_from_slice(&keccak_256(&secp256k1_ecdsa_recover(&s.0, &msg).ok()?[..])[12..]);
         Some(res)
     }
+}
+
+#[repr(u8)]
+pub enum ValidityError {
+	/// The transaction signature is invalid.
+	InvalidSignature = 0,
+	/// The transaction hash doesn't exist
+	TxHashNotFound = 1,
+	/// The transaction has been claimed
+	TxAlreadyClaimed = 2,
+	/// The signer is not claim transaction sender.
+	InvalidSigner = 3,
+}
+
+impl From<ValidityError> for u8 {
+	fn from(err: ValidityError) -> Self {
+		err as u8
+	}
+}
+
+impl<T: Trait> frame_support::unsigned::ValidateUnsigned for Module<T> {
+	type Call = Call<T>;
+
+	fn validate_unsigned(_source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+		const PRIORITY: u64 = 100;
+
+		let (maybe_signer, tx_hash) = match call {
+			Call::claim_erc20_token(account, eth_tx_hash, eth_signature) => {
+				let address = Encode::encode(&account);
+				(Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0), eth_tx_hash)
+			}
+			_ => return Err(InvalidTransaction::Call.into()),
+		};
+
+		let e = InvalidTransaction::Custom(ValidityError::TxHashNotFound.into());
+		ensure!(BurnedTransactions::<T>::contains_key(&tx_hash), e);
+
+		let signer = maybe_signer
+			.ok_or(InvalidTransaction::BadProof)?;
+
+		let e = InvalidTransaction::Custom(ValidityError::InvalidSigner.into());
+		let stored_tx = BurnedTransactions::<T>::get(&tx_hash);
+		let stored_signer = stored_tx.0;
+		ensure!(signer == stored_signer, e);
+
+		let e = InvalidTransaction::Custom(ValidityError::TxAlreadyClaimed.into());
+		ensure!(!ClaimState::get(&tx_hash), e);
+
+		Ok(ValidTransaction {
+			priority: PRIORITY,
+			requires: vec![],
+			provides: vec![("claims", signer).encode()],
+			longevity: TransactionLongevity::max_value(),
+			propagate: true,
+		})
+	}
 }
