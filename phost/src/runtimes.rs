@@ -173,6 +173,22 @@ pub mod phala {
         }
     }
 
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct MachineOwnerStore<T: PhalaModule> {
+        #[store(returns = [u8; 32])]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+        pub machine_id: Vec<u8>,
+    }
+    impl<T: PhalaModule> MachineOwnerStore<T> {
+        pub fn new(machine_id: Vec<u8>) -> Self {
+            Self {
+                _runtime: Default::default(),
+                machine_id,
+            }
+        }
+    }
+
     /// The call to transfer_to_chain
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct HeartbeatCall<T: PhalaModule> {

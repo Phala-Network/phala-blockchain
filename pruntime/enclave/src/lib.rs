@@ -134,6 +134,7 @@ struct LocalState {
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    runtime_info: Option<InitRuntimeResp>,
 }
 
 // TODO: Move the type definitions to a central repo
@@ -214,6 +215,7 @@ lazy_static! {
                 ecdh_public_key: None,
                 machine_id: [0; 16],
                 dev_mode: true,
+                runtime_info: None,
             }
         )
     };
@@ -659,6 +661,7 @@ const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
 const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_PING: u8 = 8;
+const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
@@ -668,20 +671,20 @@ struct InitRuntimeReq {
     bridge_genesis_info_b64: String,
     debug_set_key: Option<String>
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InitRuntimeResp {
   pub encoded_runtime_info: Vec<u8>,
   pub public_key: String,
   pub ecdh_public_key: String,
   pub attestation: Option<InitRespAttestation>,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InitRespAttestation {
   pub version: i32,
   pub provider: String,
   pub payload: AttestationReport,
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AttestationReport {
   pub report: String,
   pub signature: String,
@@ -763,6 +766,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
                 ACTION_PING => ping(payload),
+                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 _ => unknown()
             }
         }
@@ -1152,6 +1156,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         ecdh_public_key: ecdh_hex_pk,
         attestation
     };
+
+    local_state.runtime_info = Some(resp.clone());
+
     Ok(serde_json::to_value(resp).unwrap())
 }
 
@@ -1559,6 +1566,14 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "machine_id": machine_id,
         "dev_mode": local_state.dev_mode,
     }))
+}
+
+fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
+    let local_state = LOCAL_STATE.lock().unwrap();
+
+    let resp = local_state.runtime_info.as_ref().ok_or_else(|| error_msg("Uninitiated runtime info"))?;
+
+    Ok(serde_json::to_value(resp).unwrap())
 }
 
 fn query(q: types::SignedQuery) -> Result<Value, Value> {
