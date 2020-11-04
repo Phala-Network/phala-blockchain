@@ -161,10 +161,10 @@ decl_module! {
         pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, BalanceOf<T>)>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
             // check first
-            for(eth_tx_hash, _, _) in claims.iter() {
+            for (eth_tx_hash, _, _) in claims.iter() {
             	ensure!(!BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
             }
-            for(eth_tx_hash, eth_address, erc20_amount) in claims.iter() {
+            for (eth_tx_hash, eth_address, erc20_amount) in claims.iter() {
                 BurnedTransactions::<T>::insert(&eth_tx_hash, (eth_address.clone(), erc20_amount.clone()));
             	ClaimState::insert(&eth_tx_hash, false);
             	Self::deposit_event(RawEvent::ERC20TransactionStored(who.clone(), *eth_tx_hash, *eth_address, *erc20_amount));
@@ -177,7 +177,7 @@ decl_module! {
         }
 
        	#[weight = 0]
-		pub fn claim_erc20_token(origin, account:T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
+		pub fn claim_erc20_token(origin, account: T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
 			let _ = ensure_none(origin)?;
 			ensure!(BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);
             ensure!(!ClaimState::get(&eth_tx_hash), Error::<T>::TxAlreadyClaimed);
