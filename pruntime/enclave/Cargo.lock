@@ -2940,7 +2940,7 @@ dependencies = [
 [[package]]
 name = "webpki"
 version = "0.21.2"
-source = "git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx#7b6806fcd99da4e31d3530d92b46dd0f038d22a8"
+source = "git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx#45d331af41bde4a9651b26c760f15c6c9366d637"
 dependencies = [
  "ring 0.16.11",
  "sgx_tstd",

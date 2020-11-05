@@ -137,6 +137,7 @@ RustEnclave_Link_Flags := -Wl,--no-undefined -nostdlib -nodefaultlibs -nostartfi
 
 RustEnclave_Name := enclave/enclave.so
 Signed_RustEnclave_Name := bin/enclave.signed.so
+Dumped_Signed_RustEnclave_Name := bin/enclave.dump
 
 .PHONY: all
 all: $(App_Name) $(Signed_RustEnclave_Name)
@@ -187,8 +188,13 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 enclave:
 	$(MAKE) -C ./enclave/
 
+.PHONY: dump
+dump:
+	$(SGX_ENCLAVE_SIGNER) dump -enclave $(Signed_RustEnclave_Name) -dumpfile $(Dumped_Signed_RustEnclave_Name)
+	@cat $(Dumped_Signed_RustEnclave_Name)
+
 .PHONY: clean
 clean:
-	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) enclave/*_t.* app/*_u.* lib/*.a
+	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) $(Dumped_Signed_RustEnclave_Name) enclave/*_t.* app/*_u.* lib/*.a
 	@cd enclave && cargo clean && rm -f Cargo.lock
 	@cd app && cargo clean && rm -f Cargo.lock

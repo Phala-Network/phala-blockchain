@@ -1,3 +1,5 @@
+#![feature(decl_macro)]
+
 extern crate sgx_types;
 extern crate sgx_urts;
 extern crate mio;
