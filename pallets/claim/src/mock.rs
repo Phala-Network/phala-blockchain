@@ -2,7 +2,7 @@
 
 use crate::{Module, Trait};
 use sp_core::H256;
-use frame_support::{impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
+use frame_support::{impl_outer_dispatch, impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
 };
@@ -14,6 +14,12 @@ pub(crate) type Balance = u128;
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
+}
+
+impl_outer_dispatch! {
+	pub enum Call for Test where origin: Origin {
+		claim::PhaClaim,
+	}
 }
 
 impl_outer_event! {
@@ -41,7 +47,7 @@ parameter_types! {
 impl system::Trait for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
-	type Call = ();
+	type Call = Call;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -85,6 +91,9 @@ impl pallet_timestamp::Trait for Test {
 
 impl Trait for Test {
 	type Event = TestEvent;
+	type Call = Call;
+	type Currency = Balances;
+
 }
 
 mod test_events {
@@ -93,7 +102,7 @@ mod test_events {
 
 pub type System = frame_system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
-pub type ClaimModule = Module<Test>;
+pub type PhaClaim = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
