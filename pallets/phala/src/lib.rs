@@ -306,12 +306,12 @@ decl_module! {
 			let mr_enclave = &quote_body[112..143];
 			let isv_prod_id = &quote_body[304..305];
 			let isv_svn = &quote_body[306..307];
-			let mut white_enclve = Vec::new();
-			white_enclve.extend_from_slice(&mr_enclave);
-			white_enclve.extend_from_slice(&isv_prod_id);
-			white_enclve.extend_from_slice(&isv_svn);
+			let mut unknown_enclve = Vec::new();
+			unknown_enclve.extend_from_slice(&mr_enclave);
+			unknown_enclve.extend_from_slice(&isv_prod_id);
+			unknown_enclve.extend_from_slice(&isv_svn);
 			let white_list = MrEnclaveWhiteList::get();
-			let existed = white_list.iter().find(|x| x == &&white_enclve);
+			let existed = white_list.iter().find(|x| x == &&unknown_enclve);
 			ensure!(!(existed == None), Error::<T>::WrongMrEnclave);
 			// Validate report data
 			let report_data = &quote_body[368..432];
