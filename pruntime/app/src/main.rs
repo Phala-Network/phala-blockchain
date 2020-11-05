@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene, decl_macro)]
-
 extern crate sgx_types;
 extern crate sgx_urts;
 extern crate mio;
