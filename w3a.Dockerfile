@@ -17,7 +17,7 @@ RUN bash /root/02_llvm.sh
 ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 
-ARG RUST_TOOLCHAIN='nightly-2020-04-07'
+ARG RUST_TOOLCHAIN='nightly-2020-11-01'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 

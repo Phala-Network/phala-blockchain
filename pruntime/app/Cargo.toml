@@ -5,8 +5,8 @@ authors = ["jasl"]
 build = "build.rs"
 
 [dependencies]
-sgx_types = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
-sgx_urts  = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_urts" }
+sgx_types = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
+sgx_urts  = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_urts" }
 mio       = "0.7"
 
 rocket         = "0.4.4"

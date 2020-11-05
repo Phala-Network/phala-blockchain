@@ -21,6 +21,8 @@ use sgx_tse::*;
 use sgx_tcrypto::*;
 use sgx_rand::*;
 
+use rand::*;
+
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
@@ -932,8 +934,7 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
             Ok(data) => data,
             Err(Error::PersistentRuntimeNotFound) => {
                 println!("Persistent data not found.");
-                let mut prng = rand::rngs::OsRng::default();
-                let ecdsa_sk = SecretKey::random(&mut prng);
+                let ecdsa_sk = SecretKey::random(&mut rand::thread_rng());
                 let ecdh_sk = ecdh::generate_key();
                 save_secret_keys(ecdsa_sk, ecdh_sk, false)?
             },
