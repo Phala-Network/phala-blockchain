@@ -4,7 +4,7 @@ use frame_support::{
 	traits::Currency,
     decl_error, decl_event, decl_module, decl_storage, dispatch, ensure, RuntimeDebug,
 };
-use frame_system::{ensure_signed, ensure_none};
+use frame_system::{ensure_root, ensure_signed, ensure_none};
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
 use sp_io::{crypto::secp256k1_ecdsa_recover, hashing::keccak_256};
@@ -13,6 +13,12 @@ use sp_runtime::{transaction_validity::{
 	TransactionLongevity, InvalidTransaction, TransactionSource,
 	TransactionValidity, ValidTransaction,
 }};
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Clone, Copy, PartialEq, Eq, Encode, Decode, Default, RuntimeDebug)]
 pub struct EthereumAddress([u8; 20]);
@@ -118,6 +124,7 @@ decl_storage! {
         EndHeight get(fn end_height): u64;
         BurnedTransactions get(fn destroyed_transaction): map hasher(blake2_128_concat) EthereumTxHash => (EthereumAddress, BalanceOf<T>);
         ClaimState get(fn claim_state): map hasher(blake2_128_concat) EthereumTxHash => bool;
+        Relayer get(fn relayer): Option<T::AccountId>;
     }
 }
 
@@ -131,6 +138,8 @@ decl_event!(
         ERC20TransactionStored(AccountId, EthereumTxHash, EthereumAddress, Balance),
         /// Event emitted when a transaction has been claimed.
         ERC20TokenClaimed(AccountId, EthereumTxHash, Balance),
+        /// Event emitted when the relayer has been changed.
+        RelayerChanged(AccountId),
     }
 );
 
@@ -142,12 +151,18 @@ decl_error! {
         InvalidSigner,
         /// The transaction hash doesn't exist
         TxHashNotFound,
-        /// The transaction hash already exit
+        /// The transaction hash already exist
         TxHashAlreadyExist,
         /// The transaction has been claimed
         TxAlreadyClaimed,
         /// The transaction height less than end height
         LessThanEndHeight,
+        /// The relayer has not been changed
+        RelayerNotChanged,
+        /// The caller is not relayer
+       	CallerNotRelayer,
+       	/// The module doesn't set relyer
+       	NoRelayer,
     }
 }
 
@@ -158,8 +173,23 @@ decl_module! {
         fn deposit_event() = default;
 
         #[weight = 0]
+        pub fn change_relayer(origin, new_relayer: T::AccountId) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			let old_relayer = Relayer::<T>::get();
+			if old_relayer.is_some() {
+				ensure!(!(old_relayer.unwrap() == new_relayer.clone()), Error::<T>::RelayerNotChanged);
+			}
+			Relayer::<T>::put(&new_relayer);
+			Self::deposit_event(RawEvent::RelayerChanged(new_relayer));
+			Ok(())
+        }
+
+        #[weight = 0]
         pub fn store_erc20_burned_transactions(origin, height: u64, claims:Vec<(EthereumTxHash, EthereumAddress, BalanceOf<T>)>) -> dispatch::DispatchResult {
             let who = ensure_signed(origin)?;
+            let relayer = Relayer::<T>::get();
+            ensure!(relayer.is_some(), Error::<T>::NoRelayer);
+           	ensure!(relayer.unwrap() == who.clone(), Error::<T>::CallerNotRelayer);
             // check first
             for (eth_tx_hash, _, _) in claims.iter() {
             	ensure!(!BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
