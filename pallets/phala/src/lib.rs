@@ -534,7 +534,7 @@ decl_module! {
 			mining_info.start_block = None;
 			MiningState::<T>::insert(&stash, mining_info);
 			// 3. TODO: add slash
-			Self::deposit_event(RawEvent::Slash(stash.clone(), 0.into(), 0u32));
+			Self::deposit_event(RawEvent::Slash(stash.clone(), 0u32.into(), 0u32));
 			// 4. Create events
 			Self::mark_dirty(stash.clone());
 			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));

@@ -54,7 +54,7 @@ pub trait Signer<T: Runtime> {
 }
 
 /// Extrinsic signer using a private key.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct PairSigner<T: Runtime, P: Pair> {
     account_id: T::AccountId,
     nonce: Option<T::Index>,
@@ -87,7 +87,7 @@ where
 
     /// Increment the nonce.
     pub fn increment_nonce(&mut self) {
-        self.nonce = self.nonce.map(|nonce| nonce + 1.into());
+        self.nonce = self.nonce.map(|nonce| nonce + 1u32.into());
     }
 
     /// Returns the signer.

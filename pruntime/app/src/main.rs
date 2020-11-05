@@ -1,4 +1,4 @@
-#![feature(proc_macro_hygiene, decl_macro)]
+#![feature(decl_macro)]
 
 extern crate sgx_types;
 extern crate sgx_urts;

@@ -20,7 +20,7 @@ provides its own implementation of `memrchr` as well, on top of `memchr2`,
 instead of one. Similarly for `memchr3`.
 */
 
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 #![deny(missing_docs)]
 #![doc(html_root_url = "https://docs.rs/memchr/2.0.0")]
 
@@ -33,10 +33,10 @@ instead of one. Similarly for `memchr3`.
 )))]
 compile_error!("memchr currently not supported on non-32 or non-64 bit");
 
-// #[cfg(feature = "std")]
-// extern crate core;
+#[cfg(feature = "std")]
+extern crate core;
 
-#[cfg(all(test, not(miri)))]
+#[cfg(all(test, all(not(miri), feature = "std")))]
 #[macro_use]
 extern crate quickcheck;
 
@@ -51,9 +51,9 @@ mod c;
 mod fallback;
 mod iter;
 mod naive;
-#[cfg(all(test, not(miri)))]
+#[cfg(all(test, all(not(miri), feature = "std")))]
 mod tests;
-#[cfg(all(test, miri))]
+#[cfg(all(test, any(miri, not(feature = "std"))))]
 #[path = "tests/miri.rs"]
 mod tests;
 #[cfg(all(not(miri), target_arch = "x86_64", memchr_runtime_simd))]
