@@ -85,6 +85,9 @@ decl_storage! {
 		/// Map from contract id to contract public key (TODO: migrate to real contract key from
 		/// worker identity key)
 		ContractKey get(fn contract_key): map hasher(twox_64_concat) u32 => Vec<u8>;
+
+		// Mr Enclave Whitelist
+		MrEnclaveWhiteList get(fn mr_enclave_white_list): Vec<Vec<u8>>;
 	}
 
 	add_extra_genesis {
@@ -137,6 +140,7 @@ decl_event!(
 		Slash(AccountId, Balance, u32),
 		GotCredits(AccountId, u32, u32),  // account, updated, delta
 		MiningStateUpdated(Vec<AccountId>),
+		WhitelistUpdated(Vec<u8>),
 	}
 );
 
@@ -185,6 +189,10 @@ decl_error! {
 		InvalidContract,
 		/// Internal Error
 		InternalError,
+		/// Wrong Mr Enclave
+		WrongMrEnclave,
+		/// Mr Enclave already exist
+		MrEnclaveAlreadyExist,
 	}
 }
 
@@ -197,7 +205,6 @@ decl_module! {
 		fn deposit_event() = default;
 
 		// Messaging
-
 		#[weight = 0]
 		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -295,12 +302,19 @@ decl_module! {
 			// Extract quote fields
 			let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
 			let quote_body = base64::decode(&raw_quote_body).unwrap();
-			// TODO: check the following fields
-			// let mr_enclave = &quote_body[112..143];
-			// let isv_prod_id = &quote_body[304..305];
-			// let isv_svn = &quote_body[306..307];
-			let report_data = &quote_body[368..432];
+			// Check the following fields
+			let mr_enclave = &quote_body[112..143];
+			let isv_prod_id = &quote_body[304..305];
+			let isv_svn = &quote_body[306..307];
+			let mut white_enclve = Vec::new();
+			white_enclve.extend_from_slice(&mr_enclave);
+			white_enclve.extend_from_slice(&isv_prod_id);
+			white_enclve.extend_from_slice(&isv_svn);
+			let white_list = MrEnclaveWhiteList::get();
+			let existed = white_list.iter().find(|x| x == &&white_enclve);
+			ensure!(!(existed == None), Error::<T>::WrongMrEnclave);
 			// Validate report data
+			let report_data = &quote_body[368..432];
 			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
 			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
@@ -538,6 +552,24 @@ decl_module! {
 			// 4. Create events
 			Self::mark_dirty(stash.clone());
 			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));
+			Ok(())
+		}
+
+		// Whitelist
+
+		#[weight = 0]
+		fn add_to_whitelist(origin, mr_enclave: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			let mut white_enclve = Vec::new();
+			white_enclve.extend(mr_enclave);
+			white_enclve.extend(isv_prod_id);
+			white_enclve.extend(isv_svn);
+			let mut white_list = MrEnclaveWhiteList::get();
+			let existed = white_list.iter().find(|x| x == &&white_enclve);
+			ensure!(existed == None, Error::<T>::MrEnclaveAlreadyExist);
+			white_list.push(white_enclve.clone());
+			MrEnclaveWhiteList::put(white_list);
+			Self::deposit_event(RawEvent::WhitelistUpdated(white_enclve));
 			Ok(())
 		}
 	}
