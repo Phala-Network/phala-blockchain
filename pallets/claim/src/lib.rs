@@ -160,9 +160,9 @@ decl_error! {
 		/// The relayer has not been changed
 		RelayerNotChanged,
 		/// The caller is not relayer
-		   CallerNotRelayer,
-		   /// The module doesn't set relyer
-		   NoRelayer,
+		CallerNotRelayer,
+		/// The module doesn't set relyer
+		NoRelayer,
 	}
 }
 
