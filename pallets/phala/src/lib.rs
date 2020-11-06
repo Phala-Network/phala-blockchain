@@ -67,7 +67,7 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferDat
 
 #[derive(Encode, Decode)]
 pub struct TransferToken<AccountId, Balance> {
-	pub token_id: u32,
+	pub token_id: Vec<u8>,
 	pub dest: AccountId,
 	pub amount: Balance,
 	pub sequence: u64,
@@ -190,8 +190,8 @@ decl_event!(
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
-		TransferTokenToTee(AccountId, u32, Balance),
-		TransferTokenToChain(AccountId, u32, Balance, u64),
+		TransferTokenToTee(AccountId, Vec<u8>, Balance),
+		TransferTokenToChain(AccountId, Vec<u8>, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
@@ -531,7 +531,7 @@ decl_module! {
 		}
 
 		#[weight = 0]
-		fn transfer_token_to_tee(origin, token_id: u32, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
+		fn transfer_token_to_tee(origin, token_id: Vec<u8>, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			Self::deposit_event(RawEvent::TransferTokenToTee(who, token_id, amount));
 			Ok(())

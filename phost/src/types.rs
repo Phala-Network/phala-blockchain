@@ -131,7 +131,7 @@ pub struct TransferData {
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
 pub struct TransferToken {
-    pub token_id: u32,
+    pub token_id: Vec<u8>,
     pub dest: [u8; 32],
     pub amount: u128,
     pub sequence: u64,

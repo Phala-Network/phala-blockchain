@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use crate::std::string::String;
 use crate::std::vec::Vec;
 use core::str;
-
+use crate::hex;
 use crate::contracts;
 use crate::types::TxRef;
 use crate::contracts::{AccountIdWrapper, SequenceType};
@@ -15,7 +15,7 @@ use sp_core::hashing::blake2_256;
 
 extern crate runtime as chain;
 
-pub type AssetId = u32;
+pub type AssetId = Vec<u8>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AssetMetadata {
@@ -85,16 +85,16 @@ pub enum Command {
         total: chain::Balance
     },
     Destroy {
-        id: AssetId,
+        id: String,
     },
     Transfer {
-        id: AssetId,
+        id: String,
         dest: AccountIdWrapper,
         #[serde(with = "super::serde_balance")]
         value: chain::Balance,
     },
     TransferToChain {
-        id: AssetId,
+        id: String,
         dest: AccountIdWrapper,
         #[serde(with = "super::serde_balance")]
         value: chain::Balance,
@@ -104,11 +104,11 @@ pub enum Command {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     Balance {
-        id: AssetId,
+        id: String,
         account: AccountIdWrapper
     },
     TotalSupply {
-        id: AssetId
+        id: String
     },
     Metadata,
     History {
@@ -153,27 +153,28 @@ const DECIMAL: u8 = 12;
 
 impl Assets {
     pub fn new(secret: Option<SecretKey>) -> Self{
-        let mut assets = BTreeMap::<u32, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
-        let mut metadata = BTreeMap::<u32, AssetMetadata>::new();
+        let mut assets = BTreeMap::<AssetId, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
+        let mut metadata = BTreeMap::<AssetId, AssetMetadata>::new();
 
         let owner = AccountIdWrapper::from_hex(ALICE);
         let symbol = String::from(SYMBOL);
         let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
         accounts.insert(owner.clone(), SUPPLY);
 
+        let id = 0u32.to_le_bytes().to_vec();
         let metadatum = AssetMetadata {
             owner: owner.clone(),
             total_supply: SUPPLY,
             symbol,
             decimal: DECIMAL,
-            id: 0
+            id: id.clone(),
         };
 
-        metadata.insert(0, metadatum);
-        assets.insert(0, accounts);
+        metadata.insert(id.clone(), metadatum);
+        assets.insert(id, accounts);
 
         Assets {
-            next_id: 1,
+            next_id: 1u32.to_le_bytes().to_vec(),
             assets,
             metadata,
             history: Default::default(), sequence: 0,
@@ -196,18 +197,22 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
-                    let id = self.next_id;
+                    let id = self.next_id.clone();
                     let metadatum = AssetMetadata {
                         owner: o.clone(),
                         total_supply: total,
                         symbol,
                         decimal,
-                        id
+                        id: id.clone(),
                     };
 
-                    self.metadata.insert(id, metadatum);
+                    self.metadata.insert(id.clone(), metadatum);
                     self.assets.insert(id.clone(), accounts);
-                    self.next_id += 1;
+                    let mut id_bytes = [0u8; 4];
+                    for i in 0..4 {
+                        id_bytes[i] = id[i];
+                    }
+                    self.next_id = (u32::from_le_bytes(id_bytes) + 1).to_le_bytes().to_vec();
 
                     TransactionStatus::Ok
                 } else {
@@ -216,11 +221,11 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             },
             Command::Destroy {id} => {
                 let o = AccountIdWrapper(origin.clone());
-
-                if let Some(metadatum) = self.metadata.get(&id) {
+                let token_id = hex::decode_hex(&id);
+                if let Some(metadatum) = self.metadata.get(&token_id) {
                     if metadatum.owner.to_string() == o.to_string() {
-                        self.metadata.remove(&id);
-                        self.assets.remove(&id);
+                        self.metadata.remove(&token_id);
+                        self.assets.remove(&token_id);
 
                         TransactionStatus::Ok
                     } else {
@@ -232,11 +237,11 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             },
             Command::Transfer {id, dest, value} => {
                 let o = AccountIdWrapper(origin.clone());
-
-                if let Some(metadatum) = self.metadata.get(&id) {
+                let token_id = hex::decode_hex(&id);
+                if let Some(metadatum) = self.metadata.get(&token_id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
 
-                    println!("Transfer: [{}] -> [{}]: {}, {}", o.to_string(), dest.to_string(), id, value);
+                    println!("Transfer: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), token_id, value);
                     if let Some(src_amount) = accounts.get_mut(&o) {
                         if *src_amount >= value {
                             let src0 = *src_amount;
@@ -255,7 +260,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
 
                             let tx = AssetsTx {
                                 txref: txref.clone(),
-                                asset_id: id,
+                                asset_id: token_id,
                                 from: o.clone(),
                                 to: dest.clone(),
                                 amount: value
@@ -284,11 +289,11 @@ impl contracts::Contract<Command, Request, Response> for Assets {
             },
             Command::TransferToChain {id, dest, value} => {
                 let o = AccountIdWrapper(origin.clone());
-
-                if let Some(metadatum) = self.metadata.get_mut(&id) {
+                let token_id = hex::decode_hex(&id);
+                if let Some(metadatum) = self.metadata.get_mut(&token_id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
 
-                    println!("Transfer token to chain: [{}] -> [{}]: {}, {}", o.to_string(), dest.to_string(), id, value);
+                    println!("Transfer token to chain: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), token_id, value);
                     if let Some(src_amount) = accounts.get_mut(&o) {
                         if *src_amount >= value {
                             if self.secret.is_none() {
@@ -306,7 +311,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                             let sequence = self.sequence + 1;
 
                             let data = TransferToken {
-                                token_id: id,
+                                token_id,
                                 dest,
                                 amount: value,
                                 sequence,
@@ -348,7 +353,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                         return Err(Error::NotAuthorized)
                     }
 
-                    if let Some(metadatum) = self.metadata.get(&id) {
+                    let token_id = hex::decode_hex(&id);
+                    if let Some(metadatum) = self.metadata.get(&token_id) {
                         let accounts = self.assets.get(&metadatum.id).unwrap();
                         let mut balance: chain::Balance = 0;
                         if let Some(ba) = accounts.get(&account) {
@@ -360,7 +366,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     }
                 },
                 Request::TotalSupply { id } => {
-                    if let Some(metadatum) = self.metadata.get(&id) {
+                    let token_id = hex::decode_hex(&id);
+                    if let Some(metadatum) = self.metadata.get(&token_id) {
                         Ok(Response::TotalSupply { total_issuance: metadatum.total_supply })
                     } else {
                         Err(Error::Other(String::from("Asset not found")))
@@ -384,7 +391,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 balances.get(&o).filter(|b| **b > 0).map(|b| (id, *b))
                             })
                             .map(|(id, balance)| {
-                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                let metadata = self.metadata.get(id).unwrap().clone();
                                 AssetMetadataBalance {
                                     metadata,
                                     balance
@@ -395,7 +402,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                         self.assets
                             .iter()
                             .map(|(id, balances)| {
-                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                let metadata = self.metadata.get(id).unwrap().clone();
                                 let balance = *balances.get(&o).unwrap_or(&0);
                                 AssetMetadataBalance {
                                     metadata,
@@ -423,7 +430,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
     fn handle_event(&mut self, ce: chain::Event) {
         if let chain::Event::pallet_phala(pe) = ce {
             if let phala::RawEvent::TransferTokenToTee(who, token_id, amount) = pe {
-                println!("TransferTokenToTee from: {:?}, token id: {:}, amount: {:}", who, token_id, amount);
+                println!("TransferTokenToTee from: {:?}, token id: {:?}, amount: {:}", who, token_id, amount);
                 let dest = AccountIdWrapper(who);
                 println!("   dest: {}", dest.to_string());
                 if let Some(metadatum) = self.metadata.get_mut(&token_id) {
@@ -438,10 +445,10 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     }
                     metadatum.total_supply += amount;
                 } else {
-                    println!("unknown token id: {}", token_id);
+                    println!("unknown token id: {:?}", token_id);
                 }
             } else if let phala::RawEvent::TransferTokenToChain(who, token_id, amount, sequence) = pe {
-                println!("TransferTokenToChain who: {:?}, token id: {:}, amount: {:}", who, token_id, amount);
+                println!("TransferTokenToChain who: {:?}, token id: {:?}, amount: {:}", who, token_id, amount);
                 let transfer_data = TransferTokenData { data: TransferToken { token_id, dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
                 println!("transfer data:{:?}", transfer_data);
                 self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
