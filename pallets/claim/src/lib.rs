@@ -176,9 +176,7 @@ decl_module! {
 		pub fn change_relayer(origin, new_relayer: T::AccountId) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			let old_relayer = Relayer::<T>::get();
-			if old_relayer.is_some() {
-				ensure!(!(old_relayer.unwrap() == new_relayer.clone()), Error::<T>::RelayerNotChanged);
-			}
+			ensure!(Some(&new_relayer) != old_relayer.as_ref(), Error::<T>::RelayerNotChanged);
 			Relayer::<T>::put(&new_relayer);
 			Self::deposit_event(RawEvent::RelayerChanged(new_relayer));
 			Ok(())
@@ -189,7 +187,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			let relayer = Relayer::<T>::get();
 			ensure!(relayer.is_some(), Error::<T>::NoRelayer);
-			ensure!(relayer.unwrap() == who.clone(), Error::<T>::CallerNotRelayer);
+			ensure!(Some(&who) == relayer.as_ref(), Error::<T>::CallerNotRelayer);
 			// check first
 			for (eth_tx_hash, _, _) in claims.iter() {
 				ensure!(!BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashAlreadyExist);
@@ -206,7 +204,7 @@ decl_module! {
 			Ok(())
 		}
 
-		   #[weight = 0]
+		#[weight = 0]
 		pub fn claim_erc20_token(origin, account: T::AccountId, eth_tx_hash: EthereumTxHash, eth_signature: EcdsaSignature) -> dispatch::DispatchResult {
 			let _ = ensure_none(origin)?;
 			ensure!(BurnedTransactions::<T>::contains_key(&eth_tx_hash), Error::<T>::TxHashNotFound);

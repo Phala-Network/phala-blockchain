@@ -28,7 +28,7 @@ fn store_erc20_burned_transactions_no_relayer() {
 			PhaClaim::store_erc20_burned_transactions(
 				Origin::signed(1),
 				10000,
-				vec![(tx_hash.clone(), eth_addr.clone(), 100)]
+				vec![(tx_hash, eth_addr, 100)]
 			),
 			Error::<Test>::NoRelayer
 		);
@@ -45,7 +45,7 @@ fn store_erc20_burned_transactions_wrong_relayer() {
 			PhaClaim::store_erc20_burned_transactions(
 				Origin::signed(2),
 				10000,
-				vec![(tx_hash.clone(), eth_addr.clone(), 100)]
+				vec![(tx_hash, eth_addr, 100)]
 			),
 			Error::<Test>::CallerNotRelayer
 		);
