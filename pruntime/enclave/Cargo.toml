@@ -9,15 +9,15 @@ name = "enclaveapp"
 crate-type = ["staticlib"]
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
-sgx_backtrace   = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_types       = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
-sgx_tstd        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "backtrace"] } # { path = "../rust-sgx-sdk/sgx_tstd", features = ["net", "backtrace"] }
-sgx_tcrypto     = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tcrypto" }
-sgx_tse         = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tse" }
-sgx_trts        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_trts" }
-sgx_tseal       = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_rand        = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand" }
-sgx_rand_derive = { rev = "v1.1.2", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand_derive" }
+sgx_backtrace   = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_types       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
+sgx_tstd        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "backtrace"] } # { path = "../rust-sgx-sdk/sgx_tstd", features = ["net", "backtrace"] }
+sgx_tcrypto     = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tcrypto" }
+sgx_tse         = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tse" }
+sgx_trts        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_trts" }
+sgx_tseal       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_rand        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand" }
+sgx_rand_derive = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand_derive" }
 
 [dependencies]
 chrono      = { git = "https://github.com/mesalock-linux/chrono-sgx" } # { path = "../vendor/chrono" }
@@ -33,8 +33,8 @@ serde       = { git = "https://github.com/mesalock-linux/serde-sgx", features = 
 serde_json  = { git = "https://github.com/mesalock-linux/serde-json-sgx" } # { path = "../vendor/serde-json" }
 serde_cbor  = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" } # { path = "../vendor/libsecp256k1" }
-rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.2" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
-regex 		= { git = "https://github.com/mesalock-linux/regex-sgx" }
+rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
+regex       = { git = "https://github.com/mesalock-linux/regex-sgx" }
 # rand_core   = { git = "https://github.com/mesalock-linux/rand-sgx", features = ["getrandom"] } # { path = "../vendor/rand/rand_os"}
 
 bit-vec     = { version = "*", default-features = false}
@@ -48,7 +48,7 @@ sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", 
 sp-runtime           = { path = "../../substrate/primitives/runtime", default-features = false }
 parity-scale-codec   = { package = "parity-scale-codec", version = "1.3.1", default-features = false, features = ["derive"] }
 
-csv-core = { version = "0.1.5", default-features = false }
+csv-core = { path = "../csv-core", default-features = false }
 
 # for light_validation
 derive_more = "0.99.0"
@@ -66,10 +66,12 @@ sp-core = { package = "sp-core", path = "../../substrate/primitives/core", defau
 # sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/finality-grandpa/"  }
 
 [patch.crates-io]
+rand_core = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" }
+libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" }
 memchr = { package = "memchr", path = "../memchr-nostd", default-features = false }
-# aho-corasick = { git = "https://github.com/mesalock-linux/aho-corasick-sgx" }
+# aho-corasick = { package = "aho-corasick", git = "https://github.com/mesalock-linux/aho-corasick-sgx" }
 # regex = { git = "https://github.com/mesalock-linux/regex-sgx" }
-# Inflector = { path = "../../Inflector" }
+# Inflector = { path = "../Inflector" }
 # parity-scale-codec = { git = "https://github.com/mesalock-linux/parity-scale-codec-sgx" }
 # primitive-types = { git = "https://github.com/jasl/parity-common-sgx" }
 # getrandom = { git = "https://github.com/mesalock-linux/getrandom-sgx" }
