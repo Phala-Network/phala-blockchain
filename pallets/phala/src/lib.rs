@@ -86,8 +86,8 @@ decl_storage! {
 		/// worker identity key)
 		ContractKey get(fn contract_key): map hasher(twox_64_concat) u32 => Vec<u8>;
 
-		// Mr Enclave Whitelist
-		MrEnclaveWhiteList get(fn mr_enclave_white_list): Vec<Vec<u8>>;
+		// MREnclave Whitelist
+		MREnclaveWhiteList get(fn mr_enclave_whitelist): Vec<Vec<u8>>;
 	}
 
 	add_extra_genesis {
@@ -190,9 +190,9 @@ decl_error! {
 		/// Internal Error
 		InternalError,
 		/// Wrong Mr Enclave
-		WrongMrEnclave,
+		WrongMREnclave,
 		/// Mr Enclave already exist
-		MrEnclaveAlreadyExist,
+		MREnclaveAlreadyExist,
 	}
 }
 
@@ -306,13 +306,7 @@ decl_module! {
 			let mr_enclave = &quote_body[112..143];
 			let isv_prod_id = &quote_body[304..305];
 			let isv_svn = &quote_body[306..307];
-			let mut unknown_enclve = Vec::new();
-			unknown_enclve.extend_from_slice(&mr_enclave);
-			unknown_enclve.extend_from_slice(&isv_prod_id);
-			unknown_enclve.extend_from_slice(&isv_svn);
-			let white_list = MrEnclaveWhiteList::get();
-			let existed = white_list.iter().find(|x| x == &&unknown_enclve);
-			ensure!(!(existed == None), Error::<T>::WrongMrEnclave);
+			ensure!(Self.is_mrenclave_in_whitelist(&mr_enclave, &isv_prod_id, &isv_svn), Error::<T>::WrongMREnclave);
 			// Validate report data
 			let report_data = &quote_body[368..432];
 			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
@@ -548,7 +542,7 @@ decl_module! {
 			mining_info.start_block = None;
 			MiningState::<T>::insert(&stash, mining_info);
 			// 3. TODO: add slash
-			Self::deposit_event(RawEvent::Slash(stash.clone(), 0.into(), 0u32));
+			Self::deposit_event(RawEvent::Slash(stash.clone(), 0u32.into(), 0u32));
 			// 4. Create events
 			Self::mark_dirty(stash.clone());
 			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));
@@ -558,17 +552,11 @@ decl_module! {
 		// Whitelist
 
 		#[weight = 0]
-		fn add_to_whitelist(origin, mr_enclave: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
+		fn add_to_whitelist(origin, mr_enclave: [u8; 31], isv_prod_id: [u8; 1], isv_svn: [u8; 1]) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
-			let mut white_enclve = Vec::new();
-			white_enclve.extend(mr_enclave);
-			white_enclve.extend(isv_prod_id);
-			white_enclve.extend(isv_svn);
-			let mut white_list = MrEnclaveWhiteList::get();
-			let existed = white_list.iter().find(|x| x == &&white_enclve);
-			ensure!(existed == None, Error::<T>::MrEnclaveAlreadyExist);
-			white_list.push(white_enclve.clone());
-			MrEnclaveWhiteList::put(white_list);
+			ensure!(!Self.is_mrenclave_in_whitelist(&mr_enclave, &isv_prod_id, &isv_svn), Error::<T>::MREnclaveAlreadyExist);
+			white_list.push(white_mrenclave.clone());
+			MREnclaveWhiteList::put(white_list);
 			Self::deposit_event(RawEvent::WhitelistUpdated(white_enclve));
 			Ok(())
 		}
@@ -670,6 +658,16 @@ impl<T: Trait> Module<T> {
 			}
 		}
 		result
+	}
+
+	fn is_mrenclave_in_whitelist(mr_enclave: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> bool {
+		let mut t_enclve = Vec::new();
+		t_enclve.extend_from_slice(mr_enclave);
+		t_enclve.extend_from_slice(isv_prod_id);
+		t_enclve.extend_from_slice(isv_svn);
+		let mut white_list = MREnclaveWhiteList::get();
+		let existed = white_list.iter().find(|x| x == &&white_mrenclave);
+		existed != None
 	}
 }
 
