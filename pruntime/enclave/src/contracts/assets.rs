@@ -412,8 +412,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 let o = AccountIdWrapper(origin.clone());
                 println!("Transfer xtoken to chain: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), x_currency_id, value);
                 //TODO:
-                //let token_id = [ChainId::encode(&x_currency_id.chain_id), x_currency_id.currency_id.clone()].concat();
-                let token_id = [01, 136, 19, 00, 00, 80, 79, 78].to_vec();
+                let token_id = [ChainId::encode(&x_currency_id.chain_id), x_currency_id.currency_id.clone()].concat();
 
                 if let Some(metadatum) = self.metadata.get_mut(&token_id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
