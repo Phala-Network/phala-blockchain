@@ -1531,8 +1531,18 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
                     state.contract3.handle_event(evt.event.clone());
                 } else if let phala::RawEvent::TransferTokenToChain(_, _, _, _) = pe {
                     state.contract3.handle_event(evt.event.clone());
+                } else if let phala::RawEvent::TransferXTokenToChain(_, _, _, _) = pe {
+                    state.contract3.handle_event(evt.event.clone());
                 } else {
 
+                }
+            }
+            else if let chain::Event::xcm_adapter(xa) = &evt.event {
+                println!("xcm_adapter event: {:?}", xa);
+                if let xcm_adapter::RawEvent::DepositAsset(_, _, _, toTee) = xa {
+                    if *toTee {
+                        state.contract3.handle_event(evt.event.clone());
+                    }
                 }
             }
         }

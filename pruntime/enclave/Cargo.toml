@@ -60,6 +60,7 @@ trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", b
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false }
 phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
+xcm-adapter = { package = "xcm-adapter", path = "../../pallets/xcm-adapter", default-features = false }
 # sp-blockchain = { package = "sp-blockchain", git = "https://github.com/paritytech/substrate", branch = "rococo-branch" }
 sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "rococo-branch", default-features = false, features = ["full_crypto"]}

@@ -17,7 +17,7 @@ mod types;
 use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
-    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData, TransferTokenData,
+    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData, TransferTokenData, TransferXTokenData,
     InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
@@ -531,7 +531,7 @@ async fn submit_balance_transactions(client: &XtClient, sequence: &mut u64, pair
 }
 
 async fn submit_asset_transactions(client: &XtClient, sequence: &mut u64, pair: sr25519::Pair, transfer_data: Vec<u8>) -> Result<(), Error> {
-    let transfer_queue: Vec<TransferTokenData> = Decode::decode(&mut &transfer_data[..])
+    let transfer_queue: Vec<Vec<u8>> = Decode::decode(&mut &transfer_data[..])
         .map_err(|_|Error::FailedToDecode)?;
     if transfer_queue.len() == 0 {
         return Ok(());
@@ -541,23 +541,45 @@ async fn submit_asset_transactions(client: &XtClient, sequence: &mut u64, pair: 
     update_singer_nonce(&client, &mut signer).await?;
 
     let mut max_seq = *sequence;
-    for transfer_data in &transfer_queue {
-        if transfer_data.data.sequence <= *sequence {
-            println!("The tx has been submitted.");
-            continue;
-        }
-        if transfer_data.data.sequence > max_seq {
-            max_seq = transfer_data.data.sequence;
-        }
+    for td in &transfer_queue {
+        if &td[0..1] == 0u8.to_le_bytes() {
+            let transfer_data: TransferTokenData = Decode::decode(&mut &td[1..]).unwrap();
+            if transfer_data.data.sequence <= *sequence {
+                println!("The tx has been submitted.");
+                continue;
+            }
+            if transfer_data.data.sequence > max_seq {
+                max_seq = transfer_data.data.sequence;
+            }
 
-        let call = runtimes::phala::TransferTokenToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
-        let ret = client.submit(call, &signer).await;
-        if ret.is_ok() {
-            println!("Submit asset tx successfully");
-        } else {
-            println!("Failed to submit asset tx: {:?}", ret);
+            let call = runtimes::phala::TransferTokenToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
+            let ret = client.submit(call, &signer).await;
+            if ret.is_ok() {
+                println!("Submit asset tx successfully");
+            } else {
+                println!("Failed to submit asset tx: {:?}", ret);
+            }
+            signer.increment_nonce();
+        } else if &td[0..1] == 1u8.to_le_bytes() {
+            let transfer_data: TransferXTokenData = Decode::decode(&mut &td[1..]).unwrap();
+            println!("TransferXTokenData: {:?}", transfer_data);
+            if transfer_data.data.sequence <= *sequence {
+                println!("The xtoken tx has been submitted.");
+                continue;
+            }
+            if transfer_data.data.sequence > max_seq {
+                max_seq = transfer_data.data.sequence;
+            }
+
+            let call = runtimes::phala::TransferXTokenToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
+            let ret = client.submit(call, &signer).await;
+            if ret.is_ok() {
+                println!("Submit asset xtoken tx successfully");
+            } else {
+                println!("Failed to submit asset xtoken tx: {:?}", ret);
+            }
+            signer.increment_nonce();
         }
-        signer.increment_nonce();
     }
 
     *sequence = max_seq;

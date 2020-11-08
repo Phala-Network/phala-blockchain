@@ -25,6 +25,10 @@ use codec::{Encode, Decode};
 use sp_std::prelude::*;
 use secp256k1;
 
+use xcm::v0::{NetworkId};
+use cumulus_primitives::{ParaId};
+use xcm_adapter::{XcmHandler, PHAXCurrencyId as XCurrencyId};
+
 mod hashing;
 
 #[cfg(test)]
@@ -90,6 +94,32 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferTok
 }
 
 #[derive(Encode, Decode)]
+pub struct TransferXToken<AccountId, Balance> {
+	pub x_currency_id: XCurrencyId,
+	pub para_id: ParaId,
+	pub dest_network: NetworkId,
+	pub dest: AccountId,
+	pub amount: Balance,
+	pub sequence: u64,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferXTokenData<AccountId, Balance> {
+	pub data: TransferXToken<AccountId, Balance>,
+	pub signature: Vec<u8>,
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferXTokenData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
+#[derive(Encode, Decode)]
 pub struct Heartbeat {
 	block_num: u32,
 }
@@ -111,7 +141,7 @@ impl SignedDataType<Vec<u8>> for HeartbeatData {
 }
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Trait: frame_system::Trait {
+pub trait Trait: frame_system::Trait + xtoken::Trait {
 	/// Because this pallet emits events, it depends on the runtime's definition of an event.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 
@@ -192,6 +222,7 @@ decl_event!(
 		TransferToChain(AccountId, Balance, u64),
 		TransferTokenToTee(AccountId, Vec<u8>, Balance),
 		TransferTokenToChain(AccountId, Vec<u8>, Balance, u64),
+		TransferXTokenToChain(AccountId, Vec<u8>, u128, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
@@ -554,6 +585,39 @@ decl_module! {
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
 			Self::deposit_event(RawEvent::TransferTokenToChain(transfer_data.data.dest, transfer_data.data.token_id, transfer_data.data.amount, sequence + 1));
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn transfer_x_token_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+			const CONTRACT_ID: u32 = 3;
+			ensure_signed(origin.clone())?;
+
+			let transfer_data: TransferXTokenData<<T as frame_system::Trait>::AccountId, T::Balance>
+				= Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
+			// Check sequence
+			let sequence = IngressSequence::get(CONTRACT_ID);
+			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::BadMessageSequence);
+			// Contract key
+			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
+			let pubkey = ContractKey::get(CONTRACT_ID);
+			// Validate TEE signature
+			Self::verify_signature(&pubkey, &transfer_data)?;
+
+			let xcm = <xtoken::Module<T>>::do_transfer_to_parachain(
+				transfer_data.data.x_currency_id.clone(),
+				transfer_data.data.para_id,
+				&transfer_data.data.dest,
+				transfer_data.data.dest_network,
+				transfer_data.data.amount
+			);
+
+			T::XcmHandler::execute(origin, xcm)?;
+
+			// Announce the successful execution
+			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			Self::deposit_event(RawEvent::TransferXTokenToChain(transfer_data.data.dest, transfer_data.data.x_currency_id.into(), transfer_data.data.amount.into(), sequence + 1));
+
 			Ok(())
 		}
 

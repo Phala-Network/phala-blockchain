@@ -86,7 +86,7 @@ decl_event! (
 		<T as Trait>::EncodedXCurrencyId,
 	{
 		/// Deposit asset into current chain. [currency_id, account_id, amount]
-		DepositAsset(EncodedXCurrencyId, AccountId, Balance),
+		DepositAsset(EncodedXCurrencyId, AccountId, Balance, bool),
 
 		/// Withdraw asset from current chain. [currency_id, account_id, amount]
 		WithdrawAsset(EncodedXCurrencyId, AccountId, Balance),
@@ -118,7 +118,7 @@ impl<T> TransactAsset for Module<T> where
 		debug::info!("balance amount: {:?}", balance_amount);
         
         Self::deposit_event(
-            Event::<T>::DepositAsset(currency_id, who, balance_amount),
+			RawEvent::DepositAsset(currency_id, who, balance_amount, true)
         );
 
 		debug::info!(">>> success deposit.");

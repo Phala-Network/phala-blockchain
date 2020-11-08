@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;
+use crate::std::string::ToString;
 use crate::std::vec::Vec;
 use core::str;
 use crate::hex;
@@ -49,6 +50,49 @@ pub struct TransferTokenData {
     signature: Vec<u8>,
 }
 
+pub type ParaId = u32;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub enum ChainId {
+    RelayChain,
+    ParaChain(ParaId),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct XCurrencyId {
+    pub chain_id: ChainId,
+    pub currency_id: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub enum NetworkId {
+    Any,
+    Named(Vec<u8>),
+    Polkadot,
+    Kusama,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct TransferXToken {
+    x_currency_id: XCurrencyId,
+    para_id: ParaId,
+    dest_network: NetworkId,
+    dest: AccountIdWrapper,
+    amount: chain::Balance,
+    sequence: SequenceType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub struct TransferXTokenData {
+    data: TransferXToken,
+    signature: Vec<u8>,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Assets {
     next_id: AssetId,
@@ -56,7 +100,7 @@ pub struct Assets {
     metadata: BTreeMap<AssetId, AssetMetadata>,
     history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
     sequence: SequenceType,
-    queue: Vec<TransferTokenData>,
+    queue: Vec<Vec<u8>>,//Vec<TransferTokenData>,
     #[serde(skip)]
     secret: Option<SecretKey>,
 }
@@ -95,6 +139,14 @@ pub enum Command {
     },
     TransferToChain {
         id: String,
+        dest: AccountIdWrapper,
+        #[serde(with = "super::serde_balance")]
+        value: chain::Balance,
+    },
+    TransferXTokenToChain {
+        x_currency_id: XCurrencyId,
+        para_id: ParaId,
+        dest_network: NetworkId,
         dest: AccountIdWrapper,
         #[serde(with = "super::serde_balance")]
         value: chain::Balance,
@@ -190,6 +242,9 @@ impl contracts::Contract<Command, Request, Response> for Assets {
     fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {
         match cmd {
             Command::Issue {symbol, decimal, total} => {
+                if decimal == 0 {
+                    return TransactionStatus::BadDecimal;
+                }
                 let o = AccountIdWrapper(origin.clone());
                 println!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
@@ -224,10 +279,14 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 let token_id = hex::decode_hex(&id);
                 if let Some(metadatum) = self.metadata.get(&token_id) {
                     if metadatum.owner.to_string() == o.to_string() {
-                        self.metadata.remove(&token_id);
-                        self.assets.remove(&token_id);
+                        if metadatum.decimal > 0 {
+                            self.metadata.remove(&token_id);
+                            self.assets.remove(&token_id);
 
-                        TransactionStatus::Ok
+                            TransactionStatus::Ok
+                        } else {
+                            TransactionStatus::DestroyNotAllowed
+                        }
                     } else {
                         TransactionStatus::NotAssetOwner
                     }
@@ -328,7 +387,66 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 data,
                                 signature: signature.0.serialize().to_vec(),
                             };
-                            self.queue.push(transfer_data);
+                            self.queue.push([0u8.to_le_bytes().to_vec(), Encode::encode(&transfer_data)].concat());
+                            self.sequence = sequence;
+
+                            TransactionStatus::Ok
+                        } else {
+                            TransactionStatus::InsufficientBalance
+                        }
+                    } else {
+                        TransactionStatus::NoBalance
+                    }
+                } else {
+                    TransactionStatus::AssetIdNotFound
+                }
+            },
+            Command::TransferXTokenToChain {x_currency_id, para_id, dest_network, dest, value} => {
+                let o = AccountIdWrapper(origin.clone());
+                println!("Transfer xtoken to chain: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), x_currency_id, value);
+                //TODO:
+                let token_id = [ChainId::encode(&x_currency_id.chain_id), x_currency_id.currency_id.clone()].concat();
+
+                if let Some(metadatum) = self.metadata.get_mut(&token_id) {
+                    let accounts = self.assets.get_mut(&metadatum.id).unwrap();
+                    println!("Transfer xtoken to chain: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), token_id, value);
+                    if let Some(src_amount) = accounts.get_mut(&o) {
+                        if *src_amount >= value {
+                            if self.secret.is_none() {
+                                println!("BadSecret error");
+                                return TransactionStatus::BadSecret;
+                            }
+
+                            let src0 = *src_amount;
+                            *src_amount -= value;
+
+                            metadatum.total_supply -= value;
+
+                            println!("   src: {:>20} -> {:>20}", src0, src0 - value);
+
+                            let sequence = self.sequence + 1;
+
+                            let data = TransferXToken {
+                                x_currency_id,
+                                para_id,
+                                dest_network,
+                                dest,
+                                amount: value,
+                                sequence,
+                            };
+
+                            let msg_hash = blake2_256(&Encode::encode(&data));
+                            let mut buffer = [0u8; 32];
+                            buffer.copy_from_slice(&msg_hash);
+                            let message = Message::parse(&buffer);
+                            let signature = secp256k1::sign(&message, &self.secret.as_ref().unwrap());
+                            println!("signature={:?}", signature);
+
+                            let transfer_data = TransferXTokenData {
+                                data,
+                                signature: signature.0.serialize().to_vec(),
+                            };
+                            self.queue.push([1u8.to_le_bytes().to_vec(), Encode::encode(&transfer_data)].concat());
                             self.sequence = sequence;
 
                             TransactionStatus::Ok
@@ -415,7 +533,25 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 },
                 Request::PendingChainTransfer {sequence} => {
                     println!("PendingChainTransferToken");
-                    let transfer_queue: Vec<&TransferTokenData> = self.queue.iter().filter(|x| x.data.sequence > sequence).collect::<_>();
+                    let transfer_queue: Vec<&Vec<u8>> = self.queue.iter().filter(|x| {
+                        if &x[0..1] == 0u8.to_le_bytes() {
+                            let tx: TransferTokenData = Decode::decode(&mut &x[1..]).unwrap();
+                            if tx.data.sequence > sequence {
+                                return true;
+                            }
+
+                            return false;
+                        } else if &x[0..1] == 1u8.to_le_bytes() {
+                            let tx: TransferXTokenData = Decode::decode(&mut &x[1..]).unwrap();
+                            if tx.data.sequence > sequence {
+                                return true;
+                            }
+
+                            return false;
+                        }
+
+                        return false;
+                    }).collect::<_>();
 
                     Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
                 }
@@ -451,8 +587,67 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 println!("TransferTokenToChain who: {:?}, token id: {:?}, amount: {:}", who, token_id, amount);
                 let transfer_data = TransferTokenData { data: TransferToken { token_id, dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
                 println!("transfer data:{:?}", transfer_data);
-                self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
+                self.queue.retain(|x| {
+                    if &x[0..1] == 0u8.to_le_bytes() {
+                        let tx: TransferTokenData = Decode::decode(&mut &x[1..]).unwrap();
+                        if tx.data.sequence > sequence {
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                    return false;
+                });
                 println!("queue len: {:}", self.queue.len());
+            } else if let phala::RawEvent::TransferXTokenToChain(who, xtoken_id, amount, sequence) = pe {
+                println!("TransferXTokenToChain who: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
+                self.queue.retain(|x| {
+                    if &x[0..1] == 1u8.to_le_bytes() {
+                        let tx: TransferXTokenData = Decode::decode(&mut &x[1..]).unwrap();
+                        if tx.data.sequence > sequence {
+                            return true;
+                        }
+
+                        return false;
+                    }
+
+                    return false;
+                });
+                println!("queue len: {:}", self.queue.len());
+            }
+        } else if let chain::Event::xcm_adapter(xa) = ce {
+            if let xcm_adapter::RawEvent::DepositAsset(xtoken_id, who, amount, _) = xa {
+                println!("DepositAsset from: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
+                let dest = AccountIdWrapper(who);
+                println!("   dest: {}", dest.to_string());
+                if let Some(metadatum) = self.metadata.get_mut(&xtoken_id) {
+                    let accounts = self.assets.get_mut(&metadatum.id).unwrap();
+                    if let Some(dest_amount) = accounts.get_mut(&dest) {
+                        let dest_amount0 = *dest_amount;
+                        *dest_amount += amount;
+                        println!("   value: {:>20} -> {:>20}", dest_amount0, *dest_amount);
+                    } else {
+                        accounts.insert(dest, amount);
+                        println!("   value: {:>20} -> {:>20}", 0, amount);
+                    }
+                    metadatum.total_supply += amount;
+                } else {
+                    //create new token metadata
+                    let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
+                    accounts.insert(dest.clone(), amount);
+
+                    let metadatum = AssetMetadata {
+                        owner: dest.clone(),
+                        total_supply: amount,
+                        symbol: "".to_string(),
+                        decimal: 0,
+                        id: xtoken_id.clone(),
+                    };
+
+                    self.metadata.insert(xtoken_id.clone(), metadatum);
+                    self.assets.insert(xtoken_id.clone(), accounts);
+                }
             }
         }
     }

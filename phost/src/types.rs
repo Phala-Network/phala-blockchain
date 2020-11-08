@@ -143,6 +143,49 @@ pub struct TransferTokenData {
     pub signature: Vec<u8>,
 }
 
+pub type ParaId = u32;
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub enum ChainId {
+    RelayChain,
+    ParaChain(ParaId),
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct XCurrencyId {
+    pub chain_id: ChainId,
+    pub currency_id: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub enum NetworkId {
+    Any,
+    Named(Vec<u8>),
+    Polkadot,
+    Kusama,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct TransferXToken {
+    pub x_currency_id: XCurrencyId,
+    pub para_id: ParaId,
+    pub dest_network: NetworkId,
+    pub dest: [u8; 32],
+    pub amount: u128,
+    pub sequence: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct TransferXTokenData {
+    pub data: TransferXToken,
+    pub signature: Vec<u8>,
+}
+
 impl Resp for QueryReq {
     type Resp = QueryResp;
 }

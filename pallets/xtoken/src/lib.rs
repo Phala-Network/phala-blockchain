@@ -149,7 +149,7 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	fn do_transfer_to_parachain(
+	pub fn do_transfer_to_parachain(
 		x_currency_id: XCurrencyId,
 		para_id: ParaId,
 		dest: &T::AccountId,
