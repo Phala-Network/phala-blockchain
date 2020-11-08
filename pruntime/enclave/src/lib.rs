@@ -1539,8 +1539,8 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
             }
             else if let chain::Event::xcm_adapter(xa) = &evt.event {
                 println!("xcm_adapter event: {:?}", xa);
-                if let xcm_adapter::RawEvent::DepositAsset(_, _, _, toTee) = xa {
-                    if *toTee {
+                if let xcm_adapter::RawEvent::DepositAsset(_, _, _, to_tee) = xa {
+                    if *to_tee {
                         state.contract3.handle_event(evt.event.clone());
                     }
                 }

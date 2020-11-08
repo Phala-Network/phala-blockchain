@@ -38,6 +38,8 @@ mod mock;
 mod tests;
 
 type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type XBalanceOf<T> = <T as xtoken::Trait>::Balance;
+
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 
@@ -212,7 +214,7 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId, Balance = BalanceOf<T> {
+	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId, Balance = BalanceOf<T>, XBalance = XBalanceOf<T> {
 		// Debug events
 		LogString(Vec<u8>),
 		LogI32(i32),
@@ -222,7 +224,7 @@ decl_event!(
 		TransferToChain(AccountId, Balance, u64),
 		TransferTokenToTee(AccountId, Vec<u8>, Balance),
 		TransferTokenToChain(AccountId, Vec<u8>, Balance, u64),
-		TransferXTokenToChain(AccountId, Vec<u8>, u128, u64),
+		TransferXTokenToChain(AccountId, Vec<u8>, XBalance, u64),
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
@@ -616,7 +618,7 @@ decl_module! {
 
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::deposit_event(RawEvent::TransferXTokenToChain(transfer_data.data.dest, transfer_data.data.x_currency_id.into(), transfer_data.data.amount.into(), sequence + 1));
+			Self::deposit_event(RawEvent::TransferXTokenToChain(transfer_data.data.dest, transfer_data.data.x_currency_id.into(), transfer_data.data.amount, sequence + 1));
 
 			Ok(())
 		}

@@ -186,6 +186,13 @@ pub struct TransferXTokenData {
     pub signature: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub enum TxQueue {
+    TransferTokenData(TransferTokenData),
+    TransferXTokenData(TransferXTokenData),
+}
+
 impl Resp for QueryReq {
     type Resp = QueryResp;
 }

@@ -94,13 +94,20 @@ pub struct TransferXTokenData {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode)]
+pub enum TxQueue {
+    TransferTokenData(TransferTokenData),
+    TransferXTokenData(TransferXTokenData),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Assets {
     next_id: AssetId,
     assets: BTreeMap<AssetId, BTreeMap<AccountIdWrapper, chain::Balance>>,
     metadata: BTreeMap<AssetId, AssetMetadata>,
     history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
     sequence: SequenceType,
-    queue: Vec<Vec<u8>>,//Vec<TransferTokenData>,
+    queue: Vec<TxQueue>,
     #[serde(skip)]
     secret: Option<SecretKey>,
 }
@@ -137,7 +144,7 @@ pub enum Command {
         #[serde(with = "super::serde_balance")]
         value: chain::Balance,
     },
-    TransferToChain {
+    TransferTokenToChain {
         id: String,
         dest: AccountIdWrapper,
         #[serde(with = "super::serde_balance")]
@@ -346,7 +353,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     TransactionStatus::AssetIdNotFound
                 }
             },
-            Command::TransferToChain {id, dest, value} => {
+            Command::TransferTokenToChain {id, dest, value} => {
                 let o = AccountIdWrapper(origin.clone());
                 let token_id = hex::decode_hex(&id);
                 if let Some(metadatum) = self.metadata.get_mut(&token_id) {
@@ -387,7 +394,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 data,
                                 signature: signature.0.serialize().to_vec(),
                             };
-                            self.queue.push([0u8.to_le_bytes().to_vec(), Encode::encode(&transfer_data)].concat());
+                            self.queue.push(TxQueue::TransferTokenData(transfer_data));
                             self.sequence = sequence;
 
                             TransactionStatus::Ok
@@ -405,7 +412,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 let o = AccountIdWrapper(origin.clone());
                 println!("Transfer xtoken to chain: [{}] -> [{}]: {:?}, {}", o.to_string(), dest.to_string(), x_currency_id, value);
                 //TODO:
-                let token_id = [ChainId::encode(&x_currency_id.chain_id), x_currency_id.currency_id.clone()].concat();
+                //let token_id = [ChainId::encode(&x_currency_id.chain_id), x_currency_id.currency_id.clone()].concat();
+                let token_id = [01, 136, 19, 00, 00, 80, 79, 78].to_vec();
 
                 if let Some(metadatum) = self.metadata.get_mut(&token_id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
@@ -446,7 +454,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 data,
                                 signature: signature.0.serialize().to_vec(),
                             };
-                            self.queue.push([1u8.to_le_bytes().to_vec(), Encode::encode(&transfer_data)].concat());
+                            self.queue.push(TxQueue::TransferXTokenData(transfer_data));
                             self.sequence = sequence;
 
                             TransactionStatus::Ok
@@ -533,24 +541,23 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 },
                 Request::PendingChainTransfer {sequence} => {
                     println!("PendingChainTransferToken");
-                    let transfer_queue: Vec<&Vec<u8>> = self.queue.iter().filter(|x| {
-                        if &x[0..1] == 0u8.to_le_bytes() {
-                            let tx: TransferTokenData = Decode::decode(&mut &x[1..]).unwrap();
-                            if tx.data.sequence > sequence {
-                                return true;
-                            }
+                    let transfer_queue: Vec<&TxQueue> = self.queue.iter().filter(|x| {
+                        match x {
+                            TxQueue::TransferTokenData(tx) => {
+                                if tx.data.sequence > sequence {
+                                    return true;
+                                }
 
-                            return false;
-                        } else if &x[0..1] == 1u8.to_le_bytes() {
-                            let tx: TransferXTokenData = Decode::decode(&mut &x[1..]).unwrap();
-                            if tx.data.sequence > sequence {
-                                return true;
-                            }
+                                false
+                            },
+                            TxQueue::TransferXTokenData(tx) => {
+                                if tx.data.sequence > sequence {
+                                    return true;
+                                }
 
-                            return false;
+                                false
+                            }
                         }
-
-                        return false;
                     }).collect::<_>();
 
                     Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
@@ -588,31 +595,31 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 let transfer_data = TransferTokenData { data: TransferToken { token_id, dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
                 println!("transfer data:{:?}", transfer_data);
                 self.queue.retain(|x| {
-                    if &x[0..1] == 0u8.to_le_bytes() {
-                        let tx: TransferTokenData = Decode::decode(&mut &x[1..]).unwrap();
-                        if tx.data.sequence > sequence {
-                            return true;
-                        }
+                    return match x {
+                        TxQueue::TransferTokenData(tx) => {
+                            if tx.data.sequence > sequence {
+                                return true;
+                            }
 
-                        return false;
+                            false
+                        },
+                        _ => false,
                     }
-
-                    return false;
                 });
                 println!("queue len: {:}", self.queue.len());
             } else if let phala::RawEvent::TransferXTokenToChain(who, xtoken_id, amount, sequence) = pe {
                 println!("TransferXTokenToChain who: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
                 self.queue.retain(|x| {
-                    if &x[0..1] == 1u8.to_le_bytes() {
-                        let tx: TransferXTokenData = Decode::decode(&mut &x[1..]).unwrap();
-                        if tx.data.sequence > sequence {
-                            return true;
-                        }
+                    return match x {
+                        TxQueue::TransferXTokenData(tx) => {
+                            if tx.data.sequence > sequence {
+                                return true;
+                            }
 
-                        return false;
+                            false
+                        },
+                        _ => false,
                     }
-
-                    return false;
                 });
                 println!("queue len: {:}", self.queue.len());
             }
