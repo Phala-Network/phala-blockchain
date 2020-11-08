@@ -18,7 +18,11 @@ pub enum Command {
     Increment {
         value: u32,
     },
+    Multiply{
+        value2: u32,
+    }
 }
+
 
 /// The errors that the contract could throw for some queries
 #[derive(Serialize, Deserialize, Debug)]
@@ -64,7 +68,7 @@ impl contracts::Contract<Command, Request, Response> for HelloWorld {
             // Handle the `Increment` command with one parameter
             Command::Increment { value } => {
                 // Simply increment the counter by some value.
-                self.counter += value;
+                self.counter += value * value2;
                 // Returns TransactionStatus::Ok to indicate a successful transaction
                 TransactionStatus::Ok
             },
