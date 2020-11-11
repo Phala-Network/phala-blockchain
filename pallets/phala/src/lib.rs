@@ -554,7 +554,7 @@ decl_module! {
 		// Whitelist
 
 		#[weight = 0]
-		fn add_mrenclave(origin, mr_enclave: [u8; 31], isv_prod_id: [u8; 1], isv_svn: [u8; 1]) -> dispatch::DispatchResult {
+		fn add_mrenclave(origin, mr_enclave: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			Self::add_mrenclave_to_whitelist(&mr_enclave, &isv_prod_id, &isv_svn)?;
 			Ok(())
