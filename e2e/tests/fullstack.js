@@ -48,7 +48,7 @@ describe('A full stack', function () {
 			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/),
 			processPRuntime.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/),
 		]);
-		await processRelayer.startAndWaitForOutput(/runtime_info:InitRuntimeResp/);
+		await processRelayer.startAndWaitForOutput(/runtime_info:Some\(InitRuntimeResp/);
 		// create polkadot api and keyring
 		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types });
 		await cryptoWaitReady();

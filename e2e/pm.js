@@ -20,6 +20,15 @@ class Process {
 		this.exitCode = null;
 		this.errorCode = null;
 		this.stopped = false;
+		// Debug outputs
+		this.debug = false;
+		const comp = this.args[0].split('/');
+		this.program = comp[comp.length - 1];
+	}
+	maybeLogOutputLine(data) {
+		if (this.debug) {
+			process.stdout.write(`${this.program} OUT | ${data}`);
+		}
 	}
 	start() {
 		const process = spawn(...this.args);
@@ -31,11 +40,13 @@ class Process {
 		this.process = process;
 		await new Promise((resolve, reject) => {
 			process.stdout.on('data', (data) => {
+				this.maybeLogOutputLine(data);
 				if (pattern.test(data)) {
 					resolve();
 				}
 			});
 			process.stderr.on('data', (data) => {
+				this.maybeLogOutputLine(data);
 				if (pattern.test(data)) {
 					resolve();
 				}
@@ -49,7 +60,7 @@ class Process {
 				this.stopped = true;
 				this.exitCode = code;
 				if (fallbackReject) {
-					fallbackReject(new Error('Got an error with ' + code));
+					fallbackReject(new Error(`Got an error when running ${this.args} with ${code}`));
 				}
 				console.log(`Process ${this.process.pid} exited with code ${code}`);
 				resolve(code);
