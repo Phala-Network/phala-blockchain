@@ -88,9 +88,6 @@ pub mod constants;
 use constants::{time::*, currency::*};
 use sp_runtime::generic::Era;
 
-/// Weights for pallets used in the runtime.
-mod weights;
-
 pub use pallet_phala;
 pub use pallet_claim;
 
@@ -706,7 +703,7 @@ impl pallet_contracts::Trait for Runtime {
 	type MaxDepth = pallet_contracts::DefaultMaxDepth;
 	type MaxValueSize = pallet_contracts::DefaultMaxValueSize;
 	type WeightPrice = pallet_transaction_payment::Module<Self>;
-	type WeightInfo = weights::pallet_contracts::WeightInfo<Self>;
+	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
 }
 
 impl pallet_sudo::Trait for Runtime {
