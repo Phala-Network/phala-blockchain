@@ -70,10 +70,11 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 pub const IAS_REPORT_SAMPLE: &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signature");
 pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const TEE_REPORT_SAMPLE: &[u8] =  &[1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90, 188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50, 211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0];
-pub const MR_ENCLAVE: &[u8] = &[197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60, 149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249];
-pub const ISV_PROD_ID: &[u8] = &[0];
-pub const ISV_SVN: &[u8] = &[0];
+pub const ENCODED_RUNTIME_INFO: &[u8] =  &[1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90, 188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50, 211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0];
+pub const MR_ENCLAVE: &[u8] = &[197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60, 149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174];
+pub const MR_SIGNER: &[u8] = &[131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219, 105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158];
+pub const ISV_PROD_ID: &[u8] = &[0, 0];
+pub const ISV_SVN: &[u8] = &[0, 0];
 const PANIC: bool = false;
 
 #[test]
@@ -133,10 +134,10 @@ fn test_register_worker() {
 			Ok(x) => x,
 			Err(_) => panic!("decode cert failed")
 		};
-		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 	});
 }
 
@@ -153,11 +154,11 @@ fn test_whitelist_works() {
 		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
 
 		// TODO: Handle RA report replay attack
-		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id = &PhalaModule::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);
-		assert_ok!(PhalaModule::register_worker(Origin::signed(2), TEE_REPORT_SAMPLE.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(2), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id2 = &PhalaModule::worker_state(2).machine_id;
 		assert_eq!(true, machine_id2.len() > 0);
 		let machine_id1 = &PhalaModule::worker_state(1).machine_id;

@@ -303,11 +303,12 @@ decl_module! {
 			let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
 			let quote_body = base64::decode(&raw_quote_body).unwrap();
 			// Check the following fields
-			let mr_enclave = &quote_body[112..143];
-			let isv_prod_id = &quote_body[304..305];
-			let isv_svn = &quote_body[306..307];
+			let mr_enclave = &quote_body[112..144];
+			let mr_signer = &quote_body[176..208];
+			let isv_prod_id = &quote_body[304..306];
+			let isv_svn = &quote_body[306..308];
 			let whitelist = MREnclaveWhitelist::get();
-			let (_, existed) = Self::is_mrenclave_in_whitelist(&whitelist, &mr_enclave, &isv_prod_id, &isv_svn);
+			let (_, existed) = Self::is_mrenclave_in_whitelist(&whitelist, mr_enclave, mr_signer, isv_prod_id, isv_svn);
 			ensure!(existed, Error::<T>::WrongMREnclave);
 			// Validate report data
 			let report_data = &quote_body[368..432];
@@ -554,9 +555,9 @@ decl_module! {
 		// Whitelist
 
 		#[weight = 0]
-		fn add_mrenclave(origin, mr_enclave: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
+		fn add_mrenclave(origin, mr_enclave: Vec<u8>, mr_signer: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
-			Self::add_mrenclave_to_whitelist(&mr_enclave, &isv_prod_id, &isv_svn)?;
+			Self::add_mrenclave_to_whitelist(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn)?;
 			Ok(())
 		}
 	}
@@ -659,18 +660,19 @@ impl<T: Trait> Module<T> {
 		result
 	}
 
-	fn is_mrenclave_in_whitelist(whitelist: &Vec<Vec<u8>>, mr_enclave: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> (Vec<u8>, bool) {
+	fn is_mrenclave_in_whitelist(whitelist: &Vec<Vec<u8>>, mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> (Vec<u8>, bool) {
 		let mut t_mrenclave = Vec::new();
 		t_mrenclave.extend_from_slice(mr_enclave);
 		t_mrenclave.extend_from_slice(isv_prod_id);
 		t_mrenclave.extend_from_slice(isv_svn);
+		t_mrenclave.extend_from_slice(mr_signer);
 		let existed = whitelist.iter().find(|x| x == &&t_mrenclave);
 		(t_mrenclave, existed != None)
 	}
 
-	fn add_mrenclave_to_whitelist(mr_enclave: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
+	fn add_mrenclave_to_whitelist(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
 		let mut whitelist = MREnclaveWhitelist::get();
-		let (white_mrenclave, existed) = Self::is_mrenclave_in_whitelist(&whitelist, mr_enclave, isv_prod_id, isv_svn);
+		let (white_mrenclave, existed) = Self::is_mrenclave_in_whitelist(&whitelist, mr_enclave, mr_signer, isv_prod_id, isv_svn);
 		ensure!(!existed, Error::<T>::MREnclaveAlreadyExist);
 		whitelist.push(white_mrenclave.clone());
 		MREnclaveWhitelist::put(whitelist);
