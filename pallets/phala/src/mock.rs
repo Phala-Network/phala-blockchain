@@ -85,6 +85,7 @@ impl pallet_timestamp::Trait for Test {
 
 impl Trait for Test {
 	type Event = TestEvent;
+	type Randomness = Randomness;
 	type TEECurrency = Balances;
 	type UnixTime = pallet_timestamp::Module<Test>;
 }
@@ -95,6 +96,7 @@ mod test_events {
 
 pub type System = frame_system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
+pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
 pub type PhalaModule = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to

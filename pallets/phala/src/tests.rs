@@ -1,5 +1,5 @@
 use codec::Encode;
-use frame_support::{assert_ok, assert_noop, traits::{Currency}};
+use frame_support::{assert_ok, assert_noop, traits::{Currency, OnFinalize}};
 use frame_system::RawOrigin;
 use hex_literal::hex;
 use secp256k1;
@@ -342,6 +342,24 @@ fn test_mark_violation() {
 			TestEvent::phala(RawEvent::GotCredits(1, 9900, 9900)),
 			TestEvent::phala(RawEvent::Slash(1, 0, 0)),
 			TestEvent::phala(RawEvent::MiningStateUpdated(vec![1]))
+		]);
+	});
+}
+
+#[test]
+fn test_randomness() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		PhalaModule::on_finalize(1);
+		System::finalize();
+
+		assert_eq!(events().as_slice(), [
+			TestEvent::phala(RawEvent::PoWSeed(vec![
+				0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0,
+				0, 0, 0, 0, 0, 0, 0, 0,
+			]))
 		]);
 	});
 }

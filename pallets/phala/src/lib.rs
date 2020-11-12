@@ -10,7 +10,8 @@ use alloc::vec::Vec;
 use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
 use frame_support::{
 	storage::IterableStorageDoubleMap,
-	traits::{Currency, ExistenceRequirement::AllowDeath, UnixTime},
+	traits::{Currency, ExistenceRequirement::AllowDeath, Randomness, UnixTime},
+	weights::Weight,
 };
 use codec::Decode;
 
@@ -30,6 +31,7 @@ mod tests;
 
 type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
+const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 const MINING_ROUND_PERIOD: u32 = 20;  // 2 min
 const HEARTBEAT_TARGET_PERIOD: u32 = 5;
@@ -37,9 +39,8 @@ const HEARTBEAT_THRESHOLD: u32 = MINING_ROUND_PERIOD / HEARTBEAT_TARGET_PERIOD *
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
-	/// Because this pallet emits events, it depends on the runtime's definition of an event.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
-
+	type Randomness: Randomness<Self::Hash>;
 	type TEECurrency: Currency<Self::AccountId>;
 	type UnixTime: UnixTime;
 }
@@ -142,6 +143,7 @@ decl_event!(
 		MiningStateUpdated(Vec<AccountId>),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
+		PoWSeed(Vec<u8>),
 	}
 );
 
@@ -210,6 +212,11 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
+
+		fn on_finalize() {
+			let seed = T::Randomness::random(RANDOMNESS_SUBJECT);
+			Self::deposit_event(RawEvent::PoWSeed(seed.as_ref().to_vec()));
+		}
 
 		// Messaging
 		#[weight = 0]

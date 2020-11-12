@@ -4369,6 +4369,7 @@ dependencies = [
  "itertools 0.8.2",
  "libsecp256k1",
  "pallet-balances",
+ "pallet-randomness-collective-flip",
  "pallet-timestamp",
  "parity-scale-codec",
  "rand 0.7.3",

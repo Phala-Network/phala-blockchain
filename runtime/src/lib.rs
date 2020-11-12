@@ -901,6 +901,7 @@ impl pallet_vesting::Trait for Runtime {
 
 impl pallet_phala::Trait for Runtime {
 	type Event = Event;
+	type Randomness = RandomnessCollectiveFlip;
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
 }
