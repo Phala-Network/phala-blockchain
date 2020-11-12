@@ -185,6 +185,8 @@ decl_error! {
 		CannotWithdraw,
 		/// Bad input parameter
 		InvalidInput,
+		/// Bad input parameter length
+		InvalidInputBadLength,
 		/// Invalid contract
 		InvalidContract,
 		/// Internal Error
@@ -557,6 +559,7 @@ decl_module! {
 		#[weight = 0]
 		fn add_mrenclave(origin, mr_enclave: Vec<u8>, mr_signer: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
+			ensure!(mr_enclave.len() == 32 && mr_signer.len() == 32 && isv_prod_id.len() == 2 && isv_svn.len() == 2, Error::<T>::InvalidInputBadLength);
 			Self::add_mrenclave_to_whitelist(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn)?;
 			Ok(())
 		}
