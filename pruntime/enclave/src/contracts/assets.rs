@@ -102,7 +102,7 @@ pub enum TxQueue {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Assets {
-    next_id: AssetId,
+    next_id: u32,
     assets: BTreeMap<AssetId, BTreeMap<AccountIdWrapper, chain::Balance>>,
     metadata: BTreeMap<AssetId, AssetMetadata>,
     history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
@@ -233,7 +233,7 @@ impl Assets {
         assets.insert(id, accounts);
 
         Assets {
-            next_id: 1u32.to_le_bytes().to_vec(),
+            next_id: 1,
             assets,
             metadata,
             history: Default::default(), sequence: 0,
@@ -259,7 +259,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
-                    let id = self.next_id.clone();
+                    let id = self.next_id.to_le_bytes().to_vec();
                     let metadatum = AssetMetadata {
                         owner: o.clone(),
                         total_supply: total,
@@ -270,11 +270,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
 
                     self.metadata.insert(id.clone(), metadatum);
                     self.assets.insert(id.clone(), accounts);
-                    let mut id_bytes = [0u8; 4];
-                    for i in 0..4 {
-                        id_bytes[i] = id[i];
-                    }
-                    self.next_id = (u32::from_le_bytes(id_bytes) + 1).to_le_bytes().to_vec();
+                    self.next_id += 1;
 
                     TransactionStatus::Ok
                 } else {
@@ -589,36 +585,25 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 } else {
                     println!("unknown token id: {:?}", token_id);
                 }
-            } else if let phala::RawEvent::TransferTokenToChain(who, token_id, amount, sequence) = pe {
-                println!("TransferTokenToChain who: {:?}, token id: {:?}, amount: {:}", who, token_id, amount);
-                let transfer_data = TransferTokenData { data: TransferToken { token_id, dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
-                println!("transfer data:{:?}", transfer_data);
-                self.queue.retain(|x| {
-                    return match x {
-                        TxQueue::TransferTokenData(tx) => {
-                            if tx.data.sequence > sequence {
-                                return true;
-                            }
+            } else {
+                let sequence = match pe {
+                    phala::RawEvent::TransferTokenToChain(who, token_id, amount, sequence) => {
+                        println!("TransferTokenToChain who: {:?}, token id: {:?}, amount: {:}", who, token_id, amount);
+                        sequence
+                    },
+                    phala::RawEvent::TransferXTokenToChain(who, xtoken_id, amount, sequence) => {
+                        println!("TransferXTokenToChain who: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
+                        sequence
+                    },
+                    _ => return
+                };
 
-                            false
-                        },
-                        _ => false,
-                    }
-                });
-                println!("queue len: {:}", self.queue.len());
-            } else if let phala::RawEvent::TransferXTokenToChain(who, xtoken_id, amount, sequence) = pe {
-                println!("TransferXTokenToChain who: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
                 self.queue.retain(|x| {
-                    return match x {
-                        TxQueue::TransferXTokenData(tx) => {
-                            if tx.data.sequence > sequence {
-                                return true;
-                            }
-
-                            false
-                        },
-                        _ => false,
-                    }
+                    let sequence_in_queue = match x {
+                        TxQueue::TransferTokenData(tx) => tx.data.sequence,
+                        TxQueue:: TransferXTokenData(tx) => tx.data.sequence,
+                    };
+                    sequence_in_queue > sequence
                 });
                 println!("queue len: {:}", self.queue.len());
             }
@@ -641,10 +626,10 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 } else {
                     //create new token metadata
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
-                    accounts.insert(dest.clone(), amount);
+                    accounts.insert(dest, amount);
 
                     let metadatum = AssetMetadata {
-                        owner: dest.clone(),
+                        owner: Default::default(),
                         total_supply: amount,
                         symbol: "".to_string(),
                         decimal: 0,

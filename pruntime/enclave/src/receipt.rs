@@ -19,8 +19,8 @@ pub enum TransactionStatus {
     BadSecret,
     BadMachineId,
     FailedToSign,
-	BadDecimal,
-	DestroyNotAllowed,
+    BadDecimal,
+    DestroyNotAllowed,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
