@@ -31,6 +31,11 @@ serde_json_no_std = { path = "../../serde_json_no_std", version = "1.0", default
 blake2-rfc = { version = "0.2.18", default-features = false }
 libsecp256k1 = { version = "0.3.2", default-features = false }
 
+xtoken = {path = "../xtoken", default-features = false }
+xcm-adapter = {path = "../xcm-adapter", default-features = false }
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "gav-xcmp", default-features = false }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "gav-xcmp" }
+
 [dependencies.pallet-balances]
 default-features = false
 git = "https://github.com/paritytech/substrate"
