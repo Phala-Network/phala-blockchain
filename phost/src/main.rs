@@ -31,7 +31,7 @@ type PrClient = pruntime_client::PRuntimeClient;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
-    #[structopt(long, help = "Dev mode (equivalent to `--ra=false --use-dev-key --mnenomic='//Alice'`)")]
+    #[structopt(long, help = "Dev mode (equivalent to `--ra=false --use-dev-key --mnemonic='//Alice'`)")]
     dev: bool,
 
     #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
@@ -45,6 +45,9 @@ struct Args {
 
     #[structopt(long, help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled.")]
     use_dev_key: bool,
+
+    #[structopt(default_value = "", long, help = "Inject key to pRuntime.")]
+    inject_key: String,
 
     #[structopt(
     short = "r", long = "remote-attestation",
@@ -494,6 +497,8 @@ async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtC
     Ok(())
 }
 
+const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+
 async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
@@ -523,13 +528,24 @@ async fn bridge(args: Args) -> Result<(), Error> {
             };
 
             let info_b64 = base64::encode(&info.encode());
+            let mut debug_set_key = None;
+            if args.inject_key != "" {
+                if args.inject_key.len() != 64 {
+                    panic!("inject-key should 64 length");
+                } else {
+                    println!("Inject key {}", args.inject_key);
+                }
+
+                debug_set_key = Some(args.inject_key.clone());
+            } else if args.use_dev_key {
+                println!("Inject key {}", DEV_KEY);
+                debug_set_key = Some(String::from(DEV_KEY));
+            }
+
             runtime_info = Some(pr.req_decode("init_runtime", InitRuntimeReq {
                 skip_ra: !args.ra,
                 bridge_genesis_info_b64: info_b64,
-                debug_set_key: match args.use_dev_key {
-                    true => Some(String::from("0000000000000000000000000000000000000000000000000000000000000001")),
-                    false => None
-                }
+                debug_set_key
             }).await?);
         } else {
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;

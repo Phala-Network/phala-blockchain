@@ -219,7 +219,7 @@ lazy_static! {
                 ecdh_private_key: None,
                 ecdh_public_key: None,
                 machine_id: [0; 16],
-                dev_mode: true,
+                dev_mode: false,
                 runtime_info: None,
             }
         )
@@ -1329,6 +1329,12 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
                     contract_id: ContractId, payload: &Vec<u8>,
                     command_index: CommandIndex,
                     ecdh_privkey: &EcdhKey) {
+    let local_state = LOCAL_STATE.lock().unwrap();
+    if !local_state.dev_mode {
+        println!("Ignore one command");
+        return;
+    }
+
     let payload: types::Payload = serde_json::from_slice(payload.as_slice())
         .expect("Failed to decode payload");
     let inner_data = match payload {
