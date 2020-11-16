@@ -62,6 +62,9 @@ lazy_static! {
             env::var("STATE_FILE_PATH").unwrap_or_else(|_| "./".to_string()).into_boxed_str()
         )
     };
+    static ref ALLOW_CORS: bool = {
+        env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != ""
+    };
 }
 
 fn destroy_enclave() {
@@ -812,15 +815,23 @@ fn cors_options() -> CorsOptions {
 }
 
 fn rocket() -> rocket::Rocket {
-    rocket::ignite()
+    let mut server = rocket::ignite()
         .mount("/", routes![
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
             set, get, ping, fetch_from_heartbeat_buffer, get_runtime_info])
-        .attach(cors_options().to_cors().expect("To not fail"))
-    // .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
-    // .manage(cors_options().to_cors().expect("To not fail"))
+        .attach(cors_options().to_cors().expect("To not fail"));
+
+    if *ALLOW_CORS {
+        println!("Allow CORS");
+
+        server
+            .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+            .manage(cors_options().to_cors().expect("To not fail"))
+    } else {
+        server
+    }
 }
 
 fn main() {
