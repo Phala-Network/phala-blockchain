@@ -31,7 +31,7 @@ type PrClient = pruntime_client::PRuntimeClient;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
-    #[structopt(long, help = "Dev mode (equivalent to `--ra=false --use-dev-key --mnemonic='//Alice'`)")]
+    #[structopt(long, help = "Dev mode (equivalent to `--use-dev-key --mnemonic='//Alice'`)")]
     dev: bool,
 
     #[structopt(short = "n", long = "no-init", help = "Should init pRuntime?")]
@@ -46,7 +46,7 @@ struct Args {
     #[structopt(long, help = "Inject dev key (0x1) to pRuntime. Cannot be used with remote attestation enabled.")]
     use_dev_key: bool,
 
-    #[structopt(default_value = "", long, help = "Inject key to pRuntime.")]
+    #[structopt(default_value = "", long = "inject-key", help = "Inject key to pRuntime.")]
     inject_key: String,
 
     #[structopt(
