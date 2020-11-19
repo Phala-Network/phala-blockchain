@@ -911,6 +911,17 @@ impl pallet_claim::Trait for Runtime {
 	type Currency = Balances;
 }
 
+impl cumulus_parachain_upgrade::Trait for Runtime {
+	type Event = Event;
+	type OnValidationData = ();
+}
+
+impl cumulus_message_broker::Trait for Runtime {
+	type DownwardMessageHandlers = ();
+}
+
+impl parachain_info::Trait for Runtime {}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -950,6 +961,9 @@ construct_runtime!(
 		Scheduler: pallet_scheduler::{Module, Call, Storage, Event<T>},
 		Proxy: pallet_proxy::{Module, Call, Storage, Event<T>},
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
+		ParachainUpgrade: cumulus_parachain_upgrade::{Module, Call, Storage, Inherent, Event},
+		MessageBroker: cumulus_message_broker::{Module, Call, Inherent},
+		ParachainInfo: parachain_info::{Module, Storage, Config},
 	}
 );
 
@@ -1258,3 +1272,5 @@ mod tests {
 		is_submit_signed_transaction::<Runtime>();
 	}
 }
+
+cumulus_runtime::register_validate_block!(Block, Executive);

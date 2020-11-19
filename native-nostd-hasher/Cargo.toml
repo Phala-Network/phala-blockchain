@@ -13,9 +13,9 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 hash256-std-hasher = { version = "0.15.2", default-features = false }
-sp-core = { version = "2.0.0", path = "../substrate/primitives/core", default-features = false }
-sp-trie = { version = "2.0.0", path = "../substrate/primitives/trie", default-features = false }
-sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime", default-features = false }
+sp-core = { version = "2.0.0", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-trie = { version = "2.0.0", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-runtime = { version = "2.0.0", git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
 [features]
 default = []

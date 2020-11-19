@@ -16,32 +16,32 @@ targets = ["x86_64-unknown-linux-gnu"]
 static_assertions = "1.1.0"
 serde = { version = "1.0.101", optional = true }
 codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false, features = ["derive"] }
-sp-std = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/std" }
-sp-npos-elections = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/npos-elections" }
-sp-io ={ version = "2.0.0", default-features = false, path = "../../substrate/primitives/io" }
-sp-runtime = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
-sp-staking = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/staking" }
-frame-support = { version = "2.0.0", default-features = false, path = "../../substrate/frame/support" }
-frame-system = { version = "2.0.0", default-features = false, path = "../../substrate/frame/system" }
-pallet-session = { version = "2.0.0", default-features = false, features = ["historical"], path = "../../substrate/frame/session" }
-pallet-authorship = { version = "2.0.0", default-features = false, path = "../../substrate/frame/authorship" }
-sp-application-crypto = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
+sp-std = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-npos-elections = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io ={ version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-staking = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-session = { version = "2.0.0", default-features = false, features = ["historical"], git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-authorship = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-application-crypto = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 
 pallet-phala = { version = "2.0.0", default-features = false, path = "../phala" }
 
 # Optional imports for benchmarking
-frame-benchmarking = { version = "2.0.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-benchmarking = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", optional = true, branch = "master" }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dev-dependencies]
-sp-core = { version = "2.0.0", path = "../../substrate/primitives/core" }
-sp-storage = { version = "2.0.0", path = "../../substrate/primitives/storage" }
-sp-tracing = { version = "2.0.0", path = "../../substrate/primitives/tracing" }
-pallet-balances = { version = "2.0.0", path = "../../substrate/frame/balances" }
-pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
-pallet-staking-reward-curve = { version = "2.0.0",  path = "../../substrate/frame/staking/reward-curve" }
-substrate-test-utils = { version = "2.0.0", path = "../../substrate/test-utils" }
-frame-benchmarking = { version = "2.0.0", path = "../../substrate/frame/benchmarking" }
+sp-core = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-balances = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-timestamp = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking-reward-curve = { version = "2.0.0",  git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-test-utils = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
 rand_chacha = { version = "0.2" }
 parking_lot = "0.10.2"
 hex = "0.4"
