@@ -192,13 +192,13 @@ decl_error! {
 		InvalidContract,
 		/// Internal Error
 		InternalError,
-		/// Wrong Mr Enclave
+		/// Wrong MRENCLAVE
 		WrongMREnclave,
-		/// Wrong Mr Enclave whitelist index
+		/// Wrong MRENCLAVE whitelist index
 		WrongWhitelistIndex,
-		/// Mr Enclave already exist
+		/// MRENCLAVE already exist
 		MREnclaveAlreadyExist,
-		/// Mr Enclave not found
+		/// MRENCLAVE not found
 		MREnclaveNotFound,
 	}
 }
@@ -720,7 +720,7 @@ impl<T: Trait> Module<T> {
 
 	fn remove_mrenclave_from_whitelist_by_index(index: usize) -> dispatch::DispatchResult {
 		let mut whitelist = MREnclaveWhitelist::get();
-		ensure!(whitelist.len() > index , Error::<T>::WrongWhitelistIndex);
+		ensure!(whitelist.len() > index, Error::<T>::WrongWhitelistIndex);
 		let t_mrenclave = whitelist[index].clone();
 		whitelist.remove(index);
 		MREnclaveWhitelist::put(&whitelist);
