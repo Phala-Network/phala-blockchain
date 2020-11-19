@@ -167,11 +167,36 @@ fn test_whitelist_works() {
 		assert_eq!(
 			true,
 			match events().as_slice() {[
-					TestEvent::phala(RawEvent::WhitelistUpdated(_)),
+					TestEvent::phala(RawEvent::WhitelistAdded(_)),
 					TestEvent::phala(RawEvent::WorkerRegistered(1, _)),
 					TestEvent::phala(RawEvent::WorkerUnregistered(1, _)),
 					TestEvent::phala(RawEvent::WorkerRegistered(2, _))
 				] => true,
+				_ => false
+			}
+		);
+	});
+}
+
+#[test]
+fn test_remove_mrenclave_works() {
+	new_test_ext().execute_with(|| {
+		// Set block number to 1 to test the events
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::remove_mrenclave_by_raw_data(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::remove_mrenclave_by_index(Origin::root(), 0));
+
+		// Check emitted events
+		assert_eq!(
+			true,
+			match events().as_slice() {[
+			TestEvent::phala(RawEvent::WhitelistAdded(_)),
+			TestEvent::phala(RawEvent::WhitelistRemoved(_)),
+			TestEvent::phala(RawEvent::WhitelistAdded(_)),
+			TestEvent::phala(RawEvent::WhitelistRemoved(_)),
+			] => true,
 				_ => false
 			}
 		);

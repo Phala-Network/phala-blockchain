@@ -140,7 +140,8 @@ decl_event!(
 		Slash(AccountId, Balance, u32),
 		GotCredits(AccountId, u32, u32),  // account, updated, delta
 		MiningStateUpdated(Vec<AccountId>),
-		WhitelistUpdated(Vec<u8>),
+		WhitelistAdded(Vec<u8>),
+		WhitelistRemoved(Vec<u8>),
 	}
 );
 
@@ -193,8 +194,12 @@ decl_error! {
 		InternalError,
 		/// Wrong Mr Enclave
 		WrongMREnclave,
+		/// Wrong Mr Enclave whitelist index
+		WrongWhitelistIndex,
 		/// Mr Enclave already exist
 		MREnclaveAlreadyExist,
+		/// Mr Enclave not found
+		MREnclaveNotFound,
 	}
 }
 
@@ -310,8 +315,8 @@ decl_module! {
 			let isv_prod_id = &quote_body[304..306];
 			let isv_svn = &quote_body[306..308];
 			let whitelist = MREnclaveWhitelist::get();
-			let (_, existed) = Self::is_mrenclave_in_whitelist(&whitelist, mr_enclave, mr_signer, isv_prod_id, isv_svn);
-			ensure!(existed, Error::<T>::WrongMREnclave);
+			let t_mrenclave = Self::extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
+			ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 			// Validate report data
 			let report_data = &quote_body[368..432];
 			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
@@ -563,6 +568,21 @@ decl_module! {
 			Self::add_mrenclave_to_whitelist(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn)?;
 			Ok(())
 		}
+
+		#[weight = 0]
+		fn remove_mrenclave_by_raw_data(origin, mr_enclave: Vec<u8>, mr_signer: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			ensure!(mr_enclave.len() == 32 && mr_signer.len() == 32 && isv_prod_id.len() == 2 && isv_svn.len() == 2, Error::<T>::InvalidInputBadLength);
+			Self::remove_mrenclave_from_whitelist_by_raw_data(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn)?;
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn remove_mrenclave_by_index(origin, index: u32) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			Self::remove_mrenclave_from_whitelist_by_index(index as usize)?;
+			Ok(())
+		}
 	}
 }
 
@@ -663,23 +683,48 @@ impl<T: Trait> Module<T> {
 		result
 	}
 
-	fn is_mrenclave_in_whitelist(whitelist: &Vec<Vec<u8>>, mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> (Vec<u8>, bool) {
+	fn extend_mrenclave(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> Vec<u8> {
 		let mut t_mrenclave = Vec::new();
 		t_mrenclave.extend_from_slice(mr_enclave);
 		t_mrenclave.extend_from_slice(isv_prod_id);
 		t_mrenclave.extend_from_slice(isv_svn);
 		t_mrenclave.extend_from_slice(mr_signer);
-		let existed = whitelist.iter().find(|x| x == &&t_mrenclave);
-		(t_mrenclave, existed != None)
+		t_mrenclave
 	}
 
 	fn add_mrenclave_to_whitelist(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
 		let mut whitelist = MREnclaveWhitelist::get();
-		let (white_mrenclave, existed) = Self::is_mrenclave_in_whitelist(&whitelist, mr_enclave, mr_signer, isv_prod_id, isv_svn);
-		ensure!(!existed, Error::<T>::MREnclaveAlreadyExist);
+		let white_mrenclave = Self::extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
+		ensure!(!whitelist.contains(&white_mrenclave), Error::<T>::MREnclaveAlreadyExist);
 		whitelist.push(white_mrenclave.clone());
 		MREnclaveWhitelist::put(whitelist);
-		Self::deposit_event(RawEvent::WhitelistUpdated(white_mrenclave));
+		Self::deposit_event(RawEvent::WhitelistAdded(white_mrenclave));
+		Ok(())
+	}
+
+	fn remove_mrenclave_from_whitelist_by_raw_data(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
+		let mut whitelist = MREnclaveWhitelist::get();
+		let t_mrenclave = Self::extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
+		ensure!(whitelist.contains(&t_mrenclave), Error::<T>::MREnclaveNotFound);
+		let len = whitelist.len();
+		for i in 0..len {
+			if whitelist[i] == t_mrenclave {
+				whitelist.remove(i);
+				break;
+			}
+		}
+		MREnclaveWhitelist::put(whitelist);
+		Self::deposit_event(RawEvent::WhitelistRemoved(t_mrenclave));
+		Ok(())
+	}
+
+	fn remove_mrenclave_from_whitelist_by_index(index: usize) -> dispatch::DispatchResult {
+		let mut whitelist = MREnclaveWhitelist::get();
+		ensure!(whitelist.len() > index , Error::<T>::WrongWhitelistIndex);
+		let t_mrenclave = whitelist[index].clone();
+		whitelist.remove(index);
+		MREnclaveWhitelist::put(&whitelist);
+		Self::deposit_event(RawEvent::WhitelistRemoved(t_mrenclave));
 		Ok(())
 	}
 }
