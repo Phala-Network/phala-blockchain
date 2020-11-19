@@ -1,133 +1,160 @@
-# Phala Blockchain
+# Steps to run phala parachains collator locally
 
-<img align="right" width="320" src="docs/static/web3 foundation_grants_badge_black.svg" alt="Funded by the web3 foundation">
+## Before start
 
-![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
-
-Phala Network is a TEE-Blockchain hybrid architecture implementing Confidential Contract. This repo
-includes:
-
-- `node/`: the main blockchain built on Substrate
-- `phost/`: the bridge daemon to connect the blockchain and
-  [pRuntime](https://github.com/Phala-Network/phala-pruntime)
-
-## Overview
-
-![](docs/static/diagram.png)
-
-The **blockchain** is the central compoent of the system. It records commands (confidential contract
-invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
-
-**pHost** is a daemon program that connects the blockchain and the pRuntime. It passes the block
-data from the chain to pRuntime and passes pRuntime side effects back to the chain.
-
-Related repos:
-
-- [phala-docs](https://github.com/Phala-Network/phala-docs): The central repo for documentations.
-- [phala-pruntime](https://github.com/Phala-Network/phala-pruntime): The cotract executor running
-  inside TEE enclaves.
-- [phala-polka-apps](https://github.com/Phala-Network/phala-polka-apps): The Web UI and SDK to
-  interact with confidential contract. Based on polkadot.js.
-- [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker): The W3F M2 docker
-  build with the blockchain, pHost and pRuntime.
-
-### File structure
-
-```text
-.
-├── LICENSE
-├── README.md
-├── node                      Blockchain node
-├── pallets
-│   └── phala                 Phala pallet
-├── phost                     The bridge deamon "pHost"
-├── pruntime                  pRuntime, the TEE kernel
-├── ring                      Patched ring with wasm support
-├── runtime                   Phala Substrate Runtime
-└── scripts
-    ├── console.sh            Helper script to build & run the blockchain
-    └── init.sh
-```
-
-## Docker bulid
-
-Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker). It includes both the blockchain and pRuntime.
-
-## Native Build
-
-### Dependencies
-
-<details><summary>Expand</summary>
-
-- Rust
-
-  ```bash
-  curl https://sh.rustup.rs -sSf | sh
-  ```
-
-- Substrate dependecies:
-
-   ```bash
-   cd node
-   sh ./scripts/init.sh
-   ```
-
-- LLVM 10
-
-  ```bash
-  wget https://apt.llvm.org/llvm.sh
-  chmod +x llvm.sh
-  ./llvm.sh 10
-  ```
-
-</details>
-
-### Build the blockchain and bridge
-
-Make sure you have Rust and LLVM-10 installed.
+Grab the Polkadot source code:
 
 ```bash
-cargo build --release
+git clone https://github.com/paritytech/polkadot.git
+cd polkadot
 ```
 
-The build script enforces LLVM-9 or newer is used. LLVM-9 is needed because of the wasm port of rust
-crypto library, `ring`. We have to compile the C code into wasm while keeping the compatibility with
-the _current_ rustc.
+Compile source code with command ```cargo build --release --features=real-overseer```
 
-## Run
+To make relay chain run three validators, modify function at file ```<polkadot root>/service/src/chain_spec.rs```
 
-1. Launch two local dev nodes Alice and Bob:
+```sh
+fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCo
+                vec![
+                        get_authority_keys_from_seed("Alice"),
+                        get_authority_keys_from_seed("Bob"),
++                       get_authority_keys_from_seed("Charlie"),
+                ],
+```
 
-    ```bash
-    cd node
-    ./scripts/console.sh start alice
-    ./scripts/console.sh start bob
-    ```
+After build, export new chain spec json file:
 
-    - The datadir is at `$HOME/tmp/(alice|bob)`
-    - Can be purged by `./scripts/console.sh purge`
-    - The WebUI can connect to Alice at port 9944.
+```sh
+./target/release/polkadot build-spec --chain rococo-local --raw --disable-default-bootnode > rococo-custom.json
+```
 
-2. Run pHost (please start pRuntime first):
-
-    ```bash
-    cd phost
-    ./target/release/phost
-    ```
-
-## Run with tmuxp
-
-You can launch the full stack (semi-automatically) by:
+Then grab the phala blockchain source code:
 
 ```bash
-tmuxp load ./scripts/tmuxp/three-nodes.yaml
+git clone https://github.com/Phala-Network/phala-blockchain.git
+cd phala-blockchain
+git checkout rococov1
 ```
 
-Or a 4-node testnet-poc2 setup:
+Compile source code with command ```cargo build --release```
 
-```bash
-CHAIN=poc2 tmuxp load ./scripts/tmuxp/four-nodes.yaml
+## Step1: export parachain genesis and wasm data
+
+ - export genesis data
+
+```sh
+./target/release/phala-node export-genesis-state --chain collator --parachain-id 2000 > para-2000-genesis
+./target/release/phala-node export-genesis-state --chain collator --parachain-id 5000 > para-5000-genesis
 ```
 
-[tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convinient tool that can bring up a tmux session
-with the preconfigured commands running in panes. To play with tmuxp, it also need a tmux installed.
+ - export wasm data
+
+```sh
+./target/release/phala-node export-genesis-wasm --chain collator > parachain-wasm
+```
+
+## Step2: run relay chain
+
+- run Alice
+
+```sh
+./target/release/polkadot --validator --chain rococo-custom.json --tmp --rpc-cors all --ws-port 9944 --port 30333 --alice
+```
+
+Got Alice chain identity:
+```12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW```
+
+ - run Bob (set Alice as bootnodes)
+
+ ```sh
+./target/release/polkadot --validator --chain rococo-custom.json --tmp --rpc-cors all --ws-port 9955 --port 30334 --bob \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW
+```
+
+Got Bob chain identity
+```12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK```
+
+ - run Charlie (set Alice and Bob as bootnodes)
+
+ ```sh
+./target/release/polkadot --validator --chain rococo-custom.json --tmp --rpc-cors all --ws-port 9966 --port 30335 --charlie \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW \
+  --bootnodes /ip4/127.0.0.1/tcp/30334/p2p/12D3KooWBNohZoXDqwRCT6iJ5hxxCeaPEcjyVJaJycYoaDr1YhCK
+```
+
+## Step3 Run phala parachain collator
+
+Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
+
+ - run the first parachain collator
+
+ ```sh
+./target/release/phala-node \
+  --chain collator
+  --tmp \
+  --rpc-cors all \
+  --ws-port 9977 \
+  --port 30336 \
+  --parachain-id 2000 \
+  --validator \
+  -- \
+  --chain ../polkadot/rococo-custom.json \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW
+```
+
+ - run the second parachain collator (set first parachain as bootnodes)
+
+ ```sh
+./target/release/phala-node \
+  --chain collator
+  --tmp \
+  --rpc-cors all \
+  --ws-port 9988 \
+  --port 30337 \
+  --parachain-id 5000 \
+  --validator \
+  -- \
+  --chain ../polkadot/rococo-custom.json \
+  --bootnodes /ip4/127.0.0.1/tcp/30333/p2p/12D3KooWKr7ueDHR83Vg1c25C19BVmSfNZhimdW65Qv3wmLAybtW
+```
+
+## Step4 register custom types
+
+At web UI, browser into ```settings/developer```, paste following json into the blank and press Save button
+
+```sh
+{
+    "Id": "u32",
+    "HrmpChannelId": {
+      "sender": "Id",
+      "recipient": "Id"
+    },
+    "ValidatorIndex": "u32",
+    "SignedAvailabilityBitfield": {
+      "payload": "AvailabilityBitfield",
+      "validator_index": "ValidatorIndex",
+      "signature": "ValidatorSignature",
+      "real_payload": "PhantomData<AvailabilityBitfield>"
+    },
+    "AvailabilityBitfield": "BitVec<Lsb0, u8>",
+    "SignedAvailabilityBitfields": "Vec<SignedAvailabilityBitfield>",
+    "PersistedValidationData": {
+      "parent_head": "HeadData",
+      "block_number": "BlockNumber",
+      "hrmp_mqc_heads": "Vec<(Id, Hash)>",
+      "dmq_mqc_head": "Hash"
+    },
+    "TransientValidationData": {
+      "max_code_size": "u32",
+      "max_head_data_size": "u32",
+      "balance": "u32",
+      "code_upgrade_allowed": "Option<BlockNumber>",
+      "dmq_length": "u32"
+    },
+    "ValidationData": {
+      "persisted": "PersistedValidationData",
+      "transient": "TransientValidationData"
+    }
+}
+```
+One last thing, to register phala parachain into relaychain, then you would see parachain begin to sync

@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Substrate chain configurations.
+use cumulus_primitives::ParaId;
 
 use sc_chain_spec::{ChainSpecExtension, Properties};
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
@@ -25,7 +26,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaModuleConfig, wasm_binary_unwrap,
+	TechnicalCommitteeConfig, PhalaModuleConfig, wasm_binary_unwrap, ParachainInfoConfig
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -52,10 +53,17 @@ const STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[derive(Default, Clone, Serialize, Deserialize, ChainSpecExtension)]
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
-	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client_api::ForkBlocks<Block>,
-	/// Known bad block hashes.
-	pub bad_blocks: sc_client_api::BadBlocks<Block>,
+	/// The relay chain of the Parachain.
+	pub relay_chain: String,
+	/// The id of the Parachain.
+	pub para_id: u32,
+}
+
+impl Extensions {
+	/// Try to get the extension from the given `ChainSpec`.
+	pub fn try_get(chain_spec: &Box<dyn sc_service::ChainSpec>) -> Option<&Self> {
+		sc_chain_spec::get_extension(chain_spec.extensions())
+	}
 }
 
 /// Specialized `ChainSpec`.
@@ -330,6 +338,7 @@ pub fn testnet_genesis(
 			max_members: 999,
 		}),
 		pallet_vesting: Some(Default::default()),
+		parachain_info: None,
 	}
 }
 
@@ -484,6 +493,141 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 /// Phala PoC-3 testnet generator
 pub fn phala_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
+}
+
+pub fn parachain_testnet_config(id: ParaId) -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Parachain Local Testnet",
+		"Parachain_Local testnet",
+		ChainType::Local,
+		move || {
+			parachain_testnet_genesis(
+				vec![
+					authority_keys_from_seed("Alice"),
+					authority_keys_from_seed("Bob"),
+				],
+				get_account_id_from_seed::<sr25519::Public>("Alice"),
+				None,
+				id,
+			)
+		},
+		vec![],
+		None,
+		None,
+		None,
+		Extensions {
+			relay_chain: "polkadot".into(),
+			para_id: id.into(),
+		},
+	)
+}
+
+/// Helper function to create GenesisConfig for testing
+pub fn parachain_testnet_genesis(
+	initial_authorities: Vec<(
+		AccountId,
+		AccountId,
+		GrandpaId,
+		BabeId,
+		ImOnlineId,
+		AuthorityDiscoveryId,
+	)>,
+	root_key: AccountId,
+	endowed_accounts: Option<Vec<AccountId>>,
+	id: ParaId,
+) -> GenesisConfig {
+	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
+		vec![
+			get_account_id_from_seed::<sr25519::Public>("Alice"),
+			get_account_id_from_seed::<sr25519::Public>("Bob"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie"),
+			get_account_id_from_seed::<sr25519::Public>("Dave"),
+			get_account_id_from_seed::<sr25519::Public>("Eve"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+			get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+		]
+	});
+	let num_endowed_accounts = endowed_accounts.len();
+
+	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
+	const STASH: Balance = 100 * DOLLARS;
+	// The pubkey of "0x1"
+	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+
+	GenesisConfig {
+		frame_system: Some(SystemConfig {
+			code: wasm_binary_unwrap().to_vec(),
+			changes_trie_config: Default::default(),
+		}),
+		pallet_balances: Some(BalancesConfig {
+			balances: endowed_accounts.iter().cloned()
+				.map(|k| (k, ENDOWMENT))
+				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
+				.collect(),
+		}),
+		pallet_indices: Some(IndicesConfig {
+			indices: vec![],
+		}),
+		pallet_phala: Some(PhalaModuleConfig {
+			stakers: initial_authorities.iter().map(|x| {
+				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
+			}).collect(),
+			// Now we have 4 contracts but reserver 10 for convenience
+			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
+		}),
+		pallet_session: None,
+		pallet_staking: None,
+		pallet_democracy: Some(DemocracyConfig::default()),
+		pallet_elections_phragmen: Some(ElectionsConfig {
+			members: endowed_accounts.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.map(|member| (member, STASH))
+				.collect(),
+		}),
+		pallet_collective_Instance1: Some(CouncilConfig::default()),
+		pallet_collective_Instance2: Some(TechnicalCommitteeConfig {
+			members: endowed_accounts.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
+			phantom: Default::default(),
+		}),
+		pallet_contracts: Some(ContractsConfig {
+			current_schedule: pallet_contracts::Schedule {
+				enable_println: false,
+				..Default::default()
+			},
+		}),
+		pallet_sudo: Some(SudoConfig {
+			key: root_key,
+		}),
+		pallet_babe: None,
+		pallet_grandpa: None,
+		pallet_im_online: Some(ImOnlineConfig {
+			keys: vec![],
+		}),
+		pallet_authority_discovery: Some(AuthorityDiscoveryConfig {
+			keys: vec![],
+		}),
+		pallet_membership_Instance1: Some(Default::default()),
+		pallet_treasury: Some(Default::default()),
+		pallet_society: Some(SocietyConfig {
+			members: endowed_accounts.iter()
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
+			pot: 0,
+			max_members: 999,
+		}),
+		pallet_vesting: Some(Default::default()),
+		parachain_info: Some(ParachainInfoConfig { parachain_id: id }),
+	}
 }
 
 #[cfg(test)]
