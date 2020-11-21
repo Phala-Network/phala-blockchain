@@ -20,7 +20,7 @@ use crate::types::{
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
     InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, HeartbeatData, BlockHeaderWithEvents
 };
 
 use subxt::Signer;
@@ -469,31 +469,8 @@ async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, 
     Ok(())
 }
 
-async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
-    let command = if fetch_heartbeat_from_buffer { "fetch_from_heartbeat_buffer" } else { "ping" };
-    let result = pr.req_decode(command, PingReq {}).await?;
-    if result.status != "ok" {
-        println!("{} api returns: {}, skip", command, result.status);
-        return Ok(())
-    }
-
-    let data = base64::decode(&mut &result.encoded_data).unwrap();
-
-    let heartbeat_data = HeartbeatData::decode(&mut &data[..]).unwrap();
-    println!("Heartbeat at block {}", heartbeat_data.data.block_num);
-
-    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
-    update_singer_nonce(&client, &mut signer).await?;
-
-    let call = runtimes::phala::HeartbeatCall { _runtime: PhantomData, data };
-    let ret = client.submit(call, &signer).await;
-    if ret.is_ok() {
-        println!("Submit heartbeat successfully");
-    } else {
-        println!("Failed to submit heartbeat: {:?}", ret);
-    }
-    signer.increment_nonce();
-
+async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient,
+                                 pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
     Ok(())
 }
 

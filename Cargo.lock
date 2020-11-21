@@ -4372,6 +4372,7 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "pallet-timestamp",
  "parity-scale-codec",
+ "phala-types",
  "rand 0.7.3",
  "serde",
  "serde_json_no_std",
@@ -5165,6 +5166,15 @@ dependencies = [
  "sp-tracing",
  "static_assertions",
  "substrate-test-utils",
+]
+
+[[package]]
+name = "phala-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
 ]
 
 [[package]]

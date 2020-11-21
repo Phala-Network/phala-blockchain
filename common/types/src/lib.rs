@@ -1,5 +1,12 @@
+#![cfg_attr(not(feature = "std"), no_std)]
+extern crate alloc;
+
 use alloc::vec::Vec;
 use codec::{Encode, Decode};
+use sp_core::U256;
+
+#[cfg(feature = "enable_serde")]
+use serde::{Serialize, Deserialize};
 
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
@@ -14,14 +21,27 @@ pub struct TransferData<AccountId, Balance> {
 	pub signature: Vec<u8>,
 }
 
-#[derive(Encode, Decode)]
-pub struct Heartbeat {
-	pub block_num: u32,
+#[derive(Encode, Decode, Clone, Debug)]
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+pub enum WorkerMessagePayload {
+	Heartbeat {
+		block_num: u32,
+		claim_online: bool,
+		claim_compute: bool,
+	},
 }
 
-#[derive(Encode, Decode)]
-pub struct HeartbeatData {
-	pub data: Heartbeat,
+#[derive(Encode, Decode, Clone)]
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+pub struct WorkerMessage {
+	pub payload: WorkerMessagePayload,
+	pub sequence: u64,
+}
+
+#[derive(Encode, Decode, Clone)]
+#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+pub struct SignedWorkerMessage {
+	pub data: WorkerMessage,
 	pub signature: Vec<u8>,
 }
 
@@ -34,17 +54,15 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferDat
 	fn raw_data(&self) -> Vec<u8> {
 		Encode::encode(&self.data)
 	}
-
 	fn signature(&self) -> Vec<u8> {
 		self.signature.clone()
 	}
 }
 
-impl SignedDataType<Vec<u8>> for HeartbeatData {
+impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
 	fn raw_data(&self) -> Vec<u8> {
 		Encode::encode(&self.data)
 	}
-
 	fn signature(&self) -> Vec<u8> {
 		self.signature.clone()
 	}
@@ -98,4 +116,11 @@ pub struct PRuntimeInfo {
 pub struct MiningInfo<BlockNumber> {
 	pub is_mining: bool,
 	pub start_block: Option<BlockNumber>,
+}
+
+#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+pub struct BlockRewardInfo {
+	pub seed: U256,
+	pub online_target: U256,
+	pub compute_target: U256,
 }

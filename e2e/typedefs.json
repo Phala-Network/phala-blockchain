@@ -26,5 +26,10 @@
 	"MiningInfo": {
 		"isMining": "bool",
 		"startBlock": "Option<BlockNumber>"
+	},
+	"BlockRewardInfo": {
+		"seed": "U256",
+		"onlineTarget": "U256",
+		"computeTarget": "U256"
 	}
 }
