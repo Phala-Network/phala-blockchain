@@ -31,14 +31,14 @@ pub enum WorkerMessagePayload {
 	},
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 pub struct WorkerMessage {
 	pub payload: WorkerMessagePayload,
 	pub sequence: u64,
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
 pub struct SignedWorkerMessage {
 	pub data: WorkerMessage,
