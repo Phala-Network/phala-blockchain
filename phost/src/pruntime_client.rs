@@ -5,7 +5,7 @@ use bytes::buf::BufExt as _;
 
 use crate::error::Error;
 use crate::types::{
-    RuntimeReq, Resp, SignedResp
+    RuntimeReq, Resp, SignedResp, ReqData, QueryReq, QueryRespData, Query, Payload
 };
 
 pub struct PRuntimeClient {
@@ -49,6 +49,32 @@ impl PRuntimeClient {
         let resp = self.req(command, &payload).await?;
         let result: Req::Resp = serde_json::from_str(&resp.payload)?;
         Ok(result)
+    }
+
+    /// Sends a Query to a confidential contract in pRuntime
+    ///
+    /// It's possible to query with e2e encryption. However currently only Plain message is
+    /// supported.
+    pub async fn query(&self, contract_id: u32, request: ReqData)
+    -> Result<QueryRespData, Error> {
+        // Encode the query within Payload::Plain
+        let query = Query {
+            contract_id,
+            nonce: 0,
+            request,
+        };
+        let query_value = serde_json::to_value(&query)?;
+        let payload = Payload::Plain(query_value.to_string());
+        let query_payload = serde_json::to_string(&payload)?;
+        println!("Query contract: {}, payload: {}", contract_id, query_payload);
+        // Send the query
+        let resp = self.req_decode("query", QueryReq { query_payload }).await?;
+        // Only accept Payload::Plain response
+        let Payload::Plain(plain_json) = resp;
+        println!("Query response: {:}", &plain_json);
+        let resp_data: QueryRespData = serde_json::from_str(plain_json.as_str())
+            .map_err(|_| Error::FailedToDecode)?;
+        return Ok(resp_data)
     }
 
 }

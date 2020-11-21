@@ -5191,6 +5191,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-indices",
  "parity-scale-codec",
+ "phala-types",
  "rand 0.7.3",
  "sc-finality-grandpa",
  "sc-rpc-api",

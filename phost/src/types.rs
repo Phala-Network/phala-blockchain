@@ -19,6 +19,7 @@ pub type Hash = <Runtime as subxt::system::System>::Hash;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
+pub type AccountId = <Runtime as subxt::system::System>::AccountId;
 
 pub type RawStorageKey = Vec<u8>;
 pub type StorageProof = Vec<Vec<u8>>;
@@ -90,28 +91,27 @@ pub struct Query {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
-    PendingChainTransfer {sequence: u64}
+    PendingChainTransfer { sequence: u64 },     // Balances
+    GetWorkerEgress { start_sequence: u64 },    // System
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum QueryRespData {
+    PendingChainTransfer {
+        transfer_queue_b64: String,
+    },
+    GetWorkerEgress {
+        length: usize,
+        encoded_egreee_b64: String,
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct QueryReq {
     pub query_payload: String,
 }
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
-pub struct QueryResp {
-    pub plain: String,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-#[serde(rename_all = "PascalCase")]
-pub struct PendingChainTransfer {
-    pub pending_chain_transfer: TransferQueue,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct TransferQueue {
-    pub transfer_queue_b64: String,
+impl Resp for QueryReq {
+    type Resp = Payload;
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -128,9 +128,6 @@ pub struct TransferData {
     pub signature: Vec<u8>,
 }
 
-impl Resp for QueryReq {
-    type Resp = QueryResp;
-}
 
 // API: init_runtime
 

@@ -482,7 +482,7 @@ decl_module! {
 		}
 
 		#[weight = 0]
-		fn handle_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
+		fn sync_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
 			// TODO: allow anyone to relay the message
 			let who = ensure_signed(origin)?;
 			let signed: SignedWorkerMessage = Decode::decode(&mut &msg[..]).map_err(|_| Error::<T>::InvalidInput)?;
