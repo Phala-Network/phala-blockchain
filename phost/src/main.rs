@@ -18,9 +18,9 @@ use crate::error::Error;
 use crate::types::{
     Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
     GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
-    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
+    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq, InitRespAttestation,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, HeartbeatData, BlockHeaderWithEvents
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents
 };
 
 use subxt::Signer;
@@ -474,6 +474,62 @@ async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtC
     Ok(())
 }
 
+async fn init_runtime (client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
+                       inject_key: &str) -> Result<InitRuntimeResp, Error> {
+    let genesis_block = get_block_at(&client, Some(0)).await?.block;
+    let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
+        .expect("No genesis block?");
+    let set_proof = get_authority_with_proof_at(&client, hash).await?;
+    let info = GenesisInfo {
+        header: genesis_block.header,
+        validators: set_proof.authority_set.authority_set,
+        proof: set_proof.authority_proof,
+    };
+
+    let info_b64 = base64::encode(&info.encode());
+    let mut debug_set_key = None;
+    if inject_key != "" {
+        if inject_key.len() != 64 {
+            panic!("inject-key must be 32 bytes hex");
+        } else {
+            println!("Inject key {}", inject_key);
+        }
+        debug_set_key = Some(inject_key.to_string());
+    } else if use_dev_key {
+        println!("Inject key {}", DEV_KEY);
+        debug_set_key = Some(String::from(DEV_KEY));
+    }
+
+    let resp = pr.req_decode("init_runtime", InitRuntimeReq {
+        skip_ra,
+        bridge_genesis_info_b64: info_b64,
+        debug_set_key
+    }).await?;
+    Ok(resp)
+}
+
+async fn register_worker(
+    client: &XtClient, pair: &sr25519::Pair, encoded_runtime_info: Vec<u8>,
+    attestation: &InitRespAttestation
+) -> Result<(), Error> {
+        let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
+        let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
+        let call = runtimes::phala::RegisterWorkerCall {
+            _runtime: PhantomData,
+            encoded_runtime_info: encoded_runtime_info,
+            report: attestation.payload.report.as_bytes().to_vec(),
+            signature,
+            raw_signing_cert,
+        };
+        let signer = subxt::PairSigner::new(pair.clone());
+        let ret = client.watch(call, &signer).await;
+        if !ret.is_ok() {
+            println!("FailedToCallRegisterWorker: {:?}", ret);
+            return Err(Error::FailedToCallRegisterWorker);
+        }
+        Ok(())
+}
+
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<(), Error> {
@@ -493,61 +549,23 @@ async fn bridge(args: Args) -> Result<(), Error> {
     if !args.no_init {
         let mut runtime_info: Option<InitRuntimeResp> = None;
         if !info.initialized {
-            println!("pRuntime not initialized. Requesting init");
-            let genesis_block = get_block_at(&client, Some(0)).await?.block;
-            let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
-                .expect("No genesis block?");
-            let set_proof = get_authority_with_proof_at(&client, hash).await?;
-            let info = GenesisInfo {
-                header: genesis_block.header,
-                validators: set_proof.authority_set.authority_set,
-                proof: set_proof.authority_proof,
-            };
-
-            let info_b64 = base64::encode(&info.encode());
-            let mut debug_set_key = None;
-            if args.inject_key != "" {
-                if args.inject_key.len() != 64 {
-                    panic!("inject-key should 64 length");
-                } else {
-                    println!("Inject key {}", args.inject_key);
-                }
-
-                debug_set_key = Some(args.inject_key.clone());
-            } else if args.use_dev_key {
-                println!("Inject key {}", DEV_KEY);
-                debug_set_key = Some(String::from(DEV_KEY));
-            }
-
-            runtime_info = Some(pr.req_decode("init_runtime", InitRuntimeReq {
-                skip_ra: !args.ra,
-                bridge_genesis_info_b64: info_b64,
-                debug_set_key
-            }).await?);
+            println!("pRuntime not initialized. Requesting init...");
+            runtime_info = Some(init_runtime(&client, &pr, !args.ra, args.use_dev_key,
+                                             &args.inject_key).await?);
         } else {
+            println!("pRuntime already initialized. Fetching runtime info...");
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;
-            if machine_owner == [0u8; 32] { //not registered
-                runtime_info = Some(pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
+            if machine_owner == [0u8; 32] {
+                // Worker not registered
+                runtime_info = Some(
+                    pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
             }
         }
         println!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
             if let Some(attestation) = runtime_info.attestation {
-                let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
-                let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
-                let call = runtimes::phala::RegisterWorkerCall {
-                    _runtime: PhantomData,
-                    encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
-                    report: attestation.payload.report.as_bytes().to_vec(),
-                    signature,
-                    raw_signing_cert,
-                };
-                let signer = subxt::PairSigner::new(pair.clone());
-                let ret = client.watch(call, &signer).await;
-                if !ret.is_ok() {
-                    println!("FailedToCallRegisterWorker: {:?}", ret);
-                    return Err(Error::FailedToCallRegisterWorker);
-                }
+                register_worker(&client, &pair, runtime_info.encoded_runtime_info.clone(),
+                                &attestation).await?;
             }
         }
     }
