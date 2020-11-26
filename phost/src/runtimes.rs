@@ -81,7 +81,9 @@ impl Session for PhalaNodeRuntime {
     type Keys = BasicSessionKeys;
 }
 
-impl phala::PhalaModule for PhalaNodeRuntime {}
+impl phala::PhalaModule for PhalaNodeRuntime {
+    type BlockRewardInfo = phala_types::BlockRewardInfo;
+}
 
 pub mod grandpa {
     use super::PhalaNodeRuntime;
@@ -111,13 +113,20 @@ pub mod grandpa {
 }
 
 pub mod phala {
-    use codec::Encode;
-    use subxt::{module, Call, Store, system::{System, SystemEventsDecoder}, balances::{Balances, BalancesEventsDecoder}};
+    use codec::{Encode, Decode};
+    use subxt::{
+        module, Call, Store,
+        system::{System, SystemEventsDecoder},
+        balances::{Balances, BalancesEventsDecoder}
+    };
     use core::marker::PhantomData;
 
     /// The subset of the `pallet_phala::Trait` that a client must implement.
     #[module]
-    pub trait PhalaModule: System + Balances {}
+    pub trait PhalaModule: System + Balances {
+        // Define the additional types used in pallet events
+        type BlockRewardInfo: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
+    }
 
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct PushCommandCall<T: PhalaModule> {
