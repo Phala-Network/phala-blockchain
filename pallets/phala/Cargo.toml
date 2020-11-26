@@ -38,6 +38,7 @@ version = "2.0.0"
 path = "../../substrate/frame/balances"
 
 [dev-dependencies]
+assert_matches = "1.4.0"
 pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
 hex-literal = "0.3.1"
 libsecp256k1 = { version = "0.3.2", default-features = false }

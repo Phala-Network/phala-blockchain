@@ -124,3 +124,19 @@ pub struct BlockRewardInfo {
 	pub online_target: U256,
 	pub compute_target: U256,
 }
+
+#[derive(Encode, Decode, Debug, Default)]
+pub struct RoundInfo<BlockNumber> {
+	pub round: u32,
+	pub start_block: BlockNumber,
+}
+
+#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+pub struct RoundStats {
+	pub round: u32,
+	pub online_workers: u32,
+	pub compute_workers: u32,
+	/// The targeted online reward in fraction (base: 100_000)
+	pub frac_target_online_reward: u32,
+	pub total_power: u32,
+}

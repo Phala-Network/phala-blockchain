@@ -6,10 +6,8 @@ use secp256k1;
 use sp_core::U256;
 use sp_runtime::traits::BadOrigin;
 
-// XXX: Add proper tests for probabistic reward distribution
-
 use crate::{Error, mock::*};
-use crate::{RawEvent, types::{Transfer, TransferData}};
+use crate::{RawEvent, types::{BlockRewardInfo, Transfer, TransferData, RoundStats}};
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -312,20 +310,26 @@ fn test_mark_violation() {
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
 		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));  // called by controller
-		assert_ok!(PhalaModule::dbg_next_round(RawOrigin::Root.into()));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
 		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRegistered(1, vec![1], vec![0]))
+			TestEvent::phala(RawEvent::WorkerRegistered(1, vec![1], vec![0])),
+			TestEvent::phala(RawEvent::RewardSeed(BlockRewardInfo {
+				seed: 0.into(), online_target: 0.into(), compute_target: 0.into()
+			})),
+			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
+			TestEvent::phala(RawEvent::NewMiningRound(1))
 		]);
 
 		System::set_block_number(100);
 		assert_ok!(PhalaModule::dbg_mark_violation(RawOrigin::Root.into(), 1));
-		assert_ok!(PhalaModule::dbg_next_round(RawOrigin::Root.into()));
-		// The worker should get 99 blocks * 100 score credits.
-		assert_eq!(PhalaModule::fire(1), 9900);
-		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::GotCredits(1, 9900, 9900)),
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		assert_matches!(events().as_slice(), [
 			TestEvent::phala(RawEvent::Slash(1, 0, 0)),
-			TestEvent::phala(RawEvent::MiningStateUpdated(vec![1]))
+			TestEvent::phala(RawEvent::MiningStateUpdated(_)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::NewMiningRound(2))
 		]);
 	});
 }
@@ -340,6 +344,158 @@ fn test_randomness() {
 		assert_eq!(events().as_slice(), [
 			TestEvent::phala(RawEvent::RewardSeed(Default::default()))
 		]);
+	});
+}
+
+// Token economics
+
+#[test]
+fn test_clipped_target_number() {
+	// The configuration is at most 2 tx per hour for each worker
+	// Lower bound
+	assert_eq!(PhalaModule::clipped_target_number(20, 1), 333);  // 0.00333 tx/block
+	assert_eq!(PhalaModule::clipped_target_number(20, 20), 6666);  // 0.06666 tx/block
+	// Normal
+	assert_eq!(PhalaModule::clipped_target_number(20, 1000), 3_33333);  // 3.33 tx/block
+	assert_eq!(PhalaModule::clipped_target_number(20, 100000), 20_00000);  // 20 tx/block
+}
+
+#[test]
+fn test_round_mining_reward_at() {
+	// 129600000 PHA / (180 days / 1 hour) = 30000 PHA
+	assert_eq!(PhalaModule::round_mining_reward_at(0), 30000 * DOLLARS);
+}
+
+#[test]
+fn test_round_stats() {
+	new_test_ext().execute_with(|| {
+		// Block 1
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		// Check round 1
+		assert_eq!(PhalaModule::round_stats_history(1), RoundStats {
+			round: 1,
+			online_workers: 0,
+			compute_workers: 0,
+			frac_target_online_reward: 0,
+			total_power: 0
+		});
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::NewMiningRound(1))
+		]);
+		// Block 2
+		System::set_block_number(2);
+		assert_eq!(PhalaModule::round_stats_at(2), PhalaModule::round_stats_history(1));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		// Check round 2
+		assert_eq!(PhalaModule::round_stats_history(2), RoundStats {
+			round: 2,
+			online_workers: 0,
+			compute_workers: 0,
+			frac_target_online_reward: 0,
+			total_power: 0
+		});
+		// Block 3
+		System::set_block_number(3);
+		assert_eq!(PhalaModule::round_stats_at(2), PhalaModule::round_stats_history(1));
+		assert_eq!(PhalaModule::round_stats_at(3), PhalaModule::round_stats_history(2));
+	});
+}
+
+#[test]
+fn test_pretax_online_reward() {
+	// [Scenario 1]
+	//   - 30000 PHA in this round
+	//   - 100% hashpower
+	//   - X ~ B(600, 0.00333)
+	//   - Only one worker
+	// Result: ~ 30000 PHA / 2 tx * 37.5% = 5625 ~= 5630
+	assert_eq!(
+		PhalaModule::pretax_online_reward(
+			30000 * DOLLARS,
+			10000, 10000,
+			PhalaModule::clipped_target_number(20, 1),  // target 20 tx but only one online worker
+			1
+		),
+		5630_630630630631);
+
+	// [Scenario 2]
+	//   - 30000 PHA in this round
+	//   - 10% hashpower
+	//   - X ~ B(600, 0.00333)
+	//   - 1000 workers
+	// Result: ~ 30000 PHA * 10% * / 2 tx * 37.5% = 562.5
+	assert_eq!(
+		PhalaModule::pretax_online_reward(
+			30000 * DOLLARS,
+			1000, 10000,
+			PhalaModule::clipped_target_number(20, 1000),  // target 20 tx, ~3.33 tx/block
+			1000
+		),
+		562_500562500562);
+
+	// [Scenario 3]
+	//   - 30000 PHA in this round
+	//   - 0.002% hashpower
+	//   - X ~ B(600, 0.00333)
+	//   - 100000 workers
+	// Result: ~ 30000 PHA * 0.002% * / 0.12 tx * 37.5% = 1.875 PHA
+	assert_eq!(
+		PhalaModule::pretax_online_reward(
+			30000 * DOLLARS,
+			2, 100000,
+			PhalaModule::clipped_target_number(20, 100000),  // target 20 tx, 20 tx/block
+			100000
+		),
+		1_875000000000);
+}
+
+#[test]
+fn test_payout() {
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		PhalaModule::payout(100 * DOLLARS, &1);
+		assert_eq!(
+			events().as_slice(),
+			[TestEvent::phala(RawEvent::Payout(1, 80 * DOLLARS, 20 * DOLLARS))]
+		);
+	});
+}
+
+#[test]
+fn test_online_rewards() {
+	new_test_ext().execute_with(|| {
+		// Block 1
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
+		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));  // called by controller
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		assert_eq!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerRegistered(1, vec![1], vec![0])),
+			TestEvent::phala(RawEvent::RewardSeed(BlockRewardInfo {
+				seed: 0.into(), online_target: 0.into(), compute_target: 0.into()
+			})),
+			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
+			TestEvent::phala(RawEvent::NewMiningRound(1))
+		]);
+
+		System::set_block_number(100);
+		assert_ok!(PhalaModule::dbg_mark_violation(RawOrigin::Root.into(), 1));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::Slash(1, 0, 0)),
+			TestEvent::phala(RawEvent::MiningStateUpdated(_)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::NewMiningRound(2))
+		]);
+
+
 	});
 }
 

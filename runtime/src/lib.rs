@@ -899,11 +899,33 @@ impl pallet_vesting::Trait for Runtime {
 	type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+	pub const MaxHeartbeatPerWorkerPerHour: u32 = 2;
+	pub const RoundInterval: BlockNumber = 10 * MINUTES;  // 1 * HOURS
+	pub const DecayInterval: BlockNumber = 180 * DAYS;
+	pub const DecayFactor: Permill = Permill::from_percent(75);
+	pub const InitialReward: Balance = 129600000 * DOLLARS;
+	pub const TreasuryRation: u32 = 20_000;
+	pub const RewardRation: u32 = 80_000;
+	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+}
+
 impl pallet_phala::Trait for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
+	type Treasury = Treasury;
+
+	// Parameters
+	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
+	type RoundInterval = RoundInterval;
+	type DecayInterval = DecayInterval;
+	type DecayFactor = DecayFactor;
+	type InitialReward = InitialReward;
+	type TreasuryRation = TreasuryRation;
+	type RewardRation = RewardRation;
+	type OnlineRewardPercentage = OnlineRewardPercentage;
 }
 
 impl pallet_claim::Trait for Runtime {
