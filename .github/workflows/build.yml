@@ -16,7 +16,7 @@ jobs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly-2020-09-27
+          toolchain: nightly-2020-11-10
           override: true
           target: wasm32-unknown-unknown
     - name: Install llvm-10
