@@ -5,7 +5,6 @@ use crate::std::vec::Vec;
 use core::str;
 use parity_scale_codec::{Encode, Decode};
 use serde::{Serialize, Deserialize};
-use sp_core::hashing::blake2_256;
 use sp_core::ecdsa;
 use sp_core::crypto::Pair;
 

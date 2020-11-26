@@ -1,4 +1,5 @@
 use tokio::time::delay_for;
+use std::cmp;
 use std::time::Duration;
 use structopt::StructOpt;
 
@@ -10,23 +11,25 @@ use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORI
 use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
 
 mod error;
+mod msg_sync;
 mod pruntime_client;
 mod runtimes;
 mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey,
-    GetInfoReq, QueryReq, ReqData, Payload, Query, PendingChainTransfer, TransferData,
-    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq,
+    Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey, AccountId,
+    GetInfoReq,
+    InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq, InitRespAttestation,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, PingReq, HeartbeatData, BlockHeaderWithEvents
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents
 };
 
 use subxt::Signer;
 use subxt::system::AccountStoreExt;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
+type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
@@ -306,7 +309,7 @@ async fn batch_sync_block(
             Some(change_at) => (change_at as isize - first_block_number as isize),
             None => block_buf.len() as isize,
         };
-        let header_end = std::cmp::min(end_buffer, end_set_id_change);
+        let header_end = cmp::min(end_buffer, end_set_id_change);
         let mut header_idx = header_end;
         while header_idx >= 0 {
             if block_buf[header_idx as usize].block.justification.is_some() {
@@ -368,7 +371,7 @@ async fn batch_sync_block(
         while !block_batch.is_empty() {
             // TODO: fix the potential overflow here
             let end_batch = block_batch.len() as isize - 1;
-            let batch_end = std::cmp::min(dispatch_window as isize, end_batch);
+            let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
                 let block_with_events: Vec<BlockWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
@@ -399,102 +402,91 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
+async fn get_stash_account(client: &XtClient, controller: AccountId)
+-> Result<AccountId, Error> {
+    client.fetch_or_default(&runtimes::phala::StashStore::new(controller), None).await
+        .map_err(Into::into)
+}
+
 async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
-    let latest_block = get_block_at(&client, None).await?.block;
-    let hash = latest_block.header.hash();
-    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), Some(hash)).await.or(Ok(0))
+    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None).await.or(Ok(0))
+}
+
+async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64, Error> {
+    client.fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None).await
+        .map_err(Into::into)
 }
 
 async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32], Error> {
-    let latest_block = get_block_at(&client, None).await?.block;
-    let hash = latest_block.header.hash();
-    client.fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), Some(hash)).await.or(Ok([0u8; 32]))
+    client.fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None).await
+        .or(Ok([0u8; 32]))
 }
 
-async fn update_singer_nonce(client: &XtClient, signer: &mut subxt::PairSigner<Runtime, sr25519::Pair>) -> Result<(), Error>
-{
+/// Updates the nonce from the blockchain (system.account)
+async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<(), Error> {
+    // TODO: try to fetch the pending txs from mempool for a more accurate nonce
     let account_id = signer.account_id();
     let nonce = client.account(account_id, None).await?.nonce;
-    signer.set_nonce(nonce);
+    let local_nonce = signer.nonce();
+    signer.set_nonce(cmp::max(nonce, local_nonce.unwrap_or(0)));
     Ok(())
 }
 
-async fn sync_tx_to_chain(client: &XtClient, pr: &PrClient, sequence: &mut u64, pair: sr25519::Pair) -> Result<(), Error> {
-    let query = Query {
-        contract_id: 2,
-        nonce: 0,
-        request: ReqData::PendingChainTransfer {sequence: *sequence},
+async fn init_runtime (client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
+                       inject_key: &str) -> Result<InitRuntimeResp, Error> {
+    let genesis_block = get_block_at(&client, Some(0)).await?.block;
+    let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
+        .expect("No genesis block?");
+    let set_proof = get_authority_with_proof_at(&client, hash).await?;
+    let info = GenesisInfo {
+        header: genesis_block.header,
+        validators: set_proof.authority_set.authority_set,
+        proof: set_proof.authority_proof,
     };
 
-    let query_value = serde_json::to_value(&query)?;
-    let payload = Payload::Plain(query_value.to_string());
-    let query_payload = serde_json::to_string(&payload)?;
-    println!("query_payload:{}", query_payload);
-    let info = pr.req_decode("query", QueryReq { query_payload }).await?;
-    println!("info:{:}", info.plain);
-    let pending_chain_transfer: PendingChainTransfer = serde_json::from_str(&info.plain)?;
-    let transfer_data = base64::decode(&pending_chain_transfer.pending_chain_transfer.transfer_queue_b64)
-        .map_err(|_|Error::FailedToDecode)?;
-    let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
-        .map_err(|_|Error::FailedToDecode)?;
-    if transfer_queue.len() == 0 {
-        return Ok(());
-    }
-
-    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
-    update_singer_nonce(&client, &mut signer).await?;
-
-    let mut max_seq = *sequence;
-    for transfer_data in &transfer_queue {
-        if transfer_data.data.sequence <= *sequence {
-            println!("The tx has been submitted.");
-            continue;
-        }
-        if transfer_data.data.sequence > max_seq {
-            max_seq = transfer_data.data.sequence;
-        }
-
-        let call = runtimes::phala::TransferToChainCall { _runtime: PhantomData, data: transfer_data.encode() };
-        let ret = client.submit(call, &signer).await;
-        if ret.is_ok() {
-            println!("Submit tx successfully");
+    let info_b64 = base64::encode(&info.encode());
+    let mut debug_set_key = None;
+    if inject_key != "" {
+        if inject_key.len() != 64 {
+            panic!("inject-key must be 32 bytes hex");
         } else {
-            println!("Failed to submit tx: {:?}", ret);
+            println!("Inject key {}", inject_key);
         }
-        signer.increment_nonce();
+        debug_set_key = Some(inject_key.to_string());
+    } else if use_dev_key {
+        println!("Inject key {}", DEV_KEY);
+        debug_set_key = Some(String::from(DEV_KEY));
     }
 
-    *sequence = max_seq;
-
-    Ok(())
+    let resp = pr.req_decode("init_runtime", InitRuntimeReq {
+        skip_ra,
+        bridge_genesis_info_b64: info_b64,
+        debug_set_key
+    }).await?;
+    Ok(resp)
 }
 
-async fn send_heartbeat_to_chain(fetch_heartbeat_from_buffer: bool, client: &XtClient, pr: &PrClient, pair: sr25519::Pair) -> Result<(), Error> {
-    let command = if fetch_heartbeat_from_buffer { "fetch_from_heartbeat_buffer" } else { "ping" };
-    let result = pr.req_decode(command, PingReq {}).await?;
-    if result.status != "ok" {
-        println!("{} api returns: {}, skip", command, result.status);
-        return Ok(())
-    }
-
-    let data = base64::decode(&mut &result.encoded_data).unwrap();
-
-    let heartbeat_data = HeartbeatData::decode(&mut &data[..]).unwrap();
-    println!("Heartbeat at block {}", heartbeat_data.data.block_num);
-
-    let mut signer = subxt::PairSigner::<Runtime, _>::new(pair);
-    update_singer_nonce(&client, &mut signer).await?;
-
-    let call = runtimes::phala::HeartbeatCall { _runtime: PhantomData, data };
-    let ret = client.submit(call, &signer).await;
-    if ret.is_ok() {
-        println!("Submit heartbeat successfully");
-    } else {
-        println!("Failed to submit heartbeat: {:?}", ret);
-    }
-    signer.increment_nonce();
-
-    Ok(())
+async fn register_worker(
+    client: &XtClient, encoded_runtime_info: Vec<u8>,
+    attestation: &InitRespAttestation, signer: &mut SrSigner
+) -> Result<(), Error> {
+        let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
+        let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
+        let call = runtimes::phala::RegisterWorkerCall {
+            _runtime: PhantomData,
+            encoded_runtime_info: encoded_runtime_info,
+            report: attestation.payload.report.as_bytes().to_vec(),
+            signature,
+            raw_signing_cert,
+        };
+        update_signer_nonce(client, signer).await?;
+        let ret = client.watch(call, signer).await;
+        if !ret.is_ok() {
+            println!("FailedToCallRegisterWorker: {:?}", ret);
+            return Err(Error::FailedToCallRegisterWorker);
+        }
+        signer.increment_nonce();
+        Ok(())
 }
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
@@ -510,67 +502,39 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let pr = PrClient::new(&args.pruntime_endpoint);
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
+    let mut signer: SrSigner = subxt::PairSigner::new(pair);
+
+    // Check controller stash setup and fail early
+    let controller = signer.account_id().clone();
+    let stash = get_stash_account(&client, controller.clone()).await?;
+    if !args.no_init || !args.no_write_back {
+        if stash == Default::default() {
+            panic!("Controller not registered; qed");
+        }
+    }
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !args.no_init {
         let mut runtime_info: Option<InitRuntimeResp> = None;
         if !info.initialized {
-            println!("pRuntime not initialized. Requesting init");
-            let genesis_block = get_block_at(&client, Some(0)).await?.block;
-            let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
-                .expect("No genesis block?");
-            let set_proof = get_authority_with_proof_at(&client, hash).await?;
-            let info = GenesisInfo {
-                header: genesis_block.header,
-                validators: set_proof.authority_set.authority_set,
-                proof: set_proof.authority_proof,
-            };
-
-            let info_b64 = base64::encode(&info.encode());
-            let mut debug_set_key = None;
-            if args.inject_key != "" {
-                if args.inject_key.len() != 64 {
-                    panic!("inject-key should 64 length");
-                } else {
-                    println!("Inject key {}", args.inject_key);
-                }
-
-                debug_set_key = Some(args.inject_key.clone());
-            } else if args.use_dev_key {
-                println!("Inject key {}", DEV_KEY);
-                debug_set_key = Some(String::from(DEV_KEY));
-            }
-
-            runtime_info = Some(pr.req_decode("init_runtime", InitRuntimeReq {
-                skip_ra: !args.ra,
-                bridge_genesis_info_b64: info_b64,
-                debug_set_key
-            }).await?);
+            println!("pRuntime not initialized. Requesting init...");
+            runtime_info = Some(init_runtime(&client, &pr, !args.ra, args.use_dev_key,
+                                             &args.inject_key).await?);
         } else {
+            println!("pRuntime already initialized. Fetching runtime info...");
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;
-            if machine_owner == [0u8; 32] { //not registered
-                runtime_info = Some(pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
+            if machine_owner == [0u8; 32] {
+                // Worker not registered
+                runtime_info = Some(
+                    pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
             }
         }
         println!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
             if let Some(attestation) = runtime_info.attestation {
-                let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
-                let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
-                let call = runtimes::phala::RegisterWorkerCall {
-                    _runtime: PhantomData,
-                    encoded_runtime_info: runtime_info.encoded_runtime_info.to_vec(),
-                    report: attestation.payload.report.as_bytes().to_vec(),
-                    signature,
-                    raw_signing_cert,
-                };
-                let signer = subxt::PairSigner::new(pair.clone());
-                let ret = client.watch(call, &signer).await;
-                if !ret.is_ok() {
-                    println!("FailedToCallRegisterWorker: {:?}", ret);
-                    return Err(Error::FailedToCallRegisterWorker);
-                }
+                register_worker(&client, runtime_info.encoded_runtime_info.clone(),
+                                &attestation, &mut signer).await?;
             }
         }
     }
@@ -580,7 +544,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    let mut sequence = get_balances_ingress_seq(&client).await?;
+    let mut balance_seq = get_balances_ingress_seq(&client).await?;
+    let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None
@@ -619,23 +584,19 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.push(block.clone());
         }
 
-        if !args.no_write_back {
-            sync_tx_to_chain(&client, &pr, &mut sequence, pair.clone()).await?;
-        }
-
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
-        // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
-            // Send heartbeat
-            if info.initialized && !args.no_write_back && args.heartbeat_interval > 0 && next_block % args.heartbeat_interval == 0 {
-                println!("send heartbeat");
-                send_heartbeat_to_chain(args.fetch_heartbeat_from_buffer, &client, &pr, pair.clone()).await?;
+            // Now we are idle. Let's try to sync the egress messages.
+            if !args.no_write_back {
+                let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
+                msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
+                msg_sync.maybe_sync_balances_egress(&mut balance_seq).await?;
             }
 
-            println!("waiting for new blocks");
+            println!("Waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;
         }

@@ -219,6 +219,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "assert_matches"
+version = "1.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "695579f0f2520f3774bb40461e5adb066459d4e0af4d59d20175484fb8e9edf1"
+
+[[package]]
 name = "async-channel"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4359,6 +4365,7 @@ dependencies = [
 name = "pallet-phala"
 version = "2.0.0"
 dependencies = [
+ "assert_matches",
  "base64 0.11.0",
  "blake2-rfc",
  "chrono",
@@ -4369,8 +4376,10 @@ dependencies = [
  "itertools 0.8.2",
  "libsecp256k1",
  "pallet-balances",
+ "pallet-randomness-collective-flip",
  "pallet-timestamp",
  "parity-scale-codec",
+ "phala-types",
  "rand 0.7.3",
  "serde",
  "serde_json_no_std",
@@ -5167,6 +5176,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-types"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+]
+
+[[package]]
 name = "phost"
 version = "0.1.0"
 dependencies = [
@@ -5180,6 +5198,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-indices",
  "parity-scale-codec",
+ "phala-types",
  "rand 0.7.3",
  "sc-finality-grandpa",
  "sc-rpc-api",

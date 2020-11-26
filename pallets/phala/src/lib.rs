@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
+use sp_core::U256;
 use sp_std::prelude::*;
 use sp_std::cmp;
 
@@ -7,20 +8,29 @@ use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, d
 use frame_system::{Module as System, ensure_signed, ensure_root};
 
 use alloc::vec::Vec;
-use sp_runtime::{traits::AccountIdConversion, ModuleId, SaturatedConversion};
+use sp_runtime::{
+	Permill, traits::AccountIdConversion, ModuleId, SaturatedConversion
+};
 use frame_support::{
-	storage::IterableStorageDoubleMap,
-	traits::{Currency, ExistenceRequirement::AllowDeath, UnixTime},
+	traits::{Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness, UnixTime},
 };
 use codec::Decode;
 
+// modules
 mod hashing;
-pub mod types;
 
+// types
+extern crate phala_types as types;
 use types::{
-	TransferData, HeartbeatData, SignedDataType,
-	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, MiningInfo
+	WorkerMessagePayload, SignedWorkerMessage,
+	TransferData, SignedDataType,
+	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, MiningInfo, BlockRewardInfo,
+	RoundInfo, RoundStats
 };
+
+#[cfg(test)]
+#[macro_use]
+extern crate assert_matches;
 
 #[cfg(test)]
 mod mock;
@@ -29,19 +39,32 @@ mod mock;
 mod tests;
 
 type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Trait>::AccountId>>::NegativeImbalance;
+
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
+const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
-const MINING_ROUND_PERIOD: u32 = 20;  // 2 min
-const HEARTBEAT_TARGET_PERIOD: u32 = 5;
-const HEARTBEAT_THRESHOLD: u32 = MINING_ROUND_PERIOD / HEARTBEAT_TARGET_PERIOD * 2 / 3;
+const BLOCK_REWARD_TO_KEEP: u32 = 20;
+const ROUND_STATS_TO_KEEP: u32 = 2;
+pub const PERCENTAGE_BASE: u32 = 100_000;
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
-	/// Because this pallet emits events, it depends on the runtime's definition of an event.
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
-
+	type Randomness: Randomness<Self::Hash>;
 	type TEECurrency: Currency<Self::AccountId>;
 	type UnixTime: UnixTime;
+	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
+
+	// Parameters
+	type MaxHeartbeatPerWorkerPerHour: Get<u32>;  // 2 tx
+	type RoundInterval: Get<Self::BlockNumber>;  // 1 hour
+	type DecayInterval: Get<Self::BlockNumber>;  // 180 days
+	type DecayFactor: Get<Permill>;  // 75%
+	type InitialReward: Get<BalanceOf<Self>>;  // 129600000 PHA
+	type TreasuryRation: Get<u32>;  // 20%
+	type RewardRation: Get<u32>;  // 80%
+	type OnlineRewardPercentage: Get<Permill>;	// rel: 37.5% post-taxed: 30%
 }
 
 decl_storage! {
@@ -53,16 +76,21 @@ decl_storage! {
 		ContractAssign get(fn contract_assign): map hasher(twox_64_concat) u32 => T::AccountId;
 		/// Ingress message queue
 		IngressSequence get(fn ingress_sequence): map hasher(twox_64_concat) u32 => u64;
+		/// Worker Ingress message queue
+		WorkerIngress get(fn worker_ingress): map hasher(twox_64_concat) T::AccountId => u64;
 
 		// Worker registry
 		/// Map from stash account to worker info (indexed: MachineOwner)
 		WorkerState get(fn worker_state): map hasher(blake2_128_concat) T::AccountId => WorkerInfo;
 		/// Map from stash account to stash info (indexed: Stash)
-		StashState get(fn stash_state): map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
+		StashState get(fn stash_state):
+			map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
 		/// Map from stash account to mining info (indexed: MiningDirty)
-		MiningState get(fn mining_state): map hasher(blake2_128_concat) T::AccountId => MiningInfo<T::BlockNumber>;
-		/// TODO: the credits got so far
-		Credits get(fn credits): map hasher(blake2_128_concat) T::AccountId => u32;
+		MiningState get(fn mining_state):
+			map hasher(blake2_128_concat) T::AccountId => MiningInfo<T::BlockNumber>;
+		// Power and Fire
+		/// Fire measures the total reward the miner can get from the network (PoC3 specific)
+		Fire get(fn fire): map hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
 		/// Heartbeat counts (indexied: Total~, Max~, ActiveWorkers)
 		Heartbeats get(fn heartbeats): map hasher(blake2_128_concat) T::AccountId => u32;
 
@@ -71,23 +99,39 @@ decl_storage! {
 		MachineOwner get(fn machine_owner): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 		/// Map from controller to stash
 		Stash get(fn stash): map hasher(blake2_128_concat) T::AccountId => T::AccountId;
-		// - heart beats related
-		MaxHeartbeats get(fn max_heartbeats): u32;
-		IndexedHeartbeats get(fn indexed_heartbeats):
-			double_map hasher(twox_64_concat) u32, hasher(twox_64_concat) T::AccountId => ();
+		/// Sum of all online workers in this round
+		OnlineWorkers get(fn online_workers): u32;
+		/// Total Power points in this round. Updated at handle_round_ends().
+		TotalPower get(fn total_power): u32;
+		/// Total Fire points
+		AccumulatedFire get(fn accumulated_fire): BalanceOf<T>;
 
-		// Round Management
-		Round get(fn round): u64;
+		// Round management
+		/// The current mining round id
+		Round get(fn round): RoundInfo<T::BlockNumber>;
+		/// Indicates if we force the next round when the block finalized
+		ForceNextRound: bool;
 		/// Accounts with pending updates
 		PendingUpdate get(fn pending_updates): Vec<T::AccountId>;
+		/// Historical round stats; only the current and the last round are kept.
+		RoundStatsHistory get(fn round_stats_history):
+			map hasher(twox_64_concat) u32 => RoundStats;
+
+		// Probabilistic rewarding
+		BlockRewardSeeds: map hasher(twox_64_concat) T::BlockNumber => BlockRewardInfo;
 
 		// Key Management
 		/// Map from contract id to contract public key (TODO: migrate to real contract key from
 		/// worker identity key)
 		ContractKey get(fn contract_key): map hasher(twox_64_concat) u32 => Vec<u8>;
 
-		// MREnclave Whitelist
+		// Configurations
+		/// MREnclave Whitelist
 		MREnclaveWhitelist get(fn mr_enclave_whitelist): Vec<Vec<u8>>;
+		TargetOnlineRewardCount get(fn target_online_reward_count): u32;
+		TargetComputeRewardCount get(fn target_compute_reward_count): u32;
+		/// Miners must submit the heartbeat within the reward window
+		RewardWindow get(fn reward_window): T::BlockNumber;
 	}
 
 	add_extra_genesis {
@@ -102,7 +146,12 @@ decl_storage! {
 				let worker_info = WorkerInfo {
 					machine_id,
 					pubkey: pubkey.clone(),
-					..Default::default()
+					last_updated: 0,
+					status: 0,
+					score: Some(Score {
+						overall_score: 100,
+						features: vec![1, 4]
+					})
 				};
 				WorkerState::<T>::insert(&stash, worker_info);
 				let stash_info = StashInfo {
@@ -120,6 +169,10 @@ decl_storage! {
 			for (i, key) in config.contract_keys.iter().enumerate() {
 				ContractKey::insert(i as u32, key);
 			}
+
+			RewardWindow::<T>::put(T::BlockNumber::from(8u32));
+			TargetOnlineRewardCount::put(20u32);
+			TargetComputeRewardCount::put(10u32);
 		});
 	}
 }
@@ -133,7 +186,7 @@ decl_event!(
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
-		WorkerRegistered(AccountId, Vec<u8>),
+		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),  // stash, identity_key, machine_id
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
 		Offline(AccountId),
@@ -142,6 +195,12 @@ decl_event!(
 		MiningStateUpdated(Vec<AccountId>),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
+		RewardSeed(BlockRewardInfo),
+		WorkerMessageReceived(AccountId, Vec<u8>, u64),  // stash, identity_key, seq
+		MinerStarted(u32, AccountId),  // round, stash
+		MinerStopped(u32, AccountId),  // round, stash
+		NewMiningRound(u32),  // round
+		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
 	}
 );
 
@@ -210,6 +269,18 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
+
+		fn on_finalize() {
+			let now = System::<T>::block_number();
+			let round = Round::<T>::get();
+			Self::handle_block_reward(now, &round);
+			// Should we end the current round?
+			let interval = T::RoundInterval::get();
+			if ForceNextRound::get() || now % interval == interval - 1u32.into() {
+				ForceNextRound::put(false);
+				Self::handle_round_ends(now, &round);
+			}
+		}
 
 		// Messaging
 		#[weight = 0]
@@ -335,14 +406,14 @@ decl_module! {
 			});
 			let worker_info = match perv_worker_info {
 				Some(info) => WorkerInfo {
-					pubkey,
+					pubkey: pubkey.clone(),
 					last_updated,
 					score,
 					..info
 				},
 				None => WorkerInfo {
 					machine_id: machine_id.clone(),
-					pubkey,
+					pubkey: pubkey.clone(),
 					last_updated,
 					score,
 					status: 0,
@@ -350,7 +421,8 @@ decl_module! {
 			};
 			WorkerState::<T>::insert(&stash, worker_info);
 			MachineOwner::<T>::insert(&machine_id, &stash);
-			Self::deposit_event(RawEvent::WorkerRegistered(stash, machine_id));
+			WorkerIngress::<T>::insert(&stash, 0);
+			Self::deposit_event(RawEvent::WorkerRegistered(stash, pubkey, machine_id));
 			Ok(())
 		}
 
@@ -361,7 +433,7 @@ decl_module! {
 			Self::remove_machine_if_present(&machine_id);
 			let worker_info = WorkerInfo {
 				machine_id: machine_id.clone(),
-				pubkey,
+				pubkey: pubkey.clone(),
 				last_updated: T::UnixTime::now().as_millis().saturated_into::<u64>(),
 				status: 0,
 				score: Some(Score {
@@ -371,7 +443,8 @@ decl_module! {
 			};
 			WorkerState::<T>::insert(&stash, worker_info);
 			MachineOwner::<T>::insert(&machine_id, &stash);
-			Self::deposit_event(RawEvent::WorkerRegistered(stash, machine_id));
+			WorkerIngress::<T>::insert(&stash, 0);
+			Self::deposit_event(RawEvent::WorkerRegistered(stash, pubkey, machine_id));
 			Ok(())
 		}
 
@@ -408,18 +481,6 @@ decl_module! {
 			let stash = Stash::<T>::get(who);
 			WorkerState::<T>::mutate(&stash, |worker_info| worker_info.status = 0);
 			Self::mark_dirty(stash);
-			Ok(())
-		}
-
-		#[weight = 0]
-		fn claim_reward(origin, stash: T::AccountId) -> dispatch::DispatchResult {
-			ensure_signed(origin)?;
-			// invoked by anyone
-
-			// TODO: deal with start_block carefully
-
-			// online rewards
-			// computation rewards
 			Ok(())
 		}
 
@@ -464,19 +525,38 @@ decl_module! {
 		}
 
 		#[weight = 0]
-		fn heartbeat(origin, data: Vec<u8>) -> dispatch::DispatchResult {
+		fn sync_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
+			// TODO: allow anyone to relay the message
 			let who = ensure_signed(origin)?;
-			// Decode payload
-			let heartbeat_data: HeartbeatData = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Get identity key from controller
+			let signed: SignedWorkerMessage = Decode::decode(&mut &msg[..]).map_err(|_| Error::<T>::InvalidInput)?;
+			// Worker queue sequence
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(&who);
+			let expected_seq = WorkerIngress::<T>::get(&stash);
+			ensure!(signed.data.sequence == expected_seq, Error::<T>::BadMessageSequence);
+			// Validate signature
 			let worker_info = WorkerState::<T>::get(&stash);
-			// Validate TEE signature
-			Self::verify_signature(&worker_info.pubkey, &heartbeat_data)?;
-			Self::add_heartbeat(&who);
-			// Emit event
-			Self::deposit_event(RawEvent::Heartbeat(stash, heartbeat_data.data.block_num));
+			Self::verify_signature(&worker_info.pubkey, &signed)?;
+			// Dispatch message
+			match signed.data.payload {
+				WorkerMessagePayload::Heartbeat { block_num, claim_online, claim_compute } => {
+					let stash_info = StashState::<T>::get(&stash);
+					let id_pubkey = &worker_info.pubkey;
+					let score = match worker_info.score {
+						Some(score) => score.overall_score,
+						None => 0
+					};
+					Self::add_heartbeat(&who);	// TODO: necessary?
+					Self::handle_claim_reward(
+						&stash, &stash_info.payout_prefs.target, claim_online, claim_compute,
+						score, block_num.into());
+					Self::deposit_event(RawEvent::Heartbeat(stash.clone(), block_num));
+					Self::deposit_event(RawEvent::WorkerMessageReceived(
+						stash.clone(), id_pubkey.clone(), expected_seq));
+				}
+			}
+			// Advance ingress sequence
+			WorkerIngress::<T>::insert(&stash, expected_seq + 1);
 			Ok(())
 		}
 
@@ -485,53 +565,13 @@ decl_module! {
 		// Debug only
 
 		#[weight = 0]
-		fn dbg_next_round(origin) -> dispatch::DispatchResult {
+		fn force_next_round(origin) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
-			// Process violations
-			let offlines = Self::offline_accounts();
-			for account in offlines.iter() {
-				Self::deposit_event(RawEvent::Offline(account.clone()));
-				// TODO: we don't actually slash or stop the miner for now
-			}
-			Self::clear_heartbeats();
-
-			// Process the pending update miner accoutns
-			let now = System::<T>::block_number();
-			let dirty_accounts = PendingUpdate::<T>::get();
-			for account in dirty_accounts.iter() {
-				let mut updated = false;
-				let worker_info = WorkerState::<T>::get(&account);
-				let mut mining_info = MiningState::<T>::get(&account);
-				let intention = worker_info.status == 1;
-				if mining_info.is_mining != intention {
-					// TODO: check enough stake, etc
-					mining_info.is_mining = intention;
-					if intention {
-						mining_info.start_block = Some(now);
-					} else {
-						Self::clean_account(
-							&account, mining_info.start_block.unwrap(), now);
-						mining_info.start_block = None;
-					}
-					updated = true;
-				}
-				// TODO: slash
-				if updated {
-					MiningState::<T>::insert(&account, mining_info);
-				}
-			}
-
-			// dispatch tasks
-			//	 TODO: randomly dispatch tasks and rewards
-
-			// Start new round
-			Self::clear_dirty();
-			let round = Round::get();
-			Round::put(round + 1);
-
+			ForceNextRound::put(true);
 			Ok(())
 		}
 
+		// TODO: remove this
 		#[weight = 0]
 		fn dbg_mark_violation(origin, stash: T::AccountId) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
@@ -541,8 +581,6 @@ decl_module! {
 			if mining_info.start_block == None {
 				return Ok(());
 			}
-			let now = System::<T>::block_number();
-			Self::clean_account(&stash, mining_info.start_block.unwrap(), now);
 			// 1. disable miner
 			let mut worker_info = WorkerState::<T>::get(&stash);
 			worker_info.status = 0;
@@ -634,53 +672,13 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	fn clean_account(account: &T::AccountId, start: T::BlockNumber, now: T::BlockNumber) {
-		if start >= now {
-			return;
-		}
-		let blocks = now - start;
-		let worker_info = WorkerState::<T>::get(account);
-		let score = match worker_info.score {
-			Some(score) => score.overall_score,
-			None => 1  // TODO: change to zero
-		};
-		let points: u32 = score * blocks.saturated_into::<u32>();
-		// Add credits
-		let credits = Credits::<T>::get(account);
-		Credits::<T>::insert(account, credits + points);
-		Self::deposit_event(RawEvent::GotCredits(account.clone(), credits + points, points));
-	}
-
 	fn add_heartbeat(account: &T::AccountId) {
 		let heartbeats = Heartbeats::<T>::get(account);
-		// Update heartbeats
 		Heartbeats::<T>::insert(account, heartbeats + 1);
-		// Update indexed heartbeats
-		IndexedHeartbeats::<T>::insert(heartbeats + 1, account, ());
-		if heartbeats > 0 {
-			IndexedHeartbeats::<T>::remove(heartbeats, account);
-		}
-		// Update other indices
-		if heartbeats + 1 > MaxHeartbeats::get() {
-			MaxHeartbeats::put(heartbeats + 1);
-		}
 	}
 
 	fn clear_heartbeats() {
 		Heartbeats::<T>::remove_all();
-		MaxHeartbeats::put(0);
-	}
-
-	fn offline_accounts() -> Vec<T::AccountId> {
-		let mut result = Vec::<T::AccountId>::new();
-		let max_count = MaxHeartbeats::get();
-		// Slash miners with less than the heartbeat threshold and 1/4 max
-		for i in 1..cmp::min(HEARTBEAT_THRESHOLD, (max_count + 1) / 4) {
-			for (account, ()) in IndexedHeartbeats::<T>::iter_prefix(i) {
-				result.push(account);
-			}
-		}
-		result
 	}
 
 	fn extend_mrenclave(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> Vec<u8> {
@@ -727,6 +725,209 @@ impl<T: Trait> Module<T> {
 		Self::deposit_event(RawEvent::WhitelistRemoved(t_mrenclave));
 		Ok(())
 	}
+
+	/// Updates RoundStatsHistory and only keeps ROUND_STATS_TO_KEEP revisions.
+	///
+	/// Shall call this function only when the new round have started.
+	fn update_round_stats(round: u32, online_workers: u32, compute_workers: u32,
+						  total_power: u32) {
+		if round >= ROUND_STATS_TO_KEEP {
+			RoundStatsHistory::remove(round - ROUND_STATS_TO_KEEP);
+		}
+		let online_target = TargetOnlineRewardCount::get();
+		let frac_target_online_reward = Self::clipped_target_number(online_target, online_workers);
+
+		RoundStatsHistory::insert(round, RoundStats {
+			round,
+			online_workers,
+			compute_workers,
+			frac_target_online_reward,
+			total_power,
+		});
+	}
+
+	fn handle_round_ends(now: T::BlockNumber, round: &RoundInfo<T::BlockNumber>) {
+		Self::clear_heartbeats();
+		// Mining rounds
+		let new_round = round.round + 1;
+		let new_block = now + 1u32.into();
+
+		// Process the pending update miner accoutns
+		let mut delta = 0i32;
+		let mut power_delta = 0i32;
+		let dirty_accounts = PendingUpdate::<T>::get();
+		for account in dirty_accounts.iter() {
+			let mut updated = false;
+			let worker_info = WorkerState::<T>::get(&account);
+			let mut mining_info = MiningState::<T>::get(&account);
+			let intention = worker_info.status == 1;
+			if mining_info.is_mining != intention {
+				// TODO: check enough stake, etc
+				mining_info.is_mining = intention;
+				if intention {
+					// Start from the next block
+					mining_info.start_block = Some(new_block);
+					delta += 1;
+					if let Some(score) = worker_info.score {
+						power_delta += score.overall_score as i32;
+					}
+					Self::deposit_event(RawEvent::MinerStarted(new_round, account.clone()));
+				} else {
+					mining_info.start_block = None;
+					delta -= 1;
+					if let Some(score) = worker_info.score {
+						power_delta -= score.overall_score as i32;
+					}
+					Self::deposit_event(RawEvent::MinerStopped(new_round, account.clone()));
+				}
+				updated = true;
+			}
+			// TODO: slash
+			if updated {
+				MiningState::<T>::insert(&account, mining_info);
+			}
+		}
+		let new_online = (OnlineWorkers::get() as i32 + delta) as u32;
+		OnlineWorkers::put(new_online);
+		let new_total_power = ((TotalPower::get() as i32) + power_delta) as u32;
+		TotalPower::put(new_total_power);
+
+		// dispatch tasks
+		//	 TODO: randomly dispatch tasks and rewards
+
+		// Start new round
+		Self::clear_dirty();
+		Round::<T>::put(RoundInfo {
+			round: new_round,
+			start_block: new_block,
+		});
+		Self::update_round_stats(new_round, new_online, 0u32, new_total_power);
+		Self::deposit_event(RawEvent::NewMiningRound(new_round));
+	}
+
+	fn handle_block_reward(now: T::BlockNumber, round: &RoundInfo<T::BlockNumber>) {
+		// Remove the expired reward from the storage
+		if now > BLOCK_REWARD_TO_KEEP.into() {
+			BlockRewardSeeds::<T>::remove(now - BLOCK_REWARD_TO_KEEP.into());
+		}
+		// Generate the seed and targets
+		let seed_hash = T::Randomness::random(RANDOMNESS_SUBJECT);
+		let seed: U256 = AsRef::<[u8]>::as_ref(&seed_hash).into();
+		let round_stats = RoundStatsHistory::get(round.round);
+		let seed_info = BlockRewardInfo {
+			seed,
+			online_target: {
+				if round_stats.online_workers == 0 {
+					U256::zero()
+				} else {
+					u256_target(
+						round_stats.frac_target_online_reward as u64,
+						(round_stats.online_workers as u64) * (PERCENTAGE_BASE as u64))
+				}
+			},
+			compute_target: U256::zero(),
+		};
+		// Save
+		BlockRewardSeeds::<T>::insert(now, &seed_info);
+		Self::deposit_event(RawEvent::RewardSeed(seed_info));
+	}
+
+	fn handle_claim_reward(
+		stash: &T::AccountId, payout_target: &T::AccountId, claim_online: bool,
+		_claim_compute: bool, score: u32, claiming_block: T::BlockNumber
+	) {
+		// Check is mining
+		let mining_info = MiningState::<T>::get(stash);
+		if !mining_info.is_mining {
+			return;
+		}
+
+		// XXX: check latency
+
+		if claim_online {
+			let round_stats = Self::round_stats_at(claiming_block);
+			let round_reward = Self::round_mining_reward_at(claiming_block);
+			let online = Self::pretax_online_reward(
+				round_reward, score, round_stats.total_power,
+				round_stats.frac_target_online_reward, round_stats.online_workers);
+			Self::payout(online, payout_target);
+		}
+
+		// TODO: do we need to check xor threshold?
+		// TODO: Check is_compute
+	}
+
+	/// Calculates the clipped target transaction number for this round
+	fn clipped_target_number(num_target: u32, num_workers: u32) -> u32 {
+		// Miner tx per block: t <= max_tx_per_hour * N/T
+		let round_blocks = T::RoundInterval::get().saturated_into::<u32>();
+		let upper_clipped = cmp::min(
+			num_target * PERCENTAGE_BASE,
+			(T::MaxHeartbeatPerWorkerPerHour::get() as u64
+				* (num_workers as u64) * (PERCENTAGE_BASE as u64)
+				/ (round_blocks as u64)) as u32);
+		upper_clipped
+	}
+
+	/// Calculates the total mining reward for this round
+	fn round_mining_reward_at(_blocknum: T::BlockNumber) -> BalanceOf<T> {
+		let initial_reward: BalanceOf<T> =
+			T::InitialReward::get() /
+			BalanceOf::<T>::from(
+				(T::DecayInterval::get() / T::RoundInterval::get()).saturated_into::<u32>());
+			// BalanceOf::<T>::from();
+		let round_reward = initial_reward;
+		// TODO: consider the halvings
+		//
+		// let n = (blocknum / T::DecayInterval::get()) as u32;
+		// let decay_reward = decay_reward * DecayFactor.pow(n)
+		round_reward
+	}
+
+	/// Gets the RoundStats information at the given blocknum, not earlier than the last round.
+	fn round_stats_at(block: T::BlockNumber) -> RoundStats {
+		let current_round = Round::<T>::get();
+		let round = if block < current_round.start_block {
+			current_round.round - 1
+		} else {
+			current_round.round
+		};
+		RoundStatsHistory::get(round)
+	}
+
+	/// Calculates the adjusted reward for a specific miner
+	fn pretax_online_reward(
+		round_reward: BalanceOf<T>, score: u32, total_power: u32, frac_target_online_reward: u32,
+		workers: u32
+	) -> BalanceOf<T> {
+		let round_blocks = T::RoundInterval::get().saturated_into::<u64>();
+		// The target reward for this miner
+		let target =
+			round_reward * BalanceOf::<T>::from(score) / BalanceOf::<T>::from(total_power);
+		// Adjust based on the mathematical expectation
+		let adjusted: BalanceOf<T> =
+			target
+			* ((workers as u64) * (PERCENTAGE_BASE as u64)).saturated_into()
+			/ ((round_blocks as u64) * (frac_target_online_reward as u64)).saturated_into();
+
+		let online_reward = T::OnlineRewardPercentage::get() * adjusted;
+		online_reward
+	}
+
+	/// Actually pays out the reward
+	fn payout(value: BalanceOf<T>, target: &T::AccountId) {
+		// Retion the reward and the treasury deposit
+		let coins = T::TEECurrency::issue(value);
+		let (coin_reward, coin_treasury) = coins.ration(
+			T::RewardRation::get(), T::TreasuryRation::get());
+		// Payout!
+		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
+		Self::deposit_event(RawEvent::Payout(
+			target.clone(), coin_reward.peek(), coin_treasury.peek()));
+		Fire::<T>::mutate(target, |x| *x += coin_reward.peek());
+		AccumulatedFire::<T>::mutate(|x| *x += coin_reward.peek());
+		T::Treasury::on_unbalanced(coin_treasury);
+	}
 }
 
 fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {
@@ -736,4 +937,12 @@ fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {
 	let core = features[0];
 	let feature_level = features[1];
 	Ok(core * (feature_level * 10 + 60))
+}
+
+fn u256_target(m: u64, n: u64) -> U256 {
+	// m of n (MAX * (n / m))
+	if m > n || n == 0 {
+		panic!("Invalid parameter");
+	}
+	U256::MAX / n * m
 }

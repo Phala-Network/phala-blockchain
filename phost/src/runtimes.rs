@@ -139,7 +139,7 @@ pub mod phala {
     pub struct TransferToChainCall<T: PhalaModule> {
         /// Runtime marker
         pub _runtime: PhantomData<T>,
-        /// The transfer transaction data, SCALA encoded
+        /// The transfer transaction data, SCALE encoded
         pub data: Vec<u8>,
     }
 
@@ -194,8 +194,49 @@ pub mod phala {
     pub struct HeartbeatCall<T: PhalaModule> {
         /// Runtime marker
         pub _runtime: PhantomData<T>,
-        /// The heartbeat data, SCALA encoded
+        /// The heartbeat data, SCALE encoded
         pub data: Vec<u8>,
+    }
+
+    /// Storage: Stash
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct StashStore<T: PhalaModule> {
+        #[store(returns = T::AccountId)]
+        pub _runtime: PhantomData<T>,
+        pub account_id: T::AccountId,
+    }
+    impl<T: PhalaModule> StashStore<T> {
+        pub fn new(account_id: T::AccountId) -> Self {
+            Self {
+                _runtime: Default::default(),
+                account_id,
+            }
+        }
+    }
+
+    /// Storage: WorkerIngress
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct WorkerIngressStore<T: PhalaModule> {
+        #[store(returns = u64)]
+        pub _runtime: PhantomData<T>,
+        pub account_id: T::AccountId,
+    }
+    impl<T: PhalaModule> WorkerIngressStore<T> {
+        pub fn new(account_id: T::AccountId) -> Self {
+            Self {
+                _runtime: Default::default(),
+                account_id,
+            }
+        }
+    }
+
+    /// The call to sync_worker_message
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct SyncWorkerMessageCall<T: PhalaModule> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The raw message, SCALE encoded
+        pub msg: Vec<u8>,
     }
 
 }

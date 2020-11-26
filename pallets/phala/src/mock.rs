@@ -4,6 +4,7 @@ use crate::{Module, Trait};
 use sp_core::H256;
 use frame_support::{impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
 use sp_runtime::{
+	Permill,
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
 };
 use frame_system as system;
@@ -11,6 +12,7 @@ use pallet_balances as balances;
 use crate as phala;
 
 pub(crate) type Balance = u128;
+type BlockNumber = u64;
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
@@ -43,7 +45,7 @@ impl system::Trait for Test {
 	type Origin = Origin;
 	type Call = ();
 	type Index = u64;
-	type BlockNumber = u64;
+	type BlockNumber = BlockNumber;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
@@ -83,10 +85,37 @@ impl pallet_timestamp::Trait for Test {
 	type WeightInfo = ();
 }
 
+pub const HOURS: BlockNumber = 600;
+pub const DAYS: BlockNumber = HOURS * 24;
+pub const DOLLARS: Balance = 1_000_000_000_000;
+
+parameter_types! {
+	pub const MaxHeartbeatPerWorkerPerHour: u32 = 2;
+	pub const RoundInterval: BlockNumber = 1 * HOURS;
+	pub const DecayInterval: BlockNumber = 180 * DAYS;
+	pub const DecayFactor: Permill = Permill::from_percent(75);
+	pub const InitialReward: Balance = 129600000 * DOLLARS;
+	pub const TreasuryRation: u32 = 20_000;
+	pub const RewardRation: u32 = 80_000;
+	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+}
+
 impl Trait for Test {
 	type Event = TestEvent;
+	type Randomness = Randomness;
 	type TEECurrency = Balances;
 	type UnixTime = pallet_timestamp::Module<Test>;
+	type Treasury = ();
+
+	// Parameters
+	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
+	type RoundInterval = RoundInterval;
+	type DecayInterval = DecayInterval;
+	type DecayFactor = DecayFactor;
+	type InitialReward = InitialReward;
+	type TreasuryRation = TreasuryRation;
+	type RewardRation = RewardRation;
+	type OnlineRewardPercentage = OnlineRewardPercentage;
 }
 
 mod test_events {
@@ -95,6 +124,7 @@ mod test_events {
 
 pub type System = frame_system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
+pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
 pub type PhalaModule = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to

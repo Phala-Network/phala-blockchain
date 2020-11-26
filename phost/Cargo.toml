@@ -32,3 +32,5 @@ pallet-grandpa = { version = "2.0.0", path = "../substrate/frame/grandpa" }
 pallet-indices = { version = "2.0.0", path = "../substrate/frame/indices" }
 balances = { version = "2.0.0", package = "pallet-balances", path = "../substrate/frame/balances" }
 sp-keyring = { version = "2.0.0", package = "sp-keyring", path = "../substrate/primitives/keyring" }
+
+phala-types = { path = "../common/types" }
