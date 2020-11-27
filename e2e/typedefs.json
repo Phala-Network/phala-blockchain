@@ -3,12 +3,22 @@
     "LookupSource": "GenericLookupSource",
     "EthereumAddress": "H160",
     "EcdsaSignature": "[u8; 65]",
-    "EthereumTxHash": "H256",
+	"EthereumTxHash": "H256",
+	"WorkerStateEnum": {
+		"_enum": {
+			"Empty": null,
+			"Free": null,
+			"Gatekeeper": null,
+			"MiningPending": null,
+			"Mining": "BlockNumber",
+			"MiningStopping": null
+		}
+	},
     "WorkerInfo": {
         "machineId": "Vec<u8>",
         "pubkey": "Vec<u8>",
         "lastUpdated": "u64",
-        "status": "i32",
+		"state": "WorkerStateEnum",
         "score": "Option<Score>"
     },
     "Score": {
@@ -22,10 +32,6 @@
     "PayoutPrefs": {
         "commission": "u32",
         "target": "AccountId"
-	},
-	"MiningInfo": {
-		"isMining": "bool",
-		"startBlock": "Option<BlockNumber>"
 	},
 	"BlockRewardInfo": {
 		"seed": "U256",
