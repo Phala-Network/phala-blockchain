@@ -70,18 +70,32 @@ impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
 
 // Types used in storage
 
+#[derive(Encode, Decode, PartialEq, Eq)]
+pub enum WorkerStateEnum<BlockNumber> {
+	Empty,
+	Free,
+	Gatekeeper,
+	MiningPending,
+	Mining(BlockNumber),
+	MiningStopping,
+}
+
+impl<BlockNumber> Default for WorkerStateEnum<BlockNumber> {
+	fn default() -> Self {
+		WorkerStateEnum::Empty
+	}
+}
+
 #[derive(Encode, Decode, Default)]
-pub struct WorkerInfo {
+pub struct WorkerInfo<BlockNumber> {
 	// identity
 	pub machine_id: Vec<u8>,
 	pub pubkey: Vec<u8>,
 	pub last_updated: u64,
-	// contract
-	// ...
 	// mining
-	pub status: i32,
+	pub state: WorkerStateEnum<BlockNumber>,
 	// preformance
-	pub score: Option<Score>
+	pub score: Option<Score>,
 }
 
 #[derive(Encode, Decode, Default)]
@@ -96,7 +110,7 @@ pub struct PayoutPrefs<AccountId: Default> {
 	pub target: AccountId,
 }
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Clone)]
 pub struct Score {
 	pub overall_score: u32,
 	pub features: Vec<u32>
@@ -110,12 +124,6 @@ pub struct PRuntimeInfo {
 	pub machine_id: MachineId,
 	pub pubkey: WorkerPublicKey,
 	pub features: Vec<u32>
-}
-
-#[derive(Encode, Decode, Debug, Default)]
-pub struct MiningInfo<BlockNumber> {
-	pub is_mining: bool,
-	pub start_block: Option<BlockNumber>,
 }
 
 #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]

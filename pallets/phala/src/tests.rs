@@ -3,11 +3,10 @@ use frame_support::{assert_ok, assert_noop, traits::{Currency, OnFinalize}};
 use frame_system::RawOrigin;
 use hex_literal::hex;
 use secp256k1;
-use sp_core::U256;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
-use crate::{RawEvent, types::{BlockRewardInfo, Transfer, TransferData, RoundStats}};
+use crate::{RawEvent, types::{Transfer, TransferData, RoundStats}};
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -244,6 +243,7 @@ fn test_mine() {
 		assert_noop!(PhalaModule::start_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
 		assert_noop!(PhalaModule::stop_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaModule::stop_mining_intention(Origin::signed(1)));
 	});
@@ -277,60 +277,6 @@ fn test_transfer() {
 		assert_ok!(PhalaModule::transfer_to_chain(Origin::signed(1), data.encode()));
 		// check balance
 		assert_eq!(10, Balances::free_balance(2));
-	});
-}
-
-
-#[test]
-fn test_heartbeat() {
-	new_test_ext().execute_with(|| {
-		// TODO: fix this
-
-		// let machine_id = hex!["f59715bec175f87ae09ffdd51528da56"].to_vec();
-		// let pubkey = hex!["02effbf21d3b4b00cc25b19ab2accaa9db7942b16c9c5d3f3705b829b41d8ab881"].to_vec();
-
-		// System::set_block_number(1);
-		// assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
-		// assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, machine_id, pubkey));
-
-		// let encoded_heartbeat_data = "djkAAAUB/6kP4m8OHyYl/WTZG7ygK+PU2DgLwsSpBxqhuLQPvopaTYQ4GKRpCj4GVaOkW18tT/PdmtXA7sv2bCv0L8fH/gE=";
-		// let heartbeat_data: Vec<u8> = match base64::decode(encoded_heartbeat_data) {
-		// 	Ok(x) => x,
-		// 	Err(_) => panic!("decode encoded_heartbeat_data failed")
-		// };
-
-		// assert_ok!(PhalaModule::heartbeat(Origin::signed(2), heartbeat_data));
-	});
-}
-
-#[test]
-fn test_mark_violation() {
-	new_test_ext().execute_with(|| {
-		System::set_block_number(1);
-		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
-		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
-		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));  // called by controller
-		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
-		PhalaModule::on_finalize(1);
-		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRegistered(1, vec![1], vec![0])),
-			TestEvent::phala(RawEvent::RewardSeed(BlockRewardInfo {
-				seed: 0.into(), online_target: 0.into(), compute_target: 0.into()
-			})),
-			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
-			TestEvent::phala(RawEvent::NewMiningRound(1))
-		]);
-
-		System::set_block_number(100);
-		assert_ok!(PhalaModule::dbg_mark_violation(RawOrigin::Root.into(), 1));
-		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
-		PhalaModule::on_finalize(2);
-		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::Slash(1, 0, 0)),
-			TestEvent::phala(RawEvent::MiningStateUpdated(_)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::NewMiningRound(2))
-		]);
 	});
 }
 
@@ -466,36 +412,38 @@ fn test_payout() {
 }
 
 #[test]
-fn test_online_rewards() {
+fn test_payout_and_missed() {
 	new_test_ext().execute_with(|| {
-		// Block 1
-		System::set_block_number(1);
-		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 2));
-		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
-		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));  // called by controller
-		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
-		PhalaModule::on_finalize(1);
+		use frame_support::storage::{StorageValue, StorageMap};
+		// Set states
+		crate::WorkerState::<Test>::insert(1, phala_types::WorkerInfo::<BlockNumber> {
+			machine_id: Vec::new(),
+			pubkey: Vec::new(),
+			last_updated: 1,
+			state: phala_types::WorkerStateEnum::Mining(1),
+			score: None,
+		});
+		crate::Round::<Test>::put(phala_types::RoundInfo::<BlockNumber> {
+			round: 1,
+			start_block: 1,
+		});
+		crate::RoundStatsHistory::insert(1, phala_types::RoundStats {
+			round: 1,
+			online_workers: 1,
+			compute_workers: 0,
+			frac_target_online_reward: 333,
+			total_power: 100,
+		});
+		// Check missed reward (window + 1)
+		let window = PhalaModule::reward_window();
+		System::set_block_number(1 + window + 1);
+		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
+		assert_eq!(events().as_slice(), [TestEvent::phala(RawEvent::PayoutMissed(1, 2))]);
+		// Check some reward (right within the window)
+		System::set_block_number(1 + window);
+		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
 		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRegistered(1, vec![1], vec![0])),
-			TestEvent::phala(RawEvent::RewardSeed(BlockRewardInfo {
-				seed: 0.into(), online_target: 0.into(), compute_target: 0.into()
-			})),
-			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
-			TestEvent::phala(RawEvent::NewMiningRound(1))
-		]);
-
-		System::set_block_number(100);
-		assert_ok!(PhalaModule::dbg_mark_violation(RawOrigin::Root.into(), 1));
-		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
-		PhalaModule::on_finalize(2);
-		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::Slash(1, 0, 0)),
-			TestEvent::phala(RawEvent::MiningStateUpdated(_)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::NewMiningRound(2))
-		]);
-
-
+			TestEvent::phala(RawEvent::Payout(2, 4504_504504504504, 1126_126126126127))]);
 	});
 }
 
