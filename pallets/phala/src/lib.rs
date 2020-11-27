@@ -201,6 +201,7 @@ decl_event!(
 		MinerStopped(u32, AccountId),  // round, stash
 		NewMiningRound(u32),  // round
 		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
+		PayoutMissed(AccountId, AccountId),  // stash, dest
 	}
 );
 
@@ -841,11 +842,18 @@ impl<T: Trait> Module<T> {
 		if !mining_info.is_mining {
 			return;
 		}
-
-		// XXX: check latency
-
+		// Confirmed too late. Just skip.
+		let now = System::<T>::block_number();
+		let reward_window = RewardWindow::<T>::get();
+		if claiming_block + reward_window < now  {
+			Self::deposit_event(RawEvent::PayoutMissed(stash.clone(), payout_target.clone()));
+			return;
+		}
 		if claim_online {
 			let round_stats = Self::round_stats_at(claiming_block);
+			if round_stats.online_workers == 0 {
+				panic!("No online worker but the miner is claiming the rewards; qed");
+			}
 			let round_reward = Self::round_mining_reward_at(claiming_block);
 			let online = Self::pretax_online_reward(
 				round_reward, score, round_stats.total_power,
