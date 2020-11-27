@@ -24,7 +24,7 @@ extern crate phala_types as types;
 use types::{
 	WorkerMessagePayload, SignedWorkerMessage,
 	TransferData, SignedDataType,
-	WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, MiningInfo, BlockRewardInfo,
+	WorkerStateEnum, WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, BlockRewardInfo,
 	RoundInfo, RoundStats
 };
 
@@ -80,14 +80,12 @@ decl_storage! {
 		WorkerIngress get(fn worker_ingress): map hasher(twox_64_concat) T::AccountId => u64;
 
 		// Worker registry
-		/// Map from stash account to worker info (indexed: MachineOwner)
-		WorkerState get(fn worker_state): map hasher(blake2_128_concat) T::AccountId => WorkerInfo;
+		/// Map from stash account to worker info (indexed: MachineOwner, PendingUpdate)
+		WorkerState get(fn worker_state):
+			map hasher(blake2_128_concat) T::AccountId => WorkerInfo<T::BlockNumber>;
 		/// Map from stash account to stash info (indexed: Stash)
 		StashState get(fn stash_state):
 			map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
-		/// Map from stash account to mining info (indexed: MiningDirty)
-		MiningState get(fn mining_state):
-			map hasher(blake2_128_concat) T::AccountId => MiningInfo<T::BlockNumber>;
 		// Power and Fire
 		/// Fire measures the total reward the miner can get from the network (PoC3 specific)
 		Fire get(fn fire): map hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
@@ -111,7 +109,7 @@ decl_storage! {
 		Round get(fn round): RoundInfo<T::BlockNumber>;
 		/// Indicates if we force the next round when the block finalized
 		ForceNextRound: bool;
-		/// Accounts with pending updates
+		/// Stash accounts with pending updates
 		PendingUpdate get(fn pending_updates): Vec<T::AccountId>;
 		/// Historical round stats; only the current and the last round are kept.
 		RoundStatsHistory get(fn round_stats_history):
@@ -143,11 +141,11 @@ decl_storage! {
 				// Mock worker / stash info
 				let mut machine_id = base_mid.clone();
 				machine_id.push(b'0' + (i as u8));
-				let worker_info = WorkerInfo {
+				let worker_info = WorkerInfo::<T::BlockNumber> {
 					machine_id,
 					pubkey: pubkey.clone(),
 					last_updated: 0,
-					status: 0,
+					state: WorkerStateEnum::Free,
 					score: Some(Score {
 						overall_score: 100,
 						features: vec![1, 4]
@@ -192,7 +190,7 @@ decl_event!(
 		Offline(AccountId),
 		Slash(AccountId, Balance, u32),
 		GotCredits(AccountId, u32, u32),  // account, updated, delta
-		MiningStateUpdated(Vec<AccountId>),
+		WorkerStateUpdated(AccountId),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
 		RewardSeed(BlockRewardInfo),
@@ -201,6 +199,7 @@ decl_event!(
 		MinerStopped(u32, AccountId),  // round, stash
 		NewMiningRound(u32),  // round
 		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
+		PayoutMissed(AccountId, AccountId),  // stash, dest
 	}
 );
 
@@ -259,6 +258,8 @@ decl_error! {
 		MREnclaveAlreadyExist,
 		/// MRENCLAVE not found
 		MREnclaveNotFound,
+		/// Unable to complete this action because it's an invalid state transition
+		InvalidState,
 	}
 }
 
@@ -395,28 +396,40 @@ decl_module! {
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let machine_id = runtime_info.machine_id.to_vec();
 			// Add into the registry
-			// TODO: Now we just force remove the worker and thus stop the mining. Should we just
-			// update the worker info if there's an existing one?
-			let perv_worker_info = Self::remove_machine_if_present(&machine_id);
+			let perv_machine_owner = Self::take_machine_if_present(&machine_id);
+			// Maybe updated WorkerInfo fields
 			let last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
 			let pubkey = runtime_info.pubkey.to_vec();
 			let score = Some(Score {
 				overall_score: calc_overall_score(&runtime_info.features).map_err(|()| Error::<T>::InvalidInput)?,
 				features: runtime_info.features
 			});
-			let worker_info = match perv_worker_info {
-				Some(info) => WorkerInfo {
-					pubkey: pubkey.clone(),
-					last_updated,
-					score,
-					..info
-				},
+			// Update the associated WorkerInfo for this stash
+			let worker_info = match perv_machine_owner {
+				// A new machine
 				None => WorkerInfo {
 					machine_id: machine_id.clone(),
 					pubkey: pubkey.clone(),
 					last_updated,
+					state: WorkerStateEnum::Free,
 					score,
-					status: 0,
+				},
+				// Just refreshed
+				Some((prev_stash, info)) if prev_stash == stash => WorkerInfo {
+					pubkey: pubkey.clone(),
+					last_updated,
+					score,
+					..info  // state unchanged
+				},
+				// Owner changed
+				Some((_prev_stash, info)) => {
+					WorkerInfo {
+						pubkey: pubkey.clone(),
+						last_updated,
+						state: WorkerStateEnum::Free,
+						score,
+						..info
+					}
 				},
 			};
 			WorkerState::<T>::insert(&stash, worker_info);
@@ -430,12 +443,12 @@ decl_module! {
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			Self::remove_machine_if_present(&machine_id);
+			Self::take_machine_if_present(&machine_id);
 			let worker_info = WorkerInfo {
 				machine_id: machine_id.clone(),
 				pubkey: pubkey.clone(),
 				last_updated: T::UnixTime::now().as_millis().saturated_into::<u64>(),
-				status: 0,
+				state: WorkerStateEnum::Free,
 				score: Some(Score {
 					overall_score: 100,
 					features: vec![1, 4]  // 1: one core, 4: the max feature level, score = 100
@@ -462,14 +475,21 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(who);
-			WorkerState::<T>::mutate(&stash, |worker_info| worker_info.status = 1);
-			if !MiningState::<T>::contains_key(&stash) {
-				MiningState::<T>::insert(&stash, MiningInfo {
-					is_mining: false,
-					start_block: None,
-				});
-				// TODO: clean up when MiningState(stash) is not used
-			}
+			let mut worker_info = WorkerState::<T>::get(&stash);
+
+			match worker_info.state {
+				WorkerStateEnum::Free => {
+					worker_info.state = WorkerStateEnum::MiningPending;
+					Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+				},
+				// WorkerStateEnum::MiningStopping => {
+				// 	worker_info.state = WorkerStateEnum::Mining;
+				// 	Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+				// }
+				WorkerStateEnum::Mining(_) | WorkerStateEnum::MiningPending => return Ok(()),
+				_ => return Err(Error::<T>::InvalidState.into())
+			};
+
 			Self::mark_dirty(stash);
 			Ok(())
 		}
@@ -479,7 +499,21 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(who);
-			WorkerState::<T>::mutate(&stash, |worker_info| worker_info.status = 0);
+
+			let mut worker_info = WorkerState::<T>::get(&stash);
+			match worker_info.state {
+				WorkerStateEnum::Mining(_) => {
+					worker_info.state = WorkerStateEnum::MiningStopping;
+					Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+				},
+				WorkerStateEnum::MiningPending => {
+					worker_info.state = WorkerStateEnum::Free;
+					Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+				},
+				WorkerStateEnum::Free | WorkerStateEnum::MiningStopping => return Ok(()),
+				_ => return Err(Error::<T>::InvalidState.into())
+			}
+
 			Self::mark_dirty(stash);
 			Ok(())
 		}
@@ -536,6 +570,9 @@ decl_module! {
 			ensure!(signed.data.sequence == expected_seq, Error::<T>::BadMessageSequence);
 			// Validate signature
 			let worker_info = WorkerState::<T>::get(&stash);
+			if worker_info.state == WorkerStateEnum::<_>::Empty {
+				return Err(Error::<T>::InvalidState.into());
+			}
 			Self::verify_signature(&worker_info.pubkey, &signed)?;
 			// Dispatch message
 			match signed.data.payload {
@@ -568,32 +605,6 @@ decl_module! {
 		fn force_next_round(origin) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ForceNextRound::put(true);
-			Ok(())
-		}
-
-		// TODO: remove this
-		#[weight = 0]
-		fn dbg_mark_violation(origin, stash: T::AccountId) -> dispatch::DispatchResult {
-			ensure_root(origin)?;
-			ensure!(MiningState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			// 0. clean
-			let mut mining_info = MiningState::<T>::get(&stash);
-			if mining_info.start_block == None {
-				return Ok(());
-			}
-			// 1. disable miner
-			let mut worker_info = WorkerState::<T>::get(&stash);
-			worker_info.status = 0;
-			WorkerState::<T>::insert(&stash, worker_info);
-			// 2. force stop
-			mining_info.is_mining = false;
-			mining_info.start_block = None;
-			MiningState::<T>::insert(&stash, mining_info);
-			// 3. TODO: add slash
-			Self::deposit_event(RawEvent::Slash(stash.clone(), 0u32.into(), 0u32));
-			// 4. Create events
-			Self::mark_dirty(stash.clone());
-			Self::deposit_event(RawEvent::MiningStateUpdated(vec![stash]));
 			Ok(())
 		}
 
@@ -649,14 +660,15 @@ impl<T: Trait> Module<T> {
 
 	/// Try to remove a registered worker from the registry by its `machine_id` identity if
 	/// presents, keeping the stash untouched
-	fn remove_machine_if_present(machine_id: &Vec<u8>) -> Option<WorkerInfo> {
+	fn take_machine_if_present(machine_id: &Vec<u8>)
+	-> Option<(T::AccountId, WorkerInfo<T::BlockNumber>)> {
 		if !MachineOwner::<T>::contains_key(machine_id) {
 			return None;
 		}
 		let stash = MachineOwner::<T>::take(machine_id);
 		let worker_info = WorkerState::<T>::take(&stash);
-		Self::deposit_event(RawEvent::WorkerUnregistered(stash, machine_id.clone()));
-		Some(worker_info)
+		Self::deposit_event(RawEvent::WorkerUnregistered(stash.clone(), machine_id.clone()));
+		Some((stash, worker_info))
 	}
 
 	fn clear_dirty() {
@@ -758,33 +770,34 @@ impl<T: Trait> Module<T> {
 		let dirty_accounts = PendingUpdate::<T>::get();
 		for account in dirty_accounts.iter() {
 			let mut updated = false;
-			let worker_info = WorkerState::<T>::get(&account);
-			let mut mining_info = MiningState::<T>::get(&account);
-			let intention = worker_info.status == 1;
-			if mining_info.is_mining != intention {
-				// TODO: check enough stake, etc
-				mining_info.is_mining = intention;
-				if intention {
-					// Start from the next block
-					mining_info.start_block = Some(new_block);
+			let mut worker_info = WorkerState::<T>::get(&account);
+			match worker_info.state {
+				WorkerStateEnum::MiningPending => {
+					// TODO: check enough stake, etc
+					worker_info.state = WorkerStateEnum::Mining(new_block);
 					delta += 1;
-					if let Some(score) = worker_info.score {
+					// Start from the next block
+					if let Some(ref score) = worker_info.score {
 						power_delta += score.overall_score as i32;
 					}
 					Self::deposit_event(RawEvent::MinerStarted(new_round, account.clone()));
-				} else {
-					mining_info.start_block = None;
+					updated = true;
+				},
+				WorkerStateEnum::MiningStopping => {
+					worker_info.state = WorkerStateEnum::Free;
 					delta -= 1;
-					if let Some(score) = worker_info.score {
+					if let Some(ref score) = worker_info.score {
 						power_delta -= score.overall_score as i32;
 					}
 					Self::deposit_event(RawEvent::MinerStopped(new_round, account.clone()));
-				}
-				updated = true;
+					updated = true;
+				},
+				_ => {}
 			}
 			// TODO: slash
 			if updated {
-				MiningState::<T>::insert(&account, mining_info);
+				WorkerState::<T>::insert(&account, worker_info);
+				Self::deposit_event(RawEvent::WorkerStateUpdated(account.clone()));
 			}
 		}
 		let new_online = (OnlineWorkers::get() as i32 + delta) as u32;
@@ -837,24 +850,30 @@ impl<T: Trait> Module<T> {
 		_claim_compute: bool, score: u32, claiming_block: T::BlockNumber
 	) {
 		// Check is mining
-		let mining_info = MiningState::<T>::get(stash);
-		if !mining_info.is_mining {
-			return;
+		let worker_info = WorkerState::<T>::get(stash);
+		if let WorkerStateEnum::Mining(_) = worker_info.state {
+			// Confirmed too late. Just skip.
+			let now = System::<T>::block_number();
+			let reward_window = RewardWindow::<T>::get();
+			if claiming_block + reward_window < now  {
+				Self::deposit_event(RawEvent::PayoutMissed(stash.clone(), payout_target.clone()));
+				return;
+			}
+			if claim_online {
+				let round_stats = Self::round_stats_at(claiming_block);
+				if round_stats.online_workers == 0 {
+					panic!("No online worker but the miner is claiming the rewards; qed");
+				}
+				let round_reward = Self::round_mining_reward_at(claiming_block);
+				let online = Self::pretax_online_reward(
+					round_reward, score, round_stats.total_power,
+					round_stats.frac_target_online_reward, round_stats.online_workers);
+				Self::payout(online, payout_target);
+			}
+
+			// TODO: do we need to check xor threshold?
+			// TODO: Check is_compute
 		}
-
-		// XXX: check latency
-
-		if claim_online {
-			let round_stats = Self::round_stats_at(claiming_block);
-			let round_reward = Self::round_mining_reward_at(claiming_block);
-			let online = Self::pretax_online_reward(
-				round_reward, score, round_stats.total_power,
-				round_stats.frac_target_online_reward, round_stats.online_workers);
-			Self::payout(online, payout_target);
-		}
-
-		// TODO: do we need to check xor threshold?
-		// TODO: Check is_compute
 	}
 
 	/// Calculates the clipped target transaction number for this round

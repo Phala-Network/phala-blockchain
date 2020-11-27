@@ -901,7 +901,7 @@ impl pallet_vesting::Trait for Runtime {
 
 parameter_types! {
 	pub const MaxHeartbeatPerWorkerPerHour: u32 = 2;
-	pub const RoundInterval: BlockNumber = 10 * MINUTES;  // 1 * HOURS
+	pub const RoundInterval: BlockNumber = 1 * HOURS;
 	pub const DecayInterval: BlockNumber = 180 * DAYS;
 	pub const DecayFactor: Permill = Permill::from_percent(75);
 	pub const InitialReward: Balance = 129600000 * DOLLARS;

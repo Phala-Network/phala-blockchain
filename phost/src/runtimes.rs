@@ -83,6 +83,8 @@ impl Session for PhalaNodeRuntime {
 
 impl phala::PhalaModule for PhalaNodeRuntime {
     type BlockRewardInfo = phala_types::BlockRewardInfo;
+    type EthereumTxHash = phala::EthereumTxHash;
+    type EthereumAddress = phala::EthereumAddress;
 }
 
 pub mod grandpa {
@@ -121,11 +123,19 @@ pub mod phala {
     };
     use core::marker::PhantomData;
 
+    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+    pub struct EthereumTxHash([u8; 32]);
+    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+    pub struct EthereumAddress([u8; 20]);
+
     /// The subset of the `pallet_phala::Trait` that a client must implement.
     #[module]
     pub trait PhalaModule: System + Balances {
         // Define the additional types used in pallet events
         type BlockRewardInfo: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
+        // A kind of hack
+        type EthereumTxHash: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
+        type EthereumAddress: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
     }
 
     #[derive(Clone, Debug, PartialEq, Call, Encode)]

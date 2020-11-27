@@ -12,7 +12,7 @@ use pallet_balances as balances;
 use crate as phala;
 
 pub(crate) type Balance = u128;
-type BlockNumber = u64;
+pub(crate) type BlockNumber = u64;
 
 impl_outer_origin! {
 	pub enum Origin for Test {}
@@ -130,5 +130,10 @@ pub type PhalaModule = Module<Test>;
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
+	let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	crate::GenesisConfig::<Test> {
+		stakers: Default::default(),
+		contract_keys: Default::default()
+	}.assimilate_storage(&mut t).unwrap();
+	sp_io::TestExternalities::new(t)
 }
