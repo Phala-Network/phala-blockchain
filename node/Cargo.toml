@@ -76,10 +76,10 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 substrate-test-runtime-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Cumulus dependencies
-cumulus-consensus = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false }
-cumulus-network = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false }
-cumulus-primitives = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false }
-cumulus-service = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false }
+cumulus-consensus = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+cumulus-network = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+cumulus-primitives = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+cumulus-service = { version = "0.1.0", git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
 
 # Polkadot dependencies
 polkadot-primitives = { version = "0.8.26", git = "https://github.com/paritytech/polkadot", branch = "master" }

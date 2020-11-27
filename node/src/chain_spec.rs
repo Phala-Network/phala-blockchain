@@ -23,7 +23,7 @@ use sc_chain_spec::{ChainSpecExtension, Properties};
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
 use node_runtime::{
-	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
+	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
 	TechnicalCommitteeConfig, PhalaModuleConfig, wasm_binary_unwrap, ParachainInfoConfig
@@ -305,12 +305,6 @@ pub fn testnet_genesis(
 						.cloned()
 						.collect(),
 			phantom: Default::default(),
-		}),
-		pallet_contracts: Some(ContractsConfig {
-			current_schedule: pallet_contracts::Schedule {
-				enable_println, // this should only be enabled on development chains
-				..Default::default()
-			},
 		}),
 		pallet_sudo: Some(SudoConfig {
 			key: root_key,
@@ -597,12 +591,6 @@ pub fn parachain_testnet_genesis(
 				.cloned()
 				.collect(),
 			phantom: Default::default(),
-		}),
-		pallet_contracts: Some(ContractsConfig {
-			current_schedule: pallet_contracts::Schedule {
-				enable_println: false,
-				..Default::default()
-			},
 		}),
 		pallet_sudo: Some(SudoConfig {
 			key: root_key,
