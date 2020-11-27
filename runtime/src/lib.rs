@@ -15,7 +15,12 @@ use sp_runtime::{
 	transaction_validity::{TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, MultiSignature, DispatchResult,
 };
-use sp_std::prelude::*;
+
+use sp_std::{
+	collections::btree_set::BTreeSet,
+	prelude::*,
+};
+
 #[cfg(feature = "std")]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
@@ -45,7 +50,7 @@ type Hasher = sp_runtime::traits::BlakeTwo256;
 type Hasher = native_nostd_hasher::blake2::Blake2Hasher;
 
 // use xtoken::{AssetIdConverter, IsConcreteWithGeneralKey, XCMAdapter, XcmHandler as HandleXcm};
-pub use xcm_adapter::{XCurrencyIdConverter, IsConcreteWithGeneralKey, XcmHandler as HandleXcm};
+pub use xcm_adapter::{NativePalletAssetOr, XCurrencyIdConverter, IsConcreteWithGeneralKey, XcmHandler as HandleXcm};
 
 use xcm::v0::{Junction, MultiLocation, NetworkId, Xcm};
 use xcm_builder::{
@@ -347,6 +352,17 @@ pub type LocalOriginConverter = (
 	SignedAccountId32AsNative<PhalaNetwork, Origin>,
 );
 
+parameter_types! {
+	pub NativeTokens: BTreeSet<(Vec<u8>, MultiLocation)> = {
+		let mut t = BTreeSet::new();
+		//acala reserve asset identity
+		t.insert(("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 })));
+		t.insert(("PHA2000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 })));	// test only
+		t.insert(("PHA5000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 })));	// test only
+		t
+	};
+}
+
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
@@ -354,7 +370,7 @@ impl Config for XcmConfig {
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	//TODO: might need to add other assets based on orml-tokens
-	type IsReserve = NativeAsset;
+	type IsReserve = NativePalletAssetOr<NativeTokens>;
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
 }
@@ -370,8 +386,7 @@ impl xcm_adapter::Trait for Runtime {
 	type Balance = Balance;
 	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
 	type AccountIdConverter = LocationConverter;
-	type EncodedXCurrencyId = EncodedXCurrencyId;
-	type XCurrencyIdConverter = XCurrencyIdConverter<EncodedXCurrencyId>;
+	type XCurrencyIdConverter = XCurrencyIdConverter;
 }
 
 construct_runtime! {

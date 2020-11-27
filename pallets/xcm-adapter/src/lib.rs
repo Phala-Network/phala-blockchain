@@ -71,8 +71,7 @@ pub trait Trait: frame_system::Trait {
 	type Balance: Parameter + Member + AtLeast32Bit + Default + Copy + MaybeSerializeDeserialize + Into<u128>;
 	type Matcher: MatchesFungible<Self::Balance>;
 	type AccountIdConverter: LocationConversion<Self::AccountId>;
-	type EncodedXCurrencyId: FullCodec + Eq + PartialEq + MaybeSerializeDeserialize + Debug;
-	type XCurrencyIdConverter: XCurrencyIdConversion<Self::EncodedXCurrencyId>;
+	type XCurrencyIdConverter: XCurrencyIdConversion;
 }
 
 decl_storage! {
@@ -83,13 +82,12 @@ decl_event! (
 	pub enum Event<T> where
 		<T as frame_system::Trait>::AccountId,
 		<T as Trait>::Balance,
-		<T as Trait>::EncodedXCurrencyId,
 	{
 		/// Deposit asset into current chain. [currency_id, account_id, amount, to_tee]
-		DepositAsset(EncodedXCurrencyId, AccountId, Balance, bool),
+		DepositAsset(Vec<u8>, AccountId, Balance, bool),
 
-		/// Withdraw asset from current chain. [currency_id, account_id, amount]
-		WithdrawAsset(EncodedXCurrencyId, AccountId, Balance),
+		/// Withdraw asset from current chain. [currency_id, account_id, amount, to_tee]
+		WithdrawAsset(Vec<u8>, AccountId, Balance, bool),
 	}
 );
 
@@ -118,7 +116,7 @@ impl<T> TransactAsset for Module<T> where
 		debug::info!("balance amount: {:?}", balance_amount);
         
         Self::deposit_event(
-            RawEvent::DepositAsset(currency_id, who, balance_amount, true)
+            Event::<T>::DepositAsset(currency_id.clone().into(), who, balance_amount, true),
         );
 
 		debug::info!(">>> success deposit.");
@@ -140,7 +138,7 @@ impl<T> TransactAsset for Module<T> where
 		debug::info!("balance amount: {:?}", balance_amount);
 
         Self::deposit_event(
-            Event::<T>::WithdrawAsset(currency_id, who, balance_amount),
+            Event::<T>::WithdrawAsset(currency_id.clone().into(), who, balance_amount, true),
         );
 
 		debug::info!(">>> success withdraw.");
@@ -176,66 +174,62 @@ where
 	}
 }
 
-pub trait CurrencyIdConversion<CurrencyId> {
-	fn from_asset(asset: &MultiAsset) -> Option<CurrencyId>;
+pub trait XCurrencyIdConversion {
+	fn from_asset_and_location(asset: &MultiAsset, location: &MultiLocation) -> Option<PHAXCurrencyId>;
 }
 
-pub struct CurrencyIdConverter<CurrencyId>(
-	PhantomData<CurrencyId>,
+pub struct XCurrencyIdConverter(
 );
 
-impl<CurrencyId> CurrencyIdConversion<CurrencyId>
-	for CurrencyIdConverter<CurrencyId>
-where
-	CurrencyId: TryFrom<Vec<u8>>,
+impl XCurrencyIdConversion for XCurrencyIdConverter
 {
-	fn from_asset(asset: &MultiAsset) -> Option<CurrencyId> {
-		if let MultiAsset::ConcreteFungible { id: location, .. } = asset {
-			if location == &MultiLocation::X1(Junction::Parent) {
-				let relaychaincurrency  = PHAXCurrencyId {
+	fn from_asset_and_location(multi_asset: &MultiAsset, multi_location: &MultiLocation) -> Option<PHAXCurrencyId> {
+		if let MultiAsset::ConcreteFungible { ref id, .. } = multi_asset {
+			if id == &MultiLocation::X1(Junction::Parent) {
+				let relaychain_currency : PHAXCurrencyId = PHAXCurrencyId {
 					chain_id: ChainId::RelayChain,
 					currency_id: b"DOT".to_vec(),
 				};
-				return CurrencyId::try_from(relaychaincurrency.into()).ok();
+				return Some(relaychain_currency);
 			}
-			if let Some(Junction::GeneralKey(key)) = location.last() {
-				return CurrencyId::try_from(key.clone()).ok();
+
+			if let Some(Junction::GeneralKey(key)) = id.last() {
+				// FIXME: can't decode paraid by this way
+				if let &MultiLocation::X2(Junction::Parent, Junction::Parachain {id: paraid}) = multi_location {
+					let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
+						chain_id: ChainId::ParaChain(paraid.into()),
+						currency_id: key.clone(),
+					};
+					return Some(parachain_currency);
+				} else {
+					// hardcode paraid 5000, used to test with acala network
+					let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
+						chain_id: ChainId::ParaChain(5000.into()),
+						currency_id: key.clone(),
+					};
+					return Some(parachain_currency);
+				}
 			}
 		}
 		None
 	}
 }
 
-pub trait XCurrencyIdConversion<EncodedXCurrencyId> {
-	fn from_asset_and_location(asset: &MultiAsset, location: &MultiLocation) -> Option<EncodedXCurrencyId>;
-}
+pub struct NativePalletAssetOr<Pairs>(PhantomData<Pairs>);
+impl<Pairs: Get<BTreeSet<(Vec<u8>, MultiLocation)>>> FilterAssetLocation for NativePalletAssetOr<Pairs> {
+	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		if NativeAsset::filter_asset_location(asset, origin) {
+			return true;
+		}
 
-pub struct XCurrencyIdConverter<EncodedXCurrencyId>(
-	PhantomData<EncodedXCurrencyId>,
-);
-
-impl<EncodedXCurrencyId> XCurrencyIdConversion<EncodedXCurrencyId>
-	for XCurrencyIdConverter<EncodedXCurrencyId>
-where
-	EncodedXCurrencyId: TryFrom<Vec<u8>>,
-{
-	fn from_asset_and_location(multi_asset: &MultiAsset, multi_location: &MultiLocation) -> Option<EncodedXCurrencyId> {
-		if let MultiAsset::ConcreteFungible { id: location, .. } = multi_asset {
-			if location == &MultiLocation::X1(Junction::Parent) {
-				let relaychaincurrency  = PHAXCurrencyId {
-					chain_id: ChainId::RelayChain,
-					currency_id: b"DOT".to_vec(),
-				};
-				return EncodedXCurrencyId::try_from(relaychaincurrency.into()).ok();
-			}
-
-			if let MultiLocation::X2(Junction::Parent, Junction::Parachain { id: para_id }) = multi_location {
-				if let Some(Junction::GeneralKey(key)) = location.last() {
-					return EncodedXCurrencyId::try_from(PHAXCurrencyId::new(ChainId::ParaChain(para_id.clone().into()), key.clone()).into()).ok();
-				}
+		// native asset identified by a general key
+		if let MultiAsset::ConcreteFungible { ref id, .. } = asset {
+			if let Some(Junction::GeneralKey(key)) = id.last() {
+				return Pairs::get().contains(&(key.clone(), origin.clone()));
 			}
 		}
-		None
+
+		false
 	}
 }
 
