@@ -489,7 +489,7 @@ decl_module! {
 				WorkerStateEnum::Mining(_) | WorkerStateEnum::MiningPending => return Ok(()),
 				_ => return Err(Error::<T>::InvalidState.into())
 			};
-
+			WorkerState::<T>::insert(&stash, worker_info);
 			Self::mark_dirty(stash);
 			Ok(())
 		}
@@ -513,7 +513,7 @@ decl_module! {
 				WorkerStateEnum::Free | WorkerStateEnum::MiningStopping => return Ok(()),
 				_ => return Err(Error::<T>::InvalidState.into())
 			}
-
+			WorkerState::<T>::insert(&stash, worker_info);
 			Self::mark_dirty(stash);
 			Ok(())
 		}
