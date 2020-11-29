@@ -1054,7 +1054,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     if local_state.initialized {
         return Err(json!({"message": "Already initialized"}))
     }
-    (*local_state).initialized = true;
 
     // load identity
     if let Some(key) = input.debug_set_key {
@@ -1168,6 +1167,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         attestation
     };
     local_state.runtime_info = Some(resp.clone());
+    local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
 }
 
