@@ -4257,6 +4257,7 @@ dependencies = [
  "base64 0.11.0",
  "blake2-rfc",
  "chrono",
+ "cumulus-primitives",
  "frame-support 2.0.0-rc5",
  "frame-system 2.0.0-rc5",
  "hex",
@@ -4273,6 +4274,9 @@ dependencies = [
  "sp-std 2.0.0-rc5",
  "untrusted",
  "webpki 0.21.0",
+ "xcm",
+ "xcm-adapter",
+ "xtoken",
 ]
 
 [[package]]

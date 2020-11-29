@@ -17,7 +17,7 @@ use sp_runtime::{
 };
 
 use sp_std::{
-	collections::btree_set::BTreeSet,
+	collections::btree_map::BTreeMap,
 	prelude::*,
 };
 
@@ -353,12 +353,12 @@ pub type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub NativeTokens: BTreeSet<(Vec<u8>, MultiLocation)> = {
-		let mut t = BTreeSet::new();
+	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
+		let mut t = BTreeMap::new();
 		//acala reserve asset identity
-		t.insert(("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 })));
-		t.insert(("PHA2000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 })));	// test only
-		t.insert(("PHA5000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 })));	// test only
+		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));
+		t.insert("PHA2000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
+		t.insert("PHA5000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
 		t
 	};
 }
@@ -386,7 +386,7 @@ impl xcm_adapter::Trait for Runtime {
 	type Balance = Balance;
 	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
 	type AccountIdConverter = LocationConverter;
-	type XCurrencyIdConverter = XCurrencyIdConverter;
+	type XCurrencyIdConverter = XCurrencyIdConverter<NativeTokens>;
 }
 
 construct_runtime! {
