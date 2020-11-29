@@ -13,7 +13,7 @@ use sp_runtime::{
 	DispatchResult, RuntimeDebug,
 };
 use sp_std::{
-	collections::btree_set::BTreeSet,
+	collections::btree_map::BTreeMap,
 	convert::{TryFrom, TryInto},
 	marker::PhantomData,
 	prelude::*,
@@ -178,10 +178,10 @@ pub trait XCurrencyIdConversion {
 	fn from_asset_and_location(asset: &MultiAsset, location: &MultiLocation) -> Option<PHAXCurrencyId>;
 }
 
-pub struct XCurrencyIdConverter(
+pub struct XCurrencyIdConverter<NativeTokens>(
+	PhantomData<NativeTokens>,
 );
-
-impl XCurrencyIdConversion for XCurrencyIdConverter
+impl <NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>>  XCurrencyIdConversion for XCurrencyIdConverter<NativeTokens>
 {
 	fn from_asset_and_location(multi_asset: &MultiAsset, multi_location: &MultiLocation) -> Option<PHAXCurrencyId> {
 		if let MultiAsset::ConcreteFungible { ref id, .. } = multi_asset {
@@ -194,20 +194,15 @@ impl XCurrencyIdConversion for XCurrencyIdConverter
 			}
 
 			if let Some(Junction::GeneralKey(key)) = id.last() {
-				// FIXME: can't decode paraid by this way
-				if let &MultiLocation::X2(Junction::Parent, Junction::Parachain {id: paraid}) = multi_location {
-					let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
-						chain_id: ChainId::ParaChain(paraid.into()),
-						currency_id: key.clone(),
-					};
-					return Some(parachain_currency);
-				} else {
-					// hardcode paraid 5000, used to test with acala network
-					let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
-						chain_id: ChainId::ParaChain(5000.into()),
-						currency_id: key.clone(),
-					};
-					return Some(parachain_currency);
+				if NativeTokens::get().contains_key(&key.clone()) {
+					// here we can trust the currency matchs the parachain, case NativePalletAssetOr already check this
+					if let MultiLocation::X2(Junction::Parent, Junction::Parachain {id: paraid}) = NativeTokens::get().get(&key.clone()).unwrap() {
+						let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
+							chain_id: ChainId::ParaChain((*paraid).into()),
+							currency_id: key.clone(),
+						};
+						return Some(parachain_currency);
+					}
 				}
 			}
 		}
@@ -215,8 +210,8 @@ impl XCurrencyIdConversion for XCurrencyIdConverter
 	}
 }
 
-pub struct NativePalletAssetOr<Pairs>(PhantomData<Pairs>);
-impl<Pairs: Get<BTreeSet<(Vec<u8>, MultiLocation)>>> FilterAssetLocation for NativePalletAssetOr<Pairs> {
+pub struct NativePalletAssetOr<NativeTokens>(PhantomData<NativeTokens>);
+impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> FilterAssetLocation for NativePalletAssetOr<NativeTokens> {
 	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 		if NativeAsset::filter_asset_location(asset, origin) {
 			return true;
@@ -225,7 +220,9 @@ impl<Pairs: Get<BTreeSet<(Vec<u8>, MultiLocation)>>> FilterAssetLocation for Nat
 		// native asset identified by a general key
 		if let MultiAsset::ConcreteFungible { ref id, .. } = asset {
 			if let Some(Junction::GeneralKey(key)) = id.last() {
-				return Pairs::get().contains(&(key.clone(), origin.clone()));
+				if NativeTokens::get().contains_key(&key.clone()) {
+					return (*origin) == *(NativeTokens::get().get(&key.clone()).unwrap());
+				}
 			}
 		}
 
