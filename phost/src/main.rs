@@ -13,6 +13,7 @@ use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
 mod error;
 mod msg_sync;
 mod pruntime_client;
+mod notify_client;
 mod runtimes;
 mod types;
 
@@ -22,11 +23,13 @@ use crate::types::{
     GetInfoReq,
     InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq, InitRespAttestation,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
-    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents
+    OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents,
+    NotifyReq
 };
 
 use subxt::Signer;
 use subxt::system::AccountStoreExt;
+use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
 type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
@@ -75,6 +78,11 @@ struct Args {
     default_value = "http://localhost:8000", long,
     help = "pRuntime http endpoint")]
     pruntime_endpoint: String,
+
+    #[structopt(
+    default_value = "", long,
+    help = "notify endpoint")]
+    notify_endpoint: String,
 
     #[structopt(
         required = true,
@@ -513,6 +521,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
     }
 
+    let nc = NotifyClient::new(&args.notify_endpoint);
+    let mut pruntime_initialized = false;
+    let mut pruntime_new_init = false;
+    let mut initial_sync_finished = false;
+
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !args.no_init {
@@ -523,6 +536,15 @@ async fn bridge(args: Args) -> Result<(), Error> {
                                              &args.inject_key).await?);
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = true
+            pruntime_initialized = true;
+            pruntime_new_init = true;
+            nc.notify(&NotifyReq {
+                headernum: info.headernum,
+                blocknum: info.blocknum,
+                pruntime_initialized,
+                pruntime_new_init,
+                initial_sync_finished,
+            }).await.ok();
         } else {
             println!("pRuntime already initialized. Fetching runtime info...");
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;
@@ -531,8 +553,18 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 runtime_info = Some(
                     pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
             }
+
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
+            pruntime_initialized = true;
+            pruntime_new_init = false;
+            nc.notify(&NotifyReq {
+                headernum: info.headernum,
+                blocknum: info.blocknum,
+                pruntime_initialized,
+                pruntime_new_init,
+                initial_sync_finished,
+            }).await.ok();
         }
         println!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
@@ -558,9 +590,18 @@ async fn bridge(args: Args) -> Result<(), Error> {
     loop {
         // update the latest pRuntime state
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
+        println!("pRuntime get_info response: {:?}", info);
+
         // STATUS: header_synced = info.headernum
         // STATUS: block_synced = info.blocknum
-        println!("pRuntime get_info response: {:?}", info);
+        nc.notify(&NotifyReq {
+            headernum: info.headernum,
+            blocknum: info.blocknum,
+            pruntime_initialized,
+            pruntime_new_init,
+            initial_sync_finished,
+        }).await.ok();
+
         // for now, we require info.headernum == info.blocknum for simplification
         if info.headernum != info.blocknum {
             return Err(Error::BlockHeaderMismatch);
@@ -596,6 +637,15 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
             // STATUS: initial_sync_finished = true
+            initial_sync_finished = true;
+            nc.notify(&NotifyReq {
+                headernum: info.headernum,
+                blocknum: info.blocknum,
+                pruntime_initialized,
+                pruntime_new_init,
+                initial_sync_finished,
+            }).await.ok();
+
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
