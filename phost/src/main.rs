@@ -521,6 +521,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             println!("pRuntime not initialized. Requesting init...");
             runtime_info = Some(init_runtime(&client, &pr, !args.ra, args.use_dev_key,
                                              &args.inject_key).await?);
+            // STATUS: pruntime_initialized = true
+            // STATUS: pruntime_new_init = true
         } else {
             println!("pRuntime already initialized. Fetching runtime info...");
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;
@@ -529,6 +531,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 runtime_info = Some(
                     pr.req_decode("get_runtime_info", GetRuntimeInfoReq {}).await?);
             }
+            // STATUS: pruntime_initialized = true
+            // STATUS: pruntime_new_init = false
         }
         println!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
@@ -554,6 +558,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
     loop {
         // update the latest pRuntime state
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
+        // STATUS: header_synced = info.headernum
+        // STATUS: block_synced = info.blocknum
         println!("pRuntime get_info response: {:?}", info);
         // for now, we require info.headernum == info.blocknum for simplification
         if info.headernum != info.blocknum {
@@ -589,6 +595,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
+            // STATUS: initial_sync_finished = true
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
