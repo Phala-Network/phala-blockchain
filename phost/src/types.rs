@@ -244,3 +244,14 @@ pub struct DispatchBlockResp {
 impl Resp for DispatchBlockReq {
     type Resp = DispatchBlockResp;
 }
+
+// API: notify
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct NotifyReq {
+    pub headernum: BlockNumber,
+    pub blocknum: BlockNumber,
+    pub pruntime_initialized: bool,
+    pub pruntime_new_init: bool,
+    pub initial_sync_finished: bool,
+}

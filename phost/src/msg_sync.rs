@@ -59,6 +59,7 @@ impl<'a> MsgSync<'a> {
                 println!("Worker msg {} has been submitted. Skipping...", msg_seq);
                 continue;
             }
+            // STATUS: claim_tx_sent = match msg.data.payload { WorkerMessagePayload::Heartbeat { block_num, ... } => block_num }
             next_seq = cmp::max(next_seq, msg_seq + 1);
             let ret = self.client.submit(runtimes::phala::SyncWorkerMessageCall {
                 _runtime: PhantomData,
@@ -67,6 +68,7 @@ impl<'a> MsgSync<'a> {
             if let Err(err) = ret {
                 println!("Failed to submit tx: {:?}", err);
                 // TODO: Should we fail early?
+                // STATUS: worth reporting error!
             }
             self.signer.increment_nonce();
         }
