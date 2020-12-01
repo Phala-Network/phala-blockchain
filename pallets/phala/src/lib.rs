@@ -376,7 +376,7 @@ decl_module! {
 			// };
 
 			// Validate related fields
-			let parsed_report: serde_json_no_std::Value = serde_json_no_std::from_slice(&report).unwrap();
+			let parsed_report: serde_json::Value = serde_json::from_slice(&report).unwrap();
 			ensure!(
 				&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED" || &parsed_report["isvEnclaveQuoteStatus"] == "GROUP_OUT_OF_DATE",
 				Error::<T>::InvalidQuoteStatus

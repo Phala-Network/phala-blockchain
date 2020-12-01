@@ -4291,7 +4291,7 @@ dependencies = [
  "phala-types",
  "rand 0.7.3",
  "serde",
- "serde_json_no_std",
+ "serde_json",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -7094,19 +7094,6 @@ dependencies = [
  "ryu",
  "serde",
 ]
-
-[[package]]
-name = "serde_json_no_std"
-version = "1.0.53"
-dependencies = [
- "itoa",
- "ryu",
- "serde_no_std",
-]
-
-[[package]]
-name = "serde_no_std"
-version = "1.0.111"
 
 [[package]]
 name = "sha-1"

@@ -28,7 +28,7 @@ untrusted = { version = "0.7" }
 base64 = { version = "0.11", default-features = false, features = ["alloc"] }
 hex = { version = "0.4", default-features = false }
 webpki = { path = "../../webpki", default-features = false }
-serde_json_no_std = { path = "../../serde_json_no_std", version = "1.0", default-features = false, features = ["alloc"] }
+serde_json = { version = "1.0.41", default-features = false, features = ["alloc"] }
 # serde_json_core = {}
 blake2-rfc = { version = "0.2.18", default-features = false }
 
