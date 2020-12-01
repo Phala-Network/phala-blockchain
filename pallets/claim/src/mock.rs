@@ -1,6 +1,6 @@
 // Creating mock runtime here
 
-use crate::{Module, Trait};
+use crate::{Module, Config};
 use sp_core::H256;
 use frame_support::{impl_outer_dispatch, impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
 use sp_runtime::{
@@ -44,7 +44,7 @@ parameter_types! {
 	pub const MinimumPeriod: u64 = 1;
 }
 
-impl system::Trait for Test {
+impl system::Config for Test {
 	type BaseCallFilter = ();
 	type Origin = Origin;
 	type Call = Call;
@@ -72,7 +72,7 @@ impl system::Trait for Test {
 	type SystemWeightInfo = ();
 }
 
-impl pallet_balances::Trait for Test {
+impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type Balance = Balance;
 	type DustRemoval = ();
@@ -82,14 +82,14 @@ impl pallet_balances::Trait for Test {
 	type WeightInfo = ();
 }
 
-impl pallet_timestamp::Trait for Test {
+impl pallet_timestamp::Config for Test {
 	type Moment = u64;
 	type OnTimestampSet = ();
 	type MinimumPeriod = MinimumPeriod;
 	type WeightInfo = ();
 }
 
-impl Trait for Test {
+impl Config for Test {
 	type Event = TestEvent;
 	type Call = Call;
 	type Currency = Balances;

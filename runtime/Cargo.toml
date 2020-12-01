@@ -85,7 +85,7 @@ pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 
 [build-dependencies]
-wasm-builder-runner = { version = "2.0.0", package = "substrate-wasm-builder-runner", path = "../substrate/utils/wasm-builder-runner" }
+substrate-wasm-builder = { version = "3.0.0", path = "../substrate/utils/wasm-builder" }
 
 [dev-dependencies]
 sp-io = { version = "2.0.0", path = "../substrate/primitives/io" }
