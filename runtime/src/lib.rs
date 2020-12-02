@@ -387,6 +387,8 @@ impl xcm_adapter::Trait for Runtime {
 	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
 	type AccountIdConverter = LocationConverter;
 	type XCurrencyIdConverter = XCurrencyIdConverter<NativeTokens>;
+	type OwnedCurrency = Balances;
+	type ParaId = ParachainInfo;
 }
 
 construct_runtime! {

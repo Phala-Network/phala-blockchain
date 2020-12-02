@@ -64,6 +64,9 @@ impl Into<Vec<u8>> for PHAXCurrencyId {
 	}
 }
 
+type BalanceOf<T> =
+	<<T as Trait>::OwnedCurrency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+
 /// Configuration trait of this pallet.
 pub trait Trait: frame_system::Trait {
 	/// Event type used by the runtime.
@@ -72,6 +75,8 @@ pub trait Trait: frame_system::Trait {
 	type Matcher: MatchesFungible<Self::Balance>;
 	type AccountIdConverter: LocationConversion<Self::AccountId>;
 	type XCurrencyIdConverter: XCurrencyIdConversion;
+	type OwnedCurrency: Currency<Self::AccountId>;
+	type ParaId: Get<ParaId>;
 }
 
 decl_storage! {
@@ -81,7 +86,7 @@ decl_storage! {
 decl_event! (
 	pub enum Event<T> where
 		<T as frame_system::Trait>::AccountId,
-		<T as Trait>::Balance,
+		Balance = BalanceOf<T>,
 	{
 		/// Deposit asset into current chain. [currency_id, account_id, amount, to_tee]
 		DepositAsset(Vec<u8>, AccountId, Balance, bool),
@@ -114,10 +119,18 @@ impl<T> TransactAsset for Module<T> where
 		debug::info!("amount: {:?}", amount);
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		debug::info!("balance amount: {:?}", balance_amount);
-        
+
+		let mut is_owned_currency = false;
+		if let ChainId::ParaChain(paraid) = currency_id.chain_id {
+			if T::ParaId::get() == paraid {
+				is_owned_currency = true;
+				let _ = T::OwnedCurrency::deposit_creating(&who, balance_amount);
+			}
+		}
+
         Self::deposit_event(
-            Event::<T>::DepositAsset(currency_id.clone().into(), who, balance_amount, true),
-        );
+            Event::<T>::DepositAsset(currency_id.clone().into(), who, balance_amount, !is_owned_currency),
+		);
 
 		debug::info!(">>> success deposit.");
 		debug::info!("------------------------------------------------");
@@ -137,8 +150,21 @@ impl<T> TransactAsset for Module<T> where
 		let balance_amount = amount.try_into().map_err(|_| ())?;
 		debug::info!("balance amount: {:?}", balance_amount);
 
+		let mut is_owned_currency = false;
+		if let ChainId::ParaChain(paraid) = currency_id.chain_id {
+			if T::ParaId::get() == paraid {
+				is_owned_currency = true;
+				let _ = T::OwnedCurrency::withdraw(
+					&who,
+					balance_amount,
+					WithdrawReason::Transfer.into(),
+					ExistenceRequirement::AllowDeath,
+				).map_err(|_| Error::UnhandledEffect)?;
+			}
+		}
+
         Self::deposit_event(
-            Event::<T>::WithdrawAsset(currency_id.clone().into(), who, balance_amount, true),
+            Event::<T>::WithdrawAsset(currency_id.clone().into(), who, balance_amount, !is_owned_currency),
         );
 
 		debug::info!(">>> success withdraw.");

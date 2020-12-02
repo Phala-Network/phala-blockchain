@@ -183,7 +183,7 @@ fn testnet_genesis(
 			balances: endowed_accounts
 				.iter()
 				.cloned()
-				.map(|k| (k, 1 << 60))
+				.map(|k| (k, 1 << 80))
 				.collect(),
 		}),
 		pallet_indices: Some(IndicesConfig {
