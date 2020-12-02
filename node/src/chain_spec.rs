@@ -472,7 +472,7 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 
 	ChainSpec::from_genesis(
 		"Phala PoC-3",
-		"phala_poc_3",
+		"phala_poc_3a",
 		ChainType::Local,
 		phala_testnet_config_genesis,
 		boot_nodes,

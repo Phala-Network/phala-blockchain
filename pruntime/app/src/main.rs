@@ -38,7 +38,7 @@ use std::fs;
 use std::path;
 use std::net::{TcpStream, SocketAddr};
 use std::str;
-use std::io::{Read, Write};
+use std::io::Read;
 use std::sync::{Arc, RwLock};
 use std::env;
 
@@ -82,11 +82,6 @@ extern {
         action: u8,
         input_ptr: *const u8, input_len: usize,
         output_ptr : *mut u8, output_len_ptr: *mut usize, output_buf_len: usize
-    ) -> sgx_status_t;
-
-    fn ecall_set_state(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-        input_ptr: *const u8, input_len: usize,
     ) -> sgx_status_t;
 
     fn ecall_init(
@@ -193,9 +188,9 @@ fn ocall_get_update_info(
 #[no_mangle]
 pub extern "C"
 fn ocall_dump_state(
-    output_ptr : *mut u8,
-    output_len_ptr: *mut usize,
-    output_buf_len: usize
+    _output_ptr : *mut u8,
+    _output_len_ptr: *mut usize,
+    _output_buf_len: usize
 ) -> sgx_status_t {
     // TODO:
 
@@ -209,14 +204,15 @@ fn ocall_save_persistent_data(
     input_len: usize
 ) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
-    println!("Sealed data {:}: {:?}", input_len, input_slice);
+    println!("Sealed data {:}: {:?}", input_len, hex::encode(input_slice));
 
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
     let state_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH).join(ENCLAVE_STATE_FILE);
     println!("Save seal data to {}", state_path.as_path().to_str().unwrap());
 
-    fs::write(state_path.as_path().to_str().unwrap(), input_slice);
+    fs::write(state_path.as_path().to_str().unwrap(), input_slice)
+        .expect("Failed to write persistent data");
 
     sgx_status_t::SGX_SUCCESS
 }
@@ -280,7 +276,6 @@ fn test(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -320,7 +315,6 @@ fn init_runtime(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -360,7 +354,6 @@ fn get_info(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -400,7 +393,6 @@ fn get_runtime_info(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -440,7 +432,6 @@ fn dump_states(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -480,7 +471,6 @@ fn load_states(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -520,7 +510,6 @@ fn sync_header(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -560,7 +549,6 @@ fn query(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
@@ -601,7 +589,6 @@ fn dispatch_block(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
@@ -641,7 +628,6 @@ fn set(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
@@ -682,7 +668,6 @@ fn get(contract_input: Json<ContractInput>) -> JsonValue {
     println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
     let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let input_string = serde_json::to_string(&*contract_input).unwrap();
 
@@ -697,88 +682,6 @@ fn get(contract_input: Json<ContractInput>) -> JsonValue {
         ecall_handle(
             eid, &mut retval,
             22,
-            input_string.as_ptr(), input_string.len(),
-            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
-        )
-    };
-
-    match result {
-        sgx_status_t::SGX_SUCCESS => {
-            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-            json!(output_value)
-        },
-        _ => {
-            println!("[-] ECALL Enclave Failed {}!", result.as_str());
-            json!({
-                "status": "error",
-                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
-            })
-        }
-    }
-}
-
-#[post("/ping", format = "json", data = "<contract_input>")]
-fn ping(contract_input: Json<ContractInput>) -> JsonValue {
-    println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
-
-    let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-
-    let input_string = serde_json::to_string(&*contract_input).unwrap();
-
-    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
-    let mut output_len : usize = 0;
-    let output_slice = &mut return_output_buf;
-    let output_ptr = output_slice.as_mut_ptr();
-    let output_len_ptr = &mut output_len as *mut usize;
-
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-    let result = unsafe {
-        ecall_handle(
-            eid, &mut retval,
-            8,
-            input_string.as_ptr(), input_string.len(),
-            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
-        )
-    };
-
-    match result {
-        sgx_status_t::SGX_SUCCESS => {
-            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-            json!(output_value)
-        },
-        _ => {
-            println!("[-] ECALL Enclave Failed {}!", result.as_str());
-            json!({
-                "status": "error",
-                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
-            })
-        }
-    }
-}
-
-#[post("/fetch_from_heartbeat_buffer", format = "json", data = "<contract_input>")]
-fn fetch_from_heartbeat_buffer(contract_input: Json<ContractInput>) -> JsonValue {
-    println!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
-
-    let eid = get_eid();
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-
-    let input_string = serde_json::to_string(&*contract_input).unwrap();
-
-    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
-    let mut output_len : usize = 0;
-    let output_slice = &mut return_output_buf;
-    let output_ptr = output_slice.as_mut_ptr();
-    let output_len_ptr = &mut output_len as *mut usize;
-
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-    let result = unsafe {
-        ecall_handle(
-            eid, &mut retval,
-            9,
             input_string.as_ptr(), input_string.len(),
             output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
         )
@@ -820,7 +723,7 @@ fn rocket() -> rocket::Rocket {
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
-            set, get, ping, fetch_from_heartbeat_buffer, get_runtime_info])
+            set, get, get_runtime_info])
         .attach(cors_options().to_cors().expect("To not fail"));
 
     if *ALLOW_CORS {

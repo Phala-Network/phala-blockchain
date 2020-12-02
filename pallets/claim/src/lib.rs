@@ -109,12 +109,12 @@ impl<'de> Deserialize<'de> for EthereumTxHash {
 
 /// The balance type of this module.
 pub type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as Trait>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Trait: frame_system::Trait {
+pub trait Trait: frame_system::Config {
 	/// Because this pallet emits events, it depends on the runtime's definition of an event.
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Call: From<Call<Self>>;
 	type Currency: Currency<Self::AccountId>;
 }
@@ -131,7 +131,7 @@ decl_storage! {
 decl_event!(
 	pub enum Event<T>
 	where
-		AccountId = <T as frame_system::Trait>::AccountId,
+		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
 		/// Event emitted when a transaction has been stored.

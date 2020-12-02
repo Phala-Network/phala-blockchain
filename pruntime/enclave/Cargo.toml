@@ -29,24 +29,28 @@ ring        = { git = "https://github.com/mesalock-linux/ring-sgx", tag = "v0.16
 rust-crypto = { git = "https://github.com/mesalock-linux/rust-crypto-sgx" } # { path = "../vendor/rust-crypto" }
 rustls      = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx", features = ["dangerous_configuration"] } # { path = "../vendor/rustls" }
 webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch = "mesalock_sgx" } # { path = "../vendor/webpki-roots" }
-serde       = { git = "https://github.com/mesalock-linux/serde-sgx", features = ["derive"] } #{ path = "../vendor/serde/serde", features = ["derive"] }
-serde_json  = { git = "https://github.com/mesalock-linux/serde-json-sgx" } # { path = "../vendor/serde-json" }
-serde_cbor  = { git = "https://github.com/mesalock-linux/cbor-sgx" }
 libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" } # { path = "../vendor/libsecp256k1" }
 rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
 regex       = { git = "https://github.com/mesalock-linux/regex-sgx" }
-# rand_core   = { git = "https://github.com/mesalock-linux/rand-sgx", features = ["getrandom"] } # { path = "../vendor/rand/rand_os"}
+
+serde = { version = "1.0.101", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+serde_cbor = { version = "0.11.1", default-features = false, features = ["alloc"] }
 
 bit-vec     = { version = "*", default-features = false}
 httparse    = { version = "1.3.2", default-features = false }
 itertools   = { version = "0.8", default-features = false, features = []}
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 
-runtime              = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
 sp-io                = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime-interface = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime           = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 parity-scale-codec   = { package = "parity-scale-codec", version = "1.3.1", default-features = false, features = ["derive"] }
+
+# Phala specific
+runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
+pallet-phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
+phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde"] }
 
 csv-core = { path = "../csv-core", default-features = false }
 
@@ -59,7 +63,6 @@ finality-grandpa = { version = "0.10.1", default-features = false, features = ["
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
 # sp-blockchain = { package = "sp-blockchain", path = "../../substrate/primitives/blockchain" }
 sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"]}

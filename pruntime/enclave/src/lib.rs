@@ -21,8 +21,6 @@ use sgx_tse::*;
 use sgx_tcrypto::*;
 use sgx_rand::*;
 
-use rand::*;
-
 use sgx_types::{sgx_status_t, sgx_sealed_data_t};
 use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
@@ -46,20 +44,23 @@ use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use sp_core::H256 as Hash;
 use sp_core::hashing::blake2_256;
 use sp_core::crypto::Pair;
-use system::EventRecord;
+use frame_system::EventRecord;
+
+extern crate pallet_phala as phala;
 
 mod cert;
 mod contracts;
 mod cryptography;
 mod hex;
 mod light_validation;
-mod receipt;
+mod msg_channel;
+mod system;
 mod types;
 
 use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS};
 use cryptography::{ecdh, aead};
 use light_validation::AuthoritySetChange;
-use receipt::{TransactionStatus, TransactionReceipt, ReceiptStore, Request, Response, CommandIndex};
+use system::{TransactionStatus, TransactionReceipt, CommandIndex};
 use types::{TxRef, Error};
 
 extern "C" {
@@ -225,6 +226,10 @@ lazy_static! {
         )
     };
 
+    static ref SYSTEM_STATE: SgxMutex<system::System> = {
+        SgxMutex::new(system::System::new())
+    };
+
     static ref IAS_SPID: sgx_spid_t = {
         hex::decode_spid(IAS_SPID_STR)
     };
@@ -234,6 +239,7 @@ lazy_static! {
         stringify_key.trim_end().to_owned()
     };
 
+    // TODO: delete
     static ref HEARTBEAT_DATA_BUFFER: SgxMutex<Option<HeartbeatData>> = {
         SgxMutex::new(None)
     };
@@ -650,14 +656,6 @@ fn generate_seal_key() -> [u8; 16] {
         reserved2: [0_u8; SGX_KEY_REQUEST_RESERVED2_BYTES],
     };
     let seal_key = rsgx_get_align_key(&key_request).unwrap();
-
-    // println!("SGX_KEYSELECT_SEAL             : {}", SGX_KEYSELECT_SEAL);
-    // println!("SGX_KEYPOLICY_MRSIGNER         : {}", SGX_KEYPOLICY_MRSIGNER);
-    // println!("report.body.isv_svn            : {}", report.body.isv_svn);
-    // println!("report.body.config_svn         : {:?}", report.body.config_svn);
-    // println!("TSEAL_DEFAULT_MISCMASK         : {}", TSEAL_DEFAULT_MISCMASK);
-    println!("seal_key.key                   : {:?}", seal_key.key);
-
     seal_key.key
 }
 
@@ -669,8 +667,7 @@ const ACTION_LOAD_STATES: u8 = 4;
 const ACTION_SYNC_HEADER: u8 = 5;
 const ACTION_QUERY: u8 = 6;
 const ACTION_DISPATCH_BLOCK: u8 = 7;
-const ACTION_PING: u8 = 8;
-const ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER: u8 = 9;
+// Reserved: 8, 9
 const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
@@ -775,8 +772,6 @@ pub extern "C" fn ecall_handle(
                 ACTION_LOAD_STATES => load_states(payload),
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
-                ACTION_PING => ping(payload),
-                ACTION_FETCH_FROM_HEARTBEAT_DATA_BUFFER => fetch_from_heartbeat_buffer(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 _ => unknown()
             }
@@ -860,7 +855,7 @@ fn save_secret_keys(ecdsa_sk: SecretKey, ecdh_sk: EcdhKey, dev_mode: bool)
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     println!("Length of encoded slice: {}", encoded_slice.len());
-    println!("Encoded slice: {:?}", encoded_slice);
+    println!("Encoded slice: {:?}", hex::encode_hex_compact(encoded_slice));
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
@@ -920,7 +915,7 @@ fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
     let unsealed_data = sealed_data.unseal_data().map_err(|e| Error::SgxError(e))?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     println!("Length of encoded slice: {}", encoded_slice.len());
-    println!("Encoded slice: {:?}", encoded_slice);
+    println!("Encoded slice: {:?}", hex::encode_hex_compact(encoded_slice));
 
     serde_cbor::from_slice(encoded_slice).map_err(|_| Error::DecodeError)
 }
@@ -960,7 +955,7 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
     // Generate Seal Key as Machine Id
     // This SHOULD be stable on the same CPU
     let machine_id = generate_seal_key();
-    println!("Machine id: {:?}", &machine_id);
+    println!("Machine id: {:?}", hex::encode_hex_compact(&machine_id));
 
     // Save
     *local_state.public_key = ecdsa_pk.clone();
@@ -1048,7 +1043,7 @@ fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
     println!("{}", serde_json::to_string_pretty(&deserialized).unwrap());
 
     let mut sessions = STATE.lock().unwrap();
-    std::mem::replace(&mut *sessions, deserialized);
+    let _ = std::mem::replace(&mut *sessions, deserialized);
 
     Ok(json!({}))
 }
@@ -1116,7 +1111,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
 
     println!("Encoded runtime info");
-    println!("{:?}", encoded_runtime_info);
+    println!("{:?}", hex::encode_hex_compact(&encoded_runtime_info));
 
     // Produce remote attestation report
     let mut attestation: Option<InitRespAttestation> = None;
@@ -1146,7 +1141,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let genesis = light_validation::BridgeInitInfo::<chain::Runtime>
         ::decode(&mut raw_genesis.as_slice())
         .expect("Can't decode bridge_genesis_info_b64");
-
+    // Set up the bridge in local state
     let mut state = STATE.lock().unwrap();
     let bridge_id = state.light_client.initialize_bridge(
         genesis.block_header,
@@ -1157,45 +1152,24 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let ecdsa_seed = local_state.private_key.serialize();
     let id_pair = sp_core::ecdsa::Pair::from_seed_slice(&ecdsa_seed)
         .expect("Unexpected ecdsa key error in init_runtime");
+    // Re-init some contracts because they require the identity key
+    let mut system_state = SYSTEM_STATE.lock().unwrap();
+    system_state.set_id(&id_pair);
+    system_state.set_machine_id(local_state.machine_id.to_vec());
     state.contract2 = contracts::balances::Balances::new(Some(id_pair));
+    // Initialize other states
     local_state.headernum = 1;
     local_state.blocknum = 1;
-
+    // Response
     let resp = InitRuntimeResp {
         encoded_runtime_info,
         public_key: ecdsa_hex_pk,
         ecdh_public_key: ecdh_hex_pk,
         attestation
     };
-
     local_state.runtime_info = Some(resp.clone());
-
     Ok(serde_json::to_value(resp).unwrap())
 }
-
-/*
-bf192ec197592fda420383b1db2676e5b409a58cad489cc5c35dd94390c65a584c10987af003bd853a29992021a2f1a617b798ad3a151a3e2cbd6e4029370b7c68ec05dc5c1a11c17373b8d18d498fc1da0e94c35bdb3adc8116efda35b6025f3a080661757261206962a60f00000000056175726101013e3e4b72e1a133d129799aeaf43884493b6c30530f04be95f61089d73f21de2709108c407b8cb891ac8dbd1a498f1b6792f54e6f3b4f499d2e7010c81a902d8404280401000bf07ca2cb6e0101d90456000000000000007b968b3f7eca2df8cf39ee8c9538f02e1361f44d0b809450f8501676db28131a13000000087b968b3f7eca2df8cf39ee8c9538f02e1361f44d0b809450f8501676db28131a130000008dff9b2ca754cb5e80036647aab3fd25ccc4e4236c9fecd61968f121141149a7c402ebd3cdd43779a7e8d9afffee1989197d343ed9e936721168305a6da09d0188dc3417d5058ec4b4503e0c12ea1a0a89be200fe98922423d4334014fa6b0ee7b968b3f7eca2df8cf39ee8c9538f02e1361f44d0b809450f8501676db28131a1300000090a870eb3be217aa99476919b2864539830a622e82a9355d0f91f28a777372ecb0c3a1164f68246cfa5577682ab7505aff139681953fe0cc7457300a53807303d17c2d7823ebf260fd138f2d7e27d114c0145d968b5ff5006125f2414fadae6900
-SignedBlock {
-    block: Block {
-        header: Header {
-            parent_hash: 0xbf192ec197592fda420383b1db2676e5b409a58cad489cc5c35dd94390c65a58,
-            number: 19,
-            state_root: 0x10987af003bd853a29992021a2f1a617b798ad3a151a3e2cbd6e4029370b7c68,
-            extrinsics_root: 0xec05dc5c1a11c17373b8d18d498fc1da0e94c35bdb3adc8116efda35b6025f3a,
-            digest: Digest {
-                logs: [
-                    DigestItem::PreRuntime([97, 117, 114, 97], [105, 98, 166, 15, 0, 0, 0, 0]),
-                    DigestItem::Seal([97, 117, 114, 97], [62, 62, 75, 114, 225, 161, 51, 209, 41, 121, 154, 234, 244, 56, 132, 73, 59, 108, 48, 83, 15, 4, 190, 149, 246, 16, 137, 215, 63, 33, 222, 39, 9, 16, 140, 64, 123, 140, 184, 145, 172, 141, 189, 26, 73, 143, 27, 103, 146, 245, 78, 111, 59, 79, 73, 157, 46, 112, 16, 200, 26, 144, 45, 132])
-                ]
-            }
-        },
-        extrinsics: [
-            UncheckedExtrinsic(None, Call::Timestamp(set(1575374454000,)))
-        ]
-    },
-    justification: Some([86, 0, 0, 0, 0, 0, 0, 0, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 8, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 141, 255, 155, 44, 167, 84, 203, 94, 128, 3, 102, 71, 170, 179, 253, 37, 204, 196, 228, 35, 108, 159, 236, 214, 25, 104, 241, 33, 20, 17, 73, 167, 196, 2, 235, 211, 205, 212, 55, 121, 167, 232, 217, 175, 255, 238, 25, 137, 25, 125, 52, 62, 217, 233, 54, 114, 17, 104, 48, 90, 109, 160, 157, 1, 136, 220, 52, 23, 213, 5, 142, 196, 180, 80, 62, 12, 18, 234, 26, 10, 137, 190, 32, 15, 233, 137, 34, 66, 61, 67, 52, 1, 79, 166, 176, 238, 123, 150, 139, 63, 126, 202, 45, 248, 207, 57, 238, 140, 149, 56, 240, 46, 19, 97, 244, 77, 11, 128, 148, 80, 248, 80, 22, 118, 219, 40, 19, 26, 19, 0, 0, 0, 144, 168, 112, 235, 59, 226, 23, 170, 153, 71, 105, 25, 178, 134, 69, 57, 131, 10, 98, 46, 130, 169, 53, 93, 15, 145, 242, 138, 119, 115, 114, 236, 176, 195, 161, 22, 79, 104, 36, 108, 250, 85, 119, 104, 42, 183, 80, 90, 255, 19, 150, 129, 149, 63, 224, 204, 116, 87, 48, 10, 83, 128, 115, 3, 209, 124, 45, 120, 35, 235, 242, 96, 253, 19, 143, 45, 126, 39, 209, 20, 192, 20, 93, 150, 139, 95, 245, 0, 97, 37, 242, 65, 79, 173, 174, 105, 0])
-}
-*/
 
 fn fmt_call(call: &chain::Call) -> String {
     match call {
@@ -1385,7 +1359,7 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         },
     };
 
-    let mut gr = GLOBAL_RECEIPT.lock().unwrap();
+    let mut gr = SYSTEM_STATE.lock().unwrap();
     gr.add_receipt(command_index, TransactionReceipt {
         account: AccountIdWrapper(origin),
         block_num: pos.blocknum,
@@ -1534,28 +1508,37 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
     let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
     let key = block_with_events.clone().key.ok_or(missing_field)?;
     let state_root = &block_with_events.block_header.state_root;
-    state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("bad storage proof"))?;
+    state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("Bad storage proof"))?;
 
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
     if let Ok(evts) = events {
         for evt in &evts {
             if let chain::Event::pallet_phala(pe) = &evt.event {
-                println!("pallet_phala event: {:?}", pe);
-
+                println!("parse_events: pallet_phala event: {:?}", pe);
+                let blocknum = block_with_events.block_header.number;
+                // Dispatch to system contract anyway
+                {
+                    let mut system_state = SYSTEM_STATE.lock().unwrap();
+                    system_state.handle_event(blocknum, &pe)
+                        .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
+                }
+                // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
                 if !dev_mode {
-                    println!("skipped");
+                    println!("parse_events: skipped for miners");
                     continue;
                 }
-
-                if let phala::RawEvent::CommandPushed(who, contract_id, payload, num) = pe {
-                    println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
-                    let pos = TxRef {
-                        blocknum: block_with_events.block_header.number,
-                        index: *num,
-                    };
-                    handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
-                } else {
-                    state.contract2.handle_event(evt.event.clone());
+                match pe {
+                    phala::RawEvent::CommandPushed(who, contract_id, payload, num) => {
+                        println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
+                        let pos = TxRef {
+                            blocknum,
+                            index: *num,
+                        };
+                        handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
+                    },
+                    _ => {
+                        state.contract2.handle_event(evt.event.clone());
+                    }
                 }
             }
         }
@@ -1563,7 +1546,7 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
         return Ok(());
     }
 
-    Err(error_msg("decode events error"))
+    Err(error_msg("Decode events error"))
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1636,37 +1619,41 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     };
     // Dispatch
     let mut state = STATE.lock().unwrap();
+    let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
         DATA_PLAZA => serde_json::to_value(
             state.contract1.handle_query(
-                accid_origin.as_ref(),
+                ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?.request)
         ).unwrap(),
         BALANCES => serde_json::to_value(
             state.contract2.handle_query(
-                accid_origin.as_ref(),
+                ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (balances::Request)"))?.request)
         ).unwrap(),
         ASSETS => serde_json::to_value(
             state.contract3.handle_query(
-                accid_origin.as_ref(),
+                ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (assets::Request)"))?.request)
         ).unwrap(),
         WEB3_ANALYTICS => serde_json::to_value(
             state.contract4.handle_query(
-                accid_origin.as_ref(),
+                ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (w3a::Request)"))?.request)
         ).unwrap(),
-        SYSTEM => serde_json::to_value(
-            handle_query_receipt(
-                accid_origin.clone(),
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (system::Request)"))?.request)
-        ).unwrap(),
+        SYSTEM => {
+            let mut system_state = SYSTEM_STATE.lock().unwrap();
+            serde_json::to_value(
+                system_state.handle_query(
+                    ref_origin,
+                    types::deopaque_query(opaque_query)
+                        .map_err(|_| error_msg("Malformed request (system::Request)"))?.request)
+            ).unwrap()
+        },
         _ => return Err(Value::Null)
     };
     // Encrypt response if necessary
@@ -1688,30 +1675,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     Ok(res_value)
 }
 
-fn handle_query_receipt(accid_origin: Option<chain::AccountId>, req: Request) -> Response {
-    let inner = || -> Result<Response, receipt::Error> {
-        match req {
-            Request::QueryReceipt{command_index} => {
-                let gr = GLOBAL_RECEIPT.lock().unwrap();
-                match gr.get_receipt(command_index) {
-                    Some(receipt) => {
-                        if receipt.account == AccountIdWrapper(accid_origin.unwrap()) {
-                            Ok(Response::QueryReceipt { receipt: receipt.clone() })
-                        } else {
-                            Err(receipt::Error::NotAuthorized)
-                        }
-                    },
-                    None => Err(receipt::Error::Other(String::from("Transaction hash not found"))),
-                }
-            }
-        }
-    };
-
-    match inner() {
-        Err(error) => Response::Error(error),
-        Ok(resp) => resp
-    }
-}
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
     let state = STATE.lock().unwrap();
@@ -1744,78 +1707,4 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "path": path.to_string(),
         "data": data_b64.to_string()
     }))
-}
-
-fn ping(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-    // TODO: Guard only initialize once
-    if !local_state.initialized {
-        return Err(json!({"status": "not_initialized", "encoded_data": ""}))
-    }
-
-    let block_num = local_state.blocknum;
-
-    let data = Heartbeat {
-        block_num,
-    };
-
-    let msg_hash = blake2_256(&Encode::encode(&data));
-    let mut buffer = [0u8; 32];
-    buffer.copy_from_slice(&msg_hash);
-    let message = secp256k1::Message::parse(&buffer);
-
-    let sign_result = secp256k1::sign(&message, &local_state.private_key);
-    let mut raw_signature: [u8; 65] = [0u8; 65];
-    raw_signature[0..64].copy_from_slice(&sign_result.0.serialize()[..]);
-    raw_signature[64] = sign_result.1.serialize();
-    let signature = raw_signature.to_vec();
-    println!("signature={:?}", signature);
-
-    let heartbeat_data = HeartbeatData {
-        data,
-        signature,
-    };
-
-    let mut heartbeat_data_buffer = HEARTBEAT_DATA_BUFFER.lock().unwrap();
-    (*heartbeat_data_buffer) = Some(heartbeat_data.clone());
-
-    let data_b64 = base64::encode(&heartbeat_data.encode());
-
-    Ok(json!({
-        "status": "ok",
-        "encoded_data": data_b64.to_string()
-    }))
-}
-
-fn fetch_from_heartbeat_buffer(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-    // TODO: Guard only initialize once
-    if !local_state.initialized {
-        return Err(json!({"status": "not_initialized", "encoded_data": ""}))
-    }
-
-    let mut heartbeat_data_buffer = HEARTBEAT_DATA_BUFFER.lock().unwrap();
-    match &*heartbeat_data_buffer {
-        Some(heartbeat_data) => {
-            let data_b64 = base64::encode(&heartbeat_data.encode());
-            (*heartbeat_data_buffer) = None;
-
-            Ok(json!({
-                "status": "ok",
-                "encoded_data": data_b64.to_string()
-            }))
-        },
-        _ => {
-            Ok(json!({
-                "status": "empty_buffer",
-                "encoded_data": ""
-            }))
-        }
-    }
-}
-
-lazy_static! {
-    static ref GLOBAL_RECEIPT: SgxMutex<ReceiptStore> = {
-        SgxMutex::new(ReceiptStore::new())
-    };
 }

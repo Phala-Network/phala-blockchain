@@ -89,7 +89,7 @@ impl<T: Trait> BridgeInfo<T> {
 
 type BridgeId = u64;
 
-pub trait Trait: system::Trait<Hash=H256> {
+pub trait Trait: frame_system::Trait<Hash=H256> {
 	type Block: BlockT<Hash=H256, Header=Self::Header>;
 }
 
@@ -135,7 +135,7 @@ impl<T: Trait> LightValidation<T>
 	}
 
 	/// Submits a sequence of block headers to the light client to validate
-	/// 
+	///
 	/// The light client accepts a sequence of block headers, optionally with an authority set change
 	/// in the last block. Without the authority set change, it assumes the authority set and the set
 	/// id remains the same after submitting the blocks. One submission can have at most one authortiy
