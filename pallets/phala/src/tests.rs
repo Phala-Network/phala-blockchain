@@ -447,6 +447,20 @@ fn test_payout_and_missed() {
 	});
 }
 
+#[test]
+fn test_force_add_fire() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(PhalaModule::force_add_fire(
+			Origin::root(),
+			vec![1, 2],
+			vec![100, 200],
+		));
+		assert_eq!(PhalaModule::fire(0), 0);
+		assert_eq!(PhalaModule::fire(1), 100);
+		assert_eq!(PhalaModule::fire(2), 200);
+	});
+}
+
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
     secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
 }
