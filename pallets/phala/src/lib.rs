@@ -608,6 +608,19 @@ decl_module! {
 			Ok(())
 		}
 
+		#[weight = 0]
+		fn force_add_fire(origin, targets: Vec<T::AccountId>, amounts: Vec<BalanceOf<T>>)
+		-> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			ensure!(targets.len() == amounts.len(), Error::<T>::InvalidInput);
+			for i in 0..targets.len() {
+				let target = &targets[i];
+				let amount = amounts[i];
+				Self::add_fire(target, amount);
+			}
+			Ok(())
+		}
+
 		// Whitelist
 
 		#[weight = 0]
@@ -943,9 +956,13 @@ impl<T: Trait> Module<T> {
 		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
 		Self::deposit_event(RawEvent::Payout(
 			target.clone(), coin_reward.peek(), coin_treasury.peek()));
-		Fire::<T>::mutate(target, |x| *x += coin_reward.peek());
-		AccumulatedFire::<T>::mutate(|x| *x += coin_reward.peek());
+		Self::add_fire(&target, coin_reward.peek());
 		T::Treasury::on_unbalanced(coin_treasury);
+	}
+
+	fn add_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
+		Fire::<T>::mutate(dest, |x| *x += amount);
+		AccumulatedFire::<T>::mutate(|x| *x += amount);
 	}
 }
 
