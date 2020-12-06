@@ -110,7 +110,7 @@ pub struct SystemProperties {
 
 /// Client for substrate rpc interfaces
 pub struct Rpc<T: Runtime> {
-    client: Client,
+    pub client: Client,
     marker: PhantomData<T>,
 }
 

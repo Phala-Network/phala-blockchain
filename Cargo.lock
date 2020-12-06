@@ -326,14 +326,14 @@ checksum = "e91831deabf0d6d7ec49552e489aed63b7456a7a3c46cff62adad428110b0af0"
 
 [[package]]
 name = "async-tls"
-version = "0.6.0"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ce6977f57fa68da77ffe5542950d47e9c23d65f5bc7cb0a9f8700996913eec7"
+checksum = "95fd83426b89b034bf4e9ceb9c533c2f2386b813fd3dcae0a425ec6f1837d78a"
 dependencies = [
  "futures 0.3.8",
- "rustls 0.16.0",
+ "rustls 0.17.0",
  "webpki 0.21.3",
- "webpki-roots 0.17.0",
+ "webpki-roots 0.19.0",
 ]
 
 [[package]]
@@ -417,15 +417,6 @@ name = "base58"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5024ee8015f02155eee35c711107ddd9a9bf3cb689cf2a9089c97e79b6e1ae83"
-
-[[package]]
-name = "base64"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b25d992356d2eb0ed82172f5248873db5560c4721f564b13cb5193bda5e668e"
-dependencies = [
- "byteorder",
-]
 
 [[package]]
 name = "base64"
@@ -2750,12 +2741,10 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cc8a1da5a54b417cfb7edb9f932024d833dc333de50c21c0e1b28d0e8b4f853"
+version = "0.0.1"
 dependencies = [
  "async-std",
- "async-tls 0.6.0",
+ "async-tls 0.7.0",
  "bs58 0.3.1",
  "bytes 0.5.6",
  "fnv",
@@ -2773,7 +2762,7 @@ dependencies = [
  "serde",
  "serde_json",
  "smallvec 1.4.2",
- "soketto 0.3.2",
+ "soketto",
  "thiserror",
  "tokio 0.2.23",
  "unicase",
@@ -2783,9 +2772,7 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-proc-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1ed1b5f6937dd2c6c79a9ac6e0e3f41bbc64edb5d443840bdc73e606009ed70"
+version = "1.0.0"
 dependencies = [
  "Inflector",
  "proc-macro2",
@@ -3306,7 +3293,7 @@ dependencies = [
  "quicksink",
  "rustls 0.18.1",
  "rw-stream-sink",
- "soketto 0.4.2",
+ "soketto",
  "url 2.2.0",
  "webpki 0.21.3",
  "webpki-roots 0.20.0",
@@ -5981,11 +5968,11 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b25a18b1bf7387f0145e7f8324e700805aade3842dd3db2e74e4cdeb4677c09e"
+checksum = "c0d4a31f5d68413404705d6982529b0e11a9aacd4839d1d6222ee3b8cb4015e1"
 dependencies = [
- "base64 0.10.1",
+ "base64 0.11.0",
  "log",
  "ring 0.16.15",
  "sct",
@@ -7205,12 +7192,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha1"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2579985fda508104f7587689507983eadd6a6e84dd35d6d115361f530916fa0d"
-
-[[package]]
 name = "sha2"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7371,25 +7352,6 @@ dependencies = [
  "libc",
  "redox_syscall",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "soketto"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1c9dab3f95c9ebdf3a88268c19af668f637a3c5039c2c56ff2d40b1b2d64a25b"
-dependencies = [
- "base64 0.11.0",
- "bytes 0.5.6",
- "futures 0.3.8",
- "http 0.2.1",
- "httparse",
- "log",
- "rand 0.7.3",
- "sha1",
- "smallvec 1.4.2",
- "static_assertions",
- "thiserror",
 ]
 
 [[package]]
@@ -9549,9 +9511,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.17.0"
+version = "0.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a262ae37dd9d60f60dd473d1158f9fbebf110ba7b6a5051c8160460f6043718b"
+checksum = "f8eff4b7516a57307f9349c64bf34caa34b940b66fed4b2fb3136cb7386e5739"
 dependencies = [
  "webpki 0.21.3",
 ]
