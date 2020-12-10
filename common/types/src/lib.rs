@@ -70,7 +70,7 @@ impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
 
 // Types used in storage
 
-#[derive(Encode, Decode, PartialEq, Eq)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug)]
 pub enum WorkerStateEnum<BlockNumber> {
 	Empty,
 	Free,
@@ -147,4 +147,10 @@ pub struct RoundStats {
 	/// The targeted online reward in fraction (base: 100_000)
 	pub frac_target_online_reward: u32,
 	pub total_power: u32,
+}
+
+#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+pub struct MinerStatsDelta {
+	pub num_worker: i32,
+	pub num_power: i32,
 }
