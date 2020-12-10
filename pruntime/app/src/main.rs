@@ -723,14 +723,14 @@ fn rocket() -> rocket::Rocket {
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
-            set, get, get_runtime_info])
-        .attach(cors_options().to_cors().expect("To not fail"));
+            set, get, get_runtime_info]);
 
     if *ALLOW_CORS {
         println!("Allow CORS");
 
         server
             .mount("/", rocket_cors::catch_all_options_routes()) // mount the catch all routes
+            .attach(cors_options().to_cors().expect("To not fail"))
             .manage(cors_options().to_cors().expect("To not fail"))
     } else {
         server
