@@ -808,7 +808,7 @@ impl<T: Trait> Module<T> {
 		for account in dirty_accounts.iter() {
 			let mut updated = false;
 			if !WorkerState::<T>::contains_key(&account) {
-				// The worker just disappeared by force quite. In this case, the stats delta is
+				// The worker just disappeared by force quit. In this case, the stats delta is
 				// caught by PendingExitingDelta
 				continue;
 			}
