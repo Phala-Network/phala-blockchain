@@ -275,6 +275,8 @@ decl_error! {
 		InvalidContract,
 		/// Internal Error
 		InternalError,
+		/// CrossChain Error
+		CrossChainTransferError,
 	}
 }
 
@@ -614,10 +616,10 @@ decl_module! {
 				transfer_data.data.amount
 			);
 
-			T::XcmHandler::execute(origin, xcm)?;
-
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			let xcm_result = T::XcmHandler::execute(origin, xcm);
+			ensure!(xcm_result.is_ok(), Error::<T>::CrossChainTransferError);
 			Self::deposit_event(RawEvent::TransferXTokenToChain(transfer_data.data.dest, transfer_data.data.x_currency_id.into(), transfer_data.data.amount, sequence + 1));
 
 			Ok(())
