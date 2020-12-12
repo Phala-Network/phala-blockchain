@@ -228,6 +228,7 @@ decl_event!(
 		WorkerRegistered(AccountId, Vec<u8>),
 		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
+		XcmExecutorFailed(AccountId, Vec<u8>, XBalance, u64),
 	}
 );
 
@@ -614,10 +615,11 @@ decl_module! {
 				transfer_data.data.amount
 			);
 
-			T::XcmHandler::execute(origin, xcm)?;
-
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			if let Err(_) = T::XcmHandler::execute(origin, xcm) {
+				Self::deposit_event(RawEvent::XcmExecutorFailed(transfer_data.data.dest.clone(), transfer_data.data.x_currency_id.clone().into(), transfer_data.data.amount, sequence + 1));
+			}
 			Self::deposit_event(RawEvent::TransferXTokenToChain(transfer_data.data.dest, transfer_data.data.x_currency_id.into(), transfer_data.data.amount, sequence + 1));
 
 			Ok(())
