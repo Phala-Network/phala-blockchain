@@ -26,13 +26,10 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_tseal::{SgxSealedData};
 
 use core::convert::TryInto;
-use crate::std::io::{Write, Read};
-use crate::std::net::TcpStream;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
 use crate::std::string::String;
-use crate::std::sync::Arc;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
 use itertools::Itertools;
@@ -63,16 +60,14 @@ use light_validation::AuthoritySetChange;
 use system::{TransactionStatus, TransactionReceipt, CommandIndex};
 use types::{TxRef, Error};
 
+use std::time::{Duration, Instant};
+use http_req::request::{Request, Method};
+
 extern "C" {
     pub fn ocall_sgx_init_quote(
         ret_val: *mut sgx_status_t,
         ret_ti: *mut sgx_target_info_t,
         ret_gid: *mut sgx_epid_group_id_t
-    ) -> sgx_status_t;
-
-    pub fn ocall_get_ias_socket(
-        ret_val: *mut sgx_status_t,
-        ret_fd: *mut i32
     ) -> sgx_status_t;
 
     pub fn ocall_get_quote(
@@ -245,48 +240,118 @@ lazy_static! {
     };
 }
 
-fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
-    println!("parse_response_attn_report");
-    let mut headers = [httparse::EMPTY_HEADER; 16];
-    let mut respp   = httparse::Response::new(&mut headers);
-    let result = respp.parse(resp);
-    println!("parse result {:?}", result);
+pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
+    // println!("get_sigrl_from_intel fd = {:?}", fd);
+    //let sigrl_arg = SigRLArg { group_id : gid };
+    //let sigrl_req = sigrl_arg.to_httpreq();
+    let ias_key = IAS_API_KEY.clone();
 
-    let msg : &'static str;
+    let mut res_body_buffer = Vec::new(); //container for body of a response
+    let timeout = Some(Duration::from_secs(8));
 
-    match respp.code {
-        Some(200) => msg = "OK Operation Successful",
-        Some(401) => msg = "Unauthorized Failed to authenticate or authorize request.",
-        Some(404) => msg = "Not Found GID does not refer to a valid EPID group ID.",
-        Some(500) => msg = "Internal error occurred",
-        Some(503) => msg = "Service is currently not able to process the request (due to
-            a temporary overloading or maintenance). This is a
-            temporary state – the same request can be repeated after
-            some time. ",
-        _ => {println!("DBG:{}", respp.code.unwrap()); msg = "Unknown error occured"},
+    let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid).parse().unwrap();
+    let res = Request::new(&url)
+        .header("Connection", "Close")
+        .header("Ocp-Apim-Subscription-Key", &ias_key)
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .read_timeout(timeout)
+        .send(&mut res_body_buffer)
+        .unwrap();
+
+    // parse_response_sigrl
+
+    let status_code = u16::from(res.status_code());
+    if status_code != 200 {
+        let msg =
+            match status_code {
+                401 => "Unauthorized Failed to authenticate or authorize request.",
+                404 => "Not Found GID does not refer to a valid EPID group ID.",
+                500 => "Internal error occurred",
+                503 => "Service is currently not able to process the request (due to
+                a temporary overloading or maintenance). This is a
+                temporary state – the same request can be repeated after
+                some time. ",
+                _ => "Unknown error occured",
+            };
+
+        println!("{}", msg);
+        // TODO: should return Err
+        panic!("status code not 200");
     }
 
-    println!("{}", msg);
-    let mut len_num : u32 = 0;
+    if res.content_len() != None && res.content_len() != Some(0) {
+        let res_body = res_body_buffer.clone();
+        let encoded_sigrl = str::from_utf8(&res_body).unwrap();
+        println!("Base64-encoded SigRL: {:?}", encoded_sigrl);
 
-    let mut sig = String::new();
-    let mut cert = String::new();
-    let mut attn_report = String::new();
+        return base64::decode(encoded_sigrl).unwrap()
+    }
 
-    for i in 0..respp.headers.len() {
-        let h = respp.headers[i];
-        // println!("{} : {}", h.name, str::from_utf8(h.value).unwrap());
-        match h.name{
-            "Content-Length" => {
-                let len_str = String::from_utf8(h.value.to_vec()).unwrap();
-                len_num = len_str.parse::<u32>().unwrap();
-                println!("content length = {}", len_num);
+    Vec::new()
+}
+
+// TODO: support pse
+pub fn get_report_from_intel(quote : Vec<u8>) -> (String, String, String) {
+    // println!("get_report_from_intel fd = {:?}", fd);
+    let encoded_quote = base64::encode(&quote[..]);
+    let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
+
+    let ias_key = IAS_API_KEY.clone();
+
+    let mut res_body_buffer = Vec::new(); //container for body of a response
+    let timeout = Some(Duration::from_secs(8));
+
+    let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT).parse().unwrap();
+    let res = Request::new(&url)
+        .header("Connection", "Close")
+        .header("Content-Type", "application/json")
+        .header("Content-Length", &encoded_json.len())
+        .header("Ocp-Apim-Subscription-Key", &ias_key)
+        .method(Method::POST)
+        .body(encoded_json.as_bytes())
+        .timeout(timeout)
+        .connect_timeout(timeout)
+        .read_timeout(timeout)
+        .send(&mut res_body_buffer)
+        .unwrap();
+
+    let status_code = u16::from(res.status_code());
+    if status_code != 200 {
+        let msg =
+            match status_code {
+                401 => "Unauthorized Failed to authenticate or authorize request.",
+                404 => "Not Found GID does not refer to a valid EPID group ID.",
+                500 => "Internal error occurred",
+                503 => "Service is currently not able to process the request (due to
+                a temporary overloading or maintenance). This is a
+                temporary state – the same request can be repeated after
+                some time. ",
+                _ => "Unknown error occured",
+            };
+
+        println!("{}", msg);
+        // TODO: should return Err
+        panic!("status code not 200");
+    }
+
+    let content_len =
+        match res.content_len() {
+            Some(len) => len,
+            _ => {
+                println!("content_length not found");
+                0
             }
-            "X-IASReport-Signature" => sig = str::from_utf8(h.value).unwrap().to_string(),
-            "X-IASReport-Signing-Certificate" => cert = str::from_utf8(h.value).unwrap().to_string(),
-            _ => (),
-        }
+        };
+
+    if content_len == 0 {
+        // TODO: should return Err
+        panic!("don't know how to handle content_length is 0");
     }
+
+    let attn_report = String::from_utf8(res_body_buffer).unwrap();
+    let sig = res.headers().get("X-IASReport-Signature").unwrap().to_string();
+    let mut cert = res.headers().get("X-IASReport-Signing-Certificate").unwrap().to_string();
 
     // Remove %0A from cert, and only obtain the signing cert
     cert = cert.replace("%0A", "");
@@ -294,145 +359,8 @@ fn parse_response_attn_report(resp : &[u8]) -> (String, String, String){
     let v: Vec<&str> = cert.split("-----").collect();
     let sig_cert = v[2].to_string();
 
-    if len_num != 0 {
-        let header_len = result.unwrap().unwrap();
-        let resp_body = &resp[header_len..];
-        attn_report = str::from_utf8(resp_body).unwrap().to_string();
-        println!("Attestation report: {}", attn_report);
-    }
-
     // len_num == 0
     (attn_report, sig, sig_cert)
-}
-
-fn parse_response_sigrl(resp : &[u8]) -> Vec<u8> {
-    println!("parse_response_sigrl");
-    let mut headers = [httparse::EMPTY_HEADER; 16];
-    let mut respp   = httparse::Response::new(&mut headers);
-    let result = respp.parse(resp);
-    println!("parse result {:?}", result);
-    println!("parse response{:?}", respp);
-
-    let msg : &'static str;
-
-    match respp.code {
-        Some(200) => msg = "OK Operation Successful",
-        Some(401) => msg = "Unauthorized Failed to authenticate or authorize request.",
-        Some(404) => msg = "Not Found GID does not refer to a valid EPID group ID.",
-        Some(500) => msg = "Internal error occurred",
-        Some(503) => msg = "Service is currently not able to process the request (due to
-            a temporary overloading or maintenance). This is a
-            temporary state – the same request can be repeated after
-            some time. ",
-        _ => msg = "Unknown error occured",
-    }
-
-    println!("{}", msg);
-    let mut len_num : u32 = 0;
-
-    for i in 0..respp.headers.len() {
-        let h = respp.headers[i];
-        if h.name == "Content-Length" {
-            let len_str = String::from_utf8(h.value.to_vec()).unwrap();
-            len_num = len_str.parse::<u32>().unwrap();
-            println!("content length = {}", len_num);
-        }
-    }
-
-    if len_num != 0 {
-        let header_len = result.unwrap().unwrap();
-        let resp_body = &resp[header_len..];
-        println!("Base64-encoded SigRL: {:?}", resp_body);
-
-        return base64::decode(str::from_utf8(resp_body).unwrap()).unwrap();
-    }
-
-    // len_num == 0
-    Vec::new()
-}
-
-pub fn make_ias_client_config() -> rustls::ClientConfig {
-    let mut config = rustls::ClientConfig::new();
-
-    config.root_store.add_server_trust_anchors(&webpki_roots::TLS_SERVER_ROOTS);
-
-    config
-}
-
-pub fn get_sigrl_from_intel(fd : c_int, gid : u32) -> Vec<u8> {
-    println!("get_sigrl_from_intel fd = {:?}", fd);
-    let config = make_ias_client_config();
-    //let sigrl_arg = SigRLArg { group_id : gid };
-    //let sigrl_req = sigrl_arg.to_httpreq();
-    let ias_key = IAS_API_KEY.clone();
-
-    let req = format!("GET {}{:08x} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key: {}\r\nConnection: Close\r\n\r\n",
-                      IAS_SIGRL_ENDPOINT,
-                      gid,
-                      IAS_HOST,
-                      ias_key);
-    println!("{}", req);
-
-    let dns_name = webpki::DNSNameRef::try_from_ascii_str(IAS_HOST).unwrap();
-    let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
-    let mut sock = TcpStream::new(fd).unwrap();
-    let mut tls = rustls::Stream::new(&mut sess, &mut sock);
-
-    let _result = tls.write(req.as_bytes());
-    let mut plaintext = Vec::new();
-
-    println!("write complete");
-
-    match tls.read_to_end(&mut plaintext) {
-        Ok(_) => (),
-        Err(e) => {
-            println!("get_sigrl_from_intel tls.read_to_end: {:?}", e);
-            panic!("haha");
-        }
-    }
-    println!("read_to_end complete");
-    let resp_string = String::from_utf8(plaintext.clone()).unwrap();
-
-    println!("{}", resp_string);
-
-    parse_response_sigrl(&plaintext)
-}
-
-// TODO: support pse
-pub fn get_report_from_intel(fd : c_int, quote : Vec<u8>) -> (String, String, String) {
-    println!("get_report_from_intel fd = {:?}", fd);
-    let config = make_ias_client_config();
-    let encoded_quote = base64::encode(&quote[..]);
-    let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
-
-    let ias_key = IAS_API_KEY.clone();
-
-    let req = format!("POST {} HTTP/1.1\r\nHOST: {}\r\nOcp-Apim-Subscription-Key:{}\r\nContent-Length:{}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n{}",
-                      IAS_REPORT_ENDPOINT,
-                      IAS_HOST,
-                      ias_key,
-                      encoded_json.len(),
-                      encoded_json);
-    println!("{}", req);
-    let dns_name = webpki::DNSNameRef::try_from_ascii_str(IAS_HOST).unwrap();
-    let mut sess = rustls::ClientSession::new(&Arc::new(config), dns_name);
-    let mut sock = TcpStream::new(fd).unwrap();
-    let mut tls = rustls::Stream::new(&mut sess, &mut sock);
-
-    let _result = tls.write(req.as_bytes());
-    let mut plaintext = Vec::new();
-
-    println!("write complete");
-
-    tls.read_to_end(&mut plaintext).unwrap();
-    println!("read_to_end complete");
-    let resp_string = String::from_utf8(plaintext.clone()).unwrap();
-
-    println!("resp_string = {}", resp_string);
-
-    let (attn_report, sig, cert) = parse_response_attn_report(&plaintext);
-
-    (attn_report, sig, cert)
 }
 
 fn as_u32_le(array: &[u8; 4]) -> u32 {
@@ -478,26 +406,10 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
 
     let eg_num = as_u32_le(&eg);
 
-    // (1.5) get sigrl
-    let mut ias_sock : i32 = 0;
-
-    let res = unsafe {
-        ocall_get_ias_socket(&mut rt as *mut sgx_status_t,
-                             &mut ias_sock as *mut i32)
-    };
-
-    if res != sgx_status_t::SGX_SUCCESS {
-        return Err(res);
-    }
-
-    if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(rt);
-    }
-
     //println!("Got ias_sock = {}", ias_sock);
 
     // Now sigrl_vec is the revocation list, a vec<u8>
-    let sigrl_vec : Vec<u8> = get_sigrl_from_intel(ias_sock, eg_num);
+    let sigrl_vec : Vec<u8> = get_sigrl_from_intel(eg_num);
 
     // (2) Generate the report
     // Fill data into report_data
@@ -625,20 +537,7 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
     }
 
     let quote_vec : Vec<u8> = return_quote_buf[..quote_len as usize].to_vec();
-    let res = unsafe {
-        ocall_get_ias_socket(&mut rt as *mut sgx_status_t,
-                             &mut ias_sock as *mut i32)
-    };
-
-    if res != sgx_status_t::SGX_SUCCESS {
-        return Err(res);
-    }
-
-    if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(rt);
-    }
-
-    let (attn_report, sig, cert) = get_report_from_intel(ias_sock, quote_vec);
+    let (attn_report, sig, cert) = get_report_from_intel(quote_vec);
     Ok((attn_report, sig, cert))
 }
 
