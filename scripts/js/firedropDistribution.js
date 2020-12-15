@@ -95,7 +95,7 @@ async function main () {
 
     console.log('payouts', argAddrs.map((addr, i) => ({addr: addr.toHuman(), amount: data[i][1]})));
 
-    await new Promise(resolve => {
+    await new Promise(async resolve => {
         const unsub = await api.tx.sudo.sudo(api.tx.phalaModule.forceAddFire(argAddrs, argAmounts))
             .signAndSend(root, (result) => {
                 console.log(`Current status is ${result.status}`);
