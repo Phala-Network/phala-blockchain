@@ -387,7 +387,7 @@ fn maybe_set_toolchain(target: &Target) {
         std::env::set_var("CC_wasm32-unknown-unknown", &clang);
         std::env::set_var("AR_wasm32-unknown-unknown", &ar);
     } else if target.arch == "wasm32" {
-        panic!("One of the compatible llvm toolchain must exist: llvm-{11,10,9}");
+        panic!("{}", "One of the compatible llvm toolchain must exist: llvm-{11,10,9}");
     }
 }
 
