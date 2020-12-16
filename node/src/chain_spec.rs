@@ -462,7 +462,7 @@ fn phala_testnet_config_genesis() -> GenesisConfig {
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn phala_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	let protocol_id: &str = "phat3";
+	let protocol_id: &str = "phat4";
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
@@ -472,8 +472,8 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 	};
 
 	ChainSpec::from_genesis(
-		"Phala PoC-3",
-		"phala_poc_3a",
+		"Phala PoC-4",
+		"phala_poc_4",
 		ChainType::Local,
 		phala_testnet_config_genesis,
 		boot_nodes,
@@ -485,7 +485,7 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 	)
 }
 
-/// Phala PoC-3 testnet generator
+/// Phala PoC-4 testnet generator
 pub fn phala_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
 }
