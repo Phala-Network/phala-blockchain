@@ -25,7 +25,7 @@ use types::{
 	WorkerMessagePayload, SignedWorkerMessage,
 	TransferData, SignedDataType,
 	WorkerStateEnum, WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, BlockRewardInfo,
-	RoundInfo, RoundStats
+	RoundInfo, RoundStats, MinerStatsDelta
 };
 
 #[cfg(test)]
@@ -111,6 +111,8 @@ decl_storage! {
 		ForceNextRound: bool;
 		/// Stash accounts with pending updates
 		PendingUpdate get(fn pending_updates): Vec<T::AccountId>;
+		/// The delta of the worker stats applaying at the end of this round due to exiting miners.
+		PendingExitingDelta get(fn pending_exiting): MinerStatsDelta;
 		/// Historical round stats; only the current and the last round are kept.
 		RoundStatsHistory get(fn round_stats_history):
 			map hasher(twox_64_concat) u32 => RoundStats;
@@ -185,7 +187,7 @@ decl_event!(
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),  // stash, identity_key, machine_id
-		WorkerUnregistered(AccountId, Vec<u8>),
+		WorkerUnregistered(AccountId, Vec<u8>),  // stash, machine_id
 		Heartbeat(AccountId, u32),
 		Offline(AccountId),
 		Slash(AccountId, Balance, u32),
@@ -200,6 +202,7 @@ decl_event!(
 		NewMiningRound(u32),  // round
 		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
 		PayoutMissed(AccountId, AccountId),  // stash, dest
+		WorkerRenewed(AccountId, Vec<u8>),  // stash, machine_id
 	}
 );
 
@@ -395,69 +398,16 @@ decl_module! {
 			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let machine_id = runtime_info.machine_id.to_vec();
-			// Add into the registry
-			let perv_machine_owner = Self::take_machine_if_present(&machine_id);
-			// Maybe updated WorkerInfo fields
-			let last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
 			let pubkey = runtime_info.pubkey.to_vec();
-			let score = Some(Score {
-				overall_score: calc_overall_score(&runtime_info.features).map_err(|()| Error::<T>::InvalidInput)?,
-				features: runtime_info.features
-			});
-			// Update the associated WorkerInfo for this stash
-			let worker_info = match perv_machine_owner {
-				// A new machine
-				None => WorkerInfo {
-					machine_id: machine_id.clone(),
-					pubkey: pubkey.clone(),
-					last_updated,
-					state: WorkerStateEnum::Free,
-					score,
-				},
-				// Just refreshed
-				Some((prev_stash, info)) if prev_stash == stash => WorkerInfo {
-					pubkey: pubkey.clone(),
-					last_updated,
-					score,
-					..info  // state unchanged
-				},
-				// Owner changed
-				Some((_prev_stash, info)) => {
-					WorkerInfo {
-						pubkey: pubkey.clone(),
-						last_updated,
-						state: WorkerStateEnum::Free,
-						score,
-						..info
-					}
-				},
-			};
-			WorkerState::<T>::insert(&stash, worker_info);
-			MachineOwner::<T>::insert(&machine_id, &stash);
-			WorkerIngress::<T>::insert(&stash, 0);
-			Self::deposit_event(RawEvent::WorkerRegistered(stash, pubkey, machine_id));
-			Ok(())
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features)
+				.map_err(Into::into)
 		}
 
 		#[weight = 0]
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			Self::take_machine_if_present(&machine_id);
-			let worker_info = WorkerInfo {
-				machine_id: machine_id.clone(),
-				pubkey: pubkey.clone(),
-				last_updated: T::UnixTime::now().as_millis().saturated_into::<u64>(),
-				state: WorkerStateEnum::Free,
-				score: Some(Score {
-					overall_score: 100,
-					features: vec![1, 4]  // 1: one core, 4: the max feature level, score = 100
-				}),
-			};
-			WorkerState::<T>::insert(&stash, worker_info);
-			MachineOwner::<T>::insert(&machine_id, &stash);
-			WorkerIngress::<T>::insert(&stash, 0);
-			Self::deposit_event(RawEvent::WorkerRegistered(stash, pubkey, machine_id));
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4])?;
 			Ok(())
 		}
 
@@ -608,6 +558,19 @@ decl_module! {
 			Ok(())
 		}
 
+		#[weight = 0]
+		fn force_add_fire(origin, targets: Vec<T::AccountId>, amounts: Vec<BalanceOf<T>>)
+		-> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			ensure!(targets.len() == amounts.len(), Error::<T>::InvalidInput);
+			for i in 0..targets.len() {
+				let target = &targets[i];
+				let amount = amounts[i];
+				Self::add_fire(target, amount);
+			}
+			Ok(())
+		}
+
 		// Whitelist
 
 		#[weight = 0]
@@ -658,8 +621,11 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	/// Try to remove a registered worker from the registry by its `machine_id` identity if
-	/// presents, keeping the stash untouched
+	/// Try to remove a registered worker from the registry by its `machine_id`
+	///
+	/// Take the storage items (WorkerState and MachineOwner) if they present. Otherwise returns
+	/// None. It doesn't change the stash info. It doesn't emmit any events, since it's up to the
+	/// caller to decide if the WorkerState is updated or not.
 	fn take_machine_if_present(machine_id: &Vec<u8>)
 	-> Option<(T::AccountId, WorkerInfo<T::BlockNumber>)> {
 		if !MachineOwner::<T>::contains_key(machine_id) {
@@ -667,8 +633,79 @@ impl<T: Trait> Module<T> {
 		}
 		let stash = MachineOwner::<T>::take(machine_id);
 		let worker_info = WorkerState::<T>::take(&stash);
-		Self::deposit_event(RawEvent::WorkerUnregistered(stash.clone(), machine_id.clone()));
 		Some((stash, worker_info))
+	}
+
+	fn register_worker_internal(
+		stash: &T::AccountId, machine_id: &Vec<u8>, pubkey: &Vec<u8>, worker_features: &Vec<u32>
+	) -> Result<(), Error<T>> {
+		// Add into the registry
+		let perv_machine_owner = Self::take_machine_if_present(&machine_id);
+		// Maybe updated WorkerInfo fields
+		let last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
+		let score = Some(Score {
+			overall_score: calc_overall_score(worker_features)
+				.map_err(|()| Error::<T>::InvalidInput)?,
+			features: worker_features.clone()
+		});
+		// Update the associated WorkerInfo for this stash
+		let worker_info = match perv_machine_owner {
+			// A new machine
+			None => {
+				Self::deposit_event(RawEvent::WorkerRegistered(
+					stash.clone(), pubkey.clone(), machine_id.clone()));
+				WorkerInfo {
+					machine_id: machine_id.clone(),
+					pubkey: pubkey.clone(),
+					last_updated,
+					state: WorkerStateEnum::Free,
+					score,
+				}
+			},
+			// Just renewed
+			Some((prev_stash, info)) if &prev_stash == stash => {
+				Self::deposit_event(
+					RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+				WorkerInfo {
+					pubkey: pubkey.clone(),
+					last_updated,
+					score,
+					..info  // state unchanged
+				}
+			},
+			// Owner changed
+			Some((prev_stash, info)) => {
+				Self::deposit_event(
+					RawEvent::WorkerUnregistered(prev_stash.clone(), machine_id.clone()));
+				Self::deposit_event(RawEvent::WorkerRegistered(
+					stash.clone(), pubkey.clone(), machine_id.clone()));
+				match info.state {
+					WorkerStateEnum::Mining(_) | WorkerStateEnum::MiningStopping => {
+						// Necessary because the miner is force stopping mining and the new account
+						// is still free.
+						// TODO: this should triger a slash
+						PendingExitingDelta::mutate(|d| {
+							d.num_worker -= 1;
+							if let Some(score) = &info.score {
+								d.num_power -= score.overall_score as i32;
+							}
+						});
+					}
+					_ => ()
+				};
+				WorkerInfo {
+					pubkey: pubkey.clone(),
+					last_updated,
+					state: WorkerStateEnum::Free,
+					score,
+					..info
+				}
+			},
+		};
+		WorkerState::<T>::insert(&stash, worker_info);
+		MachineOwner::<T>::insert(&machine_id, &stash);
+		WorkerIngress::<T>::insert(&stash, 0);
+		Ok(())
 	}
 
 	fn clear_dirty() {
@@ -770,6 +807,11 @@ impl<T: Trait> Module<T> {
 		let dirty_accounts = PendingUpdate::<T>::get();
 		for account in dirty_accounts.iter() {
 			let mut updated = false;
+			if !WorkerState::<T>::contains_key(&account) {
+				// The worker just disappeared by force quit. In this case, the stats delta is
+				// caught by PendingExitingDelta
+				continue;
+			}
 			let mut worker_info = WorkerState::<T>::get(&account);
 			match worker_info.state {
 				WorkerStateEnum::MiningPending => {
@@ -800,6 +842,11 @@ impl<T: Trait> Module<T> {
 				Self::deposit_event(RawEvent::WorkerStateUpdated(account.clone()));
 			}
 		}
+		// Handle PendingExitingDelta
+		let exit_delta = PendingExitingDelta::take();
+		delta += exit_delta.num_worker;
+		power_delta += exit_delta.num_power;
+		// New stats
 		let new_online = (OnlineWorkers::get() as i32 + delta) as u32;
 		OnlineWorkers::put(new_online);
 		let new_total_power = ((TotalPower::get() as i32) + power_delta) as u32;
@@ -943,9 +990,13 @@ impl<T: Trait> Module<T> {
 		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
 		Self::deposit_event(RawEvent::Payout(
 			target.clone(), coin_reward.peek(), coin_treasury.peek()));
-		Fire::<T>::mutate(target, |x| *x += coin_reward.peek());
-		AccumulatedFire::<T>::mutate(|x| *x += coin_reward.peek());
+		Self::add_fire(&target, coin_reward.peek());
 		T::Treasury::on_unbalanced(coin_treasury);
+	}
+
+	fn add_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
+		Fire::<T>::mutate(dest, |x| *x += amount);
+		AccumulatedFire::<T>::mutate(|x| *x += amount);
 	}
 }
 

@@ -6,7 +6,7 @@ use secp256k1;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
-use crate::{RawEvent, types::{Transfer, TransferData, RoundStats}};
+use crate::{RawEvent, types::{Transfer, TransferData, RoundStats, WorkerStateEnum}};
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -240,12 +240,35 @@ fn test_force_register_worker() {
 #[test]
 fn test_mine() {
 	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		// Invalid actions
 		assert_noop!(PhalaModule::start_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
 		assert_noop!(PhalaModule::stop_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
+		// Free <-> MiningPending
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
 		assert_ok!(PhalaModule::stop_mining_intention(Origin::signed(1)));
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Free);
+		// MiningPending -> Mining
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		assert_matches!(PhalaModule::worker_state(1).state, WorkerStateEnum::Mining(_));
+		assert_eq!(PhalaModule::online_workers(), 1);  // Miner stats increased
+		// Mining -> MiningStopping
+		System::set_block_number(2);
+		assert_ok!(PhalaModule::stop_mining_intention(Origin::signed(1)));
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningStopping);
+		assert_eq!(PhalaModule::online_workers(), 1);
+		// MiningStoping -> Free
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		System::finalize();
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Free);
+		assert_eq!(PhalaModule::online_workers(), 0);  // Miner stats reduced
 	});
 }
 
@@ -445,6 +468,128 @@ fn test_payout_and_missed() {
 		assert_eq!(events().as_slice(), [
 			TestEvent::phala(RawEvent::Payout(2, 4504_504504504504, 1126_126126126127))]);
 	});
+}
+
+#[test]
+fn test_force_add_fire() {
+	new_test_ext().execute_with(|| {
+		assert_ok!(PhalaModule::force_add_fire(
+			Origin::root(),
+			vec![1, 2],
+			vec![100, 200],
+		));
+		assert_eq!(PhalaModule::fire(0), 0);
+		assert_eq!(PhalaModule::fire(1), 100);
+		assert_eq!(PhalaModule::fire(2), 200);
+	});
+}
+
+#[test]
+fn test_mining_lifecycle_force_reregister() {
+	new_test_ext().execute_with(|| {
+		let machine_id = vec![0];
+		let pubkey = vec![1];
+
+		// Block 1: register a worker at stash1 and start mining
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerRegistered(1, x, y)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::NewMiningRound(1))
+		] if x == &pubkey && y == &machine_id);
+		assert_matches!(PhalaModule::worker_state(1).state,
+			WorkerStateEnum::<BlockNumber>::Mining(_)
+		);
+		// We have 1 worker with 100 power
+		assert_eq!(PhalaModule::online_workers(), 1);
+		assert_eq!(PhalaModule::total_power(), 100);
+
+		// Block 2: force reregister to stash2
+		System::set_block_number(2);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 2, machine_id.clone(), pubkey.clone()));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		System::finalize();
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerUnregistered(1, x)),
+			TestEvent::phala(RawEvent::WorkerRegistered(2, y, z)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::NewMiningRound(2))
+		] if x == &machine_id && y == &pubkey && z == &machine_id);
+		// WorkerState for stash1 is gone
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Empty);
+		// Stash2 now have one worker registered
+		assert_eq!(PhalaModule::worker_state(2).state, WorkerStateEnum::Free);
+		// We should have zero worker with 0 power
+		assert_eq!(PhalaModule::online_workers(), 0);
+		assert_eq!(PhalaModule::total_power(), 0);
+	});
+}
+
+#[test]
+fn test_mining_lifecycle_renew() {
+	new_test_ext().execute_with(|| {
+		let machine_id = vec![0];
+		let pubkey = vec![1];
+
+		// Block 1: register a worker at stash1 and start mining
+		System::set_block_number(1);
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerRegistered(1, x, y)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::NewMiningRound(1))
+		] if x == &pubkey && y == &machine_id);
+		assert_matches!(PhalaModule::worker_state(1).state,
+			WorkerStateEnum::<BlockNumber>::Mining(_)
+		);
+		// We have 1 worker with 100 power
+		assert_eq!(PhalaModule::online_workers(), 1);
+		assert_eq!(PhalaModule::total_power(), 100);
+
+		// Block 2: force reregister to stash2
+		System::set_block_number(2);
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(2);
+		System::finalize();
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerRenewed(1, x)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::NewMiningRound(2))
+		] if x == &machine_id);
+		assert_matches!(PhalaModule::worker_state(1).state,
+			WorkerStateEnum::<BlockNumber>::Mining(_)
+		);
+		// Same as the last block
+		assert_eq!(PhalaModule::online_workers(), 1);
+		assert_eq!(PhalaModule::total_power(), 100);
+	});
+
 }
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
