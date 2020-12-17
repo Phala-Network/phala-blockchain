@@ -70,6 +70,8 @@ pallet-society = { version = "2.0.0", default-features = false, git = "https://g
 pallet-sudo = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-timestamp = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-bounties = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-tips = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-utility = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc-runtime-api = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -143,6 +145,8 @@ std = [
 	"pallet-transaction-payment-rpc-runtime-api/std",
 	"pallet-transaction-payment/std",
 	"pallet-treasury/std",
+	"pallet-bounties/std",
+	"pallet-tips/std",
 	"sp-transaction-pool/std",
 	"pallet-utility/std",
 	"sp-version/std",

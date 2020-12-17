@@ -561,7 +561,6 @@ pub fn parachain_testnet_genesis(
 		pallet_balances: Some(BalancesConfig {
 			balances: endowed_accounts.iter().cloned()
 				.map(|k| (k, ENDOWMENT))
-				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
 				.collect(),
 		}),
 		pallet_indices: Some(IndicesConfig {
