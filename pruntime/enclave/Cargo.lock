@@ -413,7 +413,7 @@ dependencies = [
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.8.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "rand_core 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "zeroize",
 ]
 
@@ -426,7 +426,7 @@ dependencies = [
  "byteorder 1.3.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "digest 0.9.0",
  "rand_core 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "zeroize",
 ]
 
@@ -962,7 +962,7 @@ dependencies = [
  "hmac-drbg 0.2.0",
  "rand 0.7.3 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.2",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "typenum",
 ]
 
@@ -2264,7 +2264,7 @@ dependencies = [
  "merlin",
  "rand_core 0.5.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "sha2 0.8.2",
- "subtle 2.3.0",
+ "subtle 2.4.0",
  "zeroize",
 ]
 
@@ -2998,9 +2998,9 @@ dependencies = [
 
 [[package]]
 name = "subtle"
-version = "2.3.0"
+version = "2.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "343f3f510c2915908f155e94f17220b19ccfacf2a64a2a5d8004f2c3e311e7fd"
+checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
 
 [[package]]
 name = "syn"
