@@ -574,10 +574,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // println!("synced_blocks: {}, info.initialized: {}, args.no_write_back: {}, next_block: {}", synced_blocks, info.initialized, args.no_write_back, next_block);
         if synced_blocks == 0 {
             // Send heartbeat
-            if info.initialized && !args.no_write_back && next_block % 5 == 0 {
-                println!("send heartbeat");
-                send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
-            }
+            // if info.initialized && !args.no_write_back && next_block % 5 == 0 {
+            //     println!("send heartbeat");
+            //     send_heartbeat_to_chain(&client, &pr, pair.clone()).await?;
+            // }
 
             println!("waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
