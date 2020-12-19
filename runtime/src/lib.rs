@@ -22,7 +22,10 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use sp_std::prelude::*;
+use sp_std::{
+	collections::btree_map::BTreeMap,
+	prelude::*,
+};
 use frame_support::{
 	construct_runtime, parameter_types, debug, RuntimeDebug,
 	weights::{
@@ -54,7 +57,7 @@ use sp_runtime::curve::PiecewiseLinear;
 use sp_runtime::transaction_validity::{TransactionValidity, TransactionSource, TransactionPriority};
 use sp_runtime::traits::{
 	self, Block as BlockT, StaticLookup, SaturatedConversion,
-	ConvertInto, OpaqueKeys, NumberFor, Saturating,
+	ConvertInto, OpaqueKeys, NumberFor, Saturating, Convert,
 };
 use sp_version::RuntimeVersion;
 #[cfg(any(feature = "std", test))]
@@ -91,6 +94,17 @@ use sp_runtime::generic::Era;
 
 pub use pallet_phala;
 pub use pallet_claim;
+
+use xcm_adapter::{NativePalletAssetOr, XCurrencyIdConverter, IsConcreteWithGeneralKey, XcmHandler as HandleXcm};
+
+use xcm::v0::{Junction, MultiLocation, NetworkId};
+use xcm_builder::{
+	AccountId32Aliases, LocationInverter, ParentIsDefault, RelayChainAsNative, SiblingParachainAsNative,
+	SiblingParachainConvertsVia, SignedAccountId32AsNative, SovereignSignedViaLocation,
+};
+use xcm_executor::{traits::NativeAsset, Config, XcmExecutor};
+use polkadot_parachain::primitives::Sibling;
+use cumulus_primitives::relay_chain::Balance as RelayChainBalance;
 
 #[cfg(not(feature = "native-nostd-hasher"))]
 type Hasher = sp_runtime::traits::BlakeTwo256;
@@ -958,6 +972,117 @@ impl cumulus_message_broker::Config for Runtime {
 
 impl parachain_info::Config for Runtime {}
 
+parameter_types! {
+	pub PhalaNetwork: NetworkId = NetworkId::Named("phala".into());
+	pub RelayChainOrigin: Origin = xcm_handler::Origin::Relay.into();
+	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
+		id: ParachainInfo::parachain_id().into(),
+	});
+}
+
+pub type LocationConverter = (
+	ParentIsDefault<AccountId>,
+	SiblingParachainConvertsVia<Sibling, AccountId>,
+	AccountId32Aliases<PhalaNetwork, AccountId>,
+);
+
+pub type LocalAssetTransactor = XCMAdapter;
+
+pub type LocalOriginConverter = (
+	SovereignSignedViaLocation<LocationConverter, Origin>,
+	RelayChainAsNative<RelayChainOrigin, Origin>,
+	SiblingParachainAsNative<xcm_handler::Origin, Origin>,
+	SignedAccountId32AsNative<PhalaNetwork, Origin>,
+);
+
+parameter_types! {
+	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
+		let mut t = BTreeMap::new();
+		//acala reserve asset identity
+		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));
+		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
+		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
+		t
+	};
+}
+
+pub struct XcmConfig;
+impl Config for XcmConfig {
+	type Call = Call;
+	type XcmSender = LocalXcmHandler;
+	type AssetTransactor = LocalAssetTransactor;
+	type OriginConverter = LocalOriginConverter;
+	//TODO: might need to add other assets based on orml-tokens
+	type IsReserve = NativePalletAssetOr<NativeTokens>;
+	type IsTeleporter = ();
+	type LocationInverter = LocationInverter<Ancestry>;
+}
+
+impl xcm_handler::Config for Runtime {
+	type Event = Event;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+	type UpwardMessageSender = MessageBroker;
+	type HrmpMessageSender = MessageBroker;
+}
+
+impl xcm_adapter::Config for Runtime {
+	type Event = Event;
+	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
+	type AccountIdConverter = LocationConverter;
+	type XCurrencyIdConverter = XCurrencyIdConverter<NativeTokens>;
+	type OwnedCurrency = Balances;
+	type ParaId = ParachainInfo;
+}
+
+pub struct RelayToNative;
+impl Convert<RelayChainBalance, Balance> for RelayToNative {
+	fn convert(val: u128) -> Balance {
+		// native is 12
+		// relay is 12
+		val * 1
+	}
+}
+
+pub struct NativeToRelay;
+impl Convert<Balance, RelayChainBalance> for NativeToRelay {
+	fn convert(val: u128) -> Balance {
+		// native is 12
+		// relay is 12
+		val / 1
+	}
+}
+
+parameter_types! {
+	pub const PolkadotNetworkId: NetworkId = NetworkId::Polkadot;
+}
+
+// pub struct XcmHandlerWrapper;
+// impl HandleXcm for XcmHandlerWrapper {
+// 	type Origin = Origin;
+// 	type Xcm = Xcm;
+// 	fn execute(origin: Self::Origin, xcm: Self::Xcm) -> DispatchResult {
+// 		LocalXcmHandler::execute(origin, xcm::VersionedXcm::V0(xcm))
+// 	}
+// }
+
+pub struct AccountId32Convert;
+impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
+	fn convert(account_id: AccountId) -> [u8; 32] {
+		account_id.into()
+	}
+}
+
+impl xtoken::Config for Runtime {
+	type Event = Event;
+	type Balance = Balance;
+	type ToRelayChainBalance = NativeToRelay;
+	type AccountId32Convert = AccountId32Convert;
+	//TODO: change network id if kusama
+	type RelayChainNetworkId = PolkadotNetworkId;
+	type ParaId = ParachainInfo;
+	type XcmExecutor = XcmExecutor<XcmConfig>;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1001,6 +1126,9 @@ construct_runtime!(
 		ParachainUpgrade: cumulus_parachain_upgrade::{Module, Call, Storage, Inherent, Event},
 		MessageBroker: cumulus_message_broker::{Module, Storage, Call, Inherent},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
+		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
+		LocalXcmHandler: xcm_handler::{Module, Event<T>, Origin},
+		XCMAdapter: xcm_adapter::{Module, Call, Event<T>},
 	}
 );
 
@@ -1036,6 +1164,8 @@ pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
 pub type CheckedExtrinsic = generic::CheckedExtrinsic<AccountId, Call, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<Runtime, Block, frame_system::ChainContext<Runtime>, Runtime, AllModules>;
+
+pub type CurrencyId = Vec<u8>;
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {

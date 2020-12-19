@@ -77,9 +77,17 @@ pallet-transaction-payment = { version = "2.0.0", default-features = false, git 
 pallet-transaction-payment-rpc-runtime-api = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-vesting = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
 
+xcm = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
+xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "master", default-features = false }
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false , branch = "master" }
+
 pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-phala = { version = "2.0.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets/claim", package = "pallet-claim" }
+xtoken = { path = "../pallets/xtoken", default-features = false}
+xcm-adapter = { path = "../pallets/xcm-adapter", default-features = false }
 
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 
@@ -160,6 +168,13 @@ std = [
 	"cumulus-parachain-upgrade/std",
 	"cumulus-message-broker/std",
 	"cumulus-primitives/std",
+	"xcm/std",
+	"xcm-builder/std",
+	"xcm-executor/std",
+	"xcm-handler/std",
+	"polkadot-parachain/std",
+	"xtoken/std",
+	"xcm-adapter/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
