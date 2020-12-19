@@ -59,19 +59,19 @@ use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 pub use types::{AuthoritySet, AuthoritySetChange};
 
 #[derive(Encode, Decode, Clone, PartialEq)]
-pub struct BridgeInitInfo<T: Trait> {
+pub struct BridgeInitInfo<T: Config> {
 	pub block_header: T::Header,
 	pub validator_set: AuthorityList,
 	pub validator_set_proof: StorageProof,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq)]
-pub struct BridgeInfo<T: Trait> {
+pub struct BridgeInfo<T: Config> {
 	last_finalized_block_header: T::Header,
 	current_set: AuthoritySet,
 }
 
-impl<T: Trait> BridgeInfo<T> {
+impl<T: Config> BridgeInfo<T> {
 	pub fn new(
 			block_header: T::Header,
 			validator_set: AuthorityList,
@@ -89,21 +89,21 @@ impl<T: Trait> BridgeInfo<T> {
 
 type BridgeId = u64;
 
-pub trait Trait: frame_system::Trait<Hash=H256> {
+pub trait Config: frame_system::Config<Hash=H256> {
 	type Block: BlockT<Hash=H256, Header=Self::Header>;
 }
 
-impl Trait for chain::Runtime {
+impl Config for chain::Runtime {
 	type Block = chain::Block;
 }
 
 #[derive(Encode, Decode, Clone)]
-pub struct LightValidation<T: Trait> {
+pub struct LightValidation<T: Config> {
 	num_bridges: BridgeId,
 	tracked_bridges: BTreeMap<BridgeId, BridgeInfo<T>>,
 }
 
-impl<T: Trait> LightValidation<T>
+impl<T: Config> LightValidation<T>
 	where
 		NumberFor<T::Block>: AsPrimitive<usize> {
 
@@ -264,7 +264,7 @@ impl From<JustificationError> for Error {
 	}
 }
 
-impl<T: Trait> LightValidation<T>
+impl<T: Config> LightValidation<T>
 	where
 		NumberFor<T::Block>: AsPrimitive<usize>
 {
@@ -356,21 +356,21 @@ where
 }
 
 
-impl<T: Trait> fmt::Debug for LightValidation<T> {
+impl<T: Config> fmt::Debug for LightValidation<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "LightValidationTest {{ num_bridges: {}, tracked_bridges: {:?} }}",
 			self.num_bridges, self.tracked_bridges)
 	}
 }
 
-impl<T: Trait> fmt::Debug for BridgeInfo<T> {
+impl<T: Config> fmt::Debug for BridgeInfo<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "BridgeInfo {{ last_finalized_block_header: {:?}, current_validator_set: {:?}, current_validator_set_id: {} }}",
 			self.last_finalized_block_header, self.current_set.authority_set, self.current_set.set_id)
 	}
 }
 
-impl<T: Trait> fmt::Debug for BridgeInitInfo<T> {
+impl<T: Config> fmt::Debug for BridgeInitInfo<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "BridgeInfo {{ block_header: {:?}, validator_set: {:?}, validator_set_proof: {:?} }}",
 			self.block_header, self.validator_set, self.validator_set_proof)

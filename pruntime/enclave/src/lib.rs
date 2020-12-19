@@ -1111,7 +1111,11 @@ fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec:
 fn format_address(addr: &chain::Address) -> String {
     match addr {
         chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
-        chain::Address::Index(index) => format!("index:{}", index)
+        chain::Address::Index(index) => format!("index:{}", index),
+        // TODO: Verify these
+        chain::Address::Raw(address) => hex::encode_hex_compact(address.as_ref()),
+        chain::Address::Address32(address) => hex::encode_hex_compact(address.as_ref()),
+        chain::Address::Address20(address) => hex::encode_hex_compact(address.as_ref())
     }
 }
 

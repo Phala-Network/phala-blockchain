@@ -9,11 +9,11 @@ ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 
 ARG CODENAME='bionic'
-ARG VERSION='2.11.100.2-bionic1'
+ARG VERSION='2.12.100.3-bionic1'
 ADD ./dockerfile.d/04_psw.sh /root
 RUN bash /root/04_psw.sh
 
-ARG RUST_TOOLCHAIN='nightly-2020-11-01'
+ARG RUST_TOOLCHAIN='nightly-2020-11-10'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 ADD ./dockerfile.d/06_wasm.sh /root

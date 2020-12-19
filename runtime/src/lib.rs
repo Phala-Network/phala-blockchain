@@ -470,7 +470,7 @@ parameter_types! {
 		.saturating_sub(BlockExecutionWeight::get());
 }
 
-impl pallet_staking::Trait for Runtime {
+impl pallet_staking::Config for Runtime {
 	type Currency = Balances;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = U128CurrencyToVote;
@@ -922,7 +922,7 @@ parameter_types! {
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
 }
 
-impl pallet_phala::Trait for Runtime {
+impl pallet_phala::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
 	type TEECurrency = Balances;
@@ -940,7 +940,7 @@ impl pallet_phala::Trait for Runtime {
 	type OnlineRewardPercentage = OnlineRewardPercentage;
 }
 
-impl pallet_claim::Trait for Runtime {
+impl pallet_claim::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;

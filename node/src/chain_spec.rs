@@ -226,7 +226,7 @@ pub fn testnet_genesis(
 	endowed_accounts: Option<Vec<AccountId>>,
 	enable_println: bool,
 ) -> GenesisConfig {
-	let endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
+	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
 			get_account_id_from_seed::<sr25519::Public>("Alice"),
 			get_account_id_from_seed::<sr25519::Public>("Bob"),
@@ -242,10 +242,15 @@ pub fn testnet_genesis(
 			get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
 		]
 	});
+	initial_authorities.iter().for_each(|x|
+		if !endowed_accounts.contains(&x.0) {
+			endowed_accounts.push(x.0.clone())
+		}
+	);
 	let num_endowed_accounts = endowed_accounts.len();
 
 	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
-	const STASH: Balance = 100 * DOLLARS;
+	const STASH: Balance = ENDOWMENT / 1000;
 	// The pubkey of "0x1"
 	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
 
@@ -256,9 +261,8 @@ pub fn testnet_genesis(
 		}),
 		pallet_balances: Some(BalancesConfig {
 			balances: endowed_accounts.iter().cloned()
-				.map(|k| (k, ENDOWMENT))
-				.chain(initial_authorities.iter().map(|x| (x.0.clone(), STASH)))
-				.collect(),
+				.map(|x| (x, ENDOWMENT))
+				.collect()
 		}),
 		pallet_indices: Some(IndicesConfig {
 			indices: vec![],
@@ -461,7 +465,7 @@ fn phala_testnet_config_genesis() -> GenesisConfig {
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn phala_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	let protocol_id: &str = "phat3";
+	let protocol_id: &str = "phat4";
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
@@ -471,8 +475,8 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 	};
 
 	ChainSpec::from_genesis(
-		"Phala PoC-3",
-		"phala_poc_3a",
+		"Phala PoC-4",
+		"phala_poc_4",
 		ChainType::Local,
 		phala_testnet_config_genesis,
 		boot_nodes,
@@ -484,7 +488,7 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 	)
 }
 
-/// Phala PoC-3 testnet generator
+/// Phala PoC-4 testnet generator
 pub fn phala_testnet_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
 }

@@ -8,6 +8,7 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
 license = "GPL-3.0"
+
 readme = "README.md"
 repository = "https://github.com/paritytech/substrate-subxt"
 documentation = "https://docs.rs/substrate-subxt"

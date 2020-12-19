@@ -38,8 +38,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
-type BalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as Trait>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type BalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
@@ -49,7 +49,7 @@ const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Trait: frame_system::Config {
+pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type TEECurrency: Currency<Self::AccountId>;
@@ -68,7 +68,7 @@ pub trait Trait: frame_system::Config {
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as PhalaModule {
+	trait Store for Module<T: Config> as PhalaModule {
 		// Messaging
 		/// Number of all commands
 		CommandNumber get(fn command_number): Option<u64>;
@@ -208,7 +208,7 @@ decl_event!(
 
 // Errors inform users that something went wrong.
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		InvalidIASSigningCert,
 		InvalidIASReportSignature,
 		InvalidQuoteStatus,
@@ -270,7 +270,7 @@ decl_error! {
 // These functions materialize as "extrinsics", which are often compared to transactions.
 // Dispatchable functions must be annotated with a weight and must return a DispatchResult.
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
 
@@ -376,7 +376,7 @@ decl_module! {
 			// };
 
 			// Validate related fields
-			let parsed_report: serde_json_no_std::Value = serde_json_no_std::from_slice(&report).unwrap();
+			let parsed_report: serde_json::Value = serde_json::from_slice(&report).unwrap();
 			ensure!(
 				&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED" || &parsed_report["isvEnclaveQuoteStatus"] == "GROUP_OUT_OF_DATE",
 				Error::<T>::InvalidQuoteStatus
@@ -598,7 +598,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	pub fn account_id() -> T::AccountId {
 		PALLET_ID.into_account()
 	}

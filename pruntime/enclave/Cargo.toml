@@ -1,8 +1,11 @@
+cargo-features = ["resolver"]
+
 [package]
 name = "EnclaveApp"
 version = "0.0.1"
 authors = ["jasl"]
 edition = "2018"
+resolver = "2"
 
 [lib]
 name = "enclaveapp"
@@ -52,7 +55,7 @@ runtime = { path = "../../runtime", default-features = false, package = "phala-n
 pallet-phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
 phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde"] }
 
-csv-core = { path = "../csv-core", default-features = false }
+csv-core = { version = "0.1.10", default-features = false }
 
 # for light_validation
 derive_more = "0.99.0"
@@ -61,23 +64,11 @@ hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.10.1", default-features = false, features = ["derive-codec"] }
 trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system = { package = "frame-system", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-finality-grandpa = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 # sp-blockchain = { package = "sp-blockchain", path = "../../substrate/primitives/blockchain" }
 sp-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, features = ["full_crypto"]}
-# sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/finality-grandpa/"  }
-
-[patch.crates-io]
-rand_core = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" }
-libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" }
-memchr = { package = "memchr", path = "../memchr-nostd", default-features = false }
-# aho-corasick = { package = "aho-corasick", git = "https://github.com/mesalock-linux/aho-corasick-sgx" }
-# regex = { git = "https://github.com/mesalock-linux/regex-sgx" }
-# Inflector = { path = "../Inflector" }
-# parity-scale-codec = { git = "https://github.com/mesalock-linux/parity-scale-codec-sgx" }
-# primitive-types = { git = "https://github.com/jasl/parity-common-sgx" }
-# getrandom = { git = "https://github.com/mesalock-linux/getrandom-sgx" }
 
 [features]
 default = [
