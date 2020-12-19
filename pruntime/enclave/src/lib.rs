@@ -129,7 +129,6 @@ struct LocalState {
     private_key: Box<SecretKey>,
     headernum: u32, // the height of synced block
     blocknum: u32,  // the height of dispatched block
-    block_hashes: Vec<Hash>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
@@ -211,7 +210,6 @@ lazy_static! {
                 private_key: Box::new(sk),
                 headernum: 0,
                 blocknum: 0,
-                block_hashes: Vec::new(),
                 ecdh_private_key: None,
                 ecdh_public_key: None,
                 machine_id: [0; 16],
@@ -1334,11 +1332,6 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
         local_state.headernum = last_header + 1;
     }
 
-    // Save the block hashes for future dispatch
-    for header in headers.iter() {
-        local_state.block_hashes.push(header.header.hash());
-    }
-
     Ok(json!({
         "synced_to": last_header
     }))
@@ -1369,13 +1362,6 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     if last_block.block_header.number >= local_state.headernum {
         return Err(error_msg("Unsynced block"))
     }
-    for (i, block) in blocks.iter().enumerate() {
-        let expected_hash = &local_state.block_hashes[i];
-        if block.block_header.hash() != *expected_hash {
-            return Err(error_msg("Unexpected block hash"))
-        }
-        // TODO: examine extrinsic merkle tree
-    }
 
     let ecdh_privkey = ecdh::clone_key(
         local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
@@ -1388,7 +1374,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         parse_events(&block, &ecdh_privkey, local_state.dev_mode)?;
 
         last_block = block.block_header.number;
-        local_state.block_hashes.remove(0);
+        //local_state.block_hashes.remove(0);
         local_state.blocknum = last_block + 1;
     }
 
