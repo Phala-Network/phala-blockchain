@@ -1056,15 +1056,6 @@ parameter_types! {
 	pub const PolkadotNetworkId: NetworkId = NetworkId::Polkadot;
 }
 
-// pub struct XcmHandlerWrapper;
-// impl HandleXcm for XcmHandlerWrapper {
-// 	type Origin = Origin;
-// 	type Xcm = Xcm;
-// 	fn execute(origin: Self::Origin, xcm: Self::Xcm) -> DispatchResult {
-// 		LocalXcmHandler::execute(origin, xcm::VersionedXcm::V0(xcm))
-// 	}
-// }
-
 pub struct AccountId32Convert;
 impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
 	fn convert(account_id: AccountId) -> [u8; 32] {
