@@ -110,7 +110,7 @@ decl_module! {
 
 impl<T> TransactAsset for Module<T>
 where
-    T: Config,
+    T: Config
 {
     fn deposit_asset(asset: &MultiAsset, location: &MultiLocation) -> Result {
         debug::info!("------------------------------------------------");
@@ -125,7 +125,7 @@ where
         let currency_id =
             T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
         debug::info!("currency_id: {:?}", currency_id);
-        let amount = T::Matcher::matches_fungible(&asset)
+        let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
             .ok_or(())?
             .saturated_into();
         debug::info!("amount: {:?}", amount);
@@ -168,7 +168,7 @@ where
         let currency_id =
             T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
         debug::info!("currency_id: {:?}", currency_id);
-        let amount = T::Matcher::matches_fungible(&asset)
+        let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
             .ok_or(())?
             .saturated_into();
         debug::info!("amount: {:?}", amount);
