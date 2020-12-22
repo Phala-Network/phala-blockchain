@@ -190,7 +190,7 @@ lazy_static! {
         SgxMutex::new(RuntimeState {
             contract1: contracts::data_plaza::DataPlaza::new(),
             contract2: contracts::balances::Balances::new(None),
-            contract3: contracts::assets::Assets::new(),
+            contract3: contracts::assets::Assets::new(None),
             contract4: contracts::web3analytics::Web3Analytics::new(),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
@@ -1052,7 +1052,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
-    state.contract2 = contracts::balances::Balances::new(Some(id_pair));
+    state.contract2 = contracts::balances::Balances::new(Some(id_pair.clone()));
+    state.contract3 = contracts::assets::Assets::new(Some(id_pair));
     // Initialize other states
     local_state.headernum = 1;
     local_state.blocknum = 1;
@@ -1425,8 +1426,24 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
                         };
                         handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
                     },
-                    _ => {
+                    phala::RawEvent::TransferToTee(_, _)
+                        | phala::RawEvent::TransferToChain(_, _, _) => {
                         state.contract2.handle_event(evt.event.clone());
+                    },
+                    phala::RawEvent::TransferTokenToTee(_, _, _)
+                        | phala::RawEvent::TransferTokenToChain(_, _, _, _)
+                        | phala::RawEvent::TransferXTokenToChain(_, _, _, _)  => {
+                        state.contract3.handle_event(evt.event.clone());
+                    },
+                    _ => {
+
+                    },
+                }
+            } else if let chain::Event::xcm_adapter(xa) = &evt.event {
+                println!("xcm_adapter event: {:?}", xa);
+                if let xcm_adapter::RawEvent::DepositAsset(_, _, _, to_tee) = xa {
+                    if *to_tee {
+                        state.contract3.handle_event(evt.event.clone());
                     }
                 }
             }

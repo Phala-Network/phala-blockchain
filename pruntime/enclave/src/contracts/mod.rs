@@ -14,6 +14,8 @@ pub mod web3analytics;
 pub mod woothee;
 
 pub type ContractId = u32;
+pub type SequenceType = u64;
+
 pub const SYSTEM: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCES: ContractId = 2;

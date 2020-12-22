@@ -13,7 +13,7 @@ use crate::msg_channel::MsgChannel;
 
 
 pub type CommandIndex = u64;
-type PhalaEvent = phala::RawEvent<sp_runtime::AccountId32, u128>;
+type PhalaEvent = phala::RawEvent<sp_runtime::AccountId32, u128, u128>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
@@ -29,6 +29,8 @@ pub enum TransactionStatus {
     BadSecret,
     BadMachineId,
     FailedToSign,
+    BadDecimal,
+    DestroyNotAllowed,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

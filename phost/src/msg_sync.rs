@@ -5,9 +5,10 @@ use core::marker::PhantomData;
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData},
+    types::{ReqData, QueryRespData, TransferData, TxQueue},
     runtimes,
-    XtClient, PrClient, SrSigner
+    XtClient, PrClient, SrSigner,
+    BALANCES, ASSETS
 };
 
 /// Hold everything needed to sync some egress messages back to the blockchain
@@ -77,15 +78,23 @@ impl<'a> MsgSync<'a> {
     }
 
     /// Syncs the Balances egress messages when available
-    pub async fn maybe_sync_balances_egress(&mut self, sequence: &mut u64) -> Result<(), Error> {
+    pub async fn maybe_sync_contract_egress(&mut self, sequence: &mut u64, contract_id: u32) -> Result<(), Error> {
         // Check pending messages in Balances' egress queue
-        let query_resp = self.pr.query(2, ReqData::PendingChainTransfer {sequence: *sequence}).await?;
+        let query_resp = self.pr.query(contract_id, ReqData::PendingChainTransfer { sequence: *sequence }).await?;
         let transfer_data = match query_resp {
             QueryRespData::PendingChainTransfer { transfer_queue_b64 } =>
                 base64::decode(&transfer_queue_b64)
                     .map_err(|_| Error::FailedToDecode)?,
             _ => return Err(Error::FailedToDecode)
         };
+        if contract_id == BALANCES {
+            self.submit_balance_transactions(sequence, transfer_data).await
+        } else {
+            self.submit_asset_transactions(sequence, transfer_data).await
+        }
+    }
+
+    async fn submit_balance_transactions(&mut self, sequence: &mut u64, transfer_data: Vec<u8>) -> Result<(), Error> {
         let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
             .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
@@ -113,6 +122,59 @@ impl<'a> MsgSync<'a> {
             self.signer.increment_nonce();
         }
         *sequence = next_seq;
+        Ok(())
+    }
+
+    async fn submit_asset_transactions(&mut self, sequence: &mut u64, transfer_data: Vec<u8>) -> Result<(), Error> {
+        let transfer_queue: Vec<TxQueue> = Decode::decode(&mut &transfer_data[..])
+            .map_err(|_|Error::FailedToDecode)?;
+        if transfer_queue.len() == 0 {
+            return Ok(());
+        }
+
+        // Send messages
+        self.maybe_update_signer_nonce().await?;
+        let mut next_seq = *sequence;
+        for transfer_data in &transfer_queue {
+            match transfer_data {
+                TxQueue::TransferTokenData(transfer_data) => {
+                    let msg_seq = transfer_data.data.sequence;
+                    if msg_seq <= *sequence {   // This seq is 1-based
+                        println!("Msg {} has been submitted. Skipping...", msg_seq);
+                        continue;
+                    }
+                    next_seq = cmp::max(next_seq, msg_seq);
+                    let ret = self.client.submit(runtimes::phala::TransferTokenToChainCall {
+                        _runtime: PhantomData,
+                        data: transfer_data.encode()
+                    }, self.signer).await;
+                    if let Err(err) = ret {
+                        println!("Failed to submit tx: {:?}", err);
+                        // TODO: Should we fail early?
+                    }
+                },
+                TxQueue::TransferXTokenData(transfer_data) => {
+                    let msg_seq = transfer_data.data.sequence;
+                    if msg_seq <= *sequence {   // This seq is 1-based
+                        println!("Msg {} has been submitted. Skipping...", msg_seq);
+                        continue;
+                    }
+                    next_seq = cmp::max(next_seq, msg_seq);
+                    let ret = self.client.submit(runtimes::phala::TransferXTokenToChainCall {
+                        _runtime: PhantomData,
+                        data: transfer_data.encode()
+                    }, self.signer).await;
+                    if let Err(err) = ret {
+                        println!("Failed to submit tx: {:?}", err);
+                        // TODO: Should we fail early?
+                    }
+                },
+            }
+            self.signer.increment_nonce();
+        }
+
+        *sequence = next_seq;
+
         Ok(())
     }
 
