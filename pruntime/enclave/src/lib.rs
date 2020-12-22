@@ -1426,10 +1426,13 @@ fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKe
                         };
                         handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
                     },
-                    phala::RawEvent::TransferToTee(_, _) | phala::RawEvent::TransferToChain(_, _, _) => {
+                    phala::RawEvent::TransferToTee(_, _)
+                        | phala::RawEvent::TransferToChain(_, _, _) => {
                         state.contract2.handle_event(evt.event.clone());
                     },
-                    phala::RawEvent::TransferTokenToTee(_, _, _) | phala::RawEvent::TransferTokenToChain(_, _, _, _) | phala::RawEvent::TransferXTokenToChain(_, _, _, _)  => {
+                    phala::RawEvent::TransferTokenToTee(_, _, _)
+                        | phala::RawEvent::TransferTokenToChain(_, _, _, _)
+                        | phala::RawEvent::TransferXTokenToChain(_, _, _, _)  => {
                         state.contract3.handle_event(evt.event.clone());
                     },
                     _ => {
