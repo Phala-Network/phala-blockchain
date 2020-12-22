@@ -108,11 +108,10 @@ fn reconcile_online_workers<T: V2ToV3>() {
 }
 
 pub fn apply<T: V2ToV3>() -> Weight {
-	debug::RuntimeLogger::init();
-
 	let maybe_storage_version = <T::Module as GetPalletVersion>::storage_version();
 	match maybe_storage_version {
 		Some(version) if version == PalletVersion::new(2, 0, 0) => {
+			debug::RuntimeLogger::init();
 			reconcile_online_workers::<T>();
 			Weight::max_value()
 		}
