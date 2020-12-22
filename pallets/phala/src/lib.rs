@@ -16,6 +16,7 @@ use frame_support::{
 };
 use codec::Decode;
 
+// TODO
 //use xcm_adapter::{XcmExecutor};
 
 // modules
@@ -569,6 +570,7 @@ decl_module! {
 
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			// TODO
 			//if let Err(_) = T::XcmExecutor::execute_xcm(MultiLocation::Null, xcm) {
 			//	Self::deposit_event(RawEvent::XcmExecutorFailed(transfer_data.data.dest.clone(), transfer_data.data.x_currency_id.clone().into(), transfer_data.data.amount, sequence + 1));
 			//}
