@@ -86,7 +86,7 @@ impl<BlockNumber> Default for WorkerStateEnum<BlockNumber> {
 	}
 }
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Debug, Default)]
 pub struct WorkerInfo<BlockNumber> {
 	// identity
 	pub machine_id: Vec<u8>,
@@ -110,7 +110,7 @@ pub struct PayoutPrefs<AccountId: Default> {
 	pub target: AccountId,
 }
 
-#[derive(Encode, Decode, Default, Clone)]
+#[derive(Encode, Decode, Debug, Default, Clone)]
 pub struct Score {
 	pub overall_score: u32,
 	pub features: Vec<u32>
