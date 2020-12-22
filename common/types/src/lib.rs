@@ -8,6 +8,10 @@ use sp_core::U256;
 #[cfg(feature = "enable_serde")]
 use serde::{Serialize, Deserialize};
 
+use xcm::v0::{NetworkId};
+use cumulus_primitives::{ParaId};
+use xcm_adapter::{ PHAXCurrencyId as XCurrencyId };
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,
@@ -18,6 +22,36 @@ pub struct Transfer<AccountId, Balance> {
 #[derive(Encode, Decode)]
 pub struct TransferData<AccountId, Balance> {
 	pub data: Transfer<AccountId, Balance>,
+	pub signature: Vec<u8>,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferToken<AccountId, Balance> {
+	pub token_id: Vec<u8>,
+	pub dest: AccountId,
+	pub amount: Balance,
+	pub sequence: u64,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferTokenData<AccountId, Balance> {
+	pub data: TransferToken<AccountId, Balance>,
+	pub signature: Vec<u8>,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferXToken<AccountId, Balance> {
+	pub x_currency_id: XCurrencyId,
+	pub para_id: ParaId,
+	pub dest_network: NetworkId,
+	pub dest: AccountId,
+	pub amount: Balance,
+	pub sequence: u64,
+}
+
+#[derive(Encode, Decode)]
+pub struct TransferXTokenData<AccountId, Balance> {
+	pub data: TransferXToken<AccountId, Balance>,
 	pub signature: Vec<u8>,
 }
 
@@ -54,6 +88,26 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferDat
 	fn raw_data(&self) -> Vec<u8> {
 		Encode::encode(&self.data)
 	}
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferTokenData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
+	fn signature(&self) -> Vec<u8> {
+		self.signature.clone()
+	}
+}
+
+impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>> for TransferXTokenData<AccountId, Balance> {
+	fn raw_data(&self) -> Vec<u8> {
+		Encode::encode(&self.data)
+	}
+
 	fn signature(&self) -> Vec<u8> {
 		self.signature.clone()
 	}

@@ -34,6 +34,9 @@ type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
 type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
 
+pub const BALANCES: u32 = 2;
+pub const ASSETS: u32 = 3;
+
 #[derive(Debug, StructOpt)]
 #[structopt(name = "phost")]
 struct Args {
@@ -281,7 +284,7 @@ fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &str)
 async fn get_parachain_heads(client: &XtClient, paraclient: &XtClient, hash: Option<Hash>) -> Option<Vec<u8>> {
     let para_key = storage_value_key_vec("ParachainUpgrade", "ParachainId"); //ParachainUpgrade?
     let para_id = get_storage(&paraclient, None, StorageKey(para_key)).await.unwrap().unwrap();
-    let key = storage_map_key_vec("Parachains", "Heads", &hex::encode(para_id));
+    let key = storage_map_key_vec("Paras", "Heads", &hex::encode(para_id));
     get_storage(&client, hash, StorageKey(key)).await.unwrap()
 }
 
@@ -471,7 +474,11 @@ async fn get_stash_account(client: &XtClient, controller: AccountId)
 }
 
 async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
-    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None).await.or(Ok(0))
+    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(BALANCES), None).await.or(Ok(0))
+}
+
+async fn get_assets_ingress_seq(client: &XtClient) -> Result<u64, Error> {
+    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(ASSETS), None).await.or(Ok(0))
 }
 
 async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64, Error> {
@@ -640,6 +647,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
     }
 
     let mut balance_seq = get_balances_ingress_seq(&paraclient).await?;
+    let mut asset_seq = get_assets_ingress_seq(&paraclient).await?;
     let mut system_seq = get_worker_ingress(&paraclient, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
@@ -709,7 +717,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&paraclient, &pr, &mut signer);
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                msg_sync.maybe_sync_balances_egress(&mut balance_seq).await?;
+                msg_sync.maybe_sync_contract_egress(&mut balance_seq, BALANCES).await?;
+                msg_sync.maybe_sync_contract_egress(&mut asset_seq, ASSETS).await?;
             }
 
             println!("Waiting for new blocks");
