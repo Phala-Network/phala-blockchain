@@ -1,6 +1,6 @@
 //! Migrate to version [`3.0.0`]
 //!
-//! Referece PR: <>
+//! Referece PR: <https://github.com/paritytech/substrate/pull/7040>
 
 use codec::FullCodec;
 use frame_support::{
