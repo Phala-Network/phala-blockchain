@@ -13,6 +13,7 @@ use sp_runtime::{
 };
 use frame_support::{
 	traits::{Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness, UnixTime},
+	weights::Weight,
 };
 use codec::Decode;
 
@@ -80,7 +81,9 @@ decl_storage! {
 		WorkerIngress get(fn worker_ingress): map hasher(twox_64_concat) T::AccountId => u64;
 
 		// Worker registry
-		/// Map from stash account to worker info (indexed: MachineOwner, PendingUpdate)
+		/// Map from stash account to worker info
+		///
+		/// (Indexed: MachineOwner, PendingUpdate, PendingExitingDelta, OnlineWorkers, TotalPower)
 		WorkerState get(fn worker_state):
 			map hasher(blake2_128_concat) T::AccountId => WorkerInfo<T::BlockNumber>;
 		/// Map from stash account to stash info (indexed: Stash)
@@ -273,6 +276,10 @@ decl_module! {
 	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
+
+		fn on_runtime_upgrade() -> Weight {
+			migrations_3_0_0::apply::<Self>()
+		}
 
 		fn on_finalize() {
 			let now = System::<T>::block_number();
@@ -1015,4 +1022,12 @@ fn u256_target(m: u64, n: u64) -> U256 {
 		panic!("Invalid parameter");
 	}
 	U256::MAX / n * m
+}
+
+// Migration from 2.0.0 to 3.0.0
+mod migrations_3_0_0;
+impl<T: Trait> migrations_3_0_0::V2ToV3 for Module<T> {
+	type Module = Module<T>;
+	type AccountId = T::AccountId;
+	type BlockNumber = T::BlockNumber;
 }

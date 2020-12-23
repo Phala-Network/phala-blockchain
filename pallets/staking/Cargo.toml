@@ -27,7 +27,7 @@ pallet-session = { version = "2.0.0", default-features = false, features = ["his
 pallet-authorship = { version = "2.0.0", default-features = false, path = "../../substrate/frame/authorship" }
 sp-application-crypto = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
 
-pallet-phala = { version = "2.0.0", default-features = false, path = "../phala" }
+pallet-phala = { version = "3.0.0", default-features = false, path = "../phala" }
 
 # Optional imports for benchmarking
 frame-benchmarking = { version = "2.0.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
