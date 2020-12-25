@@ -117,13 +117,21 @@ impl System {
 
     pub fn handle_event(&mut self, blocknum: chain::BlockNumber, event: &PhalaEvent) -> Result<(), Error> {
         match event {
+            // Reset the egress queue once we detected myself is re-registered
             phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
-                // Reset the egress queue once we detected myself is re-registered
                 if pubkey == &self.id_pubkey {
-                    println!("System::handle_event: Reset MsgChannel");
+                    println!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
                     self.egress = Default::default();
                 }
             },
+            phala::RawEvent::WorkerRenewed(_stash, machine_id) => {
+                // Not perfect because we only have machine_id but not pubkey here.
+                if machine_id == &self.machine_id {
+                    println!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
+                    self.egress = Default::default();
+                }
+            },
+            // Handle other events
             phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
                 println!("System::handle_event: Message confirmed (seq={})", seq);
                 // Advance the egress queue messages
