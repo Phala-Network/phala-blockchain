@@ -263,7 +263,9 @@ async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_s
     Ok(resp)
 }
 
-async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockHeaderWithEvents>) -> Result<DispatchBlockResp, Error> {
+
+async fn req_dispatch_block<T>(pr: &PrClient, blocks: &T) -> Result<DispatchBlockResp, Error>
+where T: std::ops::Deref<Target = [BlockHeaderWithEvents]> {
     let blocks_b64 = blocks
         .iter()
         .map(|block| {
@@ -275,6 +277,39 @@ async fn req_dispatch_block(pr: &PrClient, blocks: &Vec<BlockHeaderWithEvents>) 
     let req = DispatchBlockReq { blocks_b64 };
     let resp = pr.req_decode("dispatch_block", req).await?;
     Ok(resp)
+}
+
+/// Syncs only the events to pRuntime till `sync_to`
+async fn sync_events_only(
+    pr: &PrClient,
+    sync_state: &mut BlockSyncState,
+    sync_to: BlockNumber,
+    batch_window: usize,
+) -> Result<(), Error> {
+    let block_buf = &mut sync_state.blocks;
+    // Count the blocks to sync
+    let mut n = 0usize;
+    for bwe in block_buf.iter() {
+        if bwe.block.block.header.number <= sync_to {
+            n += 1;
+        } else {
+            break;
+        }
+    }
+    let blocks: Vec<BlockHeaderWithEvents> = block_buf
+        .drain(..n)
+        .map(|bwe| BlockHeaderWithEvents {
+            block_header: bwe.block.block.header,
+            events: bwe.events,
+            proof: bwe.proof,
+            key: bwe.key
+        })
+        .collect();
+    for chunk in blocks.chunks(batch_window) {
+        let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
+        println!("  ..dispatch_block: {:?}", r);
+    }
+    Ok(())
 }
 
 async fn batch_sync_block(
@@ -334,7 +369,7 @@ async fn batch_sync_block(
             break;
         }
         // send out the longest batch and remove it from the input buffer
-        let mut block_batch: Vec<BlockWithEvents> =  block_buf
+        let mut block_batch: Vec<BlockWithEvents> = block_buf
             .drain(..=(header_idx as usize))
             .collect();
         let header_batch: Vec<HeaderToSync> = block_batch
@@ -381,18 +416,15 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let block_with_events: Vec<BlockWithEvents> = block_batch
+                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
-                    .collect();
-                let mut dispatch_batch = Vec::<BlockHeaderWithEvents>::new();
-                for bwe in block_with_events {
-                    dispatch_batch.push(BlockHeaderWithEvents {
+                    .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
                         events: bwe.events,
                         proof: bwe.proof,
                         key: bwe.key
-                    });
-                }
+                    })
+                    .collect();
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 println!("  ..dispatch_block: {:?}", r);
 
@@ -515,7 +547,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
     // Check controller stash setup and fail early
     let controller = signer.account_id().clone();
     let stash = get_stash_account(&client, controller.clone()).await?;
-    if !args.no_init || !args.no_write_back {
+    if (!args.no_init && args.ra) || !args.no_write_back {
         if stash == Default::default() {
             panic!("Controller not registered; qed");
         }
@@ -602,25 +634,22 @@ async fn bridge(args: Args) -> Result<(), Error> {
             initial_sync_finished,
         }).await.ok();
 
-        // for now, we require info.headernum == info.blocknum for simplification
-        if info.headernum != info.blocknum {
-            return Err(Error::BlockHeaderMismatch);
-        }
         let latest_block = get_block_at(&client, None).await?.block;
-        // remove the headers not needed in the buffer. info.headernum is the next required header
+        // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref b) = sync_state.blocks.first() {
-            if b.block.block.header.number >= info.headernum {
+            if b.block.block.header.number >= info.blocknum {
                 break;
             }
             sync_state.blocks.remove(0);
         }
-        println!("try to upload headers. next required: {}, finalized tip: {}, buffered {}",
-                 info.headernum, latest_block.header.number, sync_state.blocks.len());
+        println!(
+            "try to sync blocks. next required: ({}, {}), finalized tip: {}, buffered: {}",
+            info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
 
-        // no, then catch up to the chain tip
+        // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
-            None => info.headernum
+            None => info.blocknum
         };
         let batch_end = std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
         for b in next_block ..= batch_end {
@@ -629,6 +658,11 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 println!("block with justification at: {}", block.block.block.header.number);
             }
             sync_state.blocks.push(block.clone());
+        }
+
+        // if the header syncs faster than the event, let the events to catch up
+        if info.headernum > info.blocknum {
+            sync_events_only(&pr, &mut sync_state, info.headernum, args.sync_blocks).await?;
         }
 
         // send the blocks to pRuntime in batch
