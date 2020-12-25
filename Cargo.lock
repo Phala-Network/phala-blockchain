@@ -1244,6 +1244,7 @@ checksum = "993a608597367c6377b258c25d7120740f00ed23a2252b729b1932dd7866f908"
 name = "debug-cli"
 version = "0.1.0"
 dependencies = [
+ "base64 0.11.0",
  "hex",
  "parity-scale-codec",
  "phala-types",
