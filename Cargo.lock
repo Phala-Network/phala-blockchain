@@ -1241,6 +1241,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "993a608597367c6377b258c25d7120740f00ed23a2252b729b1932dd7866f908"
 
 [[package]]
+name = "debug-cli"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "parity-scale-codec",
+ "phala-types",
+ "structopt",
+]
+
+[[package]]
 name = "derive_more"
 version = "0.99.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
