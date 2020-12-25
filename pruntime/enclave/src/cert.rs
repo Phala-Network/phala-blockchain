@@ -1,9 +1,6 @@
 use std::prelude::v1::*;
 use std::{str, ptr};
 use std::time::*;
-use std::untrusted::time::SystemTimeEx;
-//use std::untrusted::fs::File;
-//use std::io::prelude::*;
 
 use sgx_tcrypto::*;
 use sgx_types::*;

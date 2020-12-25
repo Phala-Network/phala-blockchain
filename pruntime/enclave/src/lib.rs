@@ -39,7 +39,6 @@ use serde_cbor;
 use serde_json::{Map, Value};
 use serde::{de, Serialize, Deserialize, Serializer, Deserializer};
 use sp_core::H256 as Hash;
-use sp_core::hashing::blake2_256;
 use sp_core::crypto::Pair;
 use frame_system::EventRecord;
 
@@ -60,7 +59,7 @@ use light_validation::AuthoritySetChange;
 use system::{TransactionStatus, TransactionReceipt, CommandIndex};
 use types::{TxRef, Error};
 
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use http_req::request::{Request, Method};
 
 extern "C" {
@@ -891,19 +890,6 @@ fn unknown() -> Result<Value, Value> {
     }))
 }
 
-fn test(param: TestReq) -> Result<Value, Value> {
-    if param.test_parse_block == Some(true) {
-        test_parse_block();
-    }
-    if param.test_bridge == Some(true) {
-        test_bridge();
-    }
-    if let Some(p) = param.test_ecdh {
-        test_ecdh(p);
-    }
-    Ok(json!({}))
-}
-
 const SECRET: &[u8; 32] = b"24e3e78e1f15150cdbad02f3205f6dd0";
 
 fn dump_states(_input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1068,133 +1054,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     local_state.runtime_info = Some(resp.clone());
     local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
-}
-
-fn fmt_call(call: &chain::Call) -> String {
-    match call {
-        chain::Call::Timestamp(chain::TimestampCall::set(t)) =>
-            format!("Timestamp::set({})", t),
-        chain::Call::Balances(chain::BalancesCall::transfer(to, amount)) =>
-            format!("Balance::transfer({:?}, {:?})", to, amount),
-        _ => String::from("<Unparsed>")
-    }
-}
-
-fn print_block(signed_block: &chain::SignedBlock) {
-    let header: &chain::Header = &signed_block.block.header;
-    let extrinsics: &Vec<chain::UncheckedExtrinsic> = &signed_block.block.extrinsics;
-
-    println!("SignedBlock {{");
-    println!("  block {{");
-    println!("    header {{");
-    println!("      number: {}", header.number);
-    println!("      extrinsics_root: {}", header.extrinsics_root);
-    println!("      state_root: {}", header.state_root);
-    println!("      parent_hash: {}", header.parent_hash);
-    println!("      digest: logs[{}]", header.digest.logs.len());
-    println!("  extrinsics: [");
-    for extrinsic in extrinsics {
-        println!("    UncheckedExtrinsic {{");
-        println!("      function: {}", fmt_call(&extrinsic.function));
-        println!("      signature: {:?}", extrinsic.signature);
-        println!("    }}");
-    }
-    println!("  ]");
-    println!("  justification: <skipped...>");
-    println!("}}");
-}
-
-fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec::Error> {
-    chain::SignedBlock::decode(&mut data.as_slice())
-}
-
-fn format_address(addr: &chain::Address) -> String {
-    match addr {
-        chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
-        chain::Address::Index(index) => format!("index:{}", index)
-    }
-}
-
-fn test_parse_block() {
-    let raw_block: Vec<u8> = base64::decode("iAKMDRPbdbAZ0eev9OZ1QgaAkoEnazAp6JzH2GeRFYdsR+pFUBbOaAW0+k5K+jPtsEr/P/JKJQDSobnB98Qhf8ug8HkDygkapC5T++CNvzYORIFimatwYSu/U53t66xzpQgGYXVyYSCGvagPAAAAAAVhdXJhAQEuXZ5zy2+qk+60y+/m1r0oZv/+LEiDCxMotfkvjP9aebuUVxBTmd2LCpu645AAjpRUNhqOmVuiKreUoV1aMpWLCCgEAQALoPTZAm8BQQKE/9Q1k8cV/dMcYRQavQSpn9aCLIVYhUzN45pWhOelbaJ9AU5gayhZiGwAEAthrYW6Ucm+acGAR3whdfUk17jp4NMearo4+NxR2w0VsVkEF0gQ/U6AHggnM+BZmvrhhMdSygqlAQAABAD/jq8EFRaHc2Mmyf6hfiX8UodhNpPJEpCcsiaqR5TyakgHABCl1OgA")
-        .unwrap();
-    println!("SignedBlock data[{}]", raw_block.len());
-    let block = match parse_block(&raw_block) {
-        Ok(b) => b,
-        Err(err) => {
-            println!("test_parse_block: Failed to parse block ({:?})", err);
-            return;
-        }
-    };
-    print_block(&block);
-
-    // test parse address
-    let ref_sig = block.block.extrinsics[1].signature.as_ref().unwrap();
-    let ref_addr = &ref_sig.0;
-    println!("test_parse_block: addr = {}", format_address(ref_addr));
-
-    let cmd_json = serde_json::to_string_pretty(
-        &contracts::data_plaza::Command::List(contracts::data_plaza::ItemDetails {
-            name: "nname".to_owned(),
-            category: "ccategory".to_owned(),
-            description: "ddesc".to_owned(),
-            price: contracts::data_plaza::PricePolicy::PerRow { price: 100_u128 },
-            dataset_link: "llink".to_owned(),
-            dataset_preview: "pprev".to_owned()
-        })).expect("jah");
-    println!("sample command: {}", cmd_json);
-}
-
-fn test_bridge() {
-    // 1. load genesis
-    let raw_genesis = base64::decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh9rd6Uku4dTja+JQVMLsOZ5GtS4nU0cdpuvgchlapeMDFwoudZe3t+PYTAU5HROaYrFX54eG2MCC8p3PTBETFAAIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAAAMoQKALhCA33I0FGiDoLZ6HBWl1uCIt+sLgUbPlfMJqUk/gukhEt6AviHkl5KFGndUmA+ClBT2kPSvmBOvZTWowWjNYfynHU6AOFjSvKwU3s/vvRg7QOrJeehLgo9nGfN91yHXkHcWLkuAUJegqkIzp2A6LPkZouRRsKgiY4Wu92V8JXrn3aSXrw2AXDYZ0c8CICTMvasQ+rEpErmfEmg+BzH19s/zJX4LP8adAWRyYW5kcGFfYXV0aG9yaXRpZXNJAQEIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAABtAYKmqACASqIhjIQMli+MpltqIZlc2FVhXCd/m9F6k9Q5u13xU3JQXHh0cmluc2ljX2luZGV4EAAAAACAc0yvcsUiYcma5kSPZKxrMxbyDufisOfMmIsX1bDxfHc=")
-        .expect("Bad bridge_genesis_innfo_b64");
-    let genesis = light_validation::BridgeInitInfo::<chain::Runtime>
-    ::decode(&mut raw_genesis.as_slice())
-        .expect("Can't decode bridge_genesis_info_b64");
-
-    println!("bridge_genesis_info_b64: {:?}", genesis);
-
-    let mut state = STATE.lock().unwrap();
-    let id = state.light_client.initialize_bridge(
-        genesis.block_header,
-        genesis.validator_set,
-        genesis.validator_set_proof)
-        .expect("Init bridge failed; qed");
-
-    // 2. import a few blocks
-    let raw_header = base64::decode("/YNUiuLexTFhCwS9smQZzq1EggRC0DWkgGuCbyaKKSQEhrlzSqBeoaYA0f7EXN/Z0WJINIurZbvBQU/2dKyaFxA8RCHwO2aMQ+Agbl7pMtC9Yn6AH0rYW30BFRZmva2k5QgGYXVyYSAQWrUPAAAAAAVhdXJhAQFsP5YkXJ1qPXxseyMUtX5QXTQZBbIKDqYeZq1mw1f6MyROgQ3BIJpp8wCgSTlPttAQmkw4Ol4b5tJ5VaBzUd2B").unwrap();
-    let header = chain::Header::decode(&mut raw_header.as_slice()).expect("Bad block1 header; qed");
-    let justification = base64::decode("CgAAAAAAAADew4hPceq4QYh0sxLxlaq0lTl+SWKw88vuBatKPewDcwEAAAAI3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAAXWeJEfa3FLKCvN8SYsx3wBx3N78oHP4THt65DyExstiuwZpF62Ci18/8hdr4cf+jbdYkSBBeMJuL9dTUY/QzAojcNBfVBY7EtFA+DBLqGgqJviAP6YkiQj1DNAFPprDu3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAA8TA1VpLNnlBnetJ74i0IY/Bv6InpDTkG2q4LCy0qVPG3WQhgadGFMInCyc38vOHKKwA7X2r7FGfQmuuPlwRCA9F8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAA==").unwrap();
-
-    state.light_client.submit_simple_header(id, header, justification)
-        .expect("Submit first block failed; qed");
-}
-
-fn test_ecdh(params: TestEcdhParam) {
-    let bob_pub: [u8; 65] = [0x04, 0xb8, 0xd1, 0x8e, 0x7d, 0xe4, 0xc1, 0x10, 0x69, 0x48, 0x7b, 0x5c, 0x1e, 0x6e, 0xa5, 0xdf, 0x04, 0x51, 0xf7, 0xe1, 0xa8, 0x46, 0x17, 0x5b, 0xf6, 0xfd, 0xf8, 0xe8, 0xea, 0x5c, 0x68, 0xcd, 0xfb, 0xca, 0x0e, 0x1f, 0x17, 0x1c, 0x0b, 0xee, 0x3d, 0x34, 0x71, 0x11, 0x07, 0x67, 0x2d, 0x6a, 0x13, 0x57, 0x26, 0x7d, 0x5a, 0xcb, 0x3b, 0x98, 0x4c, 0xa5, 0xbf, 0xf4, 0xbf, 0x33, 0x78, 0x32, 0x96];
-
-    let pubkey_data = params.pubkey_hex.map(|h| hex::decode_hex(&h));
-    let pk = match pubkey_data.as_ref() {
-        Some(d) => d.as_slice(),
-        None => bob_pub.as_ref()
-    };
-
-    let local_state = LOCAL_STATE.lock().unwrap();
-    let alice_priv = &local_state.ecdh_private_key.as_ref()
-        .expect("ECDH private key not initialized");
-    let key = ecdh::agree(alice_priv, pk);
-    println!("ECDH derived secret key: {}", hex::encode_hex_compact(&key));
-
-    if let Some(msg_b64) = params.message_b64 {
-        let mut msg = base64::decode(&msg_b64)
-            .expect("Failed to decode msg_b64");
-        let iv = aead::generate_iv();
-        aead::encrypt(&iv, &key, &mut msg);
-
-        println!("AES-GCM: {}", hex::encode_hex_compact(&msg));
-        println!("IV: {}", hex::encode_hex_compact(&iv));
-    }
 }
 
 fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
@@ -1606,4 +1465,66 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "path": path.to_string(),
         "data": data_b64.to_string()
     }))
+}
+
+fn test_bridge() {
+    // 1. load genesis
+    let raw_genesis = base64::decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh9rd6Uku4dTja+JQVMLsOZ5GtS4nU0cdpuvgchlapeMDFwoudZe3t+PYTAU5HROaYrFX54eG2MCC8p3PTBETFAAIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAAAMoQKALhCA33I0FGiDoLZ6HBWl1uCIt+sLgUbPlfMJqUk/gukhEt6AviHkl5KFGndUmA+ClBT2kPSvmBOvZTWowWjNYfynHU6AOFjSvKwU3s/vvRg7QOrJeehLgo9nGfN91yHXkHcWLkuAUJegqkIzp2A6LPkZouRRsKgiY4Wu92V8JXrn3aSXrw2AXDYZ0c8CICTMvasQ+rEpErmfEmg+BzH19s/zJX4LP8adAWRyYW5kcGFfYXV0aG9yaXRpZXNJAQEIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAABtAYKmqACASqIhjIQMli+MpltqIZlc2FVhXCd/m9F6k9Q5u13xU3JQXHh0cmluc2ljX2luZGV4EAAAAACAc0yvcsUiYcma5kSPZKxrMxbyDufisOfMmIsX1bDxfHc=")
+        .expect("Bad bridge_genesis_innfo_b64");
+    let genesis = light_validation::BridgeInitInfo::<chain::Runtime>
+    ::decode(&mut raw_genesis.as_slice())
+        .expect("Can't decode bridge_genesis_info_b64");
+
+    println!("bridge_genesis_info_b64: {:?}", genesis);
+
+    let mut state = STATE.lock().unwrap();
+    let id = state.light_client.initialize_bridge(
+        genesis.block_header,
+        genesis.validator_set,
+        genesis.validator_set_proof)
+        .expect("Init bridge failed; qed");
+
+    // 2. import a few blocks
+    let raw_header = base64::decode("/YNUiuLexTFhCwS9smQZzq1EggRC0DWkgGuCbyaKKSQEhrlzSqBeoaYA0f7EXN/Z0WJINIurZbvBQU/2dKyaFxA8RCHwO2aMQ+Agbl7pMtC9Yn6AH0rYW30BFRZmva2k5QgGYXVyYSAQWrUPAAAAAAVhdXJhAQFsP5YkXJ1qPXxseyMUtX5QXTQZBbIKDqYeZq1mw1f6MyROgQ3BIJpp8wCgSTlPttAQmkw4Ol4b5tJ5VaBzUd2B").unwrap();
+    let header = chain::Header::decode(&mut raw_header.as_slice()).expect("Bad block1 header; qed");
+    let justification = base64::decode("CgAAAAAAAADew4hPceq4QYh0sxLxlaq0lTl+SWKw88vuBatKPewDcwEAAAAI3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAAXWeJEfa3FLKCvN8SYsx3wBx3N78oHP4THt65DyExstiuwZpF62Ci18/8hdr4cf+jbdYkSBBeMJuL9dTUY/QzAojcNBfVBY7EtFA+DBLqGgqJviAP6YkiQj1DNAFPprDu3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAA8TA1VpLNnlBnetJ74i0IY/Bv6InpDTkG2q4LCy0qVPG3WQhgadGFMInCyc38vOHKKwA7X2r7FGfQmuuPlwRCA9F8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAA==").unwrap();
+
+    state.light_client.submit_simple_header(id, header, justification)
+        .expect("Submit first block failed; qed");
+}
+
+fn test_ecdh(params: TestEcdhParam) {
+    let bob_pub: [u8; 65] = [0x04, 0xb8, 0xd1, 0x8e, 0x7d, 0xe4, 0xc1, 0x10, 0x69, 0x48, 0x7b, 0x5c, 0x1e, 0x6e, 0xa5, 0xdf, 0x04, 0x51, 0xf7, 0xe1, 0xa8, 0x46, 0x17, 0x5b, 0xf6, 0xfd, 0xf8, 0xe8, 0xea, 0x5c, 0x68, 0xcd, 0xfb, 0xca, 0x0e, 0x1f, 0x17, 0x1c, 0x0b, 0xee, 0x3d, 0x34, 0x71, 0x11, 0x07, 0x67, 0x2d, 0x6a, 0x13, 0x57, 0x26, 0x7d, 0x5a, 0xcb, 0x3b, 0x98, 0x4c, 0xa5, 0xbf, 0xf4, 0xbf, 0x33, 0x78, 0x32, 0x96];
+
+    let pubkey_data = params.pubkey_hex.map(|h| hex::decode_hex(&h));
+    let pk = match pubkey_data.as_ref() {
+        Some(d) => d.as_slice(),
+        None => bob_pub.as_ref()
+    };
+
+    let local_state = LOCAL_STATE.lock().unwrap();
+    let alice_priv = &local_state.ecdh_private_key.as_ref()
+        .expect("ECDH private key not initialized");
+    let key = ecdh::agree(alice_priv, pk);
+    println!("ECDH derived secret key: {}", hex::encode_hex_compact(&key));
+
+    if let Some(msg_b64) = params.message_b64 {
+        let mut msg = base64::decode(&msg_b64)
+            .expect("Failed to decode msg_b64");
+        let iv = aead::generate_iv();
+        aead::encrypt(&iv, &key, &mut msg);
+
+        println!("AES-GCM: {}", hex::encode_hex_compact(&msg));
+        println!("IV: {}", hex::encode_hex_compact(&iv));
+    }
+}
+
+fn test(param: TestReq) -> Result<Value, Value> {
+    if param.test_bridge == Some(true) {
+        test_bridge();
+    }
+    if let Some(p) = param.test_ecdh {
+        test_ecdh(p);
+    }
+    Ok(json!({}))
 }
