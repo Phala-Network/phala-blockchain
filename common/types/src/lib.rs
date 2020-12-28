@@ -118,7 +118,7 @@ pub struct Score {
 
 type MachineId = [u8; 16];
 type WorkerPublicKey = [u8; 33];
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Debug)]
 pub struct PRuntimeInfo {
 	pub version: u8,
 	pub machine_id: MachineId,

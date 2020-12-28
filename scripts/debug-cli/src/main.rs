@@ -10,6 +10,10 @@ enum Cli {
         #[structopt(short)]
         hex_data: String,
     },
+    DecodePruntimeInfo {
+        #[structopt(short)]
+        hex_data: String,
+    },
     DecodeRaQuote {
         #[structopt(short)]
         b64_data: String,
@@ -23,6 +27,14 @@ fn main() {
             let data = hex::decode(hex_data)
                 .expect("Failed to parse hex_data");
              let msg: phala_types::SignedWorkerMessage = Decode::decode(&mut data.as_slice())
+                .expect("Failed to decode message");
+            println!("Decoded: {:?}", msg);
+        },
+        Cli::DecodePruntimeInfo { hex_data } => {
+            // 013774db272fde81d8d7ca1d85092dfc0103e4be62b620d51bd7576e63fefbf93be2fe7a83abb30797119e78d2e688d80715080800000002000000
+            let data = hex::decode(hex_data)
+                .expect("Failed to parse hex_data");
+            let msg: phala_types::PRuntimeInfo = Decode::decode(&mut data.as_slice())
                 .expect("Failed to decode message");
             println!("Decoded: {:?}", msg);
         },
