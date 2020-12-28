@@ -7,31 +7,31 @@ const { u8aToHex } = require('@polkadot/util');
 
 const typedefs = require('../../e2e/typedefs.json');
 
-async function main () {
-    const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
-    const shouldDumpFullWorkers = (process.env.FULL_DUMP === '1');
-
+async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     const workerState = {};
-    const entries = await api.query.phalaModule.workerState.entries();
+    const entries = await api.query.phalaModule.workerState.entriesAt(hash);
     for (let [k, v] of entries) {
-        console.log(`${k.args.map(k => k.toHuman())} =>`, v.toJSON());
+        if (logEntries) {
+            console.log(`${k.args.map(k => k.toHuman())} =>`, v.toJSON());
+        }
         workerState[k.args[0].toHuman()] = v.toJSON();
     }
 
-    const [onlineWorkers, totalPower] = await Promise.all([
-        api.query.phalaModule.onlineWorkers(),
-        api.query.phalaModule.totalPower(),
+    const [onlineWorkers, totalPower, delta] = await Promise.all([
+        api.query.phalaModule.onlineWorkers.at(hash),
+        api.query.phalaModule.totalPower.at(hash),
+        api.query.phalaModule.pendingExitingDelta.at(hash),
     ]);
-
-    console.log({onchainData: {
-        onlineWorkers: onlineWorkers.toNumber(),
-        totalPower: totalPower.toNumber(),
-    }});
+    const onchainData = {
+        onlineWorkers: onlineWorkers.toNumber() + delta.numWorker.toNumber(),
+        totalPower: totalPower.toNumber() + delta.numPower.toNumber(),
+        delta: delta.toJSON(),
+    };
 
     const statsFromWorkerState = {
         numWorkers: Object.keys(workerState).length,
-        numOnlineWorkers: Object.entries(workerState).filter(([_, v]) => !!v.state.Mining).length,
+        numOnlineWorkers: Object.entries(workerState)
+            .filter(([_, v]) => !!v.state.Mining || 'MiningStopping' in v.state).length,
         numStartingWorkers:
             Object.entries(workerState).filter(([_, v]) => 'MiningPending' in v.state).length,
         numStoppingWorkers:
@@ -50,7 +50,70 @@ async function main () {
             .map(([_, v]) => v.score && parseInt(v.score.features[0]) || 0)
             .reduce((a, x) => Math.max(a, x), 0),
     }
-    console.log({statsFromWorkerState});
+    if (logStats) {
+        console.log({onchainData, statsFromWorkerState});
+    }
+
+    return {
+        onchainData,
+        statsFromWorkerState,
+    };
+}
+
+async function binarySearch(asyncPred, lo, hi) {
+    let l = lo;
+    let r = hi;
+    while (l <= r) {
+        const mid = ((l + r) / 2) | 0;
+        const pred = await asyncPred(mid);
+        if (pred == 'stop') {
+            break;
+        } else if (pred == 'left') {
+            l = mid + 1;
+        } else {
+            r = mid - 1;
+        }
+    }
+    return [l, r];
+}
+
+async function checkDiff (api, startHeight=378900) {
+    const latestHeader = await api.rpc.chain.getHeader();
+    const endHeight = latestHeader.number.toNumber();
+    console.log(`Search diff between ${startHeight} and ${endHeight}`);
+
+    for (let targetDiff = 0; targetDiff <= 5; targetDiff++) {
+        const [l, r] = await binarySearch(async (height) => {
+            const hash = await api.rpc.chain.getBlockHash(height);
+            const { onchainData, statsFromWorkerState } = await getStatsAt(api, hash, false, false);
+            const diff = onchainData.onlineWorkers - statsFromWorkerState.numOnlineWorkers;
+            const result = diff <= targetDiff ? 'left' : 'right';
+            console.log(`  . block [${height}]`, {
+                onchain: onchainData.onlineWorkers,
+                stats: statsFromWorkerState.numOnlineWorkers,
+                diff,
+                result,
+            });
+            return result;
+        }, startHeight, endHeight);
+
+        console.log(`Target online - stats == ${targetDiff}: [${l}, ${r}]`);
+        if (l > endHeight) {
+            break;
+        }
+    }
+}
+
+async function main () {
+    const wsProvider = new WsProvider(process.env.ENDPOINT);
+    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const shouldDumpFullWorkers = (process.env.FULL_DUMP === '1');
+
+    await checkDiff(api);
+    return;
+
+    const last = await api.rpc.chain.getBlockHash();
+    await getStatsAt(api, last); // const { onchainData, statsFromWorkerState } =
 
     if (shouldDumpFullWorkers) {
         const fs = require('fs');
