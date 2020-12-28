@@ -49,6 +49,9 @@ async function getStatsAt(api, hash, logEntries=true, logStats=true) {
         maxCores: Object.entries(workerState)
             .map(([_, v]) => v.score && parseInt(v.score.features[0]) || 0)
             .reduce((a, x) => Math.max(a, x), 0),
+        totalCores: Object.entries(workerState)
+            .map(([_, v]) => v.score && parseInt(v.score.features[0]) || 0)
+            .reduce((a, x) => a + x, 0),
     }
     if (logStats) {
         console.log({onchainData, statsFromWorkerState});
@@ -107,13 +110,16 @@ async function checkDiff (api, startHeight=378900) {
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
     const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const runBinarySearch = (process.env.BINARY_SEARCH === '1');
     const shouldDumpFullWorkers = (process.env.FULL_DUMP === '1');
 
-    await checkDiff(api);
-    return;
+    if (runBinarySearch) {
+        await checkDiff(api);
+        return;
+    }
 
     const last = await api.rpc.chain.getBlockHash();
-    await getStatsAt(api, last); // const { onchainData, statsFromWorkerState } =
+    await getStatsAt(api, last);
 
     if (shouldDumpFullWorkers) {
         const fs = require('fs');
