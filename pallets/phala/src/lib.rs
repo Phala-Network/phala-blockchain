@@ -628,90 +628,80 @@ impl<T: Trait> Module<T> {
 		Ok(())
 	}
 
-	/// Try to remove a registered worker from the registry by its `machine_id`
-	///
-	/// Take the storage items (WorkerState and MachineOwner) if they present. Otherwise returns
-	/// None. It doesn't change the stash info. It doesn't emmit any events, since it's up to the
-	/// caller to decide if the WorkerState is updated or not.
-	fn take_machine_if_present(machine_id: &Vec<u8>)
-	-> Option<(T::AccountId, WorkerInfo<T::BlockNumber>)> {
-		if !MachineOwner::<T>::contains_key(machine_id) {
-			return None;
-		}
-		let stash = MachineOwner::<T>::take(machine_id);
-		let worker_info = WorkerState::<T>::take(&stash);
-		Some((stash, worker_info))
+	/// Unlinks a worker from a stash account. Only call when they are linked.
+	fn unlink_worker(
+		stash: &T::AccountId, machine_id: &Vec<u8>, stats_delta: &mut MinerStatsDelta
+	) {
+		WorkerIngress::<T>::remove(stash);
+		MachineOwner::<T>::remove(machine_id);
+		let info = WorkerState::<T>::take(stash);
+		match info.state {
+			WorkerStateEnum::<T::BlockNumber>::Mining(_)
+			| WorkerStateEnum::<T::BlockNumber>::MiningStopping => {
+				stats_delta.num_worker -= 1;
+				if let Some(score) = &info.score {
+					stats_delta.num_power -= score.overall_score as i32;
+				}
+			}
+			_ => ()
+		};
+		Self::deposit_event(RawEvent::WorkerUnregistered(stash.clone(), machine_id.clone()));
 	}
 
 	fn register_worker_internal(
 		stash: &T::AccountId, machine_id: &Vec<u8>, pubkey: &Vec<u8>, worker_features: &Vec<u32>
 	) -> Result<(), Error<T>> {
-		// Add into the registry
-		let perv_machine_owner = Self::take_machine_if_present(&machine_id);
-		// Maybe updated WorkerInfo fields
+		let mut delta = PendingExitingDelta::get();
+		let info = WorkerState::<T>::get(stash);
+		let machine_owner = MachineOwner::<T>::get(machine_id);
+		let renew_only = &info.machine_id == machine_id && !machine_id.is_empty();
+		// Unlink existing machine and stash
+		if !renew_only {
+			// Worker linked to another stash
+			if machine_owner != Default::default() && &machine_owner != stash {
+				Self::unlink_worker(&machine_owner, machine_id, &mut delta);
+			}
+			// Stash linked to another worker
+			if info.state != WorkerStateEnum::<T::BlockNumber>::Empty
+				&& !info.machine_id.is_empty() {
+				Self::unlink_worker(stash, &info.machine_id, &mut delta);
+			}
+		}
+		// Updated WorkerInfo fields
 		let last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
 		let score = Some(Score {
 			overall_score: calc_overall_score(worker_features)
 				.map_err(|()| Error::<T>::InvalidInput)?,
 			features: worker_features.clone()
 		});
-		// Update the associated WorkerInfo for this stash
-		let worker_info = match perv_machine_owner {
-			// A new machine
-			None => {
-				Self::deposit_event(RawEvent::WorkerRegistered(
-					stash.clone(), pubkey.clone(), machine_id.clone()));
-				WorkerInfo {
-					machine_id: machine_id.clone(),
-					pubkey: pubkey.clone(),
-					last_updated,
-					state: WorkerStateEnum::Free,
-					score,
-				}
-			},
+		// New WorkerInfo
+		let new_info = if renew_only {
 			// Just renewed
-			Some((prev_stash, info)) if &prev_stash == stash => {
-				Self::deposit_event(
-					RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
-				WorkerInfo {
-					pubkey: pubkey.clone(),
-					last_updated,
-					score,
-					..info  // state unchanged
-				}
-			},
-			// Owner changed
-			Some((prev_stash, info)) => {
-				Self::deposit_event(
-					RawEvent::WorkerUnregistered(prev_stash.clone(), machine_id.clone()));
-				Self::deposit_event(RawEvent::WorkerRegistered(
-					stash.clone(), pubkey.clone(), machine_id.clone()));
-				match info.state {
-					WorkerStateEnum::Mining(_) | WorkerStateEnum::MiningStopping => {
-						// Necessary because the miner is force stopping mining and the new account
-						// is still free.
-						// TODO: this should triger a slash
-						PendingExitingDelta::mutate(|d| {
-							d.num_worker -= 1;
-							if let Some(score) = &info.score {
-								d.num_power -= score.overall_score as i32;
-							}
-						});
-					}
-					_ => ()
-				};
-				WorkerInfo {
-					pubkey: pubkey.clone(),
-					last_updated,
-					state: WorkerStateEnum::Free,
-					score,
-					..info
-				}
-			},
+			Self::deposit_event(
+				RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+			WorkerInfo {
+				machine_id: machine_id.clone(),	 // should not change, but we set it anyway
+				pubkey: pubkey.clone(),	  // could change if the worker forgot the identity
+				last_updated,
+				score,	// could change if we do profiling
+				..info  // keep .state
+			}
+		} else {
+			// Link a new worker
+			Self::deposit_event(RawEvent::WorkerRegistered(
+				stash.clone(), pubkey.clone(), machine_id.clone()));
+			WorkerInfo {
+				machine_id: machine_id.clone(),
+				pubkey: pubkey.clone(),
+				last_updated,
+				state: WorkerStateEnum::Free,
+				score,
+			}
 		};
-		WorkerState::<T>::insert(&stash, worker_info);
-		MachineOwner::<T>::insert(&machine_id, &stash);
-		WorkerIngress::<T>::insert(&stash, 0);
+		WorkerState::<T>::insert(stash, new_info);
+		MachineOwner::<T>::insert(machine_id, stash);
+		PendingExitingDelta::put(delta);
+		WorkerIngress::<T>::insert(stash, 0);
 		Ok(())
 	}
 
