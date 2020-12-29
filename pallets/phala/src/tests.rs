@@ -589,7 +589,49 @@ fn test_mining_lifecycle_renew() {
 		assert_eq!(PhalaModule::online_workers(), 1);
 		assert_eq!(PhalaModule::total_power(), 100);
 	});
+}
 
+#[test]
+fn test_bug_119() {
+	new_test_ext().execute_with(|| {
+		use frame_support::storage::StorageMap;
+
+		let machine_id1 = vec![1];
+		let machine_id2 = vec![2];
+		let pubkey1 = vec![11];
+		let pubkey2 = vec![12];
+
+		// Block 1: register worker1 at account1 and start mining
+		System::set_block_number(1);
+		println!("---- block 1");
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 1, machine_id1.clone(), pubkey1.clone()));
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		// Check machine_owner is set correctly
+		assert_eq!(PhalaModule::machine_owner(machine_id1.clone()), 1);
+		PhalaModule::on_finalize(1);
+		System::finalize();
+
+		// Block 2: register worker2 at account 1
+		System::set_block_number(2);
+		println!("---- block 2");
+		assert_matches!(PhalaModule::worker_state(1).state, WorkerStateEnum::Mining(_));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(), 1, machine_id2.clone(), pubkey2.clone()));
+		assert_eq!(PhalaModule::machine_owner(machine_id2.clone()), 1);
+		assert_eq!(
+			crate::MachineOwner::<Test>::contains_key(&machine_id1), false,
+			"Machine1 unlinked because account1 is force linked to machine2");
+		PhalaModule::on_finalize(2);
+		System::finalize();
+
+		let delta = PhalaModule::pending_exiting();
+		assert_eq!(delta.num_worker, -1);
+		assert_eq!(delta.num_power, -100);
+	});
 }
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {

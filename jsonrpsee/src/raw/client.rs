@@ -71,8 +71,7 @@ use alloc::{collections::VecDeque, string::String, vec};
 use core::{fmt, future::Future};
 use hashbrown::{hash_map::Entry, HashMap};
 
-/// Wraps around a [`TransportClient`](crate::transport::TransportClient) and analyzes everything
-/// correctly.
+/// Wraps around a [`TransportClient`](crate::TransportClient) and analyzes everything correctly.
 ///
 /// See [the module root documentation](crate::client) for more information.
 pub struct RawClient<R> {

@@ -48,5 +48,9 @@
     "computeWorkers": "u32",
     "fracTargetOnlineReward": "u32",
     "totalPower": "u32"
+  },
+  "MinerStatsDelta": {
+    "numWorker": "i32",
+    "numPower": "i32"
   }
 }

@@ -59,7 +59,8 @@
 //! # Clients
 //!
 //! In order to perform outgoing requests, you first have to create a
-//! [`RawClient`](raw::client::RawClient).
+//! [`RawClient`](raw::client::RawClient). There exist several shortcuts such as the [`http_raw_client`]
+//! method.
 //!
 //! Once a client is created, you can use the
 //! [`start_request`](raw::client::RawClient::start_request) method to perform requests.
@@ -137,7 +138,7 @@
 //!     while let Ok(request) = System::next_request(&mut server).await {
 //!         match request {
 //!             System::SystemName { respond } => {
-//!                 respond.ok("my name");
+//!                 respond.ok("my name").await;
 //!             }
 //!         }
 //!     }
@@ -147,6 +148,7 @@
 //!
 
 #![deny(unsafe_code)]
+#![deny(intra_doc_link_resolution_failure)]
 #![warn(missing_docs)]
 
 extern crate alloc;
@@ -163,8 +165,9 @@ use std::{error, net::SocketAddr};
 pub mod client;
 pub mod common;
 pub mod raw;
-pub mod server;
 pub mod transport;
+
+mod server;
 
 #[cfg(feature = "http")]
 mod server_utils;
@@ -205,16 +208,6 @@ pub async fn http_server(addr: &SocketAddr) -> Result<Server, Box<dyn error::Err
 pub fn http_client(addr: &str) -> Client {
     let transport = transport::http::HttpTransportClient::new(addr);
     Client::from(raw::RawClient::new(transport))
-}
-
-/// Builds a new WebSockets server.
-#[cfg(feature = "ws")]
-#[cfg_attr(docsrs, doc(cfg(feature = "ws")))]
-pub async fn ws_server(addr: &SocketAddr) -> Result<Server, Box<dyn error::Error + Send + Sync>> {
-    let transport = transport::ws::WsTransportServer::builder(*addr)
-        .build()
-        .await?;
-    Ok(From::from(raw::RawServer::new(transport)))
 }
 
 /// Builds a new WebSockets client.

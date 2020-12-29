@@ -8,7 +8,6 @@ pub enum Error {
   BlockHashNotFound,
   BlockNotFound,
   EventNotFound,
-  BlockHeaderMismatch,
   NoSetIdAtBlock,
   SearchSetIdChangeInEmptyRange,
   FailedToDecode,

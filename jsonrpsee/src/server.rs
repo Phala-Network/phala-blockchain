@@ -142,7 +142,7 @@ impl Server {
     /// Initializes a new server based upon this raw server.
     pub fn new<R, I>(server: RawServer<R, I>) -> Server
     where
-        R: TransportServer<RequestId = I> + Send + 'static,
+        R: TransportServer<RequestId = I> + Send + Sync + 'static,
         I: Clone + PartialEq + Eq + Hash + Send + Sync + 'static,
     {
         // We use an unbounded channel because the only exchanged messages concern registering
@@ -278,7 +278,7 @@ impl RegisteredNotifications {
 /// Initializes a new server based upon this raw server.
 impl<R, I> From<RawServer<R, I>> for Server
 where
-    R: TransportServer<RequestId = I> + Send + 'static,
+    R: TransportServer<RequestId = I> + Send + Sync + 'static,
     I: Clone + PartialEq + Eq + Hash + Send + Sync + 'static,
 {
     fn from(server: RawServer<R, I>) -> Server {
@@ -374,7 +374,11 @@ async fn background_task<R, I>(
         match outcome {
             Either::Left(None) => return,
             Either::Left(Some(FrontToBack::AnswerRequest { request_id, answer })) => {
-                server.request_by_id(&request_id).unwrap().respond(answer);
+                server
+                    .request_by_id(&request_id)
+                    .unwrap()
+                    .respond(answer)
+                    .await;
             }
             Either::Left(Some(FrontToBack::RegisterNotifications {
                 name,
@@ -440,11 +444,13 @@ async fn background_task<R, I>(
                     match handler.send((request.id(), params.clone())).now_or_never() {
                         Some(Ok(())) => {}
                         Some(Err(_)) | None => {
-                            request.respond(Err(From::from(common::ErrorCode::ServerError(0))));
+                            request
+                                .respond(Err(From::from(common::ErrorCode::ServerError(0))))
+                                .await;
                         }
                     }
                 } else if let Some(sub_unique_id) = subscribe_methods.get(request.method()) {
-                    if let Ok(sub_id) = request.into_subscription() {
+                    if let Ok(sub_id) = request.into_subscription().await {
                         debug_assert!(subscribed_clients.contains_key(&sub_unique_id));
                         if let Some(clients) = subscribed_clients.get_mut(&sub_unique_id) {
                             debug_assert!(clients.iter().all(|c| *c != sub_id));
@@ -473,7 +479,9 @@ async fn background_task<R, I>(
                         }
                     }
                 } else {
-                    request.respond(Err(From::from(common::ErrorCode::InvalidRequest)));
+                    request
+                        .respond(Err(From::from(common::ErrorCode::InvalidRequest)))
+                        .await;
                 }
             }
             Either::Right(RawServerEvent::SubscriptionsReady(_)) => {

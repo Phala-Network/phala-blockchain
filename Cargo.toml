@@ -23,7 +23,8 @@ members = [
 	"phost",
 	"runtime",
 	"rpc",
-	"scripts/toml-upgrade-version"
+	"scripts/toml-upgrade-version",
+	"scripts/debug-cli"
 ]
 
 resolver = "2"
