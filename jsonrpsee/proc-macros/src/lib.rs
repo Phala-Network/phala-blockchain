@@ -239,7 +239,7 @@ fn build_api(api: api_def::ApiDefinition) -> Result<proc_macro2::TokenStream, sy
                                 Ok(v) => v,
                                 Err(_) => {
                                     // TODO: message
-                                    request.respond(Err(jsonrpsee::common::Error::invalid_params(#rpc_param_name)));
+                                    request.respond(Err(jsonrpsee::common::Error::invalid_params(#rpc_param_name))).await;
                                     continue;
                                 }
                             }
@@ -312,7 +312,7 @@ fn build_api(api: api_def::ApiDefinition) -> Result<proc_macro2::TokenStream, sy
 
             match request_outcome {
                 #(#tmp_to_rq)*
-                None => server.request_by_id(&request_id).unwrap().respond(Err(jsonrpsee::common::Error::method_not_found())),
+                None => server.request_by_id(&request_id).unwrap().respond(Err(jsonrpsee::common::Error::method_not_found())).await,
             }
         });
 
@@ -530,7 +530,7 @@ fn param_variant_name(pat: &syn::Pat) -> syn::parse::Result<&syn::Ident> {
 }
 
 /// Determine the name of the parameter based on the pattern.
-fn rpc_param_name(pat: &syn::Pat, _attrs: &[syn::Attribute]) -> syn::parse::Result<String> {
+fn rpc_param_name(pat: &syn::Pat, attrs: &[syn::Attribute]) -> syn::parse::Result<String> {
     // TODO: look in attributes if the user specified a param name
     match pat {
         // TODO: check other fields of the `PatIdent`
