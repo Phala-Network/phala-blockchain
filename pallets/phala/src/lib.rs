@@ -277,10 +277,6 @@ decl_module! {
 		type Error = Error<T>;
 		fn deposit_event() = default;
 
-		fn on_runtime_upgrade() -> Weight {
-			migrations_3_1_0::apply::<Self>()
-		}
-
 		fn on_finalize() {
 			let now = System::<T>::block_number();
 			let round = Round::<T>::get();
@@ -1012,12 +1008,4 @@ fn u256_target(m: u64, n: u64) -> U256 {
 		panic!("Invalid parameter");
 	}
 	U256::MAX / n * m
-}
-
-// Migration from 3.0.0 to 3.1.0
-mod migrations_3_1_0;
-impl<T: Trait> migrations_3_1_0::V30ToV31 for Module<T> {
-	type Module = Module<T>;
-	type AccountId = T::AccountId;
-	type BlockNumber = T::BlockNumber;
 }
