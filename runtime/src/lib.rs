@@ -186,6 +186,7 @@ parameter_types! {
 		})
 		.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 		.build_or_panic();
+		pub const SS58Prefix: u8 = 42;
 }
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
@@ -212,6 +213,7 @@ impl frame_system::Config for Runtime {
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = frame_system::weights::SubstrateWeight<Runtime>;
+	type SS58Prefix = SS58Prefix;
 }
 
 impl pallet_utility::Config for Runtime {
@@ -1186,6 +1188,10 @@ impl_runtime_apis! {
 
 		fn current_epoch_start() -> sp_consensus_babe::SlotNumber {
 			Babe::current_epoch_start()
+		}
+
+		fn current_epoch() -> sp_consensus_babe::Epoch {
+			Babe::current_epoch()
 		}
 
 		fn generate_key_ownership_proof(

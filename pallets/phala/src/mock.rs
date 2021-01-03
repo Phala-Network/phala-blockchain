@@ -34,14 +34,14 @@ pub struct Test;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub const MaximumBlockWeight: Weight = 1024;
-	pub const MaximumBlockLength: u32 = 2 * 1024;
-	pub const AvailableBlockRatio: Perbill = Perbill::from_percent(75);
+	pub const SS58Prefix: u8 = 42;
 	pub const MinimumPeriod: u64 = 1;
-}
 
+}
 impl system::Config for Test {
 	type BaseCallFilter = ();
+	type BlockWeights = ();
+	type BlockLength = ();
 	type Origin = Origin;
 	type Call = ();
 	type Index = u64;
@@ -53,29 +53,24 @@ impl system::Config for Test {
 	type Header = Header;
 	type Event = TestEvent;
 	type BlockHashCount = BlockHashCount;
-	type MaximumBlockWeight = MaximumBlockWeight;
 	type DbWeight = ();
-	type BlockExecutionWeight = ();
-	type ExtrinsicBaseWeight = ();
-	type MaximumExtrinsicWeight = MaximumBlockWeight;
-	type MaximumBlockLength = MaximumBlockLength;
-	type AvailableBlockRatio = AvailableBlockRatio;
 	type Version = ();
 	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = SS58Prefix;
 }
 
 impl pallet_balances::Config for Test {
-	type MaxLocks = ();
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = TestEvent;
 	type ExistentialDeposit = ();
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxLocks = ();
 }
 
 impl pallet_timestamp::Config for Test {

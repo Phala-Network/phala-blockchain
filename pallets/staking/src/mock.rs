@@ -130,24 +130,27 @@ pub struct Test;
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
-	pub const MaximumBlockWeight: Weight = frame_support::weights::constants::WEIGHT_PER_SECOND * 2;
-	pub const MaximumBlockLength: u32 = 2 * 1024;
-	pub const AvailableBlockRatio: Perbill = Perbill::one();
+	pub BlockWeights: frame_system::limits::BlockWeights =
+		frame_system::limits::BlockWeights::simple_max(
+			frame_support::weights::constants::WEIGHT_PER_SECOND * 2
+		);
 	pub const MaxLocks: u32 = 1024;
 	pub static SessionsPerEra: SessionIndex = 3;
-	pub static ExistentialDeposit: Balance = 0;
+	pub static ExistentialDeposit: Balance = 1;
 	pub static SlashDeferDuration: EraIndex = 0;
 	pub static ElectionLookahead: BlockNumber = 0;
-	pub static Period: BlockNumber = 1;
+	pub static Period: BlockNumber = 5;
+	pub static Offset: BlockNumber = 0;
 	pub static MaxIterations: u32 = 0;
 }
-
 impl frame_system::Config for Test {
 	type BaseCallFilter = ();
+	type BlockWeights = ();
+	type BlockLength = ();
 	type Origin = Origin;
+	type Call = Call;
 	type Index = AccountIndex;
 	type BlockNumber = BlockNumber;
-	type Call = Call;
 	type Hash = H256;
 	type Hashing = ::sp_runtime::traits::BlakeTwo256;
 	type AccountId = AccountId;
@@ -155,21 +158,24 @@ impl frame_system::Config for Test {
 	type Header = Header;
 	type Event = MetaEvent;
 	type BlockHashCount = BlockHashCount;
+	type DbWeight = RocksDbWeight;
 	type Version = ();
 	type PalletInfo = ();
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
 	type SystemWeightInfo = ();
+	type SS58Prefix = ();
 }
+
 impl pallet_balances::Config for Test {
-	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type Event = MetaEvent;
 	type DustRemoval = ();
+	type Event = MetaEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type MaxLocks = MaxLocks;
 }
 parameter_types! {
 	pub const Offset: BlockNumber = 0;
