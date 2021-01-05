@@ -19,19 +19,10 @@ const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 
 const typedefs = require('../../e2e/typedefs.json');
-const dashboard = require('../../tmp/dashboard.json');
 const bn1e9 = new BN(10).pow(new BN(9));
 const bn1e12 = new BN(10).pow(new BN(12));
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
-
-async function getAllControllers (api, stashes) {
-    return await new Promise(async resolve => {
-        const unsub = await api.query.phalaModule.stashState.multi(stashes, data => {
-            unsub();
-            resolve(data.map(x => x.controller.toHuman()));
-        });
-    })
-}
+const kVerbose = parseInt(process.env.VERBOSE || '0') === 1;
 
 async function getBalances (api, addresses) {
     return await new Promise(async resolve => {
@@ -53,20 +44,35 @@ async function main () {
     const amount = new BN(process.env.AMOUNT).mul(bn1e12);
     const minAmount = parseFloat(process.env.MIN_AMOUNT);
 
-    const miners = dashboard.dashboard.find(x => x.targetAddress == payoutTarget);
-    if (!miners) {
-        console.log('Payout address not found; qed.');
-        return;
-    }
-
-    const stashes = miners.targetState.map(x => x.stashAddress);
     console.log('Getting controllers');
-    const controllers = await getAllControllers(api, stashes);
+    const entries = await api.query.phalaModule.stashState.entries();
+    let controllers = [];
+    for (let [k, v] of entries) {
+        const jsonValue = v.toJSON();
+        const controller = jsonValue.controller;
+
+        if (jsonValue.payoutPrefs.target === payoutTarget) {
+            if (kVerbose) {
+                console.log(`${k.args.map(k => k.toHuman())} =>`, jsonValue);
+            }
+
+            controllers.push(controller);
+        }
+    }
+    console.log(`Found ${controllers.length}`);
+
     console.log('Getting balance');
     const balances = await getBalances(api, controllers);
     const balancesFloat = balances.map(b => b.div(bn1e9).toNumber() / 1e3);
-
-    const topUpTargets = controllers.filter((_, idx) => balancesFloat[idx] <= minAmount);
+    const topUpTargets = controllers.filter(
+        (_, idx) => {
+            const shouldTopUp = balancesFloat[idx] <= minAmount;
+            if (shouldTopUp && kVerbose) {
+                console.log(`${idx}: ${balancesFloat[idx]}`)
+            }
+            return shouldTopUp;
+        });
+    console.log(`Found ${topUpTargets.length}`);
     console.log({topUpTargets});
 
     if (kDryRun) {
