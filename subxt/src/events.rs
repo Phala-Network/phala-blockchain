@@ -155,6 +155,7 @@ impl<T: System> EventsDecoder<T> {
         args: &[EventArg],
         input: &mut I,
         output: &mut W,
+        errors: &mut Vec<RuntimeError>,
     ) -> Result<(), Error> {
         for arg in args {
             match arg {
@@ -162,7 +163,7 @@ impl<T: System> EventsDecoder<T> {
                     let len = <Compact<u32>>::decode(input)?;
                     len.encode_to(output);
                     for _ in 0..len.0 {
-                        self.decode_raw_bytes(&[*arg.clone()], input, output)?
+                        self.decode_raw_bytes(&[*arg.clone()], input, output, errors)?
                     }
                 }
                 EventArg::Option(arg) => {
@@ -170,7 +171,7 @@ impl<T: System> EventsDecoder<T> {
                         0 => output.push_byte(0),
                         1 => {
                             output.push_byte(1);
-                            self.decode_raw_bytes(&[*arg.clone()], input, output)?
+                            self.decode_raw_bytes(&[*arg.clone()], input, output, errors)?
                         }
                         _ => {
                             return Err(Error::Other(
@@ -179,7 +180,9 @@ impl<T: System> EventsDecoder<T> {
                         }
                     }
                 }
-                EventArg::Tuple(args) => self.decode_raw_bytes(args, input, output)?,
+                EventArg::Tuple(args) => {
+                    self.decode_raw_bytes(args, input, output, errors)?
+                }
                 EventArg::Primitive(name) => {
                     let result = match name.as_str() {
                         "DispatchResult" => DispatchResult::decode(input)?,
@@ -196,9 +199,9 @@ impl<T: System> EventsDecoder<T> {
                         }
                     };
                     if let Err(error) = result {
-                        return Err(
-                            RuntimeError::from_dispatch(&self.metadata, error)?.into()
-                        )
+                        // since the input may contain any number of args we propagate
+                        // runtime errors to the caller for handling
+                        errors.push(RuntimeError::from_dispatch(&self.metadata, error)?);
                     }
                 }
             }
@@ -222,16 +225,19 @@ impl<T: System> EventsDecoder<T> {
             let event_metadata = module.event(event_variant)?;
 
             log::debug!(
-                "received event '{}::{}'",
+                "received event '{}::{}' ({:?})",
                 module.name(),
-                event_metadata.name
+                event_metadata.name,
+                event_metadata.arguments()
             );
 
             let mut event_data = Vec::<u8>::new();
+            let mut event_errors = Vec::<RuntimeError>::new();
             let result = self.decode_raw_bytes(
                 &event_metadata.arguments(),
                 input,
                 &mut event_data,
+                &mut event_errors,
             );
             let raw = match result {
                 Ok(()) => {
@@ -247,24 +253,45 @@ impl<T: System> EventsDecoder<T> {
                     let _topics = Vec::<T::Hash>::decode(input)?;
                     Raw::Event(event)
                 }
-                Err(Error::Runtime(err)) => Raw::Error(err),
                 Err(err) => return Err(err),
             };
 
-            r.push((phase, raw));
+            if event_errors.len() == 0 {
+                r.push((phase.clone(), raw));
+            }
+
+            for err in event_errors {
+                r.push((phase.clone(), Raw::Error(err)));
+            }
         }
         Ok(r)
     }
 }
 
+/// Raw event or error event
+#[derive(Debug)]
 pub enum Raw {
+    /// Event
     Event(RawEvent),
+    /// Error
     Error(RuntimeError),
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use frame_metadata::{
+        DecodeDifferent,
+        ErrorMetadata,
+        EventMetadata,
+        ExtrinsicMetadata,
+        ModuleMetadata,
+        RuntimeMetadata,
+        RuntimeMetadataPrefixed,
+        RuntimeMetadataV12,
+        META_RESERVED,
+    };
+    use std::convert::TryFrom;
 
     type TestRuntime = crate::NodeTemplateRuntime;
 
@@ -275,6 +302,7 @@ mod tests {
         let value = Some(0u8);
         let input = value.encode();
         let mut output = Vec::<u8>::new();
+        let mut errors = Vec::<RuntimeError>::new();
 
         decoder
             .decode_raw_bytes(
@@ -283,9 +311,84 @@ mod tests {
                 )))],
                 &mut &input[..],
                 &mut output,
+                &mut errors,
             )
             .unwrap();
 
         assert_eq!(output, vec![1, 0]);
+    }
+
+    #[test]
+    fn test_decode_system_events_and_error() {
+        let decoder = EventsDecoder::<TestRuntime>::new(
+            Metadata::try_from(RuntimeMetadataPrefixed(
+                META_RESERVED,
+                RuntimeMetadata::V12(RuntimeMetadataV12 {
+                    modules: DecodeDifferent::Decoded(vec![ModuleMetadata {
+                        name: DecodeDifferent::Decoded("System".to_string()),
+                        storage: None,
+                        calls: None,
+                        event: Some(DecodeDifferent::Decoded(vec![
+                            EventMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "ExtrinsicSuccess".to_string(),
+                                ),
+                                arguments: DecodeDifferent::Decoded(vec![
+                                    "DispatchInfo".to_string()
+                                ]),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                            EventMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "ExtrinsicFailed".to_string(),
+                                ),
+                                arguments: DecodeDifferent::Decoded(vec![
+                                    "DispatchError".to_string(),
+                                    "DispatchInfo".to_string(),
+                                ]),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                        ])),
+                        constants: DecodeDifferent::Decoded(vec![]),
+                        errors: DecodeDifferent::Decoded(vec![
+                            ErrorMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "InvalidSpecName".to_string(),
+                                ),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                            ErrorMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "SpecVersionNeedsToIncrease".to_string(),
+                                ),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                            ErrorMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "FailedToExtractRuntimeVersion".to_string(),
+                                ),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                            ErrorMetadata {
+                                name: DecodeDifferent::Decoded(
+                                    "NonDefaultComposite".to_string(),
+                                ),
+                                documentation: DecodeDifferent::Decoded(vec![]),
+                            },
+                        ]),
+                        index: 0,
+                    }]),
+                    extrinsic: ExtrinsicMetadata {
+                        version: 0,
+                        signed_extensions: vec![],
+                    },
+                }),
+            ))
+            .unwrap(),
+        );
+
+        // [(ApplyExtrinsic(0), Event(RawEvent { module: "System", variant: "ExtrinsicSuccess", data: "482d7c09000000000200" })), (ApplyExtrinsic(1), Error(Module(ModuleError { module: "System", error: "NonDefaultComposite" }))), (ApplyExtrinsic(2), Error(Module(ModuleError { module: "System", error: "NonDefaultComposite" })))]
+        let input = hex::decode("0c00000000000000482d7c0900000000020000000100000000010300035884723300000000000000000200000000010300035884723300000000000000").unwrap();
+        decoder.decode_events(&mut &input[..]).unwrap();
     }
 }
