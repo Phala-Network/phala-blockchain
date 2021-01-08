@@ -28,7 +28,7 @@ async-std = { version = "1.6.4", features = ["attributes"] }
 codec = { package = "parity-scale-codec", version = "1.3.5", features = ["derive"] }
 env_logger = "0.7.1"
 pretty_assertions = "0.6.1"
-sp-keyring = { version = "2.0.0", path = "../../substrate/primitives/keyring" }
+sp-keyring = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-subxt = { path = ".." }
 trybuild = "1.0.32"
 

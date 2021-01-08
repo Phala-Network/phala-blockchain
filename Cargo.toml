@@ -12,7 +12,8 @@ exclude = [
 	"serde_derive_no_std",
 	"serde_json_no_std",
 	"pruntime",
-	"jsonrpsee"
+	"jsonrpsee",
+	"cumulus"
 ]
 
 members = [

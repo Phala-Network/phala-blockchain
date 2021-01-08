@@ -21,5 +21,5 @@
 #![warn(missing_docs)]
 
 fn main() -> sc_cli::Result<()> {
-	phala_node::run()
+	phala_collator::run()
 }
