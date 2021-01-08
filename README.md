@@ -91,7 +91,7 @@ Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
  - run the first parachain collator
 
  ```sh
-./target/release/phala-node \
+./target/release/phala-collator \
   --chain collator
   --tmp \
   --rpc-cors all \
@@ -107,7 +107,7 @@ Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
  - run the second parachain collator
 
  ```sh
-./target/release/phala-node \
+./target/release/phala-collator \
   --chain collator
   --tmp \
   --rpc-cors all \

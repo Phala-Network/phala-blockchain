@@ -80,8 +80,7 @@ pallet-vesting = { version = "2.0.0", default-features = false, git = "https://g
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
 xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "master", default-features = false }
-#xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "master", default-features = false }
-xcm-handler  = { path = "../cumulus/xcm-handler", default-features = false }
+xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "master", default-features = false }
 polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false , branch = "master" }
 
 pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
@@ -92,16 +91,11 @@ xcm-adapter = { path = "../pallets/xcm-adapter", default-features = false }
 
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 
-#cumulus-runtime = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "master" }
-#cumulus-parachain-upgrade = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
-#cumulus-primitives = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
-#cumulus-message-broker = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
-#parachain-info = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
-cumulus-runtime = { path = "../cumulus/runtime",  default-features = false }
-cumulus-parachain-upgrade = { path = "../cumulus/parachain-upgrade", default-features = false }
-cumulus-primitives = { path = "../cumulus/primitives", default-features = false }
-cumulus-message-broker = { path = "../cumulus/message-broker", default-features = false }
-parachain-info = { path = "../cumulus/rococo-parachains/pallets/parachain-info", default-features = false }
+cumulus-runtime = { git = "https://github.com/paritytech/cumulus",  default-features = false, branch = "master" }
+cumulus-parachain-upgrade = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+cumulus-primitives = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+cumulus-message-broker = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
+parachain-info = { git = "https://github.com/paritytech/cumulus", default-features = false, branch = "master" }
 
 [build-dependencies]
 substrate-wasm-builder = { version = "3.0.0", package = "substrate-wasm-builder", git = "https://github.com/paritytech/substrate", branch = "master" }
