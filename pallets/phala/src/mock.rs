@@ -49,6 +49,8 @@ impl system::Config for Test {
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
+	// uncomment for benchmark
+	// type AccountId = <<sp_runtime::MultiSignature as sp_runtime::traits::Verify>::Signer as sp_runtime::traits::IdentifyAccount>::AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = TestEvent;

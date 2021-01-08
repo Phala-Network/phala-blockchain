@@ -371,6 +371,8 @@ parameter_types! {
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
+	// used for benchmark
+	pub const BenchmarkingExistentialDeposit: Balance = 10;
 }
 
 impl pallet_balances::Config for Runtime {
@@ -1019,6 +1021,7 @@ impl pallet_phala::Config for Runtime {
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
 	type Treasury = Treasury;
+	type ModuleWeightInfo = pallet_phala::weights::SubstrateWeight<Runtime>;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
@@ -1381,6 +1384,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+			add_benchmark!(params, batches, pallet_phala, PhalaModule);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

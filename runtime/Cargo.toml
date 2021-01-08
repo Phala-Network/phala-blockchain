@@ -195,4 +195,5 @@ runtime-benchmarks = [
 	"pallet-session-benchmarking",
 	"frame-system-benchmarking",
 	"hex-literal",
+	"pallet-phala/runtime-benchmarks",
 ]
