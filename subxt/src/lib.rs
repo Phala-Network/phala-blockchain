@@ -79,6 +79,7 @@ pub use crate::{
     events::{
         EventsDecoder,
         RawEvent,
+        Raw as RawEventWrapper,
     },
     extrinsic::{
         PairSigner,
