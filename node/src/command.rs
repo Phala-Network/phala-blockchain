@@ -20,14 +20,13 @@ use crate::{chain_spec, service, Cli, Subcommand, RelayChainCli};
 use codec::Encode;
 use node_executor::Executor;
 use node_runtime::{Block, RuntimeApi};
-use sc_cli::{Result, SubstrateCli, RuntimeVersion, Role, ChainSpec};
 use sc_service::PartialComponents;
 use crate::service::new_partial;
 use cumulus_primitives::{genesis::generate_genesis_block, ParaId};
 use polkadot_parachain::primitives::AccountIdConversion;
 use sc_cli::{
-	CliConfiguration, DefaultConfigurationValues, ImportParams, KeystoreParams,
-	NetworkParams, SharedParams,
+	ChainSpec, CliConfiguration, DefaultConfigurationValues, ImportParams, InitLoggerParams,
+	KeystoreParams, NetworkParams, Result, RuntimeVersion, SharedParams, SubstrateCli,
 };
 use sc_service::config::{BasePath, PrometheusConfig};
 use sp_core::hexdisplay::HexDisplay;
@@ -197,7 +196,7 @@ pub fn run() -> Result<()> {
 				You can enable it with `--features runtime-benchmarks`.".into())
 			}
 		}
-		Some(Subcommand::Key(cmd)) => cmd.run(),
+		Some(Subcommand::Key(cmd)) => cmd.run(&cli),
 		Some(Subcommand::Sign(cmd)) => cmd.run(),
 		Some(Subcommand::Verify(cmd)) => cmd.run(),
 		Some(Subcommand::Vanity(cmd)) => cmd.run(),
@@ -250,7 +249,10 @@ pub fn run() -> Result<()> {
 			})
 		},
 		Some(Subcommand::ExportGenesisState(params)) => {
-			sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None, false)?;
+			sc_cli::init_logger(InitLoggerParams {
+				tracing_receiver: sc_tracing::TracingReceiver::Log,
+				..Default::default()
+			})?;
 
 			let block: Block = generate_genesis_block(&load_spec(
 				&params.chain.clone().unwrap_or_default(),
@@ -272,7 +274,10 @@ pub fn run() -> Result<()> {
 			Ok(())
 		}
 		Some(Subcommand::ExportGenesisWasm(params)) => {
-			sc_cli::init_logger("", sc_tracing::TracingReceiver::Log, None, false)?;
+			sc_cli::init_logger(InitLoggerParams {
+				tracing_receiver: sc_tracing::TracingReceiver::Log,
+				..Default::default()
+			})?;
 
 			let raw_wasm_blob =
 				extract_genesis_wasm(&cli.load_spec(&params.chain.clone().unwrap_or_default())?)?;

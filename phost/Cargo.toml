@@ -19,18 +19,18 @@ bytes = "0.5"
 structopt = { version = "0.3" }
 
 subxt = { path = "../subxt", package = "substrate-subxt" }
-system = { version = "2.0.0", path = "../substrate/frame/system", package = "frame-system" }
-sp-core = { version = "2.0.0", path = "../substrate/primitives/core" }
-sp-rpc = { version = "2.0.0", path = "../substrate/primitives/rpc", package = "sp-rpc" }
-sc-rpc-api = { version = "0.8.0", path = "../substrate/client/rpc-api", package = "sc-rpc-api" }
-sp-runtime = { version = "2.0.0", path = "../substrate/primitives/runtime", package = "sp-runtime" }
-sc-finality-grandpa = { version = "0.8.0", path = "../substrate/client/finality-grandpa" }
-sp-finality-grandpa = { version = "2.0.0", package = "sp-finality-grandpa", path = "../substrate/primitives/finality-grandpa", default-features = false }
+system = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-system" }
+sp-core = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-rpc = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-rpc" }
+sc-rpc-api = { version = "0.8.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "sc-rpc-api" }
+sp-runtime = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-runtime" }
+sc-finality-grandpa = { version = "0.8.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { version = "2.0.0", package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 codec = { package = 'parity-scale-codec', version = "1.3.4" }
 
-pallet-grandpa = { version = "2.0.0", path = "../substrate/frame/grandpa" }
-pallet-indices = { version = "2.0.0", path = "../substrate/frame/indices" }
-balances = { version = "2.0.0", package = "pallet-balances", path = "../substrate/frame/balances" }
-sp-keyring = { version = "2.0.0", package = "sp-keyring", path = "../substrate/primitives/keyring" }
+pallet-grandpa = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-indices = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+balances = { version = "2.0.0", package = "pallet-balances", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { version = "2.0.0", package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 
 phala-types = { path = "../common/types" }

@@ -43,14 +43,14 @@ Compile source code with command ```cargo build --release```
  - export genesis data
 
 ```sh
-./target/release/phala-node export-genesis-state --chain collator --parachain-id 2000 > para-2000-genesis
-./target/release/phala-node export-genesis-state --chain collator --parachain-id 5000 > para-5000-genesis
+./target/release/phala-collator export-genesis-state --chain collator --parachain-id 2000 > para-2000-genesis
+./target/release/phala-collator export-genesis-state --chain collator --parachain-id 5000 > para-5000-genesis
 ```
 
  - export wasm data
 
 ```sh
-./target/release/phala-node export-genesis-wasm --chain collator > parachain-wasm
+./target/release/phala-collator export-genesis-wasm --chain collator > para-wasm
 ```
 
 ## Step2: run relay chain
@@ -91,7 +91,7 @@ Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
  - run the first parachain collator
 
  ```sh
-./target/release/phala-node \
+./target/release/phala-collator \
   --chain collator
   --tmp \
   --rpc-cors all \
@@ -107,7 +107,7 @@ Add ```RUST_LOG=debug RUST_BACKTRACE=1``` if you want see more details
  - run the second parachain collator
 
  ```sh
-./target/release/phala-node \
+./target/release/phala-collator \
   --chain collator
   --tmp \
   --rpc-cors all \
