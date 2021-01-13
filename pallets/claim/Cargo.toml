@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 serde = { version = "1.0.102", default-features = false }
 serde_derive = { version = "1.0.102", optional = true }
-codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false }
+codec = { package = "parity-scale-codec", version = "1.3.6", default-features = false }
 rustc-hex = { version = "2.0.1", default-features = false }
 frame-support = { version = "2.0.0", default-features = false, path = "../../substrate/frame/support" }
 frame-system = { version = "2.0.0", default-features = false, path = "../../substrate/frame/system" }
@@ -29,7 +29,7 @@ path = "../../substrate/frame/balances"
 [dev-dependencies]
 hex-literal = "0.2.1"
 pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
-codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false }
+codec = { package = "parity-scale-codec", version = "1.3.6", default-features = false }
 sp-core = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/core" }
 sp-io = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/io" }
 sp-runtime = {  version = "2.0.0", default-features = false, path = "../../substrate/primitives/runtime"  }
