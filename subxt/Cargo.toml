@@ -38,6 +38,7 @@ frame-metadata = { version = "12", package = "frame-metadata", path = "../substr
 frame-support = { version = "2.0.0", package = "frame-support", path = "../substrate/frame/support" }
 sp-runtime = { version = "2.0.0", package = "sp-runtime", path = "../substrate/primitives/runtime" }
 sp-version = { version = "2.0.0", package = "sp-version", path = "../substrate/primitives/version" }
+sp-finality-grandpa = { version = "2.0.0", package = "sp-finality-grandpa", path = "../substrate/primitives/finality-grandpa", default-features = false }
 pallet-indices = { version = "2.0.0", package = "pallet-indices", path = "../substrate/frame/indices" }
 hex = "0.4.2"
 sp-std = { version = "2.0.0", path = "../substrate/primitives/std" }
