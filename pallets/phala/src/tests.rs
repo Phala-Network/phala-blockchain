@@ -684,6 +684,7 @@ fn test_mockdata_sync_worker_message() {
 	});
 }
 */
+
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
     secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
 }
