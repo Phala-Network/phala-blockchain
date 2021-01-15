@@ -635,11 +635,15 @@ fn test_bug_119() {
 }
 
 /*
+// Helper function used to generate a AccountId, for benchmark development only, uncomment to generate
+// benchmark mock data
 pub fn account<Account: Decode + Default>(name: &'static str, index: u32, seed: u32) -> Account {
 	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
 	Account::decode(&mut &entropy[..]).unwrap_or_default()
 }
 
+// Helper function used to generate the TranferData signature(see TRANSFERDATASIG in benchmarking.rs), 
+// for benchmark development only, uncomment to generate benchmark mock data
 #[test]
 fn test_mockdata_transfer_to_chain() {
 	new_test_ext().execute_with(|| {
@@ -660,6 +664,8 @@ fn test_mockdata_transfer_to_chain() {
 	});
 }
 
+// Helper function used to generate the WorkerMessage signature(see WORKMESSAGESIG in benchmarking.rs), 
+// for benchmark development only, uncomment to generate benchmark mock data
 #[test]
 fn test_mockdata_sync_worker_message() {
 	new_test_ext().execute_with(|| {
