@@ -17,6 +17,10 @@ use frame_support::{
 };
 use codec::Decode;
 
+#[macro_use]
+mod benchmarking;
+pub mod weights;
+
 // modules
 mod hashing;
 
@@ -39,6 +43,8 @@ mod mock;
 #[cfg(test)]
 mod tests;
 
+pub use weights::WeightInfo;
+
 type BalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
@@ -56,6 +62,7 @@ pub trait Config: frame_system::Config {
 	type TEECurrency: Currency<Self::AccountId>;
 	type UnixTime: UnixTime;
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
+	type ModuleWeightInfo: WeightInfo;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour: Get<u32>;  // 2 tx
@@ -290,7 +297,7 @@ decl_module! {
 		}
 
 		// Messaging
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::push_command()]
 		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			let num = Self::command_number().unwrap_or(0);
@@ -301,7 +308,7 @@ decl_module! {
 
 		// Registry
 		/// Crerate a new stash or update an existing one.
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::set_stash()]
 		pub fn set_stash(origin, controller: T::AccountId) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(!Stash::<T>::contains_key(&controller), Error::<T>::AlreadyPaired);
@@ -329,7 +336,7 @@ decl_module! {
 		}
 
 		/// Update the payout preferences. Must be called by the controller.
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::set_payout_prefs()]
 		pub fn set_payout_prefs(origin, payout_commission: Option<u32>,
 							    payout_target: Option<T::AccountId>)
 						        -> dispatch::DispatchResult {
@@ -350,7 +357,7 @@ decl_module! {
 		}
 
 		/// Register a worker node with a valid Remote Attestation report
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::register_worker()]
 		pub fn register_worker(origin, encoded_runtime_info: Vec<u8>, report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::NotController);
@@ -406,7 +413,7 @@ decl_module! {
 				.map_err(Into::into)
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_register_worker()]
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
@@ -414,7 +421,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_set_contract_key()]
 		fn force_set_contract_key(origin, id: u32, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ContractKey::insert(id, pubkey);
@@ -423,7 +430,7 @@ decl_module! {
 
 		// Mining
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::start_mining_intention()]
 		fn start_mining_intention(origin) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
@@ -447,7 +454,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::stop_mining_intention()]
 		fn stop_mining_intention(origin) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
@@ -473,7 +480,7 @@ decl_module! {
 
 		// Token
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::transfer_to_tee()]
 		fn transfer_to_tee(origin, #[compact] amount: BalanceOf<T>) -> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			T::TEECurrency::transfer(&who, &Self::account_id(), amount, AllowDeath)
@@ -482,7 +489,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::transfer_to_chain()]
 		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
 			// This is a specialized Contract-to-Chain message passing where the confidential
 			// contract is always Balances (id = 2)
@@ -511,7 +518,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::sync_worker_message()]
 		fn sync_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
 			// TODO: allow anyone to relay the message
 			let who = ensure_signed(origin)?;
@@ -554,14 +561,14 @@ decl_module! {
 
 		// Debug only
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_next_round()]
 		fn force_next_round(origin) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ForceNextRound::put(true);
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_add_fire()]
 		fn force_add_fire(origin, targets: Vec<T::AccountId>, amounts: Vec<BalanceOf<T>>)
 		-> dispatch::DispatchResult {
 			ensure_root(origin)?;
@@ -576,7 +583,7 @@ decl_module! {
 
 		// Whitelist
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::add_mrenclave()]
 		fn add_mrenclave(origin, mr_enclave: Vec<u8>, mr_signer: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(mr_enclave.len() == 32 && mr_signer.len() == 32 && isv_prod_id.len() == 2 && isv_svn.len() == 2, Error::<T>::InvalidInputBadLength);
@@ -584,7 +591,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::remove_mrenclave_by_raw_data()]
 		fn remove_mrenclave_by_raw_data(origin, mr_enclave: Vec<u8>, mr_signer: Vec<u8>, isv_prod_id: Vec<u8>, isv_svn: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(mr_enclave.len() == 32 && mr_signer.len() == 32 && isv_prod_id.len() == 2 && isv_svn.len() == 2, Error::<T>::InvalidInputBadLength);
@@ -592,7 +599,7 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::remove_mrenclave_by_index()]
 		fn remove_mrenclave_by_index(origin, index: u32) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			Self::remove_mrenclave_from_whitelist_by_index(index as usize)?;

@@ -1,4 +1,4 @@
-use codec::Encode;
+use codec::{Encode, Decode};
 use frame_support::{assert_ok, assert_noop, traits::{Currency, OnFinalize}};
 use frame_system::RawOrigin;
 use hex_literal::hex;
@@ -6,7 +6,7 @@ use secp256k1;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
-use crate::{RawEvent, types::{Transfer, TransferData, RoundStats, WorkerStateEnum}};
+use crate::{RawEvent, types::{Transfer, TransferData, RoundStats, WorkerStateEnum, WorkerMessagePayload, WorkerMessage }};
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -633,6 +633,57 @@ fn test_bug_119() {
 		assert_eq!(delta.num_power, -100);
 	});
 }
+
+/*
+// Helper function used to generate a AccountId, for benchmark development only, uncomment to generate
+// benchmark mock data
+pub fn account<Account: Decode + Default>(name: &'static str, index: u32, seed: u32) -> Account {
+	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
+	Account::decode(&mut &entropy[..]).unwrap_or_default()
+}
+
+// Helper function used to generate the TranferData signature(see TRANSFERDATASIG in benchmarking.rs), 
+// for benchmark development only, uncomment to generate benchmark mock data
+#[test]
+fn test_mockdata_transfer_to_chain() {
+	new_test_ext().execute_with(|| {
+		use frame_system::Config;
+
+		let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+		let sk = ecdsa_load_sk(&raw_sk);
+		let receiver: <Test as Config>::AccountId = account("receiver", 0, 0u32);
+
+		let transfer = Transfer::<<Test as Config>::AccountId, Balance> {
+			dest: receiver,
+			amount: 50u32.into(),
+			sequence: 1,
+		};
+
+		let signature = ecdsa_sign(&sk, &transfer);
+		print!("transfer signature: {:?}", signature);
+	});
+}
+
+// Helper function used to generate the WorkerMessage signature(see WORKMESSAGESIG in benchmarking.rs), 
+// for benchmark development only, uncomment to generate benchmark mock data
+#[test]
+fn test_mockdata_sync_worker_message() {
+	new_test_ext().execute_with(|| {
+		let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
+		let sk = ecdsa_load_sk(&raw_sk);
+		let work_message = WorkerMessage {
+			payload: WorkerMessagePayload::Heartbeat{
+				block_num: 123u32,
+				claim_online: true,
+				claim_compute: true,
+			},
+			sequence: 0,
+		};
+		let signature = ecdsa_sign(&sk, &work_message);
+		print!("WorkMessage signature: {:?}", signature);
+	});
+}
+*/
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
     secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
