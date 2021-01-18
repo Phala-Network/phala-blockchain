@@ -13,13 +13,13 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false }
-frame-support = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-randomness-collective-flip = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { version = "2.0.0", default_features = false, git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+frame-system = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+pallet-randomness-collective-flip = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-runtime = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-std = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-io = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+sp-core = { version = "2.0.0", default_features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 phala-types = { default-features = false, path = "../../common/types" }
 chrono = { version = "0.4", default-features = false }
 itertools = { version = "0.8", default-features = false }
@@ -38,11 +38,11 @@ xcm-adapter = {path = "../xcm-adapter", default-features = false }
 default-features = false
 version = "2.0.0"
 git = "https://github.com/paritytech/substrate"
-branch = "master"
+branch = "rococo-v1"
 
 [dev-dependencies]
 assert_matches = "1.4.0"
-pallet-timestamp = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-timestamp = { version = "2.0.0", git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 hex-literal = "0.3.1"
 libsecp256k1 = { version = "0.3.2", default-features = false }
 rand = "0.7.3"
