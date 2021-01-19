@@ -176,9 +176,11 @@ pub fn run() -> Result<()> {
 				info!("Parachain genesis state: {}", genesis_state);
 				info!("Is collating: {}", if collator { "yes" } else { "no" });
 
+				
 				crate::service::start_node(config, key, polkadot_config, id, collator)
 					.await
 					.map(|r| r.0)
+					.map_err(Into::into)
 			})
 		}
 		Some(Subcommand::Inspect(cmd)) => {
