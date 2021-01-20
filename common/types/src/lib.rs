@@ -8,6 +8,8 @@ use sp_core::U256;
 #[cfg(feature = "enable_serde")]
 use serde::{Serialize, Deserialize};
 
+pub mod pruntime;
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
 	pub dest: AccountId,

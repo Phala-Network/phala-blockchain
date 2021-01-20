@@ -1,6 +1,6 @@
 [package]
 name = "phala-types"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["h4x3rotab <h4x3rotab@gmail.com>"]
 edition = "2018"
 
@@ -14,7 +14,7 @@ default = ["std", "enable_serde"]
 std = [
     "serde/std",
     "codec/std",
-    "sp-core/full_crypto"
+    "sp-core/full_crypto",
 ]
 enable_serde = [
 	"serde/derive",
