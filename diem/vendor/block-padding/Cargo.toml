@@ -1,0 +1,11 @@
+[package]
+name = "block-padding"
+version = "0.2.1"
+authors = ["RustCrypto Developers"]
+license = "MIT OR Apache-2.0"
+description = "Padding and unpadding of messages divided into blocks."
+documentation = "https://docs.rs/block-padding"
+repository = "https://github.com/RustCrypto/utils"
+keywords = ["padding", "pkcs7", "ansix923", "iso7816"]
+categories = ["cryptography", "no-std"]
+edition = "2018"
