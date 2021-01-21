@@ -78,9 +78,10 @@ pallet-transaction-payment = { version = "2.0.0", default-features = false, path
 pallet-transaction-payment-rpc-runtime-api = { version = "2.0.0", default-features = false, path = "../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { version = "2.0.0", default-features = false, path = "../substrate/frame/vesting" }
 
-pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
-pallet-phala = { version = "3.1.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
-pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets/claim", package = "pallet-claim" }
+pallet-staking = { default-features = false, path = "../pallets/staking", package = "phala-staking" }
+pallet-phala = { default-features = false, path = "../pallets/phala", package = "pallet-phala" }
+pallet-claim = { default-features = false, path = "../pallets/claim", package = "pallet-claim" }
+pallet-mining-staking = { default-features = false, path = "../pallets/mining_staking", package = "pallet-mining-staking" }
 
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 

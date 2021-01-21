@@ -1,0 +1,38 @@
+[package]
+authors = ['Phala Network']
+edition = '2018'
+name = 'pallet-mining-staking'
+version = "1.0.0"
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false }
+itertools = { version = "0.8", default-features = false }
+frame-support = { default-features = false, path = "../../substrate/frame/support" }
+frame-system = { default-features = false, path = "../../substrate/frame/system" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
+sp-std = { default-features = false, path = "../../substrate/primitives/std" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+sp-core = { default-features = false, path = "../../substrate/primitives/core" }
+
+[dependencies.pallet-balances]
+default-features = false
+path = "../../substrate/frame/balances"
+
+[features]
+default = ['std']
+std = [
+    # "serde/std",
+    "codec/std",
+    "sp-runtime/std",
+    "frame-support/std",
+    "frame-system/std",
+    "sp-io/std",
+    "sp-std/std",
+    "sp-core/full_crypto"
+]
