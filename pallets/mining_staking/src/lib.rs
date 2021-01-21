@@ -58,6 +58,8 @@ decl_storage! {
 		/// WalletLocked
 		WalletLocked get(fn wallet_locked):
 			map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		StakeReceived get(fn stake_received):
+			map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
 	}
 }
 
@@ -174,6 +176,16 @@ impl<T: Trait> Module<T> {
 		WalletLocked::<T>::mutate(&from, |v| *v -= value);
 	}
 
+	fn inc_stake(from: &T::AccountId, to: &T::AccountId, value: BalanceOf<T>) {
+		Staked::<T>::mutate(&from, &to, |v| *v += value);
+		StakeReceived::<T>::mutate(&to, |v| *v += value);
+	}
+
+	fn dec_stake(from: &T::AccountId, to: &T::AccountId, value: BalanceOf<T>) {
+		Staked::<T>::mutate(&from, &to, |v| *v -= value);
+		StakeReceived::<T>::mutate(&to, |v| *v -= value);
+	}
+
 	/// Applies the pending staking and unstaking tokens at the end of a round.
 	pub fn handle_round_end() {
 		// Apply staking
@@ -181,7 +193,7 @@ impl<T: Trait> Module<T> {
 			let mut staked: BalanceOf<T> = Zero::zero();
 			for (to, value) in group.iter() {
 				staked += *value;
-				Staked::<T>::mutate(&from, &to, |v| *v += *value);
+				Self::inc_stake(&from, &to, *value);
 			}
 			Wallet::<T>::mutate(&from, |v| *v -= staked);
 		});
@@ -190,7 +202,7 @@ impl<T: Trait> Module<T> {
 			let mut unstaked: BalanceOf<T> = Zero::zero();
 			for (to, value) in group {
 				unstaked += *value;
-				Staked::<T>::mutate(&from, &to, |v| *v -= *value);
+				Self::dec_stake(&from, &to, *value);
 			}
 			Wallet::<T>::mutate(&from, |v| *v += unstaked);
 		});

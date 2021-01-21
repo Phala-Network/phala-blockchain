@@ -79,6 +79,8 @@ fn test_stake() {
 		assert_eq!(MiningStaking::wallet(1), 30);
 		assert_eq!(MiningStaking::staked(1, 2), 50);
 		assert_eq!(MiningStaking::staked(1, 3), 20);
+		assert_eq!(MiningStaking::stake_received(2), 50);
+		assert_eq!(MiningStaking::stake_received(3), 20);
 	});
 }
 
@@ -106,5 +108,7 @@ fn test_unstake() {
 		assert_eq!(MiningStaking::wallet(1), 30);
 		assert_eq!(MiningStaking::staked(1, 2), 50);
 		assert_eq!(MiningStaking::staked(1, 3), 20);
+		assert_eq!(MiningStaking::stake_received(2), 50);
+		assert_eq!(MiningStaking::stake_received(3), 20);
 	});
 }
