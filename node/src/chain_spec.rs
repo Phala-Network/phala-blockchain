@@ -495,8 +495,8 @@ pub fn phala_testnet_config() -> Result<ChainSpec, String> {
 
 pub fn parachain_testnet_config(id: ParaId) -> ChainSpec {
 	ChainSpec::from_genesis(
-		"Parachain Local Testnet",
-		"Parachain_Local testnet",
+		"Phala PC1",
+		"phala_pc1",
 		ChainType::Local,
 		move || {
 			parachain_testnet_genesis(
