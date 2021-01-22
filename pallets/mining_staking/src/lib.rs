@@ -5,7 +5,7 @@ use sp_std::cmp;
 use codec::FullCodec;
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
-use frame_system::ensure_signed;
+use frame_system::{ensure_signed, ensure_root};
 
 use alloc::vec::Vec;
 use sp_runtime::{
@@ -151,6 +151,13 @@ decl_module! {
 			if to_unstake > zero {
 				PendingUnstaking::<T>::mutate(&sender, &to, |v| *v += to_unstake);
 			}
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn force_trigger_round_end(origin) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			Self::handle_round_end();
 			Ok(())
 		}
 	}
