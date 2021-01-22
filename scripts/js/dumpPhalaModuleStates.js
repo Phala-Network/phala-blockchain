@@ -58,6 +58,7 @@ async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     }
 
     return {
+        workerState,
         onchainData,
         statsFromWorkerState,
     };
@@ -119,7 +120,7 @@ async function main () {
     }
 
     const last = await api.rpc.chain.getBlockHash();
-    await getStatsAt(api, last);
+    const { workerState } = await getStatsAt(api, last);
 
     if (shouldDumpFullWorkers) {
         const fs = require('fs');
