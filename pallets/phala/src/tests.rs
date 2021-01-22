@@ -478,9 +478,9 @@ fn test_force_add_fire() {
 			vec![1, 2],
 			vec![100, 200],
 		));
-		assert_eq!(PhalaModule::fire(0), 0);
-		assert_eq!(PhalaModule::fire(1), 100);
-		assert_eq!(PhalaModule::fire(2), 200);
+		assert_eq!(PhalaModule::fire2(0), 0);
+		assert_eq!(PhalaModule::fire2(1), 100);
+		assert_eq!(PhalaModule::fire2(2), 200);
 	});
 }
 

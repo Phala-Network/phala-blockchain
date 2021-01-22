@@ -90,8 +90,10 @@ decl_storage! {
 		StashState get(fn stash_state):
 			map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
 		// Power and Fire
-		/// Fire measures the total reward the miner can get from the network (PoC3 specific)
+		/// Fire measures the total reward the miner can get (PoC3 1604-I specific)
 		Fire get(fn fire): map hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
+		/// Fire2 measures the total reward the miner can get (PoC3 1605-II specific)
+		Fire2 get(fn fire2): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
 		/// Heartbeat counts (indexied: Total~, Max~, ActiveWorkers)
 		Heartbeats get(fn heartbeats): map hasher(blake2_128_concat) T::AccountId => u32;
 
@@ -104,8 +106,10 @@ decl_storage! {
 		OnlineWorkers get(fn online_workers): u32;
 		/// Total Power points in this round. Updated at handle_round_ends().
 		TotalPower get(fn total_power): u32;
-		/// Total Fire points
+		/// Total Fire points (1605-I specific)
 		AccumulatedFire get(fn accumulated_fire): BalanceOf<T>;
+		/// Total Fire points (1605-II specific)
+		AccumulatedFire2 get(fn accumulated_fire2): BalanceOf<T>;
 
 		// Round management
 		/// The current mining round id
@@ -323,7 +327,7 @@ decl_module! {
 					controller: controller.clone(),
 					payout_prefs: PayoutPrefs {
 						commission: 0,
-						target: who.clone(),
+						target: who.clone(),  // Set to the stash by default
 					}
 				}
 			};
@@ -992,8 +996,8 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn add_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
-		Fire::<T>::mutate(dest, |x| *x += amount);
-		AccumulatedFire::<T>::mutate(|x| *x += amount);
+		Fire2::<T>::mutate(dest, |x| *x += amount);
+		AccumulatedFire2::<T>::mutate(|x| *x += amount);
 	}
 }
 
