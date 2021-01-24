@@ -53,7 +53,7 @@ mod msg_channel;
 mod system;
 mod types;
 
-use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS};
+use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS, DIEM};
 use cryptography::{ecdh, aead};
 use light_validation::AuthoritySetChange;
 use system::{TransactionStatus, TransactionReceipt, CommandIndex};
@@ -117,6 +117,7 @@ struct RuntimeState {
     contract2: contracts::balances::Balances,
     contract3: contracts::assets::Assets,
     contract4: contracts::web3analytics::Web3Analytics,
+    contract5: contracts::diem::Diem,
     #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
     light_client: ChainLightValidation,
     main_bridge: u64
@@ -192,6 +193,7 @@ lazy_static! {
             contract2: contracts::balances::Balances::new(None),
             contract3: contracts::assets::Assets::new(),
             contract4: contracts::web3analytics::Web3Analytics::new(),
+            contract5: contracts::diem::Diem::new(),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
         })
@@ -1160,6 +1162,15 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
                 _ => TransactionStatus::BadCommand
             }
         },
+        DIEM => {
+            match serde_json::from_slice(inner_data.as_slice()) {
+                Ok(cmd) => state.contract5.handle_command(
+                    &origin, pos,
+                    cmd
+                ),
+                _ => TransactionStatus::BadCommand
+            }
+        },
         _ => {
             println!("handle_execution: Skipped unknown contract: {}", contract_id);
             TransactionStatus::BadContractId
@@ -1451,6 +1462,12 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (w3a::Request)"))?.request)
+        ).unwrap(),
+        DIEM => serde_json::to_value(
+            state.contract5.handle_query(
+                ref_origin,
+                types::deopaque_query(opaque_query)
+                    .map_err(|_| error_msg("Malformed request (diem::Request)"))?.request)
         ).unwrap(),
         SYSTEM => {
             let mut system_state = SYSTEM_STATE.lock().unwrap();

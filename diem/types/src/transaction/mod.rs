@@ -60,7 +60,7 @@ pub const PRE_GENESIS_VERSION: Version = u64::max_value();
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, CryptoHasher, BCSCryptoHash)]
 pub struct RawTransaction {
     /// Sender's address.
-    sender: AccountAddress,
+    pub sender: AccountAddress,
 
     /// Sequence number of this transaction. This must match the sequence number
     /// stored in the sender's account at the time the transaction executes.
@@ -356,7 +356,7 @@ impl WriteSetPayload {
 #[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SignedTransaction {
     /// The raw transaction
-    raw_txn: RawTransaction,
+    pub raw_txn: RawTransaction,
 
     /// Public key and signature to authenticate
     authenticator: TransactionAuthenticator,
@@ -768,7 +768,7 @@ impl TransactionOutput {
 #[cfg_attr(any(test, feature = "fuzzing"), derive(Arbitrary))]
 pub struct TransactionInfo {
     /// The hash of this transaction.
-    transaction_hash: HashValue,
+    pub transaction_hash: HashValue,
 
     /// The root hash of Sparse Merkle Tree describing the world state at the end of this
     /// transaction.
