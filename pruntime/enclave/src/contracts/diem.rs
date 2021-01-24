@@ -124,7 +124,9 @@ impl contracts::Contract<Command, Request, Response> for Diem {
 
                 Request::VerifyTransaction {account_address, transaction_with_proof_b64} => {
                     println!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
-                    let found = self.accounts.iter().any(|x| x.address.to_string() == account_address);
+
+                    let address = AccountAddress::from_hex_literal(&account_address).unwrap();
+                    let found = self.accounts.iter().any(|x| x.address == address);
                     if !found {
                         println!("Not a contract's account address");
                         return Ok(Response::VerifyTransaction { total: 0, verified: false });
@@ -151,7 +153,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     }
 
                     let signed_tx: SignedTransaction = transaction.clone().unwrap().as_signed_user_txn().unwrap().clone();
-                    if account_address != signed_tx.raw_txn.sender.to_string() {
+                    if address != signed_tx.raw_txn.sender {
                         println!("bad sender address");
                         return Ok(Response::VerifyTransaction { total, verified: false });
                     }
@@ -221,8 +223,6 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         transaction_info_with_proof.clone(),
                         transaction_info_to_account_proof.clone(),
                     );
-
-                    let address = AccountAddress::from_hex_literal(&account_address).unwrap();
 
                     let mut verified = false;
                     match account_transaction_state_proof.verify(ledger_info_with_signatures.ledger_info(),
