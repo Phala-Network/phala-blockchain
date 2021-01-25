@@ -101,6 +101,8 @@ pub struct WorkerInfo<BlockNumber> {
     pub state: WorkerStateEnum<BlockNumber>,
     // preformance
     pub score: Option<Score>,
+    // confidence-level
+    pub confidence_level: u8,
 }
 
 #[derive(Encode, Decode, Default)]
