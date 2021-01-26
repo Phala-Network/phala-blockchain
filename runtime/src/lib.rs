@@ -1055,28 +1055,6 @@ impl Convert<Balance, RelayChainBalance> for NativeToRelay {
 	}
 }
 
-parameter_types! {
-	pub const PolkadotNetworkId: NetworkId = NetworkId::Polkadot;
-}
-
-pub struct AccountId32Convert;
-impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
-	fn convert(account_id: AccountId) -> [u8; 32] {
-		account_id.into()
-	}
-}
-
-impl xtoken::Config for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type ToRelayChainBalance = NativeToRelay;
-	type AccountId32Convert = AccountId32Convert;
-	//TODO: change network id if kusama
-	type RelayChainNetworkId = PolkadotNetworkId;
-	type ParaId = ParachainInfo;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-}
-
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1119,7 +1097,6 @@ construct_runtime!(
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
 		ParachainSystem: cumulus_parachain_system::{Module, Call, Storage, Inherent, Event},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
-		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
 		LocalXcmHandler: xcm_handler::{Module, Event<T>, Origin, Call},
 		XCMAdapter: xcm_adapter::{Module, Call, Event<T>},
 	}
