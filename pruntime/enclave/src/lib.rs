@@ -63,6 +63,16 @@ use std::time::Duration;
 use http_req::request::{Request, Method};
 
 extern "C" {
+    pub fn ocall_load_ias_spid(
+        ret_val: *mut sgx_status_t,
+        key_ptr : *mut u8, key_len_ptr: *mut usize, key_buf_len: usize
+    ) -> sgx_status_t;
+
+    pub fn ocall_load_ias_key(
+        ret_val: *mut sgx_status_t,
+        key_ptr : *mut u8, key_len_ptr: *mut usize, key_buf_len: usize
+    ) -> sgx_status_t;
+
     pub fn ocall_sgx_init_quote(
         ret_val: *mut sgx_status_t,
         ret_ti: *mut sgx_target_info_t,
@@ -101,12 +111,9 @@ extern "C" {
     ) -> sgx_status_t;
 }
 
-const IAS_SPID_STR: &str = env!("IAS_SPID");
-const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
-
-pub const IAS_HOST:&'static str = env!("IAS_HOST");
-pub const IAS_SIGRL_ENDPOINT:&'static str = env!("IAS_SIGRL_ENDPOINT");
-pub const IAS_REPORT_ENDPOINT:&'static str = env!("IAS_REPORT_ENDPOINT");
+pub const IAS_HOST: &'static str = env!("IAS_HOST");
+pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
+pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 
 type ChainLightValidation = light_validation::LightValidation::<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
@@ -223,27 +230,62 @@ lazy_static! {
     static ref SYSTEM_STATE: SgxMutex<system::System> = {
         SgxMutex::new(system::System::new())
     };
+}
 
-    static ref IAS_SPID: sgx_spid_t = {
-        hex::decode_spid(IAS_SPID_STR)
-    };
+fn ias_spid() -> sgx_spid_t {
+    // Try load persisted sealed data
+    let mut key_buf = vec![0; 256].into_boxed_slice();
+    let mut key_len : usize = 0;
+    let key_slice = &mut key_buf;
+    let key_ptr = key_slice.as_mut_ptr();
+    let key_len_ptr = &mut key_len as *mut usize;
 
-    static ref IAS_API_KEY: String = {
-        let stringify_key: String = IAS_API_KEY_STR.into();
-        stringify_key.trim_end().to_owned()
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let load_result = unsafe {
+        ocall_load_ias_spid(
+            &mut retval,
+            key_ptr, key_len_ptr, 256
+        )
     };
+    if load_result != sgx_status_t::SGX_SUCCESS || key_len == 0 {
+        panic!("Load SPID failure.");
+    }
 
-    // TODO: delete
-    static ref HEARTBEAT_DATA_BUFFER: SgxMutex<Option<HeartbeatData>> = {
-        SgxMutex::new(None)
+    let key_str = str::from_utf8(key_slice).unwrap();
+    // println!("IAS SPID: {}", key_str.to_owned());
+
+    hex::decode_spid(&key_str[..key_len])
+}
+
+fn ias_key() -> String {
+    // Try load persisted sealed data
+    let mut key_buf = vec![0; 256].into_boxed_slice();
+    let mut key_len : usize = 0;
+    let key_slice = &mut key_buf;
+    let key_ptr = key_slice.as_mut_ptr();
+    let key_len_ptr = &mut key_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let load_result = unsafe {
+        ocall_load_ias_key(
+            &mut retval,
+            key_ptr, key_len_ptr, 256
+        )
     };
+    if load_result != sgx_status_t::SGX_SUCCESS || key_len == 0 {
+        panic!("Load IAS KEY failure.");
+    }
+
+    let key_str = str::from_utf8(key_slice).unwrap();
+    // println!("IAS KEY: {}", key_str.to_owned());
+
+    key_str[..key_len].to_owned()
 }
 
 pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
     // println!("get_sigrl_from_intel fd = {:?}", fd);
     //let sigrl_arg = SigRLArg { group_id : gid };
     //let sigrl_req = sigrl_arg.to_httpreq();
-    let ias_key = IAS_API_KEY.clone();
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
@@ -251,7 +293,7 @@ pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid).parse().unwrap();
     let res = Request::new(&url)
         .header("Connection", "Close")
-        .header("Ocp-Apim-Subscription-Key", &ias_key)
+        .header("Ocp-Apim-Subscription-Key", &ias_key())
         .timeout(timeout)
         .connect_timeout(timeout)
         .read_timeout(timeout)
@@ -276,7 +318,7 @@ pub fn get_sigrl_from_intel(gid : u32) -> Vec<u8> {
 
         println!("{}", msg);
         // TODO: should return Err
-        panic!("status code not 200");
+        panic!("status code {}", status_code);
     }
 
     if res.content_len() != None && res.content_len() != Some(0) {
@@ -296,7 +338,7 @@ pub fn get_report_from_intel(quote : Vec<u8>) -> (String, String, String) {
     let encoded_quote = base64::encode(&quote[..]);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
 
-    let ias_key = IAS_API_KEY.clone();
+    let ias_key = ias_key();
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
@@ -455,7 +497,7 @@ pub fn create_attestation_report(data: &[u8], sign_type: sgx_quote_sign_type_t) 
     let p_report = (&rep.unwrap()) as * const sgx_report_t;
     let quote_type = sign_type;
 
-    let spid : sgx_spid_t = *IAS_SPID;
+    let spid : sgx_spid_t = ias_spid();
 
     let p_spid = &spid as *const sgx_spid_t;
     let p_nonce = &quote_nonce as * const sgx_quote_nonce_t;
@@ -869,8 +911,6 @@ fn init_secret_keys(local_state: &mut LocalState, predefined_keys: Option<(Secre
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
-    // println!("spid: {:?}, key: {}", IAS_SPID.id, IAS_API_KEY.clone());
-
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
         Err(Error::SgxError(sgx_err)) => sgx_err,

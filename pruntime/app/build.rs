@@ -48,5 +48,10 @@ fn main () {
             println!("cargo:rustc-link-lib=dylib=sgx_urts");
             println!("cargo:rustc-link-lib=dylib=sgx_uae_service");
         }
+    };
+
+    if env::var("SKIP_IAS").is_ok() || env::var("SGX_MODE") == Ok("SW".to_string()) {
+        println!("cargo:rustc-env=IAS_SPID=''");
+        println!("cargo:rustc-env=IAS_API_KEY=''");
     }
 }

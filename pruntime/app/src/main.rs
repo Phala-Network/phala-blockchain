@@ -88,6 +88,59 @@ extern {
     ) -> sgx_status_t;
 }
 
+const IAS_SPID_STR: &str = env!("IAS_SPID");
+const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+
+#[no_mangle]
+pub extern "C"
+fn ocall_load_ias_spid(
+    key_ptr : *mut u8,
+    key_len_ptr: *mut usize,
+    key_buf_len: usize
+) -> sgx_status_t {
+    let key_len = IAS_SPID_STR.len();
+
+    unsafe {
+        if key_len <= key_buf_len {
+            std::ptr::copy_nonoverlapping(IAS_SPID_STR.as_ptr(),
+                                          key_ptr,
+                                          key_len);
+        } else {
+            panic!("IAS_SPID_STR too long. Buffer overflow.");
+        }
+        std::ptr::copy_nonoverlapping(&key_len as *const usize,
+                                      key_len_ptr,
+                                      std::mem::size_of_val(&key_len));
+    }
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+#[no_mangle]
+pub extern "C"
+fn ocall_load_ias_key(
+    key_ptr : *mut u8,
+    key_len_ptr: *mut usize,
+    key_buf_len: usize
+) -> sgx_status_t {
+    let key_len = IAS_API_KEY_STR.len();
+
+    unsafe {
+        if key_len <= key_buf_len {
+            std::ptr::copy_nonoverlapping(IAS_API_KEY_STR.as_ptr(),
+                                          key_ptr,
+                                          key_len);
+        } else {
+            panic!("IAS_API_KEY_STR too long. Buffer overflow.");
+        }
+        std::ptr::copy_nonoverlapping(&key_len as *const usize,
+                                      key_len_ptr,
+                                      std::mem::size_of_val(&key_len));
+    }
+
+    sgx_status_t::SGX_SUCCESS
+}
+
 #[no_mangle]
 pub extern "C"
 fn ocall_sgx_init_quote(ret_ti: *mut sgx_target_info_t,

@@ -27,6 +27,16 @@ enclave {
     };
 
     untrusted {
+        sgx_status_t ocall_load_ias_spid(
+            [out, size = key_buf_len] uint8_t *key_ptr,
+            [out] size_t *key_len_ptr, size_t key_buf_len
+        );
+
+        sgx_status_t ocall_load_ias_key(
+            [out, size = key_buf_len] uint8_t *key_ptr,
+            [out] size_t *key_len_ptr, size_t key_buf_len
+        );
+
         sgx_status_t ocall_sgx_init_quote(
             [out] sgx_target_info_t *ret_ti,
             [out] sgx_epid_group_id_t *ret_gid
