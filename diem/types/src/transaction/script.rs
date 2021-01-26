@@ -13,9 +13,9 @@ pub const SCRIPT_HASH_LENGTH: usize = 32;
 #[derive(Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Script {
     #[serde(with = "serde_bytes")]
-    code: Vec<u8>,
-    ty_args: Vec<TypeTag>,
-    args: Vec<TransactionArgument>,
+    pub code: Vec<u8>,
+    pub ty_args: Vec<TypeTag>,
+    pub args: Vec<TransactionArgument>,
 }
 
 impl Script {

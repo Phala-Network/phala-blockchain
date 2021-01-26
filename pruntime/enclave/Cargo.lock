@@ -20,6 +20,7 @@ dependencies = [
  "lazy_static",
  "libsecp256k1 0.3.5 (git+https://github.com/mesalock-linux/libsecp256k1-rs-sgx)",
  "log 0.4.11",
+ "move-core-types",
  "num-bigint",
  "num-traits 0.2.14",
  "pallet-phala",

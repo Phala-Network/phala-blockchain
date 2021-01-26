@@ -75,7 +75,7 @@ sp-core = { package = "sp-core", path = "../../substrate/primitives/core", defau
 bcs = { path = "../../diem/vendor/bcs", version = "0.1.2" }
 diem-types = { path = "../../diem/types", version = "0.1.0" }
 diem-crypto = { path = "../../diem/crypto/crypto", version = "0.1.0" }
-
+move-core-types = { path = "../../diem/language/move-core/types", version = "0.1.0" }
 [features]
 default = [
   "sp-runtime-interface/disable_target_static_assertions",

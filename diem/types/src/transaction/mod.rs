@@ -67,7 +67,7 @@ pub struct RawTransaction {
     sequence_number: u64,
 
     /// The transaction payload, e.g., a script to execute.
-    payload: TransactionPayload,
+    pub payload: TransactionPayload,
 
     /// Maximal total gas to spend for this transaction.
     max_gas_amount: u64,

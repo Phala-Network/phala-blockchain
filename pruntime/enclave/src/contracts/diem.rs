@@ -26,7 +26,8 @@ use diem_types::account_address::AccountAddress;
 use diem_types::account_state_blob::AccountStateBlob;
 use diem_types::transaction::TransactionInfo;
 use diem_crypto::hash::CryptoHash;
-use diem_types::transaction::{Transaction, SignedTransaction};
+use diem_types::transaction::{Transaction, SignedTransaction, TransactionPayload, Script};
+use move_core_types::transaction_argument::TransactionArgument;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Amount {
@@ -154,8 +155,22 @@ impl contracts::Contract<Command, Request, Response> for Diem {
 
                     let signed_tx: SignedTransaction = transaction.clone().unwrap().as_signed_user_txn().unwrap().clone();
                     if address != signed_tx.raw_txn.sender {
-                        println!("bad sender address");
-                        return Ok(Response::VerifyTransaction { total, verified: false });
+                        let mut found = false;
+                        if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
+                            for arg in script.args {
+                                if let TransactionArgument::Address(recv_address) = arg {
+                                    if recv_address == address {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if !found {
+                            println!("bad sender/receiver address");
+                            return Ok(Response::VerifyTransaction { total, verified: false });
+                        }
                     }
 
                     let tx_hash = transaction.unwrap().hash().to_hex();
