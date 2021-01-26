@@ -967,24 +967,25 @@ impl cumulus_parachain_system::Config for Runtime {
 	type SelfParaId = parachain_info::Module<Runtime>;
 	type Event = Event;
 	type OnValidationData = ();
-	type DownwardMessageHandlers = ();
-	type HrmpMessageHandlers = ();
+	type DownwardMessageHandlers = LocalXcmHandler;
+	type HrmpMessageHandlers = LocalXcmHandler;
 }
 
 impl parachain_info::Config for Runtime {}
 
 parameter_types! {
-	pub PhalaNetwork: NetworkId = NetworkId::Named("phala".into());
+	pub const RococoLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
+	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
 	pub RelayChainOrigin: Origin = xcm_handler::Origin::Relay.into();
-	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
-		id: ParachainInfo::parachain_id().into(),
-	});
+	pub Ancestry: MultiLocation = Junction::Parachain {
+		id: ParachainInfo::parachain_id().into()
+	}.into();
 }
 
 pub type LocationConverter = (
 	ParentIsDefault<AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
-	AccountId32Aliases<PhalaNetwork, AccountId>,
+	AccountId32Aliases<RococoNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor = XCMAdapter;
@@ -993,16 +994,16 @@ pub type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
 	RelayChainAsNative<RelayChainOrigin, Origin>,
 	SiblingParachainAsNative<xcm_handler::Origin, Origin>,
-	SignedAccountId32AsNative<PhalaNetwork, Origin>,
+	SignedAccountId32AsNative<RococoNetwork, Origin>,
 );
 
 parameter_types! {
 	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
 		let mut t = BTreeMap::new();
 		//acala reserve asset identity
-		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));
-		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
-		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
+		t.insert("ACA".into(), MultiLocation::X1(Junction::Parachain { id: 5000 }));
+		t.insert("PHA2000".into(), MultiLocation::X1(Junction::Parachain { id: 2000 }));	// test only
+		t.insert("PHA5000".into(), MultiLocation::X1(Junction::Parachain { id: 5000 }));	// test only
 		t
 	};
 }
@@ -1022,8 +1023,9 @@ impl Config for XcmConfig {
 impl xcm_handler::Config for Runtime {
 	type Event = Event;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type UpwardMessageSender = ParachainSystem;
-	type HrmpMessageSender = ParachainSystem;
+	type UpwardMessageSender = MessageBroker;
+	type HrmpMessageSender = MessageBroker;
+	type AccountIdConverter = LocationConverter;
 }
 
 impl xcm_adapter::Config for Runtime {
@@ -1118,7 +1120,7 @@ construct_runtime!(
 		ParachainSystem: cumulus_parachain_system::{Module, Call, Storage, Inherent, Event},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
 		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
-		LocalXcmHandler: xcm_handler::{Module, Event<T>, Origin},
+		LocalXcmHandler: xcm_handler::{Module, Event<T>, Origin, Call},
 		XCMAdapter: xcm_adapter::{Module, Call, Event<T>},
 	}
 );

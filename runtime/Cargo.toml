@@ -80,8 +80,9 @@ pallet-vesting = { version = "2.0.0", default-features = false, git = "https://g
 xcm = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
 xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
-xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "rococo-v1", default-features = false }
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "rococo-v1" }
+#xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "rococo-v1", default-features = false }
+xcm-handler = { version = "0.1.0", default-features = false, path = "../pallets/xcm-handler", package = "xcm-handler" }
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false , branch = "rococo-v1" }
 
 # pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-phala = { version = "2.0.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }

@@ -113,42 +113,44 @@ where
     T: Config
 {
     fn deposit_asset(asset: &MultiAsset, location: &MultiLocation) -> Result {
-        debug::info!("------------------------------------------------");
+        debug::info!("----------------------- xcm-adapter: trying deposit -------------------------");
         debug::info!(
-            ">>> trying deposit. asset: {:?}, location: {:?}",
+            ">>> asset: {:?}, location: {:?}",
             asset,
             location
         );
 
-        let who = T::AccountIdConverter::from_location(location).ok_or(())?;
-        debug::info!("who: {:?}", who);
-        let currency_id =
-            T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
-        debug::info!("currency_id: {:?}", currency_id);
-        let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
-            .ok_or(())?
-            .saturated_into();
-        debug::info!("amount: {:?}", amount);
-        let balance_amount = amount.try_into().map_err(|_| ())?;
-        debug::info!("balance amount: {:?}", balance_amount);
-
-        let mut is_owned_currency = false;
-        if let ChainId::ParaChain(paraid) = currency_id.chain_id {
-            if T::ParaId::get() == paraid {
-                is_owned_currency = true;
-                let _ = T::OwnedCurrency::deposit_creating(&who, balance_amount);
+		if let MultiLocation::X1(Junction::AccountId32 { id, network }) = location {
+            let who = T::AccountIdConverter::from_location(location).ok_or(())?;
+            debug::info!("who: {:?}", who);
+            let currency_id =
+                T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
+            debug::info!("currency_id: {:?}", currency_id);
+            let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
+                .ok_or(())?
+                .saturated_into();
+            debug::info!("amount: {:?}", amount);
+            let balance_amount = amount.try_into().map_err(|_| ())?;
+            debug::info!("balance amount: {:?}", balance_amount);
+    
+            let mut is_owned_currency = false;
+            if let ChainId::ParaChain(paraid) = currency_id.chain_id {
+                if T::ParaId::get() == paraid {
+                    is_owned_currency = true;
+                    let _ = T::OwnedCurrency::deposit_creating(&who, balance_amount);
+                }
             }
+    
+            Self::deposit_event(Event::<T>::DepositAsset(
+                currency_id.clone().into(),
+                who,
+                balance_amount,
+                !is_owned_currency,
+            ));
+    
+            debug::info!("------------------ xcm-adapter: success deposit ------------------------------");
         }
-
-        Self::deposit_event(Event::<T>::DepositAsset(
-            currency_id.clone().into(),
-            who,
-            balance_amount,
-            !is_owned_currency,
-        ));
-
-        debug::info!(">>> success deposit.");
-        debug::info!("------------------------------------------------");
+        
         Ok(())
     }
 
@@ -156,48 +158,49 @@ where
         asset: &MultiAsset,
         location: &MultiLocation,
     ) -> result::Result<MultiAsset, Error> {
-        debug::info!("------------------------------------------------");
+        debug::info!("--------------------- xdm-adapter: trying withdraw ---------------------------");
         debug::info!(
-            ">>> trying withdraw. asset: {:?}, location: {:?}",
+            ">>> asset: {:?}, location: {:?}",
             asset,
             location
         );
 
-        let who = T::AccountIdConverter::from_location(location).ok_or(())?;
-        debug::info!("who: {:?}", who);
-        let currency_id =
-            T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
-        debug::info!("currency_id: {:?}", currency_id);
-        let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
-            .ok_or(())?
-            .saturated_into();
-        debug::info!("amount: {:?}", amount);
-        let balance_amount = amount.try_into().map_err(|_| ())?;
-        debug::info!("balance amount: {:?}", balance_amount);
-
-        let mut is_owned_currency = false;
-        if let ChainId::ParaChain(paraid) = currency_id.chain_id {
-            if T::ParaId::get() == paraid {
-                is_owned_currency = true;
-                let _ = T::OwnedCurrency::withdraw(
-                    &who,
-                    balance_amount,
-                    WithdrawReasons::TRANSFER,
-                    ExistenceRequirement::AllowDeath,
-                )
-                .map_err(|_| Error::UnhandledEffect)?;
+		if let MultiLocation::X1(Junction::AccountId32 { id, network }) = location {
+            let who = T::AccountIdConverter::from_location(location).ok_or(())?;
+            debug::info!("who: {:?}", who);
+            let currency_id =
+                T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
+            debug::info!("currency_id: {:?}", currency_id);
+            let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
+                .ok_or(())?
+                .saturated_into();
+            debug::info!("amount: {:?}", amount);
+            let balance_amount = amount.try_into().map_err(|_| ())?;
+            debug::info!("balance amount: {:?}", balance_amount);
+    
+            let mut is_owned_currency = false;
+            if let ChainId::ParaChain(paraid) = currency_id.chain_id {
+                if T::ParaId::get() == paraid {
+                    is_owned_currency = true;
+                    let _ = T::OwnedCurrency::withdraw(
+                        &who,
+                        balance_amount,
+                        WithdrawReasons::TRANSFER,
+                        ExistenceRequirement::AllowDeath,
+                    )
+                    .map_err(|_| Error::UnhandledEffect)?;
+                }
             }
+    
+            Self::deposit_event(Event::<T>::WithdrawAsset(
+                currency_id.clone().into(),
+                who,
+                balance_amount,
+                !is_owned_currency,
+            ));
         }
 
-        Self::deposit_event(Event::<T>::WithdrawAsset(
-            currency_id.clone().into(),
-            who,
-            balance_amount,
-            !is_owned_currency,
-        ));
-
-        debug::info!(">>> success withdraw.");
-        debug::info!("------------------------------------------------");
+        debug::info!("--------------------- xcm-adapter: success withdraw ---------------------------");
         Ok(asset.clone())
     }
 }
@@ -265,6 +268,16 @@ impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> XCurrencyIdConversion
                         };
                         return Some(parachain_currency);
                     }
+
+                    if let MultiLocation::X1(Junction::Parachain { id: paraid }) =
+                        NativeTokens::get().get(key).unwrap()
+                    {
+                        let parachain_currency: PHAXCurrencyId = PHAXCurrencyId {
+                            chain_id: ChainId::ParaChain((*paraid).into()),
+                            currency_id: key.clone(),
+                        };
+                        return Some(parachain_currency);
+                    }
                 }
             }
         }
@@ -277,6 +290,9 @@ impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> FilterAssetLocation
     for NativePalletAssetOr<NativeTokens>
 {
     fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+
+        debug::info!("filter_asset_location, asset: {:?}, origin: {:?}", asset, origin);
+
         if NativeAsset::filter_asset_location(asset, origin) {
             return true;
         }
