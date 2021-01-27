@@ -8,6 +8,7 @@ use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
 use sp_core::{storage::StorageKey, sr25519, crypto::Pair};
+use subxt::{EventsDecoder, Signer, system::AccountStoreExt};
 
 mod error;
 mod msg_sync;
@@ -27,8 +28,6 @@ use crate::types::{
     NotifyReq,
 };
 
-use subxt::Signer;
-use subxt::system::AccountStoreExt;
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
@@ -207,7 +206,10 @@ async fn bisec_setid_change(
     Ok(result)
 }
 
-async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
+async fn req_sync_header(
+    pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>
+) -> Result<SyncHeaderResp, Error>
+{
     let headers_b64 = headers
         .iter()
         .map(|header| {
@@ -264,7 +266,8 @@ async fn sync_events_only(
             block_header: bwe.block.block.header,
             events: bwe.events,
             proof: bwe.proof,
-            key: bwe.key
+            key: bwe.key,
+            worker_snapshot: None,
         })
         .collect();
     for chunk in blocks.chunks(batch_window) {
@@ -277,6 +280,7 @@ async fn sync_events_only(
 async fn batch_sync_block(
     client: &XtClient,
     pr: &PrClient,
+    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     batch_window: usize
 ) -> Result<usize, Error> {
@@ -378,15 +382,26 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
+                let mut dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
                     .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
                         events: bwe.events,
                         proof: bwe.proof,
-                        key: bwe.key
+                        key: bwe.key,
+                        worker_snapshot: None,
                     })
                     .collect();
+                // Attach the worker snapshot if this block is the end of the round for compute
+                // worker election
+                for bwe in &mut dispatch_batch {
+                    let data = bwe.events.as_ref().unwrap();
+                    if chain_client::check_round_end_event(events_decoder, data)? {
+                        let snapshot = chain_client::snapshot_online_worker_at(
+                            client, Some(bwe.block_header.hash())).await?;
+                        bwe.worker_snapshot = Some(snapshot);
+                    }
+                }
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 println!("  ..dispatch_block: {:?}", r);
 
@@ -434,7 +449,7 @@ async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result
     Ok(())
 }
 
-async fn init_runtime (client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
+async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
                        inject_key: &str) -> Result<InitRuntimeResp, Error> {
     let genesis_block = get_block_at(&client, Some(0)).await?.block;
     let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
@@ -493,9 +508,13 @@ async fn register_worker(
 
 async fn test(client: &XtClient) -> Result<(), Error> {
     let decoder = chain_client::get_event_decoder(&client);
-    for height in 18400u32..18499u32 {
+    for height in 18400u32..19499u32 {
         let hash = client.block_hash(Some(height.into())).await?.unwrap();
-        let hit = chain_client::test_round_end_event(&client, &decoder, &hash).await?;
+        let hit = match chain_client::test_round_end_event(&client, &decoder, &hash).await {
+            Ok(hit) => hit,
+            Err(Error::ComputeWorkerNotEnabled) => false,
+            Err(err) => return Err(err),
+        };
         if hit {
             println!("Hit @{}!", height);
             chain_client::snapshot_online_worker_at(&client, Some(hash.clone())).await?;
@@ -513,8 +532,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(args.substrate_ws_endpoint.clone())
         .build().await?;
+    let events_decoder = chain_client::get_event_decoder(&client);
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
-    // test(&client).await?;
+    test(&client).await?;
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
@@ -629,7 +649,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             Some(b) => b.block.block.header.number + 1,
             None => info.blocknum
         };
-        let batch_end = std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
+        let batch_end =
+            std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
         for b in next_block ..= batch_end {
             let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justification.is_some() {
@@ -644,7 +665,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
+        let synced_blocks = batch_sync_block(
+            &client, &pr, &events_decoder, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {

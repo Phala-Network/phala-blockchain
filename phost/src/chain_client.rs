@@ -74,14 +74,14 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     // Stats numbers
     let online_workers_store = <OnlineWorkers<_> as Default>::default();
     let compute_workers_store = <ComputeWorkers<_> as Default>::default();
-    let online_workers_key = online_workers_store.key(xt.metadata())
-        .expect("Cannot get key; qed.");
-    let compute_workers_key = compute_workers_store.key(xt.metadata())
-        .expect("Cannot get key; qed.");
-    let online_workers: u32 = xt.fetch_or_default(&online_workers_store, hash).await
-        .map_err(Into::<Error>::into)?;
-    let compute_workers: u32 = xt.fetch_or_default(&compute_workers_store, hash).await
-        .map_err(Into::<Error>::into)?;
+    let online_workers_key = online_workers_store.key(xt.metadata())?;
+    let compute_workers_key = compute_workers_store.key(xt.metadata())?;
+    let online_workers: u32 = xt.fetch_or_default(&online_workers_store, hash).await?;
+    let compute_workers: u32 = xt.fetch_or_default(&compute_workers_store, hash).await?;
+    if compute_workers == 0 {
+        println!("ComputeWorkers is zero. Skipping worker snapshot.");
+        return Err(Error::ComputeWorkerNotEnabled);
+    }
     println!("- Stats Online Workers: {}", online_workers);
     println!("- Stats Compute Workers: {}", compute_workers);
     // Online workers and stake received
@@ -176,7 +176,10 @@ where
 }
 
 /// Converts the raw data `Vec<(StorageKey, T)>` to `Vec<StorageKV<T>>`
-fn storage_kv_from_data<T: FullCodec>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>> {
+fn storage_kv_from_data<T>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>>
+where
+    T: FullCodec + Clone
+{
     storage_data
         .into_iter()
         .map(|(k, v)| StorageKV(k.0, v))

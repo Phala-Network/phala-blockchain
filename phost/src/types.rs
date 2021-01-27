@@ -4,12 +4,14 @@ use codec::{Encode, Decode};
 use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{
     generic::SignedBlock,
-    Justification,
     OpaqueExtrinsic
 };
 
 use std::vec::Vec;
-use phala_types::pruntime::StorageProof;
+use phala_types::pruntime::{
+    self,
+    StorageProof,
+};
 
 // Node Runtime
 
@@ -17,6 +19,7 @@ use crate::runtimes::PhalaNodeRuntime;
 pub type Runtime = PhalaNodeRuntime;
 pub type Header = <Runtime as subxt::system::System>::Header;
 pub type Hash = <Runtime as subxt::system::System>::Hash;
+pub type Hashing = <Runtime as subxt::system::System>::Hashing;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
@@ -24,6 +27,9 @@ pub type AccountId = <Runtime as subxt::system::System>::AccountId;
 pub type Balance = <Runtime as subxt::balances::Balances>::Balance;
 
 pub type RawEvents = Vec<u8>;
+pub type HeaderToSync = pruntime::HeaderToSync<BlockNumber, Hashing>;
+pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing, Balance>;
+
 
 // pRuntime APIs
 
@@ -186,25 +192,15 @@ pub struct SyncHeaderResp {
 impl Resp for SyncHeaderReq {
     type Resp = SyncHeaderResp;
 }
-#[derive(Encode, Decode, Clone, Debug)]
+
+#[derive(Clone, Debug)]
 pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
     pub key: Option<Vec<u8>>,
 }
-#[derive(Encode, Decode, Clone, Debug)]
-pub struct BlockHeaderWithEvents {
-    pub block_header: Header,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<StorageProof>,
-    pub key: Option<Vec<u8>>,
-}
-#[derive(Encode, Decode, Clone, Debug)]
-pub struct HeaderToSync {
-    pub header: Header,
-    pub justification: Option<Justification>,
-}
+
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
     pub authority_set: AuthorityList,
@@ -214,21 +210,6 @@ pub struct AuthoritySet {
 pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
-}
-
-// API: ping
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct Heartbeat {
-    pub block_num: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct HeartbeatData {
-    pub data: Heartbeat,
-    pub signature: Vec<u8>,
 }
 
 // API: dispatch_block
