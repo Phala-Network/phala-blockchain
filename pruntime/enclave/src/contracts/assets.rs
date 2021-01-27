@@ -599,8 +599,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 });
                 println!("queue len: {:}", self.queue.len());
             }
-        } else if let chain::Event::xcm_adapter(xa) = ce {
-            if let xcm_adapter::RawEvent::DepositAsset(xtoken_id, who, amount, _) = xa {
+        } else if let chain::Event::xcm_transactor(xa) = ce {
+            if let xcm_transactor::RawEvent::DepositAsset(xtoken_id, who, amount, _) = xa {
                 println!("DepositAsset from: {:?}, xtoken id: {:?}, amount: {:}", who, xtoken_id, amount);
                 let dest = AccountIdWrapper(who);
                 println!("   dest: {}", dest.to_string());

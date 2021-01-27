@@ -28,7 +28,7 @@ use cumulus_primitives::{
 	InboundHrmpMessage, OutboundHrmpMessage, ParaId, UpwardMessageSender,
 };
 use frame_support::{decl_error, decl_event, decl_module, sp_runtime::traits::Hash};
-use frame_system::{ensure_root, ensure_signed};
+use frame_system::ensure_signed;
 use sp_std::convert::{TryFrom, TryInto};
 use xcm::{
 	v0::{Error as XcmError, ExecuteXcm, Junction, MultiLocation, SendXcm, Xcm},
@@ -91,21 +91,21 @@ decl_module! {
 		}
 
 		#[weight = 1_000]
-		fn sudo_send_xcm(origin, dest: MultiLocation, message: Xcm) {
-			ensure_root(origin)?;
+		fn send_plain_xcm(origin, dest: MultiLocation, message: Xcm) {
+			ensure_signed(origin)?;
 			Self::send_xcm(dest, message).map_err(|_| Error::<T>::FailedToSend)?;
 		}
 
 		#[weight = 1_000]
-		fn sudo_send_upward_xcm(origin, message: VersionedXcm) {
-			ensure_root(origin)?;
+		fn send_upward_xcm(origin, message: VersionedXcm) {
+			ensure_signed(origin)?;
 			let data = message.encode();
 			T::UpwardMessageSender::send_upward_message(data).map_err(|_| Error::<T>::FailedToSend)?;
 		}
 
 		#[weight = 1_000]
-		fn sudo_send_hrmp_xcm(origin, recipient: ParaId, message: VersionedXcm) {
-			ensure_root(origin)?;
+		fn send_hrmp_xcm(origin, recipient: ParaId, message: VersionedXcm) {
+			ensure_signed(origin)?;
 			let data = message.encode();
 			let outbound_message = OutboundHrmpMessage {
 				recipient,
@@ -143,7 +143,7 @@ impl<T: Config> DownwardMessageHandler for Module<T> {
 
 impl<T: Config> HrmpMessageHandler for Module<T> {
 	fn handle_hrmp_message(sender: ParaId, msg: InboundHrmpMessage) {
-		
+
 		frame_support::debug::RuntimeLogger::init();
 
 		frame_support::debug::info!("----------- xcm-handler: handle_hrmp_message -------------");
@@ -210,23 +210,6 @@ impl<T: Config> SendXcm for Module<T> {
 				Self::deposit_event(RawEvent::HrmpMessageSent(hash));
 				Ok(())
 			}
-
-			// // An Combined path, send to parachain directly 
-			// Some((Junction::Parent, Junction::Parachain { id })) => {
-			// 	frame_support::debug::info!("---------------- Destionation is combined path, send hrmp message ");
-
-			// 	let data = msg.encode();
-			// 	let hash = T::Hashing::hash(&data);
-			// 	let message = OutboundHrmpMessage {
-			// 		recipient: (*id).into(),
-			// 		data,
-			// 	};
-			// 	// TODO: Better error here
-			// 	T::HrmpMessageSender::send_hrmp_message(message)
-			// 		.map_err(|_| XcmError::Undefined)?;
-			// 	Self::deposit_event(RawEvent::HrmpMessageSent(hash));
-			// 	Ok(())
-			// }
 
 			_ => {
 				frame_support::debug::info!("----------------- Unhandled xcm message");

@@ -1,23 +1,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use codec::FullCodec;
 use frame_support::{
     debug, decl_error, decl_event, decl_module, decl_storage,
     traits::{Currency, ExistenceRequirement, Get, WithdrawReasons},
-    Parameter,
 };
 
 use sp_runtime::{
-    traits::{
-        AtLeast32Bit, CheckedConversion, Convert, MaybeSerializeDeserialize, Member,
-        SaturatedConversion,
-    },
-    DispatchResult, RuntimeDebug,
+    traits::{CheckedConversion, SaturatedConversion},
+    RuntimeDebug,
 };
 use sp_std::{
     collections::btree_map::BTreeMap,
-    convert::{TryFrom, TryInto},
-    fmt::Debug,
+    convert::{TryInto, TryFrom},
     marker::PhantomData,
     prelude::*,
     result,
@@ -113,7 +107,7 @@ where
     T: Config
 {
     fn deposit_asset(asset: &MultiAsset, location: &MultiLocation) -> Result {
-        debug::info!("----------------------- xcm-adapter: trying deposit -------------------------");
+        debug::info!("----------------------- xcm-transactor: trying deposit -------------------------");
         debug::info!(
             ">>> asset: {:?}, location: {:?}",
             asset,
@@ -124,7 +118,7 @@ where
             let who = T::AccountIdConverter::from_location(location).ok_or(())?;
             debug::info!("who: {:?}", who);
             let currency_id =
-                T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
+                T::XCurrencyIdConverter::from_asset(asset).ok_or(())?;
             debug::info!("currency_id: {:?}", currency_id);
             let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
                 .ok_or(())?
@@ -148,7 +142,7 @@ where
                 !is_owned_currency,
             ));
     
-            debug::info!("------------------ xcm-adapter: success deposit ------------------------------");
+            debug::info!("------------------ xcm-transactor: success deposit ------------------------------");
         }
         
         Ok(())
@@ -165,11 +159,11 @@ where
             location
         );
 
-		if let MultiLocation::X1(Junction::AccountId32 { id, network }) = location {
+		if let MultiLocation::X1(Junction::AccountId32 {id, network}) = location {
             let who = T::AccountIdConverter::from_location(location).ok_or(())?;
             debug::info!("who: {:?}", who);
             let currency_id =
-                T::XCurrencyIdConverter::from_asset_and_location(asset, location).ok_or(())?;
+                T::XCurrencyIdConverter::from_asset(asset).ok_or(())?;
             debug::info!("currency_id: {:?}", currency_id);
             let amount: BalanceOf<T> = T::Matcher::matches_fungible(&asset)
                 .ok_or(())?
@@ -200,42 +194,14 @@ where
             ));
         }
 
-        debug::info!("--------------------- xcm-adapter: success withdraw ---------------------------");
+        debug::info!("--------------------- xcm-transactor: success withdraw ---------------------------");
         Ok(asset.clone())
     }
 }
 
-pub struct IsConcreteWithGeneralKey<CurrencyId, FromRelayChainBalance>(
-    PhantomData<(CurrencyId, FromRelayChainBalance)>,
-);
-impl<CurrencyId, B, FromRelayChainBalance> MatchesFungible<B>
-    for IsConcreteWithGeneralKey<CurrencyId, FromRelayChainBalance>
-where
-    CurrencyId: TryFrom<Vec<u8>>,
-    B: TryFrom<u128>,
-    FromRelayChainBalance: Convert<u128, u128>,
-{
-    fn matches_fungible(a: &MultiAsset) -> Option<B> {
-        if let MultiAsset::ConcreteFungible { id, amount } = a {
-            if id == &MultiLocation::X1(Junction::Parent) {
-                // Convert relay chain decimals to local chain
-                let local_amount = FromRelayChainBalance::convert(*amount);
-                return CheckedConversion::checked_from(local_amount);
-            }
-            if let Some(Junction::GeneralKey(key)) = id.last() {
-                if TryInto::<CurrencyId>::try_into(key.clone()).is_ok() {
-                    return CheckedConversion::checked_from(*amount);
-                }
-            }
-        }
-        None
-    }
-}
-
 pub trait XCurrencyIdConversion {
-    fn from_asset_and_location(
-        asset: &MultiAsset,
-        location: &MultiLocation,
+    fn from_asset(
+        asset: &MultiAsset
     ) -> Option<PHAXCurrencyId>;
 }
 
@@ -243,9 +209,8 @@ pub struct XCurrencyIdConverter<NativeTokens>(PhantomData<NativeTokens>);
 impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> XCurrencyIdConversion
     for XCurrencyIdConverter<NativeTokens>
 {
-    fn from_asset_and_location(
-        multi_asset: &MultiAsset,
-        multi_location: &MultiLocation,
+    fn from_asset(
+        multi_asset: &MultiAsset
     ) -> Option<PHAXCurrencyId> {
         if let MultiAsset::ConcreteFungible { ref id, .. } = multi_asset {
             if id == &MultiLocation::X1(Junction::Parent) {
@@ -285,9 +250,25 @@ impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> XCurrencyIdConversion
     }
 }
 
-pub struct NativePalletAssetOr<NativeTokens>(PhantomData<NativeTokens>);
+pub struct ConcreteMatcher<T>(PhantomData<T>);
+impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for ConcreteMatcher<T> {
+	fn matches_fungible(a: &MultiAsset) -> Option<B> {
+        if let MultiAsset::ConcreteFungible { id, amount } = a {
+            if id == &T::get() {
+                return CheckedConversion::checked_from(*amount);
+            } else if let Some(Junction::GeneralKey(key)) = id.last() {
+                return CheckedConversion::checked_from(*amount);
+            } else {
+                return None;
+            }
+        }
+        None
+	}
+}
+
+pub struct AssetLocationFilter<NativeTokens>(PhantomData<NativeTokens>);
 impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> FilterAssetLocation
-    for NativePalletAssetOr<NativeTokens>
+    for AssetLocationFilter<NativeTokens>
 {
     fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
 
@@ -308,10 +289,4 @@ impl<NativeTokens: Get<BTreeMap<Vec<u8>, MultiLocation>>> FilterAssetLocation
 
         false
     }
-}
-
-pub trait XcmHandler {
-    type Origin;
-    type Xcm;
-    fn execute(origin: Self::Origin, xcm: Self::Xcm) -> DispatchResult;
 }

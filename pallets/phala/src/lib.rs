@@ -44,7 +44,7 @@ mod tests;
 
 type BalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
-type XBalanceOf<T> = <T as xtoken::Config>::Balance;
+// type XBalanceOf<T> = <T as xtoken::Config>::Balance;
 
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
@@ -54,7 +54,7 @@ const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Config: frame_system::Config + xtoken::Config {
+pub trait Config: frame_system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash>;
 	type TEECurrency: Currency<Self::AccountId>;
@@ -183,7 +183,7 @@ decl_storage! {
 }
 
 decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Config>::AccountId, Balance = BalanceOf<T>, XBalance = XBalanceOf<T> {
+	pub enum Event<T> where AccountId = <T as frame_system::Config>::AccountId, Balance = BalanceOf<T> {
 		// Debug events
 		LogString(Vec<u8>),
 		LogI32(i32),
@@ -193,8 +193,8 @@ decl_event!(
 		TransferToChain(AccountId, Balance, u64),
 		TransferTokenToTee(AccountId, Vec<u8>, Balance),
 		TransferTokenToChain(AccountId, Vec<u8>, Balance, u64),
-		TransferXTokenToChain(AccountId, Vec<u8>, XBalance, u64),
-		XcmExecutorFailed(AccountId, Vec<u8>, XBalance, u64),
+		TransferXTokenToChain(AccountId, Vec<u8>, Balance, u64),
+		XcmExecutorFailed(AccountId, Vec<u8>, Balance, u64),
 		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),  // stash, identity_key, machine_id
 		WorkerUnregistered(AccountId, Vec<u8>),  // stash, machine_id
 		Heartbeat(AccountId, u32),
@@ -549,7 +549,7 @@ decl_module! {
 			const CONTRACT_ID: u32 = 3;
 			ensure_signed(origin.clone())?;
 
-			let transfer_data: TransferXTokenData<<T as frame_system::Config>::AccountId, T::Balance>
+			let transfer_data: TransferXTokenData<<T as frame_system::Config>::AccountId, BalanceOf<T>>
 				= Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
 			// Check sequence
 			let sequence = IngressSequence::get(CONTRACT_ID);
@@ -560,13 +560,13 @@ decl_module! {
 			// Validate TEE signature
 			Self::verify_signature(&pubkey, &transfer_data)?;
 
-			let xcm = <xtoken::Module<T>>::do_transfer_to_parachain(
-				transfer_data.data.x_currency_id.clone(),
-				transfer_data.data.para_id,
-				&transfer_data.data.dest,
-				transfer_data.data.dest_network,
-				transfer_data.data.amount
-			);
+			// let xcm = <xtoken::Module<T>>::do_transfer_to_parachain(
+			// 	transfer_data.data.x_currency_id.clone(),
+			// 	transfer_data.data.para_id,
+			// 	&transfer_data.data.dest,
+			// 	transfer_data.data.dest_network,
+			// 	transfer_data.data.amount
+			// );
 
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
@@ -1069,6 +1069,9 @@ impl<T: Config> Module<T> {
 		Fire::<T>::mutate(dest, |x| *x += amount);
 		AccumulatedFire::<T>::mutate(|x| *x += amount);
 	}
+
+	// TODO: build xcm message and execute it
+	fn do_transfer_to_parachain() {}
 }
 
 fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {

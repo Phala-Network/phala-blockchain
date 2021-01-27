@@ -87,8 +87,7 @@ polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-f
 # pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-phala = { version = "2.0.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets/claim", package = "pallet-claim" }
-xtoken = { path = "../pallets/xtoken", default-features = false}
-xcm-adapter = { path = "../pallets/xcm-adapter", default-features = false }
+xcm-transactor = { path = "../pallets/xcm-transactor", default-features = false }
 
 native-nostd-hasher = { version = "2.0.0", path = "../native-nostd-hasher", optional = true }
 
@@ -172,8 +171,7 @@ std = [
 	"xcm-executor/std",
 	"xcm-handler/std",
 	"polkadot-parachain/std",
-	"xtoken/std",
-	"xcm-adapter/std",
+	"xcm-transactor/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
