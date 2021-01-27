@@ -94,7 +94,7 @@ decl_storage! {
 		Fire get(fn fire): map hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
 		/// Fire2 measures the total reward the miner can get (PoC3 1605-II specific)
 		Fire2 get(fn fire2): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
-		/// Heartbeat counts (indexied: Total~, Max~, ActiveWorkers)
+		/// Heartbeat counts
 		Heartbeats get(fn heartbeats): map hasher(blake2_128_concat) T::AccountId => u32;
 
 		// Indices
@@ -102,8 +102,10 @@ decl_storage! {
 		MachineOwner get(fn machine_owner): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 		/// Map from controller to stash
 		Stash get(fn stash): map hasher(blake2_128_concat) T::AccountId => T::AccountId;
-		/// Sum of all online workers in this round
+		/// Number of all online workers in this round
 		OnlineWorkers get(fn online_workers): u32;
+		/// Number of all computation workers that will be elected in this round
+		ComputeWorkers get(fn compute_workers): u32;
 		/// Total Power points in this round. Updated at handle_round_ends().
 		TotalPower get(fn total_power): u32;
 		/// Total Fire points (1605-I specific)
@@ -137,6 +139,7 @@ decl_storage! {
 		MREnclaveWhitelist get(fn mr_enclave_whitelist): Vec<Vec<u8>>;
 		TargetOnlineRewardCount get(fn target_online_reward_count): u32;
 		TargetComputeRewardCount get(fn target_compute_reward_count): u32;
+		TargetVirtualTaskCount get(fn target_virtual_task_count): u32;
 		/// Miners must submit the heartbeat within the reward window
 		RewardWindow get(fn reward_window): T::BlockNumber;
 	}
@@ -180,6 +183,7 @@ decl_storage! {
 			RewardWindow::<T>::put(T::BlockNumber::from(8u32));
 			TargetOnlineRewardCount::put(20u32);
 			TargetComputeRewardCount::put(10u32);
+			TargetVirtualTaskCount::put(5u32);
 		});
 	}
 }
@@ -582,6 +586,13 @@ decl_module! {
 			Ok(())
 		}
 
+		#[weight = 0]
+		fn force_set_virtual_tasks(origin, target: u32) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			TargetVirtualTaskCount::put(target);
+			Ok(())
+		}
+
 		// Whitelist
 
 		#[weight = 0]
@@ -852,9 +863,9 @@ impl<T: Trait> Module<T> {
 		OnlineWorkers::put(new_online);
 		let new_total_power = ((TotalPower::get() as i32) + power_delta) as u32;
 		TotalPower::put(new_total_power);
-
-		// dispatch tasks
-		//	 TODO: randomly dispatch tasks and rewards
+		// Computation tasks
+		let compute_workers = cmp::min(new_online, TargetVirtualTaskCount::get());
+		ComputeWorkers::put(compute_workers);
 
 		// Start new round
 		Self::clear_dirty();
@@ -862,7 +873,7 @@ impl<T: Trait> Module<T> {
 			round: new_round,
 			start_block: new_block,
 		});
-		Self::update_round_stats(new_round, new_online, 0u32, new_total_power);
+		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
