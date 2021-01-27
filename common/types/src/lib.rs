@@ -72,7 +72,7 @@ impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
 
 // Types used in storage
 
-#[derive(Encode, Decode, PartialEq, Eq, Debug)]
+#[derive(Encode, Decode, PartialEq, Eq, Debug, Clone)]
 pub enum WorkerStateEnum<BlockNumber> {
 	Empty,
 	Free,
@@ -88,7 +88,7 @@ impl<BlockNumber> Default for WorkerStateEnum<BlockNumber> {
 	}
 }
 
-#[derive(Encode, Decode, Debug, Default)]
+#[derive(Encode, Decode, Debug, Default, Clone)]
 pub struct WorkerInfo<BlockNumber> {
 	// identity
 	pub machine_id: Vec<u8>,

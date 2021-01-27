@@ -46,10 +46,8 @@ use subxt::{
 ///
 /// Main difference is `type Address = AccountId`.
 /// Also the contracts module is not part of the kusama runtime.
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct PhalaNodeRuntime;
-
-impl Staking for PhalaNodeRuntime {}
 
 impl Runtime for PhalaNodeRuntime {
     type Signature = MultiSignature;
@@ -74,6 +72,8 @@ impl Balances for PhalaNodeRuntime {
 
 impl Contracts for PhalaNodeRuntime {}
 
+impl Staking for PhalaNodeRuntime {}
+
 impl Sudo for PhalaNodeRuntime {}
 
 impl Session for PhalaNodeRuntime {
@@ -86,6 +86,8 @@ impl phala::PhalaModule for PhalaNodeRuntime {
     type EthereumTxHash = phala::EthereumTxHash;
     type EthereumAddress = phala::EthereumAddress;
 }
+
+impl mining_staking::MiningStaking for PhalaNodeRuntime {}
 
 pub mod grandpa {
     use super::PhalaNodeRuntime;
@@ -128,7 +130,6 @@ pub mod phala {
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumAddress([u8; 20]);
 
-    /// The subset of the `pallet_phala::Trait` that a client must implement.
     #[module]
     pub trait PhalaModule: System + Balances {
         // Define the additional types used in pallet events
@@ -249,6 +250,27 @@ pub mod phala {
         }
     }
 
+    /// Storage: OnlineWorkers
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, Default)]
+    pub struct OnlineWorkers<T: PhalaModule> {
+        #[store(returns = u32)]
+        pub _runtime: PhantomData<T>,
+    }
+    /// Storage: ComputeWorkers
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, Default)]
+    pub struct ComputeWorkers<T: PhalaModule> {
+        #[store(returns = u32)]
+        pub _runtime: PhantomData<T>,
+    }
+
+    /// Storage: WorkerState
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct WorkerStateStore<T: PhalaModule> {
+        #[store(returns = phala_types::WorkerInfo<T::BlockNumber>)]
+        pub _runtime: PhantomData<T>,
+        pub account_id: T::AccountId,
+    }
+
     /// The call to sync_worker_message
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct SyncWorkerMessageCall<T: PhalaModule> {
@@ -258,4 +280,32 @@ pub mod phala {
         pub msg: Vec<u8>,
     }
 
+}
+
+pub mod mining_staking {
+    use codec::Encode;
+    use subxt::{
+        module, Store,
+        system::{System, SystemEventsDecoder},
+        balances::{Balances, BalancesEventsDecoder}
+    };
+    use core::marker::PhantomData;
+
+    #[module]
+    pub trait MiningStaking: System + Balances {}
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct StakedStore<T: MiningStaking> {
+        #[store(returns = <T as Balances>::Balance)]
+        pub _runtime: PhantomData<T>,
+        pub from: T::AccountId,
+        pub to: T::AccountId,
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct StakeReceivedStore<T: MiningStaking> {
+        #[store(returns = <T as Balances>::Balance)]
+        pub _runtime: PhantomData<T>,
+        pub to: T::AccountId,
+    }
 }

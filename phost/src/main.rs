@@ -4,27 +4,27 @@ use std::time::Duration;
 use structopt::StructOpt;
 
 use sp_rpc::number::NumberOrHex;
-use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
-use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
+use sp_core::{storage::StorageKey, sr25519, crypto::Pair};
 
 mod error;
 mod msg_sync;
 mod pruntime_client;
 mod notify_client;
+mod chain_client;
 mod runtimes;
 mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey, AccountId,
+    Runtime, Header, Hash, BlockNumber, AccountId,
     GetInfoReq,
     InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq, InitRespAttestation,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents,
-    NotifyReq
+    NotifyReq,
 };
 
 use subxt::Signer;
@@ -126,7 +126,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
 
-    let events_with_proof = fetch_events(&client, &hash).await?;
+    let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
     if let Some((raw_events, proof, key)) = events_with_proof {
         println!("          ... with events {} bytes", raw_events.len());
         let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
@@ -140,28 +140,15 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
     return Err(Error::EventNotFound);
 }
 
-async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
-    let storage = client.rpc.storage(&storage_key, hash).await?;
-    Ok(storage.map(|data| (&data.0[..]).to_vec()))
-}
-
-async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<ReadProof<Hash>, Error> {
-    client.read_proof(vec![storage_key], hash).await.map_err(Into::into)
-}
-
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange, Error> {
     // Storage
     let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let value = get_storage(&client, Some(hash), storage_key.clone()).await?
+    let value = chain_client::get_storage(&client, Some(hash), storage_key.clone()).await?
         .expect("No authority key found");
     let authority_set: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
         .expect("Failed to decode VersionedAuthorityList").into();
     // Proof
-    let proof = read_proof(&client, Some(hash), storage_key).await?.proof;
-    let mut prf = Vec::new();
-    for p in proof {
-        prf.push(p.to_vec());
-    }
+    let proof = chain_client::read_proof(&client, Some(hash), storage_key).await?;
     // Set id
     let set_id = client
         .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
@@ -172,7 +159,7 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
             authority_set,
             set_id,
         },
-        authority_proof: prf,
+        authority_proof: proof,
     })
 }
 
@@ -218,31 +205,6 @@ async fn bisec_setid_change(
         None
     };
     Ok(result)
-}
-
-async fn fetch_events(client: &XtClient, hash: &Hash)
--> Result<Option<(RawEvents, StorageProof, RawStorageKey)>, Error> {
-    // let hash = client.block_hash(Some(subxt::BlockNumber::from(block_number))).await?;
-    let key = storage_value_key_vec("System", "Events");
-    let storage_key = StorageKey(key.clone());
-    let result = match get_storage(&client, Some(hash.clone()), storage_key.clone()).await? {
-        Some(value) => {
-            let proof = read_proof(&client, Some(hash.clone()), storage_key).await?
-                .proof
-                .iter()
-                .map(|x| x.to_vec())
-                .collect();
-            Some((value, proof, key))
-        },
-        None => None,
-    };
-    Ok(result)
-}
-
-fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
-    let mut key = twox_128(module.as_bytes()).to_vec();
-    key.extend(&twox_128(storage_key_name.as_bytes()));
-    key
 }
 
 async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
@@ -529,14 +491,30 @@ async fn register_worker(
         Ok(())
 }
 
+async fn test(client: &XtClient) -> Result<(), Error> {
+    let decoder = chain_client::get_event_decoder(&client);
+    for height in 18400u32..18499u32 {
+        let hash = client.block_hash(Some(height.into())).await?.unwrap();
+        let hit = chain_client::test_round_end_event(&client, &decoder, &hash).await?;
+        if hit {
+            println!("Hit @{}!", height);
+            chain_client::snapshot_online_worker_at(&client, Some(hash.clone())).await?;
+        }
+    }
+    Ok(())
+}
+
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<(), Error> {
+    env_logger::init();
+
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(args.substrate_ws_endpoint.clone())
         .build().await?;
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
+    // test(&client).await?;
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
