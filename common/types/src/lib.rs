@@ -8,6 +8,7 @@ use sp_core::U256;
 #[cfg(feature = "enable_serde")]
 use serde::{Serialize, Deserialize};
 
+#[cfg(feature = "pruntime")]
 pub mod pruntime;
 
 #[derive(Encode, Decode)]

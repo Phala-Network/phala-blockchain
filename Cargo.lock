@@ -5249,6 +5249,7 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]

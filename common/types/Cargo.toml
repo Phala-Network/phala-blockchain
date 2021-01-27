@@ -8,9 +8,10 @@ edition = "2018"
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "1.3.4", default-features = false }
 sp-core = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/core" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
 [features]
-default = ["std", "enable_serde"]
+default = ["std", "pruntime", "enable_serde"]
 std = [
     "serde/std",
     "codec/std",
@@ -19,4 +20,7 @@ std = [
 enable_serde = [
 	"serde/derive",
 	"serde/alloc"
+]
+pruntime = [
+	"sp-runtime"
 ]
