@@ -123,9 +123,9 @@ impl<T: Config> DownwardMessageHandler for Module<T> {
 
 		frame_support::debug::info!("----------- xcm-handler: handle_downward_message -------------");
 		frame_support::debug::info!(
-            ">>> inbound downward msg: {:?}",
-            msg
-        );
+			">>> inbound downward msg: {:?}",
+			msg
+		);
 		let hash = msg.using_encoded(T::Hashing::hash);
 		frame_support::debug::info!("Processing Downward XCM: {:?}", &hash);
 		match VersionedXcm::decode(&mut &msg.msg[..]).map(Xcm::try_from) {
@@ -148,10 +148,10 @@ impl<T: Config> HrmpMessageHandler for Module<T> {
 
 		frame_support::debug::info!("----------- xcm-handler: handle_hrmp_message -------------");
 		frame_support::debug::info!(
-            ">>> paraId: {:?}, inbound hrmp msg: {:?}",
-            sender,
-            msg
-        );
+			">>> paraId: {:?}, inbound hrmp msg: {:?}",
+			sender,
+			msg
+		);
 		let hash = msg.using_encoded(T::Hashing::hash);
 		frame_support::debug::info!("Processing HRMP XCM: {:?}", &hash);
 		match VersionedXcm::decode(&mut &msg.data[..]).map(Xcm::try_from) {
@@ -175,11 +175,11 @@ impl<T: Config> SendXcm for Module<T> {
 		let msg: VersionedXcm = msg.into();
 		frame_support::debug::info!("----------- xcm-handler: send_xcm -------------");
 		frame_support::debug::info!(
-            ">>> dest: {:?}, dest.first(): {:?} msg: {:?}",
+			">>> dest: {:?}, dest.first(): {:?} msg: {:?}",
 			dest,
 			dest.first(),
-            msg
-        );
+			msg
+		);
 		match dest.first() {
 			// An upward message for the relay chain.
 			Some(Junction::Parent) if dest.len() == 1 => {
