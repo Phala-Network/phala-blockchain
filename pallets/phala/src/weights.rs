@@ -12,7 +12,7 @@ use frame_support::{traits::Get, weights::{Weight, constants::RocksDbWeight}};
 use sp_std::marker::PhantomData;
 
 /// Weight functions needed for pallet-phala.
-pub trait WeightInfo {
+pub trait ModuleWeightInfo {
 	fn push_command() -> Weight;
 	fn set_stash() -> Weight;
 	fn set_payout_prefs() -> Weight;
@@ -33,7 +33,7 @@ pub trait WeightInfo {
 
 /// Weight functions for pallet_phala.
 pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Config> ModuleWeightInfo for SubstrateWeight<T> {
 	fn push_command() -> Weight {
 		(54_000_000 as Weight)
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
@@ -115,7 +115,7 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
 }
 
 // For backwards compatibility and tests
-impl WeightInfo for () {
+impl ModuleWeightInfo for () {
 	fn push_command() -> Weight {
 		(54_000_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))

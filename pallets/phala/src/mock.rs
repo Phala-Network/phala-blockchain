@@ -98,7 +98,7 @@ impl phala::Config for Test {
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
 	type Treasury = ();
-	type WeightInfo = ();
+	type ModuleWeightInfo = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
