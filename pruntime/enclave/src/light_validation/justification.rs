@@ -40,7 +40,7 @@ use sp_finality_grandpa::{AuthorityId, AuthoritySignature};
 ///
 /// This is meant to be stored in the db and passed around the network to other
 /// nodes, and are used by syncing nodes to prove authority set handoffs.
-#[derive(Encode, Decode)]
+#[derive(Clone, Encode, Decode, PartialEq, Eq)]
 pub struct GrandpaJustification<Block: BlockT> {
 	round: u64,
 	pub(crate) commit: Commit<Block>,
@@ -69,17 +69,17 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 		};
 
 		for signed in commit.precommits.iter() {
-			let mut current_hash = signed.precommit.target_hash.clone();
+			let mut current_hash = signed.precommit.target_hash;
 			loop {
 				if current_hash == commit.target_hash { break; }
 
-				match client.header(&BlockId::Hash(current_hash))? {
+				match client.header(BlockId::Hash(current_hash))? {
 					Some(current_header) => {
 						if *current_header.number() <= commit.target_number {
 							return error();
 						}
 
-						let parent_hash = current_header.parent_hash().clone();
+						let parent_hash = *current_header.parent_hash();
 						if votes_ancestries_hashes.insert(current_hash) {
 							votes_ancestries.push(current_header);
 						}
@@ -148,7 +148,7 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 				&mut buf,
 			) {
 				return Err(ClientError::BadJustification(
-					"invalid signature for precommit in grandpa justification".to_string()).into());
+					"invalid signature for precommit in grandpa justification".to_string()));
 			}
 
 			if self.commit.target_hash == signed.precommit.target_hash {
@@ -165,7 +165,7 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 				},
 				_ => {
 					return Err(ClientError::BadJustification(
-						"invalid precommit ancestry proof in grandpa justification".to_string()).into());
+						"invalid precommit ancestry proof in grandpa justification".to_string()));
 				},
 			}
 		}
@@ -177,7 +177,7 @@ impl<Block: BlockT<Hash=H256>> GrandpaJustification<Block> {
 
 		if visited_hashes != ancestry_hashes {
 			return Err(ClientError::BadJustification(
-				"invalid precommit ancestries in grandpa justification with unused headers".to_string()).into());
+				"invalid precommit ancestries in grandpa justification with unused headers".to_string()));
 		}
 
 		Ok(())

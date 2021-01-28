@@ -159,7 +159,7 @@ impl<T: Config> LightValidation<T>
 
 		// Check that the header has been finalized
 		let voters = &bridge.current_set;
-		let voter_set = VoterSet::from_iter(voters.authority_set.clone());
+		let voter_set = VoterSet::new(voters.authority_set.clone()).unwrap();
 		let voter_set_id = voters.set_id;
 		verify_grandpa_proof::<T::Block>(
 			grandpa_proof,
