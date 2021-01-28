@@ -130,6 +130,8 @@ impl RuntimeError {
             }
             DispatchError::BadOrigin => Ok(Self::BadOrigin),
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
+            DispatchError::ConsumerRemaining => Ok(Self::Other("ConsumerRemaining".to_string())),
+            DispatchError::NoProviders => Ok(Self::Other("NoProviders".to_string())),
             DispatchError::Other(msg) => Ok(Self::Other(msg.into())),
         }
     }

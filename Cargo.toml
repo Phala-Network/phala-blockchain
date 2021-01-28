@@ -13,7 +13,8 @@ exclude = [
 	"serde_json_no_std",
 	"pruntime",
 	"jsonrpsee",
-	"cumulus"
+	"cumulus",
+	"pallets/staking"
 ]
 
 members = [

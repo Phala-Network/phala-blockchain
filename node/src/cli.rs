@@ -1,50 +1,34 @@
-// This file is part of Substrate.
+// Copyright 2019 Parity Technologies (UK) Ltd.
+// This file is part of Cumulus.
 
-// Copyright (C) 2018-2020 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
-
-// This program is free software: you can redistribute it and/or modify
+// Cumulus is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 
-// This program is distributed in the hope that it will be useful,
+// Cumulus is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with this program. If not, see <https://www.gnu.org/licenses/>.
+// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
 
 use std::path::PathBuf;
-use sc_cli::{KeySubcommand, SignCmd, VanityCmd, VerifyCmd};
+
+use sc_cli;
 use structopt::StructOpt;
 
-/// Possible subcommands of the main binary.
+/// Sub-commands supported by the collator.
 #[derive(Debug, StructOpt)]
 pub enum Subcommand {
-	/// Key management cli utilities
-	Key(KeySubcommand),
+	/// Export the genesis state of the parachain.
+	#[structopt(name = "export-genesis-state")]
+	ExportGenesisState(ExportGenesisStateCommand),
 
-	/// The custom inspect subcommmand for decoding blocks and extrinsics.
-	#[structopt(
-		name = "inspect",
-		about = "Decode given block or extrinsic using current native runtime."
-	)]
-	Inspect(node_inspect::cli::InspectCmd),
-
-	/// The custom benchmark subcommmand benchmarking runtime pallets.
-	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
-	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
-
-	/// Verify a signature for a message, provided on STDIN, with a given (public or secret) key.
-	Verify(VerifyCmd),
-
-	/// Generate a seed that provides a vanity address.
-	Vanity(VanityCmd),
-
-	/// Sign a message, with a given (secret) key.
-	Sign(SignCmd),
+	/// Export the genesis wasm of the parachain.
+	#[structopt(name = "export-genesis-wasm")]
+	ExportGenesisWasm(ExportGenesisWasmCommand),
 
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
@@ -66,14 +50,6 @@ pub enum Subcommand {
 
 	/// Revert the chain to a previous state.
 	Revert(sc_cli::RevertCmd),
-
-	/// Export the genesis state of the parachain.
-	#[structopt(name = "export-genesis-state")]
-	ExportGenesisState(ExportGenesisStateCommand),
-
-	/// Export the genesis wasm of the parachain.
-	#[structopt(name = "export-genesis-wasm")]
-	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
 /// Command for exporting the genesis state of the parachain
@@ -130,7 +106,6 @@ impl std::ops::Deref for RunCmd {
 	}
 }
 
-/// An overarching CLI command definition.
 #[derive(Debug, StructOpt)]
 #[structopt(settings = &[
 	structopt::clap::AppSettings::GlobalVersion,
@@ -138,7 +113,6 @@ impl std::ops::Deref for RunCmd {
 	structopt::clap::AppSettings::SubcommandsNegateReqs,
 ])]
 pub struct Cli {
-	/// Possible subcommand with parameters.
 	#[structopt(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
