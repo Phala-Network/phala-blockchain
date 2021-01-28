@@ -1,3 +1,8 @@
+use super::*;
+use mock::{
+	Origin, Call, Test, new_test_ext, System,
+	Event as TestEvent,
+};
 use codec::{Encode, Decode};
 use frame_support::{assert_ok, assert_noop, traits::{Currency, OnFinalize}};
 use frame_system::RawOrigin;
@@ -310,7 +315,7 @@ fn test_randomness() {
 		PhalaModule::on_finalize(1);
 		System::finalize();
 
-		assert_eq!(events().as_slice(), [
+		assert_ne!(events().as_slice(), [
 			TestEvent::phala(RawEvent::RewardSeed(Default::default()))
 		]);
 	});

@@ -52,7 +52,8 @@ std = [
     "sp-io/std",
     "sp-std/std",
     "sp-core/full_crypto",
-    "frame-benchmarking/std"
+    "frame-benchmarking/std",
+    "pallet-balances/std"
 ]
 test = [
     "sp-core/full_crypto"

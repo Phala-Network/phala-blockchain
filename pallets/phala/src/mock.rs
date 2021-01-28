@@ -1,63 +1,58 @@
 // Creating mock runtime here
 
-use crate::{Module, Config};
+use crate as phala;
 use sp_core::H256;
-use frame_support::{impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
 use sp_runtime::{
 	Permill,
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
+	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use pallet_balances as balances;
-use crate as phala;
+use frame_support::{parameter_types, weights::Weight, traits::TestRandomness};
+use frame_support::traits::Randomness;
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
 
-impl_outer_origin! {
-	pub enum Origin for Test {}
-}
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
 
-impl_outer_event! {
-	pub enum TestEvent for Test {
-		system<T>,
-		phala<T>,
-		balances<T>,
+// Configure a mock runtime to test the pallet.
+frame_support::construct_runtime!(
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic,
+	{
+		System: frame_system::{Module, Call, Config, Storage, Event<T>},
+		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
+		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
+		PhalaModule: phala::{Module, Call, Config<T>, Storage, Event<T>},
 	}
-}
-
-// For testing the pallet, we construct most of a mock runtime. This means
-// first constructing a configuration type (`Test`) which `impl`s each of the
-// configuration traits of pallets we want to use.
-#[derive(Clone, Eq, PartialEq)]
-pub struct Test;
+);
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 42;
 	pub const MinimumPeriod: u64 = 1;
-
 }
 impl system::Config for Test {
 	type BaseCallFilter = ();
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Origin = Origin;
-	type Call = ();
+	type Call = Call;
 	type Index = u64;
-	type BlockNumber = BlockNumber;
+	type BlockNumber = u64;
 	type Hash = H256;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
-	// uncomment for benchmark
-	// type AccountId = <<sp_runtime::MultiSignature as sp_runtime::traits::Verify>::Signer as sp_runtime::traits::IdentifyAccount>::AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = TestEvent;
+	type Event = Event;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
-	type PalletInfo = ();
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -68,7 +63,7 @@ impl system::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = TestEvent;
+	type Event = Event;
 	type ExistentialDeposit = ();
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -97,12 +92,13 @@ parameter_types! {
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
 }
 
-impl Config for Test {
-	type Event = TestEvent;
-	type Randomness = Randomness;
+impl phala::Config for Test {
+	type Event = Event;
+	type Randomness = TestRandomness;
 	type TEECurrency = Balances;
-	type UnixTime = pallet_timestamp::Module<Test>;
+	type UnixTime = Timestamp;
 	type Treasury = ();
+	type WeightInfo = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
@@ -115,14 +111,14 @@ impl Config for Test {
 	type OnlineRewardPercentage = OnlineRewardPercentage;
 }
 
-mod test_events {
-	pub use crate::Event;
-}
+// mod test_events {
+// 	pub use crate::Event;
+// }
 
-pub type System = frame_system::Module<Test>;
-pub type Balances = pallet_balances::Module<Test>;
-pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
-pub type PhalaModule = Module<Test>;
+// pub type System = frame_system::Module<Test>;
+// pub type Balances = pallet_balances::Module<Test>;
+// pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
+// pub type PhalaModule = Module<Test>;
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.

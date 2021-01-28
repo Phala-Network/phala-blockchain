@@ -104,6 +104,12 @@ pub enum RuntimeError {
     /// Cannot lookup.
     #[error("Cannot lookup some information required to validate the transaction.")]
     CannotLookup,
+    /// Consumer remaining
+    #[error("At least one consumer is remaining so the account cannot be destroyed.")]
+    ConsumerRemaining,
+    /// No providers
+    #[error("There are no providers so the account cannot be created.")]
+    NoProviders,
     /// Other error.
     #[error("Other error: {0}")]
     Other(String),
@@ -130,6 +136,8 @@ impl RuntimeError {
             }
             DispatchError::BadOrigin => Ok(Self::BadOrigin),
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
+            DispatchError::ConsumerRemaining => Ok(Self::ConsumerRemaining),
+            DispatchError::NoProviders => Ok(Self::NoProviders),
             DispatchError::Other(msg) => Ok(Self::Other(msg.into())),
         }
     }
