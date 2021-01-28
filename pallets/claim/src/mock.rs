@@ -1,14 +1,13 @@
 // Creating mock runtime here
 
-use crate::{Module, Config};
+use crate as claim;
 use sp_core::H256;
-use frame_support::{impl_outer_dispatch, impl_outer_origin, impl_outer_event, parameter_types, weights::Weight};
 use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header, Perbill,
+	Permill,
+	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use pallet_balances as balances;
-use crate as claim;
+use frame_support::{parameter_types, weights::Weight, traits::TestRandomness};
 
 pub(crate) type Balance = u128;
 
@@ -24,7 +23,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Module, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
 		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		claim: phala::{Module, Call, Storage, Config<T>, Event<T>},
+		PhaClaim: claim::{Module, Call, Event<T>},
 	}
 );
 
@@ -50,7 +49,7 @@ impl system::Config for Test {
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = ();
 	type Version = ();
-	type PalletInfo = ();
+	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<Balance>;
 	type OnNewAccount = ();
 	type OnKilledAccount = ();
@@ -61,7 +60,7 @@ impl system::Config for Test {
 impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = TestEvent;
+	type Event = Event;
 	type ExistentialDeposit = ();
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -75,23 +74,14 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-impl Config for Test {
-	type Event = TestEvent;
+impl claim::Config for Test {
+	type Event = Event;
 	type Call = Call;
 	type Currency = Balances;
 
 }
 
-mod test_events {
-	pub use crate::Event;
-}
-
-pub type System = frame_system::Module<Test>;
-pub type Balances = pallet_balances::Module<Test>;
-pub type PhaClaim = Module<Test>;
-
-// This function basically just builds a genesis storage key/value store according to
-// our desired mockup.
+// Build genesis storage according to the mock runtime.
 pub fn new_test_ext() -> sp_io::TestExternalities {
 	system::GenesisConfig::default().build_storage::<Test>().unwrap().into()
 }

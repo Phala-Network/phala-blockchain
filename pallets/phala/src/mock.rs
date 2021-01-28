@@ -111,15 +111,6 @@ impl phala::Config for Test {
 	type OnlineRewardPercentage = OnlineRewardPercentage;
 }
 
-// mod test_events {
-// 	pub use crate::Event;
-// }
-
-// pub type System = frame_system::Module<Test>;
-// pub type Balances = pallet_balances::Module<Test>;
-// pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
-// pub type PhalaModule = Module<Test>;
-
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
