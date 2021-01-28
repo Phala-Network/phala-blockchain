@@ -49,7 +49,7 @@ pallet-babe = { version = "2.0.0", default-features = false, git = "https://gith
 pallet-balances = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-collective = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-democracy = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
-pallet-elections-phragmen = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
+pallet-elections-phragmen = { version = "3.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-grandpa = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-im-online = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-indices = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
@@ -63,7 +63,7 @@ pallet-randomness-collective-flip = { version = "2.0.0", default-features = fals
 pallet-recovery = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-session = { version = "2.0.0", features = ["historical"], git = "https://github.com/paritytech/substrate", default-features = false, branch = "rococo-v1" }
 pallet-session-benchmarking = { version = "2.0.0", git = "https://github.com/paritytech/substrate", default-features = false, optional = true, branch = "rococo-v1" }
-# pallet-staking = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate" }
+pallet-staking = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-staking-reward-curve = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-scheduler = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
 pallet-society = { version = "2.0.0", default-features = false, git = "https://github.com/paritytech/substrate", branch = "rococo-v1" }
@@ -81,9 +81,9 @@ xcm = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", de
 xcm-executor = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
 xcm-builder = { git = "https://github.com/paritytech/polkadot", branch = "rococo-v1", default-features = false }
 xcm-handler  = { git = "https://github.com/paritytech/cumulus", branch = "rococo-v1", default-features = false }
-polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false , branch = "rococo-v1" }
+polkadot-parachain = { git = "https://github.com/paritytech/polkadot", default-features = false, branch = "rococo-v1" }
 
-pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
+# pallet-staking = { version = "2.0.0", default-features = false, path = "../pallets/staking", package = "phala-staking" }
 pallet-phala = { version = "2.0.0", default-features = false, path = "../pallets/phala", package = "pallet-phala" }
 pallet-claim = { version = "2.0.0", default-features = false, path = "../pallets/claim", package = "pallet-claim" }
 xtoken = { path = "../pallets/xtoken", default-features = false}
