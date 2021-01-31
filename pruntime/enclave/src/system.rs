@@ -115,7 +115,10 @@ impl System {
         }
     }
 
-    pub fn handle_event(&mut self, blocknum: chain::BlockNumber, event: &PhalaEvent) -> Result<(), Error> {
+    pub fn handle_event(
+        &mut self, block_context: &super::BlockHeaderWithEvents, event: &PhalaEvent
+    ) -> Result<(), Error>
+    {
         match event {
             // Reset the egress queue once we detected myself is re-registered
             phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
@@ -140,7 +143,12 @@ impl System {
                 }
             },
             phala::RawEvent::RewardSeed(reward_info) => {
+                let blocknum = block_context.block_header.number;
                 self.handle_reward_seed(blocknum, &reward_info)?;
+            },
+            phala::RawEvent::NewMiningRound(round) => {
+                println!("System::handle_event: new mining round ({})", round);
+                self.handle_new_round(block_context.worker_snapshot.as_ref())?;
             },
             _ => ()
         };
@@ -164,6 +172,17 @@ impl System {
                 claim_compute: false,
             },
             self.id_key.as_ref().expect("Id key not set in System contract"));
+        }
+        Ok(())
+    }
+
+    fn handle_new_round(&mut self, worker_snapshot: Option<&super::OnlineWorkerSnapshot>) -> Result<(), Error> {
+        if let Some(worker_snapshot) = worker_snapshot {
+            println!("System::handle_new_round: new round");
+            // TODO: not implemented
+        } else {
+            println!("System::handle_new_round: no snapshot found; skipping participating in this round");
+            // TODO: not implemented
         }
         Ok(())
     }

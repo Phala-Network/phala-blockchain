@@ -1264,6 +1264,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-mining-staking"
+version = "1.0.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "itertools",
+ "pallet-balances",
+ "parity-scale-codec",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-multisig"
 version = "2.0.0"
 dependencies = [
@@ -1591,6 +1606,7 @@ dependencies = [
  "pallet-im-online",
  "pallet-indices",
  "pallet-membership",
+ "pallet-mining-staking",
  "pallet-multisig",
  "pallet-offences",
  "pallet-phala",
@@ -1648,11 +1664,12 @@ dependencies = [
 
 [[package]]
 name = "phala-types"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core",
+ "sp-runtime",
 ]
 
 [[package]]
