@@ -126,14 +126,14 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
     let hash = block.block.header.hash();
 
     let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
-    if let Some((raw_events, proof, key)) = events_with_proof {
+    if let Some((raw_events, proof, _key)) = events_with_proof {
         println!("          ... with events {} bytes", raw_events.len());
-        let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
-        return Ok(BlockWithEvents { block, events, proof, key });
+        let (events, proof) = (Some(raw_events), Some(proof));
+        return Ok(BlockWithEvents { block, events, proof });
     }
 
     if h == Some(0) {
-        return Ok(BlockWithEvents { block, events: None, proof: None, key: None });
+        return Ok(BlockWithEvents { block, events: None, proof: None });
     }
 
     return Err(Error::EventNotFound);
@@ -243,9 +243,32 @@ where T: std::ops::Deref<Target = [BlockHeaderWithEvents]> {
     Ok(resp)
 }
 
+/// Attaches a worker snapshot for NewRound blocks for compute worker election
+async fn maybe_take_worker_snapshot(
+    xt: &XtClient,
+    events_decoder: &EventsDecoder<Runtime>,
+    dispatch_batch: &mut Vec<BlockHeaderWithEvents>,
+) -> Result<(), Error> {
+    for bwe in dispatch_batch {
+        let data = bwe.events.as_ref().unwrap();
+        if chain_client::check_round_end_event(events_decoder, data)? {
+            let snapshot = chain_client::snapshot_online_worker_at(
+                xt, Some(bwe.block_header.hash())).await;
+            bwe.worker_snapshot = match snapshot {
+                Ok(snapshot) => Some(snapshot),
+                Err(Error::ComputeWorkerNotEnabled) => None,
+                Err(err) => return Err(err),
+            };
+        }
+    }
+    Ok(())
+}
+
 /// Syncs only the events to pRuntime till `sync_to`
 async fn sync_events_only(
+    xt: &XtClient,
     pr: &PrClient,
+    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     sync_to: BlockNumber,
     batch_window: usize,
@@ -260,16 +283,16 @@ async fn sync_events_only(
             break;
         }
     }
-    let blocks: Vec<BlockHeaderWithEvents> = block_buf
+    let mut blocks: Vec<BlockHeaderWithEvents> = block_buf
         .drain(..n)
         .map(|bwe| BlockHeaderWithEvents {
             block_header: bwe.block.block.header,
             events: bwe.events,
             proof: bwe.proof,
-            key: bwe.key,
             worker_snapshot: None,
         })
         .collect();
+    maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
     for chunk in blocks.chunks(batch_window) {
         let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
         println!("  ..dispatch_block: {:?}", r);
@@ -388,20 +411,10 @@ async fn batch_sync_block(
                         block_header: bwe.block.block.header,
                         events: bwe.events,
                         proof: bwe.proof,
-                        key: bwe.key,
                         worker_snapshot: None,
                     })
                     .collect();
-                // Attach the worker snapshot if this block is the end of the round for compute
-                // worker election
-                for bwe in &mut dispatch_batch {
-                    let data = bwe.events.as_ref().unwrap();
-                    if chain_client::check_round_end_event(events_decoder, data)? {
-                        let snapshot = chain_client::snapshot_online_worker_at(
-                            client, Some(bwe.block_header.hash())).await?;
-                        bwe.worker_snapshot = Some(snapshot);
-                    }
-                }
+                maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 println!("  ..dispatch_block: {:?}", r);
 
@@ -506,23 +519,6 @@ async fn register_worker(
         Ok(())
 }
 
-async fn test(client: &XtClient) -> Result<(), Error> {
-    let decoder = chain_client::get_event_decoder(&client);
-    for height in 18400u32..19499u32 {
-        let hash = client.block_hash(Some(height.into())).await?.unwrap();
-        let hit = match chain_client::test_round_end_event(&client, &decoder, &hash).await {
-            Ok(hit) => hit,
-            Err(Error::ComputeWorkerNotEnabled) => false,
-            Err(err) => return Err(err),
-        };
-        if hit {
-            println!("Hit @{}!", height);
-            chain_client::snapshot_online_worker_at(&client, Some(hash.clone())).await?;
-        }
-    }
-    Ok(())
-}
-
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<(), Error> {
@@ -534,7 +530,6 @@ async fn bridge(args: Args) -> Result<(), Error> {
         .build().await?;
     let events_decoder = chain_client::get_event_decoder(&client);
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
-    test(&client).await?;
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
@@ -661,7 +656,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
-            sync_events_only(&pr, &mut sync_state, info.headernum, args.sync_blocks).await?;
+            sync_events_only(
+                &client, &pr, &events_decoder, &mut sync_state, info.headernum, args.sync_blocks
+            ).await?;
         }
 
         // send the blocks to pRuntime in batch

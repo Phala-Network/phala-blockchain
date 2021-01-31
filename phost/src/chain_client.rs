@@ -78,8 +78,10 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     let compute_workers_key = compute_workers_store.key(xt.metadata())?;
     let online_workers: u32 = xt.fetch_or_default(&online_workers_store, hash).await?;
     let compute_workers: u32 = xt.fetch_or_default(&compute_workers_store, hash).await?;
-    if compute_workers == 0 {
-        println!("ComputeWorkers is zero. Skipping worker snapshot.");
+    if online_workers == 0 || compute_workers == 0 {
+        println!(
+            "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
+            online_workers, compute_workers);
         return Err(Error::ComputeWorkerNotEnabled);
     }
     println!("- Stats Online Workers: {}", online_workers);
@@ -87,7 +89,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     // Online workers and stake received
     let worker_data =
         fetch_map::<WorkerStateStore<_>>(xt, hash).await?;
-    let staked_data =
+    let stake_received_data =
         fetch_map::<StakeReceivedStore<_>>(xt, hash).await?;
     let online_worker_data: Vec<_> = worker_data
         .into_iter()
@@ -102,17 +104,17 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
         .iter()
         .map(|(k, _v)| account_id_from_map_key(&k.0))
         .collect();
-    let online_staked_data: Vec<_> = staked_data
+    let stake_received_data: Vec<_> = stake_received_data
         .into_iter()
         .filter(|(k, _v)| stashes.contains(&account_id_from_map_key(&k.0)))
         .collect();
     println!("- online_worker_data: vec[{}]", online_worker_data.len());
-    println!("- online_staked_data: vec[{}]", online_staked_data.len());
+    println!("- stake_received_data: vec[{}]", stake_received_data.len());
 
     // Proof of all the storage keys
     let mut all_keys: Vec<StorageKey> = online_worker_data
         .iter().map(|(k, _)| k)
-        .chain(online_staked_data.iter().map(|(k, _)| k))
+        .chain(stake_received_data.iter().map(|(k, _)| k))
         .cloned()
         .collect();
     all_keys.push(online_workers_key.clone());
@@ -125,7 +127,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     let online_workers_kv = StorageKV::<u32>(online_workers_key.0, online_workers);
     let compute_workers_kv = StorageKV::<u32>(compute_workers_key.0, compute_workers);
     let worker_state_kv = storage_kv_from_data(online_worker_data);
-    let stake_received_kv = storage_kv_from_data(online_staked_data);
+    let stake_received_kv = storage_kv_from_data(stake_received_data);
     Ok(OnlineWorkerSnapshot {
         worker_state_kv,
         stake_received_kv,
@@ -189,7 +191,7 @@ where
 // Utility functions
 
 /// Calculates the Substrate storage key prefix
-fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
+pub fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     let mut key = twox_128(module.as_bytes()).to_vec();
     key.extend(&twox_128(storage_key_name.as_bytes()));
     key

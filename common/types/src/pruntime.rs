@@ -11,6 +11,11 @@ pub type StorageProof = Vec<Vec<u8>>;
 #[derive(Debug, Encode, Decode, Clone)]
 pub struct StorageKV<T: FullCodec + Clone>(pub RawStorageKey, pub T);
 
+impl<T: FullCodec + Clone> StorageKV<T> {
+	pub fn key(&self) -> &RawStorageKey { &self.0 }
+	pub fn value(&self) -> &T { &self.1 }
+}
+
 #[derive(Debug, Encode, Decode, Clone)]
 pub struct OnlineWorkerSnapshot<BlockNumber, Balance>
 where
@@ -44,6 +49,5 @@ where
     pub block_header: Header<BlockNumber, Hash>,
     pub events: Option<Vec<u8>>,
     pub proof: Option<Vec<Vec<u8>>>,
-	pub key: Option<Vec<u8>>,
 	pub worker_snapshot: Option<OnlineWorkerSnapshot<BlockNumber, Balance>>
 }

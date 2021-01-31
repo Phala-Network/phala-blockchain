@@ -198,7 +198,6 @@ pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
-    pub key: Option<Vec<u8>>,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]
