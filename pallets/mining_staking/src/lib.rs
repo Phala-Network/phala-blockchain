@@ -32,11 +32,10 @@ const PALLET_ID: ModuleId = ModuleId(*b"PHAPoWS.");
 pub trait Trait: frame_system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
 	type Currency: Currency<Self::AccountId>;
-
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as PhalaModule {
+	trait Store for Module<T: Trait> as MiningStaking {
 		Wallet get(fn wallet): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
 		PendingStaking get(fn pending_staking):
 			double_map
