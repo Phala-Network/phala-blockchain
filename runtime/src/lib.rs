@@ -967,8 +967,8 @@ impl cumulus_parachain_system::Config for Runtime {
 	type SelfParaId = parachain_info::Module<Runtime>;
 	type Event = Event;
 	type OnValidationData = ();
-	type DownwardMessageHandlers = LocalXcmHandler;
-	type HrmpMessageHandlers = LocalXcmHandler;
+	type DownwardMessageHandlers = XcmHandler;
+	type HrmpMessageHandlers = XcmHandler;
 }
 
 impl parachain_info::Config for Runtime {}
@@ -1012,8 +1012,8 @@ impl Config for XcmConfig {
 impl xcm_handler::Config for Runtime {
 	type Event = Event;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type UpwardMessageSender = MessageBroker;
-	type HrmpMessageSender = MessageBroker;
+	type UpwardMessageSender = ParachainSystem;
+	type HrmpMessageSender = ParachainSystem;
 	type AccountIdConverter = LocationConverter;
 }
 
