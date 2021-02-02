@@ -993,11 +993,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     Ok(serde_json::to_value(resp).unwrap())
 }
 
-fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
-                    origin: chain::AccountId,
-                    contract_id: ContractId, payload: &Vec<u8>,
-                    command_index: CommandIndex,
-                    ecdh_privkey: &EcdhKey) {
+fn handle_execution(
+    system: &mut system::System,
+    state: &mut RuntimeState,
+    pos: &TxRef,
+    origin: chain::AccountId,
+    contract_id: ContractId, payload: &Vec<u8>,
+    command_index: CommandIndex,
+    ecdh_privkey: &EcdhKey
+) {
     let payload: types::Payload = serde_json::from_slice(payload.as_slice())
         .expect("Failed to decode payload");
     let inner_data = match payload {
@@ -1054,8 +1058,7 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         },
     };
 
-    let mut gr = SYSTEM_STATE.lock().unwrap();
-    gr.add_receipt(command_index, TransactionReceipt {
+    system.add_receipt(command_index, TransactionReceipt {
         account: AccountIdWrapper(origin),
         block_num: pos.blocknum,
         contract_id,
@@ -1219,14 +1222,13 @@ fn handle_events(
     // Dispatch events
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice())
         .map_err(|_| error_msg("Decode events error"))?;
+    let system = &mut SYSTEM_STATE.lock().unwrap();
+    let mut event_handler = system.feed_event();
     for evt in &events {
         if let chain::Event::pallet_phala(pe) = &evt.event {
             // Dispatch to system contract anyway
-            {
-                let mut system_state = SYSTEM_STATE.lock().unwrap();
-                system_state.handle_event(block_with_events, &pe)
-                    .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
-            }
+            event_handler.feed(block_with_events, &pe)
+                .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
             // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
             if !dev_mode {
                 println!("handle_events: skipped for miners");
@@ -1243,7 +1245,8 @@ fn handle_events(
                         index: *num,
                     };
                     handle_execution(
-                        state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
+                        event_handler.system, state, &pos, who.clone(), *contract_id, payload,
+                        *num, ecdh_privkey);
                 },
                 _ => {
                     state.contract2.handle_event(evt.event.clone());
@@ -1303,10 +1306,15 @@ fn validate_worker_snapshot(
     raw_items.push(raw_kv(&snapshot.online_workers_kv));
     raw_items.push(raw_kv(&snapshot.compute_workers_kv));
     let raw_items_ref: Vec<_> = raw_items.iter().map(|(k, v)| (*k, v.as_slice())).collect();
-    light_client.validate_storage_proof(
+    let r = light_client.validate_storage_proof(
         state_root, snapshot.proof.clone(),
         raw_items_ref.as_slice()
-    ).is_ok()
+    );
+    if r.is_err() {
+        println!("Snapshot light validation: {:?}", r);
+        return false;
+    }
+    true
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

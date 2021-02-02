@@ -7,6 +7,7 @@ use sp_runtime::traits::BadOrigin;
 
 use crate::{Error, mock::*};
 use crate::{RawEvent, types::{Transfer, TransferData, RoundStats, WorkerStateEnum}};
+use phala_types::PayoutReason;
 
 fn events() -> Vec<TestEvent> {
 	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
@@ -348,6 +349,7 @@ fn test_round_stats() {
 			online_workers: 0,
 			compute_workers: 0,
 			frac_target_online_reward: 0,
+			frac_target_compute_reward: 0,
 			total_power: 0
 		});
 		assert_matches!(events().as_slice(), [
@@ -365,6 +367,7 @@ fn test_round_stats() {
 			online_workers: 0,
 			compute_workers: 0,
 			frac_target_online_reward: 0,
+			frac_target_compute_reward: 0,
 			total_power: 0
 		});
 		// Block 3
@@ -423,13 +426,40 @@ fn test_pretax_online_reward() {
 }
 
 #[test]
+fn test_pretax_compute_reward() {
+	// [Scenario 1]
+	//   - 30000 PHA in this round
+	//   - 5 miners elected
+	assert_eq!(
+		PhalaModule::pretax_compute_reward(
+			30000 * DOLLARS,
+			PhalaModule::clipped_target_number(5, 5),
+			5
+		),
+		1875_750300120047);
+
+	// [Scenario 2]
+	//   - 30000 PHA in this round
+	//   - 10000 miners elected
+	assert_eq!(
+		PhalaModule::pretax_compute_reward(
+			30000 * DOLLARS,
+			PhalaModule::clipped_target_number(5, 10000),
+			10000
+		),
+		6_250000000000);
+}
+
+#[test]
 fn test_payout() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		PhalaModule::payout(100 * DOLLARS, &1);
+		PhalaModule::payout(100 * DOLLARS, &1, PayoutReason::OnlineReward);
 		assert_eq!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::Payout(1, 80 * DOLLARS, 20 * DOLLARS))]
+			[TestEvent::phala(
+				RawEvent::PayoutReward(
+					1, 80 * DOLLARS, 20 * DOLLARS, PayoutReason::OnlineReward))]
 		);
 	});
 }
@@ -455,6 +485,7 @@ fn test_payout_and_missed() {
 			online_workers: 1,
 			compute_workers: 0,
 			frac_target_online_reward: 333,
+			frac_target_compute_reward: 333,
 			total_power: 100,
 		});
 		// Check missed reward (window + 1)
@@ -466,7 +497,10 @@ fn test_payout_and_missed() {
 		System::set_block_number(1 + window);
 		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
 		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::Payout(2, 4504_504504504504, 1126_126126126127))]);
+			TestEvent::phala(
+				RawEvent::PayoutReward(
+					2, 4504_504504504504, 1126_126126126127,
+					PayoutReason::OnlineReward))]);
 	});
 }
 

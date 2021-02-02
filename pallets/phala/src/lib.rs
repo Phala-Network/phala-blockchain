@@ -26,7 +26,7 @@ use types::{
 	WorkerMessagePayload, SignedWorkerMessage,
 	TransferData, SignedDataType,
 	WorkerStateEnum, WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, BlockRewardInfo,
-	RoundInfo, RoundStats, MinerStatsDelta
+	RoundInfo, RoundStats, MinerStatsDelta, PayoutReason,
 };
 
 #[cfg(test)]
@@ -66,6 +66,7 @@ pub trait Trait: frame_system::Trait {
 	type TreasuryRation: Get<u32>;  // 20%
 	type RewardRation: Get<u32>;  // 80%
 	type OnlineRewardPercentage: Get<Permill>;	// rel: 37.5% post-taxed: 30%
+	type ComputeRewardPercentage: Get<Permill>;	// rel: 62.5% post-taxed: 50%
 }
 
 decl_storage! {
@@ -211,9 +212,10 @@ decl_event!(
 		MinerStarted(u32, AccountId),  // round, stash
 		MinerStopped(u32, AccountId),  // round, stash
 		NewMiningRound(u32),  // round
-		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
+		_Payout(AccountId, Balance, Balance),  // [DEPRECATED] dest, reward, treasury
 		PayoutMissed(AccountId, AccountId),  // stash, dest
 		WorkerRenewed(AccountId, Vec<u8>),  // stash, machine_id
+		PayoutReward(AccountId, Balance, Balance, PayoutReason),  // dest, reward, treasury, reason
 	}
 );
 
@@ -286,7 +288,7 @@ decl_module! {
 		fn deposit_event() = default;
 
 		fn on_runtime_upgrade() -> Weight {
-			migrations_3_1_0::apply::<Self>()
+			migrations_3_2_0::apply::<Self>()
 		}
 
 		fn on_finalize() {
@@ -797,12 +799,15 @@ impl<T: Trait> Module<T> {
 		}
 		let online_target = TargetOnlineRewardCount::get();
 		let frac_target_online_reward = Self::clipped_target_number(online_target, online_workers);
+		let frac_target_compute_reward =
+			Self::clipped_target_number(TargetComputeRewardCount::get(), compute_workers);
 
 		RoundStatsHistory::insert(round, RoundStats {
 			round,
 			online_workers,
 			compute_workers,
 			frac_target_online_reward,
+			frac_target_compute_reward,
 			total_power,
 		});
 	}
@@ -897,7 +902,15 @@ impl<T: Trait> Module<T> {
 						(round_stats.online_workers as u64) * (PERCENTAGE_BASE as u64))
 				}
 			},
-			compute_target: U256::zero(),
+			compute_target: {
+				if round_stats.compute_workers == 0 {
+					U256::zero()
+				} else {
+					u256_target(
+						round_stats.frac_target_compute_reward as u64,
+						(round_stats.compute_workers as u64) * (PERCENTAGE_BASE as u64))
+				}
+			},
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
@@ -906,7 +919,7 @@ impl<T: Trait> Module<T> {
 
 	fn handle_claim_reward(
 		stash: &T::AccountId, payout_target: &T::AccountId, claim_online: bool,
-		_claim_compute: bool, score: u32, claiming_block: T::BlockNumber
+		claim_compute: bool, score: u32, claiming_block: T::BlockNumber
 	) {
 		// Check is mining
 		let worker_info = WorkerState::<T>::get(stash);
@@ -918,16 +931,28 @@ impl<T: Trait> Module<T> {
 				Self::deposit_event(RawEvent::PayoutMissed(stash.clone(), payout_target.clone()));
 				return;
 			}
-			if claim_online {
+			if claim_online || claim_compute {
 				let round_stats = Self::round_stats_at(claiming_block);
 				if round_stats.online_workers == 0 {
 					panic!("No online worker but the miner is claiming the rewards; qed");
 				}
 				let round_reward = Self::round_mining_reward_at(claiming_block);
-				let online = Self::pretax_online_reward(
-					round_reward, score, round_stats.total_power,
-					round_stats.frac_target_online_reward, round_stats.online_workers);
-				Self::payout(online, payout_target);
+				// Adjusted online worker reward
+				if claim_online {
+					let online = Self::pretax_online_reward(
+						round_reward, score, round_stats.total_power,
+						round_stats.frac_target_online_reward,
+						round_stats.online_workers);
+					Self::payout(online, payout_target, PayoutReason::OnlineReward);
+				}
+				// Adjusted compute worker reward
+				if claim_compute {
+					let compute = Self::pretax_compute_reward(
+						round_reward,
+						round_stats.frac_target_compute_reward,
+						round_stats.compute_workers);
+					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
+				}
 			}
 
 			// TODO: do we need to check xor threshold?
@@ -973,35 +998,60 @@ impl<T: Trait> Module<T> {
 		RoundStatsHistory::get(round)
 	}
 
-	/// Calculates the adjusted reward for a specific miner
+	/// Calculates the adjusted online reward for a specific miner
 	fn pretax_online_reward(
 		round_reward: BalanceOf<T>, score: u32, total_power: u32, frac_target_online_reward: u32,
+		workers: u32
+	) -> BalanceOf<T> {
+		Self::pretax_reward(
+			round_reward, score, total_power, frac_target_online_reward,
+			T::OnlineRewardPercentage::get(), workers)
+	}
+
+	/// Calculates the adjust computation reward (every miner has same reward now)
+	fn pretax_compute_reward(
+		round_reward: BalanceOf<T>, frac_target_compute_reward: u32, compute_workers: u32,
+	) -> BalanceOf<T> {
+		Self::pretax_reward(
+			round_reward,
+			// Since all compute worker has the equal reward, we set the propotion reward of a
+			// worker to `1 / compute_workers`
+			1, compute_workers,
+			frac_target_compute_reward,
+			T::ComputeRewardPercentage::get(), compute_workers)
+	}
+
+	fn pretax_reward(
+		round_reward: BalanceOf<T>,
+		weight: u32,
+		total_weight: u32,
+		frac_target_reward: u32,
+		reward_percentage: Permill,
 		workers: u32
 	) -> BalanceOf<T> {
 		let round_blocks = T::RoundInterval::get().saturated_into::<u64>();
 		// The target reward for this miner
 		let target =
-			round_reward * BalanceOf::<T>::from(score) / BalanceOf::<T>::from(total_power);
+			round_reward * BalanceOf::<T>::from(weight) / BalanceOf::<T>::from(total_weight);
 		// Adjust based on the mathematical expectation
 		let adjusted: BalanceOf<T> =
 			target
 			* ((workers as u64) * (PERCENTAGE_BASE as u64)).saturated_into()
-			/ ((round_blocks as u64) * (frac_target_online_reward as u64)).saturated_into();
-
-		let online_reward = T::OnlineRewardPercentage::get() * adjusted;
-		online_reward
+			/ ((round_blocks as u64) * (frac_target_reward as u64)).saturated_into();
+		let reward = reward_percentage * adjusted;
+		reward
 	}
 
 	/// Actually pays out the reward
-	fn payout(value: BalanceOf<T>, target: &T::AccountId) {
+	fn payout(value: BalanceOf<T>, target: &T::AccountId, reason: PayoutReason) {
 		// Retion the reward and the treasury deposit
 		let coins = T::TEECurrency::issue(value);
 		let (coin_reward, coin_treasury) = coins.ration(
 			T::RewardRation::get(), T::TreasuryRation::get());
 		// Payout!
 		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
-		Self::deposit_event(RawEvent::Payout(
-			target.clone(), coin_reward.peek(), coin_treasury.peek()));
+		Self::deposit_event(RawEvent::PayoutReward(
+			target.clone(), coin_reward.peek(), coin_treasury.peek(), reason));
 		Self::add_fire(&target, coin_reward.peek());
 		T::Treasury::on_unbalanced(coin_treasury);
 	}
@@ -1029,9 +1079,9 @@ fn u256_target(m: u64, n: u64) -> U256 {
 	U256::MAX / n * m
 }
 
-// Migration from 3.0.0 to 3.1.0
-mod migrations_3_1_0;
-impl<T: Trait> migrations_3_1_0::V30ToV31 for Module<T> {
+// Migration from 3.1.0 to 3.2.0
+mod migrations_3_2_0;
+impl<T: Trait> migrations_3_2_0::V31ToV32 for Module<T> {
 	type Module = Module<T>;
 	type AccountId = T::AccountId;
 	type BlockNumber = T::BlockNumber;

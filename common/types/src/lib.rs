@@ -147,13 +147,25 @@ pub struct RoundStats {
 	pub round: u32,
 	pub online_workers: u32,
 	pub compute_workers: u32,
-	/// The targeted online reward in fraction (base: 100_000)
+	/// The targeted online reward counts in fraction (base: 100_000)
 	pub frac_target_online_reward: u32,
 	pub total_power: u32,
+	/// The targeted compute reward counts in fraction (base: 100_000)
+	pub frac_target_compute_reward: u32,
 }
 
 #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
 pub struct MinerStatsDelta {
 	pub num_worker: i32,
 	pub num_power: i32,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub enum PayoutReason {
+	OnlineReward,
+	ComputeReward,
+}
+
+impl Default for PayoutReason {
+	fn default() -> Self { PayoutReason::OnlineReward }
 }

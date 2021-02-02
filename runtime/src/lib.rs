@@ -117,7 +117,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 23,
+	spec_version: 25,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -908,6 +908,7 @@ parameter_types! {
 	pub const TreasuryRation: u32 = 20_000;
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
 }
 
 impl pallet_phala::Trait for Runtime {
@@ -926,6 +927,7 @@ impl pallet_phala::Trait for Runtime {
 	type TreasuryRation = TreasuryRation;
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
+	type ComputeRewardPercentage = ComputeRewardPercentage;
 }
 
 impl pallet_claim::Trait for Runtime {

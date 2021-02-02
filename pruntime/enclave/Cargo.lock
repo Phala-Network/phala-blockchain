@@ -1306,7 +1306,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "3.1.0"
+version = "3.2.0"
 dependencies = [
  "base64 0.11.0",
  "blake2-rfc",
@@ -1795,6 +1795,7 @@ dependencies = [
  "getrandom",
  "rand_chacha 0.2.2 (git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3)",
  "rand_core",
+ "rand_pcg",
  "sgx_tstd",
 ]
 
@@ -1832,6 +1833,14 @@ name = "rand_hc"
 version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3129af7b92a17112d59ad498c6f81eaf463253766b90396d39ea7a39d6613c"
+dependencies = [
+ "rand_core",
+]
+
+[[package]]
+name = "rand_pcg"
+version = "0.2.1"
+source = "git+https://github.com/mesalock-linux/rand-sgx?tag=v0.7.3_sgx1.1.3#83583f073de3b4f75c3c3ef5e174d484ed941f85"
 dependencies = [
  "rand_core",
 ]

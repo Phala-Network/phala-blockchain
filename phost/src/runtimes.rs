@@ -81,11 +81,7 @@ impl Session for PhalaNodeRuntime {
     type Keys = BasicSessionKeys;
 }
 
-impl phala::PhalaModule for PhalaNodeRuntime {
-    type BlockRewardInfo = phala_types::BlockRewardInfo;
-    type EthereumTxHash = phala::EthereumTxHash;
-    type EthereumAddress = phala::EthereumAddress;
-}
+impl phala::PhalaModule for PhalaNodeRuntime {}
 
 impl mining_staking::MiningStaking for PhalaNodeRuntime {}
 
@@ -125,18 +121,21 @@ pub mod phala {
     };
     use core::marker::PhantomData;
 
+    use phala_types::{BlockRewardInfo, PayoutReason};
+
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumAddress([u8; 20]);
 
+
     #[module]
     pub trait PhalaModule: System + Balances {
-        // Define the additional types used in pallet events
-        type BlockRewardInfo: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
-        // A kind of hack
-        type EthereumTxHash: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
-        type EthereumAddress: Encode + Decode + PartialEq + Eq + Default + Send + Sync + 'static;
+        #![event_type(BlockRewardInfo)]
+        #![event_type(PayoutReason)]
+        // Types used by pallets/claim
+        #![event_type(EthereumTxHash)]
+        #![event_type(EthereumAddress)]
     }
 
     #[derive(Clone, Debug, PartialEq, Call, Encode)]

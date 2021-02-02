@@ -98,6 +98,7 @@ parameter_types! {
 	pub const TreasuryRation: u32 = 20_000;
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
 }
 
 impl Trait for Test {
@@ -116,6 +117,7 @@ impl Trait for Test {
 	type TreasuryRation = TreasuryRation;
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
+	type ComputeRewardPercentage = ComputeRewardPercentage;
 }
 
 mod test_events {
