@@ -152,12 +152,6 @@ pub fn check_round_end_event(
     Ok(false)
 }
 
-pub async fn test_round_end_event(xt: &XtClient, decoder: &EventsDecoder::<Runtime>, hash: &Hash)
--> Result<bool, Error> {
-    let (value, _proof, _key) = fetch_events(xt, hash).await?.unwrap();
-    check_round_end_event(decoder, &value)
-}
-
 // Storage functions
 
 /// Fetches all the StorageMap entries from Substrate
