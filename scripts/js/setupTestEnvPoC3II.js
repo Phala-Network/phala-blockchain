@@ -56,8 +56,9 @@ async function main () {
     await api.tx.miningStaking.stake(aliceStash.address, new BN(1).mul(bnUnit)).signAndSend(bobStash, {nonce: nonceBobStash++});
     await api.tx.miningStaking.stake(bobStash.address, new BN(2).mul(bnUnit)).signAndSend(bobStash, {nonce: nonceBobStash++});
 
-    console.log('// Start a miner');
+    console.log('// Start two miners');
     await api.tx.phalaModule.startMiningIntention().signAndSend(alice, {nonce: nonceAlice++});
+    await api.tx.phalaModule.startMiningIntention().signAndSend(bob, {nonce: nonceBob++});
 
     console.log('// Trigger next round');
     await api.tx.sudo.sudo(
@@ -66,7 +67,7 @@ async function main () {
     await api.tx.sudo.sudo(
         api.tx.phalaModule.forceNextRound()
     ).signAndSend(root, {nonce: nonceAlice++});
-    await waitTxAccepted(bob.address, nonceAlice - 1);
+    await waitTxAccepted(alice.address, nonceAlice - 1);
 }
 
 main().catch(console.error).finally(() => process.exit());
