@@ -636,7 +636,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.remove(0);
         }
         println!(
-            "try to sync blocks. next required: ({}, {}), finalized tip: {}, buffered: {}",
+            "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
             info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
 
         // fill the sync buffer to catch up the chain tip
@@ -657,7 +657,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
             sync_events_only(
-                &client, &pr, &events_decoder, &mut sync_state, info.headernum, args.sync_blocks
+                &client, &pr, &events_decoder, &mut sync_state,
+                // info.headernum is the next unknown header. So we sync to headernum - 1
+                info.headernum - 1,
+                args.sync_blocks
             ).await?;
         }
 
