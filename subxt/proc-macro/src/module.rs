@@ -22,12 +22,9 @@ use quote::{
     format_ident,
     quote,
 };
-use syn::{
-    parse::{
-        Parse,
-        ParseStream,
-    },
-    AttrStyle
+use syn::parse::{
+    Parse,
+    ParseStream,
 };
 
 mod kw {
@@ -80,7 +77,7 @@ type EventAliasAttr = utils::UniAttr<utils::Attr<syn::Ident, syn::Type>>;
 ///
 /// It supports two ways to define the associated event type:
 ///
-/// ```
+/// ```ignore
 /// #[module]
 /// trait Pallet: System {
 ///     #![event_type(SomeType)]
@@ -121,7 +118,8 @@ pub fn module(_args: TokenStream, tokens: TokenStream) -> TokenStream {
 
     // Parse the inner attributes `event_type` and `event_alias` and remove them from the macro
     // outputs.
-    let (other_attrs, event_types): (Vec<_>, Vec<_>) = input.attrs
+    let (other_attrs, event_types): (Vec<_>, Vec<_>) = input
+        .attrs
         .iter()
         .cloned()
         .partition(|attr| parse_event_type_attr(attr).is_none());
