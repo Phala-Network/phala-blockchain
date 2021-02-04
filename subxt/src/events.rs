@@ -28,11 +28,11 @@ use sp_runtime::{
     DispatchResult,
 };
 use std::{
-    fmt,
     collections::{
         HashMap,
         HashSet,
     },
+    fmt,
     marker::{
         PhantomData,
         Send,
@@ -72,14 +72,27 @@ impl std::fmt::Debug for RawEvent {
     }
 }
 
+trait TypeSegmenter: Send {
+    /// Consumes an object from an input stream, and output the serialized bytes.
+    fn segment(&self, input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), Error>;
+}
+
+#[derive(Default)]
+struct TypeMarker<T>(PhantomData<T>);
+impl<T> TypeSegmenter for TypeMarker<T>
+where
+    T: Codec + Send,
+{
+    fn segment(&self, input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), Error> {
+        T::decode(input).map_err(Error::from)?.encode_to(output);
+        Ok(())
+    }
+}
+
 /// Events decoder.
 pub struct EventsDecoder<T> {
     metadata: Metadata,
-    type_sizes: HashMap<String, usize>,
-    type_segmenters: HashMap<
-        String,
-        Box<dyn Fn(&mut &[u8], &mut Vec<u8>) -> Result<(), Error> + Send>
-    >,
+    type_segmenters: HashMap<String, Box<dyn TypeSegmenter>>,
     marker: PhantomData<fn() -> T>,
 }
 
@@ -87,7 +100,10 @@ impl<T> fmt::Debug for EventsDecoder<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("EventsDecoder<T>")
             .field("metadata", &self.metadata)
-            .field("type_sizes", &self.type_sizes)
+            .field(
+                "type_segmenters",
+                &self.type_segmenters.keys().cloned().collect::<String>(),
+            )
             .finish()
     }
 }
@@ -97,7 +113,6 @@ impl<T: System> EventsDecoder<T> {
     pub fn new(metadata: Metadata) -> Self {
         let mut decoder = Self {
             metadata,
-            type_sizes: HashMap::new(),
             type_segmenters: HashMap::new(),
             marker: PhantomData,
         };
@@ -134,14 +149,10 @@ impl<T: System> EventsDecoder<T> {
         U: Default + Codec + Send + 'static,
     {
         let size = U::default().encode().len();
-        self.type_sizes.insert(name.to_string(), size);
         // A segmenter decodes a type from an input stream (&mut &[u8]) and returns the serialized
         // type to the output stream (&mut Vec<u8>).
-        self.type_segmenters.insert(name.to_string(),
-            Box::new(|input: &mut &[u8], output: &mut Vec<u8>| -> Result<(), Error>  {
-                U::decode(input).map_err(Error::from)?.encode_to(output);
-                Ok(())
-            }));
+        self.type_segmenters
+            .insert(name.to_string(), Box::new(TypeMarker::<U>::default()));
         size
     }
 
@@ -152,7 +163,7 @@ impl<T: System> EventsDecoder<T> {
             for event in module.events() {
                 for arg in event.arguments() {
                     for primitive in arg.primitives() {
-                        if !self.type_sizes.contains_key(&primitive) {
+                        if !self.type_segmenters.contains_key(&primitive) {
                             missing.insert(format!(
                                 "{}::{}::{}",
                                 module.name(),
@@ -213,7 +224,7 @@ impl<T: System> EventsDecoder<T> {
                         _ => {
                             if let Some(seg) = self.type_segmenters.get(name) {
                                 let mut buf = Vec::<u8>::new();
-                                seg(input, &mut buf);
+                                seg.segment(input, &mut buf)?;
                                 output.write(&buf);
                                 Ok(())
                             } else {
