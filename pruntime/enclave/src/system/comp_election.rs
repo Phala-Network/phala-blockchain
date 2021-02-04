@@ -5,14 +5,13 @@ use rand::{
     seq::index::IndexVec,
 };
 
+use crate::OnlineWorkerSnapshot;
+
 /// Runs an election on `candidates` with `seed` (>64 bits)
-pub fn elect(seed: u64, candidates: &crate::OnlineWorkerSnapshot, mid: &Vec<u8>) -> bool {
+pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> bool {
     let mut rng = SmallRng::seed_from_u64(seed);
     // Collect the weight for each candidate
-    let weights: Vec<_> = candidates.worker_state_kv
-        .iter()
-        .map(|kv| kv.value().score.as_ref().unwrap().overall_score)
-        .collect();
+    let weights = extract_weights(candidates);
     let num_winners = cmp::min(*candidates.compute_workers_kv.value() as usize, weights.len());
     println!(
         "elect: electing {} winners from {} candidates",
@@ -29,6 +28,10 @@ pub fn elect(seed: u64, candidates: &crate::OnlineWorkerSnapshot, mid: &Vec<u8>)
         IndexVec::U32(indices) => indices,
         _ => panic!("expected `IndexVec::U32`"),
     };
+    if indices.len() == 0 {
+        panic!("elect: impossible to have 0 elected; qed.");
+    }
+    let mut hit = false;
     for &i in &indices {
         let worker_info = candidates.worker_state_kv[i as usize].value();
         println!(
@@ -38,14 +41,49 @@ pub fn elect(seed: u64, candidates: &crate::OnlineWorkerSnapshot, mid: &Vec<u8>)
             worker_info.score.as_ref().unwrap().overall_score,
         );
         if &worker_info.machine_id == mid {
+            hit = true;
             println!("elect: hit!");
-            return true
         }
     }
-    if indices.len() == 0 {
-        panic!("elect: impossible to have 0 elected; qed.");
-    }
-    false
+    hit
+}
+
+/// Extracts the weight as an array from `snapshot` in the same order as `worker_state_kv`
+fn extract_weights(snapshot: &OnlineWorkerSnapshot) -> Vec<u32> {
+    use crate::light_validation::utils::extract_account_id_key_unsafe;
+    use crate::std::collections::HashMap;
+    let staked: HashMap<_, _> = snapshot.stake_received_kv
+        .iter()
+        .map(|kv| (extract_account_id_key_unsafe(kv.key()), *kv.value()))
+        .collect();
+    let weights: Vec<_> = snapshot.worker_state_kv
+        .iter()
+        .map(|kv| {
+            let account = crate::light_validation::utils::extract_account_id_key_unsafe(kv.key());
+            let score = kv.value().score.as_ref().unwrap().overall_score;
+            let stake = staked.get(account).cloned().unwrap_or(0);
+            weight(score, stake)
+        })
+        .collect();
+    weights
+}
+
+/// Calcuates the weight of a worker
+///
+/// $weight = score + sqrt(stake) * 5$
+fn weight(score: u32, staked: u128) -> u32 {
+    use fixed::types::U64F64 as Fixed;
+    use fixed::transcendental::sqrt;
+    const F_1E4: Fixed = Fixed::from_bits(0x2710_0000000000000000); // 1e4 * 1<<64
+    const U_1E8: u128 = 100_000_000u128;
+
+    let stake_1e4 = staked / U_1E8;
+    let fstaked = Fixed::from_num(stake_1e4) / F_1E4;
+    let factor: Fixed = sqrt(fstaked)
+        .expect("U128 should never overflow or be negative; qed.");
+    let result = score + (factor * 5).to_num::<u32>();
+    println!("weight(score={}, staked={}) = {}", score, staked, result);
+    result
 }
 
 // Backported from rand 0.8

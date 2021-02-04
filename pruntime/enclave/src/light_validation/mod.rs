@@ -381,4 +381,12 @@ pub mod utils {
         bytes.extend(&sp_core::twox_128(storage.as_bytes())[..]);
         bytes
     }
+
+    /// Gets the last 32 bytes as the account key (`storage_key` must be longer than that)
+    pub fn extract_account_id_key_unsafe<'a>(storage_key: &'a [u8]) -> &'a [u8] {
+        if storage_key.len() < 32 {
+            panic!("storage_key is too short (len={})", storage_key.len());
+        }
+        &storage_key[storage_key.len() - 32..]
+    }
 }

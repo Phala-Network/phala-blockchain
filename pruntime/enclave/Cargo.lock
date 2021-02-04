@@ -47,6 +47,7 @@ dependencies = [
  "sp-runtime",
  "sp-runtime-interface",
  "sp-trie",
+ "substrate-fixed",
  "webpki 0.21.2",
  "webpki-roots",
  "yasna",
@@ -2697,6 +2698,15 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "substrate-fixed"
+version = "0.5.5"
+source = "git+https://github.com/encointer/substrate-fixed#0f773e2524315f688d15df8b027777bde7b6f433"
+dependencies = [
+ "parity-scale-codec",
+ "typenum",
+]
 
 [[package]]
 name = "substrate-wasm-builder-runner"
