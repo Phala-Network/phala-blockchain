@@ -35,10 +35,11 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
     for &i in &indices {
         let worker_info = candidates.worker_state_kv[i as usize].value();
         println!(
-            "- winner[{}]: mid={} score={}",
+            "- winner[{}]: mid={} score={} weight={}",
             i,
             crate::hex::encode_hex_compact(&worker_info.machine_id),
             worker_info.score.as_ref().unwrap().overall_score,
+            weights[i as usize],
         );
         if &worker_info.machine_id == mid {
             hit = true;
