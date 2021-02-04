@@ -2,7 +2,7 @@
 extern crate alloc;
 use sp_core::U256;
 use sp_std::prelude::*;
-use sp_std::cmp;
+use sp_std::{cmp, vec};
 
 use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
 use frame_system::{Module as System, ensure_signed, ensure_root};
@@ -49,6 +49,11 @@ const BLOCK_REWARD_TO_KEEP: u32 = 20;
 const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
 
+pub trait OnRoundEnd {
+	fn on_round_end(_round: u32) {}
+}
+impl OnRoundEnd for () {}
+
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Trait: frame_system::Trait {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
@@ -56,6 +61,7 @@ pub trait Trait: frame_system::Trait {
 	type TEECurrency: Currency<Self::AccountId>;
 	type UnixTime: UnixTime;
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
+	type OnRoundEnd: OnRoundEnd;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour: Get<u32>;  // 2 tx
@@ -813,7 +819,12 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn handle_round_ends(now: T::BlockNumber, round: &RoundInfo<T::BlockNumber>) {
+		// Dependencies
+		T::OnRoundEnd::on_round_end(round.round);
+
+		// Handle PhalaModule specific tasks
 		Self::clear_heartbeats();
+
 		// Mining rounds
 		let new_round = round.round + 1;
 		let new_block = now + 1u32.into();

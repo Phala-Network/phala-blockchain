@@ -107,6 +107,7 @@ impl Trait for Test {
 	type TEECurrency = Balances;
 	type UnixTime = pallet_timestamp::Module<Test>;
 	type Treasury = ();
+	type OnRoundEnd = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;

@@ -20,6 +20,10 @@ sp-std = { default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 
+[dependencies.pallet-phala]
+default-features = false
+path = "../phala"
+
 [dependencies.pallet-balances]
 default-features = false
 path = "../../substrate/frame/balances"

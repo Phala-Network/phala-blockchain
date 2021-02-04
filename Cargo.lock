@@ -4372,6 +4372,7 @@ dependencies = [
  "frame-system",
  "itertools 0.8.2",
  "pallet-balances",
+ "pallet-phala",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -4430,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "3.2.0"
+version = "3.2.1"
 dependencies = [
  "assert_matches",
  "base64 0.11.0",

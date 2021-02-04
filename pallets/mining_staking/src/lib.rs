@@ -64,11 +64,10 @@ decl_storage! {
 
 decl_event!(
 	pub enum Event<T> where AccountId = <T as frame_system::Trait>::AccountId, Balance = BalanceOf<T> {
-		// Debug events
-		LogString(Vec<u8>),
-		LogI32(i32),
-		// Chain events
-		AddStake(AccountId, AccountId, Balance),
+		/// Applied the pending stake
+		PendingStakeApplied,
+		PendingUnstakeAdded(AccountId, AccountId, Balance),
+		PendingStakeAdded(AccountId, AccountId, Balance),
 	}
 );
 
@@ -214,6 +213,13 @@ impl<T: Trait> Module<T> {
 		});
 		// Clear the pending staking
 		WalletLocked::<T>::drain().for_each(drop);
+		Self::deposit_event(RawEvent::PendingStakeApplied)
+	}
+}
+
+impl<T: Trait> pallet_phala::OnRoundEnd for Module<T> {
+	fn on_round_end(_round: u32) {
+		Self::handle_round_end();
 	}
 }
 
