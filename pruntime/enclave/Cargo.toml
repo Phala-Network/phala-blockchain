@@ -30,7 +30,7 @@ rust-crypto = { git = "https://github.com/mesalock-linux/rust-crypto-sgx" } # { 
 rustls      = { git = "https://github.com/mesalock-linux/rustls", branch = "mesalock_sgx", features = ["dangerous_configuration"] } # { path = "../vendor/rustls" }
 webpki-roots= { git = "https://github.com/mesalock-linux/webpki-roots", branch = "mesalock_sgx" } # { path = "../vendor/webpki-roots" }
 libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" } # { path = "../vendor/libsecp256k1" }
-rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" } # <-- matches libsecp256k1    { path = "../vendor/rand"}
+rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", features = ["small_rng"] } # <-- matches libsecp256k1    { path = "../vendor/rand"}
 regex       = { git = "https://github.com/mesalock-linux/regex-sgx" }
 http_req    = { git = "https://github.com/jasl/http_req-sgx", features = ["rust-tls"]}
 
@@ -50,7 +50,7 @@ parity-scale-codec   = { package = "parity-scale-codec", version = "1.3.1", defa
 # Phala specific
 runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
 pallet-phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
-phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde"] }
+phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde", "pruntime"] }
 
 csv-core = { path = "../csv-core", default-features = false }
 
@@ -63,21 +63,18 @@ finality-grandpa = { version = "0.10.1", default-features = false, features = ["
 trie = { package = "sp-trie", path = "../../substrate/primitives/trie", default-features = false }
 frame-system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
-# sp-blockchain = { package = "sp-blockchain", path = "../../substrate/primitives/blockchain" }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
-# sc-finality-grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/finality-grandpa/"  }
+
+[dependencies.fixed]
+default-features = false
+git = "https://github.com/encointer/substrate-fixed"
+package = "substrate-fixed"
 
 [patch.crates-io]
 rand_core = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3" }
 libsecp256k1= { git = "https://github.com/mesalock-linux/libsecp256k1-rs-sgx" }
 memchr = { package = "memchr", path = "../memchr-nostd", default-features = false }
-# aho-corasick = { package = "aho-corasick", git = "https://github.com/mesalock-linux/aho-corasick-sgx" }
-# regex = { git = "https://github.com/mesalock-linux/regex-sgx" }
-# Inflector = { path = "../Inflector" }
-# parity-scale-codec = { git = "https://github.com/mesalock-linux/parity-scale-codec-sgx" }
-# primitive-types = { git = "https://github.com/jasl/parity-common-sgx" }
-# getrandom = { git = "https://github.com/mesalock-linux/getrandom-sgx" }
 
 [features]
 default = [

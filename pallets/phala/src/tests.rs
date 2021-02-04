@@ -1,15 +1,25 @@
 use codec::Encode;
-use frame_support::{assert_ok, assert_noop, traits::{Currency, OnFinalize}};
+use frame_support::{
+	assert_noop, assert_ok,
+	traits::{Currency, OnFinalize},
+};
 use frame_system::RawOrigin;
 use hex_literal::hex;
 use secp256k1;
 use sp_runtime::traits::BadOrigin;
 
-use crate::{Error, mock::*};
-use crate::{RawEvent, types::{Transfer, TransferData, RoundStats, WorkerStateEnum}};
+use crate::{mock::*, Error};
+use crate::{
+	types::{RoundStats, Transfer, TransferData, WorkerStateEnum},
+	RawEvent,
+};
+use phala_types::PayoutReason;
 
 fn events() -> Vec<TestEvent> {
-	let evt = System::events().into_iter().map(|evt| evt.event).collect::<Vec<_>>();
+	let evt = System::events()
+		.into_iter()
+		.map(|evt| evt.event)
+		.collect::<Vec<_>>();
 	System::reset_events();
 	evt
 }
@@ -69,10 +79,21 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 
 pub const IAS_REPORT_SAMPLE: &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signature");
-pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const ENCODED_RUNTIME_INFO: &[u8] =  &[1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90, 188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50, 211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0];
-pub const MR_ENCLAVE: &[u8] = &[197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60, 149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174];
-pub const MR_SIGNER: &[u8] = &[131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219, 105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158];
+pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] =
+	include_bytes!("../sample/report_signing_certificate");
+pub const ENCODED_RUNTIME_INFO: &[u8] = &[
+	1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90,
+	188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50,
+	211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0,
+];
+pub const MR_ENCLAVE: &[u8] = &[
+	197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60,
+	149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174,
+];
+pub const MR_SIGNER: &[u8] = &[
+	131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219,
+	105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158,
+];
 pub const ISV_PROD_ID: &[u8] = &[0, 0];
 pub const ISV_SVN: &[u8] = &[0, 0];
 const PANIC: bool = false;
@@ -81,16 +102,17 @@ const PANIC: bool = false;
 fn test_validate_cert() {
 	let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
 		Ok(x) => x,
-		Err(_) => panic!("decode sig failed")
+		Err(_) => panic!("decode sig failed"),
 	};
 
-	let sig_cert_dec: Vec<u8> = match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
-		Ok(x) => x,
-		Err(_) => panic!("decode cert failed")
-	};
+	let sig_cert_dec: Vec<u8> =
+		match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
+			Ok(x) => x,
+			Err(_) => panic!("decode cert failed"),
+		};
 	let sig_cert: webpki::EndEntityCert = match webpki::EndEntityCert::from(&sig_cert_dec) {
 		Ok(x) => x,
-		Err(_) => panic!("parse sig failed")
+		Err(_) => panic!("parse sig failed"),
 	};
 
 	let chain: Vec<&[u8]> = Vec::new();
@@ -100,16 +122,16 @@ fn test_validate_cert() {
 		SUPPORTED_SIG_ALGS,
 		&IAS_SERVER_ROOTS,
 		&chain,
-		now_func
+		now_func,
 	) {
 		Ok(()) => (),
-		Err(_) => panic!("verify cert failed")
+		Err(_) => panic!("verify cert failed"),
 	};
 
 	let verify_result = sig_cert.verify_signature(
 		&webpki::RSA_PKCS1_2048_8192_SHA256,
 		&IAS_REPORT_SAMPLE,
-		&sig
+		&sig,
 	);
 
 	if PANIC {
@@ -117,7 +139,7 @@ fn test_validate_cert() {
 	} else {
 		match verify_result {
 			Ok(()) => (),
-			Err(_) => panic!("verify sig failed")
+			Err(_) => panic!("verify sig failed"),
 		};
 	}
 }
@@ -127,17 +149,36 @@ fn test_register_worker() {
 	new_test_ext().execute_with(|| {
 		let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
 			Ok(x) => x,
-			Err(_) => panic!("decode sig failed")
+			Err(_) => panic!("decode sig failed"),
 		};
 
-		let sig_cert_dec: Vec<u8> = match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
-			Ok(x) => x,
-			Err(_) => panic!("decode cert failed")
-		};
-		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		let sig_cert_dec: Vec<u8> =
+			match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
+				Ok(x) => x,
+				Err(_) => panic!("decode cert failed"),
+			};
+		assert_ok!(PhalaModule::add_mrenclave(
+			Origin::root(),
+			MR_ENCLAVE.to_vec(),
+			MR_SIGNER.to_vec(),
+			ISV_PROD_ID.to_vec(),
+			ISV_SVN.to_vec()
+		));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(
+			Origin::signed(1),
+			ENCODED_RUNTIME_INFO.to_vec(),
+			IAS_REPORT_SAMPLE.to_vec(),
+			sig.clone(),
+			sig_cert_dec.clone()
+		));
+		assert_ok!(PhalaModule::register_worker(
+			Origin::signed(1),
+			ENCODED_RUNTIME_INFO.to_vec(),
+			IAS_REPORT_SAMPLE.to_vec(),
+			sig.clone(),
+			sig_cert_dec.clone()
+		));
 	});
 }
 
@@ -219,9 +260,7 @@ fn test_verify_signature() {
 		let pk = secp256k1::PublicKey::from_secret_key(&sk);
 		let serialized_pk = pk.serialize_compressed().to_vec();
 		let signature = ecdsa_sign(&sk, &data);
-		let transfer_data = super::TransferData {
-			data, signature,
-		};
+		let transfer_data = super::TransferData { data, signature };
 
 		let actual = PhalaModule::verify_signature(&serialized_pk, &transfer_data);
 		assert_eq!(true, actual.is_ok());
@@ -232,8 +271,16 @@ fn test_verify_signature() {
 fn test_force_register_worker() {
 	new_test_ext().execute_with(|| {
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
-		assert_noop!(PhalaModule::force_register_worker(Origin::signed(1), 1, vec![0], vec![1]), BadOrigin);
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(),
+			1,
+			vec![0],
+			vec![1]
+		));
+		assert_noop!(
+			PhalaModule::force_register_worker(Origin::signed(1), 1, vec![0], vec![1]),
+			BadOrigin
+		);
 	});
 }
 
@@ -242,13 +289,27 @@ fn test_mine() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
 		// Invalid actions
-		assert_noop!(PhalaModule::start_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
-		assert_noop!(PhalaModule::stop_mining_intention(Origin::signed(1)), Error::<Test>::ControllerNotFound);
+		assert_noop!(
+			PhalaModule::start_mining_intention(Origin::signed(1)),
+			Error::<Test>::ControllerNotFound
+		);
+		assert_noop!(
+			PhalaModule::stop_mining_intention(Origin::signed(1)),
+			Error::<Test>::ControllerNotFound
+		);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::force_register_worker(RawOrigin::Root.into(), 1, vec![0], vec![1]));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(),
+			1,
+			vec![0],
+			vec![1]
+		));
 		// Free <-> MiningPending
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
-		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
+		assert_eq!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::MiningPending
+		);
 		assert_ok!(PhalaModule::stop_mining_intention(Origin::signed(1)));
 		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Free);
 		// MiningPending -> Mining
@@ -256,19 +317,25 @@ fn test_mine() {
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(1);
 		System::finalize();
-		assert_matches!(PhalaModule::worker_state(1).state, WorkerStateEnum::Mining(_));
-		assert_eq!(PhalaModule::online_workers(), 1);  // Miner stats increased
-		// Mining -> MiningStopping
+		assert_matches!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::Mining(_)
+		);
+		assert_eq!(PhalaModule::online_workers(), 1); // Miner stats increased
+											  // Mining -> MiningStopping
 		System::set_block_number(2);
 		assert_ok!(PhalaModule::stop_mining_intention(Origin::signed(1)));
-		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningStopping);
+		assert_eq!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::MiningStopping
+		);
 		assert_eq!(PhalaModule::online_workers(), 1);
 		// MiningStoping -> Free
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(2);
 		System::finalize();
 		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Free);
-		assert_eq!(PhalaModule::online_workers(), 0);  // Miner stats reduced
+		assert_eq!(PhalaModule::online_workers(), 0); // Miner stats reduced
 	});
 }
 
@@ -277,9 +344,14 @@ fn test_transfer() {
 	new_test_ext().execute_with(|| {
 		// set contract key
 		let raw_sk = hex!["0000000000000000000000000000000000000000000000000000000000000001"];
-		let pubkey = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+		let pubkey =
+			hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
 		let sk = ecdsa_load_sk(&raw_sk);
-		assert_ok!(PhalaModule::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey));
+		assert_ok!(PhalaModule::force_set_contract_key(
+			RawOrigin::Root.into(),
+			2,
+			pubkey
+		));
 		// Get some coins
 		let imbalance = Balances::deposit_creating(&1, 100);
 		drop(imbalance);
@@ -297,7 +369,10 @@ fn test_transfer() {
 			data: transfer,
 			signature,
 		};
-		assert_ok!(PhalaModule::transfer_to_chain(Origin::signed(1), data.encode()));
+		assert_ok!(PhalaModule::transfer_to_chain(
+			Origin::signed(1),
+			data.encode()
+		));
 		// check balance
 		assert_eq!(10, Balances::free_balance(2));
 	});
@@ -310,9 +385,10 @@ fn test_randomness() {
 		PhalaModule::on_finalize(1);
 		System::finalize();
 
-		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::RewardSeed(Default::default()))
-		]);
+		assert_eq!(
+			events().as_slice(),
+			[TestEvent::phala(RawEvent::RewardSeed(Default::default()))]
+		);
 	});
 }
 
@@ -322,11 +398,11 @@ fn test_randomness() {
 fn test_clipped_target_number() {
 	// The configuration is at most 2 tx per hour for each worker
 	// Lower bound
-	assert_eq!(PhalaModule::clipped_target_number(20, 1), 333);  // 0.00333 tx/block
-	assert_eq!(PhalaModule::clipped_target_number(20, 20), 6666);  // 0.06666 tx/block
-	// Normal
-	assert_eq!(PhalaModule::clipped_target_number(20, 1000), 3_33333);  // 3.33 tx/block
-	assert_eq!(PhalaModule::clipped_target_number(20, 100000), 20_00000);  // 20 tx/block
+	assert_eq!(PhalaModule::clipped_target_number(20, 1), 333); // 0.00333 tx/block
+	assert_eq!(PhalaModule::clipped_target_number(20, 20), 6666); // 0.06666 tx/block
+															  // Normal
+	assert_eq!(PhalaModule::clipped_target_number(20, 1000), 3_33333); // 3.33 tx/block
+	assert_eq!(PhalaModule::clipped_target_number(20, 100000), 20_00000); // 20 tx/block
 }
 
 #[test]
@@ -343,34 +419,51 @@ fn test_round_stats() {
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(1);
 		// Check round 1
-		assert_eq!(PhalaModule::round_stats_history(1), RoundStats {
-			round: 1,
-			online_workers: 0,
-			compute_workers: 0,
-			frac_target_online_reward: 0,
-			total_power: 0
-		});
-		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::NewMiningRound(1))
-		]);
+		assert_eq!(
+			PhalaModule::round_stats_history(1),
+			RoundStats {
+				round: 1,
+				online_workers: 0,
+				compute_workers: 0,
+				frac_target_online_reward: 0,
+				frac_target_compute_reward: 0,
+				total_power: 0
+			}
+		);
+		assert_matches!(
+			events().as_slice(),
+			[TestEvent::phala(RawEvent::RewardSeed(_)), TestEvent::phala(RawEvent::NewMiningRound(1))]
+		);
 		// Block 2
 		System::set_block_number(2);
-		assert_eq!(PhalaModule::round_stats_at(2), PhalaModule::round_stats_history(1));
+		assert_eq!(
+			PhalaModule::round_stats_at(2),
+			PhalaModule::round_stats_history(1)
+		);
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(2);
 		// Check round 2
-		assert_eq!(PhalaModule::round_stats_history(2), RoundStats {
-			round: 2,
-			online_workers: 0,
-			compute_workers: 0,
-			frac_target_online_reward: 0,
-			total_power: 0
-		});
+		assert_eq!(
+			PhalaModule::round_stats_history(2),
+			RoundStats {
+				round: 2,
+				online_workers: 0,
+				compute_workers: 0,
+				frac_target_online_reward: 0,
+				frac_target_compute_reward: 0,
+				total_power: 0
+			}
+		);
 		// Block 3
 		System::set_block_number(3);
-		assert_eq!(PhalaModule::round_stats_at(2), PhalaModule::round_stats_history(1));
-		assert_eq!(PhalaModule::round_stats_at(3), PhalaModule::round_stats_history(2));
+		assert_eq!(
+			PhalaModule::round_stats_at(2),
+			PhalaModule::round_stats_history(1)
+		);
+		assert_eq!(
+			PhalaModule::round_stats_at(3),
+			PhalaModule::round_stats_history(2)
+		);
 	});
 }
 
@@ -385,11 +478,13 @@ fn test_pretax_online_reward() {
 	assert_eq!(
 		PhalaModule::pretax_online_reward(
 			30000 * DOLLARS,
-			10000, 10000,
-			PhalaModule::clipped_target_number(20, 1),  // target 20 tx but only one online worker
+			10000,
+			10000,
+			PhalaModule::clipped_target_number(20, 1), // target 20 tx but only one online worker
 			1
 		),
-		5630_630630630631);
+		5630_630630630631
+	);
 
 	// [Scenario 2]
 	//   - 30000 PHA in this round
@@ -400,11 +495,13 @@ fn test_pretax_online_reward() {
 	assert_eq!(
 		PhalaModule::pretax_online_reward(
 			30000 * DOLLARS,
-			1000, 10000,
-			PhalaModule::clipped_target_number(20, 1000),  // target 20 tx, ~3.33 tx/block
+			1000,
+			10000,
+			PhalaModule::clipped_target_number(20, 1000), // target 20 tx, ~3.33 tx/block
 			1000
 		),
-		562_500562500562);
+		562_500562500562
+	);
 
 	// [Scenario 3]
 	//   - 30000 PHA in this round
@@ -415,21 +512,55 @@ fn test_pretax_online_reward() {
 	assert_eq!(
 		PhalaModule::pretax_online_reward(
 			30000 * DOLLARS,
-			2, 100000,
-			PhalaModule::clipped_target_number(20, 100000),  // target 20 tx, 20 tx/block
+			2,
+			100000,
+			PhalaModule::clipped_target_number(20, 100000), // target 20 tx, 20 tx/block
 			100000
 		),
-		1_875000000000);
+		1_875000000000
+	);
+}
+
+#[test]
+fn test_pretax_compute_reward() {
+	// [Scenario 1]
+	//   - 30000 PHA in this round
+	//   - 5 miners elected
+	assert_eq!(
+		PhalaModule::pretax_compute_reward(
+			30000 * DOLLARS,
+			PhalaModule::clipped_target_number(5, 5),
+			5
+		),
+		1875_750300120047
+	);
+
+	// [Scenario 2]
+	//   - 30000 PHA in this round
+	//   - 10000 miners elected
+	assert_eq!(
+		PhalaModule::pretax_compute_reward(
+			30000 * DOLLARS,
+			PhalaModule::clipped_target_number(5, 10000),
+			10000
+		),
+		6_250000000000
+	);
 }
 
 #[test]
 fn test_payout() {
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		PhalaModule::payout(100 * DOLLARS, &1);
+		PhalaModule::payout(100 * DOLLARS, &1, PayoutReason::OnlineReward);
 		assert_eq!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::Payout(1, 80 * DOLLARS, 20 * DOLLARS))]
+			[TestEvent::phala(RawEvent::PayoutReward(
+				1,
+				80 * DOLLARS,
+				20 * DOLLARS,
+				PayoutReason::OnlineReward
+			))]
 		);
 	});
 }
@@ -437,36 +568,53 @@ fn test_payout() {
 #[test]
 fn test_payout_and_missed() {
 	new_test_ext().execute_with(|| {
-		use frame_support::storage::{StorageValue, StorageMap};
+		use frame_support::storage::{StorageMap, StorageValue};
 		// Set states
-		crate::WorkerState::<Test>::insert(1, phala_types::WorkerInfo::<BlockNumber> {
-			machine_id: Vec::new(),
-			pubkey: Vec::new(),
-			last_updated: 1,
-			state: phala_types::WorkerStateEnum::Mining(1),
-			score: None,
-		});
+		crate::WorkerState::<Test>::insert(
+			1,
+			phala_types::WorkerInfo::<BlockNumber> {
+				machine_id: Vec::new(),
+				pubkey: Vec::new(),
+				last_updated: 1,
+				state: phala_types::WorkerStateEnum::Mining(1),
+				score: None,
+			},
+		);
 		crate::Round::<Test>::put(phala_types::RoundInfo::<BlockNumber> {
 			round: 1,
 			start_block: 1,
 		});
-		crate::RoundStatsHistory::insert(1, phala_types::RoundStats {
-			round: 1,
-			online_workers: 1,
-			compute_workers: 0,
-			frac_target_online_reward: 333,
-			total_power: 100,
-		});
+		crate::RoundStatsHistory::insert(
+			1,
+			phala_types::RoundStats {
+				round: 1,
+				online_workers: 1,
+				compute_workers: 0,
+				frac_target_online_reward: 333,
+				frac_target_compute_reward: 333,
+				total_power: 100,
+			},
+		);
 		// Check missed reward (window + 1)
 		let window = PhalaModule::reward_window();
 		System::set_block_number(1 + window + 1);
 		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
-		assert_eq!(events().as_slice(), [TestEvent::phala(RawEvent::PayoutMissed(1, 2))]);
+		assert_eq!(
+			events().as_slice(),
+			[TestEvent::phala(RawEvent::PayoutMissed(1, 2))]
+		);
 		// Check some reward (right within the window)
 		System::set_block_number(1 + window);
 		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
-		assert_eq!(events().as_slice(), [
-			TestEvent::phala(RawEvent::Payout(2, 4504_504504504504, 1126_126126126127))]);
+		assert_eq!(
+			events().as_slice(),
+			[TestEvent::phala(RawEvent::PayoutReward(
+				2,
+				4504_504504504504,
+				1126_126126126127,
+				PayoutReason::OnlineReward
+			))]
+		);
 	});
 }
 
@@ -478,9 +626,9 @@ fn test_force_add_fire() {
 			vec![1, 2],
 			vec![100, 200],
 		));
-		assert_eq!(PhalaModule::fire(0), 0);
-		assert_eq!(PhalaModule::fire(1), 100);
-		assert_eq!(PhalaModule::fire(2), 200);
+		assert_eq!(PhalaModule::fire2(0), 0);
+		assert_eq!(PhalaModule::fire2(1), 100);
+		assert_eq!(PhalaModule::fire2(2), 200);
 	});
 }
 
@@ -494,9 +642,16 @@ fn test_mining_lifecycle_force_reregister() {
 		System::set_block_number(1);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+			RawOrigin::Root.into(),
+			1,
+			machine_id.clone(),
+			pubkey.clone()
+		));
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
-		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
+		assert_eq!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::MiningPending
+		);
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(1);
 		System::finalize();
@@ -508,7 +663,8 @@ fn test_mining_lifecycle_force_reregister() {
 			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
 			TestEvent::phala(RawEvent::NewMiningRound(1))
 		] if x == &pubkey && y == &machine_id);
-		assert_matches!(PhalaModule::worker_state(1).state,
+		assert_matches!(
+			PhalaModule::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)
 		);
 		// We have 1 worker with 100 power
@@ -519,7 +675,11 @@ fn test_mining_lifecycle_force_reregister() {
 		System::set_block_number(2);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 2, machine_id.clone(), pubkey.clone()));
+			RawOrigin::Root.into(),
+			2,
+			machine_id.clone(),
+			pubkey.clone()
+		));
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(2);
 		System::finalize();
@@ -549,9 +709,16 @@ fn test_mining_lifecycle_renew() {
 		System::set_block_number(1);
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+			RawOrigin::Root.into(),
+			1,
+			machine_id.clone(),
+			pubkey.clone()
+		));
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
-		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::MiningPending);
+		assert_eq!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::MiningPending
+		);
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(1);
 		System::finalize();
@@ -563,7 +730,8 @@ fn test_mining_lifecycle_renew() {
 			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
 			TestEvent::phala(RawEvent::NewMiningRound(1))
 		] if x == &pubkey && y == &machine_id);
-		assert_matches!(PhalaModule::worker_state(1).state,
+		assert_matches!(
+			PhalaModule::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)
 		);
 		// We have 1 worker with 100 power
@@ -573,7 +741,11 @@ fn test_mining_lifecycle_renew() {
 		// Block 2: force reregister to stash2
 		System::set_block_number(2);
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 1, machine_id.clone(), pubkey.clone()));
+			RawOrigin::Root.into(),
+			1,
+			machine_id.clone(),
+			pubkey.clone()
+		));
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(2);
 		System::finalize();
@@ -582,7 +754,8 @@ fn test_mining_lifecycle_renew() {
 			TestEvent::phala(RawEvent::RewardSeed(_)),
 			TestEvent::phala(RawEvent::NewMiningRound(2))
 		] if x == &machine_id);
-		assert_matches!(PhalaModule::worker_state(1).state,
+		assert_matches!(
+			PhalaModule::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)
 		);
 		// Same as the last block
@@ -607,7 +780,11 @@ fn test_bug_119() {
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 1, machine_id1.clone(), pubkey1.clone()));
+			RawOrigin::Root.into(),
+			1,
+			machine_id1.clone(),
+			pubkey1.clone()
+		));
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		// Check machine_owner is set correctly
@@ -618,13 +795,22 @@ fn test_bug_119() {
 		// Block 2: register worker2 at account 1
 		System::set_block_number(2);
 		println!("---- block 2");
-		assert_matches!(PhalaModule::worker_state(1).state, WorkerStateEnum::Mining(_));
+		assert_matches!(
+			PhalaModule::worker_state(1).state,
+			WorkerStateEnum::Mining(_)
+		);
 		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(), 1, machine_id2.clone(), pubkey2.clone()));
+			RawOrigin::Root.into(),
+			1,
+			machine_id2.clone(),
+			pubkey2.clone()
+		));
 		assert_eq!(PhalaModule::machine_owner(machine_id2.clone()), 1);
 		assert_eq!(
-			crate::MachineOwner::<Test>::contains_key(&machine_id1), false,
-			"Machine1 unlinked because account1 is force linked to machine2");
+			crate::MachineOwner::<Test>::contains_key(&machine_id1),
+			false,
+			"Machine1 unlinked because account1 is force linked to machine2"
+		);
 		PhalaModule::on_finalize(2);
 		System::finalize();
 
@@ -635,7 +821,7 @@ fn test_bug_119() {
 }
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
-    secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
+	secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")
 }
 
 fn ecdsa_sign(sk: &secp256k1::SecretKey, data: &impl Encode) -> Vec<u8> {

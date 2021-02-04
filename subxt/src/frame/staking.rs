@@ -62,9 +62,15 @@ pub struct SetPayeeCall<T: Staking> {
     pub _runtime: PhantomData<T>,
 }
 
+use sp_finality_grandpa::AuthorityList;
+
 /// The subset of the `frame::Trait` that a client must implement.
 #[module]
-pub trait Staking: Balances {}
+pub trait Staking: Balances {
+    #![event_alias(ElectionCompute = u8)]
+    #![event_type(EraIndex)]
+    #![event_type(AuthorityList)]
+}
 
 /// Number of eras to keep in history.
 ///

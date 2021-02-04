@@ -9,7 +9,7 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
-	Perbill, Permill,
+	Perbill,
 };
 
 pub(crate) type Balance = u128;
@@ -79,47 +79,9 @@ impl pallet_balances::Trait for Test {
 	type WeightInfo = ();
 }
 
-impl pallet_timestamp::Trait for Test {
-	type Moment = u64;
-	type OnTimestampSet = ();
-	type MinimumPeriod = MinimumPeriod;
-	type WeightInfo = ();
-}
-
-pub const HOURS: BlockNumber = 600;
-pub const DAYS: BlockNumber = HOURS * 24;
-pub const DOLLARS: Balance = 1_000_000_000_000;
-
-parameter_types! {
-	pub const MaxHeartbeatPerWorkerPerHour: u32 = 2;
-	pub const RoundInterval: BlockNumber = 1 * HOURS;
-	pub const DecayInterval: BlockNumber = 180 * DAYS;
-	pub const DecayFactor: Permill = Permill::from_percent(75);
-	pub const InitialReward: Balance = 129600000 * DOLLARS;
-	pub const TreasuryRation: u32 = 20_000;
-	pub const RewardRation: u32 = 80_000;
-	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
-	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
-}
-
 impl Trait for Test {
 	type Event = TestEvent;
-	type Randomness = Randomness;
-	type TEECurrency = Balances;
-	type UnixTime = pallet_timestamp::Module<Test>;
-	type Treasury = ();
-	type OnRoundEnd = ();
-
-	// Parameters
-	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
-	type RoundInterval = RoundInterval;
-	type DecayInterval = DecayInterval;
-	type DecayFactor = DecayFactor;
-	type InitialReward = InitialReward;
-	type TreasuryRation = TreasuryRation;
-	type RewardRation = RewardRation;
-	type OnlineRewardPercentage = OnlineRewardPercentage;
-	type ComputeRewardPercentage = ComputeRewardPercentage;
+	type Currency = Balances;
 }
 
 mod test_events {
@@ -128,20 +90,11 @@ mod test_events {
 
 pub type System = frame_system::Module<Test>;
 pub type Balances = pallet_balances::Module<Test>;
-pub type Randomness = pallet_randomness_collective_flip::Module<Test>;
-pub type PhalaModule = Module<Test>;
+pub type MiningStaking = Module<Test>;
 
-// This function basically just builds a genesis storage key/value store according to
-// our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = system::GenesisConfig::default()
+	let t = system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
-	crate::GenesisConfig::<Test> {
-		stakers: Default::default(),
-		contract_keys: Default::default(),
-	}
-	.assimilate_storage(&mut t)
-	.unwrap();
 	sp_io::TestExternalities::new(t)
 }

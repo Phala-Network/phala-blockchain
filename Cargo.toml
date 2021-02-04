@@ -18,6 +18,7 @@ members = [
 	"executor",
     "node",
 	"pallets/phala",
+	"pallets/mining_staking",
 	"phost",
 	"runtime",
 	"rpc",

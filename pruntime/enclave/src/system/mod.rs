@@ -11,6 +11,7 @@ use parity_scale_codec::Encode;
 use crate::contracts::AccountIdWrapper;
 use crate::msg_channel::MsgChannel;
 
+mod comp_election;
 
 pub type CommandIndex = u64;
 type PhalaEvent = phala::RawEvent<sp_runtime::AccountId32, u128>;
@@ -42,11 +43,16 @@ pub struct TransactionReceipt {
 
 #[derive(Default)]
 pub struct System {
+    // Keys and identity
     pub id_key: Option<ecdsa::Pair>,
     pub id_pubkey: Vec<u8>,
     pub hashed_id: U256,
     pub machine_id: Vec<u8>,
+    // Computation task electino
+    pub comp_elected: bool,
+    // Transaction
     pub receipts: BTreeMap<CommandIndex, TransactionReceipt>,
+    // Messageing
     pub egress: MsgChannel,
 }
 
@@ -115,36 +121,13 @@ impl System {
         }
     }
 
-    pub fn handle_event(&mut self, blocknum: chain::BlockNumber, event: &PhalaEvent) -> Result<(), Error> {
-        match event {
-            // Reset the egress queue once we detected myself is re-registered
-            phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
-                if pubkey == &self.id_pubkey {
-                    println!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
-                    self.egress = Default::default();
-                }
-            },
-            phala::RawEvent::WorkerRenewed(_stash, machine_id) => {
-                // Not perfect because we only have machine_id but not pubkey here.
-                if machine_id == &self.machine_id {
-                    println!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
-                    self.egress = Default::default();
-                }
-            },
-            // Handle other events
-            phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
-                println!("System::handle_event: Message confirmed (seq={})", seq);
-                // Advance the egress queue messages
-                if pubkey == &self.id_pubkey {
-                    self.egress.received(*seq);
-                }
-            },
-            phala::RawEvent::RewardSeed(reward_info) => {
-                self.handle_reward_seed(blocknum, &reward_info)?;
-            },
-            _ => ()
-        };
-        Ok(())
+    pub fn feed_event(&mut self) -> EventHandler {
+        EventHandler {
+            system: self,
+            seed: None,
+            snapshot: None,
+            new_round: false,
+        }
     }
 
     fn handle_reward_seed(&mut self, blocknum: chain::BlockNumber, reward_info: &BlockRewardInfo)
@@ -152,20 +135,101 @@ impl System {
         println!("System::handle_reward_seed({}, {:?})", blocknum, reward_info);
         let x = self.hashed_id ^ reward_info.seed;
         let online_hit = x <= reward_info.online_target;
-        // TODO: consider the compute_target only if we are chosen:
-        // let _compute_hit = x <= self.compute_target;
+        let compute_hit = self.comp_elected && x <= reward_info.compute_target;
 
         // Push queue when necessary
-        if online_hit {
-            println!("System::handle_reward_seed: online hit ({} < {})!", x, reward_info.online_target);
-            self.egress.push(WorkerMessagePayload::Heartbeat {
-                block_num: blocknum as u32,
-                claim_online: true,
-                claim_compute: false,
-            },
-            self.id_key.as_ref().expect("Id key not set in System contract"));
+        if online_hit || compute_hit {
+            println!(
+                "System::handle_reward_seed: x={}, online={}, compute={}, elected={}",
+                x,
+                reward_info.online_target,
+                reward_info.compute_target,
+                self.comp_elected,
+            );
+            self.egress.push(
+                WorkerMessagePayload::Heartbeat {
+                    block_num: blocknum as u32,
+                    claim_online: online_hit,
+                    claim_compute: compute_hit,
+                },
+                self.id_key.as_ref().expect("Id key not set in System contract"));
         }
         Ok(())
+    }
+
+    fn handle_new_round(
+        &mut self, seed: U256, worker_snapshot: Option<&super::OnlineWorkerSnapshot>
+    ) -> Result<(), Error> {
+        if let Some(worker_snapshot) = worker_snapshot {
+            println!("System::handle_new_round: new round");
+            self.comp_elected = comp_election::elect(
+                seed.low_u64(), &worker_snapshot, &self.machine_id);
+        } else {
+            println!("System::handle_new_round: no snapshot found; skipping this round");
+            self.comp_elected = false;
+        }
+        Ok(())
+    }
+}
+
+pub struct EventHandler<'a> {
+    pub system: &'a mut System,
+    seed: Option<U256>,
+    new_round: bool,
+    snapshot: Option<&'a super::OnlineWorkerSnapshot>,
+}
+
+impl<'a> EventHandler<'a> {
+    pub fn feed(
+        &mut self, block_context: &'a super::BlockHeaderWithEvents, event: &PhalaEvent
+    ) -> Result<(), Error>
+    {
+        match event {
+            // Reset the egress queue once we detected myself is re-registered
+            phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
+                if pubkey == &self.system.id_pubkey {
+                    println!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
+                    self.system.egress = Default::default();
+                }
+            },
+            phala::RawEvent::WorkerRenewed(_stash, machine_id) => {
+                // Not perfect because we only have machine_id but not pubkey here.
+                if machine_id == &self.system.machine_id {
+                    println!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
+                    self.system.egress = Default::default();
+                }
+            },
+            // Handle other events
+            phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
+                println!("System::handle_event: Message confirmed (seq={})", seq);
+                // Advance the egress queue messages
+                if pubkey == &self.system.id_pubkey {
+                    self.system.egress.received(*seq);
+                }
+            },
+            phala::RawEvent::RewardSeed(reward_info) => {
+                let blocknum = block_context.block_header.number;
+                self.seed = Some(reward_info.seed);
+                self.system.handle_reward_seed(blocknum, &reward_info)?;
+            },
+            phala::RawEvent::NewMiningRound(round) => {
+                println!("System::handle_event: new mining round ({})", round);
+                // Save the snapshot for later use
+                self.snapshot = block_context.worker_snapshot.as_ref();
+                self.new_round = true;
+            },
+            _ => ()
+        };
+        Ok(())
+    }
+}
+
+impl<'a> Drop for EventHandler<'a> {
+    fn drop(&mut self) {
+        if let (true, Some(seed)) = (self.new_round, self.seed) {
+            self.system.handle_new_round(seed, self.snapshot)
+                .expect("System EventHandler::drop() should never fail; qed.");
+        }
     }
 }
 

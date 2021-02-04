@@ -211,25 +211,20 @@ impl<T: Trait> LightValidation<T>
 			bridge_id, header, ancestry_proof, grandpa_proof, None)
 	}
 
-	pub fn validate_events_proof(
-		&mut self,
-		state_root: &T::Hash,
+	pub fn validate_storage_proof(
+		&self,
+		state_root: T::Hash,
 		proof: StorageProof,
-		events: Vec<u8>,
-		key: Vec<u8>,
+		items: &[(&[u8], &[u8])],   // &[(key, value)]
 	) -> Result<(), Error> {
-		let checker = <StorageProofChecker<T::Hashing>>::new(
-			*state_root,
-			proof.clone()
-		)?;
-		let actual_events = checker
-			.read_value(&key)?
-			.ok_or(Error::StorageValueUnavailable)?;
-		if events == actual_events {
-			Ok(())
-		} else {
-			Err(Error::EventsMismatch)
-		}
+        let checker = StorageProofChecker::<T::Hashing>::new(state_root, proof)?;
+        for (k, v) in items {
+            let actual_value = checker.read_value(k)?.ok_or(Error::StorageValueUnavailable)?;
+            if actual_value.as_slice() != *v {
+                return Err(Error::StorageValueMismatch);
+            }
+        }
+        Ok(())
 	}
 }
 
@@ -246,7 +241,7 @@ pub enum Error {
 	// UnknownClientError,
 	HeaderAncestryMismatch,
 	UnexpectedValidatorSetId,
-	EventsMismatch,
+	StorageValueMismatch,
 }
 
 impl From<JustificationError> for Error {
@@ -375,4 +370,23 @@ impl<T: Trait> fmt::Debug for BridgeInitInfo<T> {
 		write!(f, "BridgeInfo {{ block_header: {:?}, validator_set: {:?}, validator_set_proof: {:?} }}",
 			self.block_header, self.validator_set, self.validator_set_proof)
 	}
+}
+
+pub mod utils {
+    use crate::std::vec::Vec;
+
+    /// Gets the prefix of a storage item
+    pub fn storage_prefix(module: &str, storage: &str) -> Vec<u8> {
+        let mut bytes = sp_core::twox_128(module.as_bytes()).to_vec();
+        bytes.extend(&sp_core::twox_128(storage.as_bytes())[..]);
+        bytes
+    }
+
+    /// Gets the last 32 bytes as the account key (`storage_key` must be longer than that)
+    pub fn extract_account_id_key_unsafe<'a>(storage_key: &'a [u8]) -> &'a [u8] {
+        if storage_key.len() < 32 {
+            panic!("storage_key is too short (len={})", storage_key.len());
+        }
+        &storage_key[storage_key.len() - 32..]
+    }
 }

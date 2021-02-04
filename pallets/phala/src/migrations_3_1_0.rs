@@ -1,4 +1,4 @@
-//! Migrate to version [`3.0.0`]
+//! Migrate to version [`3.1.0`]
 //!
 //! Referece PR: <https://github.com/paritytech/substrate/pull/7040>
 
