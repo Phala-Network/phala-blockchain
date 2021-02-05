@@ -90,6 +90,7 @@ parameter_types! {
 	pub const TreasuryRation: u32 = 20_000;
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
 }
 
 impl phala::Config for Test {
@@ -99,6 +100,7 @@ impl phala::Config for Test {
 	type UnixTime = Timestamp;
 	type Treasury = ();
 	type ModuleWeightInfo = ();
+	type OnRoundEnd = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
@@ -109,15 +111,20 @@ impl phala::Config for Test {
 	type TreasuryRation = TreasuryRation;
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
+	type ComputeRewardPercentage = ComputeRewardPercentage;
 }
 
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let mut t = system::GenesisConfig::default().build_storage::<Test>().unwrap();
+	let mut t = system::GenesisConfig::default()
+		.build_storage::<Test>()
+		.unwrap();
 	crate::GenesisConfig::<Test> {
 		stakers: Default::default(),
-		contract_keys: Default::default()
-	}.assimilate_storage(&mut t).unwrap();
+		contract_keys: Default::default(),
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
 	sp_io::TestExternalities::new(t)
 }

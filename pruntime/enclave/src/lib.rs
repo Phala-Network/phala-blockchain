@@ -33,7 +33,7 @@ use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
 use itertools::Itertools;
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Encode, Decode, FullCodec};
 use secp256k1::{SecretKey, PublicKey};
 use serde_cbor;
 use serde_json::{Map, Value};
@@ -42,7 +42,18 @@ use sp_core::H256 as Hash;
 use sp_core::crypto::Pair;
 use frame_system::EventRecord;
 
+use std::time::Duration;
+use http_req::request::{Request, Method};
+
 extern crate pallet_phala as phala;
+use phala_types::{
+    PRuntimeInfo,
+    pruntime::{
+        StorageKV,
+        HeaderToSync as GenericHeaderToSync,
+        BlockHeaderWithEvents as GenericBlockHeaderWithEvents
+    },
+};
 
 mod cert;
 mod contracts;
@@ -52,15 +63,29 @@ mod light_validation;
 mod msg_channel;
 mod system;
 mod types;
+mod rpc_types;
 
-use contracts::{AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS};
+use contracts::{
+    AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS
+};
 use cryptography::{ecdh, aead};
 use light_validation::AuthoritySetChange;
 use system::{TransactionStatus, TransactionReceipt, CommandIndex};
 use types::{TxRef, Error};
+use rpc_types::*;
 
-use std::time::Duration;
-use http_req::request::{Request, Method};
+type HeaderToSync = GenericHeaderToSync<
+    chain::BlockNumber,
+    <chain::Runtime as frame_system::Trait>::Hashing,
+>;
+type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
+    chain::BlockNumber,
+    <chain::Runtime as frame_system::Trait>::Hashing,
+    chain::Balance,
+>;
+type OnlineWorkerSnapshot = phala_types::pruntime::OnlineWorkerSnapshot<
+    chain::BlockNumber, chain::Balance
+>;
 
 extern "C" {
     pub fn ocall_load_ias_spid(
@@ -141,29 +166,6 @@ struct LocalState {
     machine_id: [u8; 16],
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>
-}
-
-// TODO: Move the type definitions to a central repo
-
-#[derive(Encode, Decode)]
-struct RuntimeInfo {
-    version: u8,
-    machine_id: [u8; 16],
-    pubkey: [u8; 33],
-    features: Vec<u32>
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct Heartbeat {
-    block_num: u32,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct HeartbeatData {
-    data: Heartbeat,
-    signature: Vec<u8>,
 }
 
 fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
@@ -247,6 +249,7 @@ fn ias_spid() -> sgx_spid_t {
             key_ptr, key_len_ptr, 256
         )
     };
+
     if load_result != sgx_status_t::SGX_SUCCESS || key_len == 0 {
         panic!("Load SPID failure.");
     }
@@ -612,66 +615,6 @@ const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 
-#[derive(Serialize, Deserialize, Debug)]
-struct InitRuntimeReq {
-    skip_ra: bool,
-    bridge_genesis_info_b64: String,
-    debug_set_key: Option<String>
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InitRuntimeResp {
-  pub encoded_runtime_info: Vec<u8>,
-  pub public_key: String,
-  pub ecdh_public_key: String,
-  pub attestation: Option<InitRespAttestation>,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InitRespAttestation {
-  pub version: i32,
-  pub provider: String,
-  pub payload: AttestationReport,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct AttestationReport {
-  pub report: String,
-  pub signature: String,
-  pub signing_cert: String,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct TestReq {
-    test_parse_block: Option<bool>,
-    test_bridge: Option<bool>,
-    test_ecdh: Option<TestEcdhParam>,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct SyncHeaderReq {
-    headers_b64: Vec<String>,
-    authority_set_change_b64: Option<String>,
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct DispatchBlockReq {
-    blocks_b64: Vec<String>
-}
-#[derive(Serialize, Deserialize, Debug)]
-struct TestEcdhParam {
-    pubkey_hex: Option<String>,
-    message_b64: Option<String>,
-}
-
-#[derive(Encode, Decode, Debug, Clone)]
-struct HeaderToSync {
-    header: chain::Header,
-    justification: Option<Vec<u8>>,
-}
-
-#[derive(Encode, Decode, Clone, Debug)]
-pub struct BlockHeaderWithEvents {
-    pub block_header: chain::Header,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<Vec<Vec<u8>>>,
-    pub key: Option<Vec<u8>>,
-}
-
 #[no_mangle]
 pub extern "C" fn ecall_set_state(
     input_ptr: *const u8, input_len: usize
@@ -1024,8 +967,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         }
     }
 
-    // Build RuntimeInfo
-    let runtime_info = RuntimeInfo {
+    // Build PRuntimeInfo
+    let runtime_info = PRuntimeInfo {
         version: 1,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_serialized_pk,
@@ -1096,60 +1039,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     Ok(serde_json::to_value(resp).unwrap())
 }
 
-fn fmt_call(call: &chain::Call) -> String {
-    match call {
-        chain::Call::Timestamp(chain::TimestampCall::set(t)) =>
-            format!("Timestamp::set({})", t),
-        chain::Call::Balances(chain::BalancesCall::transfer(to, amount)) =>
-            format!("Balance::transfer({:?}, {:?})", to, amount),
-        _ => String::from("<Unparsed>")
-    }
-}
-
-fn print_block(signed_block: &chain::SignedBlock) {
-    let header: &chain::Header = &signed_block.block.header;
-    let extrinsics: &Vec<chain::UncheckedExtrinsic> = &signed_block.block.extrinsics;
-
-    println!("SignedBlock {{");
-    println!("  block {{");
-    println!("    header {{");
-    println!("      number: {}", header.number);
-    println!("      extrinsics_root: {}", header.extrinsics_root);
-    println!("      state_root: {}", header.state_root);
-    println!("      parent_hash: {}", header.parent_hash);
-    println!("      digest: logs[{}]", header.digest.logs.len());
-    println!("  extrinsics: [");
-    for extrinsic in extrinsics {
-        println!("    UncheckedExtrinsic {{");
-        println!("      function: {}", fmt_call(&extrinsic.function));
-        println!("      signature: {:?}", extrinsic.signature);
-        println!("    }}");
-    }
-    println!("  ]");
-    println!("  justification: <skipped...>");
-    println!("}}");
-}
-
-fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec::Error> {
-    chain::SignedBlock::decode(&mut data.as_slice())
-}
-
-fn format_address(addr: &chain::Address) -> String {
-    match addr {
-        chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
-        chain::Address::Index(index) => format!("index:{}", index),
-        // TODO: Verify these
-        chain::Address::Raw(address) => hex::encode_hex_compact(address.as_ref()),
-        chain::Address::Address32(address) => hex::encode_hex_compact(address.as_ref()),
-        chain::Address::Address20(address) => hex::encode_hex_compact(address.as_ref())
-    }
-}
-
-fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
-                    origin: chain::AccountId,
-                    contract_id: ContractId, payload: &Vec<u8>,
-                    command_index: CommandIndex,
-                    ecdh_privkey: &EcdhKey) {
+fn handle_execution(
+    system: &mut system::System,
+    state: &mut RuntimeState,
+    pos: &TxRef,
+    origin: chain::AccountId,
+    contract_id: ContractId, payload: &Vec<u8>,
+    command_index: CommandIndex,
+    ecdh_privkey: &EcdhKey
+) {
     let payload: types::Payload = serde_json::from_slice(payload.as_slice())
         .expect("Failed to decode payload");
     let inner_data = match payload {
@@ -1206,8 +1104,7 @@ fn handle_execution(state: &mut RuntimeState, pos: &TxRef,
         },
     };
 
-    let mut gr = SYSTEM_STATE.lock().unwrap();
-    gr.add_receipt(command_index, TransactionReceipt {
+    system.add_receipt(command_index, TransactionReceipt {
         account: AccountIdWrapper(origin),
         block_num: pos.blocknum,
         contract_id,
@@ -1329,7 +1226,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             return Err(error_msg("Event was required"))
         }
 
-        parse_events(&block, &ecdh_privkey, local_state.dev_mode)?;
+        handle_events(&block, &ecdh_privkey, local_state.dev_mode)?;
 
         last_block = block.block_header.number;
         local_state.block_hashes.remove(0);
@@ -1348,52 +1245,122 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
         .map_err(|_| error_msg("cannot decode authority_set_change"))
 }
 
-fn parse_events(block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKey, dev_mode: bool) -> Result<(), Value> {
+fn handle_events(
+    block_with_events: &BlockHeaderWithEvents, ecdh_privkey: &EcdhKey, dev_mode: bool
+) -> Result<(), Value>
+{
     let ref mut state = STATE.lock().unwrap();
     let missing_field = error_msg("Missing field");
-    let events = block_with_events.clone().events.ok_or(missing_field.clone())?;
-    let proof = block_with_events.clone().proof.ok_or(missing_field.clone())?;
-    let key = block_with_events.clone().key.ok_or(missing_field)?;
-    let state_root = &block_with_events.block_header.state_root;
-    state.light_client.validate_events_proof(&state_root, proof, events.clone(), key).map_err(|_| error_msg("Bad storage proof"))?;
-
-    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice());
-    if let Ok(evts) = events {
-        for evt in &evts {
-            if let chain::Event::pallet_phala(pe) = &evt.event {
-                println!("parse_events: pallet_phala event: {:?}", pe);
-                let blocknum = block_with_events.block_header.number;
-                // Dispatch to system contract anyway
-                {
-                    let mut system_state = SYSTEM_STATE.lock().unwrap();
-                    system_state.handle_event(blocknum, &pe)
-                        .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
-                }
-                // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
-                if !dev_mode {
-                    println!("parse_events: skipped for miners");
-                    continue;
-                }
-                match pe {
-                    phala::RawEvent::CommandPushed(who, contract_id, payload, num) => {
-                        println!("push_command(contract_id: {}, payload: data[{}])", contract_id, payload.len());
-                        let pos = TxRef {
-                            blocknum,
-                            index: *num,
-                        };
-                        handle_execution(state, &pos, who.clone(), *contract_id, payload, *num, ecdh_privkey);
-                    },
-                    _ => {
-                        state.contract2.handle_event(evt.event.clone());
-                    }
+    // Validate sotrage proof for events
+    let events = block_with_events.events.as_ref().ok_or(missing_field.clone())?;
+    let proof = block_with_events.proof.as_ref().ok_or(missing_field.clone())?;
+    let event_storage_key = light_validation::utils::storage_prefix("System", "Events");
+    let state_root = block_with_events.block_header.state_root;
+    state.light_client.validate_storage_proof(
+        state_root, proof.clone(), &[(event_storage_key.as_slice(), events.as_slice())])
+        .map_err(|_| error_msg("Bad storage proof for events"))?;
+    // Validate worker snapshot (if applicable)
+    if let Some(worker_snapshot) = block_with_events.worker_snapshot.as_ref() {
+        if !validate_worker_snapshot(&state.light_client, state_root, worker_snapshot) {
+            return Err(error_msg("Invalid worker_snapshot storage proof"));
+        }
+    }
+    // Dispatch events
+    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice())
+        .map_err(|_| error_msg("Decode events error"))?;
+    let system = &mut SYSTEM_STATE.lock().unwrap();
+    let mut event_handler = system.feed_event();
+    for evt in &events {
+        if let chain::Event::pallet_phala(pe) = &evt.event {
+            // Dispatch to system contract anyway
+            event_handler.feed(block_with_events, &pe)
+                .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
+            // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
+            if !dev_mode {
+                println!("handle_events: skipped for miners");
+                continue;
+            }
+            match pe {
+                phala::RawEvent::CommandPushed(who, contract_id, payload, num) => {
+                    println!(
+                        "push_command(contract_id: {}, payload: data[{}])",
+                        contract_id, payload.len());
+                    let blocknum = block_with_events.block_header.number;
+                    let pos = TxRef {
+                        blocknum,
+                        index: *num,
+                    };
+                    handle_execution(
+                        event_handler.system, state, &pos, who.clone(), *contract_id, payload,
+                        *num, ecdh_privkey);
+                },
+                _ => {
+                    state.contract2.handle_event(evt.event.clone());
                 }
             }
         }
+    }
+    Ok(())
+}
 
-        return Ok(());
+fn validate_worker_snapshot(
+    light_client: &ChainLightValidation, state_root: Hash, snapshot: &OnlineWorkerSnapshot
+) -> bool
+{
+    println!("validate_worker_snapshot()");
+    use phala_types::WorkerStateEnum;
+    use light_validation::utils::storage_prefix;
+    let prefix_onlineworkers = storage_prefix("PhalaModule", "OnlineWorkers");
+    let prefix_computeworkers = storage_prefix("PhalaModule", "ComputeWorkers");
+    let prefix_workerstate = storage_prefix("PhalaModule", "WorkerState");
+    let prefix_stakereceived = storage_prefix("MiningStaking", "StakeReceived");
+
+    let cond = [
+        // Check keys
+        snapshot.online_workers_kv.key() == prefix_onlineworkers.as_slice(),
+        snapshot.compute_workers_kv.key() == prefix_computeworkers.as_slice(),
+        snapshot.worker_state_kv.iter()
+            .all(|kv| kv.key().starts_with(prefix_workerstate.as_slice())),
+        // WorkerState key is real
+        snapshot.stake_received_kv.iter()
+            .all(|kv| kv.key().starts_with(prefix_stakereceived.as_slice())),
+        // There's no missing entry in WorkerState
+        snapshot.online_workers_kv.value() == &(snapshot.worker_state_kv.len() as u32),
+        // Compute worker is enabled
+        snapshot.compute_workers_kv.value() != &0,
+        // All the workers are online
+        snapshot.worker_state_kv.iter().all(|kv| match kv.value().state {
+            WorkerStateEnum::Mining(_) => true,
+            _ => false
+        })
+    ];
+    if !cond.iter().all(|x| *x) {
+        println!("Checks: {:?}", cond);
+        println!("stake_received key: {}",
+            hex::encode_hex_compact(snapshot.stake_received_kv[0].key()));
+        println!("snapshot: {:?}", snapshot);
+        return false
     }
 
-    Err(error_msg("Decode events error"))
+    // Validate the storage proof
+    fn raw_kv<'a, T: FullCodec + Clone>(kv: &'a StorageKV<T>) -> (&'a [u8], Vec<u8>) {
+        (&kv.0, kv.1.encode())
+    }
+    let mut raw_items = Vec::<(&[u8], Vec<u8>)>::new();
+    raw_items.extend(snapshot.worker_state_kv.iter().map(raw_kv));
+    raw_items.extend(snapshot.stake_received_kv.iter().map(raw_kv));
+    raw_items.push(raw_kv(&snapshot.online_workers_kv));
+    raw_items.push(raw_kv(&snapshot.compute_workers_kv));
+    let raw_items_ref: Vec<_> = raw_items.iter().map(|(k, v)| (*k, v.as_slice())).collect();
+    let r = light_client.validate_storage_proof(
+        state_root, snapshot.proof.clone(),
+        raw_items_ref.as_slice()
+    );
+    if r.is_err() {
+        println!("Snapshot light validation: {:?}", r);
+        return false;
+    }
+    true
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

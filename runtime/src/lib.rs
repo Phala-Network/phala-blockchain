@@ -1022,6 +1022,7 @@ parameter_types! {
 	pub const TreasuryRation: u32 = 20_000;
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
+	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
 }
 
 impl pallet_phala::Config for Runtime {
@@ -1031,6 +1032,7 @@ impl pallet_phala::Config for Runtime {
 	type UnixTime = Timestamp;
 	type Treasury = Treasury;
 	type ModuleWeightInfo = pallet_phala::weights::SubstrateWeight<Runtime>;
+	type OnRoundEnd = MiningStaking;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
@@ -1041,11 +1043,17 @@ impl pallet_phala::Config for Runtime {
 	type TreasuryRation = TreasuryRation;
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
+	type ComputeRewardPercentage = ComputeRewardPercentage;
 }
 
 impl pallet_claim::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
+	type Currency = Balances;
+}
+
+impl pallet_mining_staking::Trait for Runtime {
+	type Event = Event;
 	type Currency = Balances;
 }
 
@@ -1093,6 +1101,7 @@ construct_runtime!(
 		Assets: pallet_assets::{Module, Call, Storage, Event<T>},
 		Mmr: pallet_mmr::{Module, Storage},
 		Lottery: pallet_lottery::{Module, Call, Storage, Event<T>},
+		MiningStaking: pallet_mining_staking::{Module, Call, Storage, Event<T>},
 	}
 );
 

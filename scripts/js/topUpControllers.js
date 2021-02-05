@@ -5,12 +5,12 @@
  *  - PRIVKEY: sr25519 privkey sURI
  *  - ENDPOINT: full node WS (WSS) RPC endpoint
  *  - TOPUP_PAYOUT_TARGET: the mining payout target account that owns the controllers to top up
- *  - AMOUNT: the amount to top up, integer only
+ *  - TARGET_AMOUNT: top up to the specified amount. no-op if the account has more token
  *  - AMOUNT_MIN: skip the controller if it has this min amount, float accepted
  *  - DRYRUN: 1 means dry-run mode (optional)
  *
  * Example:
- *  TOPUP_PAYOUT_TARGET=<some-payout-address> AMOUNT=10 MIN_AMOUNT=5 node topUpControllers.js
+ *  TOPUP_PAYOUT_TARGET=<some-payout-address> TARGET_AMOUNT=5 node topUpControllers.js
  */
 
 require('dotenv').config();
@@ -19,19 +19,10 @@ const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 
 const typedefs = require('../../e2e/typedefs.json');
-const dashboard = require('../../tmp/dashboard.json');
 const bn1e9 = new BN(10).pow(new BN(9));
 const bn1e12 = new BN(10).pow(new BN(12));
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
-
-async function getAllControllers (api, stashes) {
-    return await new Promise(async resolve => {
-        const unsub = await api.query.phalaModule.stashState.multi(stashes, data => {
-            unsub();
-            resolve(data.map(x => x.controller.toHuman()));
-        });
-    })
-}
+const kVerbose = parseInt(process.env.VERBOSE || '0') === 1;
 
 async function getBalances (api, addresses) {
     return await new Promise(async resolve => {
@@ -42,6 +33,10 @@ async function getBalances (api, addresses) {
     });
 }
 
+function realToBn(f) {
+    return new BN(f * 1e3 | 0).mul(bn1e9);
+}
+
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
     const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
@@ -50,24 +45,42 @@ async function main () {
     const sender = keyring.addFromUri(process.env.PRIVKEY);
 
     const payoutTarget = process.env.TOPUP_PAYOUT_TARGET;
-    const amount = new BN(process.env.AMOUNT).mul(bn1e12);
-    const minAmount = parseFloat(process.env.MIN_AMOUNT);
+    // const amount = new BN(process.env.AMOUNT).mul(bn1e12);
+    const targetAmount = parseFloat(process.env.TARGET_AMOUNT);
 
-    const miners = dashboard.dashboard.find(x => x.targetAddress == payoutTarget);
-    if (!miners) {
-        console.log('Payout address not found; qed.');
-        return;
-    }
-
-    const stashes = miners.targetState.map(x => x.stashAddress);
     console.log('Getting controllers');
-    const controllers = await getAllControllers(api, stashes);
+    const entries = await api.query.phalaModule.stashState.entries();
+    let controllers = [];
+    for (let [k, v] of entries) {
+        const jsonValue = v.toJSON();
+        const controller = jsonValue.controller;
+
+        if (jsonValue.payoutPrefs.target === payoutTarget) {
+            if (kVerbose) {
+                console.log(`${k.args.map(k => k.toHuman())} =>`, jsonValue);
+            }
+
+            controllers.push(controller);
+        }
+    }
+    console.log(`Found ${controllers.length}`);
+
     console.log('Getting balance');
     const balances = await getBalances(api, controllers);
     const balancesFloat = balances.map(b => b.div(bn1e9).toNumber() / 1e3);
+    let topUpPlan = controllers
+        .map((address, idx) => ({
+            address,
+            amount: targetAmount - balancesFloat[idx]
+        }))
+        .filter(({amount}) => amount > 0);
+    console.log({topUpPlan});
+    console.log(`Found ${topUpPlan.length}`);
 
-    const topUpTargets = controllers.filter((_, idx) => balancesFloat[idx] <= minAmount);
-    console.log({topUpTargets});
+    topUpPlan = topUpPlan.map(({address, amount}) => ({
+        address,
+        amount: realToBn(amount),
+    }));
 
     if (kDryRun) {
         console.log('Exiting because of dryrun');
@@ -76,8 +89,8 @@ async function main () {
 
     await new Promise(async resolve => {
         const unsub = await api.tx.utility.batch(
-            topUpTargets.map(controller =>
-                api.tx.balances.transfer(controller, amount))
+            topUpPlan.map(({address, amount}) =>
+                api.tx.balances.transfer(address, amount))
         ).signAndSend(sender, (result) => {
             console.log(`Current status is ${result.status}`);
             if (result.status.isInBlock) {

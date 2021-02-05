@@ -4,31 +4,30 @@ use std::time::Duration;
 use structopt::StructOpt;
 
 use sp_rpc::number::NumberOrHex;
-use sc_rpc_api::state::ReadProof;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use sp_finality_grandpa::{AuthorityList, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY, SetId};
-use sp_core::{storage::StorageKey, twox_128, sr25519, crypto::Pair};
+use sp_core::{storage::StorageKey, sr25519, crypto::Pair};
+use subxt::{EventsDecoder, Signer, system::AccountStoreExt};
 
 mod error;
 mod msg_sync;
 mod pruntime_client;
 mod notify_client;
+mod chain_client;
 mod runtimes;
 mod types;
 
 use crate::error::Error;
 use crate::types::{
-    Runtime, Header, Hash, BlockNumber, RawEvents, StorageProof, RawStorageKey, AccountId,
+    Runtime, Header, Hash, BlockNumber, AccountId,
     GetInfoReq,
     InitRuntimeReq, GenesisInfo, InitRuntimeResp, GetRuntimeInfoReq, InitRespAttestation,
     SyncHeaderReq, SyncHeaderResp, BlockWithEvents, HeaderToSync, AuthoritySet, AuthoritySetChange,
     OpaqueSignedBlock, DispatchBlockReq, DispatchBlockResp, BlockHeaderWithEvents,
-    NotifyReq
+    NotifyReq,
 };
 
-use subxt::Signer;
-use subxt::system::AccountStoreExt;
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
@@ -126,42 +125,29 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
 
-    let events_with_proof = fetch_events(&client, &hash).await?;
-    if let Some((raw_events, proof, key)) = events_with_proof {
+    let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
+    if let Some((raw_events, proof, _key)) = events_with_proof {
         println!("          ... with events {} bytes", raw_events.len());
-        let (events, proof, key) = (Some(raw_events), Some(proof), Some(key));
-        return Ok(BlockWithEvents { block, events, proof, key });
+        let (events, proof) = (Some(raw_events), Some(proof));
+        return Ok(BlockWithEvents { block, events, proof });
     }
 
     if h == Some(0) {
-        return Ok(BlockWithEvents { block, events: None, proof: None, key: None });
+        return Ok(BlockWithEvents { block, events: None, proof: None });
     }
 
     return Err(Error::EventNotFound);
 }
 
-async fn get_storage(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<Option<Vec<u8>>, Error> {
-    let storage = client.rpc.storage(&storage_key, hash).await?;
-    Ok(storage.map(|data| (&data.0[..]).to_vec()))
-}
-
-async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey) -> Result<ReadProof<Hash>, Error> {
-    client.read_proof(vec![storage_key], hash).await.map_err(Into::into)
-}
-
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange, Error> {
     // Storage
     let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let value = get_storage(&client, Some(hash), storage_key.clone()).await?
+    let value = chain_client::get_storage(&client, Some(hash), storage_key.clone()).await?
         .expect("No authority key found");
     let authority_set: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
         .expect("Failed to decode VersionedAuthorityList").into();
     // Proof
-    let proof = read_proof(&client, Some(hash), storage_key).await?.proof;
-    let mut prf = Vec::new();
-    for p in proof {
-        prf.push(p.to_vec());
-    }
+    let proof = chain_client::read_proof(&client, Some(hash), storage_key).await?;
     // Set id
     let set_id = client
         .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
@@ -172,7 +158,7 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
             authority_set,
             set_id,
         },
-        authority_proof: prf,
+        authority_proof: proof,
     })
 }
 
@@ -220,32 +206,10 @@ async fn bisec_setid_change(
     Ok(result)
 }
 
-async fn fetch_events(client: &XtClient, hash: &Hash)
--> Result<Option<(RawEvents, StorageProof, RawStorageKey)>, Error> {
-    // let hash = client.block_hash(Some(subxt::BlockNumber::from(block_number))).await?;
-    let key = storage_value_key_vec("System", "Events");
-    let storage_key = StorageKey(key.clone());
-    let result = match get_storage(&client, Some(hash.clone()), storage_key.clone()).await? {
-        Some(value) => {
-            let proof = read_proof(&client, Some(hash.clone()), storage_key).await?
-                .proof
-                .iter()
-                .map(|x| x.to_vec())
-                .collect();
-            Some((value, proof, key))
-        },
-        None => None,
-    };
-    Ok(result)
-}
-
-fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
-    let mut key = twox_128(module.as_bytes()).to_vec();
-    key.extend(&twox_128(storage_key_name.as_bytes()));
-    key
-}
-
-async fn req_sync_header(pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>) -> Result<SyncHeaderResp, Error> {
+async fn req_sync_header(
+    pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>
+) -> Result<SyncHeaderResp, Error>
+{
     let headers_b64 = headers
         .iter()
         .map(|header| {
@@ -279,9 +243,32 @@ where T: std::ops::Deref<Target = [BlockHeaderWithEvents]> {
     Ok(resp)
 }
 
+/// Attaches a worker snapshot for NewRound blocks for compute worker election
+async fn maybe_take_worker_snapshot(
+    xt: &XtClient,
+    events_decoder: &EventsDecoder<Runtime>,
+    dispatch_batch: &mut Vec<BlockHeaderWithEvents>,
+) -> Result<(), Error> {
+    for bwe in dispatch_batch {
+        let data = bwe.events.as_ref().unwrap();
+        if chain_client::check_round_end_event(events_decoder, data)? {
+            let snapshot = chain_client::snapshot_online_worker_at(
+                xt, Some(bwe.block_header.hash())).await;
+            bwe.worker_snapshot = match snapshot {
+                Ok(snapshot) => Some(snapshot),
+                Err(Error::ComputeWorkerNotEnabled) => None,
+                Err(err) => return Err(err),
+            };
+        }
+    }
+    Ok(())
+}
+
 /// Syncs only the events to pRuntime till `sync_to`
 async fn sync_events_only(
+    xt: &XtClient,
     pr: &PrClient,
+    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     sync_to: BlockNumber,
     batch_window: usize,
@@ -296,15 +283,16 @@ async fn sync_events_only(
             break;
         }
     }
-    let blocks: Vec<BlockHeaderWithEvents> = block_buf
+    let mut blocks: Vec<BlockHeaderWithEvents> = block_buf
         .drain(..n)
         .map(|bwe| BlockHeaderWithEvents {
             block_header: bwe.block.block.header,
             events: bwe.events,
             proof: bwe.proof,
-            key: bwe.key
+            worker_snapshot: None,
         })
         .collect();
+    maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
     for chunk in blocks.chunks(batch_window) {
         let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
         println!("  ..dispatch_block: {:?}", r);
@@ -315,6 +303,7 @@ async fn sync_events_only(
 async fn batch_sync_block(
     client: &XtClient,
     pr: &PrClient,
+    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     batch_window: usize
 ) -> Result<usize, Error> {
@@ -416,15 +405,16 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
+                let mut dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
                     .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
                         events: bwe.events,
                         proof: bwe.proof,
-                        key: bwe.key
+                        worker_snapshot: None,
                     })
                     .collect();
+                maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 println!("  ..dispatch_block: {:?}", r);
 
@@ -472,7 +462,7 @@ async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result
     Ok(())
 }
 
-async fn init_runtime (client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
+async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
                        inject_key: &str) -> Result<InitRuntimeResp, Error> {
     let genesis_block = get_block_at(&client, Some(0)).await?.block;
     let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
@@ -532,10 +522,13 @@ async fn register_worker(
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<(), Error> {
+    env_logger::init();
+
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(args.substrate_ws_endpoint.clone())
         .build().await?;
+    let events_decoder = chain_client::get_event_decoder(&client);
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
     // Other initialization
@@ -643,7 +636,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             sync_state.blocks.remove(0);
         }
         println!(
-            "try to sync blocks. next required: ({}, {}), finalized tip: {}, buffered: {}",
+            "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
             info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
 
         // fill the sync buffer to catch up the chain tip
@@ -651,7 +644,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
             Some(b) => b.block.block.header.number + 1,
             None => info.blocknum
         };
-        let batch_end = std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
+        let batch_end =
+            std::cmp::min(latest_block.header.number, next_block + args.fetch_blocks - 1);
         for b in next_block ..= batch_end {
             let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justification.is_some() {
@@ -662,11 +656,17 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
-            sync_events_only(&pr, &mut sync_state, info.headernum, args.sync_blocks).await?;
+            sync_events_only(
+                &client, &pr, &events_decoder, &mut sync_state,
+                // info.headernum is the next unknown header. So we sync to headernum - 1
+                info.headernum - 1,
+                args.sync_blocks
+            ).await?;
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
+        let synced_blocks = batch_sync_block(
+            &client, &pr, &events_decoder, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {

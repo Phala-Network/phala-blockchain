@@ -52,7 +52,6 @@ pub use sp_runtime;
 use codec::Decode;
 use futures::future;
 use jsonrpsee::client::Subscription;
-use sc_rpc_api::state::ReadProof;
 use sp_core::{
     storage::{
         StorageChangeSet,
@@ -79,6 +78,7 @@ pub use crate::{
     events::{
         EventsDecoder,
         RawEvent,
+        Raw as RawEventWrapper,
     },
     extrinsic::{
         PairSigner,
@@ -94,6 +94,7 @@ pub use crate::{
     rpc::{
         BlockNumber,
         ExtrinsicSuccess,
+        ReadProof,
         SystemProperties,
     },
     runtimes::*,

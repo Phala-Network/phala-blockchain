@@ -2,20 +2,21 @@
 extern crate alloc;
 use sp_core::U256;
 use sp_std::prelude::*;
-use sp_std::cmp;
+use sp_std::{cmp, vec};
 
-use frame_support::{ensure, decl_module, decl_storage, decl_event, decl_error, dispatch};
-use frame_system::{Module as System, ensure_signed, ensure_root};
+use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
+use frame_system::{ensure_root, ensure_signed, Module as System};
 
 use alloc::vec::Vec;
-use sp_runtime::{
-	Permill, traits::AccountIdConversion, ModuleId, SaturatedConversion
-};
+use codec::Decode;
 use frame_support::{
-	traits::{Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness, UnixTime},
+	traits::{
+		Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness,
+		UnixTime,
+	},
 	weights::Weight,
 };
-use codec::Decode;
+use sp_runtime::{traits::AccountIdConversion, ModuleId, Permill, SaturatedConversion};
 
 #[macro_use]
 mod benchmarking;
@@ -27,10 +28,9 @@ mod hashing;
 // types
 extern crate phala_types as types;
 use types::{
-	WorkerMessagePayload, SignedWorkerMessage,
-	TransferData, SignedDataType,
-	WorkerStateEnum, WorkerInfo, StashInfo, PayoutPrefs, Score, PRuntimeInfo, BlockRewardInfo,
-	RoundInfo, RoundStats, MinerStatsDelta
+	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
+	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, TransferData, WorkerInfo,
+	WorkerMessagePayload, WorkerStateEnum,
 };
 
 #[cfg(test)]
@@ -45,8 +45,10 @@ mod tests;
 
 pub use weights::ModuleWeightInfo;
 
-type BalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type BalanceOf<T> =
+	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> =
+	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
 
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
@@ -54,6 +56,11 @@ const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 const BLOCK_REWARD_TO_KEEP: u32 = 20;
 const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
+
+pub trait OnRoundEnd {
+	fn on_round_end(_round: u32) {}
+}
+impl OnRoundEnd for () {}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
@@ -63,16 +70,18 @@ pub trait Config: frame_system::Config {
 	type UnixTime: UnixTime;
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	type ModuleWeightInfo: ModuleWeightInfo;
+	type OnRoundEnd: OnRoundEnd;
 
 	// Parameters
-	type MaxHeartbeatPerWorkerPerHour: Get<u32>;  // 2 tx
-	type RoundInterval: Get<Self::BlockNumber>;  // 1 hour
-	type DecayInterval: Get<Self::BlockNumber>;  // 180 days
-	type DecayFactor: Get<Permill>;  // 75%
-	type InitialReward: Get<BalanceOf<Self>>;  // 129600000 PHA
-	type TreasuryRation: Get<u32>;  // 20%
-	type RewardRation: Get<u32>;  // 80%
-	type OnlineRewardPercentage: Get<Permill>;	// rel: 37.5% post-taxed: 30%
+	type MaxHeartbeatPerWorkerPerHour: Get<u32>; // 2 tx
+	type RoundInterval: Get<Self::BlockNumber>; // 1 hour
+	type DecayInterval: Get<Self::BlockNumber>; // 180 days
+	type DecayFactor: Get<Permill>; // 75%
+	type InitialReward: Get<BalanceOf<Self>>; // 129600000 PHA
+	type TreasuryRation: Get<u32>; // 20%
+	type RewardRation: Get<u32>; // 80%
+	type OnlineRewardPercentage: Get<Permill>; // rel: 37.5% post-taxed: 30%
+	type ComputeRewardPercentage: Get<Permill>; // rel: 62.5% post-taxed: 50%
 }
 
 decl_storage! {
@@ -97,9 +106,11 @@ decl_storage! {
 		StashState get(fn stash_state):
 			map hasher(blake2_128_concat) T::AccountId => StashInfo<T::AccountId>;
 		// Power and Fire
-		/// Fire measures the total reward the miner can get from the network (PoC3 specific)
+		/// Fire measures the total reward the miner can get (PoC3 1604-I specific)
 		Fire get(fn fire): map hasher(blake2_128_concat) T::AccountId => BalanceOf<T>;
-		/// Heartbeat counts (indexied: Total~, Max~, ActiveWorkers)
+		/// Fire2 measures the total reward the miner can get (PoC3 1605-II specific)
+		Fire2 get(fn fire2): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		/// Heartbeat counts
 		Heartbeats get(fn heartbeats): map hasher(blake2_128_concat) T::AccountId => u32;
 
 		// Indices
@@ -107,12 +118,16 @@ decl_storage! {
 		MachineOwner get(fn machine_owner): map hasher(blake2_128_concat) Vec<u8> => T::AccountId;
 		/// Map from controller to stash
 		Stash get(fn stash): map hasher(blake2_128_concat) T::AccountId => T::AccountId;
-		/// Sum of all online workers in this round
+		/// Number of all online workers in this round
 		OnlineWorkers get(fn online_workers): u32;
+		/// Number of all computation workers that will be elected in this round
+		ComputeWorkers get(fn compute_workers): u32;
 		/// Total Power points in this round. Updated at handle_round_ends().
 		TotalPower get(fn total_power): u32;
-		/// Total Fire points
+		/// Total Fire points (1605-I specific)
 		AccumulatedFire get(fn accumulated_fire): BalanceOf<T>;
+		/// Total Fire points (1605-II specific)
+		AccumulatedFire2 get(fn accumulated_fire2): BalanceOf<T>;
 
 		// Round management
 		/// The current mining round id
@@ -140,6 +155,7 @@ decl_storage! {
 		MREnclaveWhitelist get(fn mr_enclave_whitelist): Vec<Vec<u8>>;
 		TargetOnlineRewardCount get(fn target_online_reward_count): u32;
 		TargetComputeRewardCount get(fn target_compute_reward_count): u32;
+		TargetVirtualTaskCount get(fn target_virtual_task_count): u32;
 		/// Miners must submit the heartbeat within the reward window
 		RewardWindow get(fn reward_window): T::BlockNumber;
 	}
@@ -183,12 +199,17 @@ decl_storage! {
 			RewardWindow::<T>::put(T::BlockNumber::from(8u32));
 			TargetOnlineRewardCount::put(20u32);
 			TargetComputeRewardCount::put(10u32);
+			TargetVirtualTaskCount::put(5u32);
 		});
 	}
 }
 
 decl_event!(
-	pub enum Event<T> where AccountId = <T as frame_system::Config>::AccountId, Balance = BalanceOf<T> {
+	pub enum Event<T>
+	where
+		AccountId = <T as frame_system::Trait>::AccountId,
+		Balance = BalanceOf<T>,
+	{
 		// Debug events
 		LogString(Vec<u8>),
 		LogI32(i32),
@@ -196,23 +217,24 @@ decl_event!(
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
-		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),  // stash, identity_key, machine_id
-		WorkerUnregistered(AccountId, Vec<u8>),  // stash, machine_id
+		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>), // stash, identity_key, machine_id
+		WorkerUnregistered(AccountId, Vec<u8>),        // stash, machine_id
 		Heartbeat(AccountId, u32),
 		Offline(AccountId),
 		Slash(AccountId, Balance, u32),
-		GotCredits(AccountId, u32, u32),  // account, updated, delta
+		GotCredits(AccountId, u32, u32), // account, updated, delta
 		WorkerStateUpdated(AccountId),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
 		RewardSeed(BlockRewardInfo),
-		WorkerMessageReceived(AccountId, Vec<u8>, u64),  // stash, identity_key, seq
-		MinerStarted(u32, AccountId),  // round, stash
-		MinerStopped(u32, AccountId),  // round, stash
-		NewMiningRound(u32),  // round
-		Payout(AccountId, Balance, Balance),  // dest, reward, treasury
-		PayoutMissed(AccountId, AccountId),  // stash, dest
-		WorkerRenewed(AccountId, Vec<u8>),  // stash, machine_id
+		WorkerMessageReceived(AccountId, Vec<u8>, u64), // stash, identity_key, seq
+		MinerStarted(u32, AccountId),                   // round, stash
+		MinerStopped(u32, AccountId),                   // round, stash
+		NewMiningRound(u32),                            // round
+		_Payout(AccountId, Balance, Balance),           // [DEPRECATED] dest, reward, treasury
+		PayoutMissed(AccountId, AccountId),             // stash, dest
+		WorkerRenewed(AccountId, Vec<u8>),              // stash, machine_id
+		PayoutReward(AccountId, Balance, Balance, PayoutReason), // dest, reward, treasury, reason
 	}
 );
 
@@ -284,6 +306,10 @@ decl_module! {
 		type Error = Error<T>;
 		fn deposit_event() = default;
 
+		fn on_runtime_upgrade() -> Weight {
+			migrations_3_2_0::apply::<Self>()
+		}
+
 		fn on_finalize() {
 			let now = System::<T>::block_number();
 			let round = Round::<T>::get();
@@ -326,7 +352,7 @@ decl_module! {
 					controller: controller.clone(),
 					payout_prefs: PayoutPrefs {
 						commission: 0,
-						target: who.clone(),
+						target: who.clone(),  // Set to the stash by default
 					}
 				}
 			};
@@ -338,8 +364,8 @@ decl_module! {
 		/// Update the payout preferences. Must be called by the controller.
 		#[weight = T::ModuleWeightInfo::set_payout_prefs()]
 		pub fn set_payout_prefs(origin, payout_commission: Option<u32>,
-							    payout_target: Option<T::AccountId>)
-						        -> dispatch::DispatchResult {
+								payout_target: Option<T::AccountId>)
+								-> dispatch::DispatchResult {
 			let who = ensure_signed(origin)?;
 			ensure!(Stash::<T>::contains_key(who.clone()), Error::<T>::NotController);
 			let stash = Stash::<T>::get(who.clone());
@@ -581,6 +607,21 @@ decl_module! {
 			Ok(())
 		}
 
+		#[weight = 0]
+		fn force_set_virtual_tasks(origin, target: u32) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			TargetVirtualTaskCount::put(target);
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn force_reset_fire(origin) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			Fire2::<T>::remove_all();
+			AccumulatedFire2::<T>::kill();
+			Ok(())
+		}
+
 		// Whitelist
 
 		#[weight = T::ModuleWeightInfo::add_mrenclave()]
@@ -616,7 +657,10 @@ impl<T: Config> Module<T> {
 	pub fn is_controller(controller: T::AccountId) -> bool {
 		Stash::<T>::contains_key(&controller)
 	}
-	pub fn verify_signature(serialized_pk: &Vec<u8>, data: &impl SignedDataType<Vec<u8>>) -> dispatch::DispatchResult {
+	pub fn verify_signature(
+		serialized_pk: &Vec<u8>,
+		data: &impl SignedDataType<Vec<u8>>,
+	) -> dispatch::DispatchResult {
 		use sp_std::convert::TryFrom;
 		ensure!(serialized_pk.len() == 33, Error::<T>::InvalidPubKey);
 		let pubkey = sp_core::ecdsa::Public::try_from(serialized_pk.as_slice())
@@ -627,13 +671,18 @@ impl<T: Config> Module<T> {
 			.map_err(|_| Error::<T>::InvalidSignature)?;
 		let data = data.raw_data();
 
-		ensure!(sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey), Error::<T>::FailedToVerify);
+		ensure!(
+			sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey),
+			Error::<T>::FailedToVerify
+		);
 		Ok(())
 	}
 
 	/// Unlinks a worker from a stash account. Only call when they are linked.
 	fn unlink_worker(
-		stash: &T::AccountId, machine_id: &Vec<u8>, stats_delta: &mut MinerStatsDelta
+		stash: &T::AccountId,
+		machine_id: &Vec<u8>,
+		stats_delta: &mut MinerStatsDelta,
 	) {
 		WorkerIngress::<T>::remove(stash);
 		MachineOwner::<T>::remove(machine_id);
@@ -646,13 +695,19 @@ impl<T: Config> Module<T> {
 					stats_delta.num_power -= score.overall_score as i32;
 				}
 			}
-			_ => ()
+			_ => (),
 		};
-		Self::deposit_event(RawEvent::WorkerUnregistered(stash.clone(), machine_id.clone()));
+		Self::deposit_event(RawEvent::WorkerUnregistered(
+			stash.clone(),
+			machine_id.clone(),
+		));
 	}
 
 	fn register_worker_internal(
-		stash: &T::AccountId, machine_id: &Vec<u8>, pubkey: &Vec<u8>, worker_features: &Vec<u32>
+		stash: &T::AccountId,
+		machine_id: &Vec<u8>,
+		pubkey: &Vec<u8>,
+		worker_features: &Vec<u32>,
 	) -> Result<(), Error<T>> {
 		let mut delta = PendingExitingDelta::get();
 		let info = WorkerState::<T>::get(stash);
@@ -665,8 +720,8 @@ impl<T: Config> Module<T> {
 				Self::unlink_worker(&machine_owner, machine_id, &mut delta);
 			}
 			// Stash linked to another worker
-			if info.state != WorkerStateEnum::<T::BlockNumber>::Empty
-				&& !info.machine_id.is_empty() {
+			if info.state != WorkerStateEnum::<T::BlockNumber>::Empty && !info.machine_id.is_empty()
+			{
 				Self::unlink_worker(stash, &info.machine_id, &mut delta);
 			}
 		}
@@ -675,24 +730,26 @@ impl<T: Config> Module<T> {
 		let score = Some(Score {
 			overall_score: calc_overall_score(worker_features)
 				.map_err(|()| Error::<T>::InvalidInput)?,
-			features: worker_features.clone()
+			features: worker_features.clone(),
 		});
 		// New WorkerInfo
 		let new_info = if renew_only {
 			// Just renewed
-			Self::deposit_event(
-				RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+			Self::deposit_event(RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
 			WorkerInfo {
-				machine_id: machine_id.clone(),	 // should not change, but we set it anyway
-				pubkey: pubkey.clone(),	  // could change if the worker forgot the identity
+				machine_id: machine_id.clone(), // should not change, but we set it anyway
+				pubkey: pubkey.clone(),         // could change if the worker forgot the identity
 				last_updated,
-				score,	// could change if we do profiling
+				score,  // could change if we do profiling
 				..info  // keep .state
 			}
 		} else {
 			// Link a new worker
 			Self::deposit_event(RawEvent::WorkerRegistered(
-				stash.clone(), pubkey.clone(), machine_id.clone()));
+				stash.clone(),
+				pubkey.clone(),
+				machine_id.clone(),
+			));
 			WorkerInfo {
 				machine_id: machine_id.clone(),
 				pubkey: pubkey.clone(),
@@ -730,7 +787,12 @@ impl<T: Config> Module<T> {
 		Heartbeats::<T>::remove_all();
 	}
 
-	fn extend_mrenclave(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> Vec<u8> {
+	fn extend_mrenclave(
+		mr_enclave: &[u8],
+		mr_signer: &[u8],
+		isv_prod_id: &[u8],
+		isv_svn: &[u8],
+	) -> Vec<u8> {
 		let mut t_mrenclave = Vec::new();
 		t_mrenclave.extend_from_slice(mr_enclave);
 		t_mrenclave.extend_from_slice(isv_prod_id);
@@ -739,20 +801,36 @@ impl<T: Config> Module<T> {
 		t_mrenclave
 	}
 
-	fn add_mrenclave_to_whitelist(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
+	fn add_mrenclave_to_whitelist(
+		mr_enclave: &[u8],
+		mr_signer: &[u8],
+		isv_prod_id: &[u8],
+		isv_svn: &[u8],
+	) -> dispatch::DispatchResult {
 		let mut whitelist = MREnclaveWhitelist::get();
 		let white_mrenclave = Self::extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
-		ensure!(!whitelist.contains(&white_mrenclave), Error::<T>::MREnclaveAlreadyExist);
+		ensure!(
+			!whitelist.contains(&white_mrenclave),
+			Error::<T>::MREnclaveAlreadyExist
+		);
 		whitelist.push(white_mrenclave.clone());
 		MREnclaveWhitelist::put(whitelist);
 		Self::deposit_event(RawEvent::WhitelistAdded(white_mrenclave));
 		Ok(())
 	}
 
-	fn remove_mrenclave_from_whitelist_by_raw_data(mr_enclave: &[u8], mr_signer: &[u8], isv_prod_id: &[u8], isv_svn: &[u8]) -> dispatch::DispatchResult {
+	fn remove_mrenclave_from_whitelist_by_raw_data(
+		mr_enclave: &[u8],
+		mr_signer: &[u8],
+		isv_prod_id: &[u8],
+		isv_svn: &[u8],
+	) -> dispatch::DispatchResult {
 		let mut whitelist = MREnclaveWhitelist::get();
 		let t_mrenclave = Self::extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
-		ensure!(whitelist.contains(&t_mrenclave), Error::<T>::MREnclaveNotFound);
+		ensure!(
+			whitelist.contains(&t_mrenclave),
+			Error::<T>::MREnclaveNotFound
+		);
 		let len = whitelist.len();
 		for i in 0..len {
 			if whitelist[i] == t_mrenclave {
@@ -778,25 +856,35 @@ impl<T: Config> Module<T> {
 	/// Updates RoundStatsHistory and only keeps ROUND_STATS_TO_KEEP revisions.
 	///
 	/// Shall call this function only when the new round have started.
-	fn update_round_stats(round: u32, online_workers: u32, compute_workers: u32,
-						  total_power: u32) {
+	fn update_round_stats(round: u32, online_workers: u32, compute_workers: u32, total_power: u32) {
 		if round >= ROUND_STATS_TO_KEEP {
 			RoundStatsHistory::remove(round - ROUND_STATS_TO_KEEP);
 		}
 		let online_target = TargetOnlineRewardCount::get();
 		let frac_target_online_reward = Self::clipped_target_number(online_target, online_workers);
+		let frac_target_compute_reward =
+			Self::clipped_target_number(TargetComputeRewardCount::get(), compute_workers);
 
-		RoundStatsHistory::insert(round, RoundStats {
+		RoundStatsHistory::insert(
 			round,
-			online_workers,
-			compute_workers,
-			frac_target_online_reward,
-			total_power,
-		});
+			RoundStats {
+				round,
+				online_workers,
+				compute_workers,
+				frac_target_online_reward,
+				frac_target_compute_reward,
+				total_power,
+			},
+		);
 	}
 
 	fn handle_round_ends(now: T::BlockNumber, round: &RoundInfo<T::BlockNumber>) {
+		// Dependencies
+		T::OnRoundEnd::on_round_end(round.round);
+
+		// Handle PhalaModule specific tasks
 		Self::clear_heartbeats();
+
 		// Mining rounds
 		let new_round = round.round + 1;
 		let new_block = now + 1u32.into();
@@ -824,7 +912,7 @@ impl<T: Config> Module<T> {
 					}
 					Self::deposit_event(RawEvent::MinerStarted(new_round, account.clone()));
 					updated = true;
-				},
+				}
 				WorkerStateEnum::MiningStopping => {
 					worker_info.state = WorkerStateEnum::Free;
 					delta -= 1;
@@ -833,7 +921,7 @@ impl<T: Config> Module<T> {
 					}
 					Self::deposit_event(RawEvent::MinerStopped(new_round, account.clone()));
 					updated = true;
-				},
+				}
 				_ => {}
 			}
 			// TODO: slash
@@ -851,9 +939,9 @@ impl<T: Config> Module<T> {
 		OnlineWorkers::put(new_online);
 		let new_total_power = ((TotalPower::get() as i32) + power_delta) as u32;
 		TotalPower::put(new_total_power);
-
-		// dispatch tasks
-		//	 TODO: randomly dispatch tasks and rewards
+		// Computation tasks
+		let compute_workers = cmp::min(new_online, TargetVirtualTaskCount::get());
+		ComputeWorkers::put(compute_workers);
 
 		// Start new round
 		Self::clear_dirty();
@@ -861,7 +949,7 @@ impl<T: Config> Module<T> {
 			round: new_round,
 			start_block: new_block,
 		});
-		Self::update_round_stats(new_round, new_online, 0u32, new_total_power);
+		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
@@ -882,10 +970,20 @@ impl<T: Config> Module<T> {
 				} else {
 					u256_target(
 						round_stats.frac_target_online_reward as u64,
-						(round_stats.online_workers as u64) * (PERCENTAGE_BASE as u64))
+						(round_stats.online_workers as u64) * (PERCENTAGE_BASE as u64),
+					)
 				}
 			},
-			compute_target: U256::zero(),
+			compute_target: {
+				if round_stats.compute_workers == 0 {
+					U256::zero()
+				} else {
+					u256_target(
+						round_stats.frac_target_compute_reward as u64,
+						(round_stats.compute_workers as u64) * (PERCENTAGE_BASE as u64),
+					)
+				}
+			},
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
@@ -893,8 +991,12 @@ impl<T: Config> Module<T> {
 	}
 
 	fn handle_claim_reward(
-		stash: &T::AccountId, payout_target: &T::AccountId, claim_online: bool,
-		_claim_compute: bool, score: u32, claiming_block: T::BlockNumber
+		stash: &T::AccountId,
+		payout_target: &T::AccountId,
+		claim_online: bool,
+		claim_compute: bool,
+		score: u32,
+		claiming_block: T::BlockNumber,
 	) {
 		// Check is mining
 		let worker_info = WorkerState::<T>::get(stash);
@@ -902,20 +1004,36 @@ impl<T: Config> Module<T> {
 			// Confirmed too late. Just skip.
 			let now = System::<T>::block_number();
 			let reward_window = RewardWindow::<T>::get();
-			if claiming_block + reward_window < now  {
+			if claiming_block + reward_window < now {
 				Self::deposit_event(RawEvent::PayoutMissed(stash.clone(), payout_target.clone()));
 				return;
 			}
-			if claim_online {
+			if claim_online || claim_compute {
 				let round_stats = Self::round_stats_at(claiming_block);
 				if round_stats.online_workers == 0 {
 					panic!("No online worker but the miner is claiming the rewards; qed");
 				}
 				let round_reward = Self::round_mining_reward_at(claiming_block);
-				let online = Self::pretax_online_reward(
-					round_reward, score, round_stats.total_power,
-					round_stats.frac_target_online_reward, round_stats.online_workers);
-				Self::payout(online, payout_target);
+				// Adjusted online worker reward
+				if claim_online {
+					let online = Self::pretax_online_reward(
+						round_reward,
+						score,
+						round_stats.total_power,
+						round_stats.frac_target_online_reward,
+						round_stats.online_workers,
+					);
+					Self::payout(online, payout_target, PayoutReason::OnlineReward);
+				}
+				// Adjusted compute worker reward
+				if claim_compute {
+					let compute = Self::pretax_compute_reward(
+						round_reward,
+						round_stats.frac_target_compute_reward,
+						round_stats.compute_workers,
+					);
+					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
+				}
 			}
 
 			// TODO: do we need to check xor threshold?
@@ -930,18 +1048,20 @@ impl<T: Config> Module<T> {
 		let upper_clipped = cmp::min(
 			num_target * PERCENTAGE_BASE,
 			(T::MaxHeartbeatPerWorkerPerHour::get() as u64
-				* (num_workers as u64) * (PERCENTAGE_BASE as u64)
-				/ (round_blocks as u64)) as u32);
+				* (num_workers as u64)
+				* (PERCENTAGE_BASE as u64)
+				/ (round_blocks as u64)) as u32,
+		);
 		upper_clipped
 	}
 
 	/// Calculates the total mining reward for this round
 	fn round_mining_reward_at(_blocknum: T::BlockNumber) -> BalanceOf<T> {
-		let initial_reward: BalanceOf<T> =
-			T::InitialReward::get() /
-			BalanceOf::<T>::from(
-				(T::DecayInterval::get() / T::RoundInterval::get()).saturated_into::<u32>());
-			// BalanceOf::<T>::from();
+		let initial_reward: BalanceOf<T> = T::InitialReward::get()
+			/ BalanceOf::<T>::from(
+				(T::DecayInterval::get() / T::RoundInterval::get()).saturated_into::<u32>(),
+			);
+		// BalanceOf::<T>::from();
 		let round_reward = initial_reward;
 		// TODO: consider the halvings
 		//
@@ -961,48 +1081,89 @@ impl<T: Config> Module<T> {
 		RoundStatsHistory::get(round)
 	}
 
-	/// Calculates the adjusted reward for a specific miner
+	/// Calculates the adjusted online reward for a specific miner
 	fn pretax_online_reward(
-		round_reward: BalanceOf<T>, score: u32, total_power: u32, frac_target_online_reward: u32,
-		workers: u32
+		round_reward: BalanceOf<T>,
+		score: u32,
+		total_power: u32,
+		frac_target_online_reward: u32,
+		workers: u32,
+	) -> BalanceOf<T> {
+		Self::pretax_reward(
+			round_reward,
+			score,
+			total_power,
+			frac_target_online_reward,
+			T::OnlineRewardPercentage::get(),
+			workers,
+		)
+	}
+
+	/// Calculates the adjust computation reward (every miner has same reward now)
+	fn pretax_compute_reward(
+		round_reward: BalanceOf<T>,
+		frac_target_compute_reward: u32,
+		compute_workers: u32,
+	) -> BalanceOf<T> {
+		Self::pretax_reward(
+			round_reward,
+			// Since all compute worker has the equal reward, we set the propotion reward of a
+			// worker to `1 / compute_workers`
+			1,
+			compute_workers,
+			frac_target_compute_reward,
+			T::ComputeRewardPercentage::get(),
+			compute_workers,
+		)
+	}
+
+	fn pretax_reward(
+		round_reward: BalanceOf<T>,
+		weight: u32,
+		total_weight: u32,
+		frac_target_reward: u32,
+		reward_percentage: Permill,
+		workers: u32,
 	) -> BalanceOf<T> {
 		let round_blocks = T::RoundInterval::get().saturated_into::<u64>();
 		// The target reward for this miner
 		let target =
-			round_reward * BalanceOf::<T>::from(score) / BalanceOf::<T>::from(total_power);
+			round_reward * BalanceOf::<T>::from(weight) / BalanceOf::<T>::from(total_weight);
 		// Adjust based on the mathematical expectation
-		let adjusted: BalanceOf<T> =
-			target
+		let adjusted: BalanceOf<T> = target
 			* ((workers as u64) * (PERCENTAGE_BASE as u64)).saturated_into()
-			/ ((round_blocks as u64) * (frac_target_online_reward as u64)).saturated_into();
-
-		let online_reward = T::OnlineRewardPercentage::get() * adjusted;
-		online_reward
+			/ ((round_blocks as u64) * (frac_target_reward as u64)).saturated_into();
+		let reward = reward_percentage * adjusted;
+		reward
 	}
 
 	/// Actually pays out the reward
-	fn payout(value: BalanceOf<T>, target: &T::AccountId) {
+	fn payout(value: BalanceOf<T>, target: &T::AccountId, reason: PayoutReason) {
 		// Retion the reward and the treasury deposit
 		let coins = T::TEECurrency::issue(value);
-		let (coin_reward, coin_treasury) = coins.ration(
-			T::RewardRation::get(), T::TreasuryRation::get());
+		let (coin_reward, coin_treasury) =
+			coins.ration(T::RewardRation::get(), T::TreasuryRation::get());
 		// Payout!
 		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
-		Self::deposit_event(RawEvent::Payout(
-			target.clone(), coin_reward.peek(), coin_treasury.peek()));
+		Self::deposit_event(RawEvent::PayoutReward(
+			target.clone(),
+			coin_reward.peek(),
+			coin_treasury.peek(),
+			reason,
+		));
 		Self::add_fire(&target, coin_reward.peek());
 		T::Treasury::on_unbalanced(coin_treasury);
 	}
 
 	fn add_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
-		Fire::<T>::mutate(dest, |x| *x += amount);
-		AccumulatedFire::<T>::mutate(|x| *x += amount);
+		Fire2::<T>::mutate(dest, |x| *x += amount);
+		AccumulatedFire2::<T>::mutate(|x| *x += amount);
 	}
 }
 
 fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {
 	if features.len() != 2 {
-		return Err(())
+		return Err(());
 	}
 	let core = features[0];
 	let feature_level = features[1];
@@ -1015,4 +1176,12 @@ fn u256_target(m: u64, n: u64) -> U256 {
 		panic!("Invalid parameter");
 	}
 	U256::MAX / n * m
+}
+
+// Migration from 3.1.0 to 3.2.0
+mod migrations_3_2_0;
+impl<T: Trait> migrations_3_2_0::V31ToV32 for Module<T> {
+	type Module = Module<T>;
+	type AccountId = T::AccountId;
+	type BlockNumber = T::BlockNumber;
 }

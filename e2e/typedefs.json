@@ -47,10 +47,17 @@
     "onlineWorkers": "u32",
     "computeWorkers": "u32",
     "fracTargetOnlineReward": "u32",
-    "totalPower": "u32"
+    "totalPower": "u32",
+    "fracTargetComputeReward": "u32"
   },
   "MinerStatsDelta": {
     "numWorker": "i32",
     "numPower": "i32"
+  },
+  "PayoutReason": {
+    "_enum": {
+	  "OnlineReward": null,
+	  "ComputeReward": null
+	}
   }
 }
