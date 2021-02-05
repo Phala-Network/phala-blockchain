@@ -608,6 +608,14 @@ decl_module! {
 			Ok(())
 		}
 
+		#[weight = 0]
+		fn force_reset_fire(origin) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			Fire2::<T>::remove_all();
+			AccumulatedFire2::<T>::kill();
+			Ok(())
+		}
+
 		// Whitelist
 
 		#[weight = 0]
