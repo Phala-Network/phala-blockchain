@@ -29,6 +29,8 @@ pub trait ModuleWeightInfo {
 	fn add_mrenclave() -> Weight;
 	fn remove_mrenclave_by_raw_data() -> Weight;
 	fn remove_mrenclave_by_index() -> Weight;
+	fn force_set_virtual_tasks() -> Weight;
+	fn force_reset_fire() -> Weight;
 }
 
 /// Weight functions for pallet_phala.
@@ -112,6 +114,16 @@ impl<T: frame_system::Config> ModuleWeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as Weight))
 			.saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
+	fn force_set_virtual_tasks() -> Weight {
+		(50_000_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
+	fn force_reset_fire() -> Weight {
+		(50_000_000 as Weight)
+			.saturating_add(T::DbWeight::get().reads(1 as Weight))
+			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+	}
 }
 
 // For backwards compatibility and tests
@@ -190,6 +202,16 @@ impl ModuleWeightInfo for () {
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
 	}
 	fn remove_mrenclave_by_index() -> Weight {
+		(50_000_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+	}
+	fn force_set_virtual_tasks() -> Weight {
+		(50_000_000 as Weight)
+			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
+			.saturating_add(RocksDbWeight::get().writes(1 as Weight))
+	}
+	fn force_reset_fire() -> Weight {
 		(50_000_000 as Weight)
 			.saturating_add(RocksDbWeight::get().reads(1 as Weight))
 			.saturating_add(RocksDbWeight::get().writes(1 as Weight))

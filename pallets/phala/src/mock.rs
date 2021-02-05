@@ -7,8 +7,7 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use frame_support::{parameter_types, weights::Weight, traits::TestRandomness};
-use frame_support::traits::Randomness;
+use frame_support::{parameter_types, traits::TestRandomness};
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;

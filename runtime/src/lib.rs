@@ -1052,7 +1052,7 @@ impl pallet_claim::Config for Runtime {
 	type Currency = Balances;
 }
 
-impl pallet_mining_staking::Trait for Runtime {
+impl pallet_mining_staking::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 }

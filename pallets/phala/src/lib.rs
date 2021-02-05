@@ -14,7 +14,6 @@ use frame_support::{
 		Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness,
 		UnixTime,
 	},
-	weights::Weight,
 };
 use sp_runtime::{traits::AccountIdConversion, ModuleId, Permill, SaturatedConversion};
 
@@ -207,7 +206,7 @@ decl_storage! {
 decl_event!(
 	pub enum Event<T>
 	where
-		AccountId = <T as frame_system::Trait>::AccountId,
+		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
 		// Debug events
@@ -603,14 +602,14 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_set_virtual_tasks()]
 		fn force_set_virtual_tasks(origin, target: u32) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			TargetVirtualTaskCount::put(target);
 			Ok(())
 		}
 
-		#[weight = 0]
+		#[weight = T::ModuleWeightInfo::force_reset_fire()]
 		fn force_reset_fire(origin) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			Fire2::<T>::remove_all();

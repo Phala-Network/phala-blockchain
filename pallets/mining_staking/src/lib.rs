@@ -21,18 +21,18 @@ mod mock;
 mod tests;
 
 type BalanceOf<T> =
-	<<T as Trait>::Currency as Currency<<T as frame_system::Trait>::AccountId>>::Balance;
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 const PALLET_ID: ModuleId = ModuleId(*b"PHAPoWS.");
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Trait: frame_system::Trait {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Trait>::Event>;
+pub trait Config: frame_system::Config {
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Currency: Currency<Self::AccountId>;
 }
 
 decl_storage! {
-	trait Store for Module<T: Trait> as MiningStaking {
+	trait Store for Module<T: Config> as MiningStaking {
 		Wallet get(fn wallet): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
 		PendingStaking get(fn pending_staking):
 			double_map
@@ -62,7 +62,7 @@ decl_storage! {
 decl_event!(
 	pub enum Event<T>
 	where
-		AccountId = <T as frame_system::Trait>::AccountId,
+		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
 		/// Applied the pending stake
@@ -74,14 +74,14 @@ decl_event!(
 
 // Errors inform users that something went wrong.
 decl_error! {
-	pub enum Error for Module<T: Trait> {
+	pub enum Error for Module<T: Config> {
 		InsufficientFunds,
 		InsufficientStake,
 	}
 }
 
 decl_module! {
-	pub struct Module<T: Trait> for enum Call where origin: T::Origin {
+	pub struct Module<T: Config> for enum Call where origin: T::Origin {
 		type Error = Error<T>;
 		fn deposit_event() = default;
 
@@ -162,7 +162,7 @@ decl_module! {
 	}
 }
 
-impl<T: Trait> Module<T> {
+impl<T: Config> Module<T> {
 	pub fn account_id() -> T::AccountId {
 		PALLET_ID.into_account()
 	}
@@ -218,7 +218,7 @@ impl<T: Trait> Module<T> {
 	}
 }
 
-impl<T: Trait> pallet_phala::OnRoundEnd for Module<T> {
+impl<T: Config> pallet_phala::OnRoundEnd for Module<T> {
 	fn on_round_end(_round: u32) {
 		Self::handle_round_end();
 	}

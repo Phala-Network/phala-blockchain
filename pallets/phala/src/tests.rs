@@ -15,7 +15,7 @@ use crate::{
 };
 use phala_types::PayoutReason;
 
-fn events() -> Vec<TestEvent> {
+fn events() -> Vec<Event> {
 	let evt = System::events()
 		.into_iter()
 		.map(|evt| evt.event)
@@ -208,10 +208,10 @@ fn test_whitelist_works() {
 		assert_eq!(
 			true,
 			match events().as_slice() {[
-					TestEvent::phala(RawEvent::WhitelistAdded(_)),
-					TestEvent::phala(RawEvent::WorkerRegistered(1, _, _)),
-					TestEvent::phala(RawEvent::WorkerUnregistered(1, _)),
-					TestEvent::phala(RawEvent::WorkerRegistered(2, _, _))
+					Event::phala(RawEvent::WhitelistAdded(_)),
+					Event::phala(RawEvent::WorkerRegistered(1, _, _)),
+					Event::phala(RawEvent::WorkerUnregistered(1, _)),
+					Event::phala(RawEvent::WorkerRegistered(2, _, _))
 				] => true,
 				_ => false
 			}
@@ -233,10 +233,10 @@ fn test_remove_mrenclave_works() {
 		assert_eq!(
 			true,
 			match events().as_slice() {[
-			TestEvent::phala(RawEvent::WhitelistAdded(_)),
-			TestEvent::phala(RawEvent::WhitelistRemoved(_)),
-			TestEvent::phala(RawEvent::WhitelistAdded(_)),
-			TestEvent::phala(RawEvent::WhitelistRemoved(_)),
+			Event::phala(RawEvent::WhitelistAdded(_)),
+			Event::phala(RawEvent::WhitelistRemoved(_)),
+			Event::phala(RawEvent::WhitelistAdded(_)),
+			Event::phala(RawEvent::WhitelistRemoved(_)),
 			] => true,
 				_ => false
 			}
@@ -387,7 +387,7 @@ fn test_randomness() {
 
 		assert_ne!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::RewardSeed(Default::default()))]
+			[Event::phala(RawEvent::RewardSeed(Default::default()))]
 		);
 	});
 }
@@ -432,7 +432,7 @@ fn test_round_stats() {
 		);
 		assert_matches!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::RewardSeed(_)), TestEvent::phala(RawEvent::NewMiningRound(1))]
+			[Event::phala(RawEvent::RewardSeed(_)), Event::phala(RawEvent::NewMiningRound(1))]
 		);
 		// Block 2
 		System::set_block_number(2);
@@ -555,7 +555,7 @@ fn test_payout() {
 		PhalaModule::payout(100 * DOLLARS, &1, PayoutReason::OnlineReward);
 		assert_eq!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::PayoutReward(
+			[Event::phala(RawEvent::PayoutReward(
 				1,
 				80 * DOLLARS,
 				20 * DOLLARS,
@@ -601,14 +601,14 @@ fn test_payout_and_missed() {
 		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
 		assert_eq!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::PayoutMissed(1, 2))]
+			[Event::phala(RawEvent::PayoutMissed(1, 2))]
 		);
 		// Check some reward (right within the window)
 		System::set_block_number(1 + window);
 		PhalaModule::handle_claim_reward(&1, &2, true, false, 100, 1);
 		assert_eq!(
 			events().as_slice(),
-			[TestEvent::phala(RawEvent::PayoutReward(
+			[Event::phala(RawEvent::PayoutReward(
 				2,
 				4504_504504504504,
 				1126_126126126127,
@@ -656,12 +656,12 @@ fn test_mining_lifecycle_force_reregister() {
 		PhalaModule::on_finalize(1);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRegistered(1, x, y)),
-			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
-			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
-			TestEvent::phala(RawEvent::NewMiningRound(1))
+			Event::phala(RawEvent::WorkerRegistered(1, x, y)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::RewardSeed(_)),
+			Event::phala(RawEvent::MinerStarted(1, 1)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::NewMiningRound(1))
 		] if x == &pubkey && y == &machine_id);
 		assert_matches!(
 			PhalaModule::worker_state(1).state,
@@ -684,10 +684,10 @@ fn test_mining_lifecycle_force_reregister() {
 		PhalaModule::on_finalize(2);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerUnregistered(1, x)),
-			TestEvent::phala(RawEvent::WorkerRegistered(2, y, z)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::NewMiningRound(2))
+			Event::phala(RawEvent::WorkerUnregistered(1, x)),
+			Event::phala(RawEvent::WorkerRegistered(2, y, z)),
+			Event::phala(RawEvent::RewardSeed(_)),
+			Event::phala(RawEvent::NewMiningRound(2))
 		] if x == &machine_id && y == &pubkey && z == &machine_id);
 		// WorkerState for stash1 is gone
 		assert_eq!(PhalaModule::worker_state(1).state, WorkerStateEnum::Empty);
@@ -723,12 +723,12 @@ fn test_mining_lifecycle_renew() {
 		PhalaModule::on_finalize(1);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRegistered(1, x, y)),
-			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
-			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
-			TestEvent::phala(RawEvent::NewMiningRound(1))
+			Event::phala(RawEvent::WorkerRegistered(1, x, y)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::RewardSeed(_)),
+			Event::phala(RawEvent::MinerStarted(1, 1)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::NewMiningRound(1))
 		] if x == &pubkey && y == &machine_id);
 		assert_matches!(
 			PhalaModule::worker_state(1).state,
@@ -750,9 +750,9 @@ fn test_mining_lifecycle_renew() {
 		PhalaModule::on_finalize(2);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
-			TestEvent::phala(RawEvent::WorkerRenewed(1, x)),
-			TestEvent::phala(RawEvent::RewardSeed(_)),
-			TestEvent::phala(RawEvent::NewMiningRound(2))
+			Event::phala(RawEvent::WorkerRenewed(1, x)),
+			Event::phala(RawEvent::RewardSeed(_)),
+			Event::phala(RawEvent::NewMiningRound(2))
 		] if x == &machine_id);
 		assert_matches!(
 			PhalaModule::worker_state(1).state,

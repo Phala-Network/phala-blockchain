@@ -3,11 +3,10 @@
 use crate as claim;
 use sp_core::H256;
 use sp_runtime::{
-	Permill,
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use frame_support::{parameter_types, weights::Weight, traits::TestRandomness};
+use frame_support::parameter_types;
 
 pub(crate) type Balance = u128;
 

@@ -76,11 +76,11 @@ use rpc_types::*;
 
 type HeaderToSync = GenericHeaderToSync<
     chain::BlockNumber,
-    <chain::Runtime as frame_system::Trait>::Hashing,
+    <chain::Runtime as frame_system::Config>::Hashing,
 >;
 type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
     chain::BlockNumber,
-    <chain::Runtime as frame_system::Trait>::Hashing,
+    <chain::Runtime as frame_system::Config>::Hashing,
     chain::Balance,
 >;
 type OnlineWorkerSnapshot = phala_types::pruntime::OnlineWorkerSnapshot<
@@ -1037,6 +1037,55 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     local_state.runtime_info = Some(resp.clone());
     local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
+}
+
+fn fmt_call(call: &chain::Call) -> String {
+    match call {
+        chain::Call::Timestamp(chain::TimestampCall::set(t)) =>
+            format!("Timestamp::set({})", t),
+        chain::Call::Balances(chain::BalancesCall::transfer(to, amount)) =>
+            format!("Balance::transfer({:?}, {:?})", to, amount),
+        _ => String::from("<Unparsed>")
+    }
+}
+
+fn print_block(signed_block: &chain::SignedBlock) {
+    let header: &chain::Header = &signed_block.block.header;
+    let extrinsics: &Vec<chain::UncheckedExtrinsic> = &signed_block.block.extrinsics;
+
+    println!("SignedBlock {{");
+    println!("  block {{");
+    println!("    header {{");
+    println!("      number: {}", header.number);
+    println!("      extrinsics_root: {}", header.extrinsics_root);
+    println!("      state_root: {}", header.state_root);
+    println!("      parent_hash: {}", header.parent_hash);
+    println!("      digest: logs[{}]", header.digest.logs.len());
+    println!("  extrinsics: [");
+    for extrinsic in extrinsics {
+        println!("    UncheckedExtrinsic {{");
+        println!("      function: {}", fmt_call(&extrinsic.function));
+        println!("      signature: {:?}", extrinsic.signature);
+        println!("    }}");
+    }
+    println!("  ]");
+    println!("  justification: <skipped...>");
+    println!("}}");
+}
+
+fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec::Error> {
+    chain::SignedBlock::decode(&mut data.as_slice())
+}
+
+fn format_address(addr: &chain::Address) -> String {
+    match addr {
+        chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
+        chain::Address::Index(index) => format!("index:{}", index),
+        // TODO: Verify these
+        chain::Address::Raw(address) => hex::encode_hex_compact(address.as_ref()),
+        chain::Address::Address32(address) => hex::encode_hex_compact(address.as_ref()),
+        chain::Address::Address20(address) => hex::encode_hex_compact(address.as_ref())
+    }
 }
 
 fn handle_execution(
