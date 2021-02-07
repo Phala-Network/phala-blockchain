@@ -44,7 +44,6 @@ mod tests;
 
 type BalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
-// type XBalanceOf<T> = <T as xtoken::Config>::Balance;
 
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
@@ -560,13 +559,8 @@ decl_module! {
 			// Validate TEE signature
 			Self::verify_signature(&pubkey, &transfer_data)?;
 
-			// let xcm = <xtoken::Module<T>>::do_transfer_to_parachain(
-			// 	transfer_data.data.x_currency_id.clone(),
-			// 	transfer_data.data.para_id,
-			// 	&transfer_data.data.dest,
-			// 	transfer_data.data.dest_network,
-			// 	transfer_data.data.amount
-			// );
+			// TODO: build crosschain transfer XCM message
+			Self::do_transfer_to_parachain();
 
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
