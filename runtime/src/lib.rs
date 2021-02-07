@@ -975,7 +975,7 @@ impl parachain_info::Config for Runtime {}
 
 parameter_types! {
 	pub const RococoLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
-	pub const RococoNetwork: NetworkId = NetworkId::Polkadot;
+	pub PhalaNetwork: NetworkId = NetworkId::Named("phala".into());
 	pub RelayChainOrigin: Origin = xcm_handler::Origin::Relay.into();
 	pub Ancestry: MultiLocation = Junction::Parachain {
 		id: ParachainInfo::parachain_id().into()
@@ -985,7 +985,7 @@ parameter_types! {
 pub type LocationConverter = (
 	ParentIsDefault<AccountId>,
 	SiblingParachainConvertsVia<Sibling, AccountId>,
-	AccountId32Aliases<RococoNetwork, AccountId>,
+	AccountId32Aliases<PhalaNetwork, AccountId>,
 );
 
 pub type LocalAssetTransactor = PhalaXcmTransactor;
@@ -994,7 +994,7 @@ pub type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
 	RelayChainAsNative<RelayChainOrigin, Origin>,
 	SiblingParachainAsNative<xcm_handler::Origin, Origin>,
-	SignedAccountId32AsNative<RococoNetwork, Origin>,
+	SignedAccountId32AsNative<PhalaNetwork, Origin>,
 );
 
 pub struct XcmConfig;
@@ -1020,9 +1020,10 @@ impl xcm_handler::Config for Runtime {
 parameter_types! {
 	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
 		let mut t = BTreeMap::new();
-		t.insert("ACA".into(), MultiLocation::X1(Junction::Parachain { id: 5000 }));
-		t.insert("PHA2000".into(), MultiLocation::X1(Junction::Parachain { id: 2000 }));	// test only
-		t.insert("PHA5000".into(), MultiLocation::X1(Junction::Parachain { id: 5000 }));	// test only
+		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 666 }));
+		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 30 }));
+		t.insert("PHA2000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
+		t.insert("PHA5000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
 		t
 	};
 }
