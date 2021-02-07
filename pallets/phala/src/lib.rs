@@ -4,10 +4,10 @@ use sp_core::U256;
 use sp_std::prelude::*;
 use sp_std::{cmp, vec};
 
-use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
+use frame_support::{fail, decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
 use frame_system::{ensure_root, ensure_signed, Module as System};
 
-use alloc::vec::Vec;
+use alloc::{vec::Vec, borrow::ToOwned};
 use codec::Decode;
 use frame_support::{
 	traits::{
@@ -32,6 +32,10 @@ use types::{
 	WorkerMessagePayload, WorkerStateEnum,
 };
 
+// constants
+mod constants;
+pub use constants::*;
+
 #[cfg(test)]
 #[macro_use]
 extern crate assert_matches;
@@ -48,13 +52,6 @@ type BalanceOf<T> =
 	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 type NegativeImbalanceOf<T> =
 	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
-
-const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
-const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
-const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
-const BLOCK_REWARD_TO_KEEP: u32 = 20;
-const ROUND_STATS_TO_KEEP: u32 = 2;
-pub const PERCENTAGE_BASE: u32 = 100_000;
 
 pub trait OnRoundEnd {
 	fn on_round_end(_round: u32) {}
@@ -176,7 +173,8 @@ decl_storage! {
 					score: Some(Score {
 						overall_score: 100,
 						features: vec![1, 4]
-					})
+					}),
+					confidence_level: 128u8
 				};
 				WorkerState::<T>::insert(&stash, worker_info);
 				let stash_info = StashInfo {
@@ -243,6 +241,8 @@ decl_error! {
 		InvalidIASSigningCert,
 		InvalidIASReportSignature,
 		InvalidQuoteStatus,
+		OutdatedIASReport,
+		BadIASReport,
 		InvalidRuntimeInfo,
 		InvalidRuntimeInfoHash,
 		MinerNotFound,
@@ -393,25 +393,56 @@ decl_module! {
 				&signature
 			);
 			ensure!(verify_result.is_ok(), Error::<T>::InvalidIASSigningCert);
-			// TODO: Validate certificate
-			// let chain: Vec<&[u8]> = Vec::new();
-			// let now_func = webpki::Time::from_seconds_since_unix_epoch(1573419050);
-			// match sig_cert.verify_is_valid_tls_server_cert(
-			// 	SUPPORTED_SIG_ALGS,
-			// 	&IAS_SERVER_ROOTS,
-			// 	&chain,
-			// 	now_func
-			// ) {
-			// 	Ok(()) => (),
-			// 	Err(_) => panic!("verify cert failed")
-			// };
+
+			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+
+			// Validate certificate
+			let chain: Vec<&[u8]> = Vec::new();
+			let time_now = webpki::Time::from_seconds_since_unix_epoch(now);
+			let tls_server_cert_valid = sig_cert.verify_is_valid_tls_server_cert(
+				SUPPORTED_SIG_ALGS,
+				&IAS_SERVER_ROOTS,
+				&chain,
+				time_now
+			);
+			ensure!(tls_server_cert_valid.is_ok(), Error::<T>::InvalidIASSigningCert);
 
 			// Validate related fields
 			let parsed_report: serde_json::Value = serde_json::from_slice(&report).unwrap();
+
+			// Validate time
+			let raw_report_timestamp = parsed_report["timestamp"].as_str().unwrap_or("UNKNOWN").to_owned() + "Z";
+			let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp).map_err(|_| Error::<T>::BadIASReport)?.timestamp();
+			ensure!((now as i64 - report_timestamp) < 60, Error::<T>::OutdatedIASReport);
+
+			// Filter valid `isvEnclaveQuoteStatus`
+			let quote_status = &parsed_report["isvEnclaveQuoteStatus"].as_str().unwrap_or("UNKNOWN");
+			let mut confidence_level: u8 = 128;
+			if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
+				confidence_level = 1;
+			} else if IAS_QUOTE_STATUS_LEVEL_2.contains(quote_status) {
+				confidence_level = 2;
+			} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
+				confidence_level = 3;
+			} else if IAS_QUOTE_STATUS_LEVEL_4.contains(quote_status) {
+				confidence_level = 4;
+			}
 			ensure!(
-				&parsed_report["isvEnclaveQuoteStatus"] == "OK" || &parsed_report["isvEnclaveQuoteStatus"] == "CONFIGURATION_NEEDED" || &parsed_report["isvEnclaveQuoteStatus"] == "GROUP_OUT_OF_DATE",
+				confidence_level != 128,
 				Error::<T>::InvalidQuoteStatus
 			);
+
+			// Filter AdvisoryIDs. `advisoryIDs` is optional
+			if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
+				for advisory_id in advisory_ids {
+					let advisory_id = advisory_id.as_str().ok_or(Error::<T>::BadIASReport)?;
+
+					if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+						fail!(Error::<T>::BadIASReport);
+					}
+				}
+			}
+
 			// Extract quote fields
 			let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str().unwrap();
 			let quote_body = base64::decode(&raw_quote_body).unwrap();
@@ -430,7 +461,7 @@ decl_module! {
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let machine_id = runtime_info.machine_id.to_vec();
 			let pubkey = runtime_info.pubkey.to_vec();
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features)
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features, confidence_level)
 				.map_err(Into::into)
 		}
 
@@ -438,7 +469,7 @@ decl_module! {
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4])?;
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4], 0)?;
 			Ok(())
 		}
 
@@ -703,6 +734,7 @@ impl<T: Config> Module<T> {
 		machine_id: &Vec<u8>,
 		pubkey: &Vec<u8>,
 		worker_features: &Vec<u32>,
+		confidence_level: u8,
 	) -> Result<(), Error<T>> {
 		let mut delta = PendingExitingDelta::get();
 		let info = WorkerState::<T>::get(stash);
@@ -735,7 +767,8 @@ impl<T: Config> Module<T> {
 				machine_id: machine_id.clone(), // should not change, but we set it anyway
 				pubkey: pubkey.clone(),         // could change if the worker forgot the identity
 				last_updated,
-				score,  // could change if we do profiling
+				score,	// could change if we do profiling
+				confidence_level, // could change on redo RA
 				..info  // keep .state
 			}
 		} else {
@@ -751,6 +784,7 @@ impl<T: Config> Module<T> {
 				last_updated,
 				state: WorkerStateEnum::Free,
 				score,
+				confidence_level,
 			}
 		};
 		WorkerState::<T>::insert(stash, new_info);

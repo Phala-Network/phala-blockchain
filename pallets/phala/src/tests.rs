@@ -1,6 +1,6 @@
 use codec::Encode;
 use frame_support::{
-	assert_noop, assert_ok,
+	assert_noop, assert_ok, assert_err,
 	traits::{Currency, OnFinalize},
 };
 use frame_system::RawOrigin;
@@ -146,24 +146,21 @@ fn test_validate_cert() {
 
 #[test]
 fn test_register_worker() {
-	new_test_ext().execute_with(|| {
-		let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
-			Ok(x) => x,
-			Err(_) => panic!("decode sig failed"),
-		};
+	let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
+		Ok(x) => x,
+		Err(_) => panic!("decode sig failed")
+	};
 
-		let sig_cert_dec: Vec<u8> =
-			match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
-				Ok(x) => x,
-				Err(_) => panic!("decode cert failed"),
-			};
-		assert_ok!(PhalaModule::add_mrenclave(
-			Origin::root(),
-			MR_ENCLAVE.to_vec(),
-			MR_SIGNER.to_vec(),
-			ISV_PROD_ID.to_vec(),
-			ISV_SVN.to_vec()
-		));
+	let sig_cert_dec: Vec<u8> = match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
+		Ok(x) => x,
+		Err(_) => panic!("decode cert failed")
+	};
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		Timestamp::set_timestamp(1573419051);
+
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::register_worker(
 			Origin::signed(1),
@@ -180,6 +177,15 @@ fn test_register_worker() {
 			sig_cert_dec.clone()
 		));
 	});
+
+	new_test_ext().execute_with(|| {
+		System::set_block_number(1);
+		Timestamp::set_timestamp(1673419051);
+
+		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_err!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()), Error::<Test>::OutdatedIASReport);
+	});
 }
 
 #[test]
@@ -187,6 +193,7 @@ fn test_whitelist_works() {
 	new_test_ext().execute_with(|| {
 		// Set block number to 1 to test the events
 		System::set_block_number(1);
+		Timestamp::set_timestamp(1573419051);
 
 		let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).expect("decode sig failed");
 		let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).expect("decode cert failed");
@@ -578,6 +585,7 @@ fn test_payout_and_missed() {
 				last_updated: 1,
 				state: phala_types::WorkerStateEnum::Mining(1),
 				score: None,
+				confidence_level: 1,
 			},
 		);
 		crate::Round::<Test>::put(phala_types::RoundInfo::<BlockNumber> {
