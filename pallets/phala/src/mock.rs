@@ -107,6 +107,7 @@ impl Trait for Test {
 	type Randomness = Randomness;
 	type TEECurrency = Balances;
 	type UnixTime = pallet_timestamp::Module<Test>;
+	type ModuleWeightInfo = ();
 	type Treasury = ();
 	type OnRoundEnd = ();
 
