@@ -16,7 +16,10 @@ use frame_support::{
 	},
 	weights::Weight,
 };
-use sp_runtime::{traits::AccountIdConversion, ModuleId, Permill, SaturatedConversion};
+use sp_runtime::{
+	traits::{AccountIdConversion, One, Zero},
+	ModuleId, Permill, SaturatedConversion,
+};
 
 // modules
 mod hashing;
@@ -51,7 +54,7 @@ type NegativeImbalanceOf<T> = <<T as Trait>::TEECurrency as Currency<
 const PALLET_ID: ModuleId = ModuleId(*b"Phala!!!");
 const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
 const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
-const BLOCK_REWARD_TO_KEEP: u32 = 20;
+const DEFAULT_BLOCK_REWARD_TO_KEEP: u32 = 20;
 const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
 
@@ -142,6 +145,8 @@ decl_storage! {
 
 		// Probabilistic rewarding
 		BlockRewardSeeds: map hasher(twox_64_concat) T::BlockNumber => BlockRewardInfo;
+		/// The last block where a worker has on-chain activity, updated by `sync_worker_message`
+		LastWorkerActivity: map hasher(twox_64_concat) T::AccountId => T::BlockNumber;
 
 		// Key Management
 		/// Map from contract id to contract public key (TODO: migrate to real contract key from
@@ -154,8 +159,10 @@ decl_storage! {
 		TargetOnlineRewardCount get(fn target_online_reward_count): u32;
 		TargetComputeRewardCount get(fn target_compute_reward_count): u32;
 		TargetVirtualTaskCount get(fn target_virtual_task_count): u32;
-		/// Miners must submit the heartbeat within the reward window
+		/// Miners must submit the heartbeat in `(now - reward_window, now]`
 		RewardWindow get(fn reward_window): T::BlockNumber;
+		/// Miners could be slashed in `(now - slash_window, now - reward_window]`
+		SlashWindow get(fn slash_window): T::BlockNumber;
 	}
 
 	add_extra_genesis {
@@ -194,7 +201,9 @@ decl_storage! {
 				ContractKey::insert(i as u32, key);
 			}
 
-			RewardWindow::<T>::put(T::BlockNumber::from(8u32));
+			// TODO: reconsider the window length
+			RewardWindow::<T>::put(T::BlockNumber::from(8u32));  // 5 blocks (3 for finalizing)
+			SlashWindow::<T>::put(T::BlockNumber::from(40u32));  // 5x larger window
 			TargetOnlineRewardCount::put(20u32);
 			TargetComputeRewardCount::put(10u32);
 			TargetVirtualTaskCount::put(5u32);
@@ -219,8 +228,9 @@ decl_event!(
 		WorkerUnregistered(AccountId, Vec<u8>),        // stash, machine_id
 		Heartbeat(AccountId, u32),
 		Offline(AccountId),
-		Slash(AccountId, Balance, u32),
-		GotCredits(AccountId, u32, u32), // account, updated, delta
+		/// Some worker got slashed. [stash, payout_addr, lost_amount, reporter, win_amount]
+		Slash(AccountId, AccountId, Balance, AccountId, Balance),
+		_GotCredits(AccountId, u32, u32), // account, updated, delta
 		WorkerStateUpdated(AccountId),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
@@ -293,6 +303,14 @@ decl_error! {
 		MREnclaveNotFound,
 		/// Unable to complete this action because it's an invalid state transition
 		InvalidState,
+		/// The off-line report is beyond the slash window
+		TooAncientReport,
+		/// The reported worker is still alive
+		ReportedWorkerStillAlive,
+		/// The reported worker is not mining
+		ReportedWorkerNotMining,
+		/// The report has an invalid proof
+		InvalidProof,
 	}
 }
 
@@ -484,21 +502,7 @@ decl_module! {
 			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
 			let stash = Stash::<T>::get(who);
 
-			let mut worker_info = WorkerState::<T>::get(&stash);
-			match worker_info.state {
-				WorkerStateEnum::Mining(_) => {
-					worker_info.state = WorkerStateEnum::MiningStopping;
-					Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
-				},
-				WorkerStateEnum::MiningPending => {
-					worker_info.state = WorkerStateEnum::Free;
-					Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
-				},
-				WorkerStateEnum::Free | WorkerStateEnum::MiningStopping => return Ok(()),
-				_ => return Err(Error::<T>::InvalidState.into())
-			}
-			WorkerState::<T>::insert(&stash, worker_info);
-			Self::mark_dirty(stash);
+			Self::stop_mining_internal(&stash)?;
 			Ok(())
 		}
 
@@ -542,6 +546,8 @@ decl_module! {
 			Ok(())
 		}
 
+		// Messaging
+
 		#[weight = T::ModuleWeightInfo::sync_worker_message()]
 		fn sync_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
 			// TODO: allow anyone to relay the message
@@ -567,7 +573,7 @@ decl_module! {
 						Some(score) => score.overall_score,
 						None => 0
 					};
-					Self::add_heartbeat(&who);	// TODO: necessary?
+					Self::add_heartbeat(&who, block_num.into());
 					Self::handle_claim_reward(
 						&stash, &stash_info.payout_prefs.target, claim_online, claim_compute,
 						score, block_num.into());
@@ -581,7 +587,45 @@ decl_module! {
 			Ok(())
 		}
 
-		// Borrowing
+		// Violence
+
+		#[weight = 0]
+		fn report_offline(
+			origin, stash: T::AccountId, block_num: T::BlockNumber
+		) -> dispatch::DispatchResult {
+			let reporter = ensure_signed(origin)?;
+			let now = System::<T>::block_number();
+			let slash_window = SlashWindow::<T>::get();
+			ensure!(block_num + slash_window > now, Error::<T>::TooAncientReport);
+
+			// TODO: should slash force replacement of TEE worker as well!
+			// TODO: how to handle the report to the previous round?
+			let round_start = Round::<T>::get().start_block;
+			ensure!(block_num >= round_start, Error::<T>::TooAncientReport);
+			// Worker is online (Mining / PendingStopping)
+			ensure!(WorkerState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
+			let worker_info = WorkerState::<T>::get(&stash);
+			let is_mining = match worker_info.state {
+				WorkerStateEnum::Mining(_) => true,
+				WorkerStateEnum::MiningStopping => true,
+				_ => false,
+			};
+			ensure!(is_mining, Error::<T>::ReportedWorkerNotMining);
+			// Worker is not alive
+			ensure!(
+				LastWorkerActivity::<T>::get(&stash) < block_num,
+				Error::<T>::ReportedWorkerStillAlive
+			);
+			// Check worker's pubkey xor privkey < target (!)
+			let reward_info = BlockRewardSeeds::<T>::get(block_num);
+			ensure!(
+				check_pubkey_hit_target(worker_info.pubkey.as_slice(), &reward_info),
+				Error::<T>::InvalidProof
+			);
+
+			Self::slash_offline(&stash, &reporter)?;
+			Ok(())
+		}
 
 		// Debug only
 
@@ -617,6 +661,38 @@ decl_module! {
 			ensure_root(origin)?;
 			Fire2::<T>::remove_all();
 			AccumulatedFire2::<T>::kill();
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn force_set_window(
+			origin, reward_window: Option<T::BlockNumber>, slash_window: Option<T::BlockNumber>
+		) -> dispatch::DispatchResult {
+			ensure_root(origin)?;
+			let old_reward = RewardWindow::<T>::get();
+			let old_slash = SlashWindow::<T>::try_get()
+				.unwrap_or(DEFAULT_BLOCK_REWARD_TO_KEEP.into());
+			let reward = reward_window.unwrap_or(old_reward);
+			let slash = slash_window.unwrap_or(old_slash);
+			ensure!(slash >= reward, Error::<T>::InvalidInput);
+			// Clean up (now - old, now - new] when the new slash window is shorter
+			if slash < old_slash {
+				let now = System::<T>::block_number();
+				if now > slash {
+					let last_empty_idx = if now >= old_slash {
+						(now - old_slash).into()
+					} else {
+						Zero::zero()
+					};
+					let mut i = now - slash;
+					while i > last_empty_idx {
+						BlockRewardSeeds::<T>::remove(i);
+						i -= One::one();
+					}
+				}
+			}
+			RewardWindow::<T>::put(reward);
+			SlashWindow::<T>::put(slash);
 			Ok(())
 		}
 
@@ -673,6 +749,25 @@ impl<T: Trait> Module<T> {
 			sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey),
 			Error::<T>::FailedToVerify
 		);
+		Ok(())
+	}
+
+	fn stop_mining_internal(stash: &T::AccountId) -> dispatch::DispatchResult {
+		let mut worker_info = WorkerState::<T>::get(&stash);
+		match worker_info.state {
+			WorkerStateEnum::Mining(_) => {
+				worker_info.state = WorkerStateEnum::MiningStopping;
+				Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+			}
+			WorkerStateEnum::MiningPending => {
+				worker_info.state = WorkerStateEnum::Free;
+				Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
+			}
+			WorkerStateEnum::Free | WorkerStateEnum::MiningStopping => return Ok(()),
+			_ => return Err(Error::<T>::InvalidState.into()),
+		}
+		WorkerState::<T>::insert(&stash, worker_info);
+		Self::mark_dirty(stash.clone());
 		Ok(())
 	}
 
@@ -776,13 +871,36 @@ impl<T: Trait> Module<T> {
 		}
 	}
 
-	fn add_heartbeat(account: &T::AccountId) {
+	fn add_heartbeat(account: &T::AccountId, block_num: T::BlockNumber) {
+		// TODO: remove?
 		let heartbeats = Heartbeats::<T>::get(account);
 		Heartbeats::<T>::insert(account, heartbeats + 1);
+		// Record the worker activity to avoid slash of honest worker
+		LastWorkerActivity::<T>::insert(account, block_num);
 	}
 
 	fn clear_heartbeats() {
+		// TODO: remove?
 		Heartbeats::<T>::remove_all();
+	}
+
+	fn slash_offline(stash: &T::AccountId, reporter: &T::AccountId) -> dispatch::DispatchResult {
+		Self::stop_mining_internal(stash)?;
+
+		// Assume ensure!(StashState::<T>::contains_key(&stash));
+		let payout = StashState::<T>::get(&stash).payout_prefs.target;
+		let lost_amount = BalanceOf::<T>::from(100u32);
+		let win_amount = BalanceOf::<T>::from(50u32);
+		Self::try_sub_fire(&payout, lost_amount);
+		Self::add_fire(reporter, win_amount);
+		Self::deposit_event(RawEvent::Slash(
+			stash.clone(),
+			payout.clone(),
+			lost_amount,
+			reporter.clone(),
+			win_amount,
+		));
+		Ok(())
 	}
 
 	fn extend_mrenclave(
@@ -952,9 +1070,10 @@ impl<T: Trait> Module<T> {
 	}
 
 	fn handle_block_reward(now: T::BlockNumber, round: &RoundInfo<T::BlockNumber>) {
+		let slash_window = SlashWindow::<T>::get();
 		// Remove the expired reward from the storage
-		if now > BLOCK_REWARD_TO_KEEP.into() {
-			BlockRewardSeeds::<T>::remove(now - BLOCK_REWARD_TO_KEEP.into());
+		if now > slash_window {
+			BlockRewardSeeds::<T>::remove(now - slash_window);
 		}
 		// Generate the seed and targets
 		let seed_hash = T::Randomness::random(RANDOMNESS_SUBJECT);
@@ -1033,9 +1152,7 @@ impl<T: Trait> Module<T> {
 					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
 				}
 			}
-
 			// TODO: do we need to check xor threshold?
-			// TODO: Check is_compute
 		}
 	}
 
@@ -1157,6 +1274,12 @@ impl<T: Trait> Module<T> {
 		Fire2::<T>::mutate(dest, |x| *x += amount);
 		AccumulatedFire2::<T>::mutate(|x| *x += amount);
 	}
+
+	fn try_sub_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
+		let to_sub = cmp::min(amount, Fire2::<T>::get(dest));
+		Fire2::<T>::mutate(dest, |x| *x -= to_sub);
+		AccumulatedFire2::<T>::mutate(|x| *x -= to_sub);
+	}
 }
 
 fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {
@@ -1174,6 +1297,13 @@ fn u256_target(m: u64, n: u64) -> U256 {
 		panic!("Invalid parameter");
 	}
 	U256::MAX / n * m
+}
+
+fn check_pubkey_hit_target(raw_pubkey: &[u8], reward_info: &BlockRewardInfo) -> bool {
+	let pkh = sp_io::hashing::blake2_256(raw_pubkey);
+	let id: U256 = AsRef::<[u8]>::as_ref(&pkh).into();
+	let x = id ^ reward_info.seed;
+	x <= reward_info.online_target
 }
 
 // Migration from 3.1.0 to 3.2.0
