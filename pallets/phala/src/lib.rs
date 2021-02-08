@@ -16,7 +16,10 @@ use frame_support::{
 	},
 	weights::Weight,
 };
-use sp_runtime::{traits::{AccountIdConversion, One, Zero}, ModuleId, Permill, SaturatedConversion};
+use sp_runtime::{
+	traits::{AccountIdConversion, One, Zero},
+	ModuleId, Permill, SaturatedConversion,
+};
 
 // modules
 mod hashing;
@@ -755,13 +758,13 @@ impl<T: Trait> Module<T> {
 			WorkerStateEnum::Mining(_) => {
 				worker_info.state = WorkerStateEnum::MiningStopping;
 				Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
-			},
+			}
 			WorkerStateEnum::MiningPending => {
 				worker_info.state = WorkerStateEnum::Free;
 				Self::deposit_event(RawEvent::WorkerStateUpdated(stash.clone()));
-			},
+			}
 			WorkerStateEnum::Free | WorkerStateEnum::MiningStopping => return Ok(()),
-			_ => return Err(Error::<T>::InvalidState.into())
+			_ => return Err(Error::<T>::InvalidState.into()),
 		}
 		WorkerState::<T>::insert(&stash, worker_info);
 		Self::mark_dirty(stash.clone());
@@ -881,9 +884,7 @@ impl<T: Trait> Module<T> {
 		Heartbeats::<T>::remove_all();
 	}
 
-	fn slash_offline(
-		stash: &T::AccountId, reporter: &T::AccountId
-	) -> dispatch::DispatchResult {
+	fn slash_offline(stash: &T::AccountId, reporter: &T::AccountId) -> dispatch::DispatchResult {
 		Self::stop_mining_internal(stash)?;
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
@@ -893,7 +894,11 @@ impl<T: Trait> Module<T> {
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
 		Self::deposit_event(RawEvent::Slash(
-			stash.clone(), payout.clone(), lost_amount, reporter.clone(), win_amount
+			stash.clone(),
+			payout.clone(),
+			lost_amount,
+			reporter.clone(),
+			win_amount,
 		));
 		Ok(())
 	}
