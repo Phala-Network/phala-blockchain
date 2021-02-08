@@ -2,7 +2,7 @@
 authors = ['Phala Network']
 edition = '2018'
 name = 'pallet-phala'
-version = "3.2.2"
+version = "3.2.3"
 license = "Apache 2.0"
 homepage = "https://phala.network/"
 repository = "https://github.com/Phala-Network/phala-blockchain"

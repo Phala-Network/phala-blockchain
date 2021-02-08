@@ -33,8 +33,7 @@ pub trait ModuleWeightInfo {
 }
 
 /// Weight functions for pallet_phala.
-pub struct SubstrateWeight<T>(PhantomData<T>);
-impl<T: frame_system::Trait> ModuleWeightInfo for SubstrateWeight<T> {
+impl<T: frame_system::Trait> ModuleWeightInfo for frame_system::weights::SubstrateWeight<T> {
     fn push_command() -> Weight {
         (54_000_000 as Weight)
             .saturating_add(T::DbWeight::get().reads(1 as Weight))
