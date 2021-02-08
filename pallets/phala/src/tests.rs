@@ -6,11 +6,12 @@ use frame_support::{
 use frame_system::RawOrigin;
 use hex_literal::hex;
 use secp256k1;
+use sp_core::U256;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{mock::*, Error};
 use crate::{
-	types::{RoundStats, Transfer, TransferData, WorkerStateEnum},
+	types::{BlockRewardInfo, RoundStats, Transfer, TransferData, WorkerStateEnum},
 	RawEvent,
 };
 use phala_types::PayoutReason;
@@ -817,6 +818,53 @@ fn test_bug_119() {
 		let delta = PhalaModule::pending_exiting();
 		assert_eq!(delta.num_worker, -1);
 		assert_eq!(delta.num_power, -100);
+	});
+}
+
+// TODO: add a slash window test
+// TODO: slash_offline negative cases: not mining, too old, reported, etc
+
+#[test]
+fn test_slash_offline() {
+	new_test_ext().execute_with(|| {
+		use frame_support::storage::StorageMap;
+		System::set_block_number(1);
+		let machine_id = vec![0];
+		let pubkey = [0; 33].to_vec();
+		// Block 1: register a worker at stash1 and start mining
+		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
+		assert_ok!(PhalaModule::force_register_worker(
+			RawOrigin::Root.into(),
+			1,
+			machine_id.clone(),
+			pubkey.clone()
+		));
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		// Add a seed for block 2
+		crate::BlockRewardSeeds::<Test>::insert(2, BlockRewardInfo {
+			seed: U256::zero(),
+			// Set targets to MAX so the worker can hit the reward
+			online_target: U256::MAX,
+			compute_target: U256::MAX,
+		});
+		// 2. Time travel a few blocks later
+		System::set_block_number(15);
+		// 3. Report offline
+		assert_ok!(PhalaModule::report_offline(Origin::signed(2), 1, 2));
+		// 4. Check events
+		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::WorkerRegistered(1, _, _)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::RewardSeed(_)),
+			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::NewMiningRound(1)),
+			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::Slash(1, 1, 100, 2, 50))
+		]);
 	});
 }
 
