@@ -130,6 +130,10 @@ decl_storage! {
 		/// Total Fire points (1605-II specific)
 		AccumulatedFire2 get(fn accumulated_fire2): BalanceOf<T>;
 
+		// Stats (poc3-only)
+		WorkerComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
+		PayoutComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
+
 		// Round management
 		/// The current mining round id
 		Round get(fn round): RoundInfo<T::BlockNumber>;
@@ -1188,6 +1192,9 @@ impl<T: Trait> Module<T> {
 						round_stats.compute_workers,
 					);
 					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
+					// TODO: remove after PoC-3
+					WorkerComputeReward::<T>::mutate(stash, |x| *x += 1);
+					PayoutComputeReward::<T>::mutate(payout_target, |x| *x += 1);
 				}
 			}
 			// TODO: do we need to check xor threshold?
