@@ -177,6 +177,13 @@ pub mod phala {
         pub raw_signing_cert: Vec<u8>,
     }
 
+    /// The call to reset_worker
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct ResetWorkerCall<T: PhalaModule> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+    }
+
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
     pub struct IngressSequenceStore<T: PhalaModule> {
         #[store(returns = u64)]

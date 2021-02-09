@@ -455,6 +455,20 @@ decl_module! {
 				.map_err(Into::into)
 		}
 
+		#[weight = 0]
+		pub fn reset_worker(origin) -> dispatch::DispatchResult {
+			let who = ensure_signed(origin)?;
+			ensure!(Stash::<T>::contains_key(&who), Error::<T>::NotController);
+			let stash = Stash::<T>::get(&who);
+			let worker_info = WorkerState::<T>::get(&stash);
+			let machine_id = worker_info.machine_id;
+
+			Self::deposit_event(RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+
+			WorkerIngress::<T>::insert(stash, 0);
+			Ok(())
+		}
+
 		#[weight = T::ModuleWeightInfo::force_register_worker()]
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
