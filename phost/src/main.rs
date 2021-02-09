@@ -59,6 +59,11 @@ struct Args {
     help = "Should enable Remote Attestation")]
     ra: bool,
 
+    #[structopt(
+    long,
+    help = "Remove unsent out-dated transactions (e.g clain_reward), this will help to reduce unnecessary fee, but will got slash on main-net.")]
+    reset_egress: bool,
+
     #[structopt(long = "fetch-heartbeat-from-buffer", help = "Manual fetch heartbeat data")]
     fetch_heartbeat_from_buffer: bool,
 
@@ -519,6 +524,23 @@ async fn register_worker(
         Ok(())
 }
 
+async fn reset_worker(
+    client: &XtClient,
+    signer: &mut SrSigner
+) -> Result<(), Error> {
+    let call = runtimes::phala::ResetWorkerCall {
+        _runtime: PhantomData
+    };
+    update_signer_nonce(client, signer).await?;
+    let ret = client.watch(call, signer).await;
+    if !ret.is_ok() {
+        println!("FailedToCallResetWorker: {:?}", ret);
+        return Err(Error::FailedToCallResetWorker);
+    }
+    signer.increment_nonce();
+    Ok(())
+}
+
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<(), Error> {
@@ -603,6 +625,10 @@ async fn bridge(args: Args) -> Result<(), Error> {
     if args.no_sync {
         println!("Block sync disabled.");
         return Ok(())
+    }
+
+    if args.reset_egress {
+        reset_worker(&client, &mut signer).await?;
     }
 
     let mut balance_seq = get_balances_ingress_seq(&client).await?;

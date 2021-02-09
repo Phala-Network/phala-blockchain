@@ -13,6 +13,7 @@ pub enum Error {
     SearchSetIdChangeInEmptyRange,
     FailedToDecode,
     FailedToCallRegisterWorker,
+    FailedToCallResetWorker,
     ComputeWorkerNotEnabled,
 }
 
