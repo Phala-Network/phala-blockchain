@@ -540,7 +540,7 @@ async fn reset_worker(
             Ok(r.block)
         },
         Err(err) => {
-            println!("FailedToCallResetWorker: {:?}", ret);
+            println!("FailedToCallResetWorker: {:?}", err);
             Err(Error::FailedToCallResetWorker)
         }
     }
