@@ -37,9 +37,9 @@ rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.
 regex       = { git = "https://github.com/mesalock-linux/regex-sgx" }
 http_req    = { git = "https://github.com/mesalock-linux/http_req-sgx", features = ["rust-tls"]}
 
-serde = { version = "1.0.101", default-features = false, features = ["alloc", "derive"] }
-serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
-serde_cbor = { version = "0.11.1", default-features = false, features = ["alloc"] }
+serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive"] }
+serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
+serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx.git" }
 
 bit-vec     = { version = "*", default-features = false}
 itertools   = { version = "0.8", default-features = false, features = []}
@@ -70,6 +70,13 @@ sp-application-crypto = { package = "sp-application-crypto", path = "../../subst
 sp-core = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
 
 fixed = { git = "https://github.com/encointer/substrate-fixed", package = "substrate-fixed", default-features = false }
+
+# for diem
+bcs = { path = "../../diem/vendor/bcs", version = "0.1.2" }
+diem-types = { path = "../../diem/types", version = "0.1.0" }
+diem-crypto = { path = "../../diem/crypto/crypto", version = "0.1.0" }
+move-core-types = { path = "../../diem/language/move-core/types", version = "0.1.0" }
+transaction-builder = { path = "../../diem/language/transaction-builder", version = "0.1.0"}
 
 [features]
 default = [
