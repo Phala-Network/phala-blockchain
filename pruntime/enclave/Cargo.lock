@@ -1308,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-phala"
-version = "3.2.4"
+version = "3.2.5"
 dependencies = [
  "base64 0.11.0",
  "blake2-rfc",
