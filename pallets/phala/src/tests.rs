@@ -298,13 +298,7 @@ fn test_mine() {
 			PhalaModule::stop_mining_intention(Origin::signed(1)),
 			Error::<Test>::ControllerNotFound
 		);
-		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(),
-			1,
-			vec![0],
-			vec![1]
-		));
+		setup_test_worker(1);
 		// Free <-> MiningPending
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
 		assert_eq!(
@@ -685,6 +679,7 @@ fn test_mining_lifecycle_force_reregister() {
 		PhalaModule::on_finalize(2);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
+			TestEvent::phala(RawEvent::MinerStopped(1, 1)),
 			TestEvent::phala(RawEvent::WorkerUnregistered(1, x)),
 			TestEvent::phala(RawEvent::WorkerRegistered(2, y, z)),
 			TestEvent::phala(RawEvent::RewardSeed(_)),
@@ -822,34 +817,19 @@ fn test_bug_119() {
 }
 
 // TODO: add a slash window test
-// TODO: slash_offline negative cases: not mining, too old, reported, etc
 
 #[test]
 fn test_slash_offline() {
 	new_test_ext().execute_with(|| {
-		use frame_support::storage::StorageMap;
 		System::set_block_number(1);
-		let machine_id = vec![0];
-		let pubkey = [0; 33].to_vec();
 		// Block 1: register a worker at stash1 and start mining
-		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(),
-			1,
-			machine_id.clone(),
-			pubkey.clone()
-		));
+		setup_test_worker(1);
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
 		PhalaModule::on_finalize(1);
 		System::finalize();
 		// Add a seed for block 2
-		crate::BlockRewardSeeds::<Test>::insert(2, BlockRewardInfo {
-			seed: U256::zero(),
-			// Set targets to MAX so the worker can hit the reward
-			online_target: U256::MAX,
-			compute_target: U256::MAX,
-		});
+		set_block_reward_base(2, U256::MAX);
 		// 2. Time travel a few blocks later
 		System::set_block_number(15);
 		// 3. Report offline
@@ -862,9 +842,89 @@ fn test_slash_offline() {
 			TestEvent::phala(RawEvent::MinerStarted(1, 1)),
 			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
 			TestEvent::phala(RawEvent::NewMiningRound(1)),
-			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
+			TestEvent::phala(RawEvent::MinerStopped(1, 1)),
 			TestEvent::phala(RawEvent::Slash(1, 1, 100, 2, 50))
 		]);
+		// Check cannot be slashed twice
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(2), 1, 2),
+			Error::<Test>::ReportedWorkerNotMining
+		);
+	});
+}
+
+#[test]
+fn test_slash_verification() {
+	new_test_ext().execute_with(|| {
+		// Basic setup
+		System::set_block_number(1);
+		setup_test_worker(1);	// Not mining
+		setup_test_worker(2);	// Mining
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		// Slash a non-exiting worker
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 100, 1),
+			Error::<Test>::StashNotFound
+		);
+		// Slash an offline worker
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 1, 2),
+			Error::<Test>::ReportedWorkerNotMining
+		);
+		// Beyond the slash window (currently 40 blocks)
+		System::set_block_number(100);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 60),
+			Error::<Test>::TooAncientReport
+		);
+		// Beyond the current round (new round at block 101)
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(100);
+		System::finalize();
+		System::set_block_number(101);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 100),
+			Error::<Test>::TooAncientReport
+		);
+		// Mining normally
+		set_block_reward_base(101, U256::MAX);
+		PhalaModule::add_heartbeat(&2, 101);
+		System::set_block_number(110);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 101),
+			Error::<Test>::ReportedWorkerStillAlive
+		);
+		// Invalid proof
+		set_block_reward_base(102, U256::zero());  // Nobody can hit the target
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 102),
+			Error::<Test>::InvalidProof
+		);
+	});
+}
+
+fn setup_test_worker(stash: u64) {
+	let machine_id = vec![stash as u8];
+	let mut pubkey = [0; 33].to_vec();
+	pubkey[32] = stash as u8;
+	assert_ok!(PhalaModule::set_stash(Origin::signed(stash), stash));
+	assert_ok!(PhalaModule::force_register_worker(
+		RawOrigin::Root.into(),
+		stash,
+		machine_id.clone(),
+		pubkey.clone()
+	));
+}
+
+fn set_block_reward_base(block: BlockNumber, target: U256) {
+	use frame_support::storage::StorageMap;
+	crate::BlockRewardSeeds::<Test>::insert(block, BlockRewardInfo {
+		seed: U256::zero(),
+		// Set targets to MAX so the worker can hit the reward
+		online_target: target,
+		compute_target: target,
 	});
 }
 

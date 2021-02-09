@@ -606,8 +606,7 @@ decl_module! {
 			ensure!(WorkerState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
 			let worker_info = WorkerState::<T>::get(&stash);
 			let is_mining = match worker_info.state {
-				WorkerStateEnum::Mining(_) => true,
-				WorkerStateEnum::MiningStopping => true,
+				WorkerStateEnum::Mining(_) | WorkerStateEnum::MiningStopping => true,
 				_ => false,
 			};
 			ensure!(is_mining, Error::<T>::ReportedWorkerNotMining);
@@ -777,23 +776,40 @@ impl<T: Trait> Module<T> {
 		machine_id: &Vec<u8>,
 		stats_delta: &mut MinerStatsDelta,
 	) {
-		WorkerIngress::<T>::remove(stash);
+		Self::kick_worker(stash, stats_delta);
+		WorkerState::<T>::remove(stash);
 		MachineOwner::<T>::remove(machine_id);
-		let info = WorkerState::<T>::take(stash);
-		match info.state {
-			WorkerStateEnum::<T::BlockNumber>::Mining(_)
-			| WorkerStateEnum::<T::BlockNumber>::MiningStopping => {
-				stats_delta.num_worker -= 1;
-				if let Some(score) = &info.score {
-					stats_delta.num_power -= score.overall_score as i32;
-				}
-			}
-			_ => (),
-		};
 		Self::deposit_event(RawEvent::WorkerUnregistered(
 			stash.clone(),
 			machine_id.clone(),
 		));
+	}
+
+	/// Kicks a worker if it's online. Only do this to force offline a worker.
+	fn kick_worker(stash: &T::AccountId, stats_delta: &mut MinerStatsDelta) -> bool {
+		WorkerIngress::<T>::remove(stash);
+		let mut info = WorkerState::<T>::get(stash);
+		match info.state {
+			WorkerStateEnum::<T::BlockNumber>::Mining(_)
+			| WorkerStateEnum::<T::BlockNumber>::MiningStopping => {
+				// Shutdown the worker and update MinerStatesDelta
+				stats_delta.num_worker -= 1;
+				if let Some(score) = &info.score {
+					stats_delta.num_power -= score.overall_score as i32;
+				}
+				// Set the state to Free
+				info.last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
+				info.state = WorkerStateEnum::Free;
+				WorkerState::<T>::insert(&stash, info);
+				// MinerStopped event
+				let round = Round::<T>::get().round;
+				Self::deposit_event(RawEvent::MinerStopped(round, stash.clone()));
+				// TODO: slash?
+				return true;
+			}
+			_ => (),
+		};
+		false
 	}
 
 	fn register_worker_internal(
@@ -884,13 +900,21 @@ impl<T: Trait> Module<T> {
 		Heartbeats::<T>::remove_all();
 	}
 
+	/// Slashes a worker and put it offline by force
+	///
+	/// The `stash` account will be slashed by 100 FIRE, and the `reporter` account will earn half
+	/// as a reward. This method ensures no worker will be slashed twice.
 	fn slash_offline(stash: &T::AccountId, reporter: &T::AccountId) -> dispatch::DispatchResult {
-		Self::stop_mining_internal(stash)?;
+		// We have to kick the worker by force to avoid double slash
+		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
 		let lost_amount = BalanceOf::<T>::from(100u32);
 		let win_amount = BalanceOf::<T>::from(50u32);
+		// TODO: what if the worker suddently change its payout address?
+		// Not necessary a problem on PoC-3 testnet, because it's unwise to switch the payout
+		// address in anyway. On mainnet, we should slash the stake instead.
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
 		Self::deposit_event(RawEvent::Slash(
