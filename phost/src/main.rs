@@ -524,21 +524,26 @@ async fn register_worker(
         Ok(())
 }
 
+/// Returns the block where the ResetWorker call is included
 async fn reset_worker(
     client: &XtClient,
     signer: &mut SrSigner
-) -> Result<(), Error> {
+) -> Result<Hash, Error> {
     let call = runtimes::phala::ResetWorkerCall {
         _runtime: PhantomData
     };
     update_signer_nonce(client, signer).await?;
     let ret = client.watch(call, signer).await;
-    if !ret.is_ok() {
-        println!("FailedToCallResetWorker: {:?}", ret);
-        return Err(Error::FailedToCallResetWorker);
+    match ret {
+        Ok(r) => {
+            signer.increment_nonce();
+            Ok(r.block)
+        },
+        Err(err) => {
+            println!("FailedToCallResetWorker: {:?}", ret);
+            Err(Error::FailedToCallResetWorker)
+        }
     }
-    signer.increment_nonce();
-    Ok(())
 }
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
@@ -572,6 +577,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
+    // We will not sync message until the inclusion block after we call `ResetWorker`
+    let wait_block_until = if args.reset_egress {
+        Some(reset_worker(&client, &mut signer).await?)
+    } else {
+        None
+    };
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
@@ -627,10 +638,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
         return Ok(())
     }
 
-    if args.reset_egress {
-        reset_worker(&client, &mut signer).await?;
-    }
-
+    // Don't just sync message if we want to wait for some block
+    let mut defer_block = wait_block_until.is_some();
     let mut balance_seq = get_balances_ingress_seq(&client).await?;
     let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
@@ -677,6 +686,12 @@ async fn bridge(args: Args) -> Result<(), Error> {
             if block.block.justification.is_some() {
                 println!("block with justification at: {}", block.block.block.header.number);
             }
+            if let Some(hash) = wait_block_until {
+                if block.block.block.header.hash() == hash {
+                    println!("Hit the deferred block; will start message passing from the next block");
+                    defer_block = false;
+                }
+            }
             sync_state.blocks.push(block.clone());
         }
 
@@ -695,7 +710,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
             &client, &pr, &events_decoder, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
-        if synced_blocks == 0 {
+        if !defer_block && synced_blocks == 0 {
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -712,7 +727,8 @@ async fn bridge(args: Args) -> Result<(), Error> {
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
                 msg_sync.maybe_sync_balances_egress(&mut balance_seq).await?;
             }
-
+        }
+        if synced_blocks == 0 {
             println!("Waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;
