@@ -843,8 +843,8 @@ fn test_slash_offline() {
 			TestEvent::phala(RawEvent::WorkerStateUpdated(1)),
 			TestEvent::phala(RawEvent::NewMiningRound(1)),
 			TestEvent::phala(RawEvent::MinerStopped(1, 1)),
-			TestEvent::phala(RawEvent::Slash(1, 1, 100, 2, 50))
-		]);
+			TestEvent::phala(RawEvent::Slash(1, 1, x, 2, y))
+		] if *x == 100 * DOLLARS && *y == 50 * DOLLARS);
 		// Check cannot be slashed twice
 		assert_noop!(
 			PhalaModule::report_offline(Origin::signed(2), 1, 2),
