@@ -83,6 +83,8 @@ pub trait Trait: frame_system::Trait {
 	type RewardRation: Get<u32>; // 80%
 	type OnlineRewardPercentage: Get<Permill>; // rel: 37.5% post-taxed: 30%
 	type ComputeRewardPercentage: Get<Permill>; // rel: 62.5% post-taxed: 50%
+	type OfflineOffenseSlash: Get<BalanceOf<Self>>;
+	type OfflineReportReward: Get<BalanceOf<Self>>;
 }
 
 decl_storage! {
@@ -928,8 +930,8 @@ impl<T: Trait> Module<T> {
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
-		let lost_amount = BalanceOf::<T>::from(100u32);
-		let win_amount = BalanceOf::<T>::from(50u32);
+		let lost_amount = T::OfflineOffenseSlash::get();
+		let win_amount = T::OfflineReportReward::get();
 		// TODO: what if the worker suddently change its payout address?
 		// Not necessary a problem on PoC-3 testnet, because it's unwise to switch the payout
 		// address in anyway. On mainnet, we should slash the stake instead.
@@ -1346,7 +1348,7 @@ fn u256_target(m: u64, n: u64) -> U256 {
 
 fn check_pubkey_hit_target(raw_pubkey: &[u8], reward_info: &BlockRewardInfo) -> bool {
 	let pkh = sp_io::hashing::blake2_256(raw_pubkey);
-	let id: U256 = AsRef::<[u8]>::as_ref(&pkh).into();
+	let id: U256 = pkh.into();
 	let x = id ^ reward_info.seed;
 	x <= reward_info.online_target
 }

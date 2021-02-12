@@ -67,7 +67,6 @@ pub use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment, Currency
 use pallet_session::{historical as pallet_session_historical};
 use sp_inherents::{InherentData, CheckInherentsResult};
 use static_assertions::const_assert;
-use pallet_phala::ModuleWeightInfo;
 
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -118,7 +117,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	// and set impl_version to 0. If only runtime
 	// implementation changes and behavior does not, then leave spec_version as
 	// is and increment impl_version.
-	spec_version: 30,
+	spec_version: 31,
 	impl_version: 0,
 	apis: RUNTIME_API_VERSIONS,
 	transaction_version: 1,
@@ -910,6 +909,8 @@ parameter_types! {
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
 	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
+	pub const OfflineOffenseSlash: Balance = 100 * DOLLARS;
+	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
 impl pallet_phala::Trait for Runtime {
@@ -931,6 +932,8 @@ impl pallet_phala::Trait for Runtime {
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
 	type ComputeRewardPercentage = ComputeRewardPercentage;
+	type OfflineOffenseSlash = OfflineOffenseSlash;
+	type OfflineReportReward = OfflineReportReward;
 }
 
 impl pallet_claim::Trait for Runtime {
