@@ -31,8 +31,7 @@ serde_json = { version = "1.0.41", default-features = false, features = ["alloc"
 # serde_json_core = {}
 blake2-rfc = { version = "0.2.18", default-features = false }
 
-xtoken = {path = "../xtoken", default-features = false }
-xcm-adapter = {path = "../xcm-adapter", default-features = false }
+xcm-transactor = {path = "../xcm-transactor", default-features = false }
 
 [dependencies.pallet-balances]
 default-features = false

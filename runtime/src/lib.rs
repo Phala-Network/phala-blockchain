@@ -95,14 +95,14 @@ use sp_runtime::generic::Era;
 pub use pallet_phala;
 pub use pallet_claim;
 
-use xcm_adapter::{NativePalletAssetOr, XCurrencyIdConverter, IsConcreteWithGeneralKey, XcmHandler as HandleXcm};
+use xcm_transactor::{AssetLocationFilter, ConcreteMatcher, XCurrencyIdConverter};
 
 use xcm::v0::{Junction, MultiLocation, NetworkId};
 use xcm_builder::{
 	AccountId32Aliases, LocationInverter, ParentIsDefault, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingParachainConvertsVia, SignedAccountId32AsNative, SovereignSignedViaLocation,
 };
-use xcm_executor::{traits::NativeAsset, Config, XcmExecutor};
+use xcm_executor::{Config, XcmExecutor};
 use polkadot_parachain::primitives::Sibling;
 use cumulus_primitives::relay_chain::Balance as RelayChainBalance;
 
@@ -967,18 +967,19 @@ impl cumulus_parachain_system::Config for Runtime {
 	type SelfParaId = parachain_info::Module<Runtime>;
 	type Event = Event;
 	type OnValidationData = ();
-	type DownwardMessageHandlers = ();
-	type HrmpMessageHandlers = ();
+	type DownwardMessageHandlers = XcmHandler;
+	type HrmpMessageHandlers = XcmHandler;
 }
 
 impl parachain_info::Config for Runtime {}
 
 parameter_types! {
+	pub const RococoLocation: MultiLocation = MultiLocation::X1(Junction::Parent);
 	pub PhalaNetwork: NetworkId = NetworkId::Named("phala".into());
 	pub RelayChainOrigin: Origin = xcm_handler::Origin::Relay.into();
-	pub Ancestry: MultiLocation = MultiLocation::X1(Junction::Parachain {
-		id: ParachainInfo::parachain_id().into(),
-	});
+	pub Ancestry: MultiLocation = Junction::Parachain {
+		id: ParachainInfo::parachain_id().into()
+	}.into();
 }
 
 pub type LocationConverter = (
@@ -987,7 +988,7 @@ pub type LocationConverter = (
 	AccountId32Aliases<PhalaNetwork, AccountId>,
 );
 
-pub type LocalAssetTransactor = XCMAdapter;
+pub type LocalAssetTransactor = PhalaXcmTransactor;
 
 pub type LocalOriginConverter = (
 	SovereignSignedViaLocation<LocationConverter, Origin>,
@@ -996,25 +997,14 @@ pub type LocalOriginConverter = (
 	SignedAccountId32AsNative<PhalaNetwork, Origin>,
 );
 
-parameter_types! {
-	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
-		let mut t = BTreeMap::new();
-		//acala reserve asset identity
-		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));
-		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
-		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
-		t
-	};
-}
-
 pub struct XcmConfig;
 impl Config for XcmConfig {
 	type Call = Call;
-	type XcmSender = LocalXcmHandler;
+	type XcmSender = XcmHandler;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
 	//TODO: might need to add other assets based on orml-tokens
-	type IsReserve = NativePalletAssetOr<NativeTokens>;
+	type IsReserve = AssetLocationFilter<NativeTokens>;
 	type IsTeleporter = ();
 	type LocationInverter = LocationInverter<Ancestry>;
 }
@@ -1024,55 +1014,27 @@ impl xcm_handler::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type UpwardMessageSender = ParachainSystem;
 	type HrmpMessageSender = ParachainSystem;
+	type AccountIdConverter = LocationConverter;
 }
 
-impl xcm_adapter::Config for Runtime {
+parameter_types! {
+	pub NativeTokens: BTreeMap<Vec<u8>, MultiLocation> = {
+		let mut t = BTreeMap::new();
+		t.insert("ACA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 666 }));
+		t.insert("PHA".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 30 }));
+		t.insert("PHA2000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 2000 }));	// test only
+		t.insert("PHA5000".into(), MultiLocation::X2(Junction::Parent, Junction::Parachain { id: 5000 }));	// test only
+		t
+	};
+}
+
+impl xcm_transactor::Config for Runtime {
 	type Event = Event;
-	type Matcher = IsConcreteWithGeneralKey<CurrencyId, RelayToNative>;
+	type Matcher = ConcreteMatcher<RococoLocation>;
 	type AccountIdConverter = LocationConverter;
 	type XCurrencyIdConverter = XCurrencyIdConverter<NativeTokens>;
 	type OwnedCurrency = Balances;
 	type ParaId = ParachainInfo;
-}
-
-pub struct RelayToNative;
-impl Convert<RelayChainBalance, Balance> for RelayToNative {
-	fn convert(val: u128) -> Balance {
-		// native is 12
-		// relay is 12
-		val * 1
-	}
-}
-
-pub struct NativeToRelay;
-impl Convert<Balance, RelayChainBalance> for NativeToRelay {
-	fn convert(val: u128) -> Balance {
-		// native is 12
-		// relay is 12
-		val / 1
-	}
-}
-
-parameter_types! {
-	pub const PolkadotNetworkId: NetworkId = NetworkId::Polkadot;
-}
-
-pub struct AccountId32Convert;
-impl Convert<AccountId, [u8; 32]> for AccountId32Convert {
-	fn convert(account_id: AccountId) -> [u8; 32] {
-		account_id.into()
-	}
-}
-
-impl xtoken::Config for Runtime {
-	type Event = Event;
-	type Balance = Balance;
-	type ToRelayChainBalance = NativeToRelay;
-	type AccountId32Convert = AccountId32Convert;
-	//TODO: change network id if kusama
-	type RelayChainNetworkId = PolkadotNetworkId;
-	type ParaId = ParachainInfo;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
 construct_runtime!(
@@ -1117,9 +1079,8 @@ construct_runtime!(
 		Multisig: pallet_multisig::{Module, Call, Storage, Event<T>},
 		ParachainSystem: cumulus_parachain_system::{Module, Call, Storage, Inherent, Event},
 		ParachainInfo: parachain_info::{Module, Storage, Config},
-		PhalaXToken: xtoken::{Module, Call, Storage, Event<T>},
-		LocalXcmHandler: xcm_handler::{Module, Event<T>, Origin},
-		XCMAdapter: xcm_adapter::{Module, Call, Event<T>},
+		XcmHandler: xcm_handler::{Module, Event<T>, Origin, Call},
+		PhalaXcmTransactor: xcm_transactor::{Module, Call, Event<T>},
 	}
 );
 

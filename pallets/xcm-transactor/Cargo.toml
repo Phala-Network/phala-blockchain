@@ -1,8 +1,11 @@
 [package]
-name = "xcm-adapter"
+name = "xcm-transactor"
 version = "0.1.0"
-authors = ["Wenfeng Wang <kalot.wang@gmail.com>"]
-edition = "2018"
+authors = ['Phala Network']
+edition = '2018'
+license = "Apache 2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

@@ -10,7 +10,7 @@ use serde::{Serialize, Deserialize};
 
 use xcm::v0::{NetworkId};
 use cumulus_primitives::{ParaId};
-use xcm_adapter::{ PHAXCurrencyId as XCurrencyId };
+use xcm_transactor::{ PHAXCurrencyId as XCurrencyId };
 
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
