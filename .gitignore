@@ -67,20 +67,20 @@ ring/pregenerated/
 *.so.*
 
 # Executables
-pruntime/bin/**
-!pruntime/bin/Rocket.toml
+**/pruntime/bin/**
+!**/pruntime/bin/Rocket.toml
 
 # SGX EDL generated stubs
-pruntime/Enclave_u.c
-pruntime/Enclave_u.h
-pruntime/Enclave_t.c
-pruntime/Enclave_t.h
+**/pruntime/Enclave_u.c
+**/pruntime/Enclave_u.h
+**/pruntime/Enclave_t.c
+**/pruntime/Enclave_t.h
 
 # Generated and temp files
-pruntime/app/src/protos/*.rs
-pruntime/enclave/src/protos/*.rs
-pruntime/protos/tmp
-pruntime/tmp
+**/pruntime/app/src/protos/*.rs
+**/pruntime/enclave/src/protos/*.rs
+**/pruntime/protos/tmp
+**/pruntime/tmp
 tmp
 
 # JS scripts

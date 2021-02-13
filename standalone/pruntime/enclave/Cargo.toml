@@ -13,14 +13,14 @@ crate-type = ["staticlib"]
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
 sgx_backtrace   = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_types       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_types" }
-sgx_tstd        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "backtrace"] } # { path = "../rust-sgx-sdk/sgx_tstd", features = ["net", "backtrace"] }
-sgx_tcrypto     = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tcrypto" }
-sgx_tse         = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_tse" }
-sgx_trts        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_trts" }
+sgx_types       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tstd        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", features = ["net", "backtrace"] }
+sgx_tcrypto     = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tse         = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_trts        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tseal       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
-sgx_rand        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand" }
-sgx_rand_derive = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" } # { path = "../rust-sgx-sdk/sgx_rand_derive" }
+sgx_rand        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_rand_derive = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [dependencies]
 chrono      = { git = "https://github.com/mesalock-linux/chrono-sgx" } # { path = "../vendor/chrono" }
@@ -45,15 +45,15 @@ bit-vec     = { version = "*", default-features = false}
 itertools   = { version = "0.8", default-features = false, features = []}
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 
-sp-io                = { path = "../../substrate/primitives/io", default-features = false }
-sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", default-features = false }
-sp-runtime           = { path = "../../substrate/primitives/runtime", default-features = false }
+sp-io                = { path = "../../../substrate/primitives/io", default-features = false }
+sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", default-features = false }
+sp-runtime           = { path = "../../../substrate/primitives/runtime", default-features = false }
 parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
 
 # Phala specific
 runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
-pallet-phala = { package = "pallet-phala", path = "../../pallets/phala", default-features = false }
-phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde", "pruntime"] }
+pallet-phala = { package = "pallet-phala", path = "../../../pallets/phala", default-features = false }
+phala-types = { path = "../../../common/types", default-features = false, features = ["enable_serde", "pruntime"] }
 
 csv-core = { version = "0.1.10", default-features = false }
 
@@ -63,11 +63,11 @@ log = { git = "https://github.com/mesalock-linux/log-sgx" }
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.13", default-features = false, features = ["derive-codec"] }
-trie = { package = "sp-trie", path = "../../substrate/primitives/trie", default-features = false }
-frame-system = { package = "frame-system", path = "../../substrate/frame/system", default-features = false }
-sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
-sp-application-crypto = { package = "sp-application-crypto", path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
-sp-core = { package = "sp-core", path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
+trie = { package = "sp-trie", path = "../../../substrate/primitives/trie", default-features = false }
+frame-system = { package = "frame-system", path = "../../../substrate/frame/system", default-features = false }
+sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa", default-features = false }
+sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
+sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
 
 fixed = { git = "https://github.com/encointer/substrate-fixed", package = "substrate-fixed", default-features = false }
 

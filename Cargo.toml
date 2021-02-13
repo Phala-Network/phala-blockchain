@@ -11,19 +11,19 @@ exclude = [
 	"serde_no_std",
 	"serde_derive_no_std",
 	"serde_json_no_std",
-	"pruntime",
+	"standalone/pruntime",
 	"jsonrpsee"
 ]
 
 members = [
 	"common/types",
-	"executor",
-    "node",
+	"standalone/executor",
+	"standalone/rpc",
+    "standalone/node",
+	"standalone/runtime",
+	"standalone/phost",
 	"pallets/phala",
 	"pallets/mining_staking",
-	"phost",
-	"runtime",
-	"rpc",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]

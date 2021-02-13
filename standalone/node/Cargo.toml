@@ -1,0 +1,164 @@
+[package]
+name = "phala-node"
+version = "3.0.0"
+authors = ["Phala Network"]
+description = "Phala Substrate Node"
+build = "build.rs"
+edition = "2018"
+license = "GPL-3.0-or-later WITH Classpath-exception-2.0"
+default-run = "phala-node"
+homepage = "https://substrate.dev"
+repository = "https://github.com/paritytech/substrate/"
+
+[package.metadata.wasm-pack.profile.release]
+# `wasm-opt` has some problems on linux, see
+# https://github.com/rustwasm/wasm-pack/issues/781 etc.
+wasm-opt = false
+
+[package.metadata.docs.rs]
+targets = ["x86_64-unknown-linux-gnu"]
+
+#[badges]
+#travis-ci = { repository = "paritytech/substrate" }
+#maintenance = { status = "actively-developed" }
+#is-it-maintained-issue-resolution = { repository = "paritytech/substrate" }
+#is-it-maintained-open-issues = { repository = "paritytech/substrate" }
+
+[[bin]]
+name = "phala-node"
+path = "bin/main.rs"
+required-features = ["cli"]
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# third-party dependencies
+codec = { package = "parity-scale-codec", version = "2.0.0" }
+serde = { version = "1.0.102", features = ["derive"] }
+futures = { version = "0.3.9", features = ["compat"] }
+hex-literal = "0.3.1"
+jsonrpc-core = "14.2.0"
+jsonrpc-pubsub = "14.2.0"
+log = "0.4.8"
+rand = "0.7.2"
+structopt = { version = "0.3.8", optional = true }
+parking_lot = "0.11.1"
+
+# primitives
+sp-authority-discovery = { version = "3.0.0",  path = "../../substrate/primitives/authority-discovery" }
+sp-consensus-babe = { version = "0.9.0", path = "../../substrate/primitives/consensus/babe" }
+grandpa-primitives = { version = "3.0.0", package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
+sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
+sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
+sp-timestamp = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/timestamp" }
+sp-inherents = { version = "3.0.0", path = "../../substrate/primitives/inherents" }
+sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
+sp-keystore = { version = "0.9.0", path = "../../substrate/primitives/keystore" }
+sp-io = { version = "3.0.0", path = "../../substrate/primitives/io" }
+sp-consensus = { version = "0.9.0", path = "../../substrate/primitives/consensus/common" }
+sp-transaction-pool = { version = "3.0.0", path = "../../substrate/primitives/transaction-pool" }
+
+# client dependencies
+sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
+sc-chain-spec = { version = "3.0.0", path = "../../substrate/client/chain-spec" }
+sc-consensus = { version = "0.9.0", path = "../../substrate/client/consensus/common" }
+sc-transaction-pool = { version = "3.0.0", path = "../../substrate/client/transaction-pool" }
+sc-network = { version = "0.9.0", path = "../../substrate/client/network" }
+sc-consensus-slots = { version = "0.9.0", path = "../../substrate/client/consensus/slots" }
+sc-consensus-babe = { version = "0.9.0", path = "../../substrate/client/consensus/babe" }
+grandpa = { version = "0.9.0", package = "sc-finality-grandpa", path = "../../substrate/client/finality-grandpa" }
+sc-client-db = { version = "0.9.0", default-features = false, path = "../../substrate/client/db" }
+sc-offchain = { version = "3.0.0", path = "../../substrate/client/offchain" }
+sc-rpc = { version = "3.0.0", path = "../../substrate/client/rpc" }
+sc-basic-authorship = { version = "0.9.0", path = "../../substrate/client/basic-authorship" }
+sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
+sc-tracing = { version = "3.0.0", path = "../../substrate/client/tracing" }
+sc-telemetry = { version = "3.0.0", path = "../../substrate/client/telemetry" }
+sc-authority-discovery = { version = "0.9.0",  path = "../../substrate/client/authority-discovery" }
+sc-finality-grandpa-warp-sync = { version = "0.9.0", path = "../../substrate/client/finality-grandpa-warp-sync", optional = true }
+
+# frame dependencies
+pallet-indices = { version = "3.0.0", path = "../../substrate/frame/indices" }
+pallet-timestamp = { version = "3.0.0", default-features = false, path = "../../substrate/frame/timestamp" }
+pallet-contracts = { version = "2.0.0", path = "../../substrate/frame/contracts" }
+frame-system = { version = "3.0.0", path = "../../substrate/frame/system" }
+pallet-balances = { version = "3.0.0", path = "../../substrate/frame/balances" }
+pallet-transaction-payment = { version = "3.0.0", path = "../../substrate/frame/transaction-payment" }
+frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
+pallet-im-online = { version = "3.0.0", default-features = false, path = "../../substrate/frame/im-online" }
+pallet-authority-discovery = { version = "3.0.0", path = "../../substrate/frame/authority-discovery" }
+pallet-staking = { version = "3.0.0", package = "phala-staking", path = "../../pallets/staking" }
+pallet-grandpa = { version = "3.0.0", path = "../../substrate/frame/grandpa" }
+
+# node-specific dependencies
+node-runtime = { version = "2.0.0", package = "phala-node-runtime", path = "../runtime" }
+node-rpc = { version = "2.0.0", path = "../rpc" }
+node-primitives = { version = "2.0.0", path = "../../substrate/bin/node/primitives" }
+node-executor = { version = "2.0.0", path = "../executor" }
+
+# CLI-specific dependencies
+sc-cli = { version = "0.9.0", optional = true, path = "../../substrate/client/cli" }
+frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
+node-inspect = { version = "0.8.0", optional = true, path = "../../substrate/bin/node/inspect" }
+
+# WASM-specific dependencies
+wasm-bindgen = { version = "0.2.57", optional = true }
+wasm-bindgen-futures = { version = "0.4.18", optional = true }
+browser-utils = { package = "substrate-browser-utils", path = "../../substrate/utils/browser", optional = true, version = "0.9.0"}
+
+[target.'cfg(target_arch="x86_64")'.dependencies]
+node-executor = { version = "2.0.0", path = "../executor", features = [ "wasmtime" ] }
+sc-cli = { version = "0.9.0", optional = true, path = "../../substrate/client/cli", features = [ "wasmtime" ] }
+sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service", features = [ "wasmtime" ] }
+sp-trie = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/trie", features = ["memory-tracker"] }
+
+[dev-dependencies]
+sc-keystore = { version = "3.0.0", path = "../../substrate/client/keystore" }
+sc-consensus = { version = "0.9.0", path = "../../substrate/client/consensus/common" }
+sc-consensus-babe = { version = "0.9.0", features = ["test-helpers"], path = "../../substrate/client/consensus/babe" }
+sc-consensus-epochs = { version = "0.9.0", path = "../../substrate/client/consensus/epochs" }
+sc-service-test = { version = "2.0.0", path = "../../substrate/client/service/test" }
+futures = "0.3.4"
+tempfile = "3.1.0"
+assert_cmd = "1.0"
+nix = "0.19"
+serde_json = "1.0"
+regex = "1"
+platforms = "1.1"
+
+[build-dependencies]
+structopt = { version = "0.3.8", optional = true }
+node-inspect = { version = "0.8.0", optional = true, path = "../../substrate/bin/node/inspect" }
+frame-benchmarking-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
+substrate-build-script-utils = { version = "3.0.0", optional = true, path = "../../substrate/utils/build-script-utils" }
+substrate-frame-cli = { version = "3.0.0", optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
+
+[build-dependencies.sc-cli]
+version = "0.9.0"
+package = "sc-cli"
+path = "../../substrate/client/cli"
+optional = true
+
+[features]
+default = [ "cli" ]
+browser = [
+	"browser-utils",
+	"wasm-bindgen",
+	"wasm-bindgen-futures",
+]
+cli = [
+	"node-executor/wasmi-errno",
+	"node-inspect",
+	"sc-cli",
+	"frame-benchmarking-cli",
+	"substrate-frame-cli",
+	"sc-service/db",
+	"sc-finality-grandpa-warp-sync",
+	"structopt",
+	"substrate-build-script-utils",
+]
+runtime-benchmarks = [
+	"node-runtime/runtime-benchmarks",
+	"frame-benchmarking-cli",
+]

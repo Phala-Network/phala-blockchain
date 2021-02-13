@@ -84,7 +84,7 @@ SGX_COMMON_CFLAGS += -fstack-protector
 
 ######## Rust SGX SDK Settings ########
 
-RUST_SGX_SDK := ./rust-sgx-sdk
+RUST_SGX_SDK := ../../teaclave-sgx-sdk
 RUST_SGX_EDL_PATH := $(RUST_SGX_SDK)/edl
 RUST_SGX_COMMON_PATH := $(RUST_SGX_SDK)/common
 

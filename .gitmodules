@@ -1,6 +1,6 @@
 [submodule "substrate"]
 	path = substrate
 	url = https://github.com/paritytech/substrate.git
-[submodule "pruntime/rust-sgx-sdk"]
-	path = pruntime/rust-sgx-sdk
+[submodule "teaclave-sgx-sdk"]
+	path = teaclave-sgx-sdk
 	url = https://github.com/apache/incubator-teaclave-sgx-sdk.git
