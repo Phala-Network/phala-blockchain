@@ -1,13 +1,13 @@
 [package]
 name = "phala-types"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["h4x3rotab <h4x3rotab@gmail.com>"]
 edition = "2018"
 
 [dependencies]
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
-sp-core = { version = "2.0.0", default-features = false, path = "../../substrate/primitives/core" }
+sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
 [features]

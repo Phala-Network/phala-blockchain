@@ -91,6 +91,8 @@ parameter_types! {
 	pub const RewardRation: u32 = 80_000;
 	pub const OnlineRewardPercentage: Permill = Permill::from_parts(375_000);
 	pub const ComputeRewardPercentage: Permill = Permill::from_parts(625_000);
+	pub const OfflineOffenseSlash: Balance = 100 * DOLLARS;
+	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
 impl pallet_phala::Config for Test {
@@ -112,6 +114,8 @@ impl pallet_phala::Config for Test {
 	type RewardRation = RewardRation;
 	type OnlineRewardPercentage = OnlineRewardPercentage;
 	type ComputeRewardPercentage = ComputeRewardPercentage;
+	type OfflineOffenseSlash = OfflineOffenseSlash;
+	type OfflineReportReward = OfflineReportReward;
 }
 
 impl mining_staking::Config for Test {

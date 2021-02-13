@@ -25,7 +25,7 @@ pallet-phala = { default-features = false, path = "../phala" }
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 
 [dev-dependencies]
-pallet-timestamp = { version = "2.0.0", path = "../../substrate/frame/timestamp" }
+pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp" }
 
 [features]
 default = ['std']
