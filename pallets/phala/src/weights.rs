@@ -16,15 +16,15 @@ pub trait ModuleWeightInfo {
 	fn push_command() -> Weight;
 	fn set_stash() -> Weight;
 	fn set_payout_prefs() -> Weight;
-	fn register_worker() -> Weight;	
-	fn force_register_worker() ->  Weight;
+	fn register_worker() -> Weight;
+	fn force_register_worker() -> Weight;
 	fn force_set_contract_key() -> Weight;
 	fn start_mining_intention() -> Weight;
 	fn stop_mining_intention() -> Weight;
 	fn transfer_to_tee() -> Weight;
 	fn transfer_to_chain() -> Weight;
 	fn sync_worker_message() -> Weight;
-	fn force_next_round() ->  Weight;
+	fn force_next_round() -> Weight;
 	fn force_add_fire() -> Weight;
 	fn add_mrenclave() -> Weight;
 	fn remove_mrenclave_by_raw_data() -> Weight;
@@ -62,8 +62,7 @@ impl<T: frame_system::Config> ModuleWeightInfo for SubstrateWeight<T> {
 			.saturating_add(T::DbWeight::get().writes(4 as Weight))
 	}
 	fn force_set_contract_key() -> Weight {
-		(9_000_000 as Weight)
-			.saturating_add(T::DbWeight::get().writes(1 as Weight))
+		(9_000_000 as Weight).saturating_add(T::DbWeight::get().writes(1 as Weight))
 	}
 	fn start_mining_intention() -> Weight {
 		(107_000_000 as Weight)

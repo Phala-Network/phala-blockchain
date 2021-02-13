@@ -6,11 +6,12 @@ use frame_support::{
 use frame_system::RawOrigin;
 use hex_literal::hex;
 use secp256k1;
+use sp_core::U256;
 use sp_runtime::traits::BadOrigin;
 
 use crate::{mock::*, Error};
 use crate::{
-	types::{RoundStats, Transfer, TransferData, WorkerStateEnum},
+	types::{BlockRewardInfo, RoundStats, Transfer, TransferData, WorkerStateEnum},
 	RawEvent,
 };
 use phala_types::PayoutReason;
@@ -304,13 +305,7 @@ fn test_mine() {
 			PhalaModule::stop_mining_intention(Origin::signed(1)),
 			Error::<Test>::ControllerNotFound
 		);
-		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_ok!(PhalaModule::force_register_worker(
-			RawOrigin::Root.into(),
-			1,
-			vec![0],
-			vec![1]
-		));
+		setup_test_worker(1);
 		// Free <-> MiningPending
 		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
 		assert_eq!(
@@ -692,6 +687,7 @@ fn test_mining_lifecycle_force_reregister() {
 		PhalaModule::on_finalize(2);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
+			Event::phala(RawEvent::MinerStopped(1, 1)),
 			Event::phala(RawEvent::WorkerUnregistered(1, x)),
 			Event::phala(RawEvent::WorkerRegistered(2, y, z)),
 			Event::phala(RawEvent::RewardSeed(_)),
@@ -828,56 +824,117 @@ fn test_bug_119() {
 	});
 }
 
-/*
-// Helper function used to generate a AccountId, for benchmark development only, uncomment to generate
-// benchmark mock data
-pub fn account<Account: Decode + Default>(name: &'static str, index: u32, seed: u32) -> Account {
-	let entropy = (name, index, seed).using_encoded(sp_io::hashing::blake2_256);
-	Account::decode(&mut &entropy[..]).unwrap_or_default()
-}
+// TODO: add a slash window test
 
-// Helper function used to generate the TranferData signature(see TRANSFERDATASIG in benchmarking.rs), 
-// for benchmark development only, uncomment to generate benchmark mock data
 #[test]
-fn test_mockdata_transfer_to_chain() {
+fn test_slash_offline() {
 	new_test_ext().execute_with(|| {
-		use frame_system::Config;
-
-		let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
-		let sk = ecdsa_load_sk(&raw_sk);
-		let receiver: <Test as Config>::AccountId = account("receiver", 0, 0u32);
-
-		let transfer = Transfer::<<Test as Config>::AccountId, Balance> {
-			dest: receiver,
-			amount: 50u32.into(),
-			sequence: 1,
-		};
-
-		let signature = ecdsa_sign(&sk, &transfer);
-		print!("transfer signature: {:?}", signature);
+		System::set_block_number(1);
+		// Block 1: register a worker at stash1 and start mining
+		setup_test_worker(1);
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(1)));
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		// Add a seed for block 2
+		set_block_reward_base(2, U256::MAX);
+		// 2. Time travel a few blocks later
+		System::set_block_number(15);
+		// 3. Report offline
+		assert_ok!(PhalaModule::report_offline(Origin::signed(2), 1, 2));
+		// 4. Check events
+		assert_matches!(events().as_slice(), [
+			Event::phala(RawEvent::WorkerRegistered(1, _, _)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::RewardSeed(_)),
+			Event::phala(RawEvent::MinerStarted(1, 1)),
+			Event::phala(RawEvent::WorkerStateUpdated(1)),
+			Event::phala(RawEvent::NewMiningRound(1)),
+			Event::phala(RawEvent::MinerStopped(1, 1)),
+			Event::phala(RawEvent::Slash(1, 1, x, 2, y))
+		] if *x == 100 * DOLLARS && *y == 50 * DOLLARS);
+		// Check cannot be slashed twice
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(2), 1, 2),
+			Error::<Test>::ReportedWorkerNotMining
+		);
 	});
 }
 
-// Helper function used to generate the WorkerMessage signature(see WORKMESSAGESIG in benchmarking.rs), 
-// for benchmark development only, uncomment to generate benchmark mock data
 #[test]
-fn test_mockdata_sync_worker_message() {
+fn test_slash_verification() {
 	new_test_ext().execute_with(|| {
-		let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
-		let sk = ecdsa_load_sk(&raw_sk);
-		let work_message = WorkerMessage {
-			payload: WorkerMessagePayload::Heartbeat{
-				block_num: 123u32,
-				claim_online: true,
-				claim_compute: true,
-			},
-			sequence: 0,
-		};
-		let signature = ecdsa_sign(&sk, &work_message);
-		print!("WorkMessage signature: {:?}", signature);
+		// Basic setup
+		System::set_block_number(1);
+		setup_test_worker(1);	// Not mining
+		setup_test_worker(2);	// Mining
+		assert_ok!(PhalaModule::start_mining_intention(Origin::signed(2)));
+		PhalaModule::on_finalize(1);
+		System::finalize();
+		// Slash a non-exiting worker
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 100, 1),
+			Error::<Test>::StashNotFound
+		);
+		// Slash an offline worker
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 1, 2),
+			Error::<Test>::ReportedWorkerNotMining
+		);
+		// Beyond the slash window (currently 40 blocks)
+		System::set_block_number(100);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 60),
+			Error::<Test>::TooAncientReport
+		);
+		// Beyond the current round (new round at block 101)
+		assert_ok!(PhalaModule::force_next_round(RawOrigin::Root.into()));
+		PhalaModule::on_finalize(100);
+		System::finalize();
+		System::set_block_number(101);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 100),
+			Error::<Test>::TooAncientReport
+		);
+		// Mining normally
+		set_block_reward_base(101, U256::MAX);
+		PhalaModule::add_heartbeat(&2, 101);
+		System::set_block_number(110);
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 101),
+			Error::<Test>::ReportedWorkerStillAlive
+		);
+		// Invalid proof
+		set_block_reward_base(102, U256::zero());  // Nobody can hit the target
+		assert_noop!(
+			PhalaModule::report_offline(Origin::signed(10), 2, 102),
+			Error::<Test>::InvalidProof
+		);
 	});
 }
-*/
+
+fn setup_test_worker(stash: u64) {
+	let machine_id = vec![stash as u8];
+	let mut pubkey = [0; 33].to_vec();
+	pubkey[32] = stash as u8;
+	assert_ok!(PhalaModule::set_stash(Origin::signed(stash), stash));
+	assert_ok!(PhalaModule::force_register_worker(
+		RawOrigin::Root.into(),
+		stash,
+		machine_id.clone(),
+		pubkey.clone()
+	));
+}
+
+fn set_block_reward_base(block: BlockNumber, target: U256) {
+	use frame_support::storage::StorageMap;
+	crate::BlockRewardSeeds::<Test>::insert(block, BlockRewardInfo {
+		seed: U256::zero(),
+		// Set targets to MAX so the worker can hit the reward
+		online_target: target,
+		compute_target: target,
+	});
+}
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
 	secp256k1::SecretKey::parse_slice(raw_key).expect("can't parse private key")

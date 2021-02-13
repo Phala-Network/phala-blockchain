@@ -6,6 +6,7 @@ pub const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 pub const BLOCK_REWARD_TO_KEEP: u32 = 20;
 pub const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;
+pub const DEFAULT_BLOCK_REWARD_TO_KEEP: u32 = 20;
 
 pub const IAS_QUOTE_STATUS_LEVEL_1: &'static [&str] = &[
     "OK",
