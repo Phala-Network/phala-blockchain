@@ -103,6 +103,8 @@ pub struct WorkerInfo<BlockNumber> {
     pub score: Option<Score>,
     // confidence-level
     pub confidence_level: u8,
+    // version
+    pub runtime_version: u32,
 }
 
 #[derive(Encode, Decode, Default)]
@@ -127,7 +129,7 @@ type MachineId = [u8; 16];
 type WorkerPublicKey = [u8; 33];
 #[derive(Encode, Decode, Debug)]
 pub struct PRuntimeInfo {
-    pub version: u8,
+    pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub features: Vec<u32>,

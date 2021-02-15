@@ -187,7 +187,8 @@ decl_storage! {
 						overall_score: 100,
 						features: vec![1, 4]
 					}),
-					confidence_level: 128u8
+					confidence_level: 128u8,
+					runtime_version: 0
 				};
 				WorkerState::<T>::insert(&stash, worker_info);
 				let stash_info = StashInfo {
@@ -483,9 +484,11 @@ decl_module! {
 			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
 			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
+			let runtime_version = runtime_info.version;
 			let machine_id = runtime_info.machine_id.to_vec();
 			let pubkey = runtime_info.pubkey.to_vec();
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features, confidence_level)
+
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features, confidence_level, runtime_version)
 				.map_err(Into::into)
 		}
 
@@ -507,7 +510,7 @@ decl_module! {
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
 			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4], 0)?;
+			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4], 0, 0)?;
 			Ok(())
 		}
 
@@ -866,6 +869,7 @@ impl<T: Config> Module<T> {
 		pubkey: &Vec<u8>,
 		worker_features: &Vec<u32>,
 		confidence_level: u8,
+		runtime_version: u32
 	) -> Result<(), Error<T>> {
 		let mut delta = PendingExitingDelta::get();
 		let info = WorkerState::<T>::get(stash);
@@ -900,6 +904,7 @@ impl<T: Config> Module<T> {
 				last_updated,
 				score,	// could change if we do profiling
 				confidence_level, // could change on redo RA
+				runtime_version, // could change on redo RA
 				..info  // keep .state
 			}
 		} else {
@@ -916,6 +921,7 @@ impl<T: Config> Module<T> {
 				state: WorkerStateEnum::Free,
 				score,
 				confidence_level,
+				runtime_version
 			}
 		};
 		WorkerState::<T>::insert(stash, new_info);

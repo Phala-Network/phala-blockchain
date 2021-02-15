@@ -83,97 +83,78 @@ pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signatu
 pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] =
 	include_bytes!("../sample/report_signing_certificate");
 pub const ENCODED_RUNTIME_INFO: &[u8] = &[
-	1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90,
-	188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50,
-	211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0,
+	1, 0, 0, 0, 245, 151, 21, 190, 193, 117, 248, 122, 224, 159, 253, 213, 21, 40, 218, 86, 2, 25, 129, 16, 9, 148, 237, 233, 24, 87, 49, 149, 68, 206, 59, 178, 136, 85, 70, 184, 49, 52, 238, 212, 135, 126, 1, 60, 194, 6, 214, 225, 53, 8, 4, 0, 0, 0, 1, 0, 0, 0
 ];
 pub const MR_ENCLAVE: &[u8] = &[
-	197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60,
-	149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174,
+	193, 119, 31, 106, 165, 11, 108, 56, 50, 228, 133, 114, 217, 104, 99, 119, 205, 66, 59, 160, 248, 168, 133, 153, 173, 165, 142, 87, 223, 26, 158, 120,
 ];
 pub const MR_SIGNER: &[u8] = &[
-	131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219,
-	105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158,
+	129, 95, 66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106, 29, 160, 19, 12, 59, 2, 139, 103, 49, 51, 166, 108, 249, 163, 224, 230,
 ];
 pub const ISV_PROD_ID: &[u8] = &[0, 0];
 pub const ISV_SVN: &[u8] = &[0, 0];
-const PANIC: bool = false;
+
+fn ias_report_sample() -> Vec<u8> {
+	IAS_REPORT_SAMPLE[..(IAS_REPORT_SAMPLE.len() - 1)].to_vec()  // strip trailing `\n`
+}
+
+fn ias_report_signature() -> Vec<u8> {
+	base64::decode(
+		&IAS_REPORT_SIGNATURE[..(IAS_REPORT_SIGNATURE.len() - 1)]  // strip trailing `\n`
+	).expect("decode sig failed")
+}
+
+fn ias_report_signing_certificate() -> Vec<u8> {
+	base64::decode(
+		&IAS_REPORT_SIGNING_CERTIFICATE[..(IAS_REPORT_SIGNING_CERTIFICATE.len() - 1)] // strip trailing `\n`
+	).expect("decode cert failed")
+}
 
 #[test]
 fn test_validate_cert() {
-	let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
-		Ok(x) => x,
-		Err(_) => panic!("decode sig failed"),
-	};
-
-	let sig_cert_dec: Vec<u8> =
-		match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
-			Ok(x) => x,
-			Err(_) => panic!("decode cert failed"),
-		};
-	let sig_cert: webpki::EndEntityCert = match webpki::EndEntityCert::from(&sig_cert_dec) {
-		Ok(x) => x,
-		Err(_) => panic!("parse sig failed"),
-	};
+	let sig = ias_report_signature();
+	let sig_cert_dec = ias_report_signing_certificate();
+	let sig_cert = webpki::EndEntityCert::from(&sig_cert_dec).expect("parse sig failed");
 
 	let chain: Vec<&[u8]> = Vec::new();
-	let now_func = webpki::Time::from_seconds_since_unix_epoch(1573419050);
+	let now_func = webpki::Time::from_seconds_since_unix_epoch(1613312566);
 
-	match sig_cert.verify_is_valid_tls_server_cert(
+	sig_cert.verify_is_valid_tls_server_cert(
 		SUPPORTED_SIG_ALGS,
 		&IAS_SERVER_ROOTS,
 		&chain,
 		now_func,
-	) {
-		Ok(()) => (),
-		Err(_) => panic!("verify cert failed"),
-	};
+	).expect("verify cert failed");
 
-	let verify_result = sig_cert.verify_signature(
+	sig_cert.verify_signature(
 		&webpki::RSA_PKCS1_2048_8192_SHA256,
-		&IAS_REPORT_SAMPLE,
+		&ias_report_sample(),
 		&sig,
-	);
-
-	if PANIC {
-		verify_result.unwrap();
-	} else {
-		match verify_result {
-			Ok(()) => (),
-			Err(_) => panic!("verify sig failed"),
-		};
-	}
+	).expect("verify sig failed");
 }
 
 #[test]
 fn test_register_worker() {
-	let sig: Vec<u8> = match base64::decode(&IAS_REPORT_SIGNATURE) {
-		Ok(x) => x,
-		Err(_) => panic!("decode sig failed")
-	};
-
-	let sig_cert_dec: Vec<u8> = match base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD) {
-		Ok(x) => x,
-		Err(_) => panic!("decode cert failed")
-	};
+	let sig = ias_report_signature();
+	let sig_cert_dec = ias_report_signing_certificate();
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1573419051);
+		Timestamp::set_timestamp(1613315656);
 
 		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::register_worker(
 			Origin::signed(1),
 			ENCODED_RUNTIME_INFO.to_vec(),
-			IAS_REPORT_SAMPLE.to_vec(),
+			ias_report_sample(),
 			sig.clone(),
 			sig_cert_dec.clone()
 		));
 		assert_ok!(PhalaModule::register_worker(
 			Origin::signed(1),
 			ENCODED_RUNTIME_INFO.to_vec(),
-			IAS_REPORT_SAMPLE.to_vec(),
+			ias_report_sample(),
 			sig.clone(),
 			sig_cert_dec.clone()
 		));
@@ -181,33 +162,33 @@ fn test_register_worker() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1673419051);
+		Timestamp::set_timestamp(1633310550);
 
 		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
-		assert_err!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()), Error::<Test>::OutdatedIASReport);
+		assert_err!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()), Error::<Test>::OutdatedIASReport);
 	});
 }
 
 #[test]
 fn test_whitelist_works() {
+	let sig = ias_report_signature();
+	let sig_cert_dec = ias_report_signing_certificate();
+
 	new_test_ext().execute_with(|| {
 		// Set block number to 1 to test the events
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1573419051);
-
-		let sig: Vec<u8> = base64::decode(&IAS_REPORT_SIGNATURE).expect("decode sig failed");
-		let sig_cert_dec: Vec<u8> = base64::decode_config(&IAS_REPORT_SIGNING_CERTIFICATE, base64::STANDARD).expect("decode cert failed");
+		Timestamp::set_timestamp(1613315656);
 
 		assert_ok!(PhalaModule::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaModule::set_stash(Origin::signed(2), 2));
 
 		// TODO: Handle RA report replay attack
 		assert_ok!(PhalaModule::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
-		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id = &PhalaModule::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);
-		assert_ok!(PhalaModule::register_worker(Origin::signed(2), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(PhalaModule::register_worker(Origin::signed(2), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id2 = &PhalaModule::worker_state(2).machine_id;
 		assert_eq!(true, machine_id2.len() > 0);
 		let machine_id1 = &PhalaModule::worker_state(1).machine_id;
@@ -581,6 +562,7 @@ fn test_payout_and_missed() {
 				state: phala_types::WorkerStateEnum::Mining(1),
 				score: None,
 				confidence_level: 1,
+				runtime_version: 0,
 			},
 		);
 		crate::Round::<Test>::put(phala_types::RoundInfo::<BlockNumber> {

@@ -136,6 +136,7 @@ extern "C" {
     ) -> sgx_status_t;
 }
 
+pub const VERSION: u32 = 1;
 pub const IAS_HOST: &'static str = env!("IAS_HOST");
 pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
 pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
@@ -969,7 +970,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     // Build PRuntimeInfo
     let runtime_info = PRuntimeInfo {
-        version: 1,
+        version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_serialized_pk,
         features: vec![cpu_core_num, cpu_feature_level],
