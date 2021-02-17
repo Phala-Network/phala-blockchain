@@ -1207,7 +1207,6 @@ dependencies = [
  "sp-application-crypto",
  "sp-consensus-babe",
  "sp-consensus-vrf",
- "sp-inherents",
  "sp-io",
  "sp-runtime",
  "sp-session",
