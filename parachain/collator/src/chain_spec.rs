@@ -17,7 +17,7 @@
 use cumulus_primitives_core::ParaId;
 use hex_literal::hex;
 use parachain_primitives::{AccountId, Signature};
-use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup};
+use sc_chain_spec::{ChainSpecExtension, ChainSpecGroup, Properties};
 use sc_service::ChainType;
 use serde::{Deserialize, Serialize};
 use sp_core::{sr25519, Pair, Public};
@@ -114,6 +114,83 @@ pub fn staging_test_net(id: ParaId) -> ChainSpec {
 		None,
 		None,
 		None,
+		Extensions {
+			relay_chain: "westend-dev".into(),
+			para_id: id.into(),
+		},
+	)
+}
+
+pub fn parachain_local_test_net(id: ParaId) -> ChainSpec {
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "PHA".into());
+		p.insert("tokenDecimals".into(), 12.into());
+		p.insert("ss58Format".into(), 30.into());
+		p
+	};
+
+	ChainSpec::from_genesis(
+		"Phala PC1",
+		"phala_pc1",
+		ChainType::Local,
+		move || {
+			testnet_genesis(
+				get_account_id_from_seed::<sr25519::Public>("Alice"),
+				vec![
+					get_account_id_from_seed::<sr25519::Public>("Alice"),
+					get_account_id_from_seed::<sr25519::Public>("Bob"),
+					get_account_id_from_seed::<sr25519::Public>("Charlie"),
+					get_account_id_from_seed::<sr25519::Public>("Dave"),
+					get_account_id_from_seed::<sr25519::Public>("Eve"),
+					get_account_id_from_seed::<sr25519::Public>("Ferdie"),
+					get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
+					get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
+					get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
+					get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
+					get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
+					get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+				],
+				id,
+			)
+		},
+		vec![],
+		None,
+		None,
+		Some(properties),
+		Extensions {
+			relay_chain: "westend-dev".into(),
+			para_id: id.into(),
+		},
+	)
+}
+
+pub fn parachain_test_net(id: ParaId) -> ChainSpec {
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "PHA".into());
+		p.insert("tokenDecimals".into(), 12.into());
+		p.insert("ss58Format".into(), 30.into());
+		p
+	};
+
+	ChainSpec::from_genesis(
+		"Phala PC1",
+		"phala_pc1",
+		ChainType::Live,
+		move || {
+			testnet_genesis(
+				hex!["3c908275761663a1284319ac4924adc0252d07cfab7435a6d2385ef47c613924"].into(),
+				vec![
+					hex!["3c908275761663a1284319ac4924adc0252d07cfab7435a6d2385ef47c613924"].into(),
+				],
+				id,
+			)
+		},
+		Vec::new(),
+		None,
+		None,
+		Some(properties),
 		Extensions {
 			relay_chain: "westend-dev".into(),
 			para_id: id.into(),
