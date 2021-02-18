@@ -41,6 +41,8 @@ fn load_spec(
 	para_id: ParaId,
 ) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 	match id {
+		"collator" => Ok(Box::new(chain_spec::parachain_test_net(para_id))),
+		"collator-local" => Ok(Box::new(chain_spec::parachain_local_test_net(para_id))),
 		"staging" => Ok(Box::new(chain_spec::staging_test_net(para_id))),
 		"tick" => Ok(Box::new(chain_spec::ChainSpec::from_json_bytes(
 			&include_bytes!("../res/tick.json")[..],
