@@ -74,8 +74,8 @@ impl_opaque_keys! {
 
 /// This runtime version.
 pub const VERSION: RuntimeVersion = RuntimeVersion {
-	spec_name: create_runtime_str!("phala-parachain"),
-	impl_name: create_runtime_str!("phala-parachain"),
+	spec_name: create_runtime_str!("phala-collator"),
+	impl_name: create_runtime_str!("phala-collator"),
 	authoring_version: 1,
 	spec_version: 1,
 	impl_version: 1,
