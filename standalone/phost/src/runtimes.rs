@@ -30,15 +30,35 @@ use subxt::{
     balances::{
         AccountData,
         Balances,
+        BalancesEventTypeRegistry,
     },
-    contracts::Contracts,
-    sudo::Sudo,
-    system::System,
-    session::Session,
-    staking::Staking,
+    contracts::{
+        Contracts,
+        ContractsEventTypeRegistry,
+    },
+    session::{
+        Session,
+        SessionEventTypeRegistry,
+    },
+    staking::{
+        Staking,
+        StakingEventTypeRegistry,
+    },
+    sudo::{
+        Sudo,
+        SudoEventTypeRegistry,
+    },
+    system::{
+        System,
+        SystemEventTypeRegistry,
+    },
+    EventTypeRegistry,
     Runtime,
-    BasicSessionKeys
+    BasicSessionKeys,
+    register_default_type_sizes
 };
+
+use self::phala::PhalaModuleEventTypeRegistry;
 
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
@@ -52,6 +72,18 @@ pub struct PhalaNodeRuntime;
 impl Runtime for PhalaNodeRuntime {
     type Signature = MultiSignature;
     type Extra = DefaultExtra<Self>;
+
+    fn register_type_sizes(event_type_registry: &mut EventTypeRegistry<Self>) {
+        event_type_registry.with_system();
+        event_type_registry.with_contracts();
+        event_type_registry.with_sudo();
+
+        event_type_registry.with_phala_module();
+        event_type_registry.with_balances();
+        event_type_registry.with_staking();
+        event_type_registry.with_session();
+        register_default_type_sizes(event_type_registry);
+    }
 }
 
 impl System for PhalaNodeRuntime {
@@ -88,7 +120,7 @@ impl mining_staking::MiningStaking for PhalaNodeRuntime {}
 pub mod grandpa {
     use super::PhalaNodeRuntime;
     use codec::Encode;
-    use subxt::{module, Store, system::{System, SystemEventsDecoder}};
+    use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
     use pallet_grandpa::fg_primitives::SetId;
 
@@ -116,8 +148,8 @@ pub mod phala {
     use codec::{Encode, Decode};
     use subxt::{
         module, Call, Store,
-        system::{System, SystemEventsDecoder},
-        balances::{Balances, BalancesEventsDecoder}
+        system::System,
+        balances::Balances
     };
     use core::marker::PhantomData;
 
@@ -292,8 +324,8 @@ pub mod mining_staking {
     use codec::Encode;
     use subxt::{
         module, Store,
-        system::{System, SystemEventsDecoder},
-        balances::{Balances, BalancesEventsDecoder}
+        system::System,
+        balances::Balances
     };
     use core::marker::PhantomData;
 

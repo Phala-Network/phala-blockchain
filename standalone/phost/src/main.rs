@@ -554,8 +554,9 @@ async fn bridge(args: Args) -> Result<(), Error> {
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(args.substrate_ws_endpoint.clone())
+        .skip_type_sizes_check()
         .build().await?;
-    let events_decoder = chain_client::get_event_decoder(&client);
+    let events_decoder = client.events_decoder();
     println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
     // Other initialization
@@ -698,7 +699,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
             sync_events_only(
-                &client, &pr, &events_decoder, &mut sync_state,
+                &client, &pr, events_decoder, &mut sync_state,
                 // info.headernum is the next unknown header. So we sync to headernum - 1
                 info.headernum - 1,
                 args.sync_blocks
@@ -707,7 +708,7 @@ async fn bridge(args: Args) -> Result<(), Error> {
 
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(
-            &client, &pr, &events_decoder, &mut sync_state, args.sync_blocks).await?;
+            &client, &pr, events_decoder, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if !defer_block && synced_blocks == 0 {

@@ -50,22 +50,6 @@ pub async fn fetch_events(client: &XtClient, hash: &Hash)
     Ok(result)
 }
 
-/// Constructs a EventsDecoder for Phala Network
-pub fn get_event_decoder(xt: &XtClient) -> EventsDecoder::<Runtime> {
-    use runtimes::phala::PhalaModuleEventsDecoder;
-    use subxt::balances::BalancesEventsDecoder;
-    use subxt::staking::StakingEventsDecoder;
-    use subxt::session::SessionEventsDecoder;
-
-    let metadata = xt.metadata().clone();
-    let mut decoder = EventsDecoder::<Runtime>::new(metadata);
-    decoder.with_phala_module();
-    decoder.with_balances();
-    decoder.with_staking();
-    decoder.with_session();
-    decoder
-}
-
 /// Takes a snapshot of the necessary information for calculating compute works at a certain block
 pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
 -> Result<OnlineWorkerSnapshot<BlockNumber, Balance>, Error> {
