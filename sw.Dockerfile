@@ -31,7 +31,7 @@ RUN cd phala-blockchain && \
     rm -rf /root/.cargo/registry && \
     rm -rf /root/.cargo/git
 
-RUN cd phala-blockchain/pruntime && \
+RUN cd phala-blockchain/standalone/pruntime && \
     PATH="$PATH:$HOME/.cargo/bin" SGX_SDK="/opt/sgxsdk" SGX_MODE=SW make && \
     cp ./bin/app /root/prebuilt && \
     cp ./bin/enclave.signed.so /root/prebuilt && \
