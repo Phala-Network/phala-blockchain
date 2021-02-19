@@ -1,6 +1,6 @@
 [package]
 name = "substrate-subxt-client"
-version = "0.5.0"
+version = "0.6.0"
 authors = ["David Craven <david@craven.ch>", "Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -15,13 +15,18 @@ keywords = ["parity", "substrate", "blockchain"]
 async-std = "1.8.0"
 futures = { version = "0.3.9", features = ["compat"], package = "futures" }
 futures01 = { package = "futures", version = "0.1.29" }
-jsonrpsee = "0.1.0"
+jsonrpsee = { path = "../../jsonrpsee", version = "0.0.1", features = ["ws"] }
 log = "0.4.13"
-sc-network = { version = "0.9.0", default-features = false, path = "../../substrate/client/network" }
-sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
+sc-network = { path = "../../substrate/client/network", version = "0.9.0", default-features = false }
+sc-client-db = { path = "../../substrate/client/db", version = "0.9.0", default-features = false }
+sc-service = { path = "../../substrate/client/service", version = "0.9.0", default-features = false }
+
 serde_json = "1.0.61"
-sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
+sp-keyring = "3.0.0"
 thiserror = "1.0.23"
+
+[target.'cfg(target_arch="x86_64")'.dependencies]
+sc-service = { path = "../../substrate/client/service", version = "0.9.0", default-features = false, features = ["wasmtime"] }
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }

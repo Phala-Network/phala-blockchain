@@ -3,7 +3,7 @@ members = [".", "client", "proc-macro", "test-node"]
 
 [package]
 name = "substrate-subxt"
-version = "0.13.0"
+version = "0.14.0"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2018"
 
@@ -27,17 +27,22 @@ integration-tests = []
 log = "0.4.13"
 thiserror = "1.0.23"
 futures = "0.3.10"
-jsonrpsee = { version = "0.0.1", features = ["ws"], path = "../jsonrpsee" }
+jsonrpsee = { path = "../jsonrpsee", version = "0.0.1", features = ["ws"] }
 num-traits = { version = "0.2.14", default-features = false }
-serde = { version = "1.0.115", features = ["derive"] }
-serde_json = "1.0.57"
+serde = { version = "1.0.119", features = ["derive"] }
+serde_json = "1.0.61"
+url = "2.2.0"
 codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full"] }
+# temporarily pinning funty via codec -> bitvec until https://github.com/myrrlyn/funty/issues/3
+# and https://github.com/bitvecto-rs/bitvec/issues/105 are resolved
+funty = "=1.1.0"
+dyn-clone = "1.0.4"
 
-frame-metadata = { version = "13.0.0", package = "frame-metadata", path = "../substrate/frame/metadata" }
-frame-support = { version = "3.0.0", package = "frame-support", path = "../substrate/frame/support" }
-sp-runtime = { version = "3.0.0", package = "sp-runtime", path = "../substrate/primitives/runtime" }
-sp-version = { version = "3.0.0", package = "sp-version", path = "../substrate/primitives/version" }
-pallet-indices = { version = "3.0.0", package = "pallet-indices", path = "../substrate/frame/indices" }
+frame-metadata = { path = "../substrate/frame/metadata", package = "frame-metadata", version = "13.0.0" }
+frame-support = { path = "../substrate/frame/support", package = "frame-support", version = "3.0.0" }
+sp-runtime = { path = "../substrate/primitives/runtime", package = "sp-runtime", version = "3.0.0" }
+sp-version = { path = "../substrate/primitives/version", package = "sp-version", version = "3.0.0" }
+pallet-indices = { path = "../substrate/frame/indices", package = "pallet-indices", version = "3.0.0" }
 hex = "0.4.2"
 sp-std = { version = "3.0.0", path = "../substrate/primitives/std" }
 application-crypto = { version = "3.0.0", package = "sp-application-crypto", path = "../substrate/primitives/application-crypto" }
@@ -45,16 +50,16 @@ pallet-staking = { version = "3.0.0", package = "phala-staking", path = "../pall
 
 sp-rpc = { version = "3.0.0", package = "sp-rpc", path = "../substrate/primitives/rpc" }
 sp-core = { version = "3.0.0", package = "sp-core", path = "../substrate/primitives/core" }
-substrate-subxt-client = { version = "0.5.0", path = "client", optional = true }
-substrate-subxt-proc-macro = { version = "0.13.0", path = "proc-macro" }
+substrate-subxt-client = { version = "0.6.0", path = "client", optional = true }
+substrate-subxt-proc-macro = { version = "0.14.0", path = "proc-macro" }
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
 env_logger = "0.8.2"
-frame-system = { version = "3.0.0", package = "frame-system", path = "../substrate/frame/system" }
-pallet-balances = { version = "3.0.0", package = "pallet-balances", path = "../substrate/frame/balances" }
-sp-keyring = { version = "3.0.0", package = "sp-keyring", path = "../substrate/primitives/keyring" }
-substrate-subxt-client = { version = "0.5.0", path = "client" }
+frame-system = { path = "../substrate/frame/system", package = "frame-system", version = "3.0.0" }
+pallet-balances = { path = "../substrate/frame/balances", package = "pallet-balances", version = "3.0.0" }
+sp-keyring = { path = "../substrate/primitives/keyring", package = "sp-keyring", version = "3.0.0" }
+substrate-subxt-client = { version = "0.6.0", path = "client" }
 tempdir = "0.3.7"
 test-node = { path = "test-node" }
 wabt = "0.10.0"

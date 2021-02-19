@@ -12443,10 +12443,12 @@ dependencies = [
 
 [[package]]
 name = "substrate-subxt"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
+ "dyn-clone",
  "frame-metadata 13.0.0",
  "frame-support 3.0.0",
+ "funty",
  "futures 0.3.12",
  "hex",
  "jsonrpsee",
@@ -12465,11 +12467,12 @@ dependencies = [
  "sp-version 3.0.0",
  "substrate-subxt-proc-macro",
  "thiserror",
+ "url 2.2.0",
 ]
 
 [[package]]
 name = "substrate-subxt-proc-macro"
-version = "0.13.0"
+version = "0.14.0"
 dependencies = [
  "heck",
  "proc-macro-crate",

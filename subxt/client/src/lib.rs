@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright 2019-2021 Parity Technologies (UK) Ltd.
 // This file is part of substrate-subxt.
 //
 // subxt is free software: you can redistribute it and/or modify
@@ -54,9 +54,11 @@ use sc_service::{
         NetworkConfiguration,
         TaskType,
         TelemetryEndpoints,
+        WasmExecutionMethod,
     },
     ChainSpec,
     Configuration,
+    KeepBlocks,
     RpcHandlers,
     RpcSession,
     TaskManager,
@@ -216,6 +218,8 @@ pub struct SubxtClientConfig<C: ChainSpec + 'static> {
     pub role: Role,
     /// Enable telemetry on the given port.
     pub telemetry: Option<u16>,
+    /// Wasm execution method
+    pub wasm_method: WasmExecutionMethod,
 }
 
 impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
@@ -232,7 +236,6 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
             enable_mdns: true,
             allow_private_ipv4: true,
             wasm_external_transport: None,
-            use_yamux_flow_control: true,
         };
         let telemetry_endpoints = if let Some(port) = self.telemetry {
             let endpoints = TelemetryEndpoints::new(vec![(
@@ -265,13 +268,17 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
             telemetry_endpoints,
 
             telemetry_external_transport: Default::default(),
+            telemetry_handle: Default::default(),
+            telemetry_span: Default::default(),
             default_heap_pages: Default::default(),
             disable_grandpa: Default::default(),
+            disable_log_reloading: Default::default(),
             execution_strategies: Default::default(),
             force_authoring: Default::default(),
+            keep_blocks: KeepBlocks::All,
+            keystore_remote: Default::default(),
             offchain_worker: Default::default(),
             prometheus_config: Default::default(),
-            pruning: Default::default(),
             rpc_cors: Default::default(),
             rpc_http: Default::default(),
             rpc_ipc: Default::default(),
@@ -283,9 +290,12 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
             tracing_receiver: Default::default(),
             tracing_targets: Default::default(),
             transaction_pool: Default::default(),
-            wasm_method: Default::default(),
+            wasm_method: self.wasm_method,
             base_path: Default::default(),
             informant_output_format: Default::default(),
+            state_pruning: Default::default(),
+            transaction_storage: sc_client_db::TransactionStorageMode::BlockBody,
+            wasm_runtime_overrides: Default::default(),
         };
 
         log::info!("{}", service_config.impl_name);
@@ -310,7 +320,7 @@ mod tests {
     use substrate_subxt::{
         balances::TransferCallExt,
         ClientBuilder,
-        KusamaRuntime as NodeTemplateRuntime,
+        NodeTemplateRuntime,
         PairSigner,
     };
     use tempdir::TempDir;
@@ -355,6 +365,7 @@ mod tests {
             chain_spec,
             role: Role::Light,
             telemetry: None,
+            wasm_method: Default::default(),
         };
         let client = ClientBuilder::<NodeTemplateRuntime>::new()
             .set_client(
@@ -388,6 +399,7 @@ mod tests {
             chain_spec: test_node::chain_spec::development_config().unwrap(),
             role: Role::Authority(AccountKeyring::Alice),
             telemetry: None,
+            wasm_method: Default::default(),
         };
         let client = ClientBuilder::<NodeTemplateRuntime>::new()
             .set_client(
