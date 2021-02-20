@@ -19,7 +19,11 @@ enum Cli {
     DecodeRaQuote {
         #[structopt(short)]
         b64_data: String,
-    }
+    },
+    DecodeHeader {
+        #[structopt(short)]
+        hex_data: String,
+    },
 }
 
 fn main() {
@@ -53,6 +57,16 @@ fn main() {
             println!("- mr_signer: {}", hex::encode(&mr_signer));
             println!("- isv_prod_id: {}", hex::encode(&isv_prod_id));
             println!("- isv_svn: {}", hex::encode(&isv_svn));
+        },
+        Cli::DecodeHeader { hex_data } => {
+            use sp_runtime::{
+                generic::Header,
+                traits::BlakeTwo256,
+            };
+            let data = hex::decode(hex_data)
+                .expect("Failed to parse hex_data");
+            let header = Header::<u128, BlakeTwo256>::decode(&mut data.as_slice());
+            println!("Decoded: {:?}", header);
         }
     }
 }

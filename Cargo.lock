@@ -1540,6 +1540,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-types",
+ "sp-runtime 3.0.0",
  "structopt",
 ]
 
