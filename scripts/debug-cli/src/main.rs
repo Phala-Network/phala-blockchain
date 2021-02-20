@@ -65,8 +65,11 @@ fn main() {
             };
             let data = hex::decode(hex_data)
                 .expect("Failed to parse hex_data");
-            let header = Header::<u128, BlakeTwo256>::decode(&mut data.as_slice());
+            let header = Header::<u128, BlakeTwo256>::decode(&mut data.as_slice())
+                .expect("Faield to parse Header");
+            let hash = header.hash();
             println!("Decoded: {:?}", header);
+            println!("Hash: 0x{}", hex::encode(&hash));
         }
     }
 }
