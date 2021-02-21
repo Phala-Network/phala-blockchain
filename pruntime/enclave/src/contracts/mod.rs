@@ -12,6 +12,7 @@ pub mod balances;
 pub mod assets;
 pub mod web3analytics;
 pub mod woothee;
+pub mod diem;
 
 pub type ContractId = u32;
 pub const SYSTEM: ContractId = 0;
@@ -19,6 +20,7 @@ pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCES: ContractId = 2;
 pub const ASSETS: ContractId = 3;
 pub const WEB3_ANALYTICS: ContractId = 4;
+pub const DIEM: ContractId = 5;
 
 pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
 where
