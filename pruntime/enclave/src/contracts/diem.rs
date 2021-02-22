@@ -100,6 +100,140 @@ impl Diem {
             seq_number: BTreeMap::<String, u64>::new(),
         }
     }
+
+    pub fn get_transaction(
+        &mut self,
+        transaction_with_proof: TransactionWithProof,
+        account_address: String,
+        address: AccountAddress,
+    ) -> Result<Transaction, Error> {
+        let transaction: Transaction = match bcs::from_bytes(&transaction_with_proof.transaction_bytes) {
+            Ok(tx) => tx,
+            Err(_) => {
+                println!("Decode transaction error");
+
+                return Err(Error::Other(String::from("Decode transaction error")));
+            }
+        };
+
+        if self.verified.get(&transaction.hash().to_hex()).is_some() {
+            return Ok(transaction);
+        }
+
+        let signed_tx: SignedTransaction = transaction.as_signed_user_txn().unwrap().clone();
+        if signed_tx.raw_txn.sender != address {
+            // Incoming tx doesn't need to be sequential
+            let mut found = false;
+            if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
+                for arg in script.args {
+                    if let TransactionArgument::Address(recv_address) = arg {
+                        if recv_address == address {
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if !found {
+                println!("Bad receiver address");
+
+                return Err(Error::Other(String::from("Bad receiver address")));
+            }
+        } else {
+            // Outgoing tx must be synced sequencely
+            if let Some(seq) = self.seq_number.get(&account_address) {
+                if seq + 1 != signed_tx.raw_txn.sequence_number {
+                    println!("Bad sequence number");
+
+                    return Err(Error::Other(String::from("Bad sequence number")));
+                }
+            }
+            self.seq_number.insert(account_address.clone(), signed_tx.raw_txn.sequence_number);
+        }
+
+        Ok(transaction)
+    }
+
+    pub fn verify_trusted_state(
+        &mut self,
+        transaction_with_proof: TransactionWithProof,
+    ) -> Result<(), Error> {
+        let epoch_change_proof: EpochChangeProof = transaction_with_proof.epoch_change_proof.clone();
+        let ledger_info_with_signatures: LedgerInfoWithSignatures = transaction_with_proof.ledger_info_with_signatures.clone();
+        let zero_ledger_info_with_sigs = epoch_change_proof.ledger_info_with_sigs[0].clone();
+        let mut trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
+            .map_err(|_|Error::Other("get TrustedState error".to_string()))?;
+
+        if let Ok(trusted_state_change) = trusted_state.verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
+            match trusted_state_change {
+                TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
+                    println!(
+                        "Verified epoch changed to {}",
+                        latest_epoch_change_li
+                            .ledger_info()
+                            .next_epoch_state()
+                            .expect("no validator set in epoch change ledger info"),
+                    );
+                    trusted_state = new_state;
+                }
+                TrustedStateChange::Version { new_state } => {
+                    if trusted_state.latest_version() < new_state.latest_version() {
+                        println!("Verified version change to: {}", new_state.latest_version());
+                    }
+                    trusted_state = new_state;
+                }
+                TrustedStateChange::NoChange => {
+                    println!("NoChange");
+                }
+            }
+
+            Ok(())
+        } else {
+            println!("Verify trust state error");
+
+            Err(Error::Other("Verify trust state error".to_string()))
+        }
+    }
+
+    pub fn verify_transaction_state_proof(
+        &self,
+        transaction_with_proof: TransactionWithProof,
+        address: AccountAddress,
+    ) -> bool {
+        let ledger_info_with_signatures: LedgerInfoWithSignatures = transaction_with_proof.ledger_info_with_signatures.clone();
+
+        let ledger_info_to_transaction_info_proof: TransactionAccumulatorProof =
+            transaction_with_proof.ledger_info_to_transaction_info_proof.clone();
+        let transaction_info: TransactionInfo = transaction_with_proof.transaction_info.clone();
+        let transaction_info_to_account_proof: SparseMerkleProof =
+            transaction_with_proof.transaction_info_to_account_proof.clone();
+
+        let transaction_info_with_proof = TransactionInfoWithProof::new(
+            ledger_info_to_transaction_info_proof,
+            transaction_info
+        );
+
+        let account_transaction_state_proof = AccountStateProof::new(
+            transaction_info_with_proof,
+            transaction_info_to_account_proof,
+        );
+
+        let mut verified = false;
+        if let Ok(_) = account_transaction_state_proof.verify(
+            ledger_info_with_signatures.ledger_info(),
+            transaction_with_proof.version, address.hash(),
+            Some(&transaction_with_proof.account_state_blob))
+        {
+            println!("Transaction was verified");
+
+            verified = true;
+        } else {
+            println!("Failed to verify transaction");
+        }
+
+        verified
+    }
 }
 
 impl contracts::Contract<Command, Request, Response> for Diem {
@@ -114,8 +248,10 @@ impl contracts::Contract<Command, Request, Response> for Diem {
             match req {
                 Request::AccountData { account_data_b64} => {
                     println!("account_data_b64: {:?}", account_data_b64);
-                    let account_data = base64::decode(&account_data_b64).unwrap();
-                    let account_info: AccountInfo = bcs::from_bytes(&account_data).unwrap();
+                    let account_data = base64::decode(&account_data_b64)
+                        .map_err(|_|Error::Other("Bad account base64 data".to_string()))?;
+                    let account_info: AccountInfo = bcs::from_bytes(&account_data)
+                        .map_err(|_|Error::Other("Can't decode account info".to_string()))?;
                     println!("account_info:{:?}", account_info);
                     let exist = self.accounts.iter().any(|x| x.address == account_info.address);
                     if !exist {
@@ -132,53 +268,22 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         .map_err(|_|Error::Other("Bad account address".to_string()))?;
                     if !self.accounts.iter().any(|x| x.address == address) {
                         println!("Not a contract's account address");
-                        return Ok(Response::VerifyTransaction { total: 0, verified: false });
-                    }
 
-                    let mut transactions: Vec<Transaction> = self.transactions.get(&account_address).unwrap_or(&Vec::new()).to_vec();
-                    let mut total: u32 = transactions.len() as u32;
+                        return Err(Error::Other(String::from("Not a contract's account address")));
+                    }
 
                     let proof_data = base64::decode(&transaction_with_proof_b64).unwrap_or(Vec::new());
                     let transaction_with_proof: TransactionWithProof = bcs::from_bytes(&proof_data)
                         .map_err(|_| Error::Other("Bad transaction with proof".to_string()))?;
                     println!("transaction_with_proof:{:?}", transaction_with_proof);
 
-                    let transaction: Transaction = match bcs::from_bytes(&transaction_with_proof.transaction_bytes) {
+                    let transaction = match self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address) {
                         Ok(tx) => tx,
-                        Err(_) => {
-                            println!("decode transaction error");
-                            return Ok(Response::VerifyTransaction { total, verified: false });
-                        }
+                        Err(err) => return Err(err),
                     };
 
-                    let signed_tx: SignedTransaction = transaction.as_signed_user_txn().unwrap().clone();
-                    if signed_tx.raw_txn.sender != address {
-                        let mut found = false;
-                        if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
-                            for arg in script.args {
-                                if let TransactionArgument::Address(recv_address) = arg {
-                                    if recv_address == address {
-                                        found = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if !found {
-                            println!("bad sender/receiver address");
-                            return Ok(Response::VerifyTransaction { total, verified: false });
-                        }
-                    } else {
-                        if let Some(seq) = self.seq_number.get(&account_address) {
-                            if seq + 1 != signed_tx.raw_txn.sequence_number {
-                                println!("Bad sequence number");
-                                return Ok(Response::VerifyTransaction { total, verified: false });
-                            }
-                        }
-                        self.seq_number.insert(account_address.clone(), signed_tx.raw_txn.sequence_number);
-                    }
-
+                    let mut transactions: Vec<Transaction> = self.transactions.get(&account_address).unwrap_or(&Vec::new()).to_vec();
+                    let mut total: u32 = transactions.len() as u32;
                     if !transactions.iter().any(|x| x.hash() == transaction.hash()) {
                         transactions.push(transaction.clone());
                         self.transactions.insert(account_address.clone(), transactions);
@@ -196,65 +301,11 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         return Ok(Response::VerifyTransaction { total, verified: false });
                     }
 
-                    let epoch_change_proof: EpochChangeProof = transaction_with_proof.epoch_change_proof.clone();
-                    let ledger_info_with_signatures: LedgerInfoWithSignatures = transaction_with_proof.ledger_info_with_signatures.clone();
-                    let zero_ledger_info_with_sigs = epoch_change_proof.ledger_info_with_sigs[0].clone();
-                    let mut trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
-                        .map_err(|_|Error::Other("get TrustedState error".to_string()))?;
-
-                    if let Ok(trusted_state_change) = trusted_state.verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
-                        match trusted_state_change {
-                            TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
-                                println!(
-                                    "Verified epoch changed to {}",
-                                    latest_epoch_change_li
-                                        .ledger_info()
-                                        .next_epoch_state()
-                                        .expect("no validator set in epoch change ledger info"),
-                                );
-                                trusted_state = new_state;
-                            }
-                            TrustedStateChange::Version { new_state } => {
-                                if trusted_state.latest_version() < new_state.latest_version() {
-                                    println!("Verified version change to: {}", new_state.latest_version());
-                                }
-                                trusted_state = new_state;
-                            }
-                            TrustedStateChange::NoChange => {
-                                println!("NoChange");
-                            }
-                        }
-                    } else {
-                        println!("verify trust state error");
-                        return Ok(Response::VerifyTransaction { total, verified: false });
+                    if let Err(err) = self.verify_trusted_state(transaction_with_proof.clone()) {
+                        return Err(err);
                     }
 
-                    let ledger_info_to_transaction_info_proof: TransactionAccumulatorProof =
-                        transaction_with_proof.ledger_info_to_transaction_info_proof.clone();
-                    let transaction_info: TransactionInfo = transaction_with_proof.transaction_info.clone();
-                    let transaction_info_to_account_proof: SparseMerkleProof =
-                        transaction_with_proof.transaction_info_to_account_proof.clone();
-
-                    let transaction_info_with_proof = TransactionInfoWithProof::new(
-                        ledger_info_to_transaction_info_proof,
-                        transaction_info
-                    );
-
-                    let account_transaction_state_proof = AccountStateProof::new(
-                        transaction_info_with_proof,
-                        transaction_info_to_account_proof,
-                    );
-
-                    let mut verified = false;
-                    if let Ok(_) = account_transaction_state_proof.verify(ledger_info_with_signatures.ledger_info(),
-                        transaction_with_proof.version, address.hash(), Some(&transaction_with_proof.account_state_blob)) {
-                        println!("Transaction was verified");
-
-                        verified = true;
-                    } else {
-                        println!("Transaction verification was failed");
-                    }
-
+                    let verified = self.verify_transaction_state_proof(transaction_with_proof, address);
                     self.verified.insert(tx_hash, verified);
 
                     Ok(Response::VerifyTransaction { total, verified })
