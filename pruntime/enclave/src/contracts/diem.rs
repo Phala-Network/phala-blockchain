@@ -73,13 +73,15 @@ pub enum Command {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     AccountData { account_data_b64: String },
-    VerifyTransaction { account_address: String, transaction_with_proof_b64: String }
+    VerifyTransaction { account_address: String, transaction_with_proof_b64: String },
+    SetTrustedState { trusted_state_b64: String},
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     AccountData { size: u32 },
     VerifyTransaction { total: u32, verified: bool },
+    SetTrustedState { status: bool },
     Error(Error)
 }
 
@@ -89,6 +91,10 @@ pub struct Diem {
     transactions: BTreeMap<String, Vec<Transaction>>, //address => Transaction
     verified: BTreeMap<String, bool>, //Hash => Bool
     seq_number: BTreeMap<String, u64>, //Address => seq
+    #[serde(skip)]
+    init_trusted_state: Option<TrustedState>,
+    #[serde(skip)]
+    new_trusted_state: Option<TrustedState>,
 }
 
 impl Diem {
@@ -98,6 +104,8 @@ impl Diem {
             transactions: BTreeMap::<String, Vec<Transaction>>::new(),
             verified: BTreeMap::<String, bool>::new(),
             seq_number: BTreeMap::<String, u64>::new(),
+            init_trusted_state: None,
+            new_trusted_state: None,
         }
     }
 
@@ -160,12 +168,12 @@ impl Diem {
         transaction_with_proof: TransactionWithProof,
     ) -> Result<(), Error> {
         let epoch_change_proof: EpochChangeProof = transaction_with_proof.epoch_change_proof.clone();
-        let ledger_info_with_signatures: LedgerInfoWithSignatures = transaction_with_proof.ledger_info_with_signatures.clone();
+        let ledger_info_with_signatures: LedgerInfoWithSignatures =
+            transaction_with_proof.ledger_info_with_signatures.clone();
         let zero_ledger_info_with_sigs = epoch_change_proof.ledger_info_with_sigs[0].clone();
-        let mut trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
-            .map_err(|_|Error::Other("get TrustedState error".to_string()))?;
 
-        if let Ok(trusted_state_change) = trusted_state.verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
+        if let Ok(trusted_state_change) = self.new_trusted_state.as_ref().unwrap()
+            .verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
             match trusted_state_change {
                 TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
                     println!(
@@ -175,13 +183,13 @@ impl Diem {
                             .next_epoch_state()
                             .expect("no validator set in epoch change ledger info"),
                     );
-                    trusted_state = new_state;
+                    self.new_trusted_state = Some(new_state);
                 }
                 TrustedStateChange::Version { new_state } => {
-                    if trusted_state.latest_version() < new_state.latest_version() {
+                    if self.new_trusted_state.as_ref().unwrap().latest_version() < new_state.latest_version() {
                         println!("Verified version change to: {}", new_state.latest_version());
                     }
-                    trusted_state = new_state;
+                    self.new_trusted_state = Some(new_state);
                 }
                 TrustedStateChange::NoChange => {
                     println!("NoChange");
@@ -219,20 +227,17 @@ impl Diem {
             transaction_info_to_account_proof,
         );
 
-        let mut verified = false;
         if let Ok(_) = account_transaction_state_proof.verify(
             ledger_info_with_signatures.ledger_info(),
             transaction_with_proof.version, address.hash(),
             Some(&transaction_with_proof.account_state_blob))
         {
             println!("Transaction was verified");
-
-            verified = true;
+            true
         } else {
             println!("Failed to verify transaction");
+            false
         }
-
-        verified
     }
 }
 
@@ -246,6 +251,20 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response, Error> {
             match req {
+                Request::SetTrustedState { trusted_state_b64 } => {
+                    println!("trusted_state_b64: {:?}", trusted_state_b64);
+                    let trusted_state_data = base64::decode(&trusted_state_b64)
+                        .map_err(|_|Error::Other("Bad trusted state base64 data".to_string()))?;
+                    let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = bcs::from_bytes(&trusted_state_data)
+                        .map_err(|_| Error::Other("Bad zero ledger info with sigs".to_string()))?;
+                    let trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
+                        .map_err(|_|Error::Other("get TrustedState error".to_string()))?;
+                    self.init_trusted_state = Some(trusted_state.clone());
+                    self.new_trusted_state = Some(trusted_state);
+
+                    println!("init trusted state OK");
+                    Ok(Response::SetTrustedState { status: true })
+                }
                 Request::AccountData { account_data_b64} => {
                     println!("account_data_b64: {:?}", account_data_b64);
                     let account_data = base64::decode(&account_data_b64)
@@ -277,10 +296,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         .map_err(|_| Error::Other("Bad transaction with proof".to_string()))?;
                     println!("transaction_with_proof:{:?}", transaction_with_proof);
 
-                    let transaction = match self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address) {
-                        Ok(tx) => tx,
-                        Err(err) => return Err(err),
-                    };
+                    let transaction = self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address)?;
 
                     let mut transactions: Vec<Transaction> = self.transactions.get(&account_address).unwrap_or(&Vec::new()).to_vec();
                     let mut total: u32 = transactions.len() as u32;
@@ -301,9 +317,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         return Ok(Response::VerifyTransaction { total, verified: false });
                     }
 
-                    if let Err(err) = self.verify_trusted_state(transaction_with_proof.clone()) {
-                        return Err(err);
-                    }
+                    self.verify_trusted_state(transaction_with_proof.clone())?;
 
                     let verified = self.verify_transaction_state_proof(transaction_with_proof, address);
                     self.verified.insert(tx_hash, verified);
