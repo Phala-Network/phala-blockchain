@@ -253,16 +253,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
             match req {
                 Request::SetTrustedState { trusted_state_b64 } => {
                     println!("trusted_state_b64: {:?}", trusted_state_b64);
-                    let trusted_state_data = base64::decode(&trusted_state_b64)
-                        .map_err(|_|Error::Other("Bad trusted state base64 data".to_string()))?;
-                    let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = bcs::from_bytes(&trusted_state_data)
-                        .map_err(|_| Error::Other("Bad zero ledger info with sigs".to_string()))?;
-                    let trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
-                        .map_err(|_|Error::Other("get TrustedState error".to_string()))?;
-                    self.init_trusted_state = Some(trusted_state.clone());
-                    self.new_trusted_state = Some(trusted_state);
+                    if self.init_trusted_state.is_none() {
+                        let trusted_state_data = base64::decode(&trusted_state_b64)
+                            .map_err(|_| Error::Other("Bad trusted state base64 data".to_string()))?;
+                        let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = bcs::from_bytes(&trusted_state_data)
+                            .map_err(|_| Error::Other("Bad zero ledger info with sigs".to_string()))?;
+                        let trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
+                            .map_err(|_| Error::Other("Get trusted state error".to_string()))?;
+                        self.init_trusted_state = Some(trusted_state.clone());
+                        self.new_trusted_state = Some(trusted_state);
 
-                    println!("init trusted state OK");
+                        println!("init trusted state OK");
+                    }
                     Ok(Response::SetTrustedState { status: true })
                 }
                 Request::AccountData { account_data_b64} => {
