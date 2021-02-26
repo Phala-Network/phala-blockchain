@@ -73,7 +73,7 @@ use sp_inherents::{InherentData, CheckInherentsResult};
 use static_assertions::const_assert;
 use pallet_contracts::WeightInfo;
 
-#[cfg(any(feature = "std", test))]
+#[cfg(any(feature = "std", feature = "native-nostd", test))]
 pub use sp_runtime::BuildStorage;
 #[cfg(any(feature = "std", feature = "native-nostd", test))]
 pub use pallet_balances::Call as BalancesCall;
