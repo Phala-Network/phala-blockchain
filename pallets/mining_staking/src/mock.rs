@@ -1,13 +1,14 @@
 // Creating mock runtime here
 
 use crate as mining_staking;
+use frame_support::{parameter_types, traits::TestRandomness};
+use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
 	Permill,
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
-use frame_system as system;
-use frame_support::{parameter_types, traits::TestRandomness};
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
