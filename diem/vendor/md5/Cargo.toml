@@ -1,0 +1,32 @@
+[package]
+name = "md-5"
+version = "0.9.1"
+description = "MD5 hash function"
+authors = ["RustCrypto Developers"]
+license = "MIT OR Apache-2.0"
+readme = "README.md"
+edition = "2018"
+documentation = "https://docs.rs/md-5"
+repository = "https://github.com/RustCrypto/hashes"
+keywords = ["crypto", "md5", "hash", "digest"]
+categories = ["cryptography", "no-std"]
+
+[lib]
+name = "md5"
+
+[dependencies]
+sgx_tstd = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", optional = true }
+digest = { path = "../digest", version = "0.9" }
+block-buffer = { path = "../block-buffer", version = "0.9" }
+md5-asm = { version = "0.4", optional = true}
+opaque-debug = "0.3"
+
+[dev-dependencies]
+digest = { path = "../digest", version = "0.9", features = ["dev"] }
+hex-literal = "0.2"
+
+[features]
+default = ["std", "mesalock_sgx"]
+std = ["digest/std", "mesalock_sgx"]
+mesalock_sgx = ["sgx_tstd"]
+asm = ["md5-asm"]
