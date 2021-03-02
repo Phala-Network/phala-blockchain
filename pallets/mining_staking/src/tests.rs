@@ -97,8 +97,8 @@ fn test_unstake() {
 		// Cancel some unstaking
 		assert_ok!(MiningStaking::stake(Origin::signed(1), 3, 10));
 		assert_eq!(MiningStaking::pending_unstaking(1, 3), Some(10));
-		assert_eq!(MiningStaking::pending_staking(1, 3), Some(0));
-		assert_eq!(MiningStaking::wallet_locked(1), Some(0));
+		assert_eq!(MiningStaking::pending_staking(1, 3), None);
+		assert_eq!(MiningStaking::wallet_locked(1), None);
 		// Unstake too much
 		assert_noop!(
 			MiningStaking::unstake(Origin::signed(1), 2, 51),
