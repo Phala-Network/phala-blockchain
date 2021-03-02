@@ -22,7 +22,6 @@ members = [
     "standalone/node",
 	"standalone/runtime",
 	"standalone/phost",
-	"parachain/collator",
 	"pallets/phala",
 	"pallets/mining_staking",
 	"scripts/toml-upgrade-version",
