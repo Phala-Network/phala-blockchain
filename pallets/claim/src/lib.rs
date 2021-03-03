@@ -195,7 +195,7 @@ pub mod pallet {
 			let old_relayer = Relayer::<T>::get();
 			if old_relayer.is_some() {
 				ensure!(
-					Some(&new_relayer) != old_relayer.unwrap().as_ref(),
+					Some(&new_relayer) != old_relayer.flatten().as_ref(),
 					Error::<T>::RelayerNotChanged
 				);
 			}
@@ -215,7 +215,7 @@ pub mod pallet {
 			let relayer = Relayer::<T>::get();
 			ensure!(relayer.is_some(), Error::<T>::NoRelayer);
 			ensure!(
-				Some(&who) == relayer.unwrap().as_ref(),
+				Some(&who) == relayer.flatten().as_ref(),
 				Error::<T>::CallerNotRelayer
 			);
 			// check first
@@ -238,13 +238,11 @@ pub mod pallet {
 					*erc20_amount,
 				));
 			}
-			if let Some(end_height) = EndHeight::<T>::get() {
-				if height > end_height {
-					EndHeight::<T>::put(height);
-				}
-			} else {
+			let end_height = EndHeight::<T>::get().unwrap_or_default();
+			if height > end_height {
 				EndHeight::<T>::put(height);
 			}
+
 			Ok(().into())
 		}
 
@@ -267,14 +265,13 @@ pub mod pallet {
 			let address = Encode::encode(&account);
 			let signer = Self::eth_recover(&eth_signature, &address, &eth_tx_hash.0)
 				.ok_or(Error::<T>::InvalidSignature)?;
-			if let Some(tx) = BurnedTransactions::<T>::get(&eth_tx_hash) {
-				ensure!(signer == tx.0, Error::<T>::InvalidSigner);
-				ClaimState::<T>::insert(&eth_tx_hash, true);
-				// mint coins
-				let imbalance = T::Currency::deposit_creating(&account, tx.1);
-				drop(imbalance);
-				Self::deposit_event(Event::ERC20TokenClaimed(account, eth_tx_hash, tx.1));
-			}
+			let tx = BurnedTransactions::<T>::get(&eth_tx_hash).unwrap_or_default();
+			ensure!(signer == tx.0, Error::<T>::InvalidSigner);
+			ClaimState::<T>::insert(&eth_tx_hash, true);
+			// mint coins
+			let imbalance = T::Currency::deposit_creating(&account, tx.1);
+			drop(imbalance);
+			Self::deposit_event(Event::ERC20TokenClaimed(account, eth_tx_hash, tx.1));
 
 			Ok(().into())
 		}
@@ -330,10 +327,9 @@ pub mod pallet {
 			let signer = maybe_signer.ok_or(InvalidTransaction::BadProof)?;
 
 			let e = InvalidTransaction::Custom(ValidityError::InvalidSigner.into());
-			if let Some(stored_tx) = BurnedTransactions::<T>::get(&tx_hash) {
-				let stored_signer = stored_tx.0;
-				ensure!(signer == stored_signer, e);
-			}
+			let stored_tx = BurnedTransactions::<T>::get(&tx_hash).unwrap_or_default();
+			let stored_signer = stored_tx.0;
+			ensure!(signer == stored_signer, e);
 
 			let e = InvalidTransaction::Custom(ValidityError::TxAlreadyClaimed.into());
 			ensure!(ClaimState::<T>::get(&tx_hash).is_none(), e);
