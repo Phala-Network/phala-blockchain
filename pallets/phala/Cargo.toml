@@ -20,7 +20,8 @@ sp-runtime = { version = "3.0.0", default-features = false, path = "../../substr
 sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
 sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
-frame-benchmarking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-benchmarking = { version = "3.1.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
 
@@ -53,7 +54,8 @@ std = [
     "sp-std/std",
     "sp-core/full_crypto",
     "frame-benchmarking/std",
-    "pallet-balances/std"
+    "pallet-balances/std",
+    "log/std"
 ]
 test = [
     "sp-core/full_crypto"
@@ -61,3 +63,4 @@ test = [
 runtime-benchmarks = [
     "frame-benchmarking"
 ]
+try-runtime = ["frame-support/try-runtime"]

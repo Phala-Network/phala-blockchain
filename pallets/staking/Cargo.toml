@@ -26,11 +26,13 @@ frame-system = { version = "3.0.0", default-features = false, path = "../../subs
 pallet-session = { version = "3.0.0", default-features = false, features = ["historical"], path = "../../substrate/frame/session" }
 pallet-authorship = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authorship" }
 sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
+log = { version = "0.4.14", default-features = false }
+sp-election-providers = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/election-providers" }
 
 pallet-phala = { version = "3.0", default-features = false, path = "../phala" }
 
 # Optional imports for benchmarking
-frame-benchmarking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-benchmarking = { version = "3.1.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
 rand_chacha = { version = "0.2", default-features = false, optional = true }
 
 [dev-dependencies]
@@ -41,7 +43,8 @@ pallet-balances = { version = "3.0.0", path = "../../substrate/frame/balances" }
 pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp" }
 pallet-staking-reward-curve = { version = "3.0.0",  path = "../../substrate/frame/staking/reward-curve" }
 substrate-test-utils = { version = "3.0.0", path = "../../substrate/test-utils" }
-frame-benchmarking = { version = "3.0.0", path = "../../substrate/frame/benchmarking" }
+frame-benchmarking = { version = "3.1.0", path = "../../substrate/frame/benchmarking" }
+sp-election-providers = { version = "3.0.0", features = ["runtime-benchmarks"], path = "../../substrate/primitives/election-providers" }
 rand_chacha = { version = "0.2" }
 parking_lot = "0.11.1"
 hex = "0.4"
@@ -61,9 +64,13 @@ std = [
 	"frame-system/std",
 	"pallet-authorship/std",
 	"sp-application-crypto/std",
+	"log/std",
+	"sp-election-providers/std",
 	"pallet-phala/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
+	"sp-election-providers/runtime-benchmarks",
 	"rand_chacha",
 ]
+try-runtime = ["frame-support/try-runtime"]

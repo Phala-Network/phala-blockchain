@@ -20,6 +20,7 @@ sp-runtime = { default-features = false, path = "../../substrate/primitives/runt
 sp-std = { default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
+log = { version = "0.4.14", default-features = false }
 
 pallet-phala = { default-features = false, path = "../phala" }
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
@@ -39,5 +40,7 @@ std = [
     "sp-std/std",
     "sp-core/full_crypto",
     "pallet-phala/std",
-    "pallet-balances/std"
+    "pallet-balances/std",
+    "log/std"
 ]
+try-runtime = ["frame-support/try-runtime"]
