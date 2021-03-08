@@ -20,14 +20,13 @@ include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 default = []
 client = ["substrate-subxt-client"]
 
-# enable this feature to run tests which require a local dev chain node
-integration-tests = []
-
 [dependencies]
 log = "0.4.13"
 thiserror = "1.0.23"
 futures = "0.3.10"
-jsonrpsee = { path = "../jsonrpsee", version = "0.0.1", features = ["ws"] }
+jsonrpsee-types = "0.2.0-alpha"
+jsonrpsee-ws-client = "0.2.0-alpha"
+jsonrpsee-http-client = "0.2.0-alpha"
 num-traits = { version = "0.2.14", default-features = false }
 serde = { version = "1.0.119", features = ["derive"] }
 serde_json = "1.0.61"
@@ -38,28 +37,28 @@ codec = { package = "parity-scale-codec", version = "2.0.0", default-features = 
 funty = "=1.1.0"
 dyn-clone = "1.0.4"
 
-frame-metadata = { path = "../substrate/frame/metadata", package = "frame-metadata", version = "13.0.0" }
-frame-support = { path = "../substrate/frame/support", package = "frame-support", version = "3.0.0" }
-sp-runtime = { path = "../substrate/primitives/runtime", package = "sp-runtime", version = "3.0.0" }
-sp-version = { path = "../substrate/primitives/version", package = "sp-version", version = "3.0.0" }
-pallet-indices = { path = "../substrate/frame/indices", package = "pallet-indices", version = "3.0.0" }
+frame-metadata = { path = "../substrate/frame/metadata" }
+frame-support = { path = "../substrate/frame/support" }
+sp-runtime = { path = "../substrate/primitives/runtime" }
+sp-version = { path = "../substrate/primitives/version" }
+pallet-indices = { path = "../substrate/frame/indices" }
 hex = "0.4.2"
-sp-std = { version = "3.0.0", path = "../substrate/primitives/std" }
-application-crypto = { version = "3.0.0", package = "sp-application-crypto", path = "../substrate/primitives/application-crypto" }
-pallet-staking = { version = "3.0.0", package = "phala-staking", path = "../pallets/staking" }
+sp-std = { path = "../substrate/primitives/std" }
+application-crypto = { path = "../substrate/primitives/application-crypto", package = "sp-application-crypto" }
+pallet-staking = { path = "../substrate/frame/staking" }
 
-sp-rpc = { version = "3.0.0", package = "sp-rpc", path = "../substrate/primitives/rpc" }
-sp-core = { version = "3.0.0", package = "sp-core", path = "../substrate/primitives/core" }
-substrate-subxt-client = { version = "0.6.0", path = "client", optional = true }
+sp-rpc = { path = "../substrate/primitives/rpc" }
+sp-core = { path = "../substrate/primitives/core" }
+substrate-subxt-client = { path = "client", optional = true }
 substrate-subxt-proc-macro = { version = "0.14.0", path = "proc-macro" }
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
 env_logger = "0.8.2"
-frame-system = { path = "../substrate/frame/system", package = "frame-system", version = "3.0.0" }
-pallet-balances = { path = "../substrate/frame/balances", package = "pallet-balances", version = "3.0.0" }
-sp-keyring = { path = "../substrate/primitives/keyring", package = "sp-keyring", version = "3.0.0" }
-substrate-subxt-client = { version = "0.6.0", path = "client" }
+frame-system = { path = "../substrate/frame/system" }
+pallet-balances = { path = "../substrate/frame/balances" }
+sp-keyring = { path = "../substrate/primitives/keyring" }
+substrate-subxt-client = { path = "client" }
 tempdir = "0.3.7"
 test-node = { path = "test-node" }
 wabt = "0.10.0"
