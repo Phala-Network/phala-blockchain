@@ -18,25 +18,25 @@
 //! [substrate](https://github.com/paritytech/substrate) node via RPC.
 
 #![deny(
-    bad_style,
-    const_err,
-    improper_ctypes,
-    missing_docs,
-    non_shorthand_field_patterns,
-    no_mangle_generic_items,
-    overflowing_literals,
-    path_statements,
-    patterns_in_fns_without_body,
-    private_in_public,
-    unconditional_recursion,
-    unused_allocation,
-    unused_comparisons,
-    unused_parens,
-    while_true,
-    trivial_casts,
-    trivial_numeric_casts,
-    unused_extern_crates,
-    clippy::all
+bad_style,
+const_err,
+improper_ctypes,
+missing_docs,
+non_shorthand_field_patterns,
+no_mangle_generic_items,
+overflowing_literals,
+path_statements,
+patterns_in_fns_without_body,
+private_in_public,
+unconditional_recursion,
+unused_allocation,
+unused_comparisons,
+unused_parens,
+while_true,
+trivial_casts,
+trivial_numeric_casts,
+unused_extern_crates,
+clippy::all
 )]
 #![allow(clippy::type_complexity)]
 
@@ -111,7 +111,11 @@ pub use crate::{
         SystemProperties,
     },
     runtimes::*,
-    subscription::*,
+    subscription::{
+        EventStorageSubscription,
+        EventSubscription,
+        FinalizedEventStorageSubscription,
+    },
     substrate_subxt_proc_macro::*,
 };
 use crate::{
@@ -134,6 +138,7 @@ pub struct ClientBuilder<T: Runtime> {
     page_size: Option<u32>,
     event_type_registry: EventTypeRegistry<T>,
     skip_type_sizes_check: bool,
+    accept_weak_inclusion: bool,
 }
 
 impl<T: Runtime> ClientBuilder<T> {
@@ -145,6 +150,7 @@ impl<T: Runtime> ClientBuilder<T> {
             page_size: None,
             event_type_registry: EventTypeRegistry::new(),
             skip_type_sizes_check: false,
+            accept_weak_inclusion: false,
         }
     }
 
@@ -173,8 +179,8 @@ impl<T: Runtime> ClientBuilder<T> {
     ///
     /// If there is already a type size registered with this name.
     pub fn register_type_size<U>(mut self, name: &str) -> Self
-    where
-        U: Codec + Send + Sync + 'static,
+        where
+            U: Codec + Send + Sync + 'static,
     {
         self.event_type_registry.register_type_size::<U>(name);
         self
@@ -188,6 +194,12 @@ impl<T: Runtime> ClientBuilder<T> {
         self
     }
 
+    /// Only check that transactions are InBlock on submit.
+    pub fn accept_weak_inclusion(mut self) -> Self {
+        self.accept_weak_inclusion = true;
+        self
+    }
+
     /// Creates a new Client.
     pub async fn build<'a>(self) -> Result<Client<T>, Error> {
         let client = if let Some(client) = self.client {
@@ -196,22 +208,24 @@ impl<T: Runtime> ClientBuilder<T> {
             let url = self.url.as_deref().unwrap_or("ws://127.0.0.1:9944");
             if url.starts_with("ws://") || url.starts_with("wss://") {
                 let mut config = WsConfig::with_url(&url);
-                // max notifs per subscription capacity.
-                config.max_subscription_capacity = 4096;
-                RpcClient::WebSocket(WsClient::new(WsConfig::with_url(&url)).await?)
+                config.max_notifs_per_subscription = 4096;
+                RpcClient::WebSocket(WsClient::new(config).await?)
             } else {
                 let client = HttpClient::new(url, HttpConfig::default())?;
                 RpcClient::Http(Arc::new(client))
             }
         };
-        let rpc = Rpc::new(client);
+        let mut rpc = Rpc::new(client);
+        if self.accept_weak_inclusion {
+            rpc.accept_weak_inclusion();
+        }
         let (metadata, genesis_hash, runtime_version, properties) = future::join4(
             rpc.metadata(),
             rpc.genesis_hash(),
             rpc.runtime_version(None),
             rpc.system_properties(),
         )
-        .await;
+            .await;
         let metadata = metadata?;
 
         if let Err(missing) = self.event_type_registry.check_missing_type_sizes(&metadata)
@@ -424,8 +438,8 @@ impl<T: Runtime> Client<T> {
 
     /// Get a header
     pub async fn header<H>(&self, hash: Option<H>) -> Result<Option<T::Header>, Error>
-    where
-        H: Into<T::Hash> + 'static,
+        where
+            H: Into<T::Hash> + 'static,
     {
         let header = self.rpc.header(hash.map(|h| h.into())).await?;
         Ok(header)
@@ -448,8 +462,8 @@ impl<T: Runtime> Client<T> {
 
     /// Get a block
     pub async fn block<H>(&self, hash: Option<H>) -> Result<Option<ChainBlock<T>>, Error>
-    where
-        H: Into<T::Hash> + 'static,
+        where
+            H: Into<T::Hash> + 'static,
     {
         let block = self.rpc.block(hash.map(|h| h.into())).await?;
         Ok(block)
@@ -461,18 +475,27 @@ impl<T: Runtime> Client<T> {
         keys: Vec<StorageKey>,
         hash: Option<H>,
     ) -> Result<ReadProof<T::Hash>, Error>
-    where
-        H: Into<T::Hash> + 'static,
+        where
+            H: Into<T::Hash> + 'static,
     {
         let proof = self.rpc.read_proof(keys, hash.map(|h| h.into())).await?;
         Ok(proof)
     }
 
     /// Subscribe to events.
-    pub async fn subscribe_events(
-        &self,
-    ) -> Result<Subscription<StorageChangeSet<T::Hash>>, Error> {
+    ///
+    /// *WARNING* these may not be included in the finalized chain, use
+    /// `subscribe_finalized_events` to ensure events are finalized.
+    pub async fn subscribe_events(&self) -> Result<EventStorageSubscription<T>, Error> {
         let events = self.rpc.subscribe_events().await?;
+        Ok(events)
+    }
+
+    /// Subscribe to finalized events.
+    pub async fn subscribe_finalized_events(
+        &self,
+    ) -> Result<EventStorageSubscription<T>, Error> {
+        let events = self.rpc.subscribe_finalized_events().await?;
         Ok(events)
     }
 
@@ -513,8 +536,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<UncheckedExtrinsic<T>, Error>
-    where
-        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+        where
+            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let account_nonce = if let Some(nonce) = signer.nonce() {
@@ -530,7 +553,7 @@ impl<T: Runtime> Client<T> {
             call,
             signer,
         )
-        .await?;
+            .await?;
         Ok(signed)
     }
 
@@ -563,8 +586,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<T::Hash, Error>
-    where
-        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+        where
+            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
@@ -577,8 +600,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<ExtrinsicSuccess<T>, Error>
-    where
-        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+        where
+            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
