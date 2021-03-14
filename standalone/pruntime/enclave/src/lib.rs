@@ -67,7 +67,8 @@ mod system;
 mod types;
 
 use contracts::{
-    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, DATA_PLAZA, DIEM, SYSTEM, WEB3_ANALYTICS,
+    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, DATA_PLAZA, DIEM, SYSTEM,
+    WEB3_ANALYTICS,
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -1182,7 +1183,7 @@ fn handle_execution(
         },
         DIEM => match serde_json::from_slice(inner_data.as_slice()) {
             Ok(cmd) => state.contract5.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand
+            _ => TransactionStatus::BadCommand,
         },
         _ => {
             println!(
@@ -1239,7 +1240,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
             .map(|h| h.header.clone())
             .collect();
         accenstor_proof.reverse(); // from high to low
-        // 4. submit to light client
+                                   // 4. submit to light client
         let mut state = STATE.lock().unwrap();
         let bridge_id = state.main_bridge;
         let authority_set_change = input
@@ -1276,9 +1277,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
         local_state.block_hashes.push(header.header.hash());
     }
 
-    Ok(json!({
-        "synced_to": last_header
-    }))
+    Ok(json!({ "synced_to": last_header }))
 }
 
 fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
@@ -1309,17 +1308,21 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     for (i, block) in blocks.iter().enumerate() {
         let expected_hash = &local_state.block_hashes[i];
         if block.block_header.hash() != *expected_hash {
-            return Err(error_msg("Unexpected block hash"))
+            return Err(error_msg("Unexpected block hash"));
         }
         // TODO: examine extrinsic merkle tree
     }
 
     let ecdh_privkey = ecdh::clone_key(
-        local_state.ecdh_private_key.as_ref().expect("ECDH not initizlied"));
+        local_state
+            .ecdh_private_key
+            .as_ref()
+            .expect("ECDH not initizlied"),
+    );
     let mut last_block = 0;
     for block in blocks.iter() {
         if block.events.is_none() {
-            return Err(error_msg("Event was required"))
+            return Err(error_msg("Event was required"));
         }
 
         handle_events(&block, &ecdh_privkey, local_state.dev_mode)?;
@@ -1329,9 +1332,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         local_state.blocknum = last_block + 1;
     }
 
-    Ok(json!({
-        "dispatched_to": last_block
-    }))
+    Ok(json!({ "dispatched_to": last_block }))
 }
 
 fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Value> {
@@ -1411,7 +1412,7 @@ fn handle_events(
                         *num,
                         ecdh_privkey,
                     );
-                },
+                }
                 _ => {
                     state.contract2.handle_event(evt.event.clone());
                 }
@@ -1617,7 +1618,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (diem::Request)"))?
-                    .request
+                    .request,
             ),
         )
         .unwrap(),

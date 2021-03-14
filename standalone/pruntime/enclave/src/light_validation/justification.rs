@@ -218,7 +218,6 @@ impl<Block: BlockT<Hash = H256>> AncestryChain<Block> {
     }
 }
 
-
 impl<Block: BlockT> finality_grandpa::Chain<Block::Hash, NumberFor<Block>> for AncestryChain<Block>
 where
     NumberFor<Block>: finality_grandpa::BlockNumberOps,

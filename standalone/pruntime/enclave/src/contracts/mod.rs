@@ -13,8 +13,8 @@ use serde::{
 pub mod assets;
 pub mod balances;
 pub mod data_plaza;
-pub mod web3analytics;
 pub mod diem;
+pub mod web3analytics;
 pub mod woothee;
 
 pub type ContractId = u32;
