@@ -3,10 +3,7 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 
 use core::str;
-use parity_scale_codec::{Encode, Decode};
 use serde::{Serialize, Deserialize};
-use sp_core::ecdsa;
-use sp_core::crypto::Pair;
 
 use crate::contracts;
 use crate::TransactionStatus;
@@ -68,20 +65,18 @@ pub enum Error {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Request {
     AccountData { account_data_b64: String },
     VerifyTransaction { account_address: String, transaction_with_proof_b64: String },
     SetTrustedState { trusted_state_b64: String},
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum Request {
+
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-    AccountData { size: u32 },
-    VerifyTransaction { total: u32, verified: bool },
-    SetTrustedState { status: bool },
     Error(Error)
 }
 
@@ -170,7 +165,6 @@ impl Diem {
         let epoch_change_proof: EpochChangeProof = transaction_with_proof.epoch_change_proof.clone();
         let ledger_info_with_signatures: LedgerInfoWithSignatures =
             transaction_with_proof.ledger_info_with_signatures.clone();
-        let zero_ledger_info_with_sigs = epoch_change_proof.ledger_info_with_sigs[0].clone();
 
         if let Ok(trusted_state_change) = self.new_trusted_state.as_ref().unwrap()
             .verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
@@ -232,7 +226,6 @@ impl Diem {
             transaction_with_proof.version, address.hash(),
             Some(&transaction_with_proof.account_state_blob))
         {
-            println!("Transaction was verified");
             true
         } else {
             println!("Failed to verify transaction");
@@ -244,89 +237,114 @@ impl Diem {
 impl contracts::Contract<Command, Request, Response> for Diem {
     fn id(&self) -> contracts::ContractId { contracts::DIEM }
 
-    fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, _cmd: Command) -> TransactionStatus {
-        TransactionStatus::Ok
-    }
-
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
-            match req {
-                Request::SetTrustedState { trusted_state_b64 } => {
-                    println!("trusted_state_b64: {:?}", trusted_state_b64);
-                    if self.init_trusted_state.is_none() {
-                        let trusted_state_data = base64::decode(&trusted_state_b64)
-                            .map_err(|_| Error::Other("Bad trusted state base64 data".to_string()))?;
-                        let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = bcs::from_bytes(&trusted_state_data)
-                            .map_err(|_| Error::Other("Bad zero ledger info with sigs".to_string()))?;
-                        let trusted_state = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
-                            .map_err(|_| Error::Other("Get trusted state error".to_string()))?;
-                        self.init_trusted_state = Some(trusted_state.clone());
-                        self.new_trusted_state = Some(trusted_state);
-
-                        println!("init trusted state OK");
-                    }
-                    Ok(Response::SetTrustedState { status: true })
-                }
-                Request::AccountData { account_data_b64} => {
-                    println!("account_data_b64: {:?}", account_data_b64);
-                    let account_data = base64::decode(&account_data_b64)
-                        .map_err(|_|Error::Other("Bad account base64 data".to_string()))?;
-                    let account_info: AccountInfo = bcs::from_bytes(&account_data)
-                        .map_err(|_|Error::Other("Can't decode account info".to_string()))?;
+    fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
+        let status = match cmd {
+            Command::AccountData { account_data_b64 } => {
+                println!("command account_data_b64:{:?}", account_data_b64);
+                if let Ok(account_data) = base64::decode(&account_data_b64) {
+                    let account_info: AccountInfo = match bcs::from_bytes(&account_data) {
+                        Ok(result) => result,
+                        Err(_) => return TransactionStatus::BadAccountInfo,
+                    };
                     println!("account_info:{:?}", account_info);
                     let exist = self.accounts.iter().any(|x| x.address == account_info.address);
                     if !exist {
                         self.accounts.push(account_info);
                     }
-
-                    Ok(Response::AccountData { size: self.accounts.len() as u32 })
+                    println!("add account_ok");
+                    TransactionStatus::Ok
+                } else {
+                    TransactionStatus::BadAccountData
                 }
+            }
+            Command::SetTrustedState { trusted_state_b64 } => {
+                println!("trusted_state_b64: {:?}", trusted_state_b64);
+                if self.init_trusted_state.is_none() {
+                    if let Ok(trusted_state_data) = base64::decode(&trusted_state_b64) {
+                        let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = match bcs::from_bytes(&trusted_state_data) {
+                            Ok(result) => result,
+                            Err(_) => return TransactionStatus::BadLedgerInfo,
+                        };
+                        if let Ok(trusted_state) = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info()) {
+                            self.init_trusted_state = Some(trusted_state.clone());
+                            self.new_trusted_state = Some(trusted_state);
 
-                Request::VerifyTransaction {account_address, transaction_with_proof_b64} => {
-                    println!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
+                            println!("init trusted state OK");
 
-                    let address = AccountAddress::from_hex_literal(&account_address)
-                        .map_err(|_|Error::Other("Bad account address".to_string()))?;
+                            TransactionStatus::Ok
+                        } else {
+                            TransactionStatus::BadTrustedState
+                        }
+                    } else {
+                        TransactionStatus::BadTrustedStateData
+                    }
+                } else {
+                    TransactionStatus::Ok
+                }
+            }
+            Command::VerifyTransaction { account_address, transaction_with_proof_b64 } => {
+                println!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
+
+                if let Ok(address) = AccountAddress::from_hex_literal(&account_address) {
                     if !self.accounts.iter().any(|x| x.address == address) {
-                        println!("Not a contract's account address");
+                        println!("not a contract's account address");
 
-                        return Err(Error::Other(String::from("Not a contract's account address")));
+                        return TransactionStatus::InvalidAccount;
                     }
 
                     let proof_data = base64::decode(&transaction_with_proof_b64).unwrap_or(Vec::new());
-                    let transaction_with_proof: TransactionWithProof = bcs::from_bytes(&proof_data)
-                        .map_err(|_| Error::Other("Bad transaction with proof".to_string()))?;
+                    let transaction_with_proof: TransactionWithProof = match bcs::from_bytes(&proof_data) {
+                        Ok(result) => result,
+                        Err(_) => return TransactionStatus::BadTransactionWithProof,
+                    };
                     println!("transaction_with_proof:{:?}", transaction_with_proof);
 
-                    let transaction = self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address)?;
+                    let transaction = match self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address) {
+                        Ok(result) => result,
+                        Err(_) => return TransactionStatus::FailedToGetTransaction,
+                    };
 
                     let mut transactions: Vec<Transaction> = self.transactions.get(&account_address).unwrap_or(&Vec::new()).to_vec();
-                    let mut total: u32 = transactions.len() as u32;
                     if !transactions.iter().any(|x| x.hash() == transaction.hash()) {
                         transactions.push(transaction.clone());
                         self.transactions.insert(account_address.clone(), transactions);
-                        total += 1;
                     }
 
                     let tx_hash = transaction.hash().to_hex();
                     if self.verified.get(&tx_hash).is_some() && self.verified.get(&tx_hash).unwrap() == &true {
-                        println!("transaction has been verified");
-                        return Ok(Response::VerifyTransaction { total, verified: true });
+                        println!("transaction has been verified:{:}", self.verified.len());
+                        return TransactionStatus::Ok;
                     }
 
                     if tx_hash != transaction_with_proof.transaction_info.transaction_hash.to_hex() {
                         println!("transaction hash doesn't match");
-                        return Ok(Response::VerifyTransaction { total, verified: false });
+                        return TransactionStatus::FailedToVerify;
                     }
 
-                    self.verify_trusted_state(transaction_with_proof.clone())?;
-
-                    let verified = self.verify_transaction_state_proof(transaction_with_proof, address);
-                    self.verified.insert(tx_hash, verified);
-
-                    Ok(Response::VerifyTransaction { total, verified })
-                },
+                    if let Ok(_) = self.verify_trusted_state(transaction_with_proof.clone()) {
+                        let verified = self.verify_transaction_state_proof(transaction_with_proof, address);
+                        self.verified.insert(tx_hash, verified);
+                        if verified {
+                            println!("transaction was verified:{:}", self.verified.len());
+                            TransactionStatus::Ok
+                        } else {
+                            TransactionStatus::FailedToVerify
+                        }
+                    } else {
+                        TransactionStatus::FailedToVerify
+                    }
+                } else {
+                    TransactionStatus::InvalidAccount
+                }
             }
+        };
+
+        status
+    }
+
+    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, _req: Request) -> Response {
+        let inner = || -> Result<Response, Error> {
+            Err(Error::Other(String::from("Not defined")))
         };
         match inner() {
             Err(error) => Response::Error(error),

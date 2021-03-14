@@ -30,6 +30,15 @@ pub enum TransactionStatus {
     BadSecret,
     BadMachineId,
     FailedToSign,
+	BadAccountData,
+	BadAccountInfo,
+	BadLedgerInfo,
+	BadTrustedStateData,
+	BadTrustedState,
+	InvalidAccount,
+	BadTransactionWithProof,
+	FailedToVerify,
+	FailedToGetTransaction,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
