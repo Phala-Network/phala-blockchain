@@ -1,9 +1,5 @@
 use crate::std::{cmp, vec::Vec};
-use rand::{
-    SeedableRng,
-    rngs::SmallRng,
-    seq::index::IndexVec,
-};
+use rand::{rngs::SmallRng, seq::index::IndexVec, SeedableRng};
 
 use crate::OnlineWorkerSnapshot;
 
@@ -12,17 +8,18 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
     let mut rng = SmallRng::seed_from_u64(seed);
     // Collect the weight for each candidate
     let weights = extract_weights(candidates);
-    let num_winners = cmp::min(*candidates.compute_workers_kv.value() as usize, weights.len());
+    let num_winners = cmp::min(
+        *candidates.compute_workers_kv.value() as usize,
+        weights.len(),
+    );
     println!(
         "elect: electing {} winners from {} candidates",
         candidates.compute_workers_kv.value(),
-        weights.len());
+        weights.len()
+    );
     // Weighted sample without replacement
-    let result = sampling::sample_weighted(
-        &mut rng, weights.len(),
-        |i| weights[i],
-        num_winners
-    ).expect("elect: sample_weighted panic");
+    let result = sampling::sample_weighted(&mut rng, weights.len(), |i| weights[i], num_winners)
+        .expect("elect: sample_weighted panic");
     // Check if I am a winner by machine id
     let indices = match result {
         IndexVec::U32(indices) => indices,
@@ -53,11 +50,13 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
 fn extract_weights(snapshot: &OnlineWorkerSnapshot) -> Vec<u32> {
     use crate::light_validation::utils::extract_account_id_key_unsafe;
     use crate::std::collections::HashMap;
-    let staked: HashMap<_, _> = snapshot.stake_received_kv
+    let staked: HashMap<_, _> = snapshot
+        .stake_received_kv
         .iter()
         .map(|kv| (extract_account_id_key_unsafe(kv.key()), *kv.value()))
         .collect();
-    let weights: Vec<_> = snapshot.worker_state_kv
+    let weights: Vec<_> = snapshot
+        .worker_state_kv
         .iter()
         .map(|kv| {
             let account = crate::light_validation::utils::extract_account_id_key_unsafe(kv.key());
@@ -73,15 +72,14 @@ fn extract_weights(snapshot: &OnlineWorkerSnapshot) -> Vec<u32> {
 ///
 /// $weight = score + sqrt(stake) * 5$
 fn weight(score: u32, staked: u128) -> u32 {
-    use fixed::types::U64F64 as Fixed;
     use fixed::transcendental::sqrt;
+    use fixed::types::U64F64 as Fixed;
     const F_1E4: Fixed = Fixed::from_bits(0x2710_0000000000000000); // 1e4 * 1<<64
     const U_1E8: u128 = 100_000_000u128;
 
     let stake_1e4 = staked / U_1E8;
     let fstaked = Fixed::from_num(stake_1e4) / F_1E4;
-    let factor: Fixed = sqrt(fstaked)
-        .expect("U128 should never overflow or be negative; qed.");
+    let factor: Fixed = sqrt(fstaked).expect("U128 should never overflow or be negative; qed.");
     let result = score + (factor * 5).to_num::<u32>();
     println!("weight(score={}, staked={}) = {}", score, staked, result);
     result
@@ -91,11 +89,7 @@ fn weight(score: u32, staked: u128) -> u32 {
 mod sampling {
     use crate::std;
     use crate::std::vec::Vec;
-    use rand::{
-        Rng,
-        seq::index::IndexVec,
-        distributions::uniform::SampleUniform,
-    };
+    use rand::{distributions::uniform::SampleUniform, seq::index::IndexVec, Rng};
 
     #[derive(Debug)]
     pub enum WeightedError {
@@ -117,7 +111,10 @@ mod sampling {
     ///
     /// Panics if `amount > length`.
     pub fn sample_weighted<R, F, X>(
-        rng: &mut R, length: usize, weight: F, amount: usize,
+        rng: &mut R,
+        length: usize,
+        weight: F,
+        amount: usize,
     ) -> Result<IndexVec, WeightedError>
     where
         R: Rng + ?Sized,
@@ -134,7 +131,6 @@ mod sampling {
         }
     }
 
-
     /// Randomly sample exactly `amount` distinct indices from `0..length`, and
     /// return them in an arbitrary order (there is no guarantee of shuffling or
     /// ordering). The weights are to be provided by the input function `weights`,
@@ -148,7 +144,10 @@ mod sampling {
     ///
     /// Panics if `amount > length`.
     fn sample_efraimidis_spirakis<R, F, X, N>(
-        rng: &mut R, length: N, weight: F, amount: N,
+        rng: &mut R,
+        length: N,
+        weight: F,
+        amount: N,
     ) -> Result<IndexVec, WeightedError>
     where
         R: Rng + ?Sized,
@@ -208,8 +207,8 @@ mod sampling {
             // keys. Do this by using `partition_at_index` to put the elements with
             // the *smallest* keys at the beginning of the list in `O(n)` time, which
             // provides equivalent information about the elements with the *greatest* keys.
-            let (_, mid, greater)
-                = candidates.partition_at_index(length.as_usize() - amount.as_usize());
+            let (_, mid, greater) =
+                candidates.partition_at_index(length.as_usize() - amount.as_usize());
 
             let mut result: Vec<N> = Vec::with_capacity(amount.as_usize());
             result.push(mid.index);
@@ -250,8 +249,16 @@ mod sampling {
         }
     }
 
-    trait UInt: Copy + PartialOrd + Ord + PartialEq + Eq + SampleUniform
-        + core::hash::Hash + core::ops::AddAssign {
+    trait UInt:
+        Copy
+        + PartialOrd
+        + Ord
+        + PartialEq
+        + Eq
+        + SampleUniform
+        + core::hash::Hash
+        + core::ops::AddAssign
+    {
         fn zero() -> Self;
         fn one() -> Self;
         fn as_usize(self) -> usize;
@@ -288,5 +295,4 @@ mod sampling {
             self
         }
     }
-
 }

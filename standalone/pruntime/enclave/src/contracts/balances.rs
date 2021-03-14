@@ -3,15 +3,15 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 
 use core::str;
-use parity_scale_codec::{Encode, Decode};
-use serde::{Serialize, Deserialize};
-use sp_core::ecdsa;
+use parity_scale_codec::{Decode, Encode};
+use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair;
+use sp_core::ecdsa;
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::TransactionStatus;
 use crate::types::TxRef;
+use crate::TransactionStatus;
 extern crate runtime as chain;
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
@@ -50,21 +50,17 @@ pub enum Command {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
-    FreeBalance {
-        account: AccountIdWrapper
-    },
+    FreeBalance { account: AccountIdWrapper },
     TotalIssuance,
     PendingChainTransfer { sequence: SequenceType },
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct Transfer {
     dest: AccountIdWrapper,
     amount: chain::Balance,
     sequence: SequenceType,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
+#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct TransferData {
     data: Transfer,
     signature: Vec<u8>,
@@ -73,16 +69,16 @@ pub struct TransferData {
 pub enum Response {
     FreeBalance {
         #[serde(with = "super::serde_balance")]
-        balance: chain::Balance
+        balance: chain::Balance,
     },
     TotalIssuance {
         #[serde(with = "super::serde_balance")]
-        total_issuance: chain::Balance
+        total_issuance: chain::Balance,
     },
     PendingChainTransfer {
         transfer_queue_b64: String,
     },
-    Error(Error)
+    Error(Error),
 }
 
 const SUPPLY: u128 = 0;
@@ -102,13 +98,25 @@ impl Balances {
 }
 
 impl contracts::Contract<Command, Request, Response> for Balances {
-    fn id(&self) -> contracts::ContractId { contracts::BALANCES }
+    fn id(&self) -> contracts::ContractId {
+        contracts::BALANCES
+    }
 
-    fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
+    fn handle_command(
+        &mut self,
+        origin: &chain::AccountId,
+        _txref: &TxRef,
+        cmd: Command,
+    ) -> TransactionStatus {
         let status = match cmd {
-            Command::Transfer {dest, value} => {
+            Command::Transfer { dest, value } => {
                 let o = AccountIdWrapper(origin.clone());
-                println!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
+                println!(
+                    "Transfer: [{}] -> [{}]: {}",
+                    o.to_string(),
+                    dest.to_string(),
+                    value
+                );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
                     if *src_amount >= value {
                         let src0 = *src_amount;
@@ -132,10 +140,15 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                 } else {
                     TransactionStatus::NoBalance
                 }
-            },
-            Command::TransferToChain {dest, value} => {
+            }
+            Command::TransferToChain { dest, value } => {
                 let o = AccountIdWrapper(origin.clone());
-                println!("Transfer to chain: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
+                println!(
+                    "Transfer to chain: [{}] -> [{}]: {}",
+                    o.to_string(),
+                    dest.to_string(),
+                    value
+                );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
                     if *src_amount >= value {
                         if self.id.is_none() {
@@ -179,30 +192,36 @@ impl contracts::Contract<Command, Request, Response> for Balances {
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response, Error> {
             match req {
-                Request::FreeBalance {account} => {
+                Request::FreeBalance { account } => {
                     if origin == None || origin.unwrap() != &account.0 {
-                        return Err(Error::NotAuthorized)
+                        return Err(Error::NotAuthorized);
                     }
                     let mut balance: chain::Balance = 0;
                     if let Some(ba) = self.accounts.get(&account) {
                         balance = *ba;
                     }
                     Ok(Response::FreeBalance { balance })
-                },
-                Request::PendingChainTransfer {sequence} => {
-                    println!("PendingChainTransfer");
-                    let transfer_queue: Vec<&TransferData> = self.queue.iter().filter(|x| x.data.sequence > sequence).collect::<_>();
-
-                    Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
-                },
-                Request::TotalIssuance => {
-                    Ok(Response::TotalIssuance { total_issuance: self.total_issuance })
                 }
+                Request::PendingChainTransfer { sequence } => {
+                    println!("PendingChainTransfer");
+                    let transfer_queue: Vec<&TransferData> = self
+                        .queue
+                        .iter()
+                        .filter(|x| x.data.sequence > sequence)
+                        .collect::<_>();
+
+                    Ok(Response::PendingChainTransfer {
+                        transfer_queue_b64: base64::encode(&transfer_queue.encode()),
+                    })
+                }
+                Request::TotalIssuance => Ok(Response::TotalIssuance {
+                    total_issuance: self.total_issuance,
+                }),
             }
         };
         match inner() {
             Err(error) => Response::Error(error),
-            Ok(resp) => resp
+            Ok(resp) => resp,
         }
     }
 
@@ -223,9 +242,17 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                 self.total_issuance += amount;
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
-                let transfer_data = TransferData { data: Transfer { dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
+                let transfer_data = TransferData {
+                    data: Transfer {
+                        dest: AccountIdWrapper(who),
+                        amount,
+                        sequence,
+                    },
+                    signature: Vec::new(),
+                };
                 println!("transfer data:{:?}", transfer_data);
-                self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
+                self.queue
+                    .retain(|x| x.data.sequence > transfer_data.data.sequence);
                 println!("queue len: {:}", self.queue.len());
             }
         }
@@ -234,11 +261,15 @@ impl contracts::Contract<Command, Request, Response> for Balances {
 
 impl core::fmt::Debug for Balances {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        write!(f, r#"Balances {{
+        write!(
+            f,
+            r#"Balances {{
     total_issuance: {:?},
     accounts: {:?},
     sequence: {:?},
     queue: {:?},
-}}"#, self.total_issuance, self.accounts, self.sequence, self.queue)
+}}"#,
+            self.total_issuance, self.accounts, self.sequence, self.queue
+        )
     }
 }

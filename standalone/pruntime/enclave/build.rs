@@ -1,6 +1,6 @@
 use std::env;
 
-fn main () {
+fn main() {
     let ias_env = env::var("IAS_ENV").unwrap_or_else(|_| "DEV".to_string());
     match ias_env.as_ref() {
         "PROD" => {
