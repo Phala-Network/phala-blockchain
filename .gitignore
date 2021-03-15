@@ -86,3 +86,4 @@ tmp
 # JS scripts
 scripts/js/node_modules
 scripts/js/.env
+standalone/pruntime/start_build.sh

@@ -64,6 +64,7 @@ mod msg_channel;
 mod system;
 mod types;
 mod rpc_types;
+mod msg;
 
 use contracts::{
     AccountIdWrapper, Contract, ContractId, DATA_PLAZA, BALANCES, ASSETS, SYSTEM, WEB3_ANALYTICS, DIEM

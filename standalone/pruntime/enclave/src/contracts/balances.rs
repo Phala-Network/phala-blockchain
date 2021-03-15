@@ -12,18 +12,20 @@ use crate::contracts;
 use crate::contracts::AccountIdWrapper;
 use crate::TransactionStatus;
 use crate::types::TxRef;
+use crate::msg::msg_trait::MsgTrait;
+use crate::msg::msg_tunnel::{STATIC_MSG_TUNNEL_MUT,MsgType};
+use phala_types::{TransferData,Transfer};
 extern crate runtime as chain;
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
 type SequenceType = u64;
+type BalanceTransferData = TransferData<AccountIdWrapper,chain::Balance>;
 
 #[derive(Serialize, Deserialize)]
 pub struct Balances {
     total_issuance: chain::Balance,
     accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
-    sequence: SequenceType,
-    queue: Vec<TransferData>,
     #[serde(skip)]
     id: Option<ecdsa::Pair>,
 }
@@ -56,19 +58,7 @@ pub enum Request {
     TotalIssuance,
     PendingChainTransfer { sequence: SequenceType },
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct Transfer {
-    dest: AccountIdWrapper,
-    amount: chain::Balance,
-    sequence: SequenceType,
-}
-#[derive(Serialize, Deserialize, Debug, Clone)]
-#[derive(Encode, Decode)]
-pub struct TransferData {
-    data: Transfer,
-    signature: Vec<u8>,
-}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     FreeBalance {
@@ -94,11 +84,42 @@ impl Balances {
         Balances {
             total_issuance: 0,
             accounts,
-            sequence: 0,
-            queue: Vec::new(),
             id,
         }
     }
+}
+
+impl MsgTrait<BalanceTransferData,u64,u64,Vec<BalanceTransferData>,u64> for Balances {
+    
+    fn push(&mut self,transfer_data: BalanceTransferData){
+        let  mut msg_tunnel_mut = STATIC_MSG_TUNNEL_MUT.lock().unwrap();
+        let msg_type = MsgType::BALANCE;
+        let encode = transfer_data.encode();
+        msg_tunnel_mut.push(msg_type,encode);
+    }
+    fn received(&mut self,seq:u64){
+        let  mut msg_tunnel_mut = STATIC_MSG_TUNNEL_MUT.lock().unwrap();
+        let msg_type = MsgType::BALANCE;
+        msg_tunnel_mut.received(msg_type,seq);
+    }
+    fn get_msgs(&mut self,seq:u64)->Vec<BalanceTransferData>{
+        let  mut msg_tunnel_mut = STATIC_MSG_TUNNEL_MUT.lock().unwrap();
+        let msg_type = MsgType::BALANCE;
+        let msg_detail_list = msg_tunnel_mut.get_msg_detail_list(msg_type,seq).unwrap();
+        let mut v:Vec<BalanceTransferData> = Vec::new();
+        for i in msg_detail_list {
+            let body_message = &i.body;
+            let c = BalanceTransferData::decode(&mut &body_message[..]);
+            v.push(c.unwrap());
+        }
+        v
+    }
+    fn get_sequence(&mut self)->u64{
+        let  mut msg_tunnel_mut = STATIC_MSG_TUNNEL_MUT.lock().unwrap();
+        let msg_type = MsgType::BALANCE;
+        msg_tunnel_mut.get_sequence(msg_type)
+    }
+    
 }
 
 impl contracts::Contract<Command, Request, Response> for Balances {
@@ -146,8 +167,8 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                         *src_amount -= value;
                         self.total_issuance -= value;
                         println!("   src: {:>20} -> {:>20}", src0, src0 - value);
-                        let sequence = self.sequence + 1;
 
+                        let sequence = self.get_sequence();
                         let data = Transfer {
                             dest,
                             amount: value,
@@ -160,8 +181,9 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                             data,
                             signature: sig.0.to_vec(),
                         };
-                        self.queue.push(transfer_data);
-                        self.sequence = sequence;
+                        self.push(transfer_data);
+
+
 
                         TransactionStatus::Ok
                     } else {
@@ -191,8 +213,7 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                 },
                 Request::PendingChainTransfer {sequence} => {
                     println!("PendingChainTransfer");
-                    let transfer_queue: Vec<&TransferData> = self.queue.iter().filter(|x| x.data.sequence > sequence).collect::<_>();
-
+                    let transfer_queue: Vec<BalanceTransferData> = self.get_msgs(sequence);
                     Ok(Response::PendingChainTransfer { transfer_queue_b64: base64::encode(&transfer_queue.encode()) } )
                 },
                 Request::TotalIssuance => {
@@ -223,10 +244,7 @@ impl contracts::Contract<Command, Request, Response> for Balances {
                 self.total_issuance += amount;
             } else if let phala::RawEvent::TransferToChain(who, amount, sequence) = pe {
                 println!("TransferToChain who: {:?}, amount: {:}", who, amount);
-                let transfer_data = TransferData { data: Transfer { dest: AccountIdWrapper(who), amount, sequence }, signature: Vec::new() };
-                println!("transfer data:{:?}", transfer_data);
-                self.queue.retain(|x| x.data.sequence > transfer_data.data.sequence);
-                println!("queue len: {:}", self.queue.len());
+                self.received(sequence);
             }
         }
     }
@@ -237,8 +255,6 @@ impl core::fmt::Debug for Balances {
         write!(f, r#"Balances {{
     total_issuance: {:?},
     accounts: {:?},
-    sequence: {:?},
-    queue: {:?},
-}}"#, self.total_issuance, self.accounts, self.sequence, self.queue)
+}}"#, self.total_issuance, self.accounts)
     }
 }
