@@ -12,7 +12,7 @@ dependencies = [
  "derive_more",
  "diem-crypto",
  "diem-types",
- "finality-grandpa 0.13.0",
+ "finality-grandpa",
  "frame-system",
  "hash-db",
  "http_req",
@@ -814,18 +814,6 @@ name = "fake-simd"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e88a8acf291dafb59c2d96e8f59828f3838bb1a70398823ade51a84de6a6deed"
-
-[[package]]
-name = "finality-grandpa"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cd795898c348a8ec9edc66ec9e014031c764d4c88cc26d09b492cd93eb41339"
-dependencies = [
- "either",
- "futures",
- "num-traits 0.2.14",
- "parity-scale-codec",
-]
 
 [[package]]
 name = "finality-grandpa"
@@ -3240,7 +3228,7 @@ dependencies = [
 name = "sp-finality-grandpa"
 version = "3.0.0"
 dependencies = [
- "finality-grandpa 0.14.0",
+ "finality-grandpa",
  "parity-scale-codec",
  "sp-api",
  "sp-application-crypto",

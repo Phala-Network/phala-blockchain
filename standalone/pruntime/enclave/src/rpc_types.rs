@@ -1,14 +1,11 @@
-use serde::{Serialize, Deserialize};
-use crate::std::{
-    string::String,
-    vec::Vec
-};
+use crate::std::{string::String, vec::Vec};
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeReq {
     pub skip_ra: bool,
     pub bridge_genesis_info_b64: String,
-    pub debug_set_key: Option<String>
+    pub debug_set_key: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InitRuntimeResp {
@@ -50,5 +47,5 @@ pub struct SyncHeaderReq {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct DispatchBlockReq {
-    pub blocks_b64: Vec<String>
+    pub blocks_b64: Vec<String>,
 }

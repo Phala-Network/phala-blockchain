@@ -1,6 +1,6 @@
 use crate::std::vec::Vec;
-use phala_types::{SignedWorkerMessage, WorkerMessage, WorkerMessagePayload};
 use parity_scale_codec::Encode;
+use phala_types::{SignedWorkerMessage, WorkerMessage, WorkerMessagePayload};
 use sp_core::ecdsa;
 use sp_core::Pair;
 
@@ -15,7 +15,7 @@ impl MsgChannel {
     pub fn push(&mut self, item: WorkerMessagePayload, pair: &ecdsa::Pair) {
         let data = WorkerMessage {
             payload: item,
-            sequence: self.sequence
+            sequence: self.sequence,
         };
         // Encapsulate with signature
         let sig = pair.sign(&Encode::encode(&data));
@@ -31,8 +31,10 @@ impl MsgChannel {
     pub fn received(&mut self, seq: u64) {
         if seq > self.sequence {
             // Something bad happened
-            println!("MsgChannel::received(): error - received seq {} larger than max seq {}",
-                     seq, self.sequence);
+            println!(
+                "MsgChannel::received(): error - received seq {} larger than max seq {}",
+                seq, self.sequence
+            );
             return;
         }
         self.queue.retain(|item| item.data.sequence > seq);

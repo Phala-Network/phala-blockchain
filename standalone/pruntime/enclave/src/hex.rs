@@ -1,7 +1,7 @@
 // hex encoder and decoder used by rust-protobuf unittests
 
-use crate::std::prelude::v1::*;
 use crate::std::char;
+use crate::std::prelude::v1::*;
 use sgx_types::*;
 
 fn decode_hex_digit(digit: char) -> u8 {

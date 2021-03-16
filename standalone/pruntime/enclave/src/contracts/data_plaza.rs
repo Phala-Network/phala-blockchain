@@ -1,9 +1,9 @@
+use super::TransactionStatus;
+use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
-use crate::std::collections::{HashSet, HashMap};
-use serde::{Serialize, Deserialize};
-use super::TransactionStatus;
-use csv_core::{Reader, ReadRecordResult};
+use csv_core::{ReadRecordResult, Reader};
+use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::types::TxRef;
@@ -35,7 +35,7 @@ pub struct ItemDetails {
 pub enum PricePolicy {
     PerRow {
         #[serde(with = "super::serde_balance")]
-        price: chain::Balance
+        price: chain::Balance,
     },
 }
 
@@ -47,7 +47,7 @@ pub struct Order {
     txref: TxRef,
     buyer: String,
     details: OrderDetails,
-    state: OrderState,  // maybe shouldn't serialize this
+    state: OrderState, // maybe shouldn't serialize this
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -82,8 +82,8 @@ pub enum Request {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
-    GetItems {items: Vec<Item>},
-    GetOrders {orders: Vec<Order>}
+    GetItems { items: Vec<Item> },
+    GetOrders { orders: Vec<Order> },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -91,7 +91,7 @@ pub struct DataPlaza {
     items: Vec<Item>,
     orders: Vec<Order>,
     #[serde(skip)]
-    dataset: HashMap<String, Vec<u8>>
+    dataset: HashMap<String, Vec<u8>>,
 }
 
 impl DataPlaza {
@@ -152,7 +152,7 @@ impl DataPlaza {
                 let (result, nin, _nout, nfield) = rdr.read_record(bytes, &mut outbuf, &mut ends);
                 bytes = &bytes[nin..];
                 match result {
-                    ReadRecordResult::InputEmpty => {},
+                    ReadRecordResult::InputEmpty => {}
                     ReadRecordResult::OutputFull => panic!("record too large"),
                     ReadRecordResult::OutputEndsFull => panic!("too many fields"),
                     ReadRecordResult::Record => {
@@ -164,11 +164,14 @@ impl DataPlaza {
                             if nfield == 1 {
                                 // we only supports a single field right now
                                 let value = Self::read_field(0, &outbuf, &ends).to_vec();
-                                println!("inserting query target: {}", String::from_utf8(value.clone()).unwrap());
+                                println!(
+                                    "inserting query target: {}",
+                                    String::from_utf8(value.clone()).unwrap()
+                                );
                                 targets.insert(value);
                             }
                         }
-                    },
+                    }
                     ReadRecordResult::End => break,
                 }
             } // end loop
@@ -187,7 +190,7 @@ impl DataPlaza {
                 let mut ends = [0; 128];
                 let (result, nin, _nout, nfield) = rdr.read_record(bytes, &mut outbuf, &mut ends);
                 match result {
-                    ReadRecordResult::InputEmpty => {},
+                    ReadRecordResult::InputEmpty => {}
                     ReadRecordResult::OutputFull => panic!("record too large"),
                     ReadRecordResult::OutputEndsFull => panic!("too many fields"),
                     ReadRecordResult::Record => {
@@ -210,7 +213,10 @@ impl DataPlaza {
                             // try to match and output the entire line...
                             if idx_phone < nfield {
                                 let value = Self::read_field(idx_phone, &outbuf, &ends).to_vec();
-                                print!("queryinig: {} - ", String::from_utf8(value.clone()).unwrap());
+                                print!(
+                                    "queryinig: {} - ",
+                                    String::from_utf8(value.clone()).unwrap()
+                                );
                                 if targets.contains(&value) {
                                     println!("found");
                                     // should output the entire line!
@@ -222,7 +228,7 @@ impl DataPlaza {
                                 }
                             }
                         }
-                    },
+                    }
                     ReadRecordResult::End => break,
                 }
                 bytes = &bytes[nin..];
@@ -241,13 +247,19 @@ impl DataPlaza {
         let end = ends[i];
         &outbuf[start..end]
     }
-
 }
 
 impl contracts::Contract<Command, Request, Response> for DataPlaza {
-    fn id(&self) -> contracts::ContractId { contracts::DATA_PLAZA }
+    fn id(&self) -> contracts::ContractId {
+        contracts::DATA_PLAZA
+    }
 
-    fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {
+    fn handle_command(
+        &mut self,
+        origin: &chain::AccountId,
+        txref: &TxRef,
+        cmd: Command,
+    ) -> TransactionStatus {
         let address_hex = crate::hex::encode_hex_compact(origin.as_ref());
         let status = match cmd {
             Command::List(details) => {
@@ -258,23 +270,24 @@ impl contracts::Contract<Command, Request, Response> for DataPlaza {
                     details,
                 });
                 TransactionStatus::Ok
-            },
+            }
             Command::OpenOrder(details) => {
                 self.orders.push(Order {
                     id: self.orders.len() as OrderId,
                     txref: txref.clone(),
                     buyer: address_hex,
                     details,
-                    state: OrderState {  // TODO
+                    state: OrderState {
+                        // TODO
                         data_ready: false,
                         query_ready: false,
                         result_ready: false,
                         matched_rows: 0,
                         result_path: String::new(),
-                    }
+                    },
                 });
                 TransactionStatus::Ok
-            },
+            }
         };
 
         status
@@ -282,11 +295,15 @@ impl contracts::Contract<Command, Request, Response> for DataPlaza {
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
-            Request::GetItems => Response::GetItems { items: self.items.clone() },
+            Request::GetItems => Response::GetItems {
+                items: self.items.clone(),
+            },
             Request::GetOrders => {
                 self.update_order_state();
-                Response::GetOrders { orders: self.orders.clone() }
-            },
+                Response::GetOrders {
+                    orders: self.orders.clone(),
+                }
+            }
         }
     }
 }

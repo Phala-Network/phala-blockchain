@@ -347,7 +347,8 @@ impl Parser {
         }
 
         if agent.contains("Mediapartners-Google")
-            && (agent.contains("compatible; Mediapartners-Google") || agent == "Mediapartners-Google")
+            && (agent.contains("compatible; Mediapartners-Google")
+                || agent == "Mediapartners-Google")
         {
             return self.populate_dataset(result, "GoogleMediaPartners");
         }
@@ -473,7 +474,10 @@ impl Parser {
             return self.populate_dataset(result, "Hatena");
         }
 
-        if agent.contains("mixi-check") || agent.contains("mixi-crawler") || agent.contains("mixi-news-crawler") {
+        if agent.contains("mixi-check")
+            || agent.contains("mixi-crawler")
+            || agent.contains("mixi-news-crawler")
+        {
             return self.populate_dataset(result, "mixi");
         }
 
@@ -489,7 +493,10 @@ impl Parser {
     }
 
     fn challenge_msie<'a>(&self, agent: &'a str, result: &mut WootheeResult<'a>) -> bool {
-        if !agent.contains("compatible; MSIE") && !agent.contains("Trident/") && !agent.contains("IEMobile") {
+        if !agent.contains("compatible; MSIE")
+            && !agent.contains("Trident/")
+            && !agent.contains("IEMobile")
+        {
             return false;
         }
 
@@ -771,7 +778,8 @@ impl Parser {
     }
 
     fn challenge_softbank<'a>(&self, agent: &'a str, result: &mut WootheeResult<'a>) -> bool {
-        if !agent.contains("SoftBank") && !agent.contains("Vodafone") && !agent.contains("J-PHONE") {
+        if !agent.contains("SoftBank") && !agent.contains("Vodafone") && !agent.contains("J-PHONE")
+        {
             return false;
         }
 
@@ -808,7 +816,11 @@ impl Parser {
         true
     }
 
-    fn challenge_misc_mobilephone<'a>(&self, agent: &'a str, result: &mut WootheeResult<'a>) -> bool {
+    fn challenge_misc_mobilephone<'a>(
+        &self,
+        agent: &'a str,
+        result: &mut WootheeResult<'a>,
+    ) -> bool {
         if agent.contains("jig browser") {
             if !self.populate_dataset(result, "jig") {
                 return false;
@@ -821,7 +833,10 @@ impl Parser {
             return true;
         }
 
-        if agent.contains("emobile/") || agent.contains("OpenBrowser") || agent.contains("Browser/Obigo-Browser") {
+        if agent.contains("emobile/")
+            || agent.contains("OpenBrowser")
+            || agent.contains("Browser/Obigo-Browser")
+        {
             if !self.populate_dataset(result, "emobile") {
                 return false;
             }
@@ -1270,7 +1285,10 @@ impl Parser {
             || agent.starts_with("lwp-trivial")
         {
             version = "perl";
-        } else if agent.starts_with("Ruby") || agent.starts_with("feedzirra") || agent.starts_with("Typhoeus") {
+        } else if agent.starts_with("Ruby")
+            || agent.starts_with("feedzirra")
+            || agent.starts_with("Typhoeus")
+        {
             version = "ruby"
         } else if agent.starts_with("Python-urllib/") || agent.starts_with("Twisted ") {
             version = "python";
