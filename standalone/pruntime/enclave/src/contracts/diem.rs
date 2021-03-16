@@ -59,24 +59,33 @@ pub struct TransactionWithProof {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
-    NotAuthorized,
     Other(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
+    /// Sets the whitelisted accounts, in bcs encoded base64
     AccountData { account_data_b64: String },
+    /// Verifies a transactions
     VerifyTransaction { account_address: String, transaction_with_proof_b64: String },
+    /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
+    /// once.
     SetTrustedState { trusted_state_b64: String},
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
-
+    /// Gets all the verified transactions, in hex hash string
+    VerifiedTransactions,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
+    /// The response with all the the transaction hash verified successfully by the light client
+    VerifiedTransactions {
+        hash: Vec<String>,
+    },
+    /// Some other errors
     Error(Error)
 }
 
@@ -86,10 +95,12 @@ pub struct Diem {
     transactions: BTreeMap<String, Vec<Transaction>>, //address => Transaction
     verified: BTreeMap<String, bool>, //Hash => Bool
     seq_number: BTreeMap<String, u64>, //Address => seq
+    // TODO: TrustedState is not serializable; instead we should serialize the embedded Waypoint,
+    // which can be accessible when constructing the TrustedState from a LedgerInfo.
     #[serde(skip)]
     init_trusted_state: Option<TrustedState>,
     #[serde(skip)]
-    new_trusted_state: Option<TrustedState>,
+    trusted_state: Option<TrustedState>,
 }
 
 impl Diem {
@@ -100,7 +111,7 @@ impl Diem {
             verified: BTreeMap::<String, bool>::new(),
             seq_number: BTreeMap::<String, u64>::new(),
             init_trusted_state: None,
-            new_trusted_state: None,
+            trusted_state: None,
         }
     }
 
@@ -162,40 +173,40 @@ impl Diem {
         &mut self,
         transaction_with_proof: TransactionWithProof,
     ) -> Result<(), Error> {
-        let epoch_change_proof: EpochChangeProof = transaction_with_proof.epoch_change_proof.clone();
-        let ledger_info_with_signatures: LedgerInfoWithSignatures =
-            transaction_with_proof.ledger_info_with_signatures.clone();
-
-        if let Ok(trusted_state_change) = self.new_trusted_state.as_ref().unwrap()
-            .verify_and_ratchet(&ledger_info_with_signatures, &epoch_change_proof) {
-            match trusted_state_change {
-                TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
-                    println!(
-                        "Verified epoch changed to {}",
-                        latest_epoch_change_li
-                            .ledger_info()
-                            .next_epoch_state()
-                            .expect("no validator set in epoch change ledger info"),
-                    );
-                    self.new_trusted_state = Some(new_state);
-                }
-                TrustedStateChange::Version { new_state } => {
-                    if self.new_trusted_state.as_ref().unwrap().latest_version() < new_state.latest_version() {
-                        println!("Verified version change to: {}", new_state.latest_version());
-                    }
-                    self.new_trusted_state = Some(new_state);
-                }
-                TrustedStateChange::NoChange => {
-                    println!("NoChange");
-                }
+        let epoch_change_proof = &transaction_with_proof.epoch_change_proof;
+        let ledger_info_with_signatures = &transaction_with_proof.ledger_info_with_signatures;
+        // Verify the new state
+        let trusted_state = self.trusted_state.as_ref()
+            .ok_or(Error::Other("TrustedState uninitialized".to_string()))?;
+        let trusted_state_change = trusted_state.verify_and_ratchet(
+            ledger_info_with_signatures, &epoch_change_proof
+        ).or(Err(Error::Other("Verify trust state error".to_string())))?;
+        // Update trusted_state on demand
+        match trusted_state_change {
+            TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
+                println!(
+                    "verify_trusted_state: Verified epoch changed to {}",
+                    latest_epoch_change_li
+                        .ledger_info()
+                        .next_epoch_state()
+                        .expect("no validator set in epoch change ledger info"),
+                );
+                self.trusted_state = Some(new_state);
             }
-
-            Ok(())
-        } else {
-            println!("Verify trust state error");
-
-            Err(Error::Other("Verify trust state error".to_string()))
+            TrustedStateChange::Version { new_state } => {
+                if trusted_state.latest_version() < new_state.latest_version() {
+                    println!(
+                        "verify_trusted_state: Verified version change to: {}",
+                        new_state.latest_version()
+                    );
+                }
+                self.trusted_state = Some(new_state);
+            }
+            TrustedStateChange::NoChange => {
+                println!("verify_trusted_state: NoChange");
+            }
         }
+        Ok(())
     }
 
     pub fn verify_transaction_state_proof(
@@ -238,7 +249,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     fn id(&self) -> contracts::ContractId { contracts::DIEM }
 
     fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
-        let status = match cmd {
+        match cmd {
             Command::AccountData { account_data_b64 } => {
                 println!("command account_data_b64:{:?}", account_data_b64);
                 if let Ok(account_data) = base64::decode(&account_data_b64) {
@@ -259,27 +270,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
             }
             Command::SetTrustedState { trusted_state_b64 } => {
                 println!("trusted_state_b64: {:?}", trusted_state_b64);
-                if self.init_trusted_state.is_none() {
-                    if let Ok(trusted_state_data) = base64::decode(&trusted_state_b64) {
-                        let zero_ledger_info_with_sigs: LedgerInfoWithSignatures = match bcs::from_bytes(&trusted_state_data) {
-                            Ok(result) => result,
-                            Err(_) => return TransactionStatus::BadLedgerInfo,
-                        };
-                        if let Ok(trusted_state) = TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info()) {
-                            self.init_trusted_state = Some(trusted_state.clone());
-                            self.new_trusted_state = Some(trusted_state);
-
-                            println!("init trusted state OK");
-
-                            TransactionStatus::Ok
-                        } else {
-                            TransactionStatus::BadTrustedState
-                        }
-                    } else {
-                        TransactionStatus::BadTrustedStateData
+                // Only initialize TrustedState once
+                if self.init_trusted_state.is_some() {
+                    return TransactionStatus::Ok
+                }
+                match parse_trusted_state(&trusted_state_b64) {
+                    Ok(trusted_state) => {
+                        self.init_trusted_state = Some(trusted_state.clone());
+                        self.trusted_state = Some(trusted_state);
+                        println!("init trusted state OK");
+                        TransactionStatus::Ok
                     }
-                } else {
-                    TransactionStatus::Ok
+                    Err(code) => code,
                 }
             }
             Command::VerifyTransaction { account_address, transaction_with_proof_b64 } => {
@@ -337,14 +339,20 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     TransactionStatus::InvalidAccount
                 }
             }
-        };
-
-        status
+        }
     }
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, _req: Request) -> Response {
+    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response, Error> {
-            Err(Error::Other(String::from("Not defined")))
+            match req {
+                Request::VerifiedTransactions => {
+                    let hash: Vec<_> = self.verified.keys().cloned().collect();
+                    Ok(Response::VerifiedTransactions {
+                        hash
+                    })
+                },
+                // _ => Err(Error::Other(String::from("Not defined")))
+            }
         };
         match inner() {
             Err(error) => Response::Error(error),
@@ -353,8 +361,19 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     }
 
     fn handle_event(&mut self, _ce: chain::Event) {
-
     }
+
+}
+
+/// Parses a TrustedState from a bcs encoded LedgerInfoWithSignature in base64
+fn parse_trusted_state(trusted_state_b64: &String) -> Result<TrustedState, TransactionStatus> {
+    let trusted_state_data = base64::decode(trusted_state_b64)
+        .or(Err(TransactionStatus::BadTrustedStateData))?;
+    let zero_ledger_info_with_sigs: LedgerInfoWithSignatures =
+        bcs::from_bytes(&trusted_state_data)
+        .or(Err(TransactionStatus::BadLedgerInfo))?;
+    TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
+        .or(Err(TransactionStatus::BadLedgerInfo))
 }
 
 impl core::fmt::Debug for Diem {
