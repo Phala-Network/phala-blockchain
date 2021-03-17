@@ -1,6 +1,6 @@
 #!/bin/bash
 
-network=phat3
+network=phat4
 
 read -s -p "Enter mnemonic: " secret
 echo "[Generated code]"

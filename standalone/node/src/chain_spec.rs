@@ -393,60 +393,60 @@ pub fn local_testnet_config() -> ChainSpec {
 fn phala_testnet_config_genesis() -> GenesisConfig {
 	// stash, controller, session-key
 	// generated with secret:
-	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/phat/$j/$i; done; done
+	// for i in 1 2 3 4 ; do for j in stash controller; do ./phala-node key inspect-key "$secret"/phat/$j/$i; done; done
 	// and
 	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//phat//$j//$i; done; done
 
 	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
 		(
 			// Stash
-			hex!["544800e501c99f8d5c0098623e95d601964acc71c0c466d62c3f34689c9f703d"].into(),
+			hex!["8e820cb4d8230419975a3d4f74cae4fd80512e1065a0501e0521fc1c902a435e"].into(),
 			// Controller
-			hex!["60f74f7c5328afcd03f12f37bd8180c53feac6eb13e1f9464b17a197094f1727"].into(),
+			hex!["de5959271ca15b6c48dd2485efc3eebd83789d8266fd9def7249b8f8df0f7305"].into(),
 			// Session key ed25519
-			hex!["2e35d14137e19180c069341a9f9b92f2d70256a3a5ca5c1be8f4fdb4d99038d7"].unchecked_into(),
+			hex!["e1246650cb9af77a105975004c1f7d1480e8aa4fc828b3c6ef9d89248a32dc64"].unchecked_into(),
 			// Session key sr25519
-			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into(),
-			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into(),
-			hex!["187a05fe19b87f5c0ad01e946eb79fbaa9a0f60675dc45da1efbb3a600cc1743"].unchecked_into()
+			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into(),
+			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into(),
+			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into()
 		),(
 			// Stash
-			hex!["366f684703bf253334139b202ab2e0601afade59af411cd2504335b33fcebb6e"].into(),
+			hex!["6691ad54e7c7f98792388cbfde07a996e3f73b09bca387d9a74cfe52d2d98054"].into(),
 			// Controller
-			hex!["7ae944db02c95e2d41445ebec574838d056650813ed1ac01917f4411a50ea834"].into(),
+			hex!["d814ebecc87860bf69292df273ea2c60ee7b471b48c3d24d9c7ac17e38beaf18"].into(),
 			// Session key ed25519
-			hex!["8196afb955833a5509b114d3260dd27a660d057e661311fbeace8cdb713e6d8c"].unchecked_into(),
+			hex!["7857da61428ee20ac0a30d8fec4993171f8ea4abadb70e60efb88a8d2ff08e62"].unchecked_into(),
 			// Session key sr25519
-			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into(),
-			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into(),
-			hex!["f4cdb9f259d94d67d96b2d29f015643ac28d143f79637ccad6d64d299d234824"].unchecked_into()
+			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into(),
+			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into(),
+			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into()
 		),(
 			// Stash
-			hex!["46d84366c34f5a2958323a93cff5ae9d410a644ffce9858dad56f756bacac07f"].into(),
+			hex!["e806c01894260bda4882dff48ea814891cf7dce0a57ddb29187294fafcb1ec3c"].into(),
 			// Controller
-			hex!["56edf4106c3c5bb7a603f6785481ab7a7dd77360d09653bda484223965e1100c"].into(),
+			hex!["10bb4d7229be27688413a2e00034b5d4646663ec822bc2a7ebe24cb41acb3057"].into(),
 			// Session key ed25519
-			hex!["e627ec282819e2efe16633b358f9b3ab5d95fab7d22444d4440d9b76a262db0c"].unchecked_into(),
+			hex!["fa6bd2bbcb220f6c00f120f0a7fe71c5faae1558a36135cce6e6297c9d3f7f07"].unchecked_into(),
 			// Session key sr25519
-			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into(),
-			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into(),
-			hex!["526e0662b38b3785cc0da1e01328d484a5cb7ec94ebb324b88f6dd4019c05f1e"].unchecked_into()
+			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into(),
+			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into(),
+			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into()
 		),(
 			// Stash
-			hex!["32b21ddc880ff7042a65cbe854e19617578caeb75541d42848b78bc8313e0056"].into(),
+			hex!["d8fa0b6305927c086b9709fdcd5fdfe4cbb33b0cd682de1d9461fb6dd3e91608"].into(),
 			// Controller
-			hex!["1ef788ca003889a138bd9a9f2f14f664b58458871696357f1a0d124d0e4acc06"].into(),
+			hex!["00ef78f66ced4a6b0ef68799a232af6aaed0d151114fe881e2ae9a01ca465627"].into(),
 			// Session key ed25519
-			hex!["f430e3f80ece8bfb9728ab157756c001dc45891b3f6ad32902b73310ca262c17"].unchecked_into(),
+			hex!["60d9d3bbf4b83c1efd03ec0b54992894dc95542471b8edf247f83edf1b5d49ff"].unchecked_into(),
 			// Session key sr25519
-			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into(),
-			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into(),
-			hex!["306d416fb1d0b1aabdf57f79a4443d9684337c8a14b90d7a2f996865bf534f5b"].unchecked_into()
+			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into(),
+			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into(),
+			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into()
 		),];
 
-	// generated with secret: subkey inspect "$secret"/phat3
+	// generated with secret: phala-node inspect-key -n phala --scheme Sr25519 "$secret"/phat4
 	let root_key: AccountId = hex![
-        "3499d3a5284c3c920c139ae425f33b8d01f1b141e141a63ef21a2a928019d446"
+        "1887233b7a0848aefe0c913822678b9ed42b2a899a06abaf77014f0d52a2e12f"
     ].into();
 
 	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
