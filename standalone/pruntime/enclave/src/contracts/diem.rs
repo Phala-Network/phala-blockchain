@@ -28,6 +28,30 @@ use diem_crypto::hash::CryptoHash;
 use diem_types::transaction::{Transaction, SignedTransaction, TransactionPayload};
 use move_core_types::transaction_argument::TransactionArgument;
 
+use parity_scale_codec::{Decode, Encode};
+use crate::std::borrow::ToOwned;
+use rand::{rngs::OsRng, Rng, SeedableRng};
+use diem_crypto::{
+    Uniform, hash::HashValue,
+    ed25519::{Ed25519PrivateKey, Ed25519PublicKey},
+    test_utils::KeyPair
+};
+use diem_types::transaction::authenticator::AuthenticationKey;
+use diem_types::account_config::{xus_tag, XUS_NAME};
+use diem_types::{
+    chain_id::ChainId,
+    transaction::{
+        helpers::{create_user_txn},
+    }
+};
+use crate::hex;
+const GAS_UNIT_PRICE: u64 = 0;
+const MAX_GAS_AMOUNT: u64 = 1_000_000;
+const TX_EXPIRATION: i64 = 600;
+
+const ALICE_PRIVATE_KEY: &str = "818ad9a64e3d1bbc388f8bf1e43c78d125237b875a1b70a18f412f7d18efbeea";
+const _ALICE_ADDRESS: &str = "D4F0C053205BA934BB2AC0C4E8479E77";
+
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct Amount {
     pub amount: u64,
@@ -80,13 +104,18 @@ pub enum Command {
     VerifyTransaction { account_address: String, transaction_with_proof_b64: String },
     /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
     /// once.
-    SetTrustedState { trusted_state_b64: String},
+    SetTrustedState { trusted_state_b64: String },
+
+    NewAccount { seq_number: u64 },
+    TransferXUS { from: String, to: String, amount: u64, seq_number: u64 },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     /// Gets all the verified transactions, in hex hash string
     VerifiedTransactions,
+    ///Gets signed transaction, from start
+    GetSignedTransactions { start: u64},
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -95,8 +124,18 @@ pub enum Response {
     VerifiedTransactions {
         hash: Vec<String>,
     },
+    GetSignedTransactions {
+        queue_b64: String,
+    },
     /// Some other errors
     Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+pub struct TransactionData {
+    sequence: u64,
+    address: Vec<u8>,
+    signed_tx: Vec<u8>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -111,10 +150,25 @@ pub struct Diem {
     init_trusted_state: Option<TrustedState>,
     #[serde(skip)]
     trusted_state: Option<TrustedState>,
+
+    accounts_address: Vec<AccountAddress>,
+    account_keypairs: BTreeMap<String, KeyPair<Ed25519PrivateKey, Ed25519PublicKey>>,
+    tx_sequence: u64,
+    tx_queue: Vec<TransactionData>,
 }
 
 impl Diem {
     pub fn new() -> Self {
+        let alice_priv_key = Ed25519PrivateKey::from_bytes_unchecked(
+            &hex::decode_hex(ALICE_PRIVATE_KEY)).unwrap();
+        let alice_key_pair: KeyPair<Ed25519PrivateKey, Ed25519PublicKey> = KeyPair::from(alice_priv_key);
+        let alice_account_address = AuthenticationKey::ed25519(&alice_key_pair.public_key).derived_address();
+
+        let mut accounts_address: Vec<AccountAddress> = Vec::new();
+        accounts_address.push(alice_account_address);
+        let mut account_keypairs = BTreeMap::<String, KeyPair<Ed25519PrivateKey, Ed25519PublicKey>>::new();
+        account_keypairs.insert(alice_account_address.to_string(), alice_key_pair);
+
         Diem {
             accounts: Vec::new(),
             transactions: BTreeMap::<String, Vec<Transaction>>::new(),
@@ -122,6 +176,11 @@ impl Diem {
             seq_number: BTreeMap::<String, u64>::new(),
             init_trusted_state: None,
             trusted_state: None,
+
+            accounts_address,
+            account_keypairs,
+            tx_sequence: 1,
+            tx_queue: Vec::new(),
         }
     }
 
@@ -253,6 +312,22 @@ impl Diem {
             false
         }
     }
+
+    pub fn auth_key_prefix(&self, auth_key: Vec<u8>) -> Vec<u8> {
+        auth_key[0..16].to_vec()
+    }
+
+    pub fn get_account_address(&self, address: String) -> Option<AccountAddress> {
+        if let Ok(sender) = AccountAddress::from_hex_literal(&address) {
+            if self.accounts_address.contains(&sender) {
+                Some(sender)
+            } else {
+                None
+            }
+        } else {
+            None
+        }
+    }
 }
 
 impl contracts::Contract<Command, Request, Response> for Diem {
@@ -349,6 +424,84 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     TransactionStatus::InvalidAccount
                 }
             }
+            Command::NewAccount { seq_number } => {
+                println!("NewAccount seq_number:{:}",seq_number);
+                let alice_account_address = self.accounts_address[0];
+                let alice_key_pair = self.account_keypairs.get(&alice_account_address.to_string()).unwrap().clone();
+
+                let mut seed_rng = OsRng;
+                let mut rng = rand::rngs::StdRng::from_seed(seed_rng.gen());
+                let keypair: KeyPair<Ed25519PrivateKey, Ed25519PublicKey> =
+                    Ed25519PrivateKey::generate(&mut rng).into();
+                let auth_key = AuthenticationKey::ed25519(&keypair.public_key).to_vec();
+                let receiver_address = AuthenticationKey::ed25519(&keypair.public_key).derived_address();
+                println!("new child address:{:?}", receiver_address);
+                let receiver_auth_key_prefix = self.auth_key_prefix(auth_key);
+
+                let mut script = transaction_builder::encode_create_child_vasp_account_script(
+                    xus_tag(), receiver_address, receiver_auth_key_prefix,
+                    false, 0,
+                );
+
+                let txn = create_user_txn(
+                    alice_key_pair, TransactionPayload::Script(script),
+                    alice_account_address, seq_number,
+                    MAX_GAS_AMOUNT, GAS_UNIT_PRICE, XUS_NAME.to_owned(),
+                    TX_EXPIRATION, ChainId::new(2),
+                ).unwrap();
+                println!("tx:{:?}", txn);
+
+                self.accounts_address.push(receiver_address);
+                self.account_keypairs.insert(receiver_address.to_string(), keypair);
+
+                let transaction_data = TransactionData {
+                    sequence: self.tx_sequence,
+                    address: receiver_address.to_string().as_bytes().to_vec(),
+                    signed_tx: bcs::to_bytes(&txn).unwrap(),
+                };
+                self.tx_queue.push(transaction_data);
+                self.tx_sequence = self.tx_sequence + 1;
+
+                TransactionStatus::Ok
+            }
+            Command::TransferXUS { from, to, amount, seq_number } => {
+                println!("TransferXUS from: {:}, to: {:}, amount: {:}, seq_number:{:}", from, to, amount, seq_number);
+                if let Some(sender) = self.get_account_address(from) {
+                    if let Ok(receiver) = AccountAddress::from_hex_literal(&to) {
+                        let sender_key_pair = self.account_keypairs.get(&sender.to_string()).unwrap();
+
+                        let script = transaction_builder::encode_peer_to_peer_with_metadata_script(
+                            xus_tag(),
+                            receiver,
+                            amount,
+                            vec![],
+                            vec![],
+                        );
+
+                        let txn = create_user_txn(
+                            sender_key_pair, TransactionPayload::Script(script),
+                            sender, seq_number,
+                            MAX_GAS_AMOUNT, GAS_UNIT_PRICE, XUS_NAME.to_owned(),
+                            TX_EXPIRATION, ChainId::new(2),
+                        ).unwrap();
+                        println!("tx:{:?}", txn);
+
+                        let transaction_data = TransactionData {
+                            sequence: self.tx_sequence,
+                            address: receiver.to_string().as_bytes().to_vec(),
+                            signed_tx: bcs::to_bytes(&txn).unwrap(),
+                        };
+                        self.tx_queue.push(transaction_data);
+                        self.tx_sequence = self.tx_sequence + 1;
+
+                        TransactionStatus::Ok
+                    } else {
+                        TransactionStatus::InvalidAccount
+                    }
+                } else {
+                    TransactionStatus::InvalidAccount
+                }
+            }
         }
     }
 
@@ -361,7 +514,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         hash
                     })
                 },
-                // _ => Err(Error::Other(String::from("Not defined")))
+                Request::GetSignedTransactions { start} => {
+                    println!("GetSignedTransactions: {:}", start);
+                    let queue: Vec<&TransactionData> = self
+                        .tx_queue
+                        .iter()
+                        .filter(|x| x.sequence >= start)
+                        .collect::<_>();
+                    let queue_b64 = base64::encode(&queue.encode());
+                    Ok(Response::GetSignedTransactions {
+                        queue_b64,
+                    })
+                }
             }
         };
         match inner() {
