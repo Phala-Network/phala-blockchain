@@ -45,6 +45,7 @@ pub enum TransactionStatus {
     BadTransactionWithProof,
     FailedToVerify,
     FailedToGetTransaction,
+    FailedToCalculateBalance,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
