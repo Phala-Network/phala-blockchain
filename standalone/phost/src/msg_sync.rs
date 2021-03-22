@@ -47,7 +47,7 @@ impl<'a> MsgSync<'a> {
         let msg_queue: Vec<phala_types::SignedWorkerMessage> = Decode::decode(&mut &msg_data[..])
             .map_err(|_| Error::FailedToDecode)?;
         // No pending message. We are done.
-        if msg_queue.len() == 0 {
+        if msg_queue.is_empty() {
             return Ok(());
         }
         // Send messages
@@ -89,7 +89,7 @@ impl<'a> MsgSync<'a> {
         let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
             .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
-        if transfer_queue.len() == 0 {
+        if transfer_queue.is_empty() {
             return Ok(());
         }
         // Send messages

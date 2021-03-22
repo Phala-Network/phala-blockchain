@@ -481,7 +481,7 @@ async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_k
 
     let info_b64 = base64::encode(&info.encode());
     let mut debug_set_key = None;
-    if inject_key != "" {
+    if !inject_key.is_empty() {
         if inject_key.len() != 64 {
             panic!("inject-key must be 32 bytes hex");
         } else {
@@ -516,7 +516,7 @@ async fn register_worker(
         };
         update_signer_nonce(client, signer).await?;
         let ret = client.watch(call, signer).await;
-        if !ret.is_ok() {
+        if ret.is_err() {
             println!("FailedToCallRegisterWorker: {:?}", ret);
             return Err(Error::FailedToCallRegisterWorker);
         }
