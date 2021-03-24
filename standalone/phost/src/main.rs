@@ -64,15 +64,6 @@ struct Args {
     help = "Remove unsent out-dated transactions (e.g clain_reward), this will help to reduce unnecessary fee, but will got slash on main-net.")]
     reset_egress: bool,
 
-    #[structopt(long = "fetch-heartbeat-from-buffer", help = "Manual fetch heartbeat data")]
-    fetch_heartbeat_from_buffer: bool,
-
-    #[structopt(
-    default_value = "5",
-    long = "heartbeat-interval",
-    help = "Frequency of sending heartbeat")]
-    heartbeat_interval: u32,
-
     #[structopt(
     default_value = "ws://localhost:9944", long,
     help = "Substrate rpc websocket endpoint")]

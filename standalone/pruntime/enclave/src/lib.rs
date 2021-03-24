@@ -1217,8 +1217,6 @@ fn handle_execution(
     );
 }
 
-const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
-
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     // Parse base64 to data
     let parsed_data: Result<Vec<_>, _> = (&input.headers_b64).iter().map(base64::decode).collect();
@@ -1240,8 +1238,6 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
             .as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
             .clone();
-            // .into_justification(GRANDPA_ENGINE_ID)
-            // .unwrap();
         let last_header = last_header.header.clone();
         // 2. check header sequence
         for (i, header) in headers.iter().enumerate() {
