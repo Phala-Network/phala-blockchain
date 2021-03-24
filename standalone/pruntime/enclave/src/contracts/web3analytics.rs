@@ -841,12 +841,12 @@ impl Web3Analytics {
     fn update_total_stat(&mut self, total_stat: HourlyPageViewStat, count_str: String) {
         self.total_stat = HourlyPageViewStat::default();
 
-        if !self.encrypted.clone() {
+        if !self.encrypted {
             return;
         }
 
         let mut count = self.decrypt(total_stat.pv_count).parse::<u32>().unwrap();
-        if count_str != "" {
+        if !count_str.is_empty() {
             count += self.decrypt(count_str).parse::<u32>().unwrap();
         }
 
@@ -956,7 +956,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     self.update_online_users(start, end);
                     Ok(Response::GetOnlineUsers {
                         online_users: self.online_users.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetHourlyStats {
@@ -967,14 +967,14 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     self.update_hourly_stats(start, end, start_of_week);
                     Ok(Response::GetHourlyStats {
                         hourly_stat: self.hourly_stat.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetDailyStats { daily_stat } => {
                     self.update_daily_stats(daily_stat);
                     Ok(Response::GetDailyStats {
                         daily_stat: self.daily_stat.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetWeeklySites {
@@ -984,7 +984,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     self.update_weekly_sites(weekly_sites_in_db, weekly_sites_new);
                     Ok(Response::GetWeeklySites {
                         weekly_sites: self.weekly_sites.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetWeeklyDevices {
@@ -994,14 +994,14 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                     self.update_weekly_devices(weekly_devices_in_db, weekly_devices_new);
                     Ok(Response::GetWeeklyDevices {
                         weekly_devices: self.weekly_devices.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetTotalStat { total_stat, count } => {
                     self.update_total_stat(total_stat, count);
                     Ok(Response::GetTotalStat {
                         total_stat: self.total_stat.clone(),
-                        encrypted: self.encrypted.clone(),
+                        encrypted: self.encrypted,
                     })
                 }
                 Request::GetConfiguration { account } => {

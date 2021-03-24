@@ -18,7 +18,7 @@ impl NotifyClient {
     }
 
     pub async fn notify(&self, param: &NotifyReq) -> Result<Response<Body>> {
-        if self.base_url == "" {
+        if self.base_url.is_empty() {
             return Ok(Response::default());
         }
 
