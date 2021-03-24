@@ -47,6 +47,8 @@ use sp_core::H256 as Hash;
 use http_req::request::{Method, Request};
 use std::time::Duration;
 
+use pink::InkModule;
+
 extern crate pallet_phala as phala;
 use phala_types::{
     pruntime::{
@@ -174,6 +176,13 @@ struct LocalState {
     machine_id: [u8; 16],
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
+}
+
+struct TestContract {
+    name: String,
+    code: Vec<u8>,
+    initial_data: Vec<u8>,
+    txs: Vec<Vec<u8>>,
 }
 
 fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
@@ -647,6 +656,7 @@ const ACTION_DISPATCH_BLOCK: u8 = 7;
 const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
+const ACTION_TEST_INK: u8 = 100;
 
 #[no_mangle]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
@@ -690,6 +700,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET => get(payload),
                 ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
+                ACTION_TEST_INK => test_ink(payload),
                 _ => unknown(),
             }
         }
@@ -1525,6 +1536,58 @@ fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         .as_ref()
         .ok_or_else(|| error_msg("Uninitiated runtime info"))?;
     Ok(serde_json::to_value(resp).unwrap())
+}
+
+fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
+    println!("=======Begin Ink Contract Test=======");
+
+    let mut testcases = Vec::new();
+    testcases.push(TestContract {
+        name: String::from("flipper"),
+        code: include_bytes!("res/flipper.wasm").to_vec(),
+        initial_data: vec![248, 30, 126, 26, 0],
+        txs: vec![
+            vec![205, 228, 239, 169], // flip()
+            vec![109, 76, 230, 60],   // get()
+        ],
+    });
+    testcases.push(TestContract {
+        name: String::from("EIP20Token"),
+        code: include_bytes!("res/EIP20Token.wasm").to_vec(),
+        initial_data: vec![134, 23, 49, 213],
+        txs: vec![
+            vec![
+                102, 136, 227, 5, 128, 150, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 84, 101, 115, 116, 84, 111, 107, 101, 110,
+                2, 8, 84, 84,
+            ], // eip20 (initialAmount: u256, tokenName: String, decimalUnits: u8, tokenSymbol: String)
+            vec![
+                106, 70, 115, 148, 142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126, 37,
+                252, 82, 135, 97, 54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242, 106, 72,
+                210, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                0, 0, 0, 0, 0,
+            ], // transfer (to: AccountId, value: u256)
+        ],
+    });
+
+    for t in testcases {
+        let mut driver = InkModule::new();
+
+        println!("\n>>> Execute Contract {}", t.name);
+
+        let contract_key = driver.put_code(t.code).unwrap();
+        println!(">>> Code deplyed to {}", contract_key);
+
+        let result = InkModule::instantiate(contract_key, t.initial_data);
+        println!(">>> Code instantiated with result {:?}", result.unwrap());
+
+        for tx in t.txs {
+            let result = InkModule::call(contract_key, tx);
+            println!(">>> Code called with result {:?}", result.unwrap());
+        }
+    }
+
+    Ok(json!({}))
 }
 
 fn query(q: types::SignedQuery) -> Result<Value, Value> {
