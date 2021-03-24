@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -38,7 +38,7 @@ pub fn compute_total_payout<N>(
 	// Milliseconds per year for the Julian year (365.25 days).
 	const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
-	let portion = Perbill::from_rational_approximation(era_duration as u64, MILLISECONDS_PER_YEAR);
+	let portion = Perbill::from_rational(era_duration as u64, MILLISECONDS_PER_YEAR);
 	let payout = portion * yearly_inflation.calculate_for_fraction_times_denominator(
 		npos_token_staked,
 		total_tokens.clone(),

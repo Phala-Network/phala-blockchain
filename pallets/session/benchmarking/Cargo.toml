@@ -31,18 +31,18 @@ pallet-staking-reward-curve = { version = "3.0.0", path = "../../../substrate/fr
 sp-io ={ version = "3.0.0", path = "../../../substrate/primitives/io" }
 pallet-timestamp = { version = "3.0.0", path = "../../../substrate/frame/timestamp" }
 pallet-balances = { version = "3.0.0", path = "../../../substrate/frame/balances" }
-sp-election-providers = { version = "3.0.0", path = "../../../substrate/primitives/election-providers" }
+frame-election-provider-support = { version = "3.0.0", path = "../../../substrate/frame/election-provider-support" }
 
 [features]
 default = ["std"]
 std = [
 	"sp-std/std",
 	"sp-session/std",
-	"sp-election-providers/std",
 	"sp-runtime/std",
 	"frame-system/std",
 	"frame-benchmarking/std",
 	"frame-support/std",
+	"frame-election-provider-support/std",
 	"pallet-staking/std",
 	"pallet-session/std",
 ]

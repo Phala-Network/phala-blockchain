@@ -8,7 +8,7 @@ use codec::Encode;
 use frame_system::RawOrigin;
 use frame_benchmarking::{benchmarks, account, whitelisted_caller};
 use sp_runtime::traits::Bounded;
-use crate::Module as PhalaModule;
+use crate::Pallet as PhalaPallet;
 use crate::types::{
 	Transfer, TransferData, RoundStats, WorkerStateEnum,
 	WorkerMessagePayload, WorkerMessage, SignedWorkerMessage,
@@ -86,11 +86,11 @@ benchmarks! {
 		let caller = whitelisted_caller();
 		let payload = b"hello world".to_vec();
 	}: {
-		PhalaModule::<T>::push_command(RawOrigin::Signed(caller).into(), CONTRACT_ID, payload)?;
+		PhalaPallet::<T>::push_command(RawOrigin::Signed(caller).into(), CONTRACT_ID, payload)?;
 	}
 	verify {
 		// CommandNumber = 0; CommandNumber++;
-		assert_eq!(PhalaModule::<T>::command_number().unwrap(), 1);
+		assert_eq!(PhalaPallet::<T>::command_number().unwrap(), 1);
 	}
 
 	// To create the worst scenario, we set a controller as coller first,
@@ -109,11 +109,11 @@ benchmarks! {
 		StashState::<T>::insert(&caller, stash_state);
 		Stash::<T>::insert(&caller, caller.clone());
 	}: {
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), new_controller.clone())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), new_controller.clone())?;
 	}
 	verify {
 		// new controller should be set
-		assert_eq!(PhalaModule::<T>::stash(&new_controller), caller.clone());
+		assert_eq!(PhalaPallet::<T>::stash(&new_controller), caller.clone());
 	}
 
 	set_payout_prefs {
@@ -121,9 +121,9 @@ benchmarks! {
 		let payout_commission: u32 = 99;
 		let payout_target: T::AccountId = account("payouttarget", 0, SEED);
 
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
 	}: {
-		PhalaModule::<T>::set_payout_prefs(RawOrigin::Signed(caller.clone()).into(), payout_commission.clone().into(), payout_target.clone().into())?;
+		PhalaPallet::<T>::set_payout_prefs(RawOrigin::Signed(caller.clone()).into(), payout_commission.clone().into(), payout_target.clone().into())?;
 	}
 	verify {
 		let mut stash_info = StashState::<T>::get(&caller);
@@ -142,24 +142,24 @@ benchmarks! {
 			Err(_) => panic!("decode cert failed")
 		};
 
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
 	}: {
-		PhalaModule::<T>::register_worker(RawOrigin::Signed(caller).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
+		PhalaPallet::<T>::register_worker(RawOrigin::Signed(caller).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
 	}
 
 	force_register_worker {
 		let caller: T::AccountId = whitelisted_caller();
 
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
 	}: {
-		PhalaModule::<T>::force_register_worker(RawOrigin::Root.into(), caller, vec![0], vec![1])?;
+		PhalaPallet::<T>::force_register_worker(RawOrigin::Root.into(), caller, vec![0], vec![1])?;
 	}
 
 	force_set_contract_key {
 
 	}: {
-		PhalaModule::<T>::force_set_contract_key(RawOrigin::Root.into(), 0, vec![0])?;
+		PhalaPallet::<T>::force_set_contract_key(RawOrigin::Root.into(), 0, vec![0])?;
 	}
 
 	start_mining_intention {
@@ -173,12 +173,12 @@ benchmarks! {
 			Err(_) => panic!("decode cert failed")
 		};
 
-		frame_system::Module::<T>::set_block_number(1u32.into());
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
-		PhalaModule::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
 	}: {
-		PhalaModule::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
+		PhalaPallet::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
 	}
 	verify {
 		let stash = Stash::<T>::get(caller);
@@ -197,13 +197,13 @@ benchmarks! {
 			Err(_) => panic!("decode cert failed")
 		};
 
-		frame_system::Module::<T>::set_block_number(1u32.into());
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
-		PhalaModule::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
-		PhalaModule::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
+		PhalaPallet::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
 	}: {
-		PhalaModule::<T>::stop_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
+		PhalaPallet::<T>::stop_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
 	}
 	verify {
 		let stash = Stash::<T>::get(caller);
@@ -216,12 +216,12 @@ benchmarks! {
 		let caller: T::AccountId = whitelisted_caller();
 		// set contract key
 		let pubkey = hex::decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798").unwrap();
-		PhalaModule::<T>::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey)?;
+		PhalaPallet::<T>::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey)?;
 		let imbalance: BalanceOf<T> = 100u32.into();
 		T::TEECurrency::deposit_creating(&caller, imbalance);
 		assert_eq!(imbalance, T::TEECurrency::free_balance(&caller));
 	}: {
-		PhalaModule::<T>::transfer_to_tee(RawOrigin::Signed(caller.clone()).into(), 50u32.into())?;
+		PhalaPallet::<T>::transfer_to_tee(RawOrigin::Signed(caller.clone()).into(), 50u32.into())?;
 	}
 	verify {
 		let free_balance: BalanceOf<T> = 50u32.into();
@@ -235,9 +235,9 @@ benchmarks! {
 		// let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
 		let pubkey = hex::decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798").unwrap();
 		// let sk = ecdsa_load_sk(&raw_sk);
-		PhalaModule::<T>::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey)?;
+		PhalaPallet::<T>::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey)?;
 		T::TEECurrency::deposit_creating(&caller, 200u32.into());
-		PhalaModule::<T>::transfer_to_tee(RawOrigin::Signed(caller.clone()).into(), 100u32.into())?;
+		PhalaPallet::<T>::transfer_to_tee(RawOrigin::Signed(caller.clone()).into(), 100u32.into())?;
 		let transfer = Transfer::<T::AccountId, BalanceOf<T>> {
 			dest: receiver.clone(),
 			amount: 50u32.into(),
@@ -251,7 +251,7 @@ benchmarks! {
 			signature: TRANSFERDATASIG.to_vec(),
 		};
 	}: {
-		PhalaModule::<T>::transfer_to_chain(RawOrigin::Signed(caller.clone()).into(), data.encode())?;
+		PhalaPallet::<T>::transfer_to_chain(RawOrigin::Signed(caller.clone()).into(), data.encode())?;
 	}
 	verify {
 		let free_balance: BalanceOf<T> = 50u32.into();
@@ -272,10 +272,10 @@ benchmarks! {
 			Ok(x) => x,
 			Err(_) => panic!("decode cert failed")
 		};
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
-		PhalaModule::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
-		PhalaModule::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
-		PhalaModule::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::set_stash(RawOrigin::Signed(caller.clone()).into(), caller.clone())?;
+		PhalaPallet::<T>::register_worker(RawOrigin::Signed(caller.clone()).into(), ENCODED_RUNTIME_INFO.to_vec(), IAS_REPORT_SAMPLE.to_vec(), sig.clone(), sig_cert_dec.clone())?;
+		PhalaPallet::<T>::start_mining_intention(RawOrigin::Signed(caller.clone()).into())?;
 
 		let stash = Stash::<T>::get(&caller);
 		let mut worker_info = WorkerState::<T>::get(&stash);
@@ -298,12 +298,12 @@ benchmarks! {
 			signature: WORKMESSAGESIG.to_vec(),
 		};
 	}: {
-		PhalaModule::<T>::sync_worker_message(RawOrigin::Signed(caller.clone()).into(), signed_workmessage.encode())?;
+		PhalaPallet::<T>::sync_worker_message(RawOrigin::Signed(caller.clone()).into(), signed_workmessage.encode())?;
 	}
 
 	force_next_round {
 	}: {
-		PhalaModule::<T>::force_next_round(RawOrigin::Root.into())?;
+		PhalaPallet::<T>::force_next_round(RawOrigin::Root.into())?;
 	}
 
 	force_add_fire {
@@ -312,35 +312,35 @@ benchmarks! {
 		let fire2: T::AccountId = account("fire2", 0, SEED);
 
 	}: {
-		PhalaModule::<T>::force_add_fire(
+		PhalaPallet::<T>::force_add_fire(
 			RawOrigin::Root.into(),
 			vec![fire1.clone(), fire2.clone()],
 			vec![100u32.into(), 200u32.into()],
 		)?;
 	}
 	verify {
-		assert_eq!(PhalaModule::<T>::fire(fire0.clone()), 0u32.into());
-		assert_eq!(PhalaModule::<T>::fire(fire1.clone()), 100u32.into());
-		assert_eq!(PhalaModule::<T>::fire(fire2.clone()), 200u32.into());
+		assert_eq!(PhalaPallet::<T>::fire(fire0.clone()), 0u32.into());
+		assert_eq!(PhalaPallet::<T>::fire(fire1.clone()), 100u32.into());
+		assert_eq!(PhalaPallet::<T>::fire(fire2.clone()), 200u32.into());
 	}
 
 	add_mrenclave {
-		frame_system::Module::<T>::set_block_number(1u32.into());
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
 	}: {
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
 	}
 
 	remove_mrenclave_by_raw_data {
-		frame_system::Module::<T>::set_block_number(1u32.into());
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
 	}: {
-		PhalaModule::<T>::remove_mrenclave_by_raw_data(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		PhalaPallet::<T>::remove_mrenclave_by_raw_data(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
 	}
 
 	remove_mrenclave_by_index {
-		frame_system::Module::<T>::set_block_number(1u32.into());
-		PhalaModule::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
+		frame_system::Pallet::<T>::set_block_number(1u32.into());
+		PhalaPallet::<T>::add_mrenclave(RawOrigin::Root.into(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec())?;
 	}: {
-		PhalaModule::<T>::remove_mrenclave_by_index(RawOrigin::Root.into(), 0)?;
+		PhalaPallet::<T>::remove_mrenclave_by_index(RawOrigin::Root.into(), 0)?;
 	}
 }

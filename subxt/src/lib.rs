@@ -18,25 +18,25 @@
 //! [substrate](https://github.com/paritytech/substrate) node via RPC.
 
 #![deny(
-bad_style,
-const_err,
-improper_ctypes,
-missing_docs,
-non_shorthand_field_patterns,
-no_mangle_generic_items,
-overflowing_literals,
-path_statements,
-patterns_in_fns_without_body,
-private_in_public,
-unconditional_recursion,
-unused_allocation,
-unused_comparisons,
-unused_parens,
-while_true,
-trivial_casts,
-trivial_numeric_casts,
-unused_extern_crates,
-clippy::all
+    bad_style,
+    const_err,
+    improper_ctypes,
+    missing_docs,
+    non_shorthand_field_patterns,
+    no_mangle_generic_items,
+    overflowing_literals,
+    path_statements,
+    patterns_in_fns_without_body,
+    private_in_public,
+    unconditional_recursion,
+    unused_allocation,
+    unused_comparisons,
+    unused_parens,
+    while_true,
+    trivial_casts,
+    trivial_numeric_casts,
+    unused_extern_crates,
+    clippy::all
 )]
 #![allow(clippy::type_complexity)]
 
@@ -83,9 +83,15 @@ mod metadata;
 mod rpc;
 mod runtimes;
 mod subscription;
+#[cfg(test)]
+mod tests;
 
 pub use crate::{
-    error::Error,
+    error::{
+        Error,
+        ModuleError,
+        RuntimeError,
+    },
     events::{
         EventTypeRegistry,
         EventsDecoder,
@@ -179,8 +185,8 @@ impl<T: Runtime> ClientBuilder<T> {
     ///
     /// If there is already a type size registered with this name.
     pub fn register_type_size<U>(mut self, name: &str) -> Self
-        where
-            U: Codec + Send + Sync + 'static,
+    where
+        U: Codec + Send + Sync + 'static,
     {
         self.event_type_registry.register_type_size::<U>(name);
         self
@@ -209,7 +215,7 @@ impl<T: Runtime> ClientBuilder<T> {
             if url.starts_with("ws://") || url.starts_with("wss://") {
                 let mut config = WsConfig::with_url(&url);
                 config.max_notifs_per_subscription = 4096;
-                RpcClient::WebSocket(WsClient::new(config).await?)
+                RpcClient::WebSocket(Arc::new(WsClient::new(config).await?))
             } else {
                 let client = HttpClient::new(url, HttpConfig::default())?;
                 RpcClient::Http(Arc::new(client))
@@ -225,7 +231,7 @@ impl<T: Runtime> ClientBuilder<T> {
             rpc.runtime_version(None),
             rpc.system_properties(),
         )
-            .await;
+        .await;
         let metadata = metadata?;
 
         if let Err(missing) = self.event_type_registry.check_missing_type_sizes(&metadata)
@@ -438,8 +444,8 @@ impl<T: Runtime> Client<T> {
 
     /// Get a header
     pub async fn header<H>(&self, hash: Option<H>) -> Result<Option<T::Header>, Error>
-        where
-            H: Into<T::Hash> + 'static,
+    where
+        H: Into<T::Hash> + 'static,
     {
         let header = self.rpc.header(hash.map(|h| h.into())).await?;
         Ok(header)
@@ -462,8 +468,8 @@ impl<T: Runtime> Client<T> {
 
     /// Get a block
     pub async fn block<H>(&self, hash: Option<H>) -> Result<Option<ChainBlock<T>>, Error>
-        where
-            H: Into<T::Hash> + 'static,
+    where
+        H: Into<T::Hash> + 'static,
     {
         let block = self.rpc.block(hash.map(|h| h.into())).await?;
         Ok(block)
@@ -475,8 +481,8 @@ impl<T: Runtime> Client<T> {
         keys: Vec<StorageKey>,
         hash: Option<H>,
     ) -> Result<ReadProof<T::Hash>, Error>
-        where
-            H: Into<T::Hash> + 'static,
+    where
+        H: Into<T::Hash> + 'static,
     {
         let proof = self.rpc.read_proof(keys, hash.map(|h| h.into())).await?;
         Ok(proof)
@@ -536,8 +542,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<UncheckedExtrinsic<T>, Error>
-        where
-            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+    where
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let account_nonce = if let Some(nonce) = signer.nonce() {
@@ -553,7 +559,7 @@ impl<T: Runtime> Client<T> {
             call,
             signer,
         )
-            .await?;
+        .await?;
         Ok(signed)
     }
 
@@ -586,8 +592,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<T::Hash, Error>
-        where
-            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+    where
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
@@ -600,8 +606,8 @@ impl<T: Runtime> Client<T> {
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
     ) -> Result<ExtrinsicSuccess<T>, Error>
-        where
-            <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
+    where
+        <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
         let extrinsic = self.create_signed(call, signer).await?;
@@ -652,188 +658,5 @@ pub struct Encoded(pub Vec<u8>);
 impl codec::Encode for Encoded {
     fn encode(&self) -> Vec<u8> {
         self.0.to_owned()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sp_core::storage::{
-        well_known_keys,
-        StorageKey,
-    };
-    use sp_keyring::AccountKeyring;
-    use substrate_subxt_client::{
-        DatabaseConfig,
-        KeystoreConfig,
-        Role,
-        SubxtClient,
-        SubxtClientConfig,
-    };
-    use tempdir::TempDir;
-
-    pub(crate) type TestRuntime = crate::NodeTemplateRuntime;
-
-    pub(crate) async fn test_client_with(
-        key: AccountKeyring,
-    ) -> (Client<TestRuntime>, TempDir) {
-        env_logger::try_init().ok();
-        let tmp = TempDir::new("subxt-").expect("failed to create tempdir");
-        let config = SubxtClientConfig {
-            impl_name: "substrate-subxt-full-client",
-            impl_version: "0.0.1",
-            author: "substrate subxt",
-            copyright_start_year: 2020,
-            db: DatabaseConfig::RocksDb {
-                path: tmp.path().join("db"),
-                cache_size: 128,
-            },
-            keystore: KeystoreConfig::Path {
-                path: tmp.path().join("keystore"),
-                password: None,
-            },
-            chain_spec: test_node::chain_spec::development_config().unwrap(),
-            role: Role::Authority(key),
-            telemetry: None,
-            wasm_method: Default::default(),
-        };
-        let client = ClientBuilder::new()
-            .set_client(
-                SubxtClient::from_config(config, test_node::service::new_full)
-                    .expect("Error creating subxt client"),
-            )
-            .set_page_size(3)
-            .build()
-            .await
-            .expect("Error creating client");
-        (client, tmp)
-    }
-    pub(crate) async fn test_client() -> (Client<TestRuntime>, TempDir) {
-        test_client_with(AccountKeyring::Alice).await
-    }
-
-    #[async_std::test]
-    async fn test_insert_key() {
-        // Bob is not an authority, so block production should be disabled.
-        let (client, _tmp) = test_client_with(AccountKeyring::Bob).await;
-        let mut blocks = client.subscribe_blocks().await.unwrap();
-        // get the genesis block.
-        assert_eq!(blocks.next().await.unwrap().number, 0);
-        let public = AccountKeyring::Alice.public().as_array_ref().to_vec();
-        client
-            .insert_key(
-                "aura".to_string(),
-                "//Alice".to_string(),
-                public.clone().into(),
-            )
-            .await
-            .unwrap();
-        assert!(client
-            .has_key(public.clone().into(), "aura".to_string())
-            .await
-            .unwrap());
-        // Alice is an authority, so blocks should be produced.
-        assert_eq!(blocks.next().await.unwrap().number, 1);
-    }
-
-    #[async_std::test]
-    async fn test_tx_transfer_balance() {
-        let mut signer = PairSigner::new(AccountKeyring::Alice.pair());
-        let dest = AccountKeyring::Bob.to_account_id().into();
-
-        let (client, _) = test_client().await;
-        let nonce = client
-            .account(&AccountKeyring::Alice.to_account_id(), None)
-            .await
-            .unwrap()
-            .nonce;
-        signer.set_nonce(nonce);
-        client
-            .submit(
-                balances::TransferCall {
-                    to: &dest,
-                    amount: 10_000,
-                },
-                &signer,
-            )
-            .await
-            .unwrap();
-
-        // check that nonce is handled correctly
-        signer.increment_nonce();
-        client
-            .submit(
-                balances::TransferCall {
-                    to: &dest,
-                    amount: 10_000,
-                },
-                &signer,
-            )
-            .await
-            .unwrap();
-    }
-
-    #[async_std::test]
-    async fn test_getting_hash() {
-        let (client, _) = test_client().await;
-        client.block_hash(None).await.unwrap();
-    }
-
-    #[async_std::test]
-    async fn test_getting_block() {
-        let (client, _) = test_client().await;
-        let block_hash = client.block_hash(None).await.unwrap();
-        client.block(block_hash).await.unwrap();
-    }
-
-    #[async_std::test]
-    async fn test_getting_read_proof() {
-        let (client, _) = test_client().await;
-        let block_hash = client.block_hash(None).await.unwrap();
-        client
-            .read_proof(
-                vec![
-                    StorageKey(well_known_keys::HEAP_PAGES.to_vec()),
-                    StorageKey(well_known_keys::EXTRINSIC_INDEX.to_vec()),
-                ],
-                block_hash,
-            )
-            .await
-            .unwrap();
-    }
-
-    #[async_std::test]
-    async fn test_chain_subscribe_blocks() {
-        let (client, _) = test_client().await;
-        let mut blocks = client.subscribe_blocks().await.unwrap();
-        blocks.next().await;
-    }
-
-    #[async_std::test]
-    async fn test_chain_subscribe_finalized_blocks() {
-        let (client, _) = test_client().await;
-        let mut blocks = client.subscribe_finalized_blocks().await.unwrap();
-        blocks.next().await;
-    }
-
-    #[async_std::test]
-    async fn test_fetch_keys() {
-        let (client, _) = test_client().await;
-        let keys = client
-            .fetch_keys::<system::AccountStore<_>>(4, None, None)
-            .await
-            .unwrap();
-        assert_eq!(keys.len(), 4)
-    }
-
-    #[async_std::test]
-    async fn test_iter() {
-        let (client, _) = test_client().await;
-        let mut iter = client.iter::<system::AccountStore<_>>(None).await.unwrap();
-        let mut i = 0;
-        while let Some(_) = iter.next().await.unwrap() {
-            i += 1;
-        }
-        assert_eq!(i, 4);
     }
 }

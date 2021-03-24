@@ -53,7 +53,7 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::H256;
 use sp_finality_grandpa::{AuthorityId, AuthorityList, AuthorityWeight};
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
-use sp_runtime::Justification;
+use sp_runtime::EncodedJustification;
 
 pub use types::{AuthoritySet, AuthoritySetChange};
 
@@ -140,7 +140,7 @@ where
         bridge_id: BridgeId,
         header: T::Header,
         ancestry_proof: Vec<T::Header>,
-        grandpa_proof: Justification,
+        grandpa_proof: EncodedJustification,
         auhtority_set_change: Option<AuthoritySetChange>,
     ) -> Result<(), Error> {
         let bridge = self
@@ -199,7 +199,7 @@ where
         &mut self,
         bridge_id: BridgeId,
         header: T::Header,
-        grandpa_proof: Justification,
+        grandpa_proof: EncodedJustification,
     ) -> Result<(), Error> {
         let bridge = self
             .tracked_bridges
@@ -338,7 +338,7 @@ where
 }
 
 fn verify_grandpa_proof<B>(
-    justification: Justification,
+    justification: EncodedJustification,
     hash: B::Hash,
     number: NumberFor<B>,
     set_id: u64,

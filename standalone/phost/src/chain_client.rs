@@ -121,14 +121,14 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     })
 }
 
-/// Check if the given raw event (in `Vec<u8>`) contains `PhalaModule.NewMiningRound`
+/// Check if the given raw event (in `Vec<u8>`) contains `Phala.NewMiningRound`
 pub fn check_round_end_event(
     decoder: &EventsDecoder::<Runtime>, value: &Vec<u8>
 ) -> Result<bool, Error> {
     let raw_events = decoder.decode_events(&mut value.as_slice())?;
     for (_phase, raw) in &raw_events {
         if let Raw::Event(event) = raw {
-            if event.module == "PhalaModule" && event.variant == "NewMiningRound" {
+            if event.module == "Phala" && event.variant == "NewMiningRound" {
                 return Ok(true)
             }
         }

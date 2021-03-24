@@ -2,10 +2,7 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
 use codec::{Encode, Decode};
 use sp_finality_grandpa::{AuthorityList, SetId};
-use sp_runtime::{
-    generic::SignedBlock,
-    OpaqueExtrinsic
-};
+use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
 use std::vec::Vec;
 use phala_types::pruntime::{

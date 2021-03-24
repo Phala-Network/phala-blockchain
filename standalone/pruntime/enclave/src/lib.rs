@@ -1217,6 +1217,8 @@ fn handle_execution(
     );
 }
 
+const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
+
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     // Parse base64 to data
     let parsed_data: Result<Vec<_>, _> = (&input.headers_b64).iter().map(base64::decode).collect();
@@ -1238,6 +1240,8 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
             .as_ref()
             .ok_or_else(|| error_msg("Missing justification"))?
             .clone();
+            // .into_justification(GRANDPA_ENGINE_ID)
+            // .unwrap();
         let last_header = last_header.header.clone();
         // 2. check header sequence
         for (i, header) in headers.iter().enumerate() {
@@ -1441,9 +1445,9 @@ fn validate_worker_snapshot(
     println!("validate_worker_snapshot()");
     use light_validation::utils::storage_prefix;
     use phala_types::WorkerStateEnum;
-    let prefix_onlineworkers = storage_prefix("PhalaModule", "OnlineWorkers");
-    let prefix_computeworkers = storage_prefix("PhalaModule", "ComputeWorkers");
-    let prefix_workerstate = storage_prefix("PhalaModule", "WorkerState");
+    let prefix_onlineworkers = storage_prefix("Phala", "OnlineWorkers");
+    let prefix_computeworkers = storage_prefix("Phala", "ComputeWorkers");
+    let prefix_workerstate = storage_prefix("Phala", "WorkerState");
     let prefix_stakereceived = storage_prefix("MiningStaking", "StakeReceived");
 
     let cond = [

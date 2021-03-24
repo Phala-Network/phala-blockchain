@@ -1,7 +1,8 @@
 // Creating mock runtime here
 
 use crate as mining_staking;
-use frame_support::{parameter_types, traits::TestRandomness};
+use frame_support::{parameter_types};
+use frame_support_test::TestRandomness;
 use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
@@ -23,11 +24,11 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		PhalaModule: pallet_phala::{Module, Call, Config<T>, Storage, Event<T>},
-		MiningStaking: mining_staking::{Module, Call, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		PhalaPallet: pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>},
+		MiningStaking: mining_staking::{Pallet, Call, Storage, Event<T>},
 	}
 );
 
@@ -98,11 +99,11 @@ parameter_types! {
 
 impl pallet_phala::Config for Test {
 	type Event = Event;
-	type Randomness = TestRandomness;
+	type Randomness = TestRandomness<Self>;
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
 	type Treasury = ();
-	type ModuleWeightInfo = ();
+	type WeightInfo = ();
 	type OnRoundEnd = ();
 
 	// Parameters

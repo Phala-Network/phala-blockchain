@@ -36,6 +36,7 @@ serde_json = { version = "1.0.41", default-features = false, features = ["alloc"
 blake2-rfc = { version = "0.2.18", default-features = false }
 
 [dev-dependencies]
+frame-support-test = { version = "3.0.0", path = "../../substrate/frame/support/test" }
 assert_matches = "1.4.0"
 pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp" }
 hex-literal = "0.3.1"

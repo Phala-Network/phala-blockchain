@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaModuleConfig, wasm_binary_unwrap,
+	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -269,7 +269,7 @@ pub fn testnet_genesis(
 				))
 			}).collect::<Vec<_>>(),
 		},
-		pallet_phala: PhalaModuleConfig {
+		pallet_phala: PhalaConfig {
 			stakers: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
@@ -303,16 +303,16 @@ pub fn testnet_genesis(
 			phantom: Default::default(),
 		},
 		pallet_contracts: ContractsConfig {
-			current_schedule: pallet_contracts::Schedule {
-				enable_println, // this should only be enabled on development chains
-				..Default::default()
-			},
+			// println should only be enabled on development chains
+			current_schedule: pallet_contracts::Schedule::default()
+				.enable_println(enable_println),
 		},
 		pallet_sudo: SudoConfig {
 			key: root_key,
 		},
 		pallet_babe: BabeConfig {
 			authorities: vec![],
+			epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		},
 		pallet_im_online: ImOnlineConfig {
 			keys: vec![],
@@ -549,7 +549,7 @@ pub(crate) mod tests {
 				Ok(sc_service_test::TestNetComponents::new(task_manager, client, network, transaction_pool))
 			},
 			|config| {
-				let (keep_alive, _, _, client, network, transaction_pool) = new_light_base(config)?;
+				let (keep_alive, _, client, network, transaction_pool) = new_light_base(config)?;
 				Ok(sc_service_test::TestNetComponents::new(keep_alive, client, network, transaction_pool))
 			}
 		);

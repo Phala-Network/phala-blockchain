@@ -26,8 +26,9 @@ frame-system = { version = "3.0.0", default-features = false, path = "../../subs
 pallet-session = { version = "3.0.0", default-features = false, features = ["historical"], path = "../../substrate/frame/session" }
 pallet-authorship = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authorship" }
 sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
+frame-election-provider-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-support" }
 log = { version = "0.4.14", default-features = false }
-sp-election-providers = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/election-providers" }
+paste = "1.0"
 
 pallet-phala = { version = "3.0", default-features = false, path = "../phala" }
 
@@ -44,7 +45,7 @@ pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp"
 pallet-staking-reward-curve = { version = "3.0.0",  path = "../../substrate/frame/staking/reward-curve" }
 substrate-test-utils = { version = "3.0.0", path = "../../substrate/test-utils" }
 frame-benchmarking = { version = "3.1.0", path = "../../substrate/frame/benchmarking" }
-sp-election-providers = { version = "3.0.0", features = ["runtime-benchmarks"], path = "../../substrate/primitives/election-providers" }
+frame-election-provider-support = { version = "3.0.0", features = ["runtime-benchmarks"], path = "../../substrate/frame/election-provider-support" }
 rand_chacha = { version = "0.2" }
 parking_lot = "0.11.1"
 hex = "0.4"
@@ -65,12 +66,12 @@ std = [
 	"pallet-authorship/std",
 	"sp-application-crypto/std",
 	"log/std",
-	"sp-election-providers/std",
+	"frame-election-provider-support/std",
 	"pallet-phala/std"
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",
-	"sp-election-providers/runtime-benchmarks",
+	"frame-election-provider-support/runtime-benchmarks",
 	"rand_chacha",
 ]
 try-runtime = ["frame-support/try-runtime"]

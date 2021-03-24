@@ -136,9 +136,9 @@ impl SubxtClient {
 
                         match message {
                             FrontToBack::Notification(NotificationMessage {
-                                                          method,
-                                                          params,
-                                                      }) => {
+                                method,
+                                params,
+                            }) => {
                                 let request =
                                     Request::Single(Call::Notification(Notification {
                                         jsonrpc: Version::V2,
@@ -151,10 +151,10 @@ impl SubxtClient {
                             }
 
                             FrontToBack::StartRequest(RequestMessage {
-                                                          method,
-                                                          params,
-                                                          send_back,
-                                                      }) => {
+                                method,
+                                params,
+                                send_back,
+                            }) => {
                                 let request =
                                     Request::Single(Call::MethodCall(MethodCall {
                                         jsonrpc: Version::V2,
@@ -164,12 +164,12 @@ impl SubxtClient {
                                     }));
                                 if let Ok(message) = serde_json::to_string(&request) {
                                     if let Some(response) =
-                                    rpc.rpc_query(&session, &message).await
+                                        rpc.rpc_query(&session, &message).await
                                     {
                                         let result = match serde_json::from_str::<Output>(
                                             &response,
                                         )
-                                            .expect("failed to decode request response")
+                                        .expect("failed to decode request response")
                                         {
                                             Output::Success(success) => {
                                                 Ok(success.result)
@@ -190,11 +190,11 @@ impl SubxtClient {
                             }
 
                             FrontToBack::Subscribe(SubscriptionMessage {
-                                                       subscribe_method,
-                                                       params,
-                                                       unsubscribe_method,
-                                                       send_back,
-                                                   }) => {
+                                subscribe_method,
+                                params,
+                                unsubscribe_method,
+                                send_back,
+                            }) => {
                                 {
                                     let mut subscriptions = subscriptions.write().await;
                                     subscriptions.insert(request_id, unsubscribe_method);
@@ -212,12 +212,12 @@ impl SubxtClient {
                                     mpsc::channel(DEFAULT_CHANNEL_SIZE);
                                 if let Ok(message) = serde_json::to_string(&request) {
                                     if let Some(response) =
-                                    rpc.rpc_query(&session, &message).await
+                                        rpc.rpc_query(&session, &message).await
                                     {
                                         let result = match serde_json::from_str::<Output>(
                                             &response,
                                         )
-                                            .expect("failed to decode subscription response")
+                                        .expect("failed to decode subscription response")
                                         {
                                             Output::Success(_) => {
                                                 Ok((
@@ -249,7 +249,7 @@ impl SubxtClient {
                                         >(
                                             &response
                                         )
-                                            .expect("failed to decode subscription notif");
+                                        .expect("failed to decode subscription notif");
                                         // ignore send error since the channel is probably closed
                                         let _ = send_front_sub
                                             .send(notif.params.result)
@@ -290,7 +290,7 @@ impl SubxtClient {
                     task_manager.future().await.ok();
                 }),
             )
-                .map(drop),
+            .map(drop),
         );
 
         Self { to_back }
@@ -312,9 +312,9 @@ impl SubxtClient {
         method: M,
         params: P,
     ) -> Result<(), JsonRpseeError>
-        where
-            M: Into<String> + Send,
-            P: Into<jsonrpc::Params> + Send,
+    where
+        M: Into<String> + Send,
+        P: Into<jsonrpc::Params> + Send,
     {
         self.to_back
             .clone()
@@ -332,10 +332,10 @@ impl SubxtClient {
         method: M,
         params: P,
     ) -> Result<T, JsonRpseeError>
-        where
-            T: DeserializeOwned,
-            M: Into<String> + Send,
-            P: Into<jsonrpc::Params> + Send,
+    where
+        T: DeserializeOwned,
+        M: Into<String> + Send,
+        P: Into<jsonrpc::Params> + Send,
     {
         let (send_back_tx, send_back_rx) = oneshot::channel();
 
@@ -364,11 +364,11 @@ impl SubxtClient {
         params: P,
         unsubscribe_method: UM,
     ) -> Result<Subscription<N>, JsonRpseeError>
-        where
-            SM: Into<String> + Send,
-            UM: Into<String> + Send,
-            P: Into<jsonrpc::Params> + Send,
-            N: DeserializeOwned,
+    where
+        SM: Into<String> + Send,
+        UM: Into<String> + Send,
+        P: Into<jsonrpc::Params> + Send,
+        N: DeserializeOwned,
     {
         let subscribe_method = subscribe_method.into();
         let unsubscribe_method = unsubscribe_method.into();
@@ -476,7 +476,7 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
                 format!("/ip4/127.0.0.1/tcp/{}/ws", port),
                 0,
             )])
-                .expect("valid config; qed");
+            .expect("valid config; qed");
             Some(endpoints)
         } else {
             None
@@ -493,7 +493,7 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
                     TaskType::Blocking => task::spawn_blocking(|| task::block_on(fut)),
                 }
             })
-                .into(),
+            .into(),
             database: self.db,
             keystore: self.keystore,
             max_runtime_instances: 8,

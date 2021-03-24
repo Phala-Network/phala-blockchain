@@ -7,7 +7,8 @@ use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
 use frame_system as system;
-use frame_support::{parameter_types, traits::TestRandomness};
+use frame_support::{parameter_types};
+use frame_support_test::TestRandomness;
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
@@ -22,10 +23,10 @@ frame_support::construct_runtime!(
 		NodeBlock = Block,
 		UncheckedExtrinsic = UncheckedExtrinsic,
 	{
-		System: frame_system::{Module, Call, Config, Storage, Event<T>},
-		Timestamp: pallet_timestamp::{Module, Call, Storage, Inherent},
-		Balances: pallet_balances::{Module, Call, Storage, Config<T>, Event<T>},
-		PhalaModule: phala::{Module, Call, Config<T>, Storage, Event<T>},
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		PhalaPallet: phala::{Pallet, Call, Config<T>, Storage, Event<T>},
 	}
 );
 
@@ -96,11 +97,11 @@ parameter_types! {
 
 impl phala::Config for Test {
 	type Event = Event;
-	type Randomness = TestRandomness;
+	type Randomness = TestRandomness<Self>;
 	type TEECurrency = Balances;
 	type UnixTime = Timestamp;
 	type Treasury = ();
-	type ModuleWeightInfo = ();
+	type WeightInfo = ();
 	type OnRoundEnd = ();
 
 	// Parameters

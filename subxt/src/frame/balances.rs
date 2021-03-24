@@ -163,7 +163,7 @@ mod tests {
         subscription::EventSubscription,
         system::AccountStoreExt,
         tests::{
-            test_client,
+            test_node_process,
             TestRuntime,
         },
     };
@@ -179,7 +179,8 @@ mod tests {
         let alice = PairSigner::<TestRuntime, _>::new(AccountKeyring::Alice.pair());
         let bob = PairSigner::<TestRuntime, _>::new(AccountKeyring::Bob.pair());
         let bob_address = bob.account_id().clone().into();
-        let (client, _) = test_client().await;
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
 
         let alice_pre = client.account(alice.account_id(), None).await.unwrap();
         let bob_pre = client.account(bob.account_id(), None).await.unwrap();
@@ -208,7 +209,8 @@ mod tests {
     #[async_std::test]
     async fn test_state_total_issuance() {
         env_logger::try_init().ok();
-        let (client, _) = test_client().await;
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
         let total_issuance = client.total_issuance(None).await.unwrap();
         assert_ne!(total_issuance, 0);
     }
@@ -216,33 +218,30 @@ mod tests {
     #[async_std::test]
     async fn test_state_read_free_balance() {
         env_logger::try_init().ok();
-        let (client, _) = test_client().await;
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
         let account = AccountKeyring::Alice.to_account_id();
         let info = client.account(&account, None).await.unwrap();
         assert_ne!(info.data.free, 0);
     }
 
     #[async_std::test]
-    #[cfg(feature = "integration-tests")]
     async fn test_state_balance_lock() -> Result<(), crate::Error> {
-        use crate::{
-            frame::staking::{
-                BondCallExt,
-                RewardDestination,
-            },
-            runtimes::KusamaRuntime as RT,
-            ClientBuilder,
+        use crate::frame::staking::{
+            BondCallExt,
+            RewardDestination,
         };
 
         env_logger::try_init().ok();
-        let bob = PairSigner::<RT, _>::new(AccountKeyring::Bob.pair());
-        let client = ClientBuilder::<RT>::new().build().await?;
+        let bob = PairSigner::<TestRuntime, _>::new(AccountKeyring::Bob.pair());
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
 
         client
             .bond_and_watch(
                 &bob,
-                AccountKeyring::Charlie.to_account_id(),
-                100_000_000_000,
+                &AccountKeyring::Charlie.to_account_id().into(),
+                100_000_000_000_000,
                 RewardDestination::Stash,
             )
             .await?;
@@ -255,7 +254,7 @@ mod tests {
             locks,
             vec![BalanceLock {
                 id: *b"staking ",
-                amount: 100_000_000_000,
+                amount: 100_000_000_000_000,
                 reasons: Reasons::All,
             }]
         );
@@ -270,14 +269,16 @@ mod tests {
         let alice_addr = alice.account_id().clone().into();
         let hans = PairSigner::<TestRuntime, _>::new(Pair::generate().0);
         let hans_address = hans.account_id().clone().into();
-        let (client, _) = test_client().await;
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
         client
-            .transfer_and_watch(&alice, &hans_address, 100_000_000_000)
+            .transfer_and_watch(&alice, &hans_address, 100_000_000_000_000_000)
             .await
             .unwrap();
         let res = client
-            .transfer_and_watch(&hans, &alice_addr, 100_000_000_000)
+            .transfer_and_watch(&hans, &alice_addr, 100_000_000_000_000_000)
             .await;
+
         if let Err(Error::Runtime(RuntimeError::Module(error))) = res {
             let error2 = ModuleError {
                 module: "Balances".into(),
@@ -295,7 +296,8 @@ mod tests {
         let alice = PairSigner::<TestRuntime, _>::new(AccountKeyring::Alice.pair());
         let bob = AccountKeyring::Bob.to_account_id();
         let bob_addr = bob.clone().into();
-        let (client, _) = test_client().await;
+        let test_node_proc = test_node_process().await;
+        let client = test_node_proc.client();
         let sub = client.subscribe_events().await.unwrap();
         let decoder = client.events_decoder();
         let mut sub = EventSubscription::<TestRuntime>::new(sub, &decoder);
