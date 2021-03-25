@@ -173,6 +173,24 @@ pub struct State {
     account_address: Vec<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+pub struct PendingTransaction {
+    sequence: u64,
+    lock_time: u64,
+    raw_tx: Vec<u8>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Account {
+    address: AccountAddress,
+    //#[serde(skip)]
+    key: KeyPair<Ed25519PrivateKey, Ed25519PublicKey>,
+    sequence: u64,
+    event_id: u64,
+    free: u64,
+    locked: u64,
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct Diem {
     chain_id: u8,
@@ -640,6 +658,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 self.address.insert("0x".to_string() + &receiver_address.to_string(), o);
                 self.account_address.push("0x".to_string() + &receiver_address.to_string());
 
+                let account = Account {
+                    address: receiver_address,
+                    key: keypair,
+                    event_id: 0,
+                    sequence: 0,
+                    free: 0,
+                    locked: 0
+                };
+
+                self.accounts.insert(o.clone(), account);
+                self.address.insert("0x".to_string() + &receiver_address.to_string(), o);
+
                 TransactionStatus::Ok
             }
             Command::TransferXUS { to, amount, seq_number } => {
@@ -745,6 +775,26 @@ impl contracts::Contract<Command, Request, Response> for Diem {
 
                         info!("pending_transactions:{:?}", self.pending_transactions);
                         info!("accounts:{:?}", self.accounts);
+
+                        let pending_tx = PendingTransaction {
+                            sequence: seq_number,
+                            lock_time: TX_EXPIRATION as u64,
+                            raw_tx: bcs::to_bytes(&txn).unwrap(),
+                        };
+
+                        if let Some(pending_transactions) = self.pending_transactions.get_mut(&sender_address) {
+                            pending_transactions.push(pending_tx);
+                        } else {
+                            let mut pending_transactions: Vec<PendingTransaction> = Vec::new();
+                            pending_transactions.push(pending_tx);
+                            self.pending_transactions.insert(sender_address, pending_transactions);
+                        }
+
+                        sender_account.locked += amount;
+                        sender_account.free -= amount;
+
+                        println!("pending_transactions:{:?}", self.pending_transactions);
+                        println!("accounts:{:?}", self.accounts);
 
                         TransactionStatus::Ok
                     } else {
