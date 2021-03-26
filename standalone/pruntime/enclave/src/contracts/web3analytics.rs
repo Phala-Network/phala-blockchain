@@ -6,6 +6,7 @@ use crate::std::collections::BTreeMap;
 use crate::std::collections::HashMap;
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;

@@ -1,5 +1,6 @@
 use crate::std::string::String;
 use crate::std::vec::Vec;
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 use sp_core::crypto::Pair;

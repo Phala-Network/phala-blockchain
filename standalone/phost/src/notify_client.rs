@@ -1,6 +1,6 @@
+use anyhow::Result;
 use hyper::Client as HttpClient;
-use hyper::{Body, Method, Request, Response};
-use hyper::error::Result;
+use hyper::{Body, Method, Request, Response, Error};
 
 use crate::types::{
     NotifyReq
@@ -17,7 +17,7 @@ impl NotifyClient {
         }
     }
 
-    pub async fn notify(&self, param: &NotifyReq) -> Result<Response<Body>> {
+    pub async fn notify(&self, param: &NotifyReq) -> Result<Response<Body>, Error> {
         if self.base_url.is_empty() {
             return Ok(Response::default());
         }

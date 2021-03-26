@@ -23,6 +23,7 @@ use sc_client::Client;
 #[cfg(test)]
 use sc_client_api::{backend::Backend, CallExecutor};
 
+use anyhow::Result;
 use super::error::JustificationError as ClientError;
 use finality_grandpa::voter_set::VoterSet;
 use finality_grandpa::Error as GrandpaError;

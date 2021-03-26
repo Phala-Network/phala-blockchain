@@ -1,4 +1,5 @@
 use crate::std::vec::Vec;
+use anyhow::Result;
 use core::convert::TryInto;
 use ring::agreement::{EphemeralPrivateKey, UnparsedPublicKey};
 use ring::rand::SystemRandom;

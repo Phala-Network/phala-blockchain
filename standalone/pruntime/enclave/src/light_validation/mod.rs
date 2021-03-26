@@ -43,6 +43,7 @@ use crate::std::collections::BTreeMap;
 use crate::std::fmt;
 use crate::std::vec::Vec;
 
+use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
 use storage_proof::{StorageProof, StorageProofChecker};

@@ -1,3 +1,4 @@
+use anyhow::Result;
 use serde::Serialize;
 use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request};

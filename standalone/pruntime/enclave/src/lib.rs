@@ -33,6 +33,7 @@ use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
+use anyhow::Result;
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;

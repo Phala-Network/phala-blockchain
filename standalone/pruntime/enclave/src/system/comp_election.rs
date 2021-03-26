@@ -1,4 +1,5 @@
 use crate::std::{cmp, vec::Vec};
+use anyhow::Result;
 use rand::{rngs::SmallRng, seq::index::IndexVec, SeedableRng};
 
 use crate::OnlineWorkerSnapshot;

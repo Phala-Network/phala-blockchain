@@ -17,6 +17,7 @@
 //! Logic for checking Substrate storage proofs.
 
 use crate::std::vec::Vec;
+use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use trie::{trie_types::TrieDB, MemoryDB, Trie};
 

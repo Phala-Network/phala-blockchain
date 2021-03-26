@@ -3,6 +3,7 @@ use crate::std::string::String;
 
 use super::TransactionStatus;
 use crate::types::TxRef;
+use anyhow::Result;
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
 use serde::{

@@ -5,6 +5,7 @@ use std::{ptr, str};
 use sgx_tcrypto::*;
 use sgx_types::*;
 
+use anyhow::Result;
 use base64;
 use bit_vec::BitVec;
 use chrono::prelude::*;

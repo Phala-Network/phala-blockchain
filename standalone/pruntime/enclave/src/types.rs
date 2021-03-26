@@ -1,5 +1,6 @@
 use crate::std::fmt::Debug;
 use crate::std::string::String;
+use anyhow::Result;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sgx_types::sgx_status_t;
 
