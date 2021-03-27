@@ -1,5 +1,6 @@
 use crate::std::prelude::v1::*;
 use anyhow::Result;
+use core::fmt;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -101,20 +102,20 @@ impl System {
         accid_origin: Option<&chain::AccountId>,
         req: Request,
     ) -> Response {
-        let inner = || -> Result<Response, Error> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::QueryReceipt { command_index } => match self.get_receipt(command_index) {
                     Some(receipt) => {
-                        let origin = accid_origin.ok_or(Error::NotAuthorized)?;
+                        let origin = accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
                         if receipt.account == AccountIdWrapper(origin.clone()) {
                             Ok(Response::QueryReceipt {
                                 receipt: receipt.clone(),
                             })
                         } else {
-                            Err(Error::NotAuthorized)
+                            Err(anyhow::Error::msg(Error::NotAuthorized))
                         }
                     }
-                    None => Err(Error::Other(String::from("Transaction hash not found"))),
+                    None => Err(anyhow::Error::msg(Error::Other(String::from("Transaction hash not found")))),
                 },
                 Request::GetWorkerEgress { start_sequence } => {
                     let pending_msgs: Vec<SignedWorkerMessage> = self
@@ -151,7 +152,7 @@ impl System {
         &mut self,
         blocknum: chain::BlockNumber,
         reward_info: &BlockRewardInfo,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         println!(
             "System::handle_reward_seed({}, {:?})",
             blocknum, reward_info
@@ -184,7 +185,7 @@ impl System {
         &mut self,
         seed: U256,
         worker_snapshot: Option<&super::OnlineWorkerSnapshot>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         if let Some(worker_snapshot) = worker_snapshot {
             println!("System::handle_new_round: new round");
             self.comp_elected =
@@ -209,7 +210,7 @@ impl<'a> EventHandler<'a> {
         &mut self,
         block_context: &'a super::BlockHeaderWithEvents,
         event: &PhalaEvent,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         match event {
             // Reset the egress queue once we detected myself is re-registered
             phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
@@ -267,6 +268,16 @@ pub enum Error {
     Other(String),
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NotAuthorized => write!(f, "not authorized"),
+            Error::TxHashNotFound => write!(f, "transaction hash not found"),
+            Error::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     QueryReceipt { command_index: CommandIndex },
@@ -282,5 +293,26 @@ pub enum Response {
         length: usize,
         encoded_egreee_b64: String,
     },
-    Error(Error),
+    Error(#[serde(with = "serde_anyhow")] anyhow::Error),
+}
+
+pub mod serde_anyhow {
+    use crate::std::string::{String, ToString};
+    use anyhow::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(value: &Error, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.to_string();
+        String::serialize(&s, serializer)
+    }
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Error, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(Error::msg(s))
+    }
 }

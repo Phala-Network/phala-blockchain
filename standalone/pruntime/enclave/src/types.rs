@@ -1,8 +1,8 @@
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use anyhow::Result;
+use core::fmt;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sgx_types::sgx_status_t;
 
 use crate::cryptography::{AeadCipher, Origin};
 
@@ -48,8 +48,17 @@ where
     })
 }
 
+#[derive(Debug)]
 pub enum Error {
     DecodeError,
     PersistentRuntimeNotFound,
-    SgxError(sgx_status_t),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::DecodeError => write!(f, "decode error"),
+            Error::PersistentRuntimeNotFound => write!(f, "persistent runtime not found"),
+        }
+    }
 }

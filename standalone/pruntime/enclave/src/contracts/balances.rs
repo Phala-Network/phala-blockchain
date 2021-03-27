@@ -3,7 +3,7 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 
 use anyhow::Result;
-use core::str;
+use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair;
@@ -33,6 +33,15 @@ pub struct Balances {
 pub enum Error {
     NotAuthorized,
     Other(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NotAuthorized => write!(f, "not authorized"),
+            Error::Other(e) => write!(f, "{}", e),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -79,7 +88,7 @@ pub enum Response {
     PendingChainTransfer {
         transfer_queue_b64: String,
     },
-    Error(Error),
+    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
 }
 
 const SUPPLY: u128 = 0;
@@ -191,11 +200,11 @@ impl contracts::Contract<Command, Request, Response> for Balances {
     }
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::FreeBalance { account } => {
                     if origin == None || origin.unwrap() != &account.0 {
-                        return Err(Error::NotAuthorized);
+                        return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
                     let mut balance: chain::Balance = 0;
                     if let Some(ba) = self.accounts.get(&account) {

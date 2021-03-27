@@ -3,7 +3,7 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 
 use anyhow::Result;
-use core::str;
+use core::{fmt, str};
 use serde::{Serialize, Deserialize};
 
 use crate::contracts;
@@ -63,6 +63,14 @@ pub enum Error {
     Other(String),
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
     /// Sets the whitelisted accounts, in bcs encoded base64
@@ -87,7 +95,7 @@ pub enum Response {
         hash: Vec<String>,
     },
     /// Some other errors
-    Error(Error)
+    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
 }
 
 #[derive(Serialize, Deserialize)]
@@ -121,13 +129,13 @@ impl Diem {
         transaction_with_proof: TransactionWithProof,
         account_address: String,
         address: AccountAddress,
-    ) -> Result<Transaction, Error> {
+    ) -> Result<Transaction> {
         let transaction: Transaction = match bcs::from_bytes(&transaction_with_proof.transaction_bytes) {
             Ok(tx) => tx,
             Err(_) => {
                 println!("Decode transaction error");
 
-                return Err(Error::Other(String::from("Decode transaction error")));
+                return Err(anyhow::Error::msg(Error::Other(String::from("Decode transaction error"))));
             }
         };
 
@@ -153,7 +161,7 @@ impl Diem {
             if !found {
                 println!("Bad receiver address");
 
-                return Err(Error::Other(String::from("Bad receiver address")));
+                return Err(anyhow::Error::msg(Error::Other(String::from("Bad receiver address"))));
             }
         } else {
             // Outgoing tx must be synced sequencely
@@ -161,7 +169,7 @@ impl Diem {
                 if seq + 1 != signed_tx.raw_txn.sequence_number {
                     println!("Bad sequence number");
 
-                    return Err(Error::Other(String::from("Bad sequence number")));
+                    return Err(anyhow::Error::msg(Error::Other(String::from("Bad sequence number"))));
                 }
             }
             self.seq_number.insert(account_address.clone(), signed_tx.raw_txn.sequence_number);
@@ -173,15 +181,15 @@ impl Diem {
     pub fn verify_trusted_state(
         &mut self,
         transaction_with_proof: TransactionWithProof,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let epoch_change_proof = &transaction_with_proof.epoch_change_proof;
         let ledger_info_with_signatures = &transaction_with_proof.ledger_info_with_signatures;
         // Verify the new state
         let trusted_state = self.trusted_state.as_ref()
-            .ok_or(Error::Other("TrustedState uninitialized".to_string()))?;
+            .ok_or_else(|| anyhow::Error::msg(Error::Other("TrustedState uninitialized".to_string())))?;
         let trusted_state_change = trusted_state.verify_and_ratchet(
             ledger_info_with_signatures, &epoch_change_proof
-        ).or(Err(Error::Other("Verify trust state error".to_string())))?;
+        ).or_else(|_| Err(anyhow::Error::msg(Error::Other("Verify trust state error".to_string()))))?;
         // Update trusted_state on demand
         match trusted_state_change {
             TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
@@ -344,7 +352,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     }
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::VerifiedTransactions => {
                     let hash: Vec<_> = self.verified.keys().cloned().collect();

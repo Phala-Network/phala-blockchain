@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::collections::HashSet;
 use codec::FullCodec;
 use sp_core::{storage::StorageKey, twox_128};
@@ -11,7 +11,6 @@ use subxt::{EventsDecoder, Store, RawEventWrapper as Raw};
 use super::XtClient;
 use crate::{
     runtimes,
-    error::Error,
     types::{
         Runtime, Hash, BlockNumber, AccountId, RawEvents, Balance,
         utils::raw_proof,
@@ -21,7 +20,7 @@ use crate::{
 /// Gets a single storage item
 pub  async fn get_storage(
     client: &XtClient, hash: Option<Hash>, storage_key: StorageKey
-) -> Result<Option<Vec<u8>>, Error>
+) -> Result<Option<Vec<u8>>>
 {
     let storage = client.rpc.storage(&storage_key, hash).await?;
     Ok(storage.map(|data| (&data.0[..]).to_vec()))
@@ -29,7 +28,7 @@ pub  async fn get_storage(
 
 /// Gets a storage proof for a single storage item
 pub async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey)
--> Result<StorageProof, Error>
+-> Result<StorageProof>
 {
     client.read_proof(vec![storage_key], hash).await
         .map(raw_proof)
@@ -38,7 +37,7 @@ pub async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: Stor
 
 /// Fetches the raw event at a certain block
 pub async fn fetch_events(client: &XtClient, hash: &Hash)
--> Result<Option<(RawEvents, StorageProof, RawStorageKey)>, Error> {
+-> Result<Option<(RawEvents, StorageProof, RawStorageKey)>> {
     let key = storage_value_key_vec("System", "Events");
     let storage_key = StorageKey(key.clone());
     let result = match get_storage(&client, Some(hash.clone()), storage_key.clone()).await? {
@@ -53,7 +52,7 @@ pub async fn fetch_events(client: &XtClient, hash: &Hash)
 
 /// Takes a snapshot of the necessary information for calculating compute works at a certain block
 pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
--> Result<OnlineWorkerSnapshot<BlockNumber, Balance>, Error> {
+-> Result<OnlineWorkerSnapshot<BlockNumber, Balance>> {
     use runtimes::{phala::*, mining_staking::*};
     use phala_types::*;
     // Stats numbers
@@ -67,7 +66,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
         println!(
             "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
             online_workers, compute_workers);
-        return Err(Error::ComputeWorkerNotEnabled);
+        return Err(anyhow!(crate::error::Error::ComputeWorkerNotEnabled));
     }
     println!("- Stats Online Workers: {}", online_workers);
     println!("- Stats Compute Workers: {}", compute_workers);
@@ -105,7 +104,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     all_keys.push(online_workers_key.clone());
     all_keys.push(compute_workers_key.clone());
     println!("- All Storage Keys: vec[{}]", all_keys.len());
-    let read_proof = xt.read_proof(all_keys, hash).await.map_err(Into::<Error>::into)?;
+    let read_proof = xt.read_proof(all_keys, hash).await?;
     let proof = raw_proof(read_proof);
 
     // Snapshot fields
@@ -125,7 +124,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
 /// Check if the given raw event (in `Vec<u8>`) contains `Phala.NewMiningRound`
 pub fn check_round_end_event(
     decoder: &EventsDecoder::<Runtime>, value: &Vec<u8>
-) -> Result<bool, Error> {
+) -> Result<bool> {
     let raw_events = decoder.decode_events(&mut value.as_slice())?;
     for (_phase, raw) in &raw_events {
         if let Raw::Event(event) = raw {
@@ -142,7 +141,7 @@ pub fn check_round_end_event(
 /// Fetches all the StorageMap entries from Substrate
 async fn fetch_map<F>(
     xt: &XtClient, hash: Option<Hash>
-) -> Result<Vec<(StorageKey, <F as Store<Runtime>>::Returns)>, Error>
+) -> Result<Vec<(StorageKey, <F as Store<Runtime>>::Returns)>>
 where
     F: Store<Runtime>,
     <F as Store<Runtime>>::Returns: FullCodec + Clone

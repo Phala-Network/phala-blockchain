@@ -59,7 +59,7 @@ pub fn gen_ecc_cert(
     prv_k: &sgx_ec256_private_t,
     pub_k: &sgx_ec256_public_t,
     ecc_handle: &SgxEccHandle,
-) -> Result<(Vec<u8>, Vec<u8>), sgx_status_t> {
+) -> Result<(Vec<u8>, Vec<u8>)> {
     // Generate public key bytes since both DER will use it
     let mut pub_key_bytes: Vec<u8> = vec![4];
     let mut pk_gx = pub_k.gx.clone();
@@ -224,7 +224,7 @@ pub fn percent_decode(orig: String) -> String {
 }
 
 #[allow(dead_code)]
-pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
+pub fn verify_mra_cert(cert_der: &[u8]) -> Result<()> {
     // Before we reach here, Webpki already verifed the cert is properly signed
 
     // Search for Public Key prime256v1 OID
@@ -339,7 +339,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
         println!("Time diff = {}", now - ts);
     } else {
         println!("Failed to fetch timestamp from attestation report");
-        return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
     }
 
     // 2. Verify quote status (mandatory field)
@@ -370,7 +370,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
                     };
                     if res != sgx_status_t::SGX_SUCCESS {
                         println!("res={:?}", res);
-                        return Err(res);
+                        return Err(anyhow::Error::msg(res));
                     }
 
                     if rt != sgx_status_t::SGX_SUCCESS {
@@ -381,18 +381,18 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
                             println!("update_info.csmeFwUpdate: {}", update_info.csmeFwUpdate);
                             println!("update_info.ucodeUpdate: {}", update_info.ucodeUpdate);
                         }
-                        return Err(rt);
+                        return Err(anyhow::Error::msg(rt));
                     }
                 } else {
                     println!("Failed to fetch platformInfoBlob from attestation report");
-                    return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+                    return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
                 }
             }
-            _ => return Err(sgx_status_t::SGX_ERROR_UNEXPECTED),
+            _ => return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED)),
         }
     } else {
         println!("Failed to fetch isvEnclaveQuoteStatus from attestation report");
-        return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
     }
 
     // 3. Verify quote body
@@ -429,7 +429,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<(), sgx_status_t> {
         }
     } else {
         println!("Failed to fetch isvEnclaveQuoteBody from attestation report");
-        return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
     }
 
     Ok(())

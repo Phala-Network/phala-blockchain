@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use std::cmp;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
@@ -33,7 +33,7 @@ impl<'a> MsgSync<'a> {
     }
 
     /// Syncs the worker egress messages when available
-    pub async fn maybe_sync_worker_egress(&mut self, sequence: &mut u64) -> Result<(), Error> {
+    pub async fn maybe_sync_worker_egress(&mut self, sequence: &mut u64) -> Result<()> {
         // Check pending messages in worker egress queue
         let query_resp = self.pr.query(
             0, ReqData::GetWorkerEgress { start_sequence: *sequence }).await?;
@@ -43,7 +43,7 @@ impl<'a> MsgSync<'a> {
                 base64::decode(&encoded_egreee_b64)
                     .map_err(|_| Error::FailedToDecode)?
             }
-            _ => return Err(Error::FailedToDecode)
+            _ => return Err(anyhow!(Error::FailedToDecode))
         };
         let msg_queue: Vec<phala_types::SignedWorkerMessage> = Decode::decode(&mut &msg_data[..])
             .map_err(|_| Error::FailedToDecode)?;
@@ -78,14 +78,14 @@ impl<'a> MsgSync<'a> {
     }
 
     /// Syncs the Balances egress messages when available
-    pub async fn maybe_sync_balances_egress(&mut self, sequence: &mut u64) -> Result<(), Error> {
+    pub async fn maybe_sync_balances_egress(&mut self, sequence: &mut u64) -> Result<()> {
         // Check pending messages in Balances' egress queue
         let query_resp = self.pr.query(2, ReqData::PendingChainTransfer {sequence: *sequence}).await?;
         let transfer_data = match query_resp {
             QueryRespData::PendingChainTransfer { transfer_queue_b64 } =>
                 base64::decode(&transfer_queue_b64)
                     .map_err(|_| Error::FailedToDecode)?,
-            _ => return Err(Error::FailedToDecode)
+            _ => return Err(anyhow!(Error::FailedToDecode))
         };
         let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
             .map_err(|_|Error::FailedToDecode)?;
@@ -120,7 +120,7 @@ impl<'a> MsgSync<'a> {
     /// Updates the nonce if it's not updated.
     ///
     /// The nonce will only be updated once during the lifetime of MsgSync struct.
-    async fn maybe_update_signer_nonce(&mut self) -> Result<(), Error> {
+    async fn maybe_update_signer_nonce(&mut self) -> Result<()> {
         if !self.nonce_updated {
             update_signer_nonce(self.client, self.signer).await?;
             self.nonce_updated = true;

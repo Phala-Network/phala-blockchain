@@ -3,7 +3,7 @@ use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;
 use crate::std::vec::Vec;
-use core::str;
+use core::{fmt, str};
 
 use crate::contracts;
 use crate::types::TxRef;
@@ -50,6 +50,15 @@ pub struct AssetsTx {
 pub enum Error {
     NotAuthorized,
     Other(String),
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NotAuthorized => write!(f, "not authorized"),
+            Error::Other(e) => write!(f, "{}", e),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -106,7 +115,7 @@ pub enum Response {
     ListAssets {
         assets: Vec<AssetMetadataBalance>
     },
-    Error(Error)
+    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
 }
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
@@ -239,11 +248,11 @@ impl contracts::Contract<Command, Request, Response> for Assets {
     }
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::Balance { id, account } => {
                     if origin == None || origin.unwrap() != &account.0 {
-                        return Err(Error::NotAuthorized)
+                        return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
 
                     if let Some(metadatum) = self.metadata.get(&id) {
@@ -254,14 +263,14 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                         }
                         Ok(Response::Balance { balance })
                     } else {
-                        Err(Error::Other(String::from("Asset not found")))
+                        Err(anyhow::Error::msg(Error::Other(String::from("Asset not found"))))
                     }
                 },
                 Request::TotalSupply { id } => {
                     if let Some(metadatum) = self.metadata.get(&id) {
                         Ok(Response::TotalSupply { total_issuance: metadatum.total_supply })
                     } else {
-                        Err(Error::Other(String::from("Asset not found")))
+                        Err(anyhow::Error::msg(Error::Other(String::from("Asset not found"))))
                     }
                 },
                 Request::Metadata => {
@@ -272,7 +281,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                     Ok(Response::History { history: tx_list })
                 },
                 Request::ListAssets { available_only } => {
-                    let raw_origin = origin.ok_or(Error::NotAuthorized)?;
+                    let raw_origin = origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
                     let o = AccountIdWrapper(raw_origin.clone());
                     // TODO: simplify the two way logic here?
                     let assets = if available_only {

@@ -7,6 +7,7 @@ use crate::std::collections::HashMap;
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use anyhow::Result;
+use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;
@@ -127,6 +128,15 @@ pub enum Error {
     Other(String),
 }
 
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::NotAuthorized => write!(f, "not authorized"),
+            Error::Other(e) => write!(f, "{}", e),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
     SetConfiguration { skip_stat: bool },
@@ -206,7 +216,7 @@ pub enum Response {
         skip_stat: bool,
     },
 
-    Error(Error),
+    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -917,7 +927,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
     }
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::SetPageView {
                     page_views,
@@ -1007,7 +1017,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                 }
                 Request::GetConfiguration { account } => {
                     if origin == None || origin.unwrap() != &account.0 {
-                        return Err(Error::NotAuthorized);
+                        return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
 
                     let mut off = false;

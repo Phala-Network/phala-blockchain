@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use tokio::time::delay_for;
 use std::cmp;
 use std::time::Duration;
@@ -102,7 +102,7 @@ struct BlockSyncState {
 }
 
 async fn get_block_at(client: &XtClient, h: Option<u32>)
-                      -> Result<OpaqueSignedBlock, Error> {
+                      -> Result<OpaqueSignedBlock> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client.block_hash(pos).await?.ok_or(Error::BlockHashNotFound)?,
@@ -118,7 +118,7 @@ async fn get_block_at(client: &XtClient, h: Option<u32>)
 }
 
 async fn get_block_with_events(client: &XtClient, h: Option<u32>)
-                      -> Result<BlockWithEvents, Error> {
+                      -> Result<BlockWithEvents> {
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
 
@@ -133,10 +133,10 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
         return Ok(BlockWithEvents { block, events: None, proof: None });
     }
 
-    return Err(Error::EventNotFound);
+    Err(anyhow!(Error::EventNotFound))
 }
 
-async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange, Error> {
+async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange> {
     // Storage
     let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
     let value = chain_client::get_storage(&client, Some(hash), storage_key.clone()).await?
@@ -167,9 +167,9 @@ async fn bisec_setid_change(
     client: &XtClient,
     last_set: (BlockNumber, SetId),
     known_blocks: &Vec<BlockWithEvents>
-) -> Result<Option<BlockNumber>, Error> {
+) -> Result<Option<BlockNumber>> {
     if known_blocks.is_empty() {
-        return Err(Error::SearchSetIdChangeInEmptyRange);
+        return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
     }
     let (last_block, last_id) = last_set;
     // Run binary search only on blocks with justification
@@ -205,7 +205,7 @@ async fn bisec_setid_change(
 
 async fn req_sync_header(
     pr: &PrClient, headers: &Vec<HeaderToSync>, authority_set_change: Option<&AuthoritySetChange>
-) -> Result<SyncHeaderResp, Error>
+) -> Result<SyncHeaderResp>
 {
     let headers_b64 = headers
         .iter()
@@ -225,7 +225,7 @@ async fn req_sync_header(
 }
 
 
-async fn req_dispatch_block<T>(pr: &PrClient, blocks: &T) -> Result<DispatchBlockResp, Error>
+async fn req_dispatch_block<T>(pr: &PrClient, blocks: &T) -> Result<DispatchBlockResp>
 where T: std::ops::Deref<Target = [BlockHeaderWithEvents]> {
     let blocks_b64 = blocks
         .iter()
@@ -245,7 +245,7 @@ async fn maybe_take_worker_snapshot(
     xt: &XtClient,
     events_decoder: &EventsDecoder<Runtime>,
     dispatch_batch: &mut Vec<BlockHeaderWithEvents>,
-) -> Result<(), Error> {
+) -> Result<()> {
     for bwe in dispatch_batch {
         let data = bwe.events.as_ref().unwrap();
         if chain_client::check_round_end_event(events_decoder, data)? {
@@ -253,7 +253,7 @@ async fn maybe_take_worker_snapshot(
                 xt, Some(bwe.block_header.hash())).await;
             bwe.worker_snapshot = match snapshot {
                 Ok(snapshot) => Some(snapshot),
-                Err(Error::ComputeWorkerNotEnabled) => None,
+                Err(e) if e.is::<Error>() && matches!(e.downcast_ref().unwrap(), Error::ComputeWorkerNotEnabled) => None,
                 Err(err) => return Err(err),
             };
         }
@@ -269,7 +269,7 @@ async fn sync_events_only(
     sync_state: &mut BlockSyncState,
     sync_to: BlockNumber,
     batch_window: usize,
-) -> Result<(), Error> {
+) -> Result<()> {
     let block_buf = &mut sync_state.blocks;
     // Count the blocks to sync
     let mut n = 0usize;
@@ -305,7 +305,7 @@ async fn batch_sync_block(
     events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     batch_window: usize
-) -> Result<usize, Error> {
+) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
         return Ok(0);
@@ -432,27 +432,27 @@ async fn batch_sync_block(
 }
 
 async fn get_stash_account(client: &XtClient, controller: AccountId)
--> Result<AccountId, Error> {
+-> Result<AccountId> {
     client.fetch_or_default(&runtimes::phala::StashStore::new(controller), None).await
         .map_err(Into::into)
 }
 
-async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64, Error> {
+async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64> {
     client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None).await.or(Ok(0))
 }
 
-async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64, Error> {
+async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
     client.fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None).await
         .map_err(Into::into)
 }
 
-async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32], Error> {
+async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
     client.fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None).await
         .or(Ok([0u8; 32]))
 }
 
 /// Updates the nonce from the blockchain (system.account)
-async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<(), Error> {
+async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<()> {
     // TODO: try to fetch the pending txs from mempool for a more accurate nonce
     let account_id = signer.account_id();
     let nonce = client.account(account_id, None).await?.nonce;
@@ -462,7 +462,7 @@ async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result
 }
 
 async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_key: bool,
-                       inject_key: &str) -> Result<InitRuntimeResp, Error> {
+                       inject_key: &str) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(&client, Some(0)).await?.block;
     let hash = client.block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0)))).await?
         .expect("No genesis block?");
@@ -498,7 +498,7 @@ async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_k
 async fn register_worker(
     client: &XtClient, encoded_runtime_info: Vec<u8>,
     attestation: &InitRespAttestation, signer: &mut SrSigner
-) -> Result<(), Error> {
+) -> Result<()> {
         let signature = base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
         let raw_signing_cert = base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD).expect("Failed to decode certificate");
         let call = runtimes::phala::RegisterWorkerCall {
@@ -512,7 +512,7 @@ async fn register_worker(
         let ret = client.watch(call, signer).await;
         if ret.is_err() {
             println!("FailedToCallRegisterWorker: {:?}", ret);
-            return Err(Error::FailedToCallRegisterWorker);
+            return Err(anyhow!(Error::FailedToCallRegisterWorker));
         }
         signer.increment_nonce();
         Ok(())
@@ -522,7 +522,7 @@ async fn register_worker(
 async fn reset_worker(
     client: &XtClient,
     signer: &mut SrSigner
-) -> Result<Hash, Error> {
+) -> Result<Hash> {
     let call = runtimes::phala::ResetWorkerCall {
         _runtime: PhantomData
     };
@@ -535,14 +535,14 @@ async fn reset_worker(
         },
         Err(err) => {
             println!("FailedToCallResetWorker: {:?}", err);
-            Err(Error::FailedToCallResetWorker)
+            Err(anyhow!(Error::FailedToCallResetWorker))
         }
     }
 }
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
-async fn bridge(args: Args) -> Result<(), Error> {
+async fn bridge(args: Args) -> Result<()> {
     env_logger::init();
 
     // Connect to substrate

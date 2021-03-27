@@ -1,5 +1,4 @@
 use crate::std::{cmp, vec::Vec};
-use anyhow::Result;
 use rand::{rngs::SmallRng, seq::index::IndexVec, SeedableRng};
 
 use crate::OnlineWorkerSnapshot;
@@ -90,11 +89,21 @@ fn weight(score: u32, staked: u128) -> u32 {
 mod sampling {
     use crate::std;
     use crate::std::vec::Vec;
+    use anyhow::Result;
+    use core::fmt;
     use rand::{distributions::uniform::SampleUniform, seq::index::IndexVec, Rng};
 
     #[derive(Debug)]
     pub enum WeightedError {
         InvalidWeight,
+    }
+
+    impl fmt::Display for WeightedError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                WeightedError::InvalidWeight => write!(f, "invalid weight"),
+            }
+        }
     }
 
     /// Randomly sample exactly `amount` distinct indices from `0..length`, and
@@ -116,7 +125,7 @@ mod sampling {
         length: usize,
         weight: F,
         amount: usize,
-    ) -> Result<IndexVec, WeightedError>
+    ) -> Result<IndexVec>
     where
         R: Rng + ?Sized,
         F: Fn(usize) -> X,
@@ -149,7 +158,7 @@ mod sampling {
         length: N,
         weight: F,
         amount: N,
-    ) -> Result<IndexVec, WeightedError>
+    ) -> Result<IndexVec>
     where
         R: Rng + ?Sized,
         F: Fn(usize) -> X,
@@ -233,7 +242,7 @@ mod sampling {
             while index < length {
                 let weight = weight(index.as_usize()).into();
                 if !(weight >= 0.) {
-                    return Err(WeightedError::InvalidWeight);
+                    return Err(anyhow::Error::msg(WeightedError::InvalidWeight));
                 }
 
                 let key = rng.gen::<f64>().powf(1.0 / weight);

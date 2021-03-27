@@ -44,10 +44,10 @@ where
     fn handle_event(&mut self, _re: runtime::Event) {}
 }
 
-pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId, ()> {
+pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     use core::convert::TryFrom;
     let bytes = crate::hex::decode_hex(accid_hex);
-    chain::AccountId::try_from(bytes.as_slice())
+    chain::AccountId::try_from(bytes.as_slice()).map_err(|_| anyhow::Error::msg(""))
 }
 
 /// Serde module to serialize or deserialize parity scale codec types
@@ -93,6 +93,28 @@ pub mod serde_balance {
     {
         let s = String::deserialize(deserializer)?;
         chain::Balance::from_str(&s).map_err(de::Error::custom)
+    }
+}
+
+/// Serde module to serialize or deserialize anyhow Errors
+pub mod serde_anyhow {
+    use crate::std::string::{String, ToString};
+    use anyhow::Error;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(value: &Error, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let s = value.to_string();
+        String::serialize(&s, serializer)
+    }
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Error, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ok(Error::msg(s))
     }
 }
 
