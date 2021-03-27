@@ -4,6 +4,7 @@
 name = "EnclaveApp"
 version = "0.0.1"
 dependencies = [
+ "anyhow 1.0.39",
  "base64 0.13.0",
  "bcs",
  "bit-vec",
@@ -169,6 +170,12 @@ source = "git+https://github.com/mesalock-linux/anyhow-sgx.git#9b7763f58b5dedc11
 dependencies = [
  "sgx_tstd",
 ]
+
+[[package]]
+name = "anyhow"
+version = "1.0.39"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "81cddc5f91628367664cc7c69714ff08deee8a3efc54623011c772544d7b2767"
 
 [[package]]
 name = "arrayref"
@@ -610,7 +617,7 @@ name = "diem-crypto"
 version = "0.1.0"
 dependencies = [
  "aes-gcm",
- "anyhow",
+ "anyhow 1.0.28",
  "bcs",
  "bytes",
  "curve25519-dalek 3.0.2",
@@ -683,7 +690,7 @@ dependencies = [
 name = "diem-types"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "anyhow 1.0.28",
  "bcs",
  "bytes",
  "chrono 0.4.11",
@@ -1462,7 +1469,7 @@ dependencies = [
 name = "move-core-types"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "anyhow 1.0.28",
  "bcs",
  "diem-crypto",
  "diem-crypto-derive",
@@ -3800,7 +3807,7 @@ dependencies = [
 name = "transaction-builder-generated"
 version = "0.1.0"
 dependencies = [
- "anyhow",
+ "anyhow 1.0.28",
  "bcs",
  "diem-crypto",
  "diem-types",

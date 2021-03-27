@@ -1,6 +1,6 @@
+use anyhow::Result;
 use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request, Response};
-use hyper::error::Result;
 
 use crate::types::{
     NotifyReq
@@ -34,6 +34,6 @@ impl NotifyClient {
 
         let res = client.request(req).await;
 
-        res
+        Ok(res?)
     }
 }

@@ -43,6 +43,7 @@ use crate::std::collections::BTreeMap;
 use crate::std::fmt;
 use crate::std::vec::Vec;
 
+use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
 use storage_proof::{StorageProof, StorageProofChecker};
@@ -114,10 +115,10 @@ where
         block_header: T::Header,
         validator_set: AuthorityList,
         validator_set_proof: StorageProof,
-    ) -> Result<BridgeId, Error> {
+    ) -> Result<BridgeId> {
         let state_root = block_header.state_root();
 
-        Self::check_validator_set_proof(state_root, validator_set_proof, &validator_set)?;
+        Self::check_validator_set_proof(state_root, validator_set_proof, &validator_set).map_err(anyhow::Error::msg)?;
 
         let bridge_info = BridgeInfo::new(block_header, validator_set);
 
@@ -142,11 +143,11 @@ where
         ancestry_proof: Vec<T::Header>,
         grandpa_proof: EncodedJustification,
         auhtority_set_change: Option<AuthoritySetChange>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let bridge = self
             .tracked_bridges
             .get(&bridge_id)
-            .ok_or(Error::NoSuchBridgeExists)?;
+            .ok_or_else(|| anyhow::Error::msg(Error::NoSuchBridgeExists))?;
 
         // Check that the new header is a decendent of the old header
         let last_header = &bridge.last_finalized_block_header;
@@ -173,7 +174,7 @@ where
                 if let Some(change) = auhtority_set_change {
                     // Check the validator set increment
                     if change.authority_set.set_id != voter_set_id + 1 {
-                        return Err(Error::UnexpectedValidatorSetId);
+                        return Err(anyhow::Error::msg(Error::UnexpectedValidatorSetId));
                     }
                     // Check validator set change proof
                     let state_root = bridge_info.last_finalized_block_header.state_root();
@@ -200,13 +201,13 @@ where
         bridge_id: BridgeId,
         header: T::Header,
         grandpa_proof: EncodedJustification,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let bridge = self
             .tracked_bridges
             .get(&bridge_id)
-            .ok_or(Error::NoSuchBridgeExists)?;
+            .ok_or_else(|| anyhow::Error::msg(Error::NoSuchBridgeExists))?;
         if bridge.last_finalized_block_header.hash() != *header.parent_hash() {
-            return Err(Error::HeaderAncestryMismatch);
+            return Err(anyhow::Error::msg(Error::HeaderAncestryMismatch));
         }
         let ancestry_proof = vec![];
         self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof, None)
@@ -217,14 +218,14 @@ where
         state_root: T::Hash,
         proof: StorageProof,
         items: &[(&[u8], &[u8])], // &[(key, value)]
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let checker = StorageProofChecker::<T::Hashing>::new(state_root, proof)?;
         for (k, v) in items {
             let actual_value = checker
                 .read_value(k)?
-                .ok_or(Error::StorageValueUnavailable)?;
+                .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
             if actual_value.as_slice() != *v {
-                return Err(Error::StorageValueMismatch);
+                return Err(anyhow::Error::msg(Error::StorageValueMismatch));
             }
         }
         Ok(())
@@ -245,6 +246,22 @@ pub enum Error {
     HeaderAncestryMismatch,
     UnexpectedValidatorSetId,
     StorageValueMismatch,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::StorageRootMismatch => write!(f, "storage root mismatch"),
+            Error::StorageValueUnavailable => write!(f, "storage value unavailable"),
+            Error::ValidatorSetMismatch => write!(f, "validator set mismatch"),
+            Error::InvalidAncestryProof => write!(f, "invalid ancestry proof"),
+            Error::NoSuchBridgeExists => write!(f, "no such bridge exists"),
+            Error::InvalidFinalityProof => write!(f, "invalid finality proof"),
+            Error::HeaderAncestryMismatch => write!(f, "header ancestry mismatch"),
+            Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
+            Error::StorageValueMismatch => write!(f, "storage value mismatch"),
+        }
+    }
 }
 
 impl From<JustificationError> for Error {
@@ -270,7 +287,7 @@ where
         state_root: &T::Hash,
         proof: StorageProof,
         validator_set: &Vec<(AuthorityId, AuthorityWeight)>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let checker = <StorageProofChecker<T::Hashing>>::new(*state_root, proof.clone())?;
 
         // By encoding the given set we should have an easy way to compare
@@ -279,12 +296,12 @@ where
         encoded_validator_set.insert(0, 1); // Add AUTHORITIES_VERISON == 1
         let actual_validator_set = checker
             .read_value(b":grandpa_authorities")?
-            .ok_or(Error::StorageValueUnavailable)?;
+            .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
 
         if encoded_validator_set == actual_validator_set {
             Ok(())
         } else {
-            Err(Error::ValidatorSetMismatch)
+            Err(anyhow::Error::msg(Error::ValidatorSetMismatch))
         }
     }
 }
@@ -294,7 +311,7 @@ where
 // is a chain of headers between (but not including) the `child`
 // and `ancestor`. This could be updated to use something like
 // Log2 Ancestors (#2053) in the future.
-fn verify_ancestry<H>(proof: Vec<H>, ancestor_hash: H::Hash, child: &H) -> Result<(), Error>
+fn verify_ancestry<H>(proof: Vec<H>, ancestor_hash: H::Hash, child: &H) -> Result<()>
 where
     H: Header<Hash = H256>,
 {
@@ -334,7 +351,7 @@ where
         }
     }
 
-    Err(Error::InvalidAncestryProof)
+    Err(anyhow::Error::msg(Error::InvalidAncestryProof))
 }
 
 fn verify_grandpa_proof<B>(
@@ -343,7 +360,7 @@ fn verify_grandpa_proof<B>(
     number: NumberFor<B>,
     set_id: u64,
     voters: &VoterSet<AuthorityId>,
-) -> Result<(), Error>
+) -> Result<()>
 where
     B: BlockT<Hash = H256>,
     NumberFor<B>: finality_grandpa::BlockNumberOps,
@@ -354,7 +371,7 @@ where
         (hash, number),
         set_id,
         voters,
-    )?;
+    ).map_err(anyhow::Error::msg)?;
 
     Ok(())
 }

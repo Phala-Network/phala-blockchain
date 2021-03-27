@@ -1,11 +1,7 @@
+use std::{error, fmt};
+
 #[derive(Debug)]
 pub enum Error {
-    HyperError(hyper::error::Error),
-    HttpError(hyper::http::Error),
-    UriError(hyper::http::uri::InvalidUri),
-    SubxtRpcError(subxt::Error),
-    MetadataError(subxt::MetadataError),
-    SerdeError(serde_json::error::Error),
     BlockHashNotFound,
     BlockNotFound,
     EventNotFound,
@@ -17,38 +13,20 @@ pub enum Error {
     ComputeWorkerNotEnabled,
 }
 
-impl From<hyper::error::Error> for Error {
-    fn from(error: hyper::error::Error) -> Error {
-        Error::HyperError(error)
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::BlockHashNotFound => write!(f, "block hash not found"),
+            Error::BlockNotFound => write!(f, "block not found"),
+            Error::EventNotFound => write!(f, "event not found"),
+            Error::NoSetIdAtBlock => write!(f, "SetId not found at block"),
+            Error::SearchSetIdChangeInEmptyRange => write!(f, "list of known blocks is empty"),
+            Error::FailedToDecode => write!(f, "failed to decode"),
+            Error::FailedToCallRegisterWorker => write!(f, "failed to call register_worker"),
+            Error::FailedToCallResetWorker => write!(f, "failed to call reset_worker"),
+            Error::ComputeWorkerNotEnabled => write!(f, "compute worker not enabled"),
+        }
     }
 }
 
-impl From<hyper::http::Error> for Error {
-    fn from(error: hyper::http::Error) -> Error {
-        Error::HttpError(error)
-    }
-}
-
-impl From<subxt::Error> for Error {
-    fn from(error: subxt::Error) -> Error {
-        Error::SubxtRpcError(error)
-    }
-}
-
-impl From<subxt::MetadataError> for Error {
-    fn from(error: subxt::MetadataError) -> Error {
-        Error::MetadataError(error)
-    }
-}
-
-impl From<hyper::http::uri::InvalidUri> for Error {
-    fn from(error: hyper::http::uri::InvalidUri) -> Error {
-        Error::UriError(error)
-    }
-}
-
-impl From<serde_json::error::Error> for Error {
-    fn from(error: serde_json::error::Error) -> Error {
-        Error::SerdeError(error)
-    }
-}
+impl error::Error for Error {}

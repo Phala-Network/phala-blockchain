@@ -17,6 +17,7 @@
 //! Logic for checking Substrate storage proofs.
 
 use crate::std::vec::Vec;
+use anyhow::Result;
 use hash_db::{HashDB, Hasher, EMPTY_PREFIX};
 use trie::{trie_types::TrieDB, MemoryDB, Trie};
 
@@ -42,7 +43,7 @@ where
     /// Constructs a new storage proof checker.
     ///
     /// This returns an error if the given proof is invalid with respect to the given root.
-    pub fn new(root: H::Out, proof: StorageProof) -> Result<Self, Error> {
+    pub fn new(root: H::Out, proof: StorageProof) -> Result<Self> {
         let mut db = MemoryDB::default();
         for item in proof {
             db.insert(EMPTY_PREFIX, &item);
@@ -55,15 +56,15 @@ where
 
     /// Reads a value from the available subset of storage. If the value cannot be read due to an
     /// incomplete or otherwise invalid proof, this returns an error.
-    pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>, Error> {
+    pub fn read_value(&self, key: &[u8]) -> Result<Option<Vec<u8>>> {
         self.trie()?
             .get(key)
             .map(|value| value.map(|value| value.to_vec()))
-            .map_err(|_| Error::StorageValueUnavailable)
+            .map_err(|_| anyhow::Error::msg(Error::StorageValueUnavailable))
     }
 
-    fn trie(&self) -> Result<TrieDB<H>, Error> {
-        TrieDB::new(&self.db, &self.root).map_err(|_| Error::StorageRootMismatch)
+    fn trie(&self) -> Result<TrieDB<H>> {
+        TrieDB::new(&self.db, &self.root).map_err(|_| anyhow::Error::msg(Error::StorageRootMismatch))
     }
 }
 

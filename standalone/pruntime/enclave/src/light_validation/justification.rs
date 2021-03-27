@@ -23,6 +23,7 @@ use sc_client::Client;
 #[cfg(test)]
 use sc_client_api::{backend::Backend, CallExecutor};
 
+use anyhow::Result;
 use super::error::JustificationError as ClientError;
 use finality_grandpa::voter_set::VoterSet;
 use finality_grandpa::Error as GrandpaError;
@@ -54,7 +55,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         client: &Client<B, E, Block, RA>,
         round: u64,
         commit: Commit<Block>,
-    ) -> Result<GrandpaJustification<Block>, Error>
+    ) -> Result<GrandpaJustification<Block>>
     where
         B: Backend<Block, Blake2Hasher>,
         E: CallExecutor<Block, Blake2Hasher> + Send + Sync,
@@ -65,7 +66,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
 
         let error = || {
             let msg = "invalid precommits for target commit".to_string();
-            Err(Error::Client(ClientError::BadJustification(msg)))
+            Err(anyhow::Error::msg(Error::Client(ClientError::BadJustification(msg))))
         };
 
         for signed in commit.precommits.iter() {
@@ -106,12 +107,12 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         finalized_target: (Block::Hash, NumberFor<Block>),
         set_id: u64,
         voters: &VoterSet<AuthorityId>,
-    ) -> Result<GrandpaJustification<Block>, ClientError>
+    ) -> Result<GrandpaJustification<Block>>
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
         let justification = GrandpaJustification::<Block>::decode(&mut &*encoded)
-            .map_err(|_| ClientError::JustificationDecode)?;
+            .map_err(|_| anyhow::Error::msg(ClientError::JustificationDecode))?;
 
         if (
             justification.commit.target_hash,
@@ -119,7 +120,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         ) != finalized_target
         {
             let msg = "invalid commit target in grandpa justification".to_string();
-            Err(ClientError::BadJustification(msg))
+            Err(anyhow::Error::msg(ClientError::BadJustification(msg)))
         } else {
             justification.verify(set_id, voters).map(|_| justification)
         }
@@ -130,7 +131,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         &self,
         set_id: u64,
         voters: &VoterSet<AuthorityId>,
-    ) -> Result<(), ClientError>
+    ) -> Result<()>
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {
@@ -142,7 +143,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
             Ok(ref result) if result.ghost().is_some() => {}
             _ => {
                 let msg = "invalid commit in grandpa justification".to_string();
-                return Err(ClientError::BadJustification(msg));
+                return Err(anyhow::Error::msg(ClientError::BadJustification(msg)));
             }
         }
 
@@ -157,9 +158,9 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
                 set_id,
                 &mut buf,
             ) {
-                return Err(ClientError::BadJustification(
+                return Err(anyhow::Error::msg(ClientError::BadJustification(
                     "invalid signature for precommit in grandpa justification".to_string(),
-                ));
+                )));
             }
 
             if self.commit.target_hash == signed.precommit.target_hash {
@@ -175,9 +176,9 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
                     }
                 }
                 _ => {
-                    return Err(ClientError::BadJustification(
+                    return Err(anyhow::Error::msg(ClientError::BadJustification(
                         "invalid precommit ancestry proof in grandpa justification".to_string(),
-                    ));
+                    )));
                 }
             }
         }
@@ -189,10 +190,10 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
             .collect();
 
         if visited_hashes != ancestry_hashes {
-            return Err(ClientError::BadJustification(
+            return Err(anyhow::Error::msg(ClientError::BadJustification(
                 "invalid precommit ancestries in grandpa justification with unused headers"
                     .to_string(),
-            ));
+            )));
         }
 
         Ok(())
@@ -259,6 +260,7 @@ pub type Commit<Block> = finality_grandpa::Commit<
 
 mod communication {
     use crate::std::vec::Vec;
+    use anyhow::Result;
     use parity_scale_codec::Encode;
     use sp_core::Pair;
     use sp_finality_grandpa::{
@@ -275,7 +277,7 @@ mod communication {
         round: RoundNumber,
         set_id: SetIdNumber,
         buf: &mut Vec<u8>,
-    ) -> Result<(), ()> {
+    ) -> Result<()> {
         let as_public = id.clone();
         localized_payload_with_buffer(round, set_id, message, buf);
 
@@ -283,7 +285,7 @@ mod communication {
             Ok(())
         } else {
             debug!(target: "afg", "Bad signature on message from {:?}", id);
-            Err(())
+            Err(anyhow::Error::msg(""))
         }
     }
 

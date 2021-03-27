@@ -33,6 +33,7 @@ use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
+use anyhow::Result;
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
@@ -453,7 +454,7 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 pub fn create_attestation_report(
     data: &[u8],
     sign_type: sgx_quote_sign_type_t,
-) -> Result<(String, String, String), sgx_status_t> {
+) -> Result<(String, String, String)> {
     let data_len = data.len();
     if data_len > SGX_REPORT_DATA_SIZE {
         panic!("data length over 64 bytes");
@@ -481,11 +482,11 @@ pub fn create_attestation_report(
     println!("eg = {:?}", eg);
 
     if res != sgx_status_t::SGX_SUCCESS {
-        return Err(res);
+        return Err(anyhow::Error::msg(res));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(rt);
+        return Err(anyhow::Error::msg(rt));
     }
 
     let eg_num = as_u32_le(&eg);
@@ -565,12 +566,12 @@ pub fn create_attestation_report(
     };
 
     if result != sgx_status_t::SGX_SUCCESS {
-        return Err(result);
+        return Err(anyhow::Error::msg(result));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
         println!("ocall_get_quote returned {}", rt);
-        return Err(rt);
+        return Err(anyhow::Error::msg(rt));
     }
 
     // Added 09-28-2018
@@ -579,7 +580,7 @@ pub fn create_attestation_report(
         Ok(()) => println!("rsgx_verify_report passed!"),
         Err(x) => {
             println!("rsgx_verify_report failed with {:?}", x);
-            return Err(x);
+            return Err(anyhow::Error::msg(x));
         }
     }
 
@@ -589,7 +590,7 @@ pub fn create_attestation_report(
         || ti.attributes.xfrm != qe_report.body.attributes.xfrm
     {
         println!("qe_report does not match current target_info!");
-        return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
     }
 
     println!("qe_report check passed");
@@ -619,7 +620,7 @@ pub fn create_attestation_report(
 
     if rhs_hash != lhs_hash {
         println!("Quote is tampered!");
-        return Err(sgx_status_t::SGX_ERROR_UNEXPECTED);
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
     }
 
     let quote_vec: Vec<u8> = return_quote_buf[..quote_len as usize].to_vec();
@@ -772,7 +773,7 @@ fn save_secret_keys(
     ecdsa_sk: SecretKey,
     ecdh_sk: EcdhKey,
     dev_mode: bool,
-) -> Result<PersistentRuntimeData, Error> {
+) -> Result<PersistentRuntimeData> {
     // Put in PresistentRuntimeData
     let serialized_sk = ecdsa_sk.serialize();
     let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
@@ -793,8 +794,7 @@ fn save_secret_keys(
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
-    let result = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice);
-    let sealed_data = result.map_err(|e| Error::SgxError(e))?;
+    let sealed_data = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice).map_err(anyhow::Error::msg)?;
 
     let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
     let output_len: usize = return_output_buf.len();
@@ -804,7 +804,7 @@ fn save_secret_keys(
 
     let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
     if opt.is_none() {
-        return Err(Error::SgxError(sgx_status_t::SGX_ERROR_INVALID_PARAMETER));
+        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_INVALID_PARAMETER));
     }
 
     // TODO: check retval and result
@@ -814,7 +814,7 @@ fn save_secret_keys(
     Ok(data)
 }
 
-fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
+fn load_secret_keys() -> Result<PersistentRuntimeData> {
     // Try load persisted sealed data
     let mut sealed_data_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
     let mut sealed_data_len: usize = 0;
@@ -832,7 +832,7 @@ fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
         )
     };
     if load_result != sgx_status_t::SGX_SUCCESS || sealed_data_len == 0 {
-        return Err(Error::PersistentRuntimeNotFound);
+        return Err(anyhow::Error::msg(Error::PersistentRuntimeNotFound));
     }
 
     let opt = from_sealed_log_for_slice::<u8>(sealed_data_ptr, sealed_data_len as u32);
@@ -843,7 +843,7 @@ fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
         }
     };
 
-    let unsealed_data = sealed_data.unseal_data().map_err(|e| Error::SgxError(e))?;
+    let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     println!("Length of encoded slice: {}", encoded_slice.len());
     println!(
@@ -851,19 +851,19 @@ fn load_secret_keys() -> Result<PersistentRuntimeData, Error> {
         hex::encode_hex_compact(encoded_slice)
     );
 
-    serde_cbor::from_slice(encoded_slice).map_err(|_| Error::DecodeError)
+    serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
 
 fn init_secret_keys(
     local_state: &mut LocalState,
     predefined_keys: Option<(SecretKey, EcdhKey)>,
-) -> Result<PersistentRuntimeData, Error> {
+) -> Result<PersistentRuntimeData> {
     let data = if let Some((ecdsa_sk, ecdh_sk)) = predefined_keys {
         save_secret_keys(ecdsa_sk, ecdh_sk, true)?
     } else {
         match load_secret_keys() {
             Ok(data) => data,
-            Err(Error::PersistentRuntimeNotFound) => {
+            Err(e) if e.is::<Error>() && matches!(e.downcast_ref::<Error>().unwrap(), Error::PersistentRuntimeNotFound) => {
                 println!("Persistent data not found.");
                 let ecdsa_sk = SecretKey::random(&mut rand::thread_rng());
                 let ecdh_sk = ecdh::generate_key();
@@ -912,7 +912,7 @@ fn init_secret_keys(
 pub extern "C" fn ecall_init() -> sgx_status_t {
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
-        Err(Error::SgxError(sgx_err)) => sgx_err,
+        Err(e) if e.is::<sgx_status_t>() => e.downcast::<sgx_status_t>().unwrap(),
         _ => sgx_status_t::SGX_SUCCESS,
     }
 }
@@ -1135,8 +1135,8 @@ fn print_block(signed_block: &chain::SignedBlock) {
     println!("}}");
 }
 
-fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock, parity_scale_codec::Error> {
-    chain::SignedBlock::decode(&mut data.as_slice())
+fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock> {
+    chain::SignedBlock::decode(&mut data.as_slice()).map_err(anyhow::Error::msg)
 }
 
 fn format_address(addr: &chain::Address) -> String {

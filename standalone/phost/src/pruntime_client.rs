@@ -1,9 +1,9 @@
+use anyhow::Result;
 use serde::Serialize;
 use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request};
 use bytes::buf::BufExt as _;
 
-use crate::error::Error;
 use crate::types::{
     RuntimeReq, Resp, SignedResp, ReqData, QueryReq, QueryRespData, Query, Payload
 };
@@ -19,7 +19,7 @@ impl PRuntimeClient {
         }
     }
 
-    async fn req<T>(&self, command: &str, param: &T) -> Result<SignedResp, Error>  where T: Serialize {
+    async fn req<T>(&self, command: &str, param: &T) -> Result<SignedResp>  where T: Serialize {
         let client = HttpClient::new();
         let endpoint = format!("{}/{}", self.base_url, command);
 
@@ -43,7 +43,7 @@ impl PRuntimeClient {
         Ok(signed_resp)
     }
 
-    pub async fn req_decode<Req>(&self, command: &str, request: Req) -> Result<Req::Resp, Error>
+    pub async fn req_decode<Req>(&self, command: &str, request: Req) -> Result<Req::Resp>
         where Req: Serialize + Resp {
         let payload = RuntimeReq::new(request);
         let resp = self.req(command, &payload).await?;
@@ -56,7 +56,7 @@ impl PRuntimeClient {
     /// It's possible to query with e2e encryption. However currently only Plain message is
     /// supported.
     pub async fn query(&self, contract_id: u32, request: ReqData)
-    -> Result<QueryRespData, Error> {
+    -> Result<QueryRespData> {
         // Encode the query within Payload::Plain
         let query = Query {
             contract_id,
@@ -73,7 +73,7 @@ impl PRuntimeClient {
         let Payload::Plain(plain_json) = resp;
         println!("Query response: {:}", &plain_json);
         let resp_data: QueryRespData = serde_json::from_str(plain_json.as_str())
-            .map_err(|_| Error::FailedToDecode)?;
+            .map_err(|_| crate::error::Error::FailedToDecode)?;
         return Ok(resp_data)
     }
 

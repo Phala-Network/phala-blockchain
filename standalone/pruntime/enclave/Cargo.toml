@@ -41,7 +41,8 @@ serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
 serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx.git" }
 
-bit-vec     = { version = "*", default-features = false}
+anyhow      = { version = "1.0", default-features = false }
+bit-vec     = { version = "*", default-features = false }
 itertools   = { version = "0.8", default-features = false }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 
