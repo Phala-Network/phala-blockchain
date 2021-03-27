@@ -86,7 +86,7 @@ pub trait Config: frame_system::Config {
 }
 
 decl_storage! {
-	trait Store for Module<T: Config> as PhalaModule {
+	trait Store for Module<T: Config> as Phala {
 		// Messaging
 		/// Number of all commands
 		CommandNumber get(fn command_number): Option<u64>;
