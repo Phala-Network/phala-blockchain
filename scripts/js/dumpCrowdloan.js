@@ -23,7 +23,7 @@ function createChildKey(trieIndex) {
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
     const api = await ApiPromise.create({ provider: wsProvider });
-    const paraId = parseInt(process.env.PARAID || 0);
+    const paraId = parseInt(process.env.PARAID || 30);
     const dumpJson = process.env.DUMP || '';
 
     // const paraId = 30
