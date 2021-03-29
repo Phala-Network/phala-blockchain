@@ -332,7 +332,7 @@ pub mod pallet {
 			ensure!(signer == stored_signer, e);
 
 			let e = InvalidTransaction::Custom(ValidityError::TxAlreadyClaimed.into());
-			ensure!(ClaimState::<T>::get(&tx_hash).is_none(), e);
+			ensure!(!ClaimState::<T>::get(&tx_hash).unwrap_or_default(), e);
 
 			Ok(ValidTransaction {
 				priority: PRIORITY,
