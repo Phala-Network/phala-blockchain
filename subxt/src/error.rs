@@ -16,10 +16,7 @@
 
 use jsonrpsee_types::error::Error as RequestError;
 use sp_core::crypto::SecretStringError;
-use sp_runtime::{
-    transaction_validity::TransactionValidityError,
-    DispatchError,
-};
+use sp_runtime::{transaction_validity::TransactionValidityError, DispatchError, TokenError};
 use thiserror::Error;
 
 use crate::metadata::{
@@ -111,6 +108,9 @@ pub enum RuntimeError {
     /// Cannot lookup.
     #[error("Cannot lookup some information required to validate the transaction.")]
     CannotLookup,
+    /// Token error.
+    #[error("An error to do with tokens.")]
+    TokenError(TokenError),
     /// Other error.
     #[error("Other error: {0}")]
     Other(String),
@@ -139,6 +139,7 @@ impl RuntimeError {
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
             DispatchError::ConsumerRemaining => Ok(Self::ConsumerRemaining),
             DispatchError::NoProviders => Ok(Self::NoProviders),
+            DispatchError::Token(err) => Ok(Self::TokenError(err)),
             DispatchError::Other(msg) => Ok(Self::Other(msg.into())),
         }
     }

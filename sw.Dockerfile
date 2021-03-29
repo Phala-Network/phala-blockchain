@@ -8,11 +8,9 @@ RUN bash /root/01_apt.sh
 ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 
-ARG RUST_TOOLCHAIN='nightly-2021-02-24'
+ARG RUST_TOOLCHAIN='nightly-2021-03-25'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
-ADD ./dockerfile.d/06_wasm.sh /root
-RUN bash /root/06_wasm.sh
 
 WORKDIR /root
 
