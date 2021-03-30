@@ -3,7 +3,7 @@ require('dotenv').config();
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 const { checkUntil } = require('../../e2e/utils');
-const typedefs = require('../../e2e/typedefs.json');
+const typedefs = require('@phala/typedefs/dist/phala-typedef').default;
 
 const bnUnit = new BN(1e12);
 function token(n) {

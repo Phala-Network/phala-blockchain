@@ -3,11 +3,11 @@ const path = require('path');
 const portfinder = require('portfinder');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
+const types = require('@phala/typedefs/dist/phala-typedef').default;
 
 const { Process, TempDir } = require('../pm');
 const { PRuntime } = require('../pruntime');
 const { checkUntil } = require('../utils');
-const types = require('../typedefs.json');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/phost');
