@@ -3,7 +3,7 @@ const path = require('path');
 const portfinder = require('portfinder');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
-const types = require('@phala/typedefs/dist/phala-typedef').default;
+const types = require('@phala/typedefs').latest;
 
 const { Process, TempDir } = require('../pm');
 const { PRuntime } = require('../pruntime');

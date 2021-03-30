@@ -5,7 +5,7 @@ const { decodeAddress } = require('@polkadot/keyring');
 const { u8aToHex } = require('@polkadot/util');
 
 
-const typedefs = require('@phala/typedefs/dist/phala-typedef').default;
+const typedefs = require('@phala/typedefs').latest;
 
 async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     const workerState = {};

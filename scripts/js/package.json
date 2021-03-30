@@ -5,7 +5,7 @@
   "license": "MIT",
   "scripts": {},
   "dependencies": {
-    "@phala/typedefs": "0.0.4",
+    "@phala/typedefs": "0.0.6",
     "@polkadot/api": "^4.2.1",
     "@polkadot/util-crypto": "^6.0.5",
     "bn.js": "^5.1.3",

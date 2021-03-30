@@ -6,7 +6,7 @@ const { blake2AsU8a } = require('@polkadot/util-crypto');
 const { u8aToHex } = require('@polkadot/util');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs/dist/phala-typedef').default;
+const typedefs = require('@phala/typedefs').latest;
 
 async function getWorkerSnapshotAt(api, hash) {
     // Get all worker state
