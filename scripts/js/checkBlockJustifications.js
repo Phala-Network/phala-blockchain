@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { ApiPromise, WsProvider } = require('@polkadot/api');
 
-const typedefs = require('../../e2e/typedefs.json');
+const typedefs = require('@phala/typedefs').latest;
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
