@@ -98,6 +98,8 @@ pub enum RuntimeError {
     /// Module error.
     #[error("Runtime module error: {0}")]
     Module(ModuleError),
+    #[error("Unknown Runtime module error: {0}")]
+    UnknownModule(ModuleError),
     /// Bad origin.
     #[error("Bad origin: throw by ensure_signed, ensure_root or ensure_none.")]
     BadOrigin,
@@ -122,11 +124,26 @@ impl RuntimeError {
                 message: _,
             } => {
                 let module = metadata.module_with_errors(index)?;
-                let error = module.error(error)?;
-                Ok(Self::Module(ModuleError {
-                    module: module.name().to_string(),
-                    error: error.to_string(),
-                }))
+                // TODO: HACK
+                // let error = module.error(error)?;
+                // Ok(Self::Module(ModuleError {
+                //     module: module.name().to_string(),
+                //     error: error.to_string(),
+                // }))
+                match module.error(error) {
+                    Ok(e) => {
+                        Ok(Self::Module(ModuleError {
+                            module: module.name().to_string(),
+                            error: e.to_string(),
+                        }))
+                    },
+                    Err(e) => {
+                        Ok(Self::UnknownModule(ModuleError {
+                            module: module.name().to_string(),
+                            error: e.to_string(),
+                        }))
+                    }
+                }
             }
             DispatchError::BadOrigin => Ok(Self::BadOrigin),
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
