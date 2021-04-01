@@ -1,4 +1,5 @@
 use anyhow::{anyhow, Result};
+use log::{error, debug, info, warn};
 use tokio::time::delay_for;
 use std::cmp;
 use std::time::Duration;
@@ -109,7 +110,7 @@ async fn get_block_at(client: &XtClient, h: Option<u32>)
         None => client.finalized_head().await?
     };
 
-    println!("get_block_at: Got block {:?} hash {}", h, hash.to_string());
+    info!("get_block_at: Got block {:?} hash {}", h, hash.to_string());
 
     let block = client.block(Some(hash.clone())).await?
         .ok_or(Error::BlockNotFound)?;
@@ -124,7 +125,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>)
 
     let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
     if let Some((raw_events, proof, _key)) = events_with_proof {
-        println!("          ... with events {} bytes", raw_events.len());
+        info!("          ... with events {} bytes", raw_events.len());
         let (events, proof) = (Some(raw_events), Some(proof));
         return Ok(BlockWithEvents { block, events, proof });
     }
@@ -292,7 +293,7 @@ async fn sync_events_only(
     maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
     for chunk in blocks.chunks(batch_window) {
         let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
-        println!("  ..dispatch_block: {:?}", r);
+        debug!("  ..dispatch_block: {:?}", r);
     }
     Ok(())
 }
@@ -349,7 +350,7 @@ async fn batch_sync_block(
             header_idx -= 1;
         }
         if header_idx < 0 {
-            println!(
+            warn!(
                 "Cannot find justification within window (from: {}, to: {})",
                 first_block_number,
                 block_buf.last().unwrap().block.block.header.number,
@@ -370,7 +371,7 @@ async fn batch_sync_block(
 
         /* print collected headers */ {
             for h in header_batch.iter() {
-                println!("Header {} :: {} :: {}",
+                debug!("Header {} :: {} :: {}",
                          h.header.number,
                          h.header.hash().to_string(),
                          h.header.parent_hash.to_string()
@@ -390,13 +391,13 @@ async fn batch_sync_block(
             }
         }
 
-        println!(
+        info!(
             "sending a batch of {} headers (last: {}, change: {:?})",
             header_batch.len(), last_header_number,
             authrotiy_change.as_ref().map(|change| &change.authority_set));
 
         let r = req_sync_header(pr, &header_batch, authrotiy_change.as_ref()).await?;
-        println!("  ..sync_header: {:?}", r);
+        info!("  ..sync_header: {:?}", r);
 
         let dispatch_window = batch_window - 1;
         while !block_batch.is_empty() {
@@ -415,7 +416,7 @@ async fn batch_sync_block(
                     .collect();
                 maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
-                println!("  ..dispatch_block: {:?}", r);
+                debug!("  ..dispatch_block: {:?}", r);
 
                 // Update sync state
                 synced_blocks += dispatch_batch.len();
@@ -479,11 +480,11 @@ async fn init_runtime(client: &XtClient, pr: &PrClient, skip_ra: bool, use_dev_k
         if inject_key.len() != 64 {
             panic!("inject-key must be 32 bytes hex");
         } else {
-            println!("Inject key {}", inject_key);
+            info!("Inject key {}", inject_key);
         }
         debug_set_key = Some(inject_key.to_string());
     } else if use_dev_key {
-        println!("Inject key {}", DEV_KEY);
+        info!("Inject key {}", DEV_KEY);
         debug_set_key = Some(String::from(DEV_KEY));
     }
 
@@ -511,7 +512,7 @@ async fn register_worker(
         update_signer_nonce(client, signer).await?;
         let ret = client.watch(call, signer).await;
         if ret.is_err() {
-            println!("FailedToCallRegisterWorker: {:?}", ret);
+            error!("FailedToCallRegisterWorker: {:?}", ret);
             return Err(anyhow!(Error::FailedToCallRegisterWorker));
         }
         signer.increment_nonce();
@@ -534,7 +535,7 @@ async fn reset_worker(
             Ok(r.block)
         },
         Err(err) => {
-            println!("FailedToCallResetWorker: {:?}", err);
+            error!("FailedToCallResetWorker: {:?}", err);
             Err(anyhow!(Error::FailedToCallResetWorker))
         }
     }
@@ -551,7 +552,7 @@ async fn bridge(args: Args) -> Result<()> {
         .skip_type_sizes_check()
         .build().await?;
     let events_decoder = client.events_decoder();
-    println!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
+    info!("Connected to substrate at: {}", args.substrate_ws_endpoint.clone());
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
@@ -584,7 +585,7 @@ async fn bridge(args: Args) -> Result<()> {
     if !args.no_init {
         let mut runtime_info: Option<InitRuntimeResp> = None;
         if !info.initialized {
-            println!("pRuntime not initialized. Requesting init...");
+            warn!("pRuntime not initialized. Requesting init...");
             runtime_info = Some(init_runtime(&client, &pr, !args.ra, args.use_dev_key,
                                              &args.inject_key).await?);
             // STATUS: pruntime_initialized = true
@@ -599,7 +600,7 @@ async fn bridge(args: Args) -> Result<()> {
                 initial_sync_finished,
             }).await.ok();
         } else {
-            println!("pRuntime already initialized. Fetching runtime info...");
+            info!("pRuntime already initialized. Fetching runtime info...");
             let machine_owner = get_machine_owner(&client, info.machine_id).await?;
             if machine_owner == [0u8; 32] {
                 // Worker not registered
@@ -619,7 +620,7 @@ async fn bridge(args: Args) -> Result<()> {
                 initial_sync_finished,
             }).await.ok();
         }
-        println!("runtime_info:{:?}", runtime_info);
+        info!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
             if let Some(attestation) = runtime_info.attestation {
                 register_worker(&client, runtime_info.encoded_runtime_info.clone(),
@@ -629,7 +630,7 @@ async fn bridge(args: Args) -> Result<()> {
     }
 
     if args.no_sync {
-        println!("Block sync disabled.");
+        warn!("Block sync disabled.");
         return Ok(())
     }
 
@@ -645,7 +646,7 @@ async fn bridge(args: Args) -> Result<()> {
     loop {
         // update the latest pRuntime state
         info = pr.req_decode("get_info", GetInfoReq {}).await?;
-        println!("pRuntime get_info response: {:?}", info);
+        info!("pRuntime get_info response: {:?}", info);
 
         // STATUS: header_synced = info.headernum
         // STATUS: block_synced = info.blocknum
@@ -665,7 +666,7 @@ async fn bridge(args: Args) -> Result<()> {
             }
             sync_state.blocks.remove(0);
         }
-        println!(
+        info!(
             "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
             info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
 
@@ -679,11 +680,11 @@ async fn bridge(args: Args) -> Result<()> {
         for b in next_block ..= batch_end {
             let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justifications.is_some() {
-                println!("block with justification at: {}", block.block.block.header.number);
+                debug!("block with justification at: {}", block.block.block.header.number);
             }
             if let Some(hash) = wait_block_until {
                 if block.block.block.header.hash() == hash {
-                    println!("Hit the deferred block; will start message passing from the next block");
+                    debug!("Hit the deferred block; will start message passing from the next block");
                     defer_block = false;
                 }
             }
@@ -724,7 +725,7 @@ async fn bridge(args: Args) -> Result<()> {
             }
         }
         if synced_blocks == 0 {
-            println!("Waiting for new blocks");
+            info!("Waiting for new blocks");
             delay_for(Duration::from_millis(5000)).await;
             continue;
         }
@@ -744,6 +745,6 @@ async fn main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
     let r = bridge(args).await;
-    println!("bridge() exited with result: {:?}", r);
+    info!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
 }

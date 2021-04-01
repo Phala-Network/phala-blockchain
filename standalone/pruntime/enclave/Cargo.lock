@@ -20,6 +20,7 @@ dependencies = [
  "itertools 0.8.2",
  "lazy_static",
  "libsecp256k1 0.3.5 (git+https://github.com/mesalock-linux/libsecp256k1-rs-sgx)",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.14 (git+https://github.com/mesalock-linux/log-sgx)",
  "move-core-types",
  "num-bigint",
@@ -552,7 +553,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5e98e2ad1a782e33928b96fc3948e7c355e5af34ba4de7670fe8bac2a3b2006d"
 dependencies = [
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -609,7 +610,7 @@ dependencies = [
  "convert_case",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -650,7 +651,7 @@ dependencies = [
  "diem-workspace-hack",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -730,7 +731,7 @@ dependencies = [
  "sgx_tstd",
  "sha1",
  "subtle 2.2.2",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -834,7 +835,7 @@ checksum = "946ee94e3dbf58fdd324f9ce245c7b238d46a66f00e86a020b71996349e46cce"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -947,7 +948,7 @@ dependencies = [
  "frame-support-procedural-tools",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -958,7 +959,7 @@ dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -967,7 +968,7 @@ version = "3.0.0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -1113,7 +1114,7 @@ checksum = "1a5bcf1bbeab73aa4cf2fde60a846858dc036163c7c33bec309f8d17de785479"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -1264,7 +1265,7 @@ checksum = "d5dacb10c5b3bb92d46ba347505a9041e676bb20ad220101326bffb0c93031ee"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -1294,7 +1295,7 @@ source = "git+https://github.com/mesalock-linux/inventory-sgx#0f6a5fe5fcbb3623fc
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -1355,9 +1356,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.91"
+version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8916b1f6ca17130ec6568feccee27c156ad12037880833a3b842a823236502e7"
+checksum = "56d855069fafbb9b344c0f962150cd2c1187975cb1c22c1522c240d8c4986714"
 
 [[package]]
 name = "libsecp256k1"
@@ -1756,7 +1757,7 @@ version = "3.0.0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2083,7 +2084,7 @@ dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2218,7 +2219,7 @@ dependencies = [
  "proc-macro-crate 0.1.5",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2230,7 +2231,7 @@ dependencies = [
  "proc-macro-crate 0.1.5",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2254,7 +2255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f557c32c6d268a07c921471619c0295f5efad3a0e76d4f97a05c091a51d110b2"
 dependencies = [
  "proc-macro2",
- "syn 1.0.67",
+ "syn 1.0.68",
  "synstructure",
 ]
 
@@ -2485,9 +2486,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.24"
+version = "1.0.26"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e0704ee1a7e00d7bb417d0770ea303c1bccbabf0ef1667dae92b5967f5f8a71"
+checksum = "a152013215dca273577e18d2bf00fa862b89b24169fb78c4c95aeb07992c9cec"
 dependencies = [
  "unicode-xid 0.2.1",
 ]
@@ -2659,7 +2660,7 @@ checksum = "4c38e3aecd2b21cb3959637b883bb3714bc7e43f0268b9a29d3743ee3e55cdd2"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2954,7 +2955,7 @@ source = "git+https://github.com/mesalock-linux/serde-sgx.git#db0226f1d5d70fca6b
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -2965,7 +2966,7 @@ checksum = "b093b7a2bb58203b5da3056c05b4ec1fed827dcfdb37347a8841695263b3d06d"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3253,7 +3254,7 @@ dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3381,7 +3382,7 @@ version = "3.0.0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3439,7 +3440,7 @@ dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3492,7 +3493,7 @@ dependencies = [
  "proc-macro-crate 1.0.0",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3668,9 +3669,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.67"
+version = "1.0.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6498a9efc342871f91cc2d0d694c674368b4ceb40f62b65a7a08c3792935e702"
+checksum = "3ce15dd3ed8aa2f8eeac4716d6ef5ab58b6b9256db41d7e1a0224c2788e8fd87"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
@@ -3694,7 +3695,7 @@ checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
  "unicode-xid 0.2.1",
 ]
 
@@ -3737,7 +3738,7 @@ source = "git+https://github.com/mesalock-linux/thiserror-sgx.git#c2f806b88616e0
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3748,7 +3749,7 @@ checksum = "7765189610d8241a44529806d6fd1f2e0a08734313a35d5b3a556f92b381f3c0"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3875,7 +3876,7 @@ source = "git+https://github.com/mesalock-linux/typetag-sgx#e21f14a64d77d984aa22
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
 ]
 
 [[package]]
@@ -3987,7 +3988,7 @@ dependencies = [
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
  "wasm-bindgen-shared",
 ]
 
@@ -4009,7 +4010,7 @@ checksum = "d53739ff08c8a68b0fdbcd54c372b8ab800b1449ab3c9d706503bc7dd1621b2c"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -4181,6 +4182,6 @@ checksum = "c3f369ddb18862aba61aa49bf31e74d29f0f162dec753063200e1dc084345d16"
 dependencies = [
  "proc-macro2",
  "quote 1.0.9",
- "syn 1.0.67",
+ "syn 1.0.68",
  "synstructure",
 ]

@@ -5641,6 +5641,7 @@ dependencies = [
  "futures 0.3.13",
  "hex",
  "hyper 0.13.10",
+ "log",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",

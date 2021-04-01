@@ -1,6 +1,7 @@
-use anyhow::{anyhow, Result};
 use std::collections::HashSet;
+use anyhow::{anyhow, Result};
 use codec::FullCodec;
+use log::{debug, error, info};
 use sp_core::{storage::StorageKey, twox_128};
 use phala_types::pruntime::{
     StorageKV, RawStorageKey, StorageProof,
@@ -63,13 +64,13 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
     let online_workers: u32 = xt.fetch_or_default(&online_workers_store, hash).await?;
     let compute_workers: u32 = xt.fetch_or_default(&compute_workers_store, hash).await?;
     if online_workers == 0 || compute_workers == 0 {
-        println!(
+        error!(
             "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
             online_workers, compute_workers);
         return Err(anyhow!(crate::error::Error::ComputeWorkerNotEnabled));
     }
-    println!("- Stats Online Workers: {}", online_workers);
-    println!("- Stats Compute Workers: {}", compute_workers);
+    info!("- Stats Online Workers: {}", online_workers);
+    info!("- Stats Compute Workers: {}", compute_workers);
     // Online workers and stake received
     let worker_data =
         fetch_map::<WorkerStateStore<_>>(xt, hash).await?;
@@ -92,8 +93,8 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
         .into_iter()
         .filter(|(k, _v)| stashes.contains(&account_id_from_map_key(&k.0)))
         .collect();
-    println!("- online_worker_data: vec[{}]", online_worker_data.len());
-    println!("- stake_received_data: vec[{}]", stake_received_data.len());
+    debug!("- online_worker_data: vec[{}]", online_worker_data.len());
+    debug!("- stake_received_data: vec[{}]", stake_received_data.len());
 
     // Proof of all the storage keys
     let mut all_keys: Vec<StorageKey> = online_worker_data
@@ -103,7 +104,7 @@ pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
         .collect();
     all_keys.push(online_workers_key.clone());
     all_keys.push(compute_workers_key.clone());
-    println!("- All Storage Keys: vec[{}]", all_keys.len());
+    debug!("- All Storage Keys: vec[{}]", all_keys.len());
     let read_proof = xt.read_proof(all_keys, hash).await?;
     let proof = raw_proof(read_proof);
 

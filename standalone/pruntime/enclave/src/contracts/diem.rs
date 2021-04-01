@@ -4,6 +4,7 @@ use crate::std::vec::Vec;
 
 use anyhow::Result;
 use core::{fmt, str};
+use rust_log::{error, info, warn};
 use serde::{Serialize, Deserialize};
 
 use crate::contracts;
@@ -133,7 +134,7 @@ impl Diem {
         let transaction: Transaction = match bcs::from_bytes(&transaction_with_proof.transaction_bytes) {
             Ok(tx) => tx,
             Err(_) => {
-                println!("Decode transaction error");
+                error!("Decode transaction error");
 
                 return Err(anyhow::Error::msg(Error::Other(String::from("Decode transaction error"))));
             }
@@ -159,7 +160,7 @@ impl Diem {
             }
 
             if !found {
-                println!("Bad receiver address");
+                error!("Bad receiver address");
 
                 return Err(anyhow::Error::msg(Error::Other(String::from("Bad receiver address"))));
             }
@@ -167,7 +168,7 @@ impl Diem {
             // Outgoing tx must be synced sequencely
             if let Some(seq) = self.seq_number.get(&account_address) {
                 if seq + 1 != signed_tx.raw_txn.sequence_number {
-                    println!("Bad sequence number");
+                    error!("Bad sequence number");
 
                     return Err(anyhow::Error::msg(Error::Other(String::from("Bad sequence number"))));
                 }
@@ -193,7 +194,7 @@ impl Diem {
         // Update trusted_state on demand
         match trusted_state_change {
             TrustedStateChange::Epoch { new_state, latest_epoch_change_li } => {
-                println!(
+                info!(
                     "verify_trusted_state: Verified epoch changed to {}",
                     latest_epoch_change_li
                         .ledger_info()
@@ -204,7 +205,7 @@ impl Diem {
             }
             TrustedStateChange::Version { new_state } => {
                 if trusted_state.latest_version() < new_state.latest_version() {
-                    println!(
+                    info!(
                         "verify_trusted_state: Verified version change to: {}",
                         new_state.latest_version()
                     );
@@ -212,7 +213,7 @@ impl Diem {
                 self.trusted_state = Some(new_state);
             }
             TrustedStateChange::NoChange => {
-                println!("verify_trusted_state: NoChange");
+                info!("verify_trusted_state: NoChange");
             }
         }
         Ok(())
@@ -248,7 +249,7 @@ impl Diem {
         {
             true
         } else {
-            println!("Failed to verify transaction");
+            warn!("Failed to verify transaction");
             false
         }
     }
@@ -260,25 +261,25 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     fn handle_command(&mut self, _origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
         match cmd {
             Command::AccountData { account_data_b64 } => {
-                println!("command account_data_b64:{:?}", account_data_b64);
+                info!("command account_data_b64:{:?}", account_data_b64);
                 if let Ok(account_data) = base64::decode(&account_data_b64) {
                     let account_info: AccountInfo = match bcs::from_bytes(&account_data) {
                         Ok(result) => result,
                         Err(_) => return TransactionStatus::BadAccountInfo,
                     };
-                    println!("account_info:{:?}", account_info);
+                    info!("account_info:{:?}", account_info);
                     let exist = self.accounts.iter().any(|x| x.address == account_info.address);
                     if !exist {
                         self.accounts.push(account_info);
                     }
-                    println!("add account_ok");
+                    info!("add account_ok");
                     TransactionStatus::Ok
                 } else {
                     TransactionStatus::BadAccountData
                 }
             }
             Command::SetTrustedState { trusted_state_b64 } => {
-                println!("trusted_state_b64: {:?}", trusted_state_b64);
+                info!("trusted_state_b64: {:?}", trusted_state_b64);
                 // Only initialize TrustedState once
                 if self.init_trusted_state.is_some() {
                     return TransactionStatus::Ok
@@ -287,18 +288,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     Ok(trusted_state) => {
                         self.init_trusted_state = Some(trusted_state.clone());
                         self.trusted_state = Some(trusted_state);
-                        println!("init trusted state OK");
+                        info!("init trusted state OK");
                         TransactionStatus::Ok
                     }
                     Err(code) => code,
                 }
             }
             Command::VerifyTransaction { account_address, transaction_with_proof_b64 } => {
-                println!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
+                info!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
 
                 if let Ok(address) = AccountAddress::from_hex_literal(&account_address) {
                     if !self.accounts.iter().any(|x| x.address == address) {
-                        println!("not a contract's account address");
+                        error!("not a contract's account address");
 
                         return TransactionStatus::InvalidAccount;
                     }
@@ -308,7 +309,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         Ok(result) => result,
                         Err(_) => return TransactionStatus::BadTransactionWithProof,
                     };
-                    println!("transaction_with_proof:{:?}", transaction_with_proof);
+                    info!("transaction_with_proof:{:?}", transaction_with_proof);
 
                     let transaction = match self.get_transaction(transaction_with_proof.clone(), account_address.clone(), address) {
                         Ok(result) => result,
@@ -323,12 +324,12 @@ impl contracts::Contract<Command, Request, Response> for Diem {
 
                     let tx_hash = transaction.hash().to_hex();
                     if self.verified.get(&tx_hash).is_some() && self.verified.get(&tx_hash).unwrap() == &true {
-                        println!("transaction has been verified:{:}", self.verified.len());
+                        info!("transaction has been verified:{:}", self.verified.len());
                         return TransactionStatus::Ok;
                     }
 
                     if tx_hash != transaction_with_proof.transaction_info.transaction_hash.to_hex() {
-                        println!("transaction hash doesn't match");
+                        error!("transaction hash doesn't match");
                         return TransactionStatus::FailedToVerify;
                     }
 
@@ -336,7 +337,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         let verified = self.verify_transaction_state_proof(transaction_with_proof, address);
                         self.verified.insert(tx_hash, verified);
                         if verified {
-                            println!("transaction was verified:{:}", self.verified.len());
+                            info!("transaction was verified:{:}", self.verified.len());
                             TransactionStatus::Ok
                         } else {
                             TransactionStatus::FailedToVerify

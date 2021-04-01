@@ -3,6 +3,7 @@ use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use csv_core::{ReadRecordResult, Reader};
+use rust_log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;
@@ -164,7 +165,7 @@ impl DataPlaza {
                             if nfield == 1 {
                                 // we only supports a single field right now
                                 let value = Self::read_field(0, &outbuf, &ends).to_vec();
-                                println!(
+                                info!(
                                     "inserting query target: {}",
                                     String::from_utf8(value.clone()).unwrap()
                                 );
@@ -218,13 +219,13 @@ impl DataPlaza {
                                     String::from_utf8(value.clone()).unwrap()
                                 );
                                 if targets.contains(&value) {
-                                    println!("found");
+                                    info!("found");
                                     // should output the entire line!
                                     let mut full_line = (&bytes[..nin]).to_vec();
                                     out.append(&mut full_line);
                                     matched_rows += 1;
                                 } else {
-                                    println!("not found");
+                                    info!("not found");
                                 }
                             }
                         }
