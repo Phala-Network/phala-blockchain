@@ -45,7 +45,6 @@ anyhow      = { version = "1.0", default-features = false }
 bit-vec     = { version = "*", default-features = false }
 itertools   = { version = "0.8", default-features = false }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
-rust_log    = { version = "0.4", package = "log" }
 
 sp-io                = { path = "../../../substrate/primitives/io", default-features = false }
 sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", default-features = false }
@@ -62,6 +61,7 @@ csv-core = { version = "0.1.10", default-features = false }
 # for light_validation
 derive_more = "0.99.0"
 log = { git = "https://github.com/mesalock-linux/log-sgx" }
+env_logger = { git = "https://github.com/mesalock-linux/env_logger-sgx" }
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.14", default-features = false, features = ["derive-codec"] }

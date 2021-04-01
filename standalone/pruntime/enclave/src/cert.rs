@@ -13,7 +13,7 @@ use chrono::Duration;
 use chrono::TimeZone;
 use chrono::Utc as TzUtc;
 use itertools::Itertools;
-use rust_log::{debug, error, info, warn};
+use log::{debug, error, info, warn};
 use num_bigint::BigUint;
 use rustls;
 use serde_json;

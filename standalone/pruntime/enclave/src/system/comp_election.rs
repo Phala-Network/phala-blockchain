@@ -1,5 +1,5 @@
 use crate::std::{cmp, vec::Vec};
-use rust_log::info;
+use log::info;
 use rand::{rngs::SmallRng, seq::index::IndexVec, SeedableRng};
 
 use crate::OnlineWorkerSnapshot;

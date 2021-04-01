@@ -37,7 +37,7 @@ use anyhow::Result;
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
-use rust_log::{debug, error, info, warn};
+use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode, FullCodec};
 use secp256k1::{PublicKey, SecretKey};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
@@ -973,6 +973,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     if local_state.initialized {
         return Err(json!({"message": "Already initialized"}));
     }
+
+    env_logger::init();
 
     // load identity
     if let Some(key) = input.debug_set_key {

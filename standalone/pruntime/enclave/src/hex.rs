@@ -18,7 +18,7 @@ pub fn decode_spid(hex: &str) -> sgx_spid_t {
     let hex = hex.trim();
 
     if hex.len() < 16 * 2 {
-        rust_log::warn!("Input spid file len ({}) is incorrect!", hex.len());
+        log::warn!("Input spid file len ({}) is incorrect!", hex.len());
         return spid;
     }
 

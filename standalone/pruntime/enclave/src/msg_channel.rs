@@ -31,7 +31,7 @@ impl MsgChannel {
     pub fn received(&mut self, seq: u64) {
         if seq > self.sequence {
             // Something bad happened
-            rust_log::error!(
+            log::error!(
                 "MsgChannel::received(): error - received seq {} larger than max seq {}",
                 seq, self.sequence
             );

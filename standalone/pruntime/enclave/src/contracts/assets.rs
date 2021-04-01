@@ -1,5 +1,5 @@
 use anyhow::Result;
-use rust_log::info;
+use log::info;
 use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;

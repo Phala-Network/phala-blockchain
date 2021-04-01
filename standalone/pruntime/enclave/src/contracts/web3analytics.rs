@@ -911,7 +911,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
         let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
                 let o = AccountIdWrapper(origin.clone());
-                rust_log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
+                log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
 
                 if skip_stat {
                     self.no_tracking.insert(o, skip_stat);

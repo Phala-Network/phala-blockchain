@@ -4,7 +4,7 @@ use crate::std::vec::Vec;
 
 use anyhow::Result;
 use core::{fmt, str};
-use rust_log::{error, info, warn};
+use log::{error, info, warn};
 use serde::{Serialize, Deserialize};
 
 use crate::contracts;

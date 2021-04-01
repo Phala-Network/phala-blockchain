@@ -3,7 +3,7 @@ use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use csv_core::{ReadRecordResult, Reader};
-use rust_log::info;
+use log::info;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;

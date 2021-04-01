@@ -46,7 +46,7 @@ use crate::std::vec::Vec;
 use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
-use rust_log::{error, info};
+use log::{error, info};
 use storage_proof::{StorageProof, StorageProofChecker};
 
 use finality_grandpa::voter_set::VoterSet;
