@@ -1,22 +1,23 @@
 require('dotenv').config();
 
-const { ApiPromise, WsProvider } = require('@polkadot/api');
+const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { decodeAddress } = require('@polkadot/keyring');
 const { blake2AsU8a } = require('@polkadot/util-crypto');
 const { u8aToHex } = require('@polkadot/util');
 const BN = require('bn.js');
 
 const typedefs = require('@phala/typedefs').latest;
+const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
 
 async function getWorkerSnapshotAt(api, hash) {
     // Get all worker state
     const workerState = {};
-    const entries = await api.query.phalaModule.workerState.entriesAt(hash);
+    const entries = await api.query.phala.workerState.entriesAt(hash);
     for (let [k, v] of entries) {
         workerState[k.args[0].toHuman()] = v.toJSON();
     }
     // Attach lastActivity (blocknum)
-    const activityEntries = await api.query.phalaModule.lastWorkerActivity.entriesAt(hash);
+    const activityEntries = await api.query.phala.lastWorkerActivity.entriesAt(hash);
     for (let [k, v] of activityEntries) {
         const stash = k.args[0].toHuman();
         if (stash in workerState) {
@@ -31,18 +32,21 @@ async function getWorkerSnapshotAt(api, hash) {
 }
 
 async function getRewardSeedAt(api, hash, blocknum) {
-    return await api.query.phalaModule.blockRewardSeeds.at(hash, blocknum);
+    return await api.query.phala.blockRewardSeeds.at(hash, blocknum);
 }
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
     const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
 
+    const keyring = new Keyring({ type: 'sr25519' });
+    const sender = keyring.addFromUri(process.env.PRIVKEY);
+
     const { hash, number } = await api.rpc.chain.getHeader();
     const blocknum = number.toNumber();
 
-    const rewardWindow = (await api.query.phalaModule.rewardWindow()).toNumber();
-    const slashWindow = (await api.query.phalaModule.slashWindow()).toNumber();
+    const rewardWindow = (await api.query.phala.rewardWindow()).toNumber();
+    const slashWindow = (await api.query.phala.slashWindow()).toNumber();
 
     const { onlineWorkers } = await getWorkerSnapshotAt(api, hash);
     onlineWorkers.forEach(([k, v]) => {
@@ -53,7 +57,8 @@ async function main () {
         v.bnPkh = new BN(pkh, undefined, 'be');
     })
 
-    const allToSlash = {};
+    const allToSlash = new Map();
+    const offlineAccounts = {};
     for (let i = blocknum - rewardWindow; i > blocknum - slashWindow; i--) {
         const seed = await getRewardSeedAt(api, hash, i);
         const toSlash = onlineWorkers.filter(([k, v]) => {
@@ -66,13 +71,44 @@ async function main () {
             return x.lte(seed.onlineTarget);
         })
         toSlash.forEach(([k, _]) => {
-            if (!(k in allToSlash)) {
-                allToSlash[k] = true;
+            if (!(k in offlineAccounts)) {
+                offlineAccounts[k] = true;
             }
+
+            if (allToSlash.get(i) === undefined) {
+                allToSlash.set(i, []);
+            }
+            allToSlash.get(i).push(k);
         })
         console.log(i, toSlash.map(([k, _]) => k));
     }
-    console.log('Workers we can slash:', Object.keys(allToSlash).length);
+    console.log('Workers we can slash:', Object.keys(offlineAccounts).length);
+
+    if (kDryRun) {
+        console.log('Exiting because of dryrun');
+        return;
+    }
+
+    await new Promise(async resolve => {
+        let calls = []
+        for (const [blockNum, accounts] of allToSlash) {
+            for (const account of accounts) {
+                calls.push(api.tx.phala.reportOffline(account, blockNum))
+            }
+        }
+        const unsub = await api.tx.utility
+            .batch(calls)
+            .signAndSend(sender, (result) => {
+                console.log(`Current status is ${result.status}`);
+                if (result.status.isInBlock) {
+                    console.log(`Transaction included at blockHash ${result.status.asInBlock}`);
+                } else if (result.status.isFinalized) {
+                    console.log(`Transaction finalized at blockHash ${result.status.asFinalized}`);
+                    unsub();
+                    resolve();
+                }
+            });
+    });
 }
 
 main().catch(console.error).finally(() => process.exit());
