@@ -64,7 +64,7 @@ const main = async () => {
     await transferToPhala();
     console.log('--- Transfer from Acala to Phala ---');
     console.log(`---   From: ${acalaAccount}`);
-    console.log(`---   From: ${phalaAccount}`);
+    console.log(`---     To: ${phalaAccount}`);
     console.log(`--- Amount: ${acalaAccount}`);
 }
 
