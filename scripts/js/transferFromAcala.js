@@ -28,7 +28,7 @@ const main = async () => {
     const receiver = keyring.addFromUri('//'+ phalaAccount);
     let nonce = (await api.query.system.account(sender.address)).nonce.toNumber();
 
-    const transferToPhala = async () => {
+    const transferToPhala = () => {
         return new Promise(async resolve => {
             const unsub = await api.tx.xTokens.transferToParachain(
                 api.createType('XCurrencyId', {
@@ -64,7 +64,7 @@ const main = async () => {
     await transferToPhala();
     console.log('--- Transfer from Acala to Phala ---');
     console.log(`---   From: ${acalaAccount}`);
-    console.log(`---   From: ${phalaAccount}`);
+    console.log(`---     To: ${phalaAccount}`);
     console.log(`--- Amount: ${acalaAccount}`);
 }
 
