@@ -28,7 +28,7 @@ const main = async () => {
     const receiver = keyring.addFromUri('//'+ phalaAccount);
     let nonce = (await api.query.system.account(sender.address)).nonce.toNumber();
 
-    const transferToPhala = async () => {
+    const transferToPhala = () => {
         return new Promise(async resolve => {
             const unsub = await api.tx.xTokens.transferToParachain(
                 api.createType('XCurrencyId', {
