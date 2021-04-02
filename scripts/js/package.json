@@ -5,6 +5,8 @@
   "license": "MIT",
   "scripts": {},
   "dependencies": {
+    "@acala-network/api": "^0.7.2-5",
+    "@acala-network/types": "^0.7.2-5",
     "@phala/typedefs": "0.0.6",
     "@polkadot/api": "^4.2.1",
     "@polkadot/util-crypto": "^6.0.5",
