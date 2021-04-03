@@ -11,6 +11,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "pruntime")]
 pub mod pruntime;
 
+pub mod message;
+
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
     pub dest: AccountId,

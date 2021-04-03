@@ -12,6 +12,7 @@ lazy_static! {
 }
 
 
+
 #[derive(Debug, Clone)]
 pub struct MsgTunnel {
     list: RefCell<Vec<MsgTypeWrapper>>
@@ -62,20 +63,6 @@ impl MsgTunnel {
             panic!("the msg_type hasn't been initialized");
         }
     }
-    pub fn get_sequence(&mut self,msg_type:MsgType)->u64{
-        let list = &self.list;
-        let  seq = 0u64;
-        for i in list.borrow_mut().iter() {
-            let iter_msg_type = i.msg_type;
-            let iter_sq =  i.msg_data.sequence.borrow_mut();
-            if msg_type == iter_msg_type {
-                return iter_sq.clone();
-            }
-        }
-        return seq;
-    }
-   
-    /// Called on received messages and drop them
     pub fn received(&mut self, msg_type: MsgType, seq: u64) {
         let list = &self.list;
         for i in list.borrow_mut().iter() {
@@ -90,6 +77,21 @@ impl MsgTunnel {
             }
         }
     }
+    pub fn get_sequence(&mut self,msg_type:MsgType)->u64{
+        let list = &self.list;
+        let  seq = 0u64;
+        for i in list.borrow_mut().iter() {
+            let iter_msg_type = i.msg_type;
+            let iter_sq =  i.msg_data.sequence.borrow_mut();
+            if msg_type == iter_msg_type {
+                return iter_sq.clone();
+            }
+        }
+        return seq;
+    }
+   
+    /// Called on received messages and drop them
+    
 
     pub fn get_msg_type_wrapper(&mut self, msg_type: MsgType) -> Option<MsgTypeWrapper> {
         let list = &self.list;
