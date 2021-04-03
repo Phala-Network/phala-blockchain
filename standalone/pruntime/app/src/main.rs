@@ -809,7 +809,10 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
 
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
 
     let enclave = match init_enclave() {
         Ok(r) => {

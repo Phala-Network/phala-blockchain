@@ -974,7 +974,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(json!({"message": "Already initialized"}));
     }
 
-    env_logger::init();
+    env_logger::from_env(env_logger::Env::default().default_filter_or("info"))
+        .init();
 
     // load identity
     if let Some(key) = input.debug_set_key {

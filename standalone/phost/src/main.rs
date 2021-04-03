@@ -544,7 +544,10 @@ async fn reset_worker(
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<()> {
-    env_logger::init();
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
 
     // Connect to substrate
     let client = subxt::ClientBuilder::<Runtime>::new()
