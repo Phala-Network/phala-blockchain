@@ -1,5 +1,6 @@
 #![feature(decl_macro)]
 
+extern crate env_logger;
 extern crate sgx_types;
 extern crate sgx_urts;
 extern crate mio;
@@ -807,6 +808,8 @@ fn rocket() -> rocket::Rocket {
 fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
+
+    env_logger::init();
 
     let enclave = match init_enclave() {
         Ok(r) => {
