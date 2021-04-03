@@ -1,4 +1,5 @@
 use anyhow::Result;
+use log::info;
 use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;
@@ -153,7 +154,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
         match cmd {
             Command::Issue {symbol, total} => {
                 let o = AccountIdWrapper(origin.clone());
-                println!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
+                info!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
                 if let None = self.metadata.iter().find(|(_, metadatum)| metadatum.symbol == symbol) {
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
@@ -198,7 +199,7 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                 if let Some(metadatum) = self.metadata.get(&id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
 
-                    println!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
+                    info!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
                     if let Some(src_amount) = accounts.get_mut(&o) {
                         if *src_amount >= value {
                             let src0 = *src_amount;
@@ -212,8 +213,8 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                                 accounts.insert(dest.clone(), value);
                             }
 
-                            println!("   src: {:>20} -> {:>20}", src0, src0 - value);
-                            println!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
+                            info!("   src: {:>20} -> {:>20}", src0, src0 - value);
+                            info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
                             let tx = AssetsTx {
                                 txref: txref.clone(),
@@ -225,12 +226,12 @@ impl contracts::Contract<Command, Request, Response> for Assets {
                             if is_tracked(&o) {
                                 let slot = self.history.entry(o).or_default();
                                 slot.push(tx.clone());
-                                println!(" pushed history (src)");
+                                info!(" pushed history (src)");
                             }
                             if is_tracked(&dest) {
                                 let slot = self.history.entry(dest).or_default();
                                 slot.push(tx.clone());
-                                println!(" pushed history (dest)");
+                                info!(" pushed history (dest)");
                             }
 
                             TransactionStatus::Ok

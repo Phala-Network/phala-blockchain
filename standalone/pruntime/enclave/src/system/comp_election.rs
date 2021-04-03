@@ -1,4 +1,5 @@
 use crate::std::{cmp, vec::Vec};
+use log::info;
 use rand::{rngs::SmallRng, seq::index::IndexVec, SeedableRng};
 
 use crate::OnlineWorkerSnapshot;
@@ -12,7 +13,7 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
         *candidates.compute_workers_kv.value() as usize,
         weights.len(),
     );
-    println!(
+    info!(
         "elect: electing {} winners from {} candidates",
         candidates.compute_workers_kv.value(),
         weights.len()
@@ -31,7 +32,7 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
     let mut hit = false;
     for &i in &indices {
         let worker_info = candidates.worker_state_kv[i as usize].value();
-        println!(
+        info!(
             "- winner[{}]: mid={} score={} weight={}",
             i,
             crate::hex::encode_hex_compact(&worker_info.machine_id),
@@ -40,7 +41,7 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
         );
         if &worker_info.machine_id == mid {
             hit = true;
-            println!("elect: hit!");
+            info!("elect: hit!");
         }
     }
     hit
@@ -81,7 +82,7 @@ fn weight(score: u32, staked: u128) -> u32 {
     let fstaked = Fixed::from_num(stake_1e4) / F_1E4;
     let factor: Fixed = sqrt(fstaked).expect("U128 should never overflow or be negative; qed.");
     let result = score + (factor * 5).to_num::<u32>();
-    println!("weight(score={}, staked={}) = {}", score, staked, result);
+    info!("weight(score={}, staked={}) = {}", score, staked, result);
     result
 }
 

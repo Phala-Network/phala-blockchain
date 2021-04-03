@@ -46,6 +46,7 @@ use crate::std::vec::Vec;
 use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
+use log::{error, info};
 use storage_proof::{StorageProof, StorageProofChecker};
 
 use finality_grandpa::voter_set::VoterSet;
@@ -268,11 +269,11 @@ impl From<JustificationError> for Error {
     fn from(e: JustificationError) -> Self {
         match e {
             JustificationError::BadJustification(msg) => {
-                println!("InvalidFinalityProof(BadJustification({}))", msg);
+                error!("InvalidFinalityProof(BadJustification({}))", msg);
                 Error::InvalidFinalityProof
             }
             JustificationError::JustificationDecode => {
-                println!("InvalidFinalityProof(JustificationDecode)");
+                error!("InvalidFinalityProof(JustificationDecode)");
                 Error::InvalidFinalityProof
             }
         }
@@ -316,16 +317,16 @@ where
     H: Header<Hash = H256>,
 {
     {
-        println!("ancestor_hash: {}", ancestor_hash);
+        info!("ancestor_hash: {}", ancestor_hash);
         for h in proof.iter() {
-            println!(
+            info!(
                 "block {:?} - hash: {} parent: {}",
                 h.number(),
                 h.hash(),
                 h.parent_hash()
             );
         }
-        println!(
+        info!(
             "child block {:?} - hash: {} parent: {}",
             child.number(),
             child.hash(),

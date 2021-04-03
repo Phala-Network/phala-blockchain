@@ -21,11 +21,11 @@ pub fn clone_key(key: &EphemeralPrivateKey) -> EphemeralPrivateKey {
 pub fn create_key(key: &[u8]) -> Result<EphemeralPrivateKey> {
     let len = std::mem::size_of::<EphemeralPrivateKey>();
     if len != 64 {
-        println!("ecdh::create_key unknown EphemeralPrivateKey layout");
+        log::error!("ecdh::create_key unknown EphemeralPrivateKey layout");
         return Err(anyhow::Error::msg(""));
     }
     if key.len() != 32 {
-        println!("ecdh::create_key bad key length 32 vs {}", key.len());
+        log::error!("ecdh::create_key bad key length 32 vs {}", key.len());
         return Err(anyhow::Error::msg(""));
     }
 

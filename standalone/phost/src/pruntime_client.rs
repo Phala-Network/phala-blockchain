@@ -2,6 +2,7 @@ use anyhow::Result;
 use serde::Serialize;
 use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request};
+use log::info;
 use bytes::buf::BufExt as _;
 
 use crate::types::{
@@ -33,7 +34,7 @@ impl PRuntimeClient {
 
         let res = client.request(req).await?;
 
-        println!("Response: {}", res.status());
+        info!("Response: {}", res.status());
 
         let body = hyper::body::aggregate(res.into_body()).await?;
         let signed_resp: SignedResp = serde_json::from_reader(body.reader())?;
@@ -66,12 +67,12 @@ impl PRuntimeClient {
         let query_value = serde_json::to_value(&query)?;
         let payload = Payload::Plain(query_value.to_string());
         let query_payload = serde_json::to_string(&payload)?;
-        println!("Query contract: {}, payload: {}", contract_id, query_payload);
+        info!("Query contract: {}, payload: {}", contract_id, query_payload);
         // Send the query
         let resp = self.req_decode("query", QueryReq { query_payload }).await?;
         // Only accept Payload::Plain response
         let Payload::Plain(plain_json) = resp;
-        println!("Query response: {:}", &plain_json);
+        info!("Query response: {:}", &plain_json);
         let resp_data: QueryRespData = serde_json::from_str(plain_json.as_str())
             .map_err(|_| crate::error::Error::FailedToDecode)?;
         return Ok(resp_data)

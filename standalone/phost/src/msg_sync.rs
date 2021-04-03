@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use std::cmp;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
+use log::{error, info};
 
 use super::{
     update_signer_nonce,
@@ -39,7 +40,7 @@ impl<'a> MsgSync<'a> {
             0, ReqData::GetWorkerEgress { start_sequence: *sequence }).await?;
         let msg_data = match query_resp {
             QueryRespData::GetWorkerEgress { length, encoded_egreee_b64 } => {
-                println!("maybe_sync_worker_egress: got {} messages", length);
+                info!("maybe_sync_worker_egress: got {} messages", length);
                 base64::decode(&encoded_egreee_b64)
                     .map_err(|_| Error::FailedToDecode)?
             }
@@ -57,7 +58,7 @@ impl<'a> MsgSync<'a> {
         for msg in &msg_queue {
             let msg_seq = msg.data.sequence;
             if msg_seq < *sequence {    // This seq is 0-based
-                println!("Worker msg {} has been submitted. Skipping...", msg_seq);
+                info!("Worker msg {} has been submitted. Skipping...", msg_seq);
                 continue;
             }
             // STATUS: claim_tx_sent = match msg.data.payload { WorkerMessagePayload::Heartbeat { block_num, ... } => block_num }
@@ -67,7 +68,7 @@ impl<'a> MsgSync<'a> {
                 msg: msg.encode(),
             }, self.signer).await;
             if let Err(err) = ret {
-                println!("Failed to submit tx: {:?}", err);
+                error!("Failed to submit tx: {:?}", err);
                 // TODO: Should we fail early?
                 // STATUS: worth reporting error!
             }
@@ -99,7 +100,7 @@ impl<'a> MsgSync<'a> {
         for transfer_data in &transfer_queue {
             let msg_seq = transfer_data.data.sequence;
             if msg_seq <= *sequence {   // This seq is 1-based
-                println!("Msg {} has been submitted. Skipping...", msg_seq);
+                info!("Msg {} has been submitted. Skipping...", msg_seq);
                 continue;
             }
             next_seq = cmp::max(next_seq, msg_seq);
@@ -108,7 +109,7 @@ impl<'a> MsgSync<'a> {
                 data: transfer_data.encode()
             }, self.signer).await;
             if let Err(err) = ret {
-                println!("Failed to submit tx: {:?}", err);
+                error!("Failed to submit tx: {:?}", err);
                 // TODO: Should we fail early?
             }
             self.signer.increment_nonce();

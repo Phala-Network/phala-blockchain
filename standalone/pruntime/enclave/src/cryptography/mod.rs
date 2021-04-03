@@ -31,7 +31,7 @@ pub fn decrypt(
     let iv = base64::decode(&cipher.iv_b64).map_err(|_| anyhow::Error::msg(Error::BadInput("iv_b64")))?;
     // ECDH derived secret
     let secret = ecdh::agree(privkey, &pubkey);
-    println!("Agreed SK: {:?}", crate::hex::encode_hex_compact(&secret));
+    log::info!("Agreed SK: {:?}", crate::hex::encode_hex_compact(&secret));
     let msg = aead::decrypt(iv.as_slice(), secret.as_slice(), &mut data);
     Ok(DecryptOutput {
         msg: msg.to_vec(),

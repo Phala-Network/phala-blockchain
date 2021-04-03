@@ -61,6 +61,7 @@ csv-core = { version = "0.1.10", default-features = false }
 # for light_validation
 derive_more = "0.99.0"
 log = { git = "https://github.com/mesalock-linux/log-sgx" }
+env_logger = { git = "https://github.com/mesalock-linux/env_logger-sgx" }
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.14", default-features = false, features = ["derive-codec"] }

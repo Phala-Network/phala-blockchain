@@ -1,6 +1,7 @@
 use crate::std::prelude::v1::*;
 use anyhow::Result;
 use core::fmt;
+use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -82,7 +83,7 @@ impl System {
         self.id_key = Some(pair.clone());
         self.id_pubkey = raw_pubkey.to_vec();
         self.hashed_id = pkh.into();
-        println!("System::set_id: hashed identity key: {:?}", self.hashed_id);
+        info!("System::set_id: hashed identity key: {:?}", self.hashed_id);
     }
 
     pub fn set_machine_id(&mut self, machine_id: Vec<u8>) {
@@ -153,7 +154,7 @@ impl System {
         blocknum: chain::BlockNumber,
         reward_info: &BlockRewardInfo,
     ) -> Result<()> {
-        println!(
+        info!(
             "System::handle_reward_seed({}, {:?})",
             blocknum, reward_info
         );
@@ -163,7 +164,7 @@ impl System {
 
         // Push queue when necessary
         if online_hit || compute_hit {
-            println!(
+            info!(
                 "System::handle_reward_seed: x={}, online={}, compute={}, elected={}",
                 x, reward_info.online_target, reward_info.compute_target, self.comp_elected,
             );
@@ -187,11 +188,11 @@ impl System {
         worker_snapshot: Option<&super::OnlineWorkerSnapshot>,
     ) -> Result<()> {
         if let Some(worker_snapshot) = worker_snapshot {
-            println!("System::handle_new_round: new round");
+            info!("System::handle_new_round: new round");
             self.comp_elected =
                 comp_election::elect(seed.low_u64(), &worker_snapshot, &self.machine_id);
         } else {
-            println!("System::handle_new_round: no snapshot found; skipping this round");
+            info!("System::handle_new_round: no snapshot found; skipping this round");
             self.comp_elected = false;
         }
         Ok(())
@@ -215,20 +216,20 @@ impl<'a> EventHandler<'a> {
             // Reset the egress queue once we detected myself is re-registered
             phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
                 if pubkey == &self.system.id_pubkey {
-                    println!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
+                    info!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
                     self.system.egress = Default::default();
                 }
             }
             phala::RawEvent::WorkerRenewed(_stash, machine_id) => {
                 // Not perfect because we only have machine_id but not pubkey here.
                 if machine_id == &self.system.machine_id {
-                    println!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
+                    info!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
                     self.system.egress = Default::default();
                 }
             }
             // Handle other events
             phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
-                println!("System::handle_event: Message confirmed (seq={})", seq);
+                info!("System::handle_event: Message confirmed (seq={})", seq);
                 // Advance the egress queue messages
                 if pubkey == &self.system.id_pubkey {
                     self.system.egress.received(*seq);
@@ -240,7 +241,7 @@ impl<'a> EventHandler<'a> {
                 self.system.handle_reward_seed(blocknum, &reward_info)?;
             }
             phala::RawEvent::NewMiningRound(round) => {
-                println!("System::handle_event: new mining round ({})", round);
+                info!("System::handle_event: new mining round ({})", round);
                 // Save the snapshot for later use
                 self.snapshot = block_context.worker_snapshot.as_ref();
                 self.new_round = true;
