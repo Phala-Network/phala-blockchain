@@ -1,5 +1,5 @@
 // USAGE:
-//   ACALA_ENDPOINT=wss://pc-test.phala.network/parachains/acala/ws FROME=Alice TO=Alice AMOUNT=666 node transferFromAcala.js
+//   ACALA_ENDPOINT=wss://pc-test.phala.network/parachains/acala/ws FROM=//Alice TO=//Alice AMOUNT=666 node transferFromAcala.js
 require('dotenv').config();
 
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
@@ -17,15 +17,15 @@ const main = async () => {
     const wsProvider = new WsProvider(process.env.ACALA_ENDPOINT);
     const api = await ApiPromise.create(options({ provider: wsProvider, types: types}));
     
-    const acalaAccount = process.env.FROME || 'Alice';
-    const phalaAccount = process.env.TO || 'Alice';
+    const acalaAccount = process.env.FROM || '//Alice';
+    const phalaAccount = process.env.TO || '//Alice';
     const amount = new BN(process.env.AMOUNT);
 
     await cryptoWaitReady();
 
     const keyring = new Keyring({ type: 'sr25519' });
-    const sender = keyring.addFromUri('//'+ acalaAccount);
-    const receiver = keyring.addFromUri('//'+ phalaAccount);
+    const sender = keyring.addFromUri(acalaAccount);
+    const receiver = keyring.addFromUri(phalaAccount);
     let nonce = (await api.query.system.account(sender.address)).nonce.toNumber();
 
     const transferToPhala = () => {
@@ -65,7 +65,7 @@ const main = async () => {
     console.log('--- Transfer from Acala to Phala ---');
     console.log(`---   From: ${acalaAccount}`);
     console.log(`---     To: ${phalaAccount}`);
-    console.log(`--- Amount: ${acalaAccount}`);
+    console.log(`--- Amount: ${amount.toString()}`);
 }
 
 main().catch(console.error).finally(() => process.exit())
