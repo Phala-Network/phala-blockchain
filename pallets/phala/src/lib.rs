@@ -134,6 +134,15 @@ decl_storage! {
 		WorkerComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
 		PayoutComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
 
+		//slash amount of worker
+		WorkerSlash get(fn worker_slash): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		//Fire2 measures the total reward the Stash account can get
+		StashFire get(fn stash_fire): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		//realtime compute reward
+		RewardCompute get(fn reward_compute): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		//realtime online reward
+		RewardOnline get(fn reward_online): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+
 		// Round management
 		/// The current mining round id
 		Round get(fn round): RoundInfo<T::BlockNumber>;
@@ -974,6 +983,8 @@ impl<T: Config> Module<T> {
 		// address in anyway. On mainnet, we should slash the stake instead.
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
+		WorkerSlash::<T>::mutate(stash, |x| *x += lost_amount);
+		StashFire::<T>::mutate(stash, |x| *x -= lost_amount);
 		Self::deposit_event(RawEvent::Slash(
 			stash.clone(),
 			payout.clone(),
@@ -1147,6 +1158,10 @@ impl<T: Config> Module<T> {
 			start_block: new_block,
 		});
 		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
+		WorkerSlash::<T>::remove_all(); 
+		StashFire::<T>::remove_all(); 
+		RewardOnline::<T>::remove_all(); 
+		RewardCompute::<T>::remove_all(); 
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
@@ -1222,6 +1237,8 @@ impl<T: Config> Module<T> {
 						round_stats.online_workers,
 					);
 					Self::payout(online, payout_target, PayoutReason::OnlineReward);
+					StashFire::<T>::mutate(stash, |x| *x += online);
+					RewardOnline::<T>::mutate(stash, |x| *x += online);
 				}
 				// Adjusted compute worker reward
 				if claim_compute {
@@ -1231,6 +1248,8 @@ impl<T: Config> Module<T> {
 						round_stats.compute_workers,
 					);
 					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
+					StashFire::<T>::mutate(stash, |x| *x += compute);
+					RewardCompute::<T>::mutate(stash, |x| *x += compute);			
 					// TODO: remove after PoC-3
 					WorkerComputeReward::<T>::mutate(stash, |x| *x += 1);
 					PayoutComputeReward::<T>::mutate(payout_target, |x| *x += 1);
