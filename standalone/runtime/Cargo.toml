@@ -68,13 +68,13 @@ pallet-membership = { version = "3.0.0", default-features = false, path = "../..
 pallet-mmr = { version = "3.0.0", default-features = false, path = "../../substrate/frame/merkle-mountain-range" }
 pallet-multisig = { version = "3.0.0", default-features = false, path = "../../substrate/frame/multisig" }
 pallet-offences = { version = "3.0.0", default-features = false, path = "../../substrate/frame/offences" }
-pallet-offences-benchmarking = { version = "3.0.0", path = "../../pallets/offences/benchmarking", default-features = false, optional = true }
+pallet-offences-benchmarking = { version = "3.0.0", path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
 pallet-proxy = { version = "3.0.0", default-features = false, path = "../../substrate/frame/proxy" }
 pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
 pallet-recovery = { version = "3.0.0", default-features = false, path = "../../substrate/frame/recovery" }
 pallet-session = { version = "3.0.0", features = ["historical"], path = "../../substrate/frame/session", default-features = false }
-pallet-session-benchmarking = { version = "3.0.0", path = "../../pallets/session/benchmarking", default-features = false, optional = true }
-# pallet-staking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/staking" }
+pallet-session-benchmarking = { version = "3.0.0", path = "../../substrate/frame/session/benchmarking", default-features = false, optional = true }
+pallet-staking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/staking" }
 pallet-staking-reward-curve = { version = "3.0.0", default-features = false, path = "../../substrate/frame/staking/reward-curve" }
 pallet-scheduler = { version = "3.0.0", default-features = false, path = "../../substrate/frame/scheduler" }
 pallet-society = { version = "3.0.0", default-features = false, path = "../../substrate/frame/society" }
@@ -87,7 +87,6 @@ pallet-transaction-payment = { version = "3.0.0", default-features = false, path
 pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { version = "3.0.0", default-features = false, path = "../../substrate/frame/vesting" }
 
-pallet-staking = { default-features = false, path = "../../pallets/staking", package = "phala-staking" }
 pallet-phala = { default-features = false, path = "../../pallets/phala", package = "pallet-phala" }
 pallet-claim = { default-features = false, path = "../../pallets/claim", package = "pallet-claim" }
 pallet-mining-staking = { default-features = false, path = "../../pallets/mining_staking", package = "pallet-mining-staking" }

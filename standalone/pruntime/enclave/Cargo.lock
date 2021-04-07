@@ -2099,6 +2099,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-staking"
+version = "3.0.0"
+dependencies = [
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pallet-authorship",
+ "pallet-session",
+ "parity-scale-codec 2.0.1",
+ "paste",
+ "sp-application-crypto",
+ "sp-io",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+ "static_assertions",
+]
+
+[[package]]
 name = "pallet-staking-reward-curve"
 version = "3.0.0"
 dependencies = [
@@ -2361,6 +2381,7 @@ dependencies = [
  "pallet-scheduler",
  "pallet-session",
  "pallet-society",
+ "pallet-staking",
  "pallet-staking-reward-curve",
  "pallet-sudo",
  "pallet-timestamp",
@@ -2371,7 +2392,6 @@ dependencies = [
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec 2.0.1",
- "phala-staking",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -2388,27 +2408,6 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
-]
-
-[[package]]
-name = "phala-staking"
-version = "3.0.0"
-dependencies = [
- "frame-election-provider-support",
- "frame-support",
- "frame-system",
- "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-authorship",
- "pallet-phala",
- "pallet-session",
- "parity-scale-codec 2.0.1",
- "paste",
- "sp-application-crypto",
- "sp-io",
- "sp-runtime",
- "sp-staking",
- "sp-std",
- "static_assertions",
 ]
 
 [[package]]
