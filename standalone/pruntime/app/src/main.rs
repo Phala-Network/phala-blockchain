@@ -67,6 +67,9 @@ lazy_static! {
     static ref ALLOW_CORS: bool = {
         env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != ""
     };
+    static ref ENABLE_KICK_API: bool = {
+        env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != ""
+    };
 }
 
 fn destroy_enclave() {
@@ -771,6 +774,15 @@ fn test_ink(contract_input: Json<ContractInput>) -> JsonValue {
     }
 }
 
+#[post("/kick")]
+fn kick() {
+    // TODO: we should improve this
+    info!("Kick API received, destroying enclave...");
+    destroy_enclave();
+
+    std::process::exit(0);
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post].into_iter().map(From::from).collect();
@@ -792,6 +804,12 @@ fn rocket() -> rocket::Rocket {
             dump_states, load_states,
             sync_header, dispatch_block, query,
             set, get, get_runtime_info, test_ink]);
+
+    if *ENABLE_KICK_API {
+        info!("ENABLE `kick` API");
+
+        server = server.mount("/", routes![kick]);
+    }
 
     if *ALLOW_CORS {
         info!("Allow CORS");
