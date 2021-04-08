@@ -983,8 +983,10 @@ impl<T: Config> Module<T> {
 		// address in anyway. On mainnet, we should slash the stake instead.
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
-		WorkerSlash::<T>::mutate(stash, |x| *x += lost_amount);
-		StashFire::<T>::mutate(stash, |x| *x -= lost_amount);
+
+		let to_sub = cmp::min(lost_amount, StashFire::<T>::get(stash));
+		WorkerSlash::<T>::mutate(stash, |x| *x += to_sub);
+		StashFire::<T>::mutate(stash, |x| *x -= to_sub);
 		Self::deposit_event(RawEvent::Slash(
 			stash.clone(),
 			payout.clone(),
