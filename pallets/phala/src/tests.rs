@@ -906,8 +906,13 @@ fn test_worker_slash() {
 		assert_ok!(PhalaPallet::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaPallet::force_next_round(RawOrigin::Root.into()));
 		PhalaPallet::on_finalize(1);
-		crate::StashFire::<Test>::insert(1, OfflineOffenseSlash::get());
-		assert_eq!(crate::StashFire::<Test>::get(1), OfflineOffenseSlash::get());
+		crate::RoundWorkerStats::<Test>::insert(1, phala_types::StashWorkerStats {
+				slash: 0u128,
+				stash_received: OfflineOffenseSlash::get(),
+				compute_received: 0u128,
+				online_received: 0u128,
+			});
+		assert_eq!(crate::RoundWorkerStats::<Test>::get(1).stash_received, OfflineOffenseSlash::get());
 		System::finalize();
 		// Add a seed for block 2
 		set_block_reward_base(2, U256::MAX);
@@ -917,8 +922,9 @@ fn test_worker_slash() {
 		assert_ok!(PhalaPallet::report_offline(Origin::signed(2), 1, 2));
 		
 		// 4. check the StashFire WorkerSlash
-		assert_eq!(crate::StashFire::<Test>::get(1), 0);
-		assert_eq!(crate::WorkerSlash::<Test>::get(1), OfflineOffenseSlash::get());
+		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(roundWorkerStats.stash_received, 0);
+		assert_eq!(roundWorkerStats.slash, OfflineOffenseSlash::get());
 	});
 }
 
@@ -969,12 +975,14 @@ fn test_stash_fire() {
 			))]
 		);
 
-		assert_eq!(crate::RewardOnline::<Test>::get(1), 4504_504504504504);
-		assert_eq!(crate::StashFire::<Test>::get(1), 4504_504504504504);
+		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(roundWorkerStats.online_received, 4504_504504504504);
+		assert_eq!(roundWorkerStats.stash_received, 4504_504504504504);
 
 		PhalaPallet::handle_claim_reward(&1, &2, false, true, 100, 1);
-		assert_eq!(crate::RewardCompute::<Test>::get(1), 7507_507507507507);
-		assert_eq!(crate::StashFire::<Test>::get(1), 4504_504504504504 + 7507_507507507507);
+		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(roundWorkerStats.compute_received, 7507_507507507507);
+		assert_eq!(roundWorkerStats.stash_received, 4504_504504504504 + 7507_507507507507);
 	
 	});
 }

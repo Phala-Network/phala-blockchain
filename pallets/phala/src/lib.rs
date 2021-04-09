@@ -31,7 +31,7 @@ pub mod weights;
 extern crate phala_types as types;
 use types::{
 	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
-	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, TransferData, WorkerInfo,
+	RoundStats, StashWorkerStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, TransferData, WorkerInfo,
 	WorkerMessagePayload, WorkerStateEnum,
 };
 
@@ -134,14 +134,7 @@ decl_storage! {
 		WorkerComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
 		PayoutComputeReward: map hasher(twox_64_concat) T::AccountId => u32;
 
-		//slash amount of worker
-		WorkerSlash get(fn worker_slash): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
-		//Fire2 measures the total reward the Stash account can get
-		StashFire get(fn stash_fire): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
-		//realtime compute reward
-		RewardCompute get(fn reward_compute): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
-		//realtime online reward
-		RewardOnline get(fn reward_online): map hasher(twox_64_concat) T::AccountId => BalanceOf<T>;
+		RoundWorkerStats get(fn round_worker_stats): map hasher(twox_64_concat) T::AccountId => StashWorkerStats<BalanceOf<T>>;
 
 		// Round management
 		/// The current mining round id
@@ -984,9 +977,25 @@ impl<T: Config> Module<T> {
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
 
-		let to_sub = cmp::min(lost_amount, StashFire::<T>::get(stash));
-		WorkerSlash::<T>::mutate(stash, |x| *x += to_sub);
-		StashFire::<T>::mutate(stash, |x| *x -= to_sub);
+		let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
+			let prev = RoundWorkerStats::<T>::get(&stash);
+			let to_sub = cmp::min(lost_amount, prev.stash_received);
+			StashWorkerStats {
+				slash: prev.slash + to_sub,
+				stash_received: prev.stash_received - to_sub,
+				compute_received: prev.compute_received,
+				online_received: prev.online_received,
+			}
+		} else {
+			StashWorkerStats {
+				slash: 0u32.into(),
+				stash_received: 0u32.into(),
+				compute_received: 0u32.into(),
+				online_received: 0u32.into(),
+			}
+		};
+		RoundWorkerStats::<T>::insert(&stash, worker_state);
+
 		Self::deposit_event(RawEvent::Slash(
 			stash.clone(),
 			payout.clone(),
@@ -1160,10 +1169,7 @@ impl<T: Config> Module<T> {
 			start_block: new_block,
 		});
 		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
-		WorkerSlash::<T>::remove_all(); 
-		StashFire::<T>::remove_all(); 
-		RewardOnline::<T>::remove_all(); 
-		RewardCompute::<T>::remove_all(); 
+		RoundWorkerStats::<T>::remove_all(); 
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
@@ -1239,8 +1245,24 @@ impl<T: Config> Module<T> {
 						round_stats.online_workers,
 					);
 					let coin_reward = Self::payout(online, payout_target, PayoutReason::OnlineReward);
-					StashFire::<T>::mutate(stash, |x| *x += coin_reward);
-					RewardOnline::<T>::mutate(stash, |x| *x += coin_reward);
+
+					let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
+						let prev = RoundWorkerStats::<T>::get(&stash);
+						StashWorkerStats {
+							slash: prev.slash,
+							stash_received: prev.stash_received + coin_reward,
+							compute_received: prev.compute_received,
+							online_received: prev.online_received + coin_reward,
+						}
+					} else {
+						StashWorkerStats {
+							slash: 0u32.into(),
+							stash_received: coin_reward,
+							compute_received: 0u32.into(),
+							online_received: coin_reward,
+						}
+					};
+					RoundWorkerStats::<T>::insert(&stash, worker_state);
 				}
 				// Adjusted compute worker reward
 				if claim_compute {
@@ -1250,8 +1272,24 @@ impl<T: Config> Module<T> {
 						round_stats.compute_workers,
 					);
 					let coin_reward = Self::payout(compute, payout_target, PayoutReason::ComputeReward);
-					StashFire::<T>::mutate(stash, |x| *x += coin_reward);
-					RewardCompute::<T>::mutate(stash, |x| *x += coin_reward);
+					let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
+						let prev = RoundWorkerStats::<T>::get(&stash);
+						StashWorkerStats {
+							slash: prev.slash,
+							stash_received: prev.stash_received + coin_reward,
+							compute_received: prev.compute_received + coin_reward,
+							online_received: prev.online_received,
+						}
+					} else {
+						StashWorkerStats {
+							slash: 0u32.into(),
+							stash_received: coin_reward,
+							compute_received: coin_reward,
+							online_received: 0u32.into(),
+						}
+					};
+					RoundWorkerStats::<T>::insert(&stash, worker_state);
+
 					// TODO: remove after PoC-3
 					WorkerComputeReward::<T>::mutate(stash, |x| *x += 1);
 					PayoutComputeReward::<T>::mutate(payout_target, |x| *x += 1);

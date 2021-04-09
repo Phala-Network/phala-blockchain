@@ -148,6 +148,14 @@ pub struct RoundInfo<BlockNumber> {
     pub start_block: BlockNumber,
 }
 
+#[derive(Encode, Decode, Debug, Default)]
+pub struct StashWorkerStats<Balance> {
+    pub slash: Balance,
+    pub stash_received: Balance,
+    pub compute_received: Balance,
+    pub online_received: Balance,
+}
+
 #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
 pub struct RoundStats {
     pub round: u32,
