@@ -895,6 +895,90 @@ fn test_slash_verification() {
 	});
 }
 
+#[test]
+fn test_worker_slash() {
+	new_test_ext().execute_with(|| {
+		use frame_support::storage::{StorageMap};
+		System::set_block_number(1);
+		crate::StashFire::<Test>::insert(1, OfflineOffenseSlash::get());
+		assert_eq!(crate::StashFire::<Test>::get(1), OfflineOffenseSlash::get());
+
+		// Block 1: register a worker at stash1 and start mining
+		setup_test_worker(1);
+		assert_ok!(PhalaPallet::start_mining_intention(Origin::signed(1)));
+		assert_ok!(PhalaPallet::force_next_round(RawOrigin::Root.into()));
+		PhalaPallet::on_finalize(1);
+		System::finalize();
+		// Add a seed for block 2
+		set_block_reward_base(2, U256::MAX);
+		// 2. Time travel a few blocks later
+		System::set_block_number(15);
+		// 3. Report offline
+		assert_ok!(PhalaPallet::report_offline(Origin::signed(2), 1, 2));
+		
+		// 4. check the StashFire WorkerSlash
+		assert_eq!(crate::StashFire::<Test>::get(1), 0);
+		assert_eq!(crate::WorkerSlash::<Test>::get(1), OfflineOffenseSlash::get());
+	});
+}
+
+#[test]
+fn test_stash_fire() {
+	new_test_ext().execute_with(|| {
+		use frame_support::storage::{StorageMap, StorageValue};
+		// Set states
+		crate::WorkerState::<Test>::insert(
+			1,
+			phala_types::WorkerInfo::<BlockNumber> {
+				machine_id: Vec::new(),
+				pubkey: Vec::new(),
+				last_updated: 1,
+				state: phala_types::WorkerStateEnum::Mining(1),
+				score: None,
+				confidence_level: 1,
+				runtime_version: 0,
+			},
+		);
+		crate::Round::<Test>::put(phala_types::RoundInfo::<BlockNumber> {
+			round: 1,
+			start_block: 1,
+		});
+		crate::RoundStatsHistory::insert(
+			1,
+			phala_types::RoundStats {
+				round: 1,
+				online_workers: 1,
+				compute_workers: 1,
+				frac_target_online_reward: 333,
+				frac_target_compute_reward: 333,
+				total_power: 100,
+			},
+		);
+
+		// Check some reward (right within the window)
+		let window = PhalaPallet::reward_window();
+		System::set_block_number(1 + window);
+		PhalaPallet::handle_claim_reward(&1, &2, true, false, 100, 1);
+		assert_eq!(
+			events().as_slice(),
+			[Event::phala(RawEvent::PayoutReward(
+				2,
+				4504_504504504504,
+				1126_126126126127,
+				PayoutReason::OnlineReward
+			))]
+		);
+
+		assert_eq!(crate::RewardOnline::<Test>::get(1), 4504_504504504504);
+		assert_eq!(crate::StashFire::<Test>::get(1), 4504_504504504504);
+
+		PhalaPallet::handle_claim_reward(&1, &2, false, true, 100, 1);
+		assert_eq!(crate::RewardCompute::<Test>::get(1), 7507_507507507507);
+		assert_eq!(crate::StashFire::<Test>::get(1), 4504_504504504504 + 7507_507507507507);
+	
+	});
+}
+
 fn setup_test_worker(stash: u64) {
 	let machine_id = vec![stash as u8];
 	let mut pubkey = [0; 33].to_vec();
