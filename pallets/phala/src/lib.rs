@@ -1239,8 +1239,10 @@ impl<T: Config> Module<T> {
 						round_stats.online_workers,
 					);
 					Self::payout(online, payout_target, PayoutReason::OnlineReward);
-					StashFire::<T>::mutate(stash, |x| *x += online);
-					RewardOnline::<T>::mutate(stash, |x| *x += online);
+					let coins = T::TEECurrency::issue(online);
+					let (coin_reward, _) = coins.ration(T::RewardRation::get(), T::TreasuryRation::get());
+					StashFire::<T>::mutate(stash, |x| *x += coin_reward.peek());
+					RewardOnline::<T>::mutate(stash, |x| *x += coin_reward.peek());
 				}
 				// Adjusted compute worker reward
 				if claim_compute {
@@ -1250,8 +1252,10 @@ impl<T: Config> Module<T> {
 						round_stats.compute_workers,
 					);
 					Self::payout(compute, payout_target, PayoutReason::ComputeReward);
-					StashFire::<T>::mutate(stash, |x| *x += compute);
-					RewardCompute::<T>::mutate(stash, |x| *x += compute);			
+					let coins = T::TEECurrency::issue(compute);
+					let (coin_reward, _) = coins.ration(T::RewardRation::get(), T::TreasuryRation::get());
+					StashFire::<T>::mutate(stash, |x| *x += coin_reward.peek());
+					RewardCompute::<T>::mutate(stash, |x| *x += coin_reward.peek());
 					// TODO: remove after PoC-3
 					WorkerComputeReward::<T>::mutate(stash, |x| *x += 1);
 					PayoutComputeReward::<T>::mutate(payout_target, |x| *x += 1);
