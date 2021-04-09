@@ -900,14 +900,14 @@ fn test_worker_slash() {
 	new_test_ext().execute_with(|| {
 		use frame_support::storage::{StorageMap};
 		System::set_block_number(1);
-		crate::StashFire::<Test>::insert(1, OfflineOffenseSlash::get());
-		assert_eq!(crate::StashFire::<Test>::get(1), OfflineOffenseSlash::get());
 
 		// Block 1: register a worker at stash1 and start mining
 		setup_test_worker(1);
 		assert_ok!(PhalaPallet::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaPallet::force_next_round(RawOrigin::Root.into()));
 		PhalaPallet::on_finalize(1);
+		crate::StashFire::<Test>::insert(1, OfflineOffenseSlash::get());
+		assert_eq!(crate::StashFire::<Test>::get(1), OfflineOffenseSlash::get());
 		System::finalize();
 		// Add a seed for block 2
 		set_block_reward_base(2, U256::MAX);
