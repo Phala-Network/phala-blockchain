@@ -906,24 +906,19 @@ fn test_worker_slash() {
 		assert_ok!(PhalaPallet::start_mining_intention(Origin::signed(1)));
 		assert_ok!(PhalaPallet::force_next_round(RawOrigin::Root.into()));
 		PhalaPallet::on_finalize(1);
-		crate::RoundWorkerStats::<Test>::insert(1, phala_types::StashWorkerStats {
-				slash: 0u128,
-				stash_received: OfflineOffenseSlash::get(),
-				compute_received: 0u128,
-				online_received: 0u128,
-			});
-		assert_eq!(crate::RoundWorkerStats::<Test>::get(1).stash_received, OfflineOffenseSlash::get());
 		System::finalize();
+
+		PhalaPallet::add_fire(&1, OfflineOffenseSlash::get());
+		assert_eq!(crate::Fire2::<Test>::get(1), OfflineOffenseSlash::get());
+
 		// Add a seed for block 2
 		set_block_reward_base(2, U256::MAX);
 		// 2. Time travel a few blocks later
 		System::set_block_number(15);
 		// 3. Report offline
 		assert_ok!(PhalaPallet::report_offline(Origin::signed(2), 1, 2));
-		
 		// 4. check the StashFire WorkerSlash
 		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(round_worker_stats.stash_received, 0);
 		assert_eq!(round_worker_stats.slash, OfflineOffenseSlash::get());
 	});
 }
@@ -977,13 +972,10 @@ fn test_stash_fire() {
 
 		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
 		assert_eq!(round_worker_stats.online_received, 4504_504504504504);
-		assert_eq!(round_worker_stats.stash_received, 4504_504504504504);
 
 		PhalaPallet::handle_claim_reward(&1, &2, false, true, 100, 1);
 		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(round_worker_stats.compute_received, 7507_507507507507);
-		assert_eq!(round_worker_stats.stash_received, 4504_504504504504 + 7507_507507507507);
-	
+		assert_eq!(round_worker_stats.compute_received, 7507_507507507507);	
 	});
 }
 

@@ -151,7 +151,6 @@ pub struct RoundInfo<BlockNumber> {
 #[derive(Encode, Decode, Debug, Default)]
 pub struct StashWorkerStats<Balance> {
     pub slash: Balance,
-    pub stash_received: Balance,
     pub compute_received: Balance,
     pub online_received: Balance,
 }

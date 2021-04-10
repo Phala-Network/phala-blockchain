@@ -974,14 +974,12 @@ impl<T: Config> Module<T> {
 		// TODO: what if the worker suddently change its payout address?
 		// Not necessary a problem on PoC-3 testnet, because it's unwise to switch the payout
 		// address in anyway. On mainnet, we should slash the stake instead.
-		Self::try_sub_fire(&payout, lost_amount);
+		let to_sub = Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
 
 		let prev = RoundWorkerStats::<T>::get(&stash);
-		let to_sub = cmp::min(lost_amount, prev.stash_received);
 		let worker_state = StashWorkerStats {
 			slash: prev.slash + to_sub,
-			stash_received: prev.stash_received - to_sub,
 			compute_received: prev.compute_received,
 			online_received: prev.online_received,
 		};
@@ -1239,7 +1237,6 @@ impl<T: Config> Module<T> {
 					let prev = RoundWorkerStats::<T>::get(&stash);
 					let worker_state = StashWorkerStats {
 						slash: prev.slash,
-						stash_received: prev.stash_received + coin_reward,
 						compute_received: prev.compute_received,
 						online_received: prev.online_received + coin_reward,
 					};			
@@ -1256,7 +1253,6 @@ impl<T: Config> Module<T> {
 					let prev = RoundWorkerStats::<T>::get(&stash);
 					let worker_state = StashWorkerStats {
 						slash: prev.slash,
-						stash_received: prev.stash_received + coin_reward,
 						compute_received: prev.compute_received + coin_reward,
 						online_received: prev.online_received,
 					};
@@ -1391,10 +1387,11 @@ impl<T: Config> Module<T> {
 		AccumulatedFire2::<T>::mutate(|x| *x += amount);
 	}
 
-	fn try_sub_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
+	fn try_sub_fire(dest: &T::AccountId, amount: BalanceOf<T>) -> BalanceOf<T> {
 		let to_sub = cmp::min(amount, Fire2::<T>::get(dest));
 		Fire2::<T>::mutate(dest, |x| *x -= to_sub);
 		AccumulatedFire2::<T>::mutate(|x| *x -= to_sub);
+		to_sub
 	}
 }
 
