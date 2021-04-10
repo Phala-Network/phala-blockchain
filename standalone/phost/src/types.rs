@@ -75,6 +75,12 @@ pub struct GetInfoResp {
     pub public_key: String,
     pub ecdh_public_key: String,
     pub machine_id: Vec<u8>,
+    pub system_egress: EgressInfo,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EgressInfo {
+    sequence: u64,
+    len: u64,
 }
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
