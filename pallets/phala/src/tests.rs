@@ -922,9 +922,9 @@ fn test_worker_slash() {
 		assert_ok!(PhalaPallet::report_offline(Origin::signed(2), 1, 2));
 		
 		// 4. check the StashFire WorkerSlash
-		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(roundWorkerStats.stash_received, 0);
-		assert_eq!(roundWorkerStats.slash, OfflineOffenseSlash::get());
+		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(round_worker_stats.stash_received, 0);
+		assert_eq!(round_worker_stats.slash, OfflineOffenseSlash::get());
 	});
 }
 
@@ -975,14 +975,14 @@ fn test_stash_fire() {
 			))]
 		);
 
-		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(roundWorkerStats.online_received, 4504_504504504504);
-		assert_eq!(roundWorkerStats.stash_received, 4504_504504504504);
+		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(round_worker_stats.online_received, 4504_504504504504);
+		assert_eq!(round_worker_stats.stash_received, 4504_504504504504);
 
 		PhalaPallet::handle_claim_reward(&1, &2, false, true, 100, 1);
-		let roundWorkerStats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(roundWorkerStats.compute_received, 7507_507507507507);
-		assert_eq!(roundWorkerStats.stash_received, 4504_504504504504 + 7507_507507507507);
+		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
+		assert_eq!(round_worker_stats.compute_received, 7507_507507507507);
+		assert_eq!(round_worker_stats.stash_received, 4504_504504504504 + 7507_507507507507);
 	
 	});
 }

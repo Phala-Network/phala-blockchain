@@ -977,22 +977,13 @@ impl<T: Config> Module<T> {
 		Self::try_sub_fire(&payout, lost_amount);
 		Self::add_fire(reporter, win_amount);
 
-		let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
-			let prev = RoundWorkerStats::<T>::get(&stash);
-			let to_sub = cmp::min(lost_amount, prev.stash_received);
-			StashWorkerStats {
-				slash: prev.slash + to_sub,
-				stash_received: prev.stash_received - to_sub,
-				compute_received: prev.compute_received,
-				online_received: prev.online_received,
-			}
-		} else {
-			StashWorkerStats {
-				slash: 0u32.into(),
-				stash_received: 0u32.into(),
-				compute_received: 0u32.into(),
-				online_received: 0u32.into(),
-			}
+		let prev = RoundWorkerStats::<T>::get(&stash);
+		let to_sub = cmp::min(lost_amount, prev.stash_received);
+		let worker_state = StashWorkerStats {
+			slash: prev.slash + to_sub,
+			stash_received: prev.stash_received - to_sub,
+			compute_received: prev.compute_received,
+			online_received: prev.online_received,
 		};
 		RoundWorkerStats::<T>::insert(&stash, worker_state);
 
@@ -1245,23 +1236,13 @@ impl<T: Config> Module<T> {
 						round_stats.online_workers,
 					);
 					let coin_reward = Self::payout(online, payout_target, PayoutReason::OnlineReward);
-
-					let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
-						let prev = RoundWorkerStats::<T>::get(&stash);
-						StashWorkerStats {
-							slash: prev.slash,
-							stash_received: prev.stash_received + coin_reward,
-							compute_received: prev.compute_received,
-							online_received: prev.online_received + coin_reward,
-						}
-					} else {
-						StashWorkerStats {
-							slash: 0u32.into(),
-							stash_received: coin_reward,
-							compute_received: 0u32.into(),
-							online_received: coin_reward,
-						}
-					};
+					let prev = RoundWorkerStats::<T>::get(&stash);
+					let worker_state = StashWorkerStats {
+						slash: prev.slash,
+						stash_received: prev.stash_received + coin_reward,
+						compute_received: prev.compute_received,
+						online_received: prev.online_received + coin_reward,
+					};			
 					RoundWorkerStats::<T>::insert(&stash, worker_state);
 				}
 				// Adjusted compute worker reward
@@ -1272,21 +1253,12 @@ impl<T: Config> Module<T> {
 						round_stats.compute_workers,
 					);
 					let coin_reward = Self::payout(compute, payout_target, PayoutReason::ComputeReward);
-					let worker_state = if RoundWorkerStats::<T>::contains_key(&stash) {
-						let prev = RoundWorkerStats::<T>::get(&stash);
-						StashWorkerStats {
-							slash: prev.slash,
-							stash_received: prev.stash_received + coin_reward,
-							compute_received: prev.compute_received + coin_reward,
-							online_received: prev.online_received,
-						}
-					} else {
-						StashWorkerStats {
-							slash: 0u32.into(),
-							stash_received: coin_reward,
-							compute_received: coin_reward,
-							online_received: 0u32.into(),
-						}
+					let prev = RoundWorkerStats::<T>::get(&stash);
+					let worker_state = StashWorkerStats {
+						slash: prev.slash,
+						stash_received: prev.stash_received + coin_reward,
+						compute_received: prev.compute_received + coin_reward,
+						online_received: prev.online_received,
 					};
 					RoundWorkerStats::<T>::insert(&stash, worker_state);
 
