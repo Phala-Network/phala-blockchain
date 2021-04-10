@@ -128,7 +128,7 @@ impl System {
                         .collect();
                     Ok(Response::GetWorkerEgress {
                         length: pending_msgs.len(),
-                        encoded_egreee_b64: base64::encode(&pending_msgs.encode()),
+                        encoded_egress_b64: base64::encode(&pending_msgs.encode()),
                     })
                 } // If we add more unhandled queries:
                   //   _ => Err(Error::Other("Unknown command".to_string()))
@@ -292,7 +292,7 @@ pub enum Response {
     },
     GetWorkerEgress {
         length: usize,
-        encoded_egreee_b64: String,
+        encoded_egress_b64: String,
     },
     Error(#[serde(with = "serde_anyhow")] anyhow::Error),
 }

@@ -39,9 +39,9 @@ impl<'a> MsgSync<'a> {
         let query_resp = self.pr.query(
             0, ReqData::GetWorkerEgress { start_sequence: *sequence }).await?;
         let msg_data = match query_resp {
-            QueryRespData::GetWorkerEgress { length, encoded_egreee_b64 } => {
+            QueryRespData::GetWorkerEgress { length, encoded_egress_b64 } => {
                 info!("maybe_sync_worker_egress: got {} messages", length);
-                base64::decode(&encoded_egreee_b64)
+                base64::decode(&encoded_egress_b64)
                     .map_err(|_| Error::FailedToDecode)?
             }
             _ => return Err(anyhow!(Error::FailedToDecode))

@@ -105,7 +105,7 @@ pub enum QueryRespData {
     },
     GetWorkerEgress {
         length: usize,
-        encoded_egreee_b64: String,
+        encoded_egress_b64: String,
     }
 }
 
