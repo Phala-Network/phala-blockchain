@@ -5,13 +5,15 @@ use sp_std::cmp;
 use sp_std::prelude::*;
 
 use alloc::vec::Vec;
-use frame_support::traits::{
-	Currency, ExistenceRequirement::AllowDeath, ExistenceRequirement::KeepAlive,
+use frame_support::{
+	traits::{
+		Currency, ExistenceRequirement::AllowDeath, ExistenceRequirement::KeepAlive,
+	},
+	PalletId
 };
 pub use pallet::*;
 use sp_runtime::{
 	traits::{AccountIdConversion, Zero},
-	ModuleId,
 };
 
 #[cfg(test)]
@@ -23,7 +25,7 @@ mod tests;
 pub type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-const PALLET_ID: ModuleId = ModuleId(*b"PHAPoWS.");
+const PALLET_ID: PalletId = PalletId(*b"PHAPoWS.");
 
 #[frame_support::pallet]
 pub mod pallet {
