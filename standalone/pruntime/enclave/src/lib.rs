@@ -1520,6 +1520,10 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let blocknum = local_state.blocknum;
     let machine_id = local_state.machine_id;
 
+    let system_state = SYSTEM_STATE.lock().unwrap();
+    let sys_seq_start = system_state.egress.sequence;
+    let sys_len = system_state.egress.queue.len();
+
     Ok(json!({
         "initialized": initialized,
         "public_key": s_pk,
@@ -1528,6 +1532,10 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "blocknum": blocknum,
         "machine_id": machine_id,
         "dev_mode": local_state.dev_mode,
+        "system_egress": {
+            "sequence": sys_seq_start,
+            "len": sys_len,
+        }
     }))
 }
 
