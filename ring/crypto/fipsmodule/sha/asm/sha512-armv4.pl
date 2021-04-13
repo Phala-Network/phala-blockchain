@@ -67,9 +67,11 @@ if ($flavour && $flavour ne "void") {
     ( $xlate="${dir}../../../perlasm/arm-xlate.pl" and -f $xlate) or
     die "can't locate arm-xlate.pl";
 
-    open STDOUT,"| \"$^X\" $xlate $flavour $output";
+    open OUT,"| \"$^X\" $xlate $flavour $output";
+    *STDOUT=*OUT;
 } else {
-    open STDOUT,">$output";
+    open OUT,">$output";
+    *STDOUT=*OUT;
 }
 
 $ctx="r0";	# parameter block
@@ -276,6 +278,8 @@ WORD64(0x4cc5d4be,0xcb3e42b6, 0x597f299c,0xfc657e2a)
 WORD64(0x5fcb6fab,0x3ad6faec, 0x6c44198c,0x4a475817)
 .size	K512,.-K512
 #if __ARM_MAX_ARCH__>=7 && !defined(__KERNEL__)
+.extern GFp_armcap_P
+.hidden GFp_armcap_P
 .LOPENSSL_armcap:
 .word	GFp_armcap_P-.Lsha512_block_data_order
 .skip	32-4
@@ -649,11 +653,6 @@ ___
 }
 $code.=<<___;
 .asciz	"SHA512 block transform for ARMv4/NEON, CRYPTOGAMS by <appro\@openssl.org>"
-.align	2
-#if __ARM_MAX_ARCH__>=7 && !defined(__KERNEL__)
-.comm	GFp_armcap_P,4,4
-.hidden	GFp_armcap_P
-#endif
 ___
 
 $code =~ s/\`([^\`]*)\`/eval $1/gem;

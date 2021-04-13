@@ -18,13 +18,13 @@ use core::fmt;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Error {
     /// The encoding of some ASN.1 DER-encoded item is invalid.
-    BadDER,
+    BadDer,
 
     /// The encoding of an ASN.1 DER-encoded time is invalid.
-    BadDERTime,
+    BadDerTime,
 
-    /// A CA certificate is veing used as an end-entity certificate.
-    CAUsedAsEndEntity,
+    /// A CA certificate is being used as an end-entity certificate.
+    CaUsedAsEndEntity,
 
     /// The certificate is expired; i.e. the time it is being validated for is
     /// later than the certificate's notAfter time.
@@ -38,7 +38,7 @@ pub enum Error {
     CertNotValidYet,
 
     /// An end-entity certificate is being used as a CA certificate.
-    EndEntityUsedAsCA,
+    EndEntityUsedAsCa,
 
     /// An X.509 extension is invalid.
     ExtensionValueInvalid,
@@ -62,13 +62,23 @@ pub enum Error {
 
     /// The certificate is not valid for the Extended Key Usage for which it is
     /// being validated.
-    RequiredEKUNotFound,
+    RequiredEkuNotFound,
 
     /// A valid issuer for the certificate could not be found.
     UnknownIssuer,
 
     /// The certificate is not a v3 X.509 certificate.
+    ///
+    /// This error may be also reported if the certificate version field
+    /// is malformed.
     UnsupportedCertVersion,
+
+    /// The certificate extensions are missing or malformed.
+    ///
+    /// In particular, webpki requires the DNS name(s) be in the subjectAltName
+    /// extension as required by the CA/Browser Forum Baseline Requirements
+    /// and as recommended by RFC6125.
+    MissingOrMalformedExtensions,
 
     /// The certificate contains an unsupported critical extension.
     UnsupportedCriticalExtension,
@@ -88,8 +98,11 @@ pub enum Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result { write!(f, "{:?}", self) }
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
+/// Requires the `std` feature.
 #[cfg(feature = "std")]
 impl ::std::error::Error for Error {}

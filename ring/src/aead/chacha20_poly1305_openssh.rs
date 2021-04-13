@@ -32,10 +32,11 @@
 use super::{
     chacha::{self, *},
     chacha20_poly1305::derive_poly1305_key,
-    poly1305, Nonce, Tag,
+    cpu, poly1305,
+    polyfill::ChunksFixed,
+    Nonce, Tag,
 };
 use crate::{constant_time, endian::*, error};
-use core::convert::TryInto;
 
 /// A key for sealing packets.
 pub struct SealingKey {
@@ -44,9 +45,9 @@ pub struct SealingKey {
 
 impl SealingKey {
     /// Constructs a new `SealingKey`.
-    pub fn new(key_material: &[u8; KEY_LEN]) -> SealingKey {
-        SealingKey {
-            key: Key::new(key_material),
+    pub fn new(key_material: &[u8; KEY_LEN]) -> Self {
+        Self {
+            key: Key::new(key_material, cpu::features()),
         }
     }
 
@@ -90,9 +91,9 @@ pub struct OpeningKey {
 
 impl OpeningKey {
     /// Constructs a new `OpeningKey`.
-    pub fn new(key_material: &[u8; KEY_LEN]) -> OpeningKey {
-        OpeningKey {
-            key: Key::new(key_material),
+    pub fn new(key_material: &[u8; KEY_LEN]) -> Self {
+        Self {
+            key: Key::new(key_material, cpu::features()),
         }
     }
 
@@ -149,12 +150,12 @@ struct Key {
 }
 
 impl Key {
-    pub fn new(key_material: &[u8; KEY_LEN]) -> Key {
+    fn new(key_material: &[u8; KEY_LEN], cpu_features: cpu::Features) -> Self {
         // The first half becomes K_2 and the second half becomes K_1.
-        let (k_2, k_1) = key_material.split_at(chacha::KEY_LEN);
-        Key {
-            k_1: chacha::Key::from(k_1.try_into().unwrap()),
-            k_2: chacha::Key::from(k_2.try_into().unwrap()),
+        let &[k_2, k_1]: &[[u8; chacha::KEY_LEN]; 2] = key_material.chunks_fixed();
+        Self {
+            k_1: chacha::Key::new(k_1, cpu_features),
+            k_2: chacha::Key::new(k_2, cpu_features),
         }
     }
 }
@@ -165,7 +166,7 @@ fn make_counter(sequence_number: u32) -> Counter {
         BigEndian::ZERO,
         BigEndian::from(sequence_number),
     ];
-    Counter::zero(Nonce::try_assume_unique_for_key(as_bytes(&nonce)).unwrap())
+    Counter::zero(Nonce::assume_unique_for_key(*(nonce.as_byte_array())))
 }
 
 /// The length of key.
@@ -175,7 +176,7 @@ pub const KEY_LEN: usize = chacha::KEY_LEN * 2;
 pub const PACKET_LENGTH_LEN: usize = 4; // 32 bits
 
 /// The length in bytes of an authentication tag.
-pub const TAG_LEN: usize = super::BLOCK_LEN;
+pub const TAG_LEN: usize = super::TAG_LEN;
 
 fn verify(key: poly1305::Key, msg: &[u8], tag: &[u8; TAG_LEN]) -> Result<(), error::Unspecified> {
     let Tag(calculated_tag) = poly1305::sign(key, msg);

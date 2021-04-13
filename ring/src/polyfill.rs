@@ -15,15 +15,11 @@
 //! Polyfills for functionality that will (hopefully) be added to Rust's
 //! standard library soon.
 
-#[macro_use]
-pub mod convert;
-
 #[inline(always)]
 pub const fn u64_from_usize(x: usize) -> u64 {
     x as u64
 }
 
-#[inline(always)]
 pub fn usize_from_u32(x: u32) -> usize {
     x as usize
 }
@@ -32,9 +28,19 @@ pub mod slice {
     // https://github.com/rust-lang/rust/issues/27750
     // https://internals.rust-lang.org/t/stabilizing-basic-functions-on-arrays-and-slices/2868
     #[inline(always)]
-    pub fn fill(dest: &mut [u8], value: u8) {
+    pub fn fill<T>(dest: &mut [T], value: T)
+    where
+        T: Copy,
+    {
         for d in dest {
             *d = value;
         }
     }
 }
+
+#[macro_use]
+mod chunks_fixed;
+
+pub(crate) mod array_map;
+
+pub use chunks_fixed::*;
