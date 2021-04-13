@@ -45,11 +45,6 @@ ifeq ($(XARGO_SGX), 1)
 	RUST_TARGET_PATH=$(Rust_Target_Path) SKIP_WASM_BUILD=1 xargo build --target x86_64-unknown-linux-sgx --release
 	cp ./target/x86_64-unknown-linux-sgx/release/libenclaveapp.a ../lib/libenclave.a
 else
-# VERY IMPORTANT: -Z features=host_dep
-#
-# Now we are nightly-only because without host_dep, the std features in proc_macro
-# pollutes the no_std world and we have to walk around by forking the repos and remove the std
-# parts.
-	SKIP_WASM_BUILD=1 cargo build -Z features=host_dep --release
+	SKIP_WASM_BUILD=1 cargo build --release
 	cp ./target/release/libenclaveapp.a ../lib/libenclave.a
 endif

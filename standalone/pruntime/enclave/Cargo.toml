@@ -1,5 +1,3 @@
-cargo-features = ["resolver"]
-
 [package]
 name = "EnclaveApp"
 version = "0.0.1"
