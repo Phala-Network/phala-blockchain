@@ -4853,7 +4853,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "untrusted",
- "webpki 0.21.0",
+ "webpki 0.22.0",
 ]
 
 [[package]]
@@ -6369,13 +6369,13 @@ checksum = "53552c6c49e1e13f1a203ef0080ab3bbef0beb570a528993e83df057a9d9bba1"
 
 [[package]]
 name = "ring"
-version = "0.16.9"
+version = "0.16.20-1"
 dependencies = [
  "cc",
  "libc",
+ "once_cell",
  "spin",
  "untrusted",
- "which 3.1.1",
  "winapi 0.3.9",
 ]
 
@@ -10159,20 +10159,20 @@ dependencies = [
 
 [[package]]
 name = "webpki"
-version = "0.21.0"
-dependencies = [
- "ring 0.16.20",
- "ring 0.16.9",
- "untrusted",
-]
-
-[[package]]
-name = "webpki"
 version = "0.21.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b8e38c0608262c46d4a56202ebabdeb094cef7e560ca7a226c6bf055188aa4ea"
 dependencies = [
  "ring 0.16.20",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki"
+version = "0.22.0"
+dependencies = [
+ "ring 0.16.20",
+ "ring 0.16.20-1",
  "untrusted",
 ]
 
@@ -10200,7 +10200,6 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d011071ae14a2f6671d0b74080ae0cd8ebf3a6f8c9589a2cd45f23126fe29724"
 dependencies = [
- "failure",
  "libc",
 ]
 

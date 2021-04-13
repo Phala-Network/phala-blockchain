@@ -19,7 +19,6 @@
 //! limbs use the native endianness.
 
 use crate::{c, error};
-use untrusted;
 
 #[cfg(feature = "alloc")]
 use crate::bits;
@@ -332,6 +331,23 @@ pub fn fold_5_bit_windows<R, I: FnOnce(Window) -> R, F: Fn(R, Window) -> R>(
         })
 }
 
+#[inline]
+pub(crate) fn limbs_add_assign_mod(a: &mut [Limb], b: &[Limb], m: &[Limb]) {
+    debug_assert_eq!(a.len(), m.len());
+    debug_assert_eq!(b.len(), m.len());
+    extern "C" {
+        // `r` and `a` may alias.
+        fn LIMBS_add_mod(
+            r: *mut Limb,
+            a: *const Limb,
+            b: *const Limb,
+            m: *const Limb,
+            num_limbs: c::size_t,
+        );
+    }
+    unsafe { LIMBS_add_mod(a.as_mut_ptr(), a.as_ptr(), b.as_ptr(), m.as_ptr(), m.len()) }
+}
+
 extern "C" {
     #[cfg(feature = "alloc")]
     fn LIMB_shr(a: Limb, shift: c::size_t) -> Limb;
@@ -350,7 +366,6 @@ extern "C" {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use untrusted;
 
     const MAX: Limb = LimbMask::True as Limb;
 
@@ -541,10 +556,10 @@ mod tests {
 
         #[cfg(target_pointer_width = "64")]
         let limbs = [
-            0x89900aab_bccddeef,
-            0x01122334_45566778,
-            0x99aabbcc_ddeeff00,
-            0x11223344_55667788,
+            0x8990_0aab_bccd_deef,
+            0x0112_2334_4556_6778,
+            0x99aa_bbcc_ddee_ff00,
+            0x1122_3344_5566_7788,
         ];
 
         let expected = [
@@ -570,9 +585,9 @@ mod tests {
         // One fewer limb.
         #[cfg(target_pointer_width = "64")]
         let limbs = [
-            0x89900aab_bccddeef,
-            0x01122334_45566778,
-            0x99aabbcc_ddeeff00,
+            0x8990_0aab_bccd_deef,
+            0x0112_2334_4556_6778,
+            0x99aa_bbcc_ddee_ff00,
         ];
 
         let mut out = [0xabu8; 32];

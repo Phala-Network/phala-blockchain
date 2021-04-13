@@ -12,27 +12,16 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-#![forbid(
-    anonymous_parameters,
-    box_pointers,
-    missing_copy_implementations,
-    missing_debug_implementations,
-    missing_docs,
-    trivial_casts,
-    trivial_numeric_casts,
-    unsafe_code,
-    unstable_features,
-    unused_extern_crates,
-    unused_import_braces,
-    unused_qualifications,
-    unused_results,
-    variant_size_differences,
-    warnings
-)]
+use ring::{digest, hmac, test, test_file};
 
-use ring::{digest, error, hmac, test, test_file};
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+
+#[cfg(target_arch = "wasm32")]
+wasm_bindgen_test_configure!(run_in_browser);
 
 #[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn hmac_tests() {
     test::run(test_file!("hmac_tests.txt"), |section, test_case| {
         assert_eq!(section, "");
@@ -61,7 +50,7 @@ fn hmac_tests() {
             }
         };
 
-        hmac_test_case_inner(algorithm, &key_value[..], &input[..], &output[..], true)?;
+        hmac_test_case_inner(algorithm, &key_value[..], &input[..], &output[..], true);
 
         // Tamper with the input and check that verification fails.
         if input.is_empty() {
@@ -70,7 +59,9 @@ fn hmac_tests() {
             input[0] ^= 1;
         }
 
-        hmac_test_case_inner(algorithm, &key_value[..], &input[..], &output[..], false)
+        hmac_test_case_inner(algorithm, &key_value[..], &input[..], &output[..], false);
+
+        Ok(())
     });
 }
 
@@ -80,13 +71,15 @@ fn hmac_test_case_inner(
     input: &[u8],
     output: &[u8],
     is_ok: bool,
-) -> Result<(), error::Unspecified> {
+) {
     let key = hmac::Key::new(algorithm, key_value);
 
     // One-shot API.
     {
         let signature = hmac::sign(&key, input);
         assert_eq!(is_ok, signature.as_ref() == output);
+
+        #[cfg(any(not(target_arch = "wasm32"), feature = "wasm32_c"))]
         assert_eq!(is_ok, hmac::verify(&key, input, output).is_ok());
     }
 
@@ -107,11 +100,10 @@ fn hmac_test_case_inner(
         let signature = ctx.sign();
         assert_eq!(is_ok, signature.as_ref() == output);
     }
-
-    Ok(())
 }
 
 #[test]
+#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn hmac_debug() {
     let key = hmac::Key::new(hmac::HMAC_SHA256, &[0; 32]);
     assert_eq!("Key { algorithm: SHA256 }", format!("{:?}", &key));

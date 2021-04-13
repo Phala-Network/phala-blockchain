@@ -14,7 +14,6 @@
 
 use crate::{arithmetic::montgomery::*, c, error, limb::*};
 use core::marker::PhantomData;
-use untrusted;
 
 pub use self::elem::*;
 
@@ -44,8 +43,8 @@ pub struct Point {
 }
 
 impl Point {
-    pub fn new_at_infinity() -> Point {
-        Point {
+    pub fn new_at_infinity() -> Self {
+        Self {
             xyz: [0; 3 * MAX_LIMBS],
         }
     }
@@ -67,7 +66,6 @@ pub struct CommonOps {
     pub b: Elem<R>,
 
     // In all cases, `r`, `a`, and `b` may all alias each other.
-    elem_add_impl: unsafe extern "C" fn(r: *mut Limb, a: *const Limb, b: *const Limb),
     elem_mul_mont: unsafe extern "C" fn(r: *mut Limb, a: *const Limb, b: *const Limb),
     elem_sqr_mont: unsafe extern "C" fn(r: *mut Limb, a: *const Limb),
 
@@ -77,7 +75,12 @@ pub struct CommonOps {
 impl CommonOps {
     #[inline]
     pub fn elem_add<E: Encoding>(&self, a: &mut Elem<E>, b: &Elem<E>) {
-        binary_op_assign(self.elem_add_impl, a, b)
+        let num_limbs = self.num_limbs;
+        limbs_add_assign_mod(
+            &mut a.limbs[..num_limbs],
+            &b.limbs[..num_limbs],
+            &self.q.p[..num_limbs],
+        );
     }
 
     #[inline]
@@ -288,23 +291,14 @@ impl PublicScalarOps {
         }
     }
 
-    pub fn elem_equals(&self, a: &Elem<Unencoded>, b: &Elem<Unencoded>) -> bool {
-        for i in 0..self.public_key_ops.common.num_limbs {
-            if a.limbs[i] != b.limbs[i] {
-                return false;
-            }
-        }
-        true
+    pub fn elem_equals_vartime(&self, a: &Elem<Unencoded>, b: &Elem<Unencoded>) -> bool {
+        a.limbs[..self.public_key_ops.common.num_limbs]
+            == b.limbs[..self.public_key_ops.common.num_limbs]
     }
 
     pub fn elem_less_than(&self, a: &Elem<Unencoded>, b: &Elem<Unencoded>) -> bool {
         let num_limbs = self.public_key_ops.common.num_limbs;
         limbs_less_than_limbs_vartime(&a.limbs[..num_limbs], &b.limbs[..num_limbs])
-    }
-
-    #[inline]
-    pub fn elem_sum(&self, a: &Elem<Unencoded>, b: &Elem<Unencoded>) -> Elem<Unencoded> {
-        binary_op(self.public_key_ops.common.elem_add_impl, a, b)
     }
 }
 
@@ -441,7 +435,6 @@ mod tests {
     use super::*;
     use crate::test;
     use alloc::{format, vec, vec::Vec};
-    use untrusted;
 
     const ZERO_SCALAR: Scalar = Scalar {
         limbs: [0; MAX_LIMBS],
@@ -491,11 +484,11 @@ mod tests {
             let b = consume_elem(cops, test_case, "b");
             let expected_sum = consume_elem(cops, test_case, "r");
 
-            let mut actual_sum = a.clone();
+            let mut actual_sum = a;
             ops.public_key_ops.common.elem_add(&mut actual_sum, &b);
             assert_limbs_are_equal(cops, &actual_sum.limbs, &expected_sum.limbs);
 
-            let mut actual_sum = b.clone();
+            let mut actual_sum = b;
             ops.public_key_ops.common.elem_add(&mut actual_sum, &a);
             assert_limbs_are_equal(cops, &actual_sum.limbs, &expected_sum.limbs);
 
@@ -503,7 +496,7 @@ mod tests {
         })
     }
 
-    // XXX: There's no `GFp_nistz256_sub` in *ring*; it's logic is inlined into
+    // XXX: There's no `GFp_p256_sub` in *ring*; it's logic is inlined into
     // the point arithmetic functions. Thus, we can't test it.
 
     #[test]
@@ -554,7 +547,7 @@ mod tests {
         })
     }
 
-    // XXX: There's no `GFp_nistz256_div_by_2` in *ring*; it's logic is inlined
+    // XXX: There's no `GFp_p256_div_by_2` in *ring*; it's logic is inlined
     // into the point arithmetic functions. Thus, we can't test it.
 
     #[test]
@@ -590,7 +583,8 @@ mod tests {
         })
     }
 
-    // TODO: Add test vectors that test the range of values above `q`.
+    // There is no `GFp_nistz256_neg` on other targets.
+    #[cfg(target_arch = "x86_64")]
     #[test]
     fn p256_elem_neg_test() {
         extern "C" {
@@ -692,10 +686,10 @@ mod tests {
         test::run(test_file, |section, test_case| {
             assert_eq!(section, "");
             let cops = ops.common;
-            let mut a = consume_scalar(cops, test_case, "a");
+            let a = consume_scalar(cops, test_case, "a");
             let b = consume_scalar_mont(cops, test_case, "b");
             let expected_result = consume_scalar(cops, test_case, "r");
-            let actual_result = ops.scalar_product(&mut a, &b);
+            let actual_result = ops.scalar_product(&a, &b);
             assert_limbs_are_equal(cops, &actual_result.limbs, &expected_result.limbs);
 
             Ok(())
@@ -795,7 +789,7 @@ mod tests {
     #[test]
     fn p256_point_sum_mixed_test() {
         extern "C" {
-            fn GFp_nistz256_point_add_affine(
+            fn GFp_p256_point_add_affine(
                 r: *mut Limb,   // [p256::COMMON_OPS.num_limbs*3]
                 a: *const Limb, // [p256::COMMON_OPS.num_limbs*3]
                 b: *const Limb, // [p256::COMMON_OPS.num_limbs*2]
@@ -803,7 +797,7 @@ mod tests {
         }
         point_sum_mixed_test(
             &p256::PRIVATE_KEY_OPS,
-            GFp_nistz256_point_add_affine,
+            GFp_p256_point_add_affine,
             test_file!("ops/p256_point_sum_mixed_tests.txt"),
         );
     }
@@ -840,14 +834,14 @@ mod tests {
     #[test]
     fn p256_point_double_test() {
         extern "C" {
-            fn GFp_nistz256_point_double(
+            fn GFp_p256_point_double(
                 r: *mut Limb,   // [p256::COMMON_OPS.num_limbs*3]
                 a: *const Limb, // [p256::COMMON_OPS.num_limbs*3]
             );
         }
         point_double_test(
             &p256::PRIVATE_KEY_OPS,
-            GFp_nistz256_point_double,
+            GFp_p256_point_double,
             test_file!("ops/p256_point_double_tests.txt"),
         );
     }
@@ -1065,7 +1059,7 @@ mod tests {
         p
     }
 
-    fn consume_point_elem(ops: &CommonOps, limbs_out: &mut [Limb], elems: &Vec<&str>, i: usize) {
+    fn consume_point_elem(ops: &CommonOps, limbs_out: &mut [Limb], elems: &[&str], i: usize) {
         let bytes = test::from_hex(elems[i]).unwrap();
         let bytes = untrusted::Input::from(&bytes);
         let r: Elem<Unencoded> = elem_parse_big_endian_fixed_consttime(ops, bytes).unwrap();
@@ -1080,7 +1074,7 @@ mod tests {
     }
 
     fn consume_point(ops: &PrivateKeyOps, test_case: &mut test::TestCase, name: &str) -> TestPoint {
-        fn consume_point_elem(ops: &CommonOps, elems: &Vec<&str>, i: usize) -> Elem<R> {
+        fn consume_point_elem(ops: &CommonOps, elems: &[&str], i: usize) -> Elem<R> {
             let bytes = test::from_hex(elems[i]).unwrap();
             let bytes = untrusted::Input::from(&bytes);
             let unencoded: Elem<Unencoded> =
@@ -1113,15 +1107,19 @@ mod tests {
         actual: &[Limb; MAX_LIMBS],
         expected: &[Limb; MAX_LIMBS],
     ) {
-        for i in 0..ops.num_limbs {
-            if actual[i] != expected[i] {
-                let mut s = alloc::string::String::new();
-                for j in 0..ops.num_limbs {
-                    let formatted = format!("{:016x}", actual[ops.num_limbs - j - 1]);
-                    s.push_str(&formatted);
-                }
-                panic!("Actual != Expected,\nActual = {}", s);
+        if actual[..ops.num_limbs] != expected[..ops.num_limbs] {
+            let mut actual_s = alloc::string::String::new();
+            let mut expected_s = alloc::string::String::new();
+            for j in 0..ops.num_limbs {
+                let formatted = format!("{:016x}", actual[ops.num_limbs - j - 1]);
+                actual_s.push_str(&formatted);
+                let formatted = format!("{:016x}", expected[ops.num_limbs - j - 1]);
+                expected_s.push_str(&formatted);
             }
+            panic!(
+                "Actual != Expected,\nActual = {}, Expected = {}",
+                actual_s, expected_s
+            );
         }
     }
 
@@ -1169,84 +1167,6 @@ mod tests {
         bytes.extend(&unpadded_bytes);
         bytes
     }
-}
-
-#[cfg(feature = "internal_benches")]
-mod internal_benches {
-    use super::{Limb, MAX_LIMBS};
-
-    pub const LIMBS_1: [Limb; MAX_LIMBS] = limbs![1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
-
-    pub const LIMBS_ALTERNATING_10: [Limb; MAX_LIMBS] = limbs![
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010,
-        0b10101010_10101010_10101010_10101010
-    ];
-}
-
-#[cfg(feature = "internal_benches")]
-macro_rules! bench_curve {
-    ( $vectors:expr ) => {
-        use super::super::{Elem, Scalar};
-        extern crate test;
-
-        #[bench]
-        fn elem_inverse_squared_bench(bench: &mut test::Bencher) {
-            // This benchmark assumes that `elem_inverse_squared()` is
-            // constant-time so inverting 1 mod q is as good of a choice as
-            // anything.
-            let mut a = Elem::zero();
-            a.limbs[0] = 1;
-            bench.iter(|| {
-                let _ = PRIVATE_KEY_OPS.elem_inverse_squared(&a);
-            });
-        }
-
-        #[bench]
-        fn elem_product_bench(bench: &mut test::Bencher) {
-            // This benchmark assumes that the multiplication is constant-time
-            // so 0 * 0 is as good of a choice as anything.
-            let a: Elem<R> = Elem::zero();
-            let b: Elem<R> = Elem::zero();
-            bench.iter(|| {
-                let _ = COMMON_OPS.elem_product(&a, &b);
-            });
-        }
-
-        #[bench]
-        fn elem_squared_bench(bench: &mut test::Bencher) {
-            // This benchmark assumes that the squaring is constant-time so
-            // 0**2 * 0 is as good of a choice as anything.
-            let a = Elem::zero();
-            bench.iter(|| {
-                let _ = COMMON_OPS.elem_squared(&a);
-            });
-        }
-
-        #[bench]
-        fn scalar_inv_to_mont_bench(bench: &mut test::Bencher) {
-            const VECTORS: &[Scalar] = $vectors;
-            let vectors_len = VECTORS.len();
-            let mut i = 0;
-            bench.iter(|| {
-                let _ = SCALAR_OPS.scalar_inv_to_mont(&VECTORS[i]);
-
-                i += 1;
-                if i == vectors_len {
-                    i = 0;
-                }
-            });
-        }
-    };
 }
 
 mod elem;
