@@ -142,7 +142,7 @@ fn test_register_worker() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1613315656);
+		Timestamp::set_timestamp(1613315656000);
 
 		assert_ok!(PhalaPallet::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(1), 1));
@@ -164,7 +164,7 @@ fn test_register_worker() {
 
 	new_test_ext().execute_with(|| {
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1633310550);
+		Timestamp::set_timestamp(1633310550000);
 
 		assert_ok!(PhalaPallet::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(1), 1));
@@ -180,7 +180,7 @@ fn test_whitelist_works() {
 	new_test_ext().execute_with(|| {
 		// Set block number to 1 to test the events
 		System::set_block_number(1);
-		Timestamp::set_timestamp(1613315656);
+		Timestamp::set_timestamp(1613315656000);
 
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(2), 2));

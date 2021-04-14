@@ -161,11 +161,11 @@ pub mod phala {
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumAddress([u8; 20]);
 
-
     #[module]
     pub trait Phala: System + Balances {
         #![event_type(BlockRewardInfo)]
         #![event_type(PayoutReason)]
+
         // Types used by pallets/claim
         #![event_type(EthereumTxHash)]
         #![event_type(EthereumAddress)]

@@ -227,9 +227,6 @@ decl_event!(
 		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
-		// Debug events
-		LogString(Vec<u8>),
-		LogI32(i32),
 		// Chain events
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
@@ -423,7 +420,7 @@ decl_module! {
 			);
 			ensure!(verify_result.is_ok(), Error::<T>::InvalidIASSigningCert);
 
-			let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 
 			// Validate certificate
 			let chain: Vec<&[u8]> = Vec::new();
