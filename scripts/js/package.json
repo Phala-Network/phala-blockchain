@@ -5,11 +5,11 @@
   "license": "MIT",
   "scripts": {},
   "dependencies": {
-    "@acala-network/api": "^0.7.2-6",
-    "@acala-network/types": "^0.7.2-6",
+    "@acala-network/api": "^0.7.2-11",
+    "@acala-network/types": "^0.7.2-11",
     "@phala/typedefs": "0.0.6",
-    "@polkadot/api": "^4.4.1",
-    "@polkadot/util-crypto": "^6.0.5",
+    "@polkadot/api": "^4.5.1",
+    "@polkadot/util-crypto": "^6.1.1",
     "bn.js": "^5.2.0",
     "dotenv": "^8.2.0"
   }
