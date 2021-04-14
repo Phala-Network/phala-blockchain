@@ -71,7 +71,7 @@ alloc = ["ring/alloc"]
 std = ["alloc"]
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-ring_wasmable = { package = "ring", path = "../ring", default-features = false, features = ["alloc", "wasm32_c"] }
+ring_wasmable = { package = "ring", path = "../ring", default-features = false, features = ["alloc"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }

@@ -18,16 +18,8 @@ use ring::{
     test, test_file,
 };
 
-#[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
-
-#[cfg(target_arch = "wasm32")]
-wasm_bindgen_test_configure!(run_in_browser);
-
 /// Test vectors from BoringSSL.
 #[test]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm32_c"))]
 fn test_signature_ed25519() {
     test::run(test_file!("ed25519_tests.txt"), |section, test_case| {
         assert_eq!(section, "");
@@ -71,8 +63,6 @@ fn test_signature_ed25519() {
 
 /// Test vectors from BoringSSL.
 #[test]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
-#[cfg(any(not(target_arch = "wasm32"), feature = "wasm32_c"))]
 fn test_signature_ed25519_verify() {
     test::run(
         test_file!("ed25519_verify_tests.txt"),
