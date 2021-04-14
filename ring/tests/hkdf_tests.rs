@@ -12,15 +12,35 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#![forbid(
+    anonymous_parameters,
+    box_pointers,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unsafe_code,
+    unstable_features,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_results,
+    variant_size_differences,
+    warnings
+)]
+
 use ring::{digest, error, hkdf, test, test_file};
 
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+use wasm_bindgen_test::wasm_bindgen_test;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test_configure;
 
 #[cfg(target_arch = "wasm32")]
 wasm_bindgen_test_configure!(run_in_browser);
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn hkdf_tests() {
     test::run(test_file!("hkdf_tests.txt"), |section, test_case| {
@@ -57,7 +77,6 @@ fn hkdf_tests() {
 }
 
 #[test]
-#[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn hkdf_output_len_tests() {
     for &alg in &[hkdf::HKDF_SHA256, hkdf::HKDF_SHA384, hkdf::HKDF_SHA512] {
         const MAX_BLOCKS: usize = 255;
@@ -124,6 +143,6 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
     fn from(okm: hkdf::Okm<My<usize>>) -> Self {
         let mut r = vec![0u8; okm.len().0];
         okm.fill(&mut r).unwrap();
-        Self(r)
+        My(r)
     }
 }

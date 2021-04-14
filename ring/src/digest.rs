@@ -24,12 +24,7 @@
 // The goal for this implementation is to drive the overhead as close to zero
 // as possible.
 
-use crate::polyfill::array_map::Map;
-use crate::{
-    c, cpu, debug,
-    endian::{ArrayEncoding, BigEndian},
-    polyfill,
-};
+use crate::{c, cpu, debug, endian::*, polyfill};
 use core::num::Wrapping;
 
 mod sha1;
@@ -248,8 +243,7 @@ impl Digest {
 impl AsRef<[u8]> for Digest {
     #[inline(always)]
     fn as_ref(&self) -> &[u8] {
-        let as64 = unsafe { &self.value.as64 };
-        &as64.as_byte_array()[..self.algorithm.output_len]
+        &as_bytes(unsafe { &self.value.as64 })[..self.algorithm.output_len]
     }
 }
 
@@ -464,14 +458,32 @@ pub const MAX_CHAINING_LEN: usize = MAX_OUTPUT_LEN;
 fn sha256_format_output(input: State) -> Output {
     let input = unsafe { &input.as32 };
     Output {
-        as32: input.array_map(BigEndian::from),
+        as32: [
+            BigEndian::from(input[0]),
+            BigEndian::from(input[1]),
+            BigEndian::from(input[2]),
+            BigEndian::from(input[3]),
+            BigEndian::from(input[4]),
+            BigEndian::from(input[5]),
+            BigEndian::from(input[6]),
+            BigEndian::from(input[7]),
+        ],
     }
 }
 
 fn sha512_format_output(input: State) -> Output {
     let input = unsafe { &input.as64 };
     Output {
-        as64: input.array_map(BigEndian::from),
+        as64: [
+            BigEndian::from(input[0]),
+            BigEndian::from(input[1]),
+            BigEndian::from(input[2]),
+            BigEndian::from(input[3]),
+            BigEndian::from(input[4]),
+            BigEndian::from(input[5]),
+            BigEndian::from(input[6]),
+            BigEndian::from(input[7]),
+        ],
     }
 }
 

@@ -19,6 +19,7 @@ use crate::{
     ec::suite_b::ops::*,
     limb::{self, LIMB_BYTES},
 };
+use untrusted;
 
 /// Calculate the digest of `msg` using the digest algorithm `digest_alg`. Then
 /// convert the digest to a scalar in the range [0, n) as described in
@@ -83,6 +84,7 @@ mod tests {
         limb::{self, LIMB_BYTES},
         test,
     };
+    use untrusted;
 
     #[test]
     fn test() {

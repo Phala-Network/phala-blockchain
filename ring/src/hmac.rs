@@ -105,9 +105,9 @@
 //!
 //! [RFC 2104]: https://tools.ietf.org/html/rfc2104
 //! [code for `ring::pbkdf2`]:
-//!     https://github.com/briansmith/ring/blob/main/src/pbkdf2.rs
+//!     https://github.com/briansmith/ring/blob/master/src/pbkdf2.rs
 //! [code for `ring::hkdf`]:
-//!     https://github.com/briansmith/ring/blob/main/src/hkdf.rs
+//!     https://github.com/briansmith/ring/blob/master/src/hkdf.rs
 
 use crate::{constant_time, digest, error, hkdf, rand};
 
@@ -135,6 +135,10 @@ pub static HMAC_SHA384: Algorithm = Algorithm(&digest::SHA384);
 /// HMAC using SHA-512.
 pub static HMAC_SHA512: Algorithm = Algorithm(&digest::SHA512);
 
+/// A deprecated alias for `Tag`.
+#[deprecated(note = "`Signature` was renamed to `Tag`. This alias will be removed soon.")]
+pub type Signature = Tag;
+
 /// An HMAC tag.
 ///
 /// For a given tag `t`, use `t.as_ref()` to get the tag value as a byte slice.
@@ -155,6 +159,16 @@ pub struct Key {
     outer: digest::BlockContext,
 }
 
+/// `hmac::SigningKey` was renamed to `hmac::Key`.
+#[deprecated(note = "Renamed to `hmac::Key`.")]
+pub type SigningKey = Key;
+
+/// `hmac::VerificationKey` was merged into `hmac::Key`.
+#[deprecated(
+    note = "The distinction between verification & signing keys was removed. Use `hmac::Key`."
+)]
+pub type VerificationKey = Key;
+
 impl core::fmt::Debug for Key {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
         f.debug_struct("Key")
@@ -168,9 +182,7 @@ impl Key {
     /// random value generated from `rng`.
     ///
     /// The key will be `digest_alg.output_len` bytes long, based on the
-    /// recommendation in [RFC 2104 Section 3].
-    ///
-    /// [RFC 2104 Section 3]: https://tools.ietf.org/html/rfc2104#section-3
+    /// recommendation in https://tools.ietf.org/html/rfc2104#section-3.
     pub fn generate(
         algorithm: Algorithm,
         rng: &dyn rand::SecureRandom,
@@ -262,7 +274,7 @@ impl hkdf::KeyType for Algorithm {
 
 impl From<hkdf::Okm<'_, Algorithm>> for Key {
     fn from(okm: hkdf::Okm<Algorithm>) -> Self {
-        Self::construct(*okm.len(), |buf| okm.fill(buf)).unwrap()
+        Key::construct(*okm.len(), |buf| okm.fill(buf)).unwrap()
     }
 }
 
@@ -274,6 +286,10 @@ pub struct Context {
     inner: digest::Context,
     outer: digest::BlockContext,
 }
+
+/// `hmac::SigningContext` was renamed to `hmac::Context`.
+#[deprecated(note = "Renamed to `hmac::Context`.")]
+pub type SigningContext = Context;
 
 impl core::fmt::Debug for Context {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
@@ -347,7 +363,7 @@ mod tests {
     // completely wacky.
     #[test]
     pub fn hmac_signing_key_coverage() {
-        let rng = rand::SystemRandom::new();
+        let mut rng = rand::SystemRandom::new();
 
         const HELLO_WORLD_GOOD: &[u8] = b"hello, world";
         const HELLO_WORLD_BAD: &[u8] = b"hello, worle";
@@ -358,7 +374,7 @@ mod tests {
             hmac::HMAC_SHA384,
             hmac::HMAC_SHA512,
         ] {
-            let key = hmac::Key::generate(*algorithm, &rng).unwrap();
+            let key = hmac::Key::generate(*algorithm, &mut rng).unwrap();
             let tag = hmac::sign(&key, HELLO_WORLD_GOOD);
             assert!(hmac::verify(&key, HELLO_WORLD_GOOD, tag.as_ref()).is_ok());
             assert!(hmac::verify(&key, HELLO_WORLD_BAD, tag.as_ref()).is_err())

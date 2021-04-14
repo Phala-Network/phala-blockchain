@@ -14,6 +14,8 @@
 
 //! Error reporting.
 
+use untrusted;
+
 #[cfg(feature = "std")]
 extern crate std;
 
@@ -76,34 +78,49 @@ extern crate std;
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Unspecified;
 
+impl Unspecified {
+    fn description_() -> &'static str {
+        "ring::error::Unspecified"
+    }
+}
+
 // This is required for the implementation of `std::error::Error`.
 impl core::fmt::Display for Unspecified {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.write_str("ring::error::Unspecified")
+        f.write_str(Self::description_())
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Unspecified {}
+impl std::error::Error for Unspecified {
+    #[inline]
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        Self::description_()
+    }
+}
 
 impl From<untrusted::EndOfInput> for Unspecified {
     fn from(_: untrusted::EndOfInput) -> Self {
-        Self
+        Unspecified
     }
 }
 
 impl From<core::array::TryFromSliceError> for Unspecified {
     fn from(_: core::array::TryFromSliceError) -> Self {
-        Self
+        Unspecified
     }
 }
 
 /// An error parsing or validating a key.
 ///
-/// The `Display` implementation will return a string that will help you better
-/// understand why a key was rejected change which errors are reported in which
-/// situations while minimizing the likelihood that any applications will be
-/// broken.
+/// The `Display` implementation and `<KeyRejected as Error>::description()`
+/// will return a string that will help you better understand why a key was
+/// rejected change which errors are reported in which situations while
+/// minimizing the likelihood that any applications will be broken.
 ///
 /// Here is an incomplete list of reasons a key may be unsupported:
 ///
@@ -132,67 +149,75 @@ impl From<core::array::TryFromSliceError> for Unspecified {
 pub struct KeyRejected(&'static str);
 
 impl KeyRejected {
+    /// The value returned from <Self as std::error::Error>::description()
+    pub fn description_(&self) -> &'static str {
+        self.0
+    }
+
     pub(crate) fn inconsistent_components() -> Self {
-        Self("InconsistentComponents")
+        KeyRejected("InconsistentComponents")
     }
 
     pub(crate) fn invalid_component() -> Self {
-        Self("InvalidComponent")
+        KeyRejected("InvalidComponent")
     }
 
     #[inline]
     pub(crate) fn invalid_encoding() -> Self {
-        Self("InvalidEncoding")
-    }
-
-    // XXX: See the comment at the call site.
-    pub(crate) fn rng_failed() -> Self {
-        Self("RNG failed")
+        KeyRejected("InvalidEncoding")
     }
 
     pub(crate) fn public_key_is_missing() -> Self {
-        Self("PublicKeyIsMissing")
+        KeyRejected("PublicKeyIsMissing")
     }
 
     #[cfg(feature = "alloc")]
     pub(crate) fn too_small() -> Self {
-        Self("TooSmall")
+        KeyRejected("TooSmall")
     }
 
     #[cfg(feature = "alloc")]
     pub(crate) fn too_large() -> Self {
-        Self("TooLarge")
+        KeyRejected("TooLarge")
     }
 
     pub(crate) fn version_not_supported() -> Self {
-        Self("VersionNotSupported")
+        KeyRejected("VersionNotSupported")
     }
 
     pub(crate) fn wrong_algorithm() -> Self {
-        Self("WrongAlgorithm")
+        KeyRejected("WrongAlgorithm")
     }
 
     #[cfg(feature = "alloc")]
     pub(crate) fn private_modulus_len_not_multiple_of_512_bits() -> Self {
-        Self("PrivateModulusLenNotMultipleOf512Bits")
+        KeyRejected("PrivateModulusLenNotMultipleOf512Bits")
     }
 
     pub(crate) fn unexpected_error() -> Self {
-        Self("UnexpectedError")
+        KeyRejected("UnexpectedError")
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for KeyRejected {}
+impl std::error::Error for KeyRejected {
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        None
+    }
+
+    fn description(&self) -> &str {
+        self.description_()
+    }
+}
 
 impl core::fmt::Display for KeyRejected {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
-        f.write_str(self.0)
+        f.write_str(self.description_())
     }
 }
 
 impl From<KeyRejected> for Unspecified {
     fn from(_: KeyRejected) -> Self {
-        Self
+        Unspecified
     }
 }

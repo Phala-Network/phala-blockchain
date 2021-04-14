@@ -111,7 +111,12 @@
 
 #include <GFp/base.h> // Must be first.
 
-#include "GFp/check.h"
+#if !defined(NDEBUG)
+#include <assert.h>
+#define ASSERT(x) assert(x)
+#else
+#define ASSERT(x) ((void)0)
+#endif
 
 #if defined(__GNUC__) && \
     (__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) < 40800
@@ -123,15 +128,6 @@
 #define alignas(x) __declspec(align(x))
 #else
 #include <stdalign.h>
-#endif
-
-// Some C compilers require a useless cast when dealing with arrays for the
-// reason explained in
-// https://gustedt.wordpress.com/2011/02/12/const-and-arrays/
-#if defined(__clang__) || defined(_MSC_VER)
-#define GFp_POINTLESS_ARRAY_CONST_CAST(cast)
-#else
-#define GFp_POINTLESS_ARRAY_CONST_CAST(cast) cast
 #endif
 
 #if (!defined(_MSC_VER) || defined(__clang__)) && defined(OPENSSL_64_BIT)
@@ -252,55 +248,41 @@ static inline crypto_word constant_time_select_w(crypto_word mask,
   return (value_barrier_w(mask) & a) | (value_barrier_w(~mask) & b);
 }
 
-// Endianness conversions.
-
-#if defined(__GNUC__) && __GNUC__ >= 2
-static inline uint32_t CRYPTO_bswap4(uint32_t x) {
-  return __builtin_bswap32(x);
-}
-#elif defined(_MSC_VER)
-#pragma warning(push, 3)
-#include <stdlib.h>
-#pragma warning(pop)
-#pragma intrinsic(_byteswap_uint64, _byteswap_ulong)
-static inline uint32_t CRYPTO_bswap4(uint32_t x) {
-  return _byteswap_ulong(x);
-}
-#endif
-
-#if !defined(GFp_NOSTDLIBINC)
-#include <string.h>
-#endif
-
-static inline void *GFp_memcpy(void *dst, const void *src, size_t n) {
-#if !defined(GFp_NOSTDLIBINC)
-  if (n == 0) {
-    return dst;
-  }
-  return memcpy(dst, src, n);
-#else
-  unsigned char *d = dst;
-  const unsigned char *s = src;
-  for (size_t i = 0; i < n; ++i) {
-    d[i] = s[i];
-  }
-  return dst;
-#endif
+// from_be_u32_ptr returns the 32-bit big-endian-encoded value at |data|.
+static inline uint32_t from_be_u32_ptr(const uint8_t *data) {
+  return ((uint32_t)data[0] << 24) |
+         ((uint32_t)data[1] << 16) |
+         ((uint32_t)data[2] << 8) |
+         ((uint32_t)data[3]);
 }
 
-static inline void *GFp_memset(void *dst, int c, size_t n) {
-#if !defined(GFp_NOSTDLIBINC)
-  if (n == 0) {
-    return dst;
+
+// to_be_u32_ptr writes the value |x| to the location |out| in big-endian
+// order.
+static inline void to_be_u32_ptr(uint8_t *out, uint32_t value) {
+  out[0] = (uint8_t)(value >> 24);
+  out[1] = (uint8_t)(value >> 16);
+  out[2] = (uint8_t)(value >> 8);
+  out[3] = (uint8_t)value;
+}
+
+// to_be_u64_ptr writes the value |value| to the location |out| in big-endian
+// order.
+static inline void to_be_u64_ptr(uint8_t *out, uint64_t value) {
+  out[0] = (uint8_t)(value >> 56);
+  out[1] = (uint8_t)(value >> 48);
+  out[2] = (uint8_t)(value >> 40);
+  out[3] = (uint8_t)(value >> 32);
+  out[4] = (uint8_t)(value >> 24);
+  out[5] = (uint8_t)(value >> 16);
+  out[6] = (uint8_t)(value >> 8);
+  out[7] = (uint8_t)value;
+}
+
+static inline void bytes_copy(uint8_t out[], const uint8_t in[], size_t len) {
+  for (size_t i = 0; i < len; ++i) {
+    out[i] = in[i];
   }
-  return memset(dst, c, n);
-#else
-  unsigned char *d = dst;
-  for (size_t i = 0; i < n; ++i) {
-    d[i] = (unsigned char)c;
-  }
-  return dst;
-#endif
 }
 
 #endif  // OPENSSL_HEADER_CRYPTO_INTERNAL_H

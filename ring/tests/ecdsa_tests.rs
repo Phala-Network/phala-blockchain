@@ -12,6 +12,24 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#![forbid(
+    anonymous_parameters,
+    box_pointers,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unsafe_code,
+    unstable_features,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences,
+    warnings
+)]
+
 use ring::{
     rand,
     signature::{self, KeyPair},
@@ -20,6 +38,7 @@ use ring::{
 
 // ECDSA *signing* tests are in src/ec/ecdsa/signing.rs.
 
+#[cfg(feature = "alloc")]
 #[test]
 fn ecdsa_from_pkcs8_test() {
     test::run(
@@ -68,7 +87,7 @@ fn ecdsa_from_pkcs8_test() {
 
             match (
                 signature::EcdsaKeyPair::from_pkcs8(this_asn1, &input),
-                error,
+                error.clone(),
             ) {
                 (Ok(_), None) => (),
                 (Err(e), None) => panic!("Failed with error \"{}\", but expected to succeed", e),
@@ -191,124 +210,14 @@ fn ecdsa_test_public_key_coverage() {
     assert_eq!(key_pair.public_key().as_ref(), PUBLIC_KEY);
 
     // Test `Clone`.
-    #[allow(clippy::clone_on_copy, clippy::redundant_clone)]
-    let _: <signature::EcdsaKeyPair as KeyPair>::PublicKey = key_pair.public_key().clone();
-
-    // Test `Copy`.
-    let _: <signature::EcdsaKeyPair as KeyPair>::PublicKey = *key_pair.public_key();
+    {
+        let _ = key_pair.public_key().clone();
+    }
 
     // Test `Debug`.
     assert_eq!(PUBLIC_KEY_DEBUG, format!("{:?}", key_pair.public_key()));
     assert_eq!(
         format!("EcdsaKeyPair {{ public_key: {:?} }}", key_pair.public_key()),
         format!("{:?}", key_pair)
-    );
-}
-
-// This test is not a known-answer test, though it re-uses the known-answer
-// test vectors. Because the nonce is randomized, the signature will be
-// different each time. Because of that, here we simply verify that the
-// signature verifies correctly. The known-answer tests themselves are in
-// ecsda/signing.rs.
-#[test]
-fn signature_ecdsa_sign_fixed_sign_and_verify_test() {
-    let rng = rand::SystemRandom::new();
-
-    test::run(
-        test_file!("../src/ec/suite_b/ecdsa/ecdsa_sign_fixed_tests.txt"),
-        |section, test_case| {
-            assert_eq!(section, "");
-
-            let curve_name = test_case.consume_string("Curve");
-            let digest_name = test_case.consume_string("Digest");
-
-            let msg = test_case.consume_bytes("Msg");
-            let d = test_case.consume_bytes("d");
-            let q = test_case.consume_bytes("Q");
-
-            // Ignored since the actual signature will use a randomized nonce.
-            let _k = test_case.consume_bytes("k");
-            let _expected_result = test_case.consume_bytes("Sig");
-
-            let (signing_alg, verification_alg) = match (curve_name.as_str(), digest_name.as_str())
-            {
-                ("P-256", "SHA256") => (
-                    &signature::ECDSA_P256_SHA256_FIXED_SIGNING,
-                    &signature::ECDSA_P256_SHA256_FIXED,
-                ),
-                ("P-384", "SHA384") => (
-                    &signature::ECDSA_P384_SHA384_FIXED_SIGNING,
-                    &signature::ECDSA_P384_SHA384_FIXED,
-                ),
-                _ => {
-                    panic!("Unsupported curve+digest: {}+{}", curve_name, digest_name);
-                }
-            };
-
-            let private_key =
-                signature::EcdsaKeyPair::from_private_key_and_public_key(signing_alg, &d, &q)
-                    .unwrap();
-
-            let signature = private_key.sign(&rng, &msg).unwrap();
-
-            let public_key = signature::UnparsedPublicKey::new(verification_alg, q);
-            assert_eq!(public_key.verify(&msg, signature.as_ref()), Ok(()));
-
-            Ok(())
-        },
-    );
-}
-
-// This test is not a known-answer test, though it re-uses the known-answer
-// test vectors. Because the nonce is randomized, the signature will be
-// different each time. Because of that, here we simply verify that the
-// signature verifies correctly. The known-answer tests themselves are in
-// ecsda/signing.rs.
-#[test]
-fn signature_ecdsa_sign_asn1_test() {
-    let rng = rand::SystemRandom::new();
-
-    test::run(
-        test_file!("../src/ec/suite_b/ecdsa/ecdsa_sign_asn1_tests.txt"),
-        |section, test_case| {
-            assert_eq!(section, "");
-
-            let curve_name = test_case.consume_string("Curve");
-            let digest_name = test_case.consume_string("Digest");
-
-            let msg = test_case.consume_bytes("Msg");
-            let d = test_case.consume_bytes("d");
-            let q = test_case.consume_bytes("Q");
-
-            // Ignored since the actual signature will use a randomized nonce.
-            let _k = test_case.consume_bytes("k");
-            let _expected_result = test_case.consume_bytes("Sig");
-
-            let (signing_alg, verification_alg) = match (curve_name.as_str(), digest_name.as_str())
-            {
-                ("P-256", "SHA256") => (
-                    &signature::ECDSA_P256_SHA256_ASN1_SIGNING,
-                    &signature::ECDSA_P256_SHA256_ASN1,
-                ),
-                ("P-384", "SHA384") => (
-                    &signature::ECDSA_P384_SHA384_ASN1_SIGNING,
-                    &signature::ECDSA_P384_SHA384_ASN1,
-                ),
-                _ => {
-                    panic!("Unsupported curve+digest: {}+{}", curve_name, digest_name);
-                }
-            };
-
-            let private_key =
-                signature::EcdsaKeyPair::from_private_key_and_public_key(signing_alg, &d, &q)
-                    .unwrap();
-
-            let signature = private_key.sign(&rng, &msg).unwrap();
-
-            let public_key = signature::UnparsedPublicKey::new(verification_alg, q);
-            assert_eq!(public_key.verify(&msg, signature.as_ref()), Ok(()));
-
-            Ok(())
-        },
     );
 }

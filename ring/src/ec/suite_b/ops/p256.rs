@@ -64,17 +64,18 @@ pub static COMMON_OPS: CommonOps = CommonOps {
         encoding: PhantomData, // R
     },
 
-    elem_mul_mont: GFp_p256_mul_mont,
-    elem_sqr_mont: GFp_p256_sqr_mont,
+    elem_add_impl: GFp_nistz256_add,
+    elem_mul_mont: GFp_nistz256_mul_mont,
+    elem_sqr_mont: GFp_nistz256_sqr_mont,
 
-    point_add_jacobian_impl: GFp_p256_point_add,
+    point_add_jacobian_impl: GFp_nistz256_point_add,
 };
 
 pub static PRIVATE_KEY_OPS: PrivateKeyOps = PrivateKeyOps {
     common: &COMMON_OPS,
     elem_inv_squared: p256_elem_inv_squared,
     point_mul_base_impl: p256_point_mul_base_impl,
-    point_mul_impl: GFp_p256_point_mul,
+    point_mul_impl: GFp_nistz256_point_mul,
 };
 
 fn p256_elem_inv_squared(a: &Elem<R>) -> Elem<R> {
@@ -123,16 +124,9 @@ fn p256_elem_inv_squared(a: &Elem<R>) -> Elem<R> {
 }
 
 fn p256_point_mul_base_impl(g_scalar: &Scalar) -> Point {
-    extern "C" {
-        fn GFp_p256_point_mul_base(
-            r: *mut Limb,          // [3][COMMON_OPS.num_limbs]
-            g_scalar: *const Limb, // [COMMON_OPS.num_limbs]
-        );
-    }
-
     let mut r = Point::new_at_infinity();
     unsafe {
-        GFp_p256_point_mul_base(r.xyz.as_mut_ptr(), g_scalar.limbs.as_ptr());
+        GFp_nistz256_point_mul_base(r.xyz.as_mut_ptr(), g_scalar.limbs.as_ptr());
     }
     r
 }
@@ -189,9 +183,7 @@ fn p256_scalar_inv_to_mont(a: &Scalar<Unencoded>) -> Scalar<R> {
 
     #[inline]
     fn sqr(a: &Scalar<R>) -> Scalar<R> {
-        let mut tmp = Scalar::zero();
-        unsafe { GFp_p256_scalar_sqr_rep_mont(tmp.limbs.as_mut_ptr(), a.limbs.as_ptr(), 1) }
-        tmp
+        unary_op(GFp_p256_scalar_sqr_mont, a)
     }
 
     // Returns (`a` squared `squarings` times) * `b`.
@@ -300,26 +292,35 @@ fn p256_scalar_inv_to_mont(a: &Scalar<Unencoded>) -> Scalar<R> {
 }
 
 extern "C" {
-    pub(super) fn GFp_p256_mul_mont(
+    fn GFp_nistz256_add(
         r: *mut Limb,   // [COMMON_OPS.num_limbs]
         a: *const Limb, // [COMMON_OPS.num_limbs]
         b: *const Limb, // [COMMON_OPS.num_limbs]
     );
-    pub(super) fn GFp_p256_sqr_mont(
+    fn GFp_nistz256_mul_mont(
+        r: *mut Limb,   // [COMMON_OPS.num_limbs]
+        a: *const Limb, // [COMMON_OPS.num_limbs]
+        b: *const Limb, // [COMMON_OPS.num_limbs]
+    );
+    fn GFp_nistz256_sqr_mont(
         r: *mut Limb,   // [COMMON_OPS.num_limbs]
         a: *const Limb, // [COMMON_OPS.num_limbs]
     );
 
-    fn GFp_p256_point_add(
+    fn GFp_nistz256_point_add(
         r: *mut Limb,   // [3][COMMON_OPS.num_limbs]
         a: *const Limb, // [3][COMMON_OPS.num_limbs]
         b: *const Limb, // [3][COMMON_OPS.num_limbs]
     );
-    fn GFp_p256_point_mul(
+    fn GFp_nistz256_point_mul(
         r: *mut Limb,          // [3][COMMON_OPS.num_limbs]
         p_scalar: *const Limb, // [COMMON_OPS.num_limbs]
         p_x: *const Limb,      // [COMMON_OPS.num_limbs]
         p_y: *const Limb,      // [COMMON_OPS.num_limbs]
+    );
+    fn GFp_nistz256_point_mul_base(
+        r: *mut Limb,          // [3][COMMON_OPS.num_limbs]
+        g_scalar: *const Limb, // [COMMON_OPS.num_limbs]
     );
 
     fn GFp_p256_scalar_mul_mont(
@@ -327,9 +328,46 @@ extern "C" {
         a: *const Limb, // [COMMON_OPS.num_limbs]
         b: *const Limb, // [COMMON_OPS.num_limbs]
     );
+    fn GFp_p256_scalar_sqr_mont(
+        r: *mut Limb,   // [COMMON_OPS.num_limbs]
+        a: *const Limb, // [COMMON_OPS.num_limbs]
+    );
     fn GFp_p256_scalar_sqr_rep_mont(
         r: *mut Limb,   // [COMMON_OPS.num_limbs]
         a: *const Limb, // [COMMON_OPS.num_limbs]
         rep: Limb,
     );
+}
+
+#[cfg(feature = "internal_benches")]
+mod internal_benches {
+    use super::{super::internal_benches::*, *};
+
+    bench_curve!(&[
+        Scalar {
+            limbs: LIMBS_1,
+            m: PhantomData,
+            encoding: PhantomData,
+        },
+        Scalar {
+            limbs: LIMBS_ALTERNATING_10,
+            m: PhantomData,
+            encoding: PhantomData,
+        },
+        Scalar {
+            // n - 1
+            limbs: p256_limbs![
+                0xfc632551 - 1,
+                0xf3b9cac2,
+                0xa7179e84,
+                0xbce6faad,
+                0xffffffff,
+                0xffffffff,
+                0x00000000,
+                0xffffffff
+            ],
+            m: PhantomData,
+            encoding: PhantomData,
+        },
+    ]);
 }

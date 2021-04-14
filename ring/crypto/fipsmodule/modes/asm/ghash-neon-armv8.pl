@@ -62,11 +62,9 @@ if ($flavour && $flavour ne "void") {
     ( $xlate="${dir}../../../perlasm/arm-xlate.pl" and -f $xlate) or
     die "can't locate arm-xlate.pl";
 
-    open OUT,"| \"$^X\" $xlate $flavour $output";
-    *STDOUT=*OUT;
+    open STDOUT,"| \"$^X\" $xlate $flavour $output";
 } else {
-    open OUT,">$output";
-    *STDOUT=*OUT;
+    open STDOUT,">$output";
 }
 
 my ($Xi, $Htbl, $inp, $len) = map("x$_", (0..3));	# argument block
@@ -157,15 +155,12 @@ ___
 }
 
 $code .= <<___;
-#include <GFp/arm_arch.h>
-
 .text
 
 .global	GFp_gcm_init_neon
 .type	GFp_gcm_init_neon,%function
 .align	4
 GFp_gcm_init_neon:
-	AARCH64_VALID_CALL_TARGET
 	// This function is adapted from gcm_init_v8. xC2 is t3.
 	ld1	{$t1.2d}, [x1]			// load H
 	movi	$t3.16b, #0xe1
@@ -190,7 +185,6 @@ GFp_gcm_init_neon:
 .type	GFp_gcm_gmult_neon,%function
 .align	4
 GFp_gcm_gmult_neon:
-	AARCH64_VALID_CALL_TARGET
 	ld1	{$INlo.16b}, [$Xi]		// load Xi
 	ld1	{$Hlo.1d}, [$Htbl], #8		// load twisted H
 	ld1	{$Hhi.1d}, [$Htbl]
@@ -209,7 +203,6 @@ GFp_gcm_gmult_neon:
 .type	GFp_gcm_ghash_neon,%function
 .align	4
 GFp_gcm_ghash_neon:
-	AARCH64_VALID_CALL_TARGET
 	ld1	{$Xl.16b}, [$Xi]		// load Xi
 	ld1	{$Hlo.1d}, [$Htbl], #8		// load twisted H
 	ld1	{$Hhi.1d}, [$Htbl]

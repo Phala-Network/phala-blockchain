@@ -86,7 +86,6 @@ $code.=<<___;
 .type	GFp_gcm_init_clmul,%function
 .align	4
 GFp_gcm_init_clmul:
-	AARCH64_VALID_CALL_TARGET
 	vld1.64		{$t1},[x1]		@ load input H
 	vmov.i8		$xC2,#0xe1
 	vshl.i64	$xC2,$xC2,#57		@ 0xc2.0
@@ -146,7 +145,6 @@ $code.=<<___;
 .type	GFp_gcm_gmult_clmul,%function
 .align	4
 GFp_gcm_gmult_clmul:
-	AARCH64_VALID_CALL_TARGET
 	vld1.64		{$t1},[$Xi]		@ load Xi
 	vmov.i8		$xC2,#0xe1
 	vld1.64		{$H-$Hhl},[$Htbl]	@ load twisted H, ...
@@ -200,7 +198,6 @@ $code.=<<___;
 .type	GFp_gcm_ghash_clmul,%function
 .align	4
 GFp_gcm_ghash_clmul:
-	AARCH64_VALID_CALL_TARGET
 ___
 $code.=<<___		if ($flavour !~ /64/);
 	vstmdb		sp!,{d8-d15}		@ 32-bit ABI says so

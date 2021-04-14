@@ -32,10 +32,6 @@ impl Algorithm {
     }
 }
 
-/// HKDF using HMAC-SHA-1. Obsolete.
-pub static HKDF_SHA1_FOR_LEGACY_USE_ONLY: Algorithm =
-    Algorithm(hmac::HMAC_SHA1_FOR_LEGACY_USE_ONLY);
-
 /// HKDF using HMAC-SHA-256.
 pub static HKDF_SHA256: Algorithm = Algorithm(hmac::HMAC_SHA256);
 
@@ -62,7 +58,7 @@ impl Salt {
     /// Constructing a `Salt` is relatively expensive so it is good to reuse a
     /// `Salt` object instead of re-constructing `Salt`s with the same value.
     pub fn new(algorithm: Algorithm, value: &[u8]) -> Self {
-        Self(hmac::Key::new(algorithm.0, value))
+        Salt(hmac::Key::new(algorithm.0, value))
     }
 
     /// The [HKDF-Extract] operation.

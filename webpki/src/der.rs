@@ -20,53 +20,42 @@ pub use ring::io::{
 
 #[inline(always)]
 pub fn expect_tag_and_get_value<'a>(
-    input: &mut untrusted::Reader<'a>,
-    tag: Tag,
+    input: &mut untrusted::Reader<'a>, tag: Tag,
 ) -> Result<untrusted::Input<'a>, Error> {
-    ring::io::der::expect_tag_and_get_value(input, tag).map_err(|_| Error::BadDer)
-}
-
-pub struct Value<'a> {
-    value: untrusted::Input<'a>,
-}
-
-impl<'a> Value<'a> {
-    pub fn value(&self) -> untrusted::Input<'a> {
-        self.value
-    }
-}
-
-pub fn expect_tag<'a>(input: &mut untrusted::Reader<'a>, tag: Tag) -> Result<Value<'a>, Error> {
-    let (actual_tag, value) = read_tag_and_get_value(input)?;
-    if usize::from(tag) != usize::from(actual_tag) {
-        return Err(Error::BadDer);
-    }
-
-    Ok(Value { value })
+    ring::io::der::expect_tag_and_get_value(input, tag).map_err(|_| Error::BadDER)
 }
 
 #[inline(always)]
 pub fn read_tag_and_get_value<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<(u8, untrusted::Input<'a>), Error> {
-    ring::io::der::read_tag_and_get_value(input).map_err(|_| Error::BadDer)
+    ring::io::der::read_tag_and_get_value(input).map_err(|_| Error::BadDER)
 }
 
 // TODO: investigate taking decoder as a reference to reduce generated code
 // size.
-pub fn nested_of_mut<'a, E>(
-    input: &mut untrusted::Reader<'a>,
-    outer_tag: Tag,
-    inner_tag: Tag,
-    error: E,
-    mut decoder: impl FnMut(&mut untrusted::Reader<'a>) -> Result<(), E>,
+#[inline(always)]
+pub fn nested_mut<'a, F, R, E: Copy>(
+    input: &mut untrusted::Reader<'a>, tag: Tag, error: E, decoder: F,
+) -> Result<R, E>
+where
+    F: FnMut(&mut untrusted::Reader<'a>) -> Result<R, E>,
+{
+    let inner = expect_tag_and_get_value(input, tag).map_err(|_| error)?;
+    inner.read_all(error, decoder).map_err(|_| error)
+}
+
+// TODO: investigate taking decoder as a reference to reduce generated code
+// size.
+pub fn nested_of_mut<'a, F, E: Copy>(
+    input: &mut untrusted::Reader<'a>, outer_tag: Tag, inner_tag: Tag, error: E, mut decoder: F,
 ) -> Result<(), E>
 where
-    E: Copy,
+    F: FnMut(&mut untrusted::Reader<'a>) -> Result<(), E>,
 {
-    nested(input, outer_tag, error, |outer| {
+    nested_mut(input, outer_tag, error, |outer| {
         loop {
-            nested(outer, inner_tag, error, |inner| decoder(inner))?;
+            nested_mut(outer, inner_tag, error, |inner| decoder(inner))?;
             if outer.at_end() {
                 break;
             }
@@ -78,10 +67,10 @@ where
 pub fn bit_string_with_no_unused_bits<'a>(
     input: &mut untrusted::Reader<'a>,
 ) -> Result<untrusted::Input<'a>, Error> {
-    nested(input, Tag::BitString, Error::BadDer, |value| {
-        let unused_bits_at_end = value.read_byte().map_err(|_| Error::BadDer)?;
+    nested(input, Tag::BitString, Error::BadDER, |value| {
+        let unused_bits_at_end = value.read_byte().map_err(|_| Error::BadDER)?;
         if unused_bits_at_end != 0 {
-            return Err(Error::BadDer);
+            return Err(Error::BadDER);
         }
         Ok(value.read_bytes_to_end())
     })
@@ -90,28 +79,28 @@ pub fn bit_string_with_no_unused_bits<'a>(
 // Like mozilla::pkix, we accept the nonconformant explicit encoding of
 // the default value (false) for compatibility with real-world certificates.
 pub fn optional_boolean(input: &mut untrusted::Reader) -> Result<bool, Error> {
-    if !input.peek(Tag::Boolean.into()) {
+    if !input.peek(Tag::Boolean as u8) {
         return Ok(false);
     }
-    nested(input, Tag::Boolean, Error::BadDer, |input| {
+    nested(input, Tag::Boolean, Error::BadDER, |input| {
         match input.read_byte() {
             Ok(0xff) => Ok(true),
             Ok(0x00) => Ok(false),
-            _ => Err(Error::BadDer),
+            _ => Err(Error::BadDER),
         }
     })
 }
 
 pub fn positive_integer<'a>(input: &'a mut untrusted::Reader) -> Result<Positive<'a>, Error> {
-    ring::io::der::positive_integer(input).map_err(|_| Error::BadDer)
+    ring::io::der::positive_integer(input).map_err(|_| Error::BadDER)
 }
 
-pub fn small_nonnegative_integer(input: &mut untrusted::Reader) -> Result<u8, Error> {
-    ring::io::der::small_nonnegative_integer(input).map_err(|_| Error::BadDer)
+pub fn small_nonnegative_integer<'a>(input: &'a mut untrusted::Reader) -> Result<u8, Error> {
+    ring::io::der::small_nonnegative_integer(input).map_err(|_| Error::BadDER)
 }
 
-pub fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
-    let is_utc_time = input.peek(Tag::UTCTime.into());
+pub fn time_choice<'a>(input: &mut untrusted::Reader<'a>) -> Result<time::Time, Error> {
+    let is_utc_time = input.peek(Tag::UTCTime as u8);
     let expected_tag = if is_utc_time {
         Tag::UTCTime
     } else {
@@ -119,12 +108,11 @@ pub fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
     };
 
     fn read_digit(inner: &mut untrusted::Reader) -> Result<u64, Error> {
-        const DIGIT: core::ops::RangeInclusive<u8> = b'0'..=b'9';
-        let b = inner.read_byte().map_err(|_| Error::BadDerTime)?;
-        if DIGIT.contains(&b) {
-            return Ok(u64::from(b - DIGIT.start()));
+        let b = inner.read_byte().map_err(|_| Error::BadDERTime)?;
+        if b < b'0' || b > b'9' {
+            return Err(Error::BadDERTime);
         }
-        Err(Error::BadDerTime)
+        Ok((b - b'0') as u64)
     }
 
     fn read_two_digits(inner: &mut untrusted::Reader, min: u64, max: u64) -> Result<u64, Error> {
@@ -132,12 +120,12 @@ pub fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
         let lo = read_digit(inner)?;
         let value = (hi * 10) + lo;
         if value < min || value > max {
-            return Err(Error::BadDerTime);
+            return Err(Error::BadDERTime);
         }
         Ok(value)
     }
 
-    nested(input, expected_tag, Error::BadDer, |value| {
+    nested(input, expected_tag, Error::BadDER, |value| {
         let (year_hi, year_lo) = if is_utc_time {
             let lo = read_two_digits(value, 0, 99)?;
             let hi = if lo >= 50 { 19 } else { 20 };
@@ -156,9 +144,9 @@ pub fn time_choice(input: &mut untrusted::Reader) -> Result<time::Time, Error> {
         let minutes = read_two_digits(value, 0, 59)?;
         let seconds = read_two_digits(value, 0, 59)?;
 
-        let time_zone = value.read_byte().map_err(|_| Error::BadDerTime)?;
+        let time_zone = value.read_byte().map_err(|_| Error::BadDERTime)?;
         if time_zone != b'Z' {
-            return Err(Error::BadDerTime);
+            return Err(Error::BadDERTime);
         }
 
         calendar::time_from_ymdhms_utc(year, month, day_of_month, hours, minutes, seconds)

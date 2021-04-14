@@ -14,10 +14,10 @@
 
 use super::PUBLIC_KEY_PUBLIC_MODULUS_MAX_LEN;
 use crate::{bits, digest, error, io::der};
+use untrusted;
 
 #[cfg(feature = "alloc")]
 use crate::rand;
-use core::convert::TryInto;
 
 /// Common features of both RSA padding encoding and RSA padding verification.
 pub trait Padding: 'static + Sync + crate::sealed::Sealed + core::fmt::Debug {
@@ -100,7 +100,7 @@ impl Verification for PKCS1 {
         let mut calculated = [0u8; PUBLIC_KEY_PUBLIC_MODULUS_MAX_LEN];
         let calculated = &mut calculated[..mod_bits.as_usize_bytes_rounded_up()];
         pkcs1_encode(&self, m_hash, calculated);
-        if m.read_bytes_to_end() != *calculated {
+        if m.read_bytes_to_end() != *calculated.as_ref() {
             return Err(error::Unspecified);
         }
         Ok(())
@@ -117,7 +117,7 @@ fn pkcs1_encode(pkcs1: &PKCS1, m_hash: &digest::Digest, m_out: &mut [u8]) {
     let digest_len = pkcs1.digestinfo_prefix.len() + pkcs1.digest_alg.output_len;
 
     // The specification requires at least 8 bytes of padding. Since we
-    // disallow keys smaller than 1024 bits, this should always be true.
+    // disallow keys smaller than 2048 bits, this should always be true.
     assert!(em.len() >= digest_len + 11);
     let pad_len = em.len() - digest_len - 3;
     em[0] = 0;
@@ -275,11 +275,11 @@ impl RsaEncoding for PSS {
 
         // Step 9. First output the mask into the out buffer.
         let (mut masked_db, digest_terminator) = em.split_at_mut(metrics.db_len);
-        mgf1(self.digest_alg, h_hash.as_ref(), &mut masked_db);
+        mgf1(self.digest_alg, h_hash.as_ref(), &mut masked_db)?;
 
         {
             // Steps 7.
-            let masked_db = masked_db.iter_mut();
+            let masked_db = masked_db.into_iter();
             // `PS` is all zero bytes, so skipping `ps_len` bytes is equivalent
             // to XORing `PS` onto `db`.
             let mut masked_db = masked_db.skip(metrics.ps_len);
@@ -351,7 +351,7 @@ impl Verification for PSS {
         let mut db = [0u8; PUBLIC_KEY_PUBLIC_MODULUS_MAX_LEN];
         let db = &mut db[..metrics.db_len];
 
-        mgf1(self.digest_alg, h_hash.as_slice_less_safe(), db);
+        mgf1(self.digest_alg, h_hash.as_slice_less_safe(), db)?;
 
         masked_db.read_all(error::Unspecified, |masked_bytes| {
             // Step 6. Check the top bits of first byte are zero.
@@ -411,7 +411,7 @@ impl PSSMetrics {
     fn new(
         digest_alg: &'static digest::Algorithm,
         mod_bits: bits::BitLength,
-    ) -> Result<Self, error::Unspecified> {
+    ) -> Result<PSSMetrics, error::Unspecified> {
         let em_bits = mod_bits.try_sub_1()?;
         let em_len = em_bits.as_usize_bytes_rounded_up();
         let leading_zero_bits = (8 * em_len) - em_bits.as_usize_bits();
@@ -435,7 +435,7 @@ impl PSSMetrics {
 
         debug_assert!(em_bits.as_usize_bits() >= (8 * h_len) + (8 * s_len) + 9);
 
-        Ok(Self {
+        Ok(PSSMetrics {
             em_len,
             db_len,
             ps_len,
@@ -448,20 +448,26 @@ impl PSSMetrics {
 
 // Mask-generating function MGF1 as described in
 // https://tools.ietf.org/html/rfc3447#appendix-B.2.1.
-fn mgf1(digest_alg: &'static digest::Algorithm, seed: &[u8], mask: &mut [u8]) {
+fn mgf1(
+    digest_alg: &'static digest::Algorithm,
+    seed: &[u8],
+    mask: &mut [u8],
+) -> Result<(), error::Unspecified> {
     let digest_len = digest_alg.output_len;
 
     // Maximum counter value is the value of (mask_len / digest_len) rounded up.
+    let ctr_max = (mask.len() - 1) / digest_len;
+    assert!(ctr_max <= u32::max_value() as usize);
     for (i, mask_chunk) in mask.chunks_mut(digest_len).enumerate() {
         let mut ctx = digest::Context::new(digest_alg);
         ctx.update(seed);
-        // The counter will always fit in a `u32` because we reject absurdly
-        // long inputs very early.
-        ctx.update(&u32::to_be_bytes(i.try_into().unwrap()));
+        ctx.update(&u32::to_be_bytes(i as u32));
         let digest = ctx.finish();
         let mask_chunk_len = mask_chunk.len();
         mask_chunk.copy_from_slice(&digest.as_ref()[..mask_chunk_len]);
     }
+
+    Ok(())
 }
 
 fn pss_digest(
@@ -516,6 +522,7 @@ mod test {
     use super::*;
     use crate::{digest, error, test};
     use alloc::vec;
+    use untrusted;
 
     #[test]
     fn test_pss_padding_verify() {

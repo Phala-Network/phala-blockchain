@@ -22,6 +22,7 @@ use crate::{
     signature::{self, KeyPair as SigningKeyPair},
 };
 use core::convert::TryInto;
+use untrusted;
 
 /// An Ed25519 key pair, for signing.
 pub struct Ed25519KeyPair {
@@ -42,11 +43,10 @@ impl Ed25519KeyPair {
     /// PKCS#8 document.
     ///
     /// The PKCS#8 document will be a v2 `OneAsymmetricKey` with the public key,
-    /// as described in [RFC 5958 Section 2]; see [RFC 8410 Section 10.3] for an
-    /// example.
+    /// as described in [RFC 5958 Section 2]. See also
+    /// https://tools.ietf.org/html/draft-ietf-curdle-pkix-04.
     ///
     /// [RFC 5958 Section 2]: https://tools.ietf.org/html/rfc5958#section-2
-    /// [RFC 8410 Section 10.3]: https://tools.ietf.org/html/rfc8410#section-10.3
     pub fn generate_pkcs8(
         rng: &dyn rand::SecureRandom,
     ) -> Result<pkcs8::Document, error::Unspecified> {

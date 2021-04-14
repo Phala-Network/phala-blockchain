@@ -149,8 +149,11 @@ static void elem_div_by_2(Elem r, const Elem a) {
 
   Elem adjusted;
   BN_ULONG carry2 = limbs_add(adjusted, r, Q_PLUS_1_SHR_1, P384_LIMBS);
-  dev_assert_secret(carry2 == 0);
+#if defined(NDEBUG)
   (void)carry2;
+#endif
+  ASSERT(carry2 == 0);
+
   copy_conditional(r, adjusted, is_odd);
 }
 
@@ -178,6 +181,10 @@ static inline void elem_sqr_mont(Elem r, const Elem a) {
   elem_mul_mont(r, a, a);
 }
 
+void GFp_p384_elem_add(Elem r, const Elem a, const Elem b) {
+  elem_add(r, a, b);
+}
+
 void GFp_p384_elem_sub(Elem r, const Elem a, const Elem b) {
   elem_sub(r, a, b);
 }
@@ -193,8 +200,10 @@ void GFp_p384_elem_mul_mont(Elem r, const Elem a, const Elem b) {
 void GFp_p384_elem_neg(Elem r, const Elem a) {
   Limb is_zero = LIMBS_are_zero(a, P384_LIMBS);
   Carry borrow = limbs_sub(r, Q, a, P384_LIMBS);
-  dev_assert_secret(borrow == 0);
+#if defined(NDEBUG)
   (void)borrow;
+#endif
+  ASSERT(borrow == 0);
   for (size_t i = 0; i < P384_LIMBS; ++i) {
     r[i] = constant_time_select_w(is_zero, 0, r[i]);
   }
@@ -219,13 +228,12 @@ static void gfp_p384_point_select_w5(P384_POINT *out,
   Elem y; limbs_zero(y, P384_LIMBS);
   Elem z; limbs_zero(z, P384_LIMBS);
 
-  // TODO: Rewrite in terms of |limbs_select|.
   for (size_t i = 0; i < 16; ++i) {
-    crypto_word equal = constant_time_eq_w(index, (crypto_word)i + 1);
+    Limb mask = constant_time_eq_w(index, i + 1);
     for (size_t j = 0; j < P384_LIMBS; ++j) {
-      x[j] = constant_time_select_w(equal, table[i].X[j], x[j]);
-      y[j] = constant_time_select_w(equal, table[i].Y[j], y[j]);
-      z[j] = constant_time_select_w(equal, table[i].Z[j], z[j]);
+      x[j] |= table[i].X[j] & mask;
+      y[j] |= table[i].Y[j] & mask;
+      z[j] |= table[i].Z[j] & mask;
     }
   }
 

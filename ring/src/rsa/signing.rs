@@ -25,6 +25,7 @@ use crate::{
     pkcs8, rand, signature,
 };
 use alloc::boxed::Box;
+use untrusted;
 
 /// An RSA key pair, used for signing.
 pub struct RsaKeyPair {
@@ -411,7 +412,7 @@ impl RsaSubjectPublicKey {
             der_writer::write_positive_integer(output, &n);
             der_writer::write_positive_integer(output, &e);
         });
-        Self(bytes)
+        RsaSubjectPublicKey(bytes)
     }
 
     /// The public modulus (n).
@@ -458,7 +459,7 @@ impl<M: Prime + Clone> PrivatePrime<M> {
         // and `e`. TODO: Either prove that what we do is sufficient, or make
         // it so.
 
-        Ok(Self {
+        Ok(PrivatePrime {
             modulus: p,
             exponent: dP,
         })
@@ -473,7 +474,7 @@ where
     M: bigint::NotMuchSmallerModulus<MM>,
     M: Prime,
 {
-    let c_mod_m = bigint::elem_reduced(c, &p.modulus);
+    let c_mod_m = bigint::elem_reduced(c, &p.modulus)?;
     // We could precompute `oneRRR = elem_squared(&p.oneRR`) as mentioned
     // in the Smooth CRT-RSA paper.
     let c_mod_m = bigint::elem_mul(p.modulus.oneRR().as_ref(), c_mod_m, &p.modulus);
@@ -620,7 +621,8 @@ mod tests {
         const MESSAGE: &[u8] = b"hello, world";
         let rng = rand::SystemRandom::new();
 
-        const PRIVATE_KEY_DER: &[u8] = include_bytes!("signature_rsa_example_private_key.der");
+        const PRIVATE_KEY_DER: &'static [u8] =
+            include_bytes!("signature_rsa_example_private_key.der");
         let key_pair = signature::RsaKeyPair::from_der(PRIVATE_KEY_DER).unwrap();
 
         // The output buffer is one byte too short.

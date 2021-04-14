@@ -1,5 +1,7 @@
 // Copyright 2014-2017 Brian Smith.
 
+use webpki;
+
 // (name, is_valid)
 static DNS_NAME_VALIDITY: &[(&[u8], bool)] = &[
     (b"a", true),
@@ -239,8 +241,8 @@ static IP_ADDRESS_DNS_VALIDITY: &[(&[u8], bool)] = &[
     (b"1.2.3", false),
     (b"1.2.3.4", false),
     (b"1.2.3.4.5", false),
-    (b"1.2.3.4a", true), // a DNS name!
-    (b"a.2.3.4", false), // not even a DNS name!
+    (b"1.2.3.4a", true), // a DNSName!
+    (b"a.2.3.4", false), // not even a DNSName!
     (b"1::2", false),    // IPv6 address
     // Whitespace not allowed
     (b" 1.2.3.4", false),
@@ -399,9 +401,9 @@ fn dns_name_ref_try_from_ascii_test() {
         .chain(IP_ADDRESS_DNS_VALIDITY.iter())
     {
         assert_eq!(
-            webpki::DnsNameRef::try_from_ascii(s).is_ok(),
+            webpki::DNSNameRef::try_from_ascii(s).is_ok(),
             is_valid,
-            "DnsNameRef::try_from_ascii_str failed for \"{:?}\"",
+            "DNSNameRef::try_from_ascii_str failed for \"{:?}\"",
             s
         );
     }

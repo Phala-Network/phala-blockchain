@@ -15,12 +15,7 @@
 use super::{time::Time, Error};
 
 pub fn time_from_ymdhms_utc(
-    year: u64,
-    month: u64,
-    day_of_month: u64,
-    hours: u64,
-    minutes: u64,
-    seconds: u64,
+    year: u64, month: u64, day_of_month: u64, hours: u64, minutes: u64, seconds: u64,
 ) -> Result<Time, Error> {
     let days_before_year_since_unix_epoch = days_before_year_since_unix_epoch(year)?;
 
@@ -67,7 +62,7 @@ fn days_before_year_since_unix_epoch(year: u64) -> Result<u64, Error> {
     // Unix epoch. It is likely that other software won't deal well with
     // certificates that have dates before the epoch.
     if year < 1970 {
-        return Err(Error::BadDerTime);
+        return Err(Error::BadDERTime);
     }
     let days_before_year_ad = days_before_year_ad(year);
     debug_assert!(days_before_year_ad >= DAYS_BEFORE_UNIX_EPOCH_AD);
@@ -98,7 +93,6 @@ fn days_in_feb(year: u64) -> u64 {
     }
 }
 
-#[allow(clippy::unreadable_literal)] // TODO: Make this clear.
 const DAYS_BEFORE_UNIX_EPOCH_AD: u64 = 719162;
 
 #[cfg(test)]
@@ -132,7 +126,6 @@ mod tests {
         assert_eq!(days_in_month(2100, 2), 28);
     }
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     #[test]
     fn test_time_from_ymdhms_utc() {
         use super::{time_from_ymdhms_utc, Time};

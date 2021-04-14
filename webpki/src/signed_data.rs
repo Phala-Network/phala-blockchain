@@ -58,7 +58,7 @@ pub struct SignedData<'a> {
 ///     certs [0] EXPLICIT SEQUENCE OF Certificate OPTIONAL
 /// }
 /// ```
-///
+/// 
 /// Note that this function does NOT parse the outermost `SEQUENCE` or the
 /// `certs` value.
 ///
@@ -93,8 +93,7 @@ pub(crate) fn parse_signed_data<'a>(
 /// but generally more common algorithms should go first, as it is scanned
 /// linearly for matches.
 pub(crate) fn verify_signed_data(
-    supported_algorithms: &[&SignatureAlgorithm],
-    spki_value: untrusted::Input,
+    supported_algorithms: &[&SignatureAlgorithm], spki_value: untrusted::Input,
     signed_data: &SignedData,
 ) -> Result<(), Error> {
     // We need to verify the signature in `signed_data` using the public key
@@ -130,10 +129,10 @@ pub(crate) fn verify_signed_data(
             Err(Error::UnsupportedSignatureAlgorithmForPublicKey) => {
                 found_signature_alg_match = true;
                 continue;
-            }
+            },
             result => {
                 return result;
-            }
+            },
         }
     }
 
@@ -145,9 +144,7 @@ pub(crate) fn verify_signed_data(
 }
 
 pub(crate) fn verify_signature(
-    signature_alg: &SignatureAlgorithm,
-    spki_value: untrusted::Input,
-    msg: untrusted::Input,
+    signature_alg: &SignatureAlgorithm, spki_value: untrusted::Input, msg: untrusted::Input,
     signature: untrusted::Input,
 ) -> Result<(), Error> {
     let spki = parse_spki_value(spki_value)?;
@@ -175,7 +172,7 @@ struct SubjectPublicKeyInfo<'a> {
 // `PublicKeyAlgorithm` for the `SignatureAlgorithm` that is matched when
 // parsing the signature.
 fn parse_spki_value(input: untrusted::Input) -> Result<SubjectPublicKeyInfo, Error> {
-    input.read_all(Error::BadDer, |input| {
+    input.read_all(Error::BadDER, |input| {
         let algorithm_id_value = der::expect_tag_and_get_value(input, der::Tag::Sequence)?;
         let key_value = der::bit_string_with_no_unused_bits(input)?;
         Ok(SubjectPublicKeyInfo {
@@ -221,9 +218,6 @@ pub static ECDSA_P384_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-256 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PKCS1_SHA256,
@@ -231,9 +225,6 @@ pub static RSA_PKCS1_2048_8192_SHA256: SignatureAlgorithm = SignatureAlgorithm {
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PKCS1_SHA384,
@@ -241,9 +232,6 @@ pub static RSA_PKCS1_2048_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-512 for keys of 2048-8192 bits.
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
 pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PKCS1_SHA512,
@@ -251,9 +239,6 @@ pub static RSA_PKCS1_2048_8192_SHA512: SignatureAlgorithm = SignatureAlgorithm {
 };
 
 /// RSA PKCS#1 1.5 signatures using SHA-384 for keys of 3072-8192 bits.
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
 pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PKCS1_SHA384,
@@ -261,12 +246,7 @@ pub static RSA_PKCS1_3072_8192_SHA384: SignatureAlgorithm = SignatureAlgorithm {
 };
 
 /// RSA PSS signatures using SHA-256 for keys of 2048-8192 bits and of
-/// type rsaEncryption; see [RFC 4055 Section 1.2].
-///
-/// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
+/// type rsaEncryption; see https://tools.ietf.org/html/rfc4055#section-1.2
 pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PSS_SHA256,
@@ -274,12 +254,7 @@ pub static RSA_PSS_2048_8192_SHA256_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 };
 
 /// RSA PSS signatures using SHA-384 for keys of 2048-8192 bits and of
-/// type rsaEncryption; see [RFC 4055 Section 1.2].
-///
-/// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
+/// type rsaEncryption; see https://tools.ietf.org/html/rfc4055#section-1.2
 pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PSS_SHA384,
@@ -287,12 +262,7 @@ pub static RSA_PSS_2048_8192_SHA384_LEGACY_KEY: SignatureAlgorithm = SignatureAl
 };
 
 /// RSA PSS signatures using SHA-512 for keys of 2048-8192 bits and of
-/// type rsaEncryption; see [RFC 4055 Section 1.2].
-///
-/// [RFC 4055 Section 1.2]: https://tools.ietf.org/html/rfc4055#section-1.2
-///
-/// Requires the `alloc` feature.
-#[cfg(feature = "alloc")]
+/// type rsaEncryption; see https://tools.ietf.org/html/rfc4055#section-1.2
 pub static RSA_PSS_2048_8192_SHA512_LEGACY_KEY: SignatureAlgorithm = SignatureAlgorithm {
     public_key_alg_id: RSA_ENCRYPTION,
     signature_alg_id: RSA_PSS_SHA512,
@@ -334,37 +304,30 @@ const ECDSA_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-ecdsa-sha384.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_ENCRYPTION: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-encryption.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PKCS1_SHA256: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha256.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PKCS1_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha384.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PKCS1_SHA512: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pkcs1-sha512.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PSS_SHA256: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha256.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PSS_SHA384: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha384.der")),
 };
 
-#[cfg(feature = "alloc")]
 const RSA_PSS_SHA512: AlgorithmIdentifier = AlgorithmIdentifier {
     asn1_id_value: untrusted::Input::from(include_bytes!("data/alg-rsa-pss-sha512.der")),
 };
@@ -376,33 +339,24 @@ const ED_25519: AlgorithmIdentifier = AlgorithmIdentifier {
 #[cfg(test)]
 mod tests {
     use crate::{der, signed_data, Error};
-    use alloc::{string::String, vec::Vec};
+    use base64;
 
-    macro_rules! test_file_bytes {
-        ( $file_name:expr ) => {
-            include_bytes!(concat!(
-                "../third-party/chromium/data/verify_signed_data/",
-                $file_name
-            ))
-        };
-    }
+    use std::{self, io::BufRead, string::String, vec::Vec};
 
     // TODO: The expected results need to be modified for SHA-1 deprecation.
 
     macro_rules! test_verify_signed_data {
         ($fn_name:ident, $file_name:expr, $expected_result:expr) => {
             #[test]
-            fn $fn_name() {
-                test_verify_signed_data(test_file_bytes!($file_name), $expected_result);
-            }
+            fn $fn_name() { test_verify_signed_data($file_name, $expected_result); }
         };
     }
 
-    fn test_verify_signed_data(file_contents: &[u8], expected_result: Result<(), Error>) {
-        let tsd = parse_test_signed_data(file_contents);
+    fn test_verify_signed_data(file_name: &str, expected_result: Result<(), Error>) {
+        let tsd = parse_test_signed_data(file_name);
         let spki_value = untrusted::Input::from(&tsd.spki);
         let spki_value = spki_value
-            .read_all(Error::BadDer, |input| {
+            .read_all(Error::BadDER, |input| {
                 der::expect_tag_and_get_value(input, der::Tag::Sequence)
             })
             .unwrap();
@@ -415,14 +369,14 @@ mod tests {
 
         let algorithm = untrusted::Input::from(&tsd.algorithm);
         let algorithm = algorithm
-            .read_all(Error::BadDer, |input| {
+            .read_all(Error::BadDER, |input| {
                 der::expect_tag_and_get_value(input, der::Tag::Sequence)
             })
             .unwrap();
 
         let signature = untrusted::Input::from(&tsd.signature);
         let signature = signature
-            .read_all(Error::BadDer, |input| {
+            .read_all(Error::BadDER, |input| {
                 der::bit_string_with_no_unused_bits(input)
             })
             .unwrap();
@@ -447,21 +401,16 @@ mod tests {
     macro_rules! test_verify_signed_data_signature_outer {
         ($fn_name:ident, $file_name:expr, $expected_result:expr) => {
             #[test]
-            fn $fn_name() {
-                test_verify_signed_data_signature_outer(
-                    test_file_bytes!($file_name),
-                    $expected_result,
-                );
-            }
+            fn $fn_name() { test_verify_signed_data_signature_outer($file_name, $expected_result); }
         };
     }
 
-    fn test_verify_signed_data_signature_outer(file_contents: &[u8], expected_error: Error) {
-        let tsd = parse_test_signed_data(file_contents);
+    fn test_verify_signed_data_signature_outer(file_name: &str, expected_error: Error) {
+        let tsd = parse_test_signed_data(file_name);
         let signature = untrusted::Input::from(&tsd.signature);
         assert_eq!(
             Err(expected_error),
-            signature.read_all(Error::BadDer, |input| {
+            signature.read_all(Error::BadDER, |input| {
                 der::bit_string_with_no_unused_bits(input)
             })
         );
@@ -471,40 +420,20 @@ mod tests {
     macro_rules! test_parse_spki_bad_outer {
         ($fn_name:ident, $file_name:expr, $error:expr) => {
             #[test]
-            fn $fn_name() {
-                test_parse_spki_bad_outer(test_file_bytes!($file_name), $error)
-            }
+            fn $fn_name() { test_parse_spki_bad_outer($file_name, $error) }
         };
     }
 
-    fn test_parse_spki_bad_outer(file_contents: &[u8], expected_error: Error) {
-        let tsd = parse_test_signed_data(file_contents);
+    fn test_parse_spki_bad_outer(file_name: &str, expected_error: Error) {
+        let tsd = parse_test_signed_data(file_name);
         let spki = untrusted::Input::from(&tsd.spki);
         assert_eq!(
             Err(expected_error),
-            spki.read_all(Error::BadDer, |input| {
+            spki.read_all(Error::BadDER, |input| {
                 der::expect_tag_and_get_value(input, der::Tag::Sequence)
             })
         );
     }
-
-    const UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-        Error::UnsupportedSignatureAlgorithmForPublicKey
-    } else {
-        Error::UnsupportedSignatureAlgorithm
-    };
-
-    const INVALID_SIGNATURE_FOR_RSA_KEY: Error = if cfg!(feature = "alloc") {
-        Error::InvalidSignatureForPublicKey
-    } else {
-        Error::UnsupportedSignatureAlgorithm
-    };
-
-    const OK_IF_RSA_AVAILABLE: Result<(), Error> = if cfg!(feature = "alloc") {
-        Ok(())
-    } else {
-        Err(Error::UnsupportedSignatureAlgorithm)
-    };
 
     // XXX: Some of the BadDER tests should have better error codes, maybe?
 
@@ -518,7 +447,7 @@ mod tests {
     test_verify_signed_data_signature_outer!(
         test_ecdsa_prime256v1_sha512_unused_bits_signature,
         "ecdsa-prime256v1-sha512-unused-bits-signature.pem",
-        Error::BadDer
+        Error::BadDER
     );
     // XXX: We should have a variant of this test with a SHA-256 digest that gives
     // `Error::UnsupportedSignatureAlgorithmForPublicKey`.
@@ -537,7 +466,7 @@ mod tests {
     test_verify_signed_data!(
         test_ecdsa_prime256v1_sha512_using_rsa_algorithm,
         "ecdsa-prime256v1-sha512-using-rsa-algorithm.pem",
-        Err(UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
     );
     // XXX: We should have a variant of this test with a SHA-256 digest that gives
     // `Error::InvalidSignatureForPublicKey`.
@@ -571,12 +500,12 @@ mod tests {
     test_parse_spki_bad_outer!(
         test_rsa_pkcs1_sha1_bad_key_der_length,
         "rsa-pkcs1-sha1-bad-key-der-length.pem",
-        Error::BadDer
+        Error::BadDER
     );
     test_parse_spki_bad_outer!(
         test_rsa_pkcs1_sha1_bad_key_der_null,
         "rsa-pkcs1-sha1-bad-key-der-null.pem",
-        Error::BadDer
+        Error::BadDER
     );
     test_verify_signed_data!(
         test_rsa_pkcs1_sha1_key_params_absent,
@@ -591,7 +520,7 @@ mod tests {
     test_verify_signed_data!(
         test_rsa_pkcs1_sha1_wrong_algorithm,
         "rsa-pkcs1-sha1-wrong-algorithm.pem",
-        Err(INVALID_SIGNATURE_FOR_RSA_KEY)
+        Err(Error::InvalidSignatureForPublicKey)
     );
     test_verify_signed_data!(
         test_rsa_pkcs1_sha1,
@@ -605,17 +534,17 @@ mod tests {
     test_verify_signed_data!(
         test_rsa_pkcs1_sha256,
         "rsa-pkcs1-sha256.pem",
-        Err(INVALID_SIGNATURE_FOR_RSA_KEY)
+        Err(Error::InvalidSignatureForPublicKey)
     );
     test_parse_spki_bad_outer!(
         test_rsa_pkcs1_sha256_key_encoded_ber,
         "rsa-pkcs1-sha256-key-encoded-ber.pem",
-        Error::BadDer
+        Error::BadDER
     );
     test_verify_signed_data!(
         test_rsa_pkcs1_sha256_spki_non_null_params,
         "rsa-pkcs1-sha256-spki-non-null-params.pem",
-        Err(UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
     );
     test_verify_signed_data!(
         test_rsa_pkcs1_sha256_using_ecdsa_algorithm,
@@ -625,7 +554,7 @@ mod tests {
     test_verify_signed_data!(
         test_rsa_pkcs1_sha256_using_id_ea_rsa,
         "rsa-pkcs1-sha256-using-id-ea-rsa.pem",
-        Err(UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
     );
 
     // Chromium's PSS test are for parameter combinations we don't support.
@@ -674,43 +603,43 @@ mod tests {
     test_verify_signed_data!(
         test_rsa_pss_sha256_salt32,
         "ours/rsa-pss-sha256-salt32.pem",
-        OK_IF_RSA_AVAILABLE
+        Ok(())
     );
     test_verify_signed_data!(
         test_rsa_pss_sha384_salt48,
         "ours/rsa-pss-sha384-salt48.pem",
-        OK_IF_RSA_AVAILABLE
+        Ok(())
     );
     test_verify_signed_data!(
         test_rsa_pss_sha512_salt64,
         "ours/rsa-pss-sha512-salt64.pem",
-        OK_IF_RSA_AVAILABLE
+        Ok(())
     );
     test_verify_signed_data!(
         test_rsa_pss_sha256_salt32_corrupted_data,
         "ours/rsa-pss-sha256-salt32-corrupted-data.pem",
-        Err(INVALID_SIGNATURE_FOR_RSA_KEY)
+        Err(Error::InvalidSignatureForPublicKey)
     );
     test_verify_signed_data!(
         test_rsa_pss_sha384_salt48_corrupted_data,
         "ours/rsa-pss-sha384-salt48-corrupted-data.pem",
-        Err(INVALID_SIGNATURE_FOR_RSA_KEY)
+        Err(Error::InvalidSignatureForPublicKey)
     );
     test_verify_signed_data!(
         test_rsa_pss_sha512_salt64_corrupted_data,
         "ours/rsa-pss-sha512-salt64-corrupted-data.pem",
-        Err(INVALID_SIGNATURE_FOR_RSA_KEY)
+        Err(Error::InvalidSignatureForPublicKey)
     );
 
     test_verify_signed_data!(
         test_rsa_using_ec_key,
         "rsa-using-ec-key.pem",
-        Err(UNSUPPORTED_SIGNATURE_ALGORITHM_FOR_RSA_KEY)
+        Err(Error::UnsupportedSignatureAlgorithmForPublicKey)
     );
     test_verify_signed_data!(
         test_rsa2048_pkcs1_sha512,
         "rsa2048-pkcs1-sha512.pem",
-        OK_IF_RSA_AVAILABLE
+        Ok(())
     );
 
     struct TestSignedData {
@@ -720,8 +649,12 @@ mod tests {
         signature: Vec<u8>,
     }
 
-    fn parse_test_signed_data(file_contents: &[u8]) -> TestSignedData {
-        let mut lines = core::str::from_utf8(file_contents).unwrap().lines();
+    fn parse_test_signed_data(file_name: &str) -> TestSignedData {
+        let path = std::path::PathBuf::from("third-party/chromium/data/verify_signed_data")
+            .join(file_name);
+        let file = std::fs::File::open(path).unwrap();
+        let mut lines = std::io::BufReader::new(&file).lines();
+
         let spki = read_pem_section(&mut lines, "PUBLIC KEY");
         let algorithm = read_pem_section(&mut lines, "ALGORITHM");
         let data = read_pem_section(&mut lines, "DATA");
@@ -735,13 +668,13 @@ mod tests {
         }
     }
 
-    use alloc::str::Lines;
+    type FileLines<'a> = std::io::Lines<std::io::BufReader<&'a std::fs::File>>;
 
-    fn read_pem_section(lines: &mut Lines, section_name: &str) -> Vec<u8> {
+    fn read_pem_section(lines: &mut FileLines, section_name: &str) -> Vec<u8> {
         // Skip comments and header
         let begin_section = format!("-----BEGIN {}-----", section_name);
         loop {
-            let line = lines.next().unwrap();
+            let line = lines.next().unwrap().unwrap();
             if line == begin_section {
                 break;
             }
@@ -751,7 +684,7 @@ mod tests {
 
         let end_section = format!("-----END {}-----", section_name);
         loop {
-            let line = lines.next().unwrap();
+            let line = lines.next().unwrap().unwrap();
             if line == end_section {
                 break;
             }
@@ -763,23 +696,16 @@ mod tests {
 
     static SUPPORTED_ALGORITHMS_IN_TESTS: &[&signed_data::SignatureAlgorithm] = &[
         // Reasonable algorithms.
+        &signed_data::RSA_PKCS1_2048_8192_SHA256,
         &signed_data::ECDSA_P256_SHA256,
         &signed_data::ECDSA_P384_SHA384,
-        &signed_data::ED25519,
-        #[cfg(feature = "alloc")]
-        &signed_data::RSA_PKCS1_2048_8192_SHA256,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PKCS1_2048_8192_SHA384,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PKCS1_2048_8192_SHA512,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PKCS1_3072_8192_SHA384,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PSS_2048_8192_SHA256_LEGACY_KEY,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PSS_2048_8192_SHA384_LEGACY_KEY,
-        #[cfg(feature = "alloc")]
         &signed_data::RSA_PSS_2048_8192_SHA512_LEGACY_KEY,
+        &signed_data::ED25519,
         // Algorithms deprecated because they are annoying (P-521) or because
         // they are nonsensical combinations.
         &signed_data::ECDSA_P256_SHA384, // Truncates digest.

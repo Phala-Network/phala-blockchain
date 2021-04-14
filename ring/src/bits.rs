@@ -57,8 +57,8 @@ impl BitLength {
 
     #[cfg(feature = "alloc")]
     #[inline]
-    pub fn try_sub_1(self) -> Result<Self, error::Unspecified> {
+    pub fn try_sub_1(self) -> Result<BitLength, error::Unspecified> {
         let sum = self.0.checked_sub(1).ok_or(error::Unspecified)?;
-        Ok(Self(sum))
+        Ok(BitLength(sum))
     }
 }

@@ -60,6 +60,7 @@ pub static COMMON_OPS: CommonOps = CommonOps {
         encoding: PhantomData, // Unreduced
     },
 
+    elem_add_impl: GFp_p384_elem_add,
     elem_mul_mont: GFp_p384_elem_mul_mont,
     elem_sqr_mont: GFp_p384_elem_sqr_mont,
 
@@ -131,7 +132,7 @@ fn p384_elem_inv_squared(a: &Elem<R>) -> Elem<R> {
 
 fn p384_point_mul_base_impl(a: &Scalar) -> Point {
     // XXX: Not efficient. TODO: Precompute multiples of the generator.
-    static GENERATOR: (Elem<R>, Elem<R>) = (
+    static P384_GENERATOR: (Elem<R>, Elem<R>) = (
         Elem {
             limbs: p384_limbs![
                 0x49c0b528, 0x3dd07566, 0xa0d6ce38, 0x20e378e2, 0x541b4d6e, 0x879c3afc, 0x59a30eff,
@@ -150,7 +151,7 @@ fn p384_point_mul_base_impl(a: &Scalar) -> Point {
         },
     );
 
-    PRIVATE_KEY_OPS.point_mul(a, &GENERATOR)
+    PRIVATE_KEY_OPS.point_mul(a, &P384_GENERATOR)
 }
 
 pub static PUBLIC_KEY_OPS: PublicKeyOps = PublicKeyOps {
@@ -338,6 +339,11 @@ const N_RR_LIMBS: [Limb; MAX_LIMBS] = p384_limbs![
 ];
 
 extern "C" {
+    fn GFp_p384_elem_add(
+        r: *mut Limb,   // [COMMON_OPS.num_limbs]
+        a: *const Limb, // [COMMON_OPS.num_limbs]
+        b: *const Limb, // [COMMON_OPS.num_limbs]
+    );
     fn GFp_p384_elem_mul_mont(
         r: *mut Limb,   // [COMMON_OPS.num_limbs]
         a: *const Limb, // [COMMON_OPS.num_limbs]
@@ -361,4 +367,41 @@ extern "C" {
         a: *const Limb, // [COMMON_OPS.num_limbs]
         b: *const Limb, // [COMMON_OPS.num_limbs]
     );
+}
+
+#[cfg(feature = "internal_benches")]
+mod internal_benches {
+    use super::{super::internal_benches::*, *};
+
+    bench_curve!(&[
+        Scalar {
+            limbs: LIMBS_1,
+            encoding: PhantomData,
+            m: PhantomData
+        },
+        Scalar {
+            limbs: LIMBS_ALTERNATING_10,
+            encoding: PhantomData,
+            m: PhantomData
+        },
+        Scalar {
+            // n - 1
+            limbs: p384_limbs![
+                0xccc52973 - 1,
+                0xecec196a,
+                0x48b0a77a,
+                0x581a0db2,
+                0xf4372ddf,
+                0xc7634d81,
+                0xffffffff,
+                0xffffffff,
+                0xffffffff,
+                0xffffffff,
+                0xffffffff,
+                0xffffffff
+            ],
+            encoding: PhantomData,
+            m: PhantomData,
+        },
+    ]);
 }

@@ -12,80 +12,95 @@
 // ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 // OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-use core::convert::TryFrom;
+#![deny(box_pointers)]
+#![forbid(
+    anonymous_parameters,
+    legacy_directory_ownership,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unsafe_code,
+    unstable_features,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences,
+    warnings
+)]
+
+#[cfg(any(feature = "std", feature = "trust_anchor_util"))]
 extern crate webpki;
 
+#[cfg(feature = "trust_anchor_util")]
 static ALL_SIGALGS: &[&webpki::SignatureAlgorithm] = &[
     &webpki::ECDSA_P256_SHA256,
     &webpki::ECDSA_P256_SHA384,
     &webpki::ECDSA_P384_SHA256,
     &webpki::ECDSA_P384_SHA384,
-    &webpki::ED25519,
-    #[cfg(feature = "alloc")]
     &webpki::RSA_PKCS1_2048_8192_SHA256,
-    #[cfg(feature = "alloc")]
     &webpki::RSA_PKCS1_2048_8192_SHA384,
-    #[cfg(feature = "alloc")]
     &webpki::RSA_PKCS1_2048_8192_SHA512,
-    #[cfg(feature = "alloc")]
     &webpki::RSA_PKCS1_3072_8192_SHA384,
+    &webpki::ED25519,
 ];
 
 /* Checks we can verify netflix's cert chain.  This is notable
  * because they're rooted at a Verisign v1 root. */
-#[cfg(feature = "alloc")]
+#[allow(box_pointers)]
+#[cfg(feature = "trust_anchor_util")]
 #[test]
 pub fn netflix() {
-    let ee: &[u8] = include_bytes!("netflix/ee.der");
+    let ee = include_bytes!("netflix/ee.der");
     let inter = include_bytes!("netflix/inter.der");
     let ca = include_bytes!("netflix/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = vec![webpki::trust_anchor_util::cert_der_as_trust_anchor(ca).unwrap()];
+    let anchors = webpki::TLSServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     let time = webpki::Time::from_seconds_since_unix_epoch(1492441716);
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[inter], time)
-    );
+    let cert = webpki::EndEntityCert::from(ee).unwrap();
+    let _ = cert
+        .verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[inter], time)
+        .unwrap();
 }
 
+#[cfg(feature = "trust_anchor_util")]
 #[test]
 pub fn ed25519() {
-    let ee: &[u8] = include_bytes!("ed25519/ee.der");
+    let ee = include_bytes!("ed25519/ee.der");
     let ca = include_bytes!("ed25519/ca.der");
 
-    let anchors = vec![webpki::TrustAnchor::try_from_cert_der(ca).unwrap()];
-    let anchors = webpki::TlsServerTrustAnchors(&anchors);
+    let anchors = vec![webpki::trust_anchor_util::cert_der_as_trust_anchor(ca).unwrap()];
+    let anchors = webpki::TLSServerTrustAnchors(&anchors);
 
-    #[allow(clippy::unreadable_literal)] // TODO: Make this clear.
     let time = webpki::Time::from_seconds_since_unix_epoch(1547363522);
 
-    let cert = webpki::EndEntityCert::try_from(ee).unwrap();
-    assert_eq!(
-        Ok(()),
-        cert.verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
-    );
+    let cert = webpki::EndEntityCert::from(ee).unwrap();
+    let _ = cert
+        .verify_is_valid_tls_server_cert(ALL_SIGALGS, &anchors, &[], time)
+        .unwrap();
 }
 
+#[cfg(feature = "trust_anchor_util")]
 #[test]
 fn read_root_with_zero_serial() {
     let ca = include_bytes!("misc/serial_zero.der");
-    let _ =
-        webpki::TrustAnchor::try_from_cert_der(ca).expect("godaddy cert should parse as anchor");
+    let _ = webpki::trust_anchor_util::cert_der_as_trust_anchor(ca)
+        .expect("godaddy cert should parse as anchor");
 }
 
+#[cfg(feature = "trust_anchor_util")]
 #[test]
 fn read_root_with_neg_serial() {
     let ca = include_bytes!("misc/serial_neg.der");
-    let _ = webpki::TrustAnchor::try_from_cert_der(ca).expect("idcat cert should parse as anchor");
+    let _ = webpki::trust_anchor_util::cert_der_as_trust_anchor(ca)
+        .expect("idcat cert should parse as anchor");
 }
 
 #[cfg(feature = "std")]
 #[test]
-fn time_constructor() {
-    let _ = webpki::Time::try_from(std::time::SystemTime::now()).unwrap();
-}
+fn time_constructor() { let _ = webpki::Time::try_from(std::time::SystemTime::now()).unwrap(); }

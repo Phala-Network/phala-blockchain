@@ -22,6 +22,7 @@ use crate::{
     limb::{self, LIMB_BYTES},
     rand,
 };
+use untrusted;
 
 /// Generates a random scalar in the range [1, n).
 pub fn random_scalar(

@@ -1,5 +1,3 @@
-use std::convert::TryFrom;
-
 use codec::Encode;
 use frame_support::{
 	assert_noop, assert_ok, assert_err,
@@ -39,7 +37,7 @@ static SUPPORTED_SIG_ALGS: SignatureAlgorithms = &[
 	&webpki::RSA_PKCS1_3072_8192_SHA384,
 ];
 
-pub static IAS_SERVER_ROOTS: webpki::TlsServerTrustAnchors = webpki::TlsServerTrustAnchors(&[
+pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTrustAnchors(&[
 	/*
 	 * -----BEGIN CERTIFICATE-----
 	 * MIIFSzCCA7OgAwIBAgIJANEHdl0yo7CUMA0GCSqGSIb3DQEBCwUAMH4xCzAJBgNV
@@ -116,7 +114,7 @@ fn ias_report_signing_certificate() -> Vec<u8> {
 fn test_validate_cert() {
 	let sig = ias_report_signature();
 	let sig_cert_dec = ias_report_signing_certificate();
-	let sig_cert = webpki::EndEntityCert::try_from(&sig_cert_dec[..]).expect("parse sig failed");
+	let sig_cert = webpki::EndEntityCert::from(&sig_cert_dec).expect("parse sig failed");
 
 	let chain: Vec<&[u8]> = Vec::new();
 	let now_func = webpki::Time::from_seconds_since_unix_epoch(1613312566);

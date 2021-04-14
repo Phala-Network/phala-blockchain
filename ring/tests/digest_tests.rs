@@ -12,16 +12,37 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#![forbid(
+    anonymous_parameters,
+    box_pointers,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unsafe_code,
+    unstable_features,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences,
+    warnings
+)]
+
 use ring::{digest, test, test_file};
 
 #[cfg(target_arch = "wasm32")]
-use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
+use wasm_bindgen_test::wasm_bindgen_test;
+
+#[cfg(target_arch = "wasm32")]
+use wasm_bindgen_test::wasm_bindgen_test_configure;
 
 #[cfg(target_arch = "wasm32")]
 wasm_bindgen_test_configure!(run_in_browser);
 
 /// Test vectors from BoringSSL, Go, and other sources.
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn digest_misc() {
     test::run(test_file!("digest_tests.txt"), |section, test_case| {
@@ -83,7 +104,7 @@ mod digest_shavs {
                 #[cfg(target_arch = "wasm32")]
                 use wasm_bindgen_test::wasm_bindgen_test;
 
-                #[test]
+                #[cfg_attr(not(target_arch = "wasm32"), test)]
                 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
                 fn short_msg_known_answer_test() {
                     run_known_answer_test(
@@ -96,7 +117,7 @@ mod digest_shavs {
                     );
                 }
 
-                #[test]
+                #[cfg_attr(not(target_arch = "wasm32"), test)]
                 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
                 fn long_msg_known_answer_test() {
                     run_known_answer_test(
@@ -109,7 +130,7 @@ mod digest_shavs {
                     );
                 }
 
-                #[test]
+                #[cfg_attr(not(target_arch = "wasm32"), test)]
                 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
                 fn monte_carlo_test() {
                     run_monte_carlo_test(
@@ -184,7 +205,8 @@ mod digest_shavs {
 macro_rules! test_i_u_f {
     ( $test_name:ident, $alg:expr) => {
         #[cfg(not(debug_assertions))]
-        // TODO: #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+        // TODO: #[cfg_attr(not(target_arch = "wasm32"), test)]
+        //       #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
         #[test]
         fn $test_name() {
             let mut input = [0; (digest::MAX_BLOCK_LEN + 1) * 3];
@@ -246,7 +268,8 @@ macro_rules! test_large_digest {
     ( $test_name:ident, $alg:expr, $len:expr, $expected:expr) => {
         #[cfg(not(debug_assertions))]
         #[test]
-        // TODO: #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
+        // TODO: #[cfg_attr(not(target_arch = "wasm32"), test)]
+        //       #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
         fn $test_name() {
             let chunk = vec![123u8; 16 * 1024];
             let chunk_len = chunk.len() as u64;
@@ -315,7 +338,7 @@ test_large_digest!(
 // TODO: test_large_digest!(digest_test_large_digest_sha512_256,
 //                            digest::SHA512_256, 256 / 8, [ ... ]);
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn test_fmt_algorithm() {
     assert_eq!("SHA1", &format!("{:?}", digest::SHA1_FOR_LEGACY_USE_ONLY));
@@ -325,7 +348,7 @@ fn test_fmt_algorithm() {
     assert_eq!("SHA512_256", &format!("{:?}", digest::SHA512_256));
 }
 
-#[test]
+#[cfg_attr(not(target_arch = "wasm32"), test)]
 #[cfg_attr(target_arch = "wasm32", wasm_bindgen_test)]
 fn digest_test_fmt() {
     assert_eq!(

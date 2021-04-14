@@ -12,6 +12,24 @@
 // OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 // CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
+#![forbid(
+    anonymous_parameters,
+    box_pointers,
+    missing_copy_implementations,
+    missing_debug_implementations,
+    missing_docs,
+    trivial_casts,
+    trivial_numeric_casts,
+    unsafe_code,
+    unstable_features,
+    unused_extern_crates,
+    unused_import_braces,
+    unused_qualifications,
+    unused_results,
+    variant_size_differences,
+    warnings
+)]
+
 #[cfg(feature = "alloc")]
 use ring::{
     error,
@@ -20,17 +38,9 @@ use ring::{
     signature::{self, KeyPair},
     test, test_file,
 };
-use std::convert::TryFrom;
-
-#[cfg(all(target_arch = "wasm32", feature = "wasm32_c"))]
-use wasm_bindgen_test::{wasm_bindgen_test, wasm_bindgen_test_configure};
-
-#[cfg(all(target_arch = "wasm32", feature = "wasm32_c"))]
-wasm_bindgen_test_configure!(run_in_browser);
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn rsa_from_pkcs8_test() {
     test::run(
         test_file!("rsa_from_pkcs8_tests.txt"),
@@ -54,7 +64,6 @@ fn rsa_from_pkcs8_test() {
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn test_signature_rsa_pkcs1_sign() {
     let rng = rand::SystemRandom::new();
     test::run(
@@ -96,7 +105,6 @@ fn test_signature_rsa_pkcs1_sign() {
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn test_signature_rsa_pss_sign() {
     test::run(
         test_file!("rsa_pss_sign_tests.txt"),
@@ -134,47 +142,18 @@ fn test_signature_rsa_pss_sign() {
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn test_signature_rsa_pkcs1_verify() {
-    let sha1_params = &[
-        (
-            &signature::RSA_PKCS1_1024_8192_SHA1_FOR_LEGACY_USE_ONLY,
-            1024,
-        ),
-        (
-            &signature::RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY,
-            2048,
-        ),
-    ];
-    let sha256_params = &[
-        (
-            &signature::RSA_PKCS1_1024_8192_SHA256_FOR_LEGACY_USE_ONLY,
-            1024,
-        ),
-        (&signature::RSA_PKCS1_2048_8192_SHA256, 2048),
-    ];
-    let sha384_params = &[
-        (&signature::RSA_PKCS1_2048_8192_SHA384, 2048),
-        (&signature::RSA_PKCS1_3072_8192_SHA384, 3072),
-    ];
-    let sha512_params = &[
-        (
-            &signature::RSA_PKCS1_1024_8192_SHA512_FOR_LEGACY_USE_ONLY,
-            1024,
-        ),
-        (&signature::RSA_PKCS1_2048_8192_SHA512, 2048),
-    ];
     test::run(
         test_file!("rsa_pkcs1_verify_tests.txt"),
         |section, test_case| {
             assert_eq!(section, "");
 
             let digest_name = test_case.consume_string("Digest");
-            let params: &[_] = match digest_name.as_ref() {
-                "SHA1" => sha1_params,
-                "SHA256" => sha256_params,
-                "SHA384" => sha384_params,
-                "SHA512" => sha512_params,
+            let alg = match digest_name.as_ref() {
+                "SHA1" => &signature::RSA_PKCS1_2048_8192_SHA1_FOR_LEGACY_USE_ONLY,
+                "SHA256" => &signature::RSA_PKCS1_2048_8192_SHA256,
+                "SHA384" => &signature::RSA_PKCS1_2048_8192_SHA384,
+                "SHA512" => &signature::RSA_PKCS1_2048_8192_SHA512,
                 _ => panic!("Unsupported digest: {}", digest_name),
             };
 
@@ -183,31 +162,26 @@ fn test_signature_rsa_pkcs1_verify() {
             // Sanity check that we correctly DER-encoded the originally-
             // provided separate (n, e) components. When we add test vectors
             // for improperly-encoded signatures, we'll have to revisit this.
-            let key_bits = untrusted::Input::from(&public_key)
-                .read_all(error::Unspecified, |input| {
-                    der::nested(input, der::Tag::Sequence, error::Unspecified, |input| {
-                        let n_bytes =
-                            der::positive_integer(input)?.big_endian_without_leading_zero();
-                        let _e = der::positive_integer(input)?;
-
-                        // Because `n_bytes` has the leading zeros stripped and is big-endian, there
-                        // must be less than 8 leading zero bits.
-                        let n_leading_zeros = usize::try_from(n_bytes[0].leading_zeros()).unwrap();
-                        assert!(n_leading_zeros < 8);
-                        Ok((n_bytes.len() * 8) - n_leading_zeros)
-                    })
-                })
-                .expect("invalid DER");
+            assert!(untrusted::Input::from(&public_key)
+                .read_all(error::Unspecified, |input| der::nested(
+                    input,
+                    der::Tag::Sequence,
+                    error::Unspecified,
+                    |input| {
+                        let _ = der::positive_integer(input)?;
+                        let _ = der::positive_integer(input)?;
+                        Ok(())
+                    }
+                ))
+                .is_ok());
 
             let msg = test_case.consume_bytes("Msg");
             let sig = test_case.consume_bytes("Sig");
             let is_valid = test_case.consume_string("Result") == "P";
-            for &(alg, min_bits) in params {
-                let width_ok = key_bits >= min_bits;
-                let actual_result =
-                    signature::UnparsedPublicKey::new(alg, &public_key).verify(&msg, &sig);
-                assert_eq!(actual_result.is_ok(), is_valid && width_ok);
-            }
+
+            let actual_result =
+                signature::UnparsedPublicKey::new(alg, &public_key).verify(&msg, &sig);
+            assert_eq!(actual_result.is_ok(), is_valid);
 
             Ok(())
         },
@@ -216,7 +190,6 @@ fn test_signature_rsa_pkcs1_verify() {
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn test_signature_rsa_pss_verify() {
     test::run(
         test_file!("rsa_pss_verify_tests.txt"),
@@ -266,7 +239,6 @@ fn test_signature_rsa_pss_verify() {
 // and use them to verify a signature.
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn test_signature_rsa_primitive_verification() {
     test::run(
         test_file!("rsa_primitive_verify_tests.txt"),
@@ -287,7 +259,6 @@ fn test_signature_rsa_primitive_verification() {
 
 #[cfg(feature = "alloc")]
 #[test]
-#[cfg_attr(all(target_arch = "wasm32", feature = "wasm32_c"), wasm_bindgen_test)]
 fn rsa_test_public_key_coverage() {
     const PRIVATE_KEY: &[u8] = include_bytes!("rsa_test_private_key_2048.p8");
     const PUBLIC_KEY: &[u8] = include_bytes!("rsa_test_public_key_2048.der");
