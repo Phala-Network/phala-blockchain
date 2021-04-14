@@ -8,7 +8,7 @@ read -s -p "Enter port: " PORT
 echo
 
 ENDPOINT="http://localhost:${PORT}"
-NETWORK="phat3"
+NETWORK="phat4"
 
 function get_pubkey {
   tmp=tmp.key
