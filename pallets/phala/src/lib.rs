@@ -593,7 +593,7 @@ decl_module! {
 						Some(score) => score.overall_score,
 						None => 0
 					};
-					Self::add_heartbeat(&who, block_num.into());
+					Self::add_heartbeat(&stash, block_num.into());
 					Self::handle_claim_reward(
 						&stash, &stash_info.payout_prefs.target, claim_online, claim_compute,
 						score, block_num.into());
