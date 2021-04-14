@@ -2708,7 +2708,7 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.20-1"
+version = "0.16.20"
 dependencies = [
  "cc",
  "libc",
@@ -4104,7 +4104,7 @@ name = "webpki"
 version = "0.22.0"
 dependencies = [
  "ring 0.16.20",
- "ring 0.16.20-1",
+ "ring 0.16.20 (registry+https://github.com/rust-lang/crates.io-index)",
  "untrusted",
 ]
 
