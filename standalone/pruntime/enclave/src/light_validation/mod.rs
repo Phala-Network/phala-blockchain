@@ -119,7 +119,8 @@ where
     ) -> Result<BridgeId> {
         let state_root = block_header.state_root();
 
-        Self::check_validator_set_proof(state_root, validator_set_proof, &validator_set).map_err(anyhow::Error::msg)?;
+        Self::check_validator_set_proof(state_root, validator_set_proof, &validator_set)
+            .map_err(anyhow::Error::msg)?;
 
         let bridge_info = BridgeInfo::new(block_header, validator_set);
 
@@ -372,7 +373,8 @@ where
         (hash, number),
         set_id,
         voters,
-    ).map_err(anyhow::Error::msg)?;
+    )
+    .map_err(anyhow::Error::msg)?;
 
     Ok(())
 }

@@ -109,7 +109,8 @@ impl System {
             match req {
                 Request::QueryReceipt { command_index } => match self.get_receipt(command_index) {
                     Some(receipt) => {
-                        let origin = accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
+                        let origin =
+                            accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
                         if receipt.account == AccountIdWrapper(origin.clone()) {
                             Ok(Response::QueryReceipt {
                                 receipt: receipt.clone(),
@@ -118,7 +119,9 @@ impl System {
                             Err(anyhow::Error::msg(Error::NotAuthorized))
                         }
                     }
-                    None => Err(anyhow::Error::msg(Error::Other(String::from("Transaction hash not found")))),
+                    None => Err(anyhow::Error::msg(Error::Other(String::from(
+                        "Transaction hash not found",
+                    )))),
                 },
                 Request::GetWorkerEgress { start_sequence } => {
                     let pending_msgs: Vec<SignedWorkerMessage> = self

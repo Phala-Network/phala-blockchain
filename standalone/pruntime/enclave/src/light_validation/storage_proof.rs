@@ -64,7 +64,8 @@ where
     }
 
     fn trie(&self) -> Result<TrieDB<H>> {
-        TrieDB::new(&self.db, &self.root).map_err(|_| anyhow::Error::msg(Error::StorageRootMismatch))
+        TrieDB::new(&self.db, &self.root)
+            .map_err(|_| anyhow::Error::msg(Error::StorageRootMismatch))
     }
 }
 

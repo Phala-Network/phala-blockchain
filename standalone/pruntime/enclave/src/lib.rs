@@ -788,11 +788,15 @@ fn save_secret_keys(
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode_hex_compact(encoded_slice));
+    info!(
+        "Encoded slice: {:?}",
+        hex::encode_hex_compact(encoded_slice)
+    );
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
-    let sealed_data = SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice).map_err(anyhow::Error::msg)?;
+    let sealed_data =
+        SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice).map_err(anyhow::Error::msg)?;
 
     let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
     let output_len: usize = return_output_buf.len();
@@ -802,7 +806,9 @@ fn save_secret_keys(
 
     let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
     if opt.is_none() {
-        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_INVALID_PARAMETER));
+        return Err(anyhow::Error::msg(
+            sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
+        ));
     }
 
     // TODO: check retval and result
@@ -844,7 +850,10 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
     let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode_hex_compact(encoded_slice));
+    info!(
+        "Encoded slice: {:?}",
+        hex::encode_hex_compact(encoded_slice)
+    );
 
     serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
@@ -858,7 +867,13 @@ fn init_secret_keys(
     } else {
         match load_secret_keys() {
             Ok(data) => data,
-            Err(e) if e.is::<Error>() && matches!(e.downcast_ref::<Error>().unwrap(), Error::PersistentRuntimeNotFound) => {
+            Err(e)
+                if e.is::<Error>()
+                    && matches!(
+                        e.downcast_ref::<Error>().unwrap(),
+                        Error::PersistentRuntimeNotFound
+                    ) =>
+            {
                 warn!("Persistent data not found.");
                 let ecdsa_sk = SecretKey::random(&mut rand::thread_rng());
                 let ecdh_sk = ecdh::generate_key();
@@ -974,8 +989,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(json!({"message": "Already initialized"}));
     }
 
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info"))
-        .init();
+    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     // load identity
     if let Some(key) = input.debug_set_key {

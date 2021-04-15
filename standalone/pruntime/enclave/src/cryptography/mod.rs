@@ -26,9 +26,12 @@ pub fn decrypt(
     cipher: &AeadCipher,
     privkey: &ring::agreement::EphemeralPrivateKey,
 ) -> Result<DecryptOutput> {
-    let pubkey = base64::decode(&cipher.pubkey_b64).map_err(|_| anyhow::Error::msg(Error::BadInput("pubkey_b64")))?;
-    let mut data = base64::decode(&cipher.cipher_b64).map_err(|_| anyhow::Error::msg(Error::BadInput("cipher_b64")))?;
-    let iv = base64::decode(&cipher.iv_b64).map_err(|_| anyhow::Error::msg(Error::BadInput("iv_b64")))?;
+    let pubkey = base64::decode(&cipher.pubkey_b64)
+        .map_err(|_| anyhow::Error::msg(Error::BadInput("pubkey_b64")))?;
+    let mut data = base64::decode(&cipher.cipher_b64)
+        .map_err(|_| anyhow::Error::msg(Error::BadInput("cipher_b64")))?;
+    let iv = base64::decode(&cipher.iv_b64)
+        .map_err(|_| anyhow::Error::msg(Error::BadInput("iv_b64")))?;
     // ECDH derived secret
     let secret = ecdh::agree(privkey, &pubkey);
     log::info!("Agreed SK: {:?}", crate::hex::encode_hex_compact(&secret));
@@ -58,7 +61,8 @@ pub enum SignatureType {
 
 impl Origin {
     pub fn verify(&self, msg: &[u8]) -> Result<bool> {
-        let sig = base64::decode(&self.sig_b64).map_err(|_| anyhow::Error::msg(Error::BadInput("sig_b64")))?;
+        let sig = base64::decode(&self.sig_b64)
+            .map_err(|_| anyhow::Error::msg(Error::BadInput("sig_b64")))?;
         let pubkey = crate::hex::decode_hex(&self.origin);
         // .map_err(|_| Error::BadInput("origin"))?;   TODO: handle error
 

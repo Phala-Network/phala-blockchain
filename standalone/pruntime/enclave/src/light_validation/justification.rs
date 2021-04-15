@@ -23,8 +23,8 @@ use sc_client::Client;
 #[cfg(test)]
 use sc_client_api::{backend::Backend, CallExecutor};
 
-use anyhow::Result;
 use super::error::JustificationError as ClientError;
+use anyhow::Result;
 use finality_grandpa::voter_set::VoterSet;
 use finality_grandpa::Error as GrandpaError;
 use parity_scale_codec::{Decode, Encode};
@@ -66,7 +66,9 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
 
         let error = || {
             let msg = "invalid precommits for target commit".to_string();
-            Err(anyhow::Error::msg(Error::Client(ClientError::BadJustification(msg))))
+            Err(anyhow::Error::msg(Error::Client(
+                ClientError::BadJustification(msg),
+            )))
         };
 
         for signed in commit.precommits.iter() {
@@ -127,11 +129,7 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
     }
 
     /// Validate the commit and the votes' ancestry proofs.
-    pub(crate) fn verify(
-        &self,
-        set_id: u64,
-        voters: &VoterSet<AuthorityId>,
-    ) -> Result<()>
+    pub(crate) fn verify(&self, set_id: u64, voters: &VoterSet<AuthorityId>) -> Result<()>
     where
         NumberFor<Block>: finality_grandpa::BlockNumberOps,
     {

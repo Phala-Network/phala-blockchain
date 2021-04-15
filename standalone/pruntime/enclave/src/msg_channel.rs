@@ -33,7 +33,8 @@ impl MsgChannel {
             // Something bad happened
             log::error!(
                 "MsgChannel::received(): error - received seq {} larger than max seq {}",
-                seq, self.sequence
+                seq,
+                self.sequence
             );
             return;
         }
