@@ -36,7 +36,6 @@ pub enum TransactionStatus {
     BadDecimal,
     DestroyNotAllowed,
     // for pdiem
-    BadAccountData,
     BadAccountInfo,
     BadLedgerInfo,
     BadTrustedStateData,
@@ -46,6 +45,8 @@ pub enum TransactionStatus {
     FailedToVerify,
     FailedToGetTransaction,
     FailedToCalculateBalance,
+    BadChainId,
+    TransferringNotAllowed,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

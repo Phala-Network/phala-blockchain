@@ -1,4 +1,5 @@
 use crate::std::collections::BTreeMap;
+use crate::std::collections::btree_map::Entry;
 use crate::std::string::String;
 use crate::std::vec::Vec;
 
@@ -51,7 +52,7 @@ const MAX_GAS_AMOUNT: u64 = 1_000_000;
 const TX_EXPIRATION: i64 = 180;
 const CHAIN_ID_UNINITIALIZED: u8 = 0;
 const ALICE_PRIVATE_KEY: &str = "818ad9a64e3d1bbc388f8bf1e43c78d125237b875a1b70a18f412f7d18efbeea";
-const ALICE_ADDRESS: &str = "0xD4F0C053205BA934BB2AC0C4E8479E77";
+const ALICE_ADDRESS: &str = "D4F0C053205BA934BB2AC0C4E8479E77";
 
 const ALICE_PHALA: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
@@ -102,16 +103,16 @@ impl fmt::Display for Error {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Command {
     /// Sets the whitelisted accounts, in bcs encoded base64
-    AccountData { account_data_b64: String },
+    AccountInfo { account_info_b64: String },
     /// Verifies a transactions
     VerifyTransaction { account_address: String, transaction_with_proof_b64: String },
     /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
     /// once.
-    SetTrustedState { trusted_state_b64: String },
+    SetTrustedState { trusted_state_b64: String, chain_id: u8 },
     VerifyEpochProof { ledger_info_with_signatures_b64: String, epoch_change_proof_b64: String },
 
     NewAccount { seq_number: u64 },
-    TransferXUS { to: String, amount: u64, seq_number: u64 },
+    TransferXUS { to: String, amount: u64 },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -120,7 +121,8 @@ pub enum Request {
     VerifiedTransactions,
     ///Gets signed transaction, from start
     GetSignedTransactions { start: u64},
-    CurrentState { chain_id: u8},
+    CurrentState,
+    AccountData,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -134,6 +136,9 @@ pub enum Response {
     },
     CurrentState {
         state: State,
+    },
+    AccountData {
+        data: Vec<AccountData>,
     },
     /// Some other errors
     Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
@@ -165,6 +170,15 @@ pub struct Account {
     free: u64,
     locked: u64,
     is_child: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AccountData {
+    address: AccountAddress,
+    phala_address: AccountIdWrapper,
+    sequence: u64,
+    free: u64,
+    locked: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -263,7 +277,8 @@ impl Diem {
             return Ok(transaction);
         }
 
-        let signed_tx: SignedTransaction = transaction.as_signed_user_txn().unwrap().clone();
+        let signed_tx: SignedTransaction = transaction.as_signed_user_txn()
+            .expect("This must be a user tx; qed.").clone();
         if signed_tx.raw_txn.sender != address {
             // Incoming tx doesn't need to be sequential
             let mut found = false;
@@ -298,7 +313,7 @@ impl Diem {
         Ok(transaction)
     }
 
-    pub fn calculate_balance(
+    pub fn maybe_update_balance(
         &mut self,
         transaction: &Transaction,
         account_address: String,
@@ -309,60 +324,36 @@ impl Diem {
 
         let signed_tx: SignedTransaction = transaction.as_signed_user_txn().unwrap().clone();
         let sequence_number = signed_tx.raw_txn.sequence_number;
+        // TODO: check the whitelisted script here
         if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
-            for arg in script.args {
-                if let TransactionArgument::U64(amount) = arg {
-                    if signed_tx.raw_txn.sender != address {
-                        account.free += amount;
+            let args = script.args();
+            if let [TransactionArgument::Address(_addr), TransactionArgument::U64(amount),
+                TransactionArgument::U8Vector(_), TransactionArgument::U8Vector(_)] = &args[..] {
+                if signed_tx.raw_txn.sender != address {
+                    account.free += amount;
 
-                        let sender_address = "0x".to_string() + &signed_tx.raw_txn.sender.to_string();
-                        if let Some(so) = self.address.get(&sender_address) {
-                            if let Some(sender_account) = self.accounts.get_mut(&so) {
-                                if sender_account.locked >= amount {
-                                    sender_account.locked -= amount;
-                                }
-                                sender_account.sequence += 1;
-
-                                if let Some(pending_transactions) = self.pending_transactions.get(&sender_address) {
-                                    let pts: Vec<PendingTransaction> = pending_transactions
-                                        .iter()
-                                        .filter(|x| x.sequence != sequence_number)
-                                        .map(|x| PendingTransaction {
-                                            sequence: x.sequence,
-                                            amount: x.amount,
-                                            lock_time: x.lock_time,
-                                            raw_tx: x.raw_tx.clone(),
-                                        })
-                                        .collect::<_>();
-                                    self.pending_transactions.insert(sender_address, pts);
-                                }
+                    let sender_address = signed_tx.raw_txn.sender.to_string();
+                    if let Some(so) = self.address.get(&sender_address) {
+                        if let Some(sender_account) = self.accounts.get_mut(&so) {
+                            if sender_account.locked >= *amount {
+                                sender_account.locked -= *amount;
                             }
-                        }
-                    } else {
-                        if account.is_child && signed_tx.raw_txn.sequence_number != account.sequence {
-                            return Err(anyhow::Error::msg(Error::Other("Bad sequence".to_string())))?;
-                        }
+                            sender_account.sequence += 1;
 
-                        if account.locked >= amount {
-                            account.locked -= amount;
-                        }
-                        account.sequence += 1;
-
-                        if let Some(pending_transactions) = self.pending_transactions.get(&account_address) {
-                            let pts: Vec<PendingTransaction> = pending_transactions
-                                .iter()
-                                .filter(|x| x.sequence != sequence_number)
-                                .map(|x| PendingTransaction {
-                                    sequence: x.sequence,
-                                    amount: x.amount,
-                                    lock_time: x.lock_time,
-                                    raw_tx: x.raw_tx.clone(),
-                                })
-                                .collect::<_>();
-                            self.pending_transactions.insert(account_address, pts);
+                            self.update_pending_transactions(account_address, sequence_number);
                         }
                     }
-                    break;
+                } else {
+                    if account.is_child && signed_tx.raw_txn.sequence_number != account.sequence {
+                        return Err(anyhow::Error::msg(Error::Other("Bad sequence".to_string())))?;
+                    }
+
+                    if account.locked >= *amount {
+                        account.locked -= *amount;
+                    }
+                    account.sequence += 1;
+
+                    self.update_pending_transactions(account_address, sequence_number);
                 }
             }
         }
@@ -371,6 +362,26 @@ impl Diem {
         info!("accounts:{:?}", self.accounts);
 
         Ok(())
+    }
+
+    fn update_pending_transactions(
+        &mut self,
+        account_address: String,
+        sequence_number: u64,
+    ) {
+        if let Some(pending_transactions) = self.pending_transactions.get(&account_address) {
+            let pts: Vec<PendingTransaction> = pending_transactions
+                .iter()
+                .filter(|x| x.sequence != sequence_number)
+                .map(|x| PendingTransaction {
+                    sequence: x.sequence,
+                    amount: x.amount,
+                    lock_time: x.lock_time,
+                    raw_tx: x.raw_tx.clone(),
+                })
+                .collect();
+            self.pending_transactions.insert(account_address, pts);
+        }
     }
 
     pub fn verify_state_proof(
@@ -456,9 +467,27 @@ impl Diem {
         }
     }
 
-    pub fn auth_key_prefix(&self, auth_key: Vec<u8>) -> Vec<u8> {
-        auth_key[0..16].to_vec()
+
+}
+
+fn account_sequence(
+    self_pending_transactions: BTreeMap<String, Vec<PendingTransaction>>,
+    sequence: u64,
+    sender_address: String
+) -> u64 {
+    if let Some(pending_transactions) = self_pending_transactions.get(&sender_address) {
+        if pending_transactions.len() == 0 {
+            sequence
+        } else {
+            pending_transactions[pending_transactions.len() - 1].sequence
+        }
+    } else {
+        sequence
     }
+}
+
+fn auth_key_prefix(auth_key: Vec<u8>) -> Vec<u8> {
+    auth_key[0..16].to_vec()
 }
 
 impl contracts::Contract<Command, Request, Response> for Diem {
@@ -466,9 +495,9 @@ impl contracts::Contract<Command, Request, Response> for Diem {
 
     fn handle_command(&mut self, origin: &chain::AccountId, _txref: &TxRef, cmd: Command) -> TransactionStatus {
         match cmd {
-            Command::AccountData { account_data_b64 } => {
-                info!("command account_data_b64:{:?}", account_data_b64);
-                if let Ok(account_data) = base64::decode(&account_data_b64) {
+            Command::AccountInfo { account_info_b64 } => {
+                info!("command account_info_b64:{:?}", account_info_b64);
+                if let Ok(account_data) = base64::decode(&account_info_b64) {
                     let account_info: AccountInfo = match bcs::from_bytes(&account_data) {
                         Ok(result) => result,
                         Err(_) => return TransactionStatus::BadAccountInfo,
@@ -481,11 +510,21 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     info!("add account_ok");
                     TransactionStatus::Ok
                 } else {
-                    TransactionStatus::BadAccountData
+                    TransactionStatus::BadAccountInfo
                 }
             }
-            Command::SetTrustedState { trusted_state_b64 } => {
-                info!("trusted_state_b64: {:?}", trusted_state_b64);
+            Command::SetTrustedState { trusted_state_b64, chain_id } => {
+                info!("trusted_state_b64: {:?}, chain_id: {:}", trusted_state_b64, chain_id);
+                if chain_id != NamedChain::TESTNET.id() && chain_id != NamedChain::TESTING.id() {
+                    return TransactionStatus::BadChainId;
+                }
+
+                if self.chain_id == CHAIN_ID_UNINITIALIZED {
+                    self.chain_id = chain_id;
+                } else if chain_id != self.chain_id {
+                    info!("Unexpected chain id, chain_id was not changed.")
+                }
+
                 // Only initialize TrustedState once
                 if self.init_trusted_state.is_some() {
                     return TransactionStatus::Ok
@@ -524,7 +563,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
             Command::VerifyTransaction { account_address, transaction_with_proof_b64 } => {
                 info!("transaction_with_proof_b64: {:?}", transaction_with_proof_b64);
 
-                if let Ok(address) = AccountAddress::from_hex_literal(&account_address) {
+                if let Ok(address) = AccountAddress::from_hex_literal(&("0x".to_string() + &account_address)) {
                     if !self.account_info.iter().any(|x| x.address == address) {
                         error!("not a contract's account address");
 
@@ -566,7 +605,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         if verified {
                             info!("transaction was verified:{:}", self.verified.len());
 
-                            if let Ok(_) = self.calculate_balance(&transaction, account_address, address) {
+                            if let Ok(_) = self.maybe_update_balance(&transaction, account_address, address) {
                                 TransactionStatus::Ok
                             } else {
                                 TransactionStatus::FailedToCalculateBalance
@@ -594,7 +633,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 let alice_account = self.accounts.get(&alice).unwrap();
 
                 let alice_key_pair = &alice_account.key;
-
+                // TODO: make deterministic privkey generation
                 let mut seed_rng = OsRng;
                 let mut rng = rand::rngs::StdRng::from_seed(seed_rng.gen());
                 let keypair: KeyPair<Ed25519PrivateKey, Ed25519PublicKey> =
@@ -602,7 +641,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 let auth_key = AuthenticationKey::ed25519(&keypair.public_key).to_vec();
                 let receiver_address = AuthenticationKey::ed25519(&keypair.public_key).derived_address();
                 info!("new child address:{:?}", receiver_address);
-                let receiver_auth_key_prefix = self.auth_key_prefix(auth_key);
+                let receiver_auth_key_prefix = auth_key_prefix(auth_key);
 
                 let script = transaction_builder::encode_create_child_vasp_account_script(
                     xus_tag(), receiver_address, receiver_auth_key_prefix,
@@ -637,23 +676,27 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 };
 
                 self.accounts.insert(o.clone(), account);
-                self.address.insert("0x".to_string() + &receiver_address.to_string(), o);
-                self.account_address.push("0x".to_string() + &receiver_address.to_string());
+                self.address.insert(receiver_address.to_string(), o);
+                self.account_address.push(receiver_address.to_string());
 
                 TransactionStatus::Ok
             }
-            Command::TransferXUS { to, amount, seq_number } => {
+            Command::TransferXUS { to, amount } => {
                 let o = AccountIdWrapper(origin.clone());
-                info!("TransferXUS from: {:}, to: {:}, amount: {:}, seq_number:{:}", o.to_string(), to, amount, seq_number);
+                info!("TransferXUS from: {:}, to: {:}, amount: {:}", o.to_string(), to, amount);
 
                 if let Some(sender_account) = self.accounts.get_mut(&o) {
+                    if !sender_account.is_child {
+                        error!("Not Allowed");
+                        return TransactionStatus::TransferringNotAllowed;
+                    }
                     if sender_account.free < amount {
                         error!("InsufficientBalance");
                         return TransactionStatus::InsufficientBalance;
                     }
 
                     let timestamp_usecs = self.timestamp_usecs;
-                    let sender_address = "0x".to_string() + &sender_account.address.to_string();
+                    let sender_address = sender_account.address.to_string();
                     if let Some(pending_transactions) = self.pending_transactions.get(&sender_address) {
                         // process timeout
                         if let Some(item) = pending_transactions
@@ -675,30 +718,21 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                                     lock_time: x.lock_time,
                                     raw_tx: x.raw_tx.clone(),
                                 })
-                                .collect::<_>();
+                                .collect();
                             self.pending_transactions.insert(sender_address.clone(), pts);
                         }
                     }
 
-                    if let Ok(receiver) = AccountAddress::from_hex_literal(&to) {
+                    if let Ok(receiver) = AccountAddress::from_hex_literal(&("0x".to_string() + &to.to_string())) {
                         if sender_account.address == receiver {
                             error!("Can't fund yourself");
                             return TransactionStatus::InvalidAccount;
                         }
 
-                        let sequence = if sender_account.is_child {
-                            if let Some(pending_transactions) = self.pending_transactions.get(&sender_address) {
-                                if pending_transactions.len() == 0 {
-                                    sender_account.sequence
-                                } else {
-                                    pending_transactions[pending_transactions.len() - 1].sequence
-                                }
-                            } else {
-                                sender_account.sequence
-                            }
-                        } else {
-                            seq_number
-                        };
+                        let sequence = account_sequence(
+                            self.pending_transactions.clone(),
+                            sender_account.sequence,
+                            sender_address.clone());
 
                         let script = transaction_builder::encode_peer_to_peer_with_metadata_script(
                             xus_tag(),
@@ -772,29 +806,40 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         .tx_queue
                         .iter()
                         .filter(|x| x.sequence >= start)
-                        .collect::<_>();
+                        .collect();
                     let queue_b64 = base64::encode(&queue.encode());
                     Ok(Response::GetSignedTransactions {
                         queue_b64,
                     })
                 },
-                Request::CurrentState { chain_id } => {
-                    if chain_id != NamedChain::TESTNET.id() && chain_id != NamedChain::TESTING.id() {
-                        return Err(anyhow::Error::msg(Error::Other("Bad chain id".to_string())));
-                    }
-
-                    if self.chain_id == CHAIN_ID_UNINITIALIZED {
-                        self.chain_id = chain_id;
-                    } else if chain_id != self.chain_id {
-                        return Err(anyhow::Error::msg(Error::Other("Unexpected chain id".to_string())));
-                    }
-
+                Request::CurrentState => {
                     let state = State {
                         queue_seq: self.queue_seq,
                         account_address: self.account_address.clone(),
                     };
 
                     Ok(Response::CurrentState { state })
+                },
+                Request::AccountData => {
+                    let mut account_data = Vec::new();
+                    for account_address in self.account_address.clone() {
+                        if let Some(phala_address) = self.address.get(&account_address) {
+                            if let Some(account) = self.accounts.get(&phala_address) {
+                                if account.is_child {
+                                    let ad = AccountData {
+                                        address: account.address,
+                                        phala_address: phala_address.clone(),
+                                        sequence: account.sequence,
+                                        free: account.free,
+                                        locked: account.locked,
+                                    };
+
+                                    account_data.push(ad);
+                                }
+                            }
+                        }
+                    }
+                    Ok(Response::AccountData { data: account_data })
                 }
             }
         };
