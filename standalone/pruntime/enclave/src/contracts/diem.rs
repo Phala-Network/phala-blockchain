@@ -190,6 +190,7 @@ pub struct Account {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AccountData {
+    is_vasp: bool,
     address: AccountAddress,
     phala_address: AccountIdWrapper,
     sequence: u64,
@@ -365,8 +366,9 @@ impl Diem {
         let sequence_number = signed_tx.raw_txn.sequence_number;
         // TODO: check the whitelisted script here
         if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
+            use TransactionArgument::*;
             let args = script.args();
-            if let [TransactionArgument::Address(_addr), TransactionArgument::U64(amount), TransactionArgument::U8Vector(_), TransactionArgument::U8Vector(_)] =
+            if let [Address(_addr), U64(amount), U8Vector(_), U8Vector(_)] =
                 &args[..]
             {
                 if signed_tx.raw_txn.sender != address {
@@ -955,20 +957,18 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 }
                 Request::AccountData => {
                     let mut account_data = Vec::new();
-                    for account_address in self.account_address.clone() {
-                        if let Some(phala_address) = self.address.get(&account_address) {
+                    for account_address in self.account_address.iter() {
+                        if let Some(phala_address) = self.address.get(account_address) {
                             if let Some(account) = self.accounts.get(&phala_address) {
-                                if account.is_child {
-                                    let ad = AccountData {
-                                        address: account.address,
-                                        phala_address: phala_address.clone(),
-                                        sequence: account.sequence,
-                                        free: account.free,
-                                        locked: account.locked,
-                                    };
-
-                                    account_data.push(ad);
-                                }
+                                let ad = AccountData {
+                                    is_vasp: !account.is_child,
+                                    address: account.address,
+                                    phala_address: phala_address.clone(),
+                                    sequence: account.sequence,
+                                    free: account.free,
+                                    locked: account.locked,
+                                };
+                                account_data.push(ad);
                             }
                         }
                     }
