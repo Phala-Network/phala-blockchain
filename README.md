@@ -86,6 +86,8 @@ Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-gra
 
 Make sure you have Rust and LLVM-10 installed.
 
+> Note for Mac users: you also need `llvm` and `binutils` from Homebrew or MacPort
+
 ```bash
 cargo build --release
 ```
