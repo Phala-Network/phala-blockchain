@@ -365,7 +365,9 @@ async fn batch_sync_block(
             .iter()
             .map(|b| HeaderToSync {
                 header: b.block.block.header.clone(),
-                justification: b.block.justifications.clone().unwrap().into_justification(GRANDPA_ENGINE_ID),
+                justification: b.block.justifications.clone().map(|v|
+                    v.into_justification(GRANDPA_ENGINE_ID)
+                ).flatten(),
             })
             .collect();
 
