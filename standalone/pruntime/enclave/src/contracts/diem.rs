@@ -366,7 +366,6 @@ impl Diem {
             .expect("Not a signed transaction")
             .clone();
         let sequence_number = signed_tx.raw_txn.sequence_number;
-        println!("sequence_number:{:}", sequence_number);
         // TODO: check the whitelisted script here
         if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
             if transaction_builder::get_transaction_name(script.code()).as_str()
