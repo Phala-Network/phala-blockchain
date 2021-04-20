@@ -89,3 +89,33 @@ default = [
   "sp-io/disable_allocator",
   "runtime/native-nostd"
 ]
+
+[patch.'https://github.com/apache/teaclave-sgx-sdk.git']
+sgx_alloc = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_backtrace = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_backtrace_sys = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_build_helper = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_cov = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_crypto_helper = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_demangle = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_libc = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_rand = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_rand_derive = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_serialize = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_serialize_derive = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_serialize_derive_internals = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_tcrypto = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_tcrypto_helper = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_tdh = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_tkey_exchange = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_tprotected_fs = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_trts = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_tse = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_tseal = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_tstd = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_tunittest = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_types = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_ucrypto = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+sgx_unwind = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+#sgx_urts = { git = "https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git" }
+

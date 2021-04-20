@@ -15,6 +15,7 @@ description = "Derive calls, events, storage and tests for interacting Substrate
 proc-macro = true
 
 [dependencies]
+async-trait = "0.1.49"
 heck = "0.3.2"
 proc-macro2 = "1.0.24"
 proc-macro-crate = "0.1.5"
@@ -25,7 +26,7 @@ synstructure = "0.12.4"
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }
-codec = { package = "parity-scale-codec", version = "2.0.0", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.1", features = ["derive"] }
 env_logger = "0.8.2"
 pretty_assertions = "0.6.1"
 sp-keyring = { path = "../../substrate/primitives/keyring" }

@@ -22,6 +22,7 @@ bytes = "0.5"
 structopt = { version = "0.3" }
 
 subxt = { path = "../../subxt", package = "substrate-subxt" }
+async-trait = "0.1.49"
 system = { version = "3.0.0", path = "../../substrate/frame/system", package = "frame-system" }
 sp-core = { version = "3.0.0", path = "../../substrate/primitives/core" }
 sp-rpc = { version = "3.0.0", path = "../../substrate/primitives/rpc", package = "sp-rpc" }
@@ -29,7 +30,7 @@ sc-rpc-api = { version = "0.9.0", path = "../../substrate/client/rpc-api", packa
 sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime", package = "sp-runtime" }
 sc-finality-grandpa = { version = "0.9.0", path = "../../substrate/client/finality-grandpa" }
 sp-finality-grandpa = { version = "3.0.0", package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
-codec = { package = 'parity-scale-codec', version = "2.0.0" }
+codec = { package = 'parity-scale-codec', version = "2.1" }
 
 pallet-grandpa = { version = "3.0.0", path = "../../substrate/frame/grandpa" }
 pallet-indices = { version = "3.0.0", path = "../../substrate/frame/indices" }

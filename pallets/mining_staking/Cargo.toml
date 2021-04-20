@@ -11,8 +11,7 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-serde = { version = "1.0.101", default-features = false, optional = true }
-codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "2.1", default-features = false }
 itertools = { version = "0.8", default-features = false }
 frame-support = { default-features = false, path = "../../substrate/frame/support" }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
@@ -32,7 +31,6 @@ pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp"
 [features]
 default = ['std']
 std = [
-    "serde/std",
     "codec/std",
     "sp-runtime/std",
     "frame-support/std",
