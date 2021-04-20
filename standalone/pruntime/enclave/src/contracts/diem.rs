@@ -1,4 +1,4 @@
-use crate::std::collections::btree_map::Entry;
+use std::collections::btree_map::Entry::{Occupied, Vacant};
 use crate::std::collections::BTreeMap;
 use crate::std::string::String;
 use crate::std::vec::Vec;
@@ -234,7 +234,7 @@ pub struct Diem {
 impl Diem {
     pub fn new() -> Self {
         let alice_priv_key =
-            Ed25519PrivateKey::from_bytes_unchecked(&hex::decode_hex(ALICE_PRIVATE_KEY)).unwrap();
+            Ed25519PrivateKey::from_bytes_unchecked(&hex::decode_hex(ALICE_PRIVATE_KEY)).expect("Bad private key");
         let alice_key_pair: KeyPair<Ed25519PrivateKey, Ed25519PublicKey> =
             KeyPair::from(alice_priv_key);
         let alice_account_address =
@@ -362,10 +362,18 @@ impl Diem {
             .get_mut(&o)
             .ok_or(anyhow::Error::msg(Error::Other("Bad account".to_string())))?;
 
-        let signed_tx: SignedTransaction = transaction.as_signed_user_txn().unwrap().clone();
+        let signed_tx: SignedTransaction = transaction.as_signed_user_txn()
+            .expect("Not a signed transaction")
+            .clone();
         let sequence_number = signed_tx.raw_txn.sequence_number;
         // TODO: check the whitelisted script here
         if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
+            if transaction_builder::get_transaction_name(script.code()).as_str()
+                != "peer_to_peer_with_metadata_transaction"
+            {
+                info!("Not a peer to peer transaction");
+                return Ok(());
+            }
             use TransactionArgument::*;
             let args = script.args();
             if let [Address(_addr), U64(amount), U8Vector(_), U8Vector(_)] =
@@ -614,14 +622,16 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 let ledger_info_with_signatures_data =
                     base64::decode(ledger_info_with_signatures_b64)
                         .or(Err(TransactionStatus::BadTrustedStateData))
-                        .unwrap();
+                        .expect("Bad trusted state data");
                 let ledger_info_with_signatures: LedgerInfoWithSignatures =
-                    bcs::from_bytes(&ledger_info_with_signatures_data).unwrap();
+                    bcs::from_bytes(&ledger_info_with_signatures_data)
+                    .expect("Unable to parse ledger info");
                 let epoch_change_proof_data = base64::decode(epoch_change_proof_b64)
-                    .or(Err(TransactionStatus::BadTrustedStateData))
-                    .unwrap();
+                    .or(Err(TransactionStatus::BadEpochChangedProofData))
+                    .expect("Bad epoch changed proof data");
                 let epoch_change_proof: EpochChangeProof =
-                    bcs::from_bytes(&epoch_change_proof_data).unwrap();
+                    bcs::from_bytes(&epoch_change_proof_data)
+                    .expect("Unable to parse epoch changed proof data");
 
                 info!(
                     "ledger_info_with_signatures: {:?}",
@@ -739,7 +749,8 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     return TransactionStatus::InvalidAccount;
                 }
 
-                let alice_account = self.accounts.get(&alice).unwrap();
+                let alice_account = self.accounts.get(&alice)
+                    .expect("Alice account was required");
 
                 let alice_key_pair = &alice_account.key;
                 // TODO: make deterministic privkey generation
@@ -772,13 +783,13 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     (self.timestamp_usecs / 1000000) as i64 + TX_EXPIRATION,
                     ChainId::new(self.chain_id),
                 )
-                .unwrap();
+                .expect("User signed transaction");
                 info!("tx:{:?}", txn);
 
                 let transaction_data = TransactionData {
                     sequence: self.queue_seq,
                     address: receiver_address.to_vec(),
-                    signed_tx: bcs::to_bytes(&txn).unwrap(),
+                    signed_tx: bcs::to_bytes(&txn).expect("Serialization should work"),
                     new_account: true,
                 };
                 self.tx_queue.push(transaction_data);
@@ -883,13 +894,13 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                             (self.timestamp_usecs / 1000000) as i64 + TX_EXPIRATION,
                             ChainId::new(self.chain_id),
                         )
-                        .unwrap();
+                        .expect("User signed transaction");
                         info!("tx:{:?}", txn);
 
                         let transaction_data = TransactionData {
                             sequence: self.queue_seq,
                             address: receiver.to_vec(),
-                            signed_tx: bcs::to_bytes(&txn).unwrap(),
+                            signed_tx: bcs::to_bytes(&txn).expect("Serialization should work"),
                             new_account: false,
                         };
                         self.tx_queue.push(transaction_data);
@@ -899,19 +910,14 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                             sequence,
                             amount,
                             lock_time: self.timestamp_usecs,
-                            raw_tx: bcs::to_bytes(&txn).unwrap(),
+                            raw_tx: bcs::to_bytes(&txn).expect("Serialization should work"),
                         };
 
-                        if let Some(pending_transactions) =
-                            self.pending_transactions.get_mut(&sender_address)
-                        {
-                            pending_transactions.push(pending_tx);
-                        } else {
-                            let mut pending_transactions: Vec<PendingTransaction> = Vec::new();
-                            pending_transactions.push(pending_tx);
-                            self.pending_transactions
-                                .insert(sender_address, pending_transactions);
-                        }
+                        match self.pending_transactions.entry(sender_address) {
+                            Vacant(entry) => entry.insert(vec![]),
+                            Occupied(entry) => entry.into_mut(),
+                        }.push(pending_tx);
+
 
                         sender_account.locked += amount;
                         sender_account.free -= amount;
@@ -931,7 +937,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
     }
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let mut inner = || -> Result<Response> {
+        let inner = || -> Result<Response> {
             match req {
                 Request::VerifiedTransactions => {
                     let hash: Vec<_> = self.verified.keys().cloned().collect();

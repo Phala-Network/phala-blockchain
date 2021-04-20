@@ -39,6 +39,7 @@ pub enum TransactionStatus {
     BadAccountInfo,
     BadLedgerInfo,
     BadTrustedStateData,
+    BadEpochChangedProofData,
     BadTrustedState,
     InvalidAccount,
     BadTransactionWithProof,
