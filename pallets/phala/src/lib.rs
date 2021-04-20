@@ -5,7 +5,7 @@ use sp_std::prelude::*;
 use sp_std::{cmp, vec};
 use sp_std::convert::TryFrom;
 
-use frame_support::{fail, decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
+use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
 use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
 use alloc::{vec::Vec, borrow::ToOwned};
