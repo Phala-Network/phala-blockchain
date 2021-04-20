@@ -450,21 +450,23 @@ decl_module! {
 				confidence_level = 2;
 			} else if IAS_QUOTE_STATUS_LEVEL_3.contains(quote_status) {
 				confidence_level = 3;
-			} else if IAS_QUOTE_STATUS_LEVEL_4.contains(quote_status) {
-				confidence_level = 4;
+			} else if IAS_QUOTE_STATUS_LEVEL_5.contains(quote_status) {
+				confidence_level = 5;
 			}
 			ensure!(
 				confidence_level != 128,
 				Error::<T>::InvalidQuoteStatus
 			);
 
-			// Filter AdvisoryIDs. `advisoryIDs` is optional
-			if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
-				for advisory_id in advisory_ids {
-					let advisory_id = advisory_id.as_str().ok_or(Error::<T>::BadIASReport)?;
+			if confidence_level < 5 {
+				// Filter AdvisoryIDs. `advisoryIDs` is optional
+				if let Some(advisory_ids) = parsed_report["advisoryIDs"].as_array() {
+					for advisory_id in advisory_ids {
+						let advisory_id = advisory_id.as_str().ok_or(Error::<T>::BadIASReport)?;
 
-					if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
-						fail!(Error::<T>::BadIASReport);
+						if !IAS_QUOTE_ADVISORY_ID_WHITELIST.contains(&advisory_id) {
+							confidence_level = 4;
+						}
 					}
 				}
 			}
