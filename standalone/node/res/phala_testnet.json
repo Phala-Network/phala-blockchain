@@ -3,10 +3,10 @@
   "id": "phala_poc_4",
   "chainType": "Live",
   "bootNodes": [
-    "/dns/poc4.phala.network/tcp/31333/p2p/12D3KooWSkntDN5MQwniYJW9JDmSRALZPy34m2aaa3J3ijhEUpYj",
-    "/dns/poc4.phala.network/tcp/32333/p2p/12D3KooWJfw1i8erwn18nXCdZMkiWWT5BQtNnM5vHbWua8128kyn",
-    "/dns/poc4.phala.network/tcp/33333/p2p/12D3KooWMcSGgai3QbBsJozNGa5MMXykAmnaeFnFYp6zsbcqwyJ6",
-    "/dns/poc4.phala.network/tcp/34333/p2p/12D3KooWNoDKwYoTV4ZaZ4t2AgnyYcSmDny8wL1wGjkum3mJkrhg"
+    "/dns/poc4b.phala.network/tcp/31333/p2p/12D3KooWSkntDN5MQwniYJW9JDmSRALZPy34m2aaa3J3ijhEUpYj",
+    "/dns/poc4b.phala.network/tcp/32333/p2p/12D3KooWJfw1i8erwn18nXCdZMkiWWT5BQtNnM5vHbWua8128kyn",
+    "/dns/poc4b.phala.network/tcp/33333/p2p/12D3KooWMcSGgai3QbBsJozNGa5MMXykAmnaeFnFYp6zsbcqwyJ6",
+    "/dns/poc4b.phala.network/tcp/34333/p2p/12D3KooWNoDKwYoTV4ZaZ4t2AgnyYcSmDny8wL1wGjkum3mJkrhg"
   ],
   "telemetryEndpoints": [],
   "protocolId": "phat4",
