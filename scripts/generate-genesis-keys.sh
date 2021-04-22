@@ -18,10 +18,10 @@ printf """    let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, Bab
     """
 
 for i in 1 2 3 4 ; do
-    stash=$(get_pubkey inspect-key -n phala --scheme Sr25519 "$secret"/"$network"/stash/$i)
-    controller=$(get_pubkey inspect-key -n phala --scheme Sr25519 "$secret"/"$network"/controller/$i)
-    session_gran=$(get_pubkey inspect-key -n phala --scheme Ed25519 "$secret"//"$network"//session//$i)
-    session_babe=$(get_pubkey inspect-key -n phala --scheme Sr25519 "$secret"//"$network"//session//$i)
+    stash=$(get_pubkey key inspect-key -n phala --scheme Sr25519 "$secret"/"$network"/stash/$i)
+    controller=$(get_pubkey key inspect-key -n phala --scheme Sr25519 "$secret"/"$network"/controller/$i)
+    session_gran=$(get_pubkey key inspect-key -n phala --scheme Ed25519 "$secret"//"$network"//session//$i)
+    session_babe=$(get_pubkey key inspect-key -n phala --scheme Sr25519 "$secret"//"$network"//session//$i)
 
     printf """(
         // Stash
@@ -41,7 +41,7 @@ echo """];
 
     // generated with secret: phala-node inspect-key -n phala --scheme Sr25519 \"\$secret\"/"$network"
     let root_key: AccountId = hex![
-        \"$(get_pubkey inspect-key -n phala --scheme Sr25519 "$secret"/"$network")\"
+        \"$(get_pubkey key inspect-key -n phala --scheme Sr25519 "$secret"/"$network")\"
     ].into();
 """
 

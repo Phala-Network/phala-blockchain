@@ -82,10 +82,16 @@ async function main () {
         })
         console.log(i, toSlash.map(([k, _]) => k));
     }
-    console.log('Workers we can slash:', Object.keys(offlineAccounts).length);
+    const offlineAccountsLength = Object.keys(offlineAccounts).length;
+    console.log('Workers we can slash:', offlineAccountsLength);
 
     if (kDryRun) {
         console.log('Exiting because of dryrun');
+        return;
+    }
+
+    if (offlineAccountsLength === 0) {
+        console.log('No worker can slash, exit.');
         return;
     }
 
