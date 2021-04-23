@@ -8,6 +8,7 @@ const BN = require('bn.js');
 
 const typedefs = require('@phala/typedefs').latest;
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
+const bn256 = new BN(1).shln(256);
 
 async function getWorkerSnapshotAt(api, hash) {
     // Get all worker state
@@ -27,7 +28,7 @@ async function getWorkerSnapshotAt(api, hash) {
     return {
         allWorkerMap: workerState,
         onlineWorkers: Object.entries(workerState)
-            .filter(([_, v]) => !!v.state.Mining || 'MiningStopping' in v.state),
+            .filter(([_, v]) => !!v.state.mining || 'miningStopping' in v.state),
     };
 }
 
@@ -55,7 +56,7 @@ async function main () {
         // Weird enough but yeah Parity decided to serialize it in BE
         // See also: https://github.com/paritytech/parity-common/blob/3ad905d35ed5009547747ae9455f949a458123f2/uint/src/uint.rs#L1347
         v.bnPkh = new BN(pkh, undefined, 'be');
-    })
+    });
 
     const allToSlash = new Map();
     const offlineAccounts = {};
@@ -68,6 +69,8 @@ async function main () {
             }
             // And they hit the onlineTarget
             const x = seed.seed.xor(v.bnPkh);
+            // If want to check the targets:
+            //   console.log(`${k} => rolled: ${x.muln(10000).div(bn256).toNumber() / 100}% target: ${seed.onlineTarget.muln(10000).div(bn256).toNumber() / 100}`)
             return x.lte(seed.onlineTarget);
         })
         toSlash.forEach(([k, _]) => {
