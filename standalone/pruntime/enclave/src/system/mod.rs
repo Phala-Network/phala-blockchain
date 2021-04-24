@@ -235,9 +235,9 @@ impl<'a> EventHandler<'a> {
             }
             // Handle other events
             phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
-                info!("System::handle_event: Message confirmed (seq={})", seq);
                 // Advance the egress queue messages
                 if pubkey == &self.system.id_pubkey {
+                    info!("System::handle_event: Message confirmed (seq={})", seq);
                     self.system.egress.received(*seq);
                 }
             }
