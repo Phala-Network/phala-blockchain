@@ -226,10 +226,10 @@ impl<'a> EventHandler<'a> {
                     self.system.egress = Default::default();
                 }
             }
-            phala::RawEvent::WorkerRenewed(_stash, machine_id) => {
+            phala::RawEvent::WorkerReset(_stash, machine_id) => {
                 // Not perfect because we only have machine_id but not pubkey here.
                 if machine_id == &self.system.machine_id {
-                    info!("System::handle_event: Reset MsgChannel due to WorkerRenewed");
+                    info!("System::handle_event: Reset MsgChannel due to WorkerReset");
                     self.system.egress = Default::default();
                 }
             }
