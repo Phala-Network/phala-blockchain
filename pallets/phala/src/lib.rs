@@ -1,14 +1,14 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 use sp_core::U256;
+use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 use sp_std::{cmp, vec};
-use sp_std::convert::TryFrom;
 
 use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
 use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
-use alloc::{vec::Vec, borrow::ToOwned};
+use alloc::{borrow::ToOwned, vec::Vec};
 use codec::Decode;
 use frame_support::{
 	traits::{
@@ -33,8 +33,8 @@ pub mod weights;
 extern crate phala_types as types;
 use types::{
 	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
-	RoundStats, StashWorkerStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, TransferData, WorkerInfo,
-	WorkerMessagePayload, WorkerStateEnum,
+	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
+	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
 };
 
 // constants
@@ -55,8 +55,9 @@ pub use weights::WeightInfo;
 
 type BalanceOf<T> =
 	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-type NegativeImbalanceOf<T> =
-	<<T as Config>::TEECurrency as Currency<<T as frame_system::Config>::AccountId>>::NegativeImbalance;
+type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
 
 pub trait OnRoundEnd {
 	fn on_round_end(_round: u32) {}
@@ -231,25 +232,35 @@ decl_event!(
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		TransferToTee(AccountId, Balance),
 		TransferToChain(AccountId, Balance, u64),
-		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>), // stash, identity_key, machine_id
-		WorkerUnregistered(AccountId, Vec<u8>),        // stash, machine_id
+		/// [stash, identity_key, machine_id]
+		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
+		/// [stash, machine_id]
+		WorkerUnregistered(AccountId, Vec<u8>),
 		Heartbeat(AccountId, u32),
 		Offline(AccountId),
 		/// Some worker got slashed. [stash, payout_addr, lost_amount, reporter, win_amount]
 		Slash(AccountId, AccountId, Balance, AccountId, Balance),
-		_GotCredits(AccountId, u32, u32), // account, updated, delta
+		_GotCredits(AccountId, u32, u32), // [DEPRECATED] [account, updated, delta]
 		WorkerStateUpdated(AccountId),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
 		RewardSeed(BlockRewardInfo),
-		WorkerMessageReceived(AccountId, Vec<u8>, u64), // stash, identity_key, seq
-		MinerStarted(u32, AccountId),                   // round, stash
-		MinerStopped(u32, AccountId),                   // round, stash
-		NewMiningRound(u32),                            // round
-		_Payout(AccountId, Balance, Balance),           // [DEPRECATED] dest, reward, treasury
-		PayoutMissed(AccountId, AccountId),             // stash, dest
-		WorkerRenewed(AccountId, Vec<u8>),              // stash, machine_id
-		PayoutReward(AccountId, Balance, Balance, PayoutReason), // dest, reward, treasury, reason
+		/// [stash, identity_key, seq]
+		WorkerMessageReceived(AccountId, Vec<u8>, u64),
+		/// [round, stash]
+		MinerStarted(u32, AccountId),
+		/// [round, stash]
+		MinerStopped(u32, AccountId),
+		/// [round]
+		NewMiningRound(u32),
+		_Payout(AccountId, Balance, Balance), // [DEPRECATED] dest, reward, treasury
+		/// [stash, dest]
+		PayoutMissed(AccountId, AccountId),
+		/// A worker is reset due to renew registration or slash, causing the reset of the worker
+		/// ingress sequence. [stash, machine_id]
+		WorkerReset(AccountId, Vec<u8>),
+		/// [dest, reward, treasury, reason]
+		PayoutReward(AccountId, Balance, Balance, PayoutReason),
 	}
 );
 
@@ -503,7 +514,7 @@ decl_module! {
 			let worker_info = WorkerState::<T>::get(&stash);
 			let machine_id = worker_info.machine_id;
 
-			Self::deposit_event(RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+			Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
 
 			WorkerIngress::<T>::insert(stash, 0);
 			Ok(())
@@ -676,7 +687,7 @@ decl_module! {
 				Error::<T>::InvalidProof
 			);
 
-			Self::slash_offline(&stash, &reporter)?;
+			Self::slash_offline(&stash, &reporter, &worker_info.machine_id)?;
 			Ok(())
 		}
 
@@ -871,7 +882,7 @@ impl<T: Config> Module<T> {
 		pubkey: &Vec<u8>,
 		worker_features: &Vec<u32>,
 		confidence_level: u8,
-		runtime_version: u32
+		runtime_version: u32,
 	) -> Result<(), Error<T>> {
 		let mut delta = PendingExitingDelta::get();
 		let info = WorkerState::<T>::get(stash);
@@ -899,15 +910,15 @@ impl<T: Config> Module<T> {
 		// New WorkerInfo
 		let new_info = if renew_only {
 			// Just renewed
-			Self::deposit_event(RawEvent::WorkerRenewed(stash.clone(), machine_id.clone()));
+			Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
 			WorkerInfo {
 				machine_id: machine_id.clone(), // should not change, but we set it anyway
 				pubkey: pubkey.clone(),         // could change if the worker forgot the identity
 				last_updated,
-				score,	// could change if we do profiling
+				score,            // could change if we do profiling
 				confidence_level, // could change on redo RA
-				runtime_version, // could change on redo RA
-				..info  // keep .state
+				runtime_version,  // could change on redo RA
+				..info            // keep .state
 			}
 		} else {
 			// Link a new worker
@@ -923,7 +934,7 @@ impl<T: Config> Module<T> {
 				state: WorkerStateEnum::Free,
 				score,
 				confidence_level,
-				runtime_version
+				runtime_version,
 			}
 		};
 		WorkerState::<T>::insert(stash, new_info);
@@ -963,9 +974,14 @@ impl<T: Config> Module<T> {
 	///
 	/// The `stash` account will be slashed by 100 FIRE, and the `reporter` account will earn half
 	/// as a reward. This method ensures no worker will be slashed twice.
-	fn slash_offline(stash: &T::AccountId, reporter: &T::AccountId) -> dispatch::DispatchResult {
+	fn slash_offline(
+		stash: &T::AccountId,
+		reporter: &T::AccountId,
+		machine_id: &Vec<u8>,
+	) -> dispatch::DispatchResult {
 		// We have to kick the worker by force to avoid double slash
 		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
+		Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
@@ -1158,7 +1174,7 @@ impl<T: Config> Module<T> {
 			start_block: new_block,
 		});
 		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
-		RoundWorkerStats::<T>::remove_all(); 
+		RoundWorkerStats::<T>::remove_all();
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
@@ -1233,13 +1249,14 @@ impl<T: Config> Module<T> {
 						round_stats.frac_target_online_reward,
 						round_stats.online_workers,
 					);
-					let coin_reward = Self::payout(online, payout_target, PayoutReason::OnlineReward);
+					let coin_reward =
+						Self::payout(online, payout_target, PayoutReason::OnlineReward);
 					let prev = RoundWorkerStats::<T>::get(&stash);
 					let worker_state = StashWorkerStats {
 						slash: prev.slash,
 						compute_received: prev.compute_received,
 						online_received: prev.online_received + coin_reward,
-					};			
+					};
 					RoundWorkerStats::<T>::insert(&stash, worker_state);
 				}
 				// Adjusted compute worker reward
@@ -1249,7 +1266,8 @@ impl<T: Config> Module<T> {
 						round_stats.frac_target_compute_reward,
 						round_stats.compute_workers,
 					);
-					let coin_reward = Self::payout(compute, payout_target, PayoutReason::ComputeReward);
+					let coin_reward =
+						Self::payout(compute, payout_target, PayoutReason::ComputeReward);
 					let prev = RoundWorkerStats::<T>::get(&stash);
 					let worker_state = StashWorkerStats {
 						slash: prev.slash,

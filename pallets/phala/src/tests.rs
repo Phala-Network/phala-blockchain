@@ -738,7 +738,7 @@ fn test_mining_lifecycle_renew() {
 		PhalaPallet::on_finalize(2);
 		System::finalize();
 		assert_matches!(events().as_slice(), [
-			Event::phala(RawEvent::WorkerRenewed(1, x)),
+			Event::phala(RawEvent::WorkerReset(1, x)),
 			Event::phala(RawEvent::RewardSeed(_)),
 			Event::phala(RawEvent::NewMiningRound(2))
 		] if x == &machine_id);
@@ -835,6 +835,7 @@ fn test_slash_offline() {
 			Event::phala(RawEvent::WorkerStateUpdated(1)),
 			Event::phala(RawEvent::NewMiningRound(1)),
 			Event::phala(RawEvent::MinerStopped(1, 1)),
+			Event::phala(RawEvent::WorkerReset(1, _)),
 			Event::phala(RawEvent::Slash(1, 1, x, 2, y))
 		] if *x == 100 * DOLLARS && *y == 50 * DOLLARS);
 		// Check cannot be slashed twice
