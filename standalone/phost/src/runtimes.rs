@@ -83,6 +83,8 @@ impl Runtime for PhalaNodeRuntime {
         event_type_registry.with_staking();
         event_type_registry.with_session();
 
+        event_type_registry.register_type_size::<u64>("Assets::Balance");
+
         register_default_type_sizes(event_type_registry);
     }
 }
