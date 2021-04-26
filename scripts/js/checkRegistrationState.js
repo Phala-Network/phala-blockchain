@@ -21,14 +21,14 @@ async function main () {
     const hashBefore = await api.rpc.chain.getBlockHash(regHeight - 1);
     const hashAfter = await api.rpc.chain.getBlockHash(regHeight);
 
-    const stash = await api.query.phalaModule.stash.at(hashAfter, controller);
-    const delta = await api.query.phalaModule.pendingExitingDelta.at(hashAfter);
+    const stash = await api.query.phala.stash.at(hashAfter, controller);
+    const delta = await api.query.phala.pendingExitingDelta.at(hashAfter);
 
-    const onlineWorkerBefore = await api.query.phalaModule.onlineWorkers.at(hashBefore);
-    const onlineWorkerAfter = await api.query.phalaModule.onlineWorkers.at(hashAfter);
+    const onlineWorkerBefore = await api.query.phala.onlineWorkers.at(hashBefore);
+    const onlineWorkerAfter = await api.query.phala.onlineWorkers.at(hashAfter);
 
-    const workerInfoAfter = await api.query.phalaModule.workerState.at(hashAfter, stash);
-    const workerInfoBefore = await api.query.phalaModule.workerState.at(hashBefore, stash);
+    const workerInfoAfter = await api.query.phala.workerState.at(hashAfter, stash);
+    const workerInfoBefore = await api.query.phala.workerState.at(hashBefore, stash);
 
     console.log(util.inspect({
         controller,
@@ -49,14 +49,14 @@ async function main () {
     const machienIdAfter = workerInfoAfter.machineId.toJSON();
     if (machienIdBefore != machienIdAfter) {
         // Check machineId <==> stash @before
-        const oldStash0 = await api.query.phalaModule.machineOwner.at(hashBefore, machienIdBefore);
+        const oldStash0 = await api.query.phala.machineOwner.at(hashBefore, machienIdBefore);
         console.assert(
             oldStash0.toJSON() === stash.toJSON(),
             'Before reg machineIdBefore is owned by stash');
 
         // Who owns the old machineId @after?
-        const newOwnerOfOldMachine = await api.query.phalaModule.machineOwner.at(hashAfter, machienIdBefore);
-        const newWorkerInfoOldMachine = await api.query.phalaModule.workerState.at(hashAfter, newOwnerOfOldMachine);
+        const newOwnerOfOldMachine = await api.query.phala.machineOwner.at(hashAfter, machienIdBefore);
+        const newWorkerInfoOldMachine = await api.query.phala.workerState.at(hashAfter, newOwnerOfOldMachine);
 
         console.log('MachineId check', util.inspect({
             newOwnerOfOldMachine: newOwnerOfOldMachine.toJSON(),

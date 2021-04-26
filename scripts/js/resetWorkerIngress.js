@@ -29,12 +29,12 @@ async function main () {
         if (data.data.free.lte(bnMin)) {
             return;
         }
-        const seq = await api.query.phalaModule.workerIngress(p.address);
+        const seq = await api.query.phala.workerIngress(p.address);
         if (seq.toNumber() == 0) {
             return;
         }
         console.log('reset', p.address);
-        await api.tx.phalaModule.resetWorker().signAndSend(p);
+        await api.tx.phala.resetWorker().signAndSend(p);
         totalReset++;
     }));
     console.log(r);

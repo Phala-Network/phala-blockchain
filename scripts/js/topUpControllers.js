@@ -49,7 +49,7 @@ async function main () {
     const targetAmount = parseFloat(process.env.TARGET_AMOUNT);
 
     console.log('Getting controllers');
-    const entries = await api.query.phalaModule.stashState.entries();
+    const entries = await api.query.phala.stashState.entries();
     let controllers = [];
     for (let [k, v] of entries) {
         const jsonValue = v.toJSON();

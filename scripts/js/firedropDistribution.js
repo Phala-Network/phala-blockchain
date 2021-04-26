@@ -72,7 +72,7 @@ const poc3Prize = [{
 }];
 
 async function getPayoutAddress (api, hash, stash) {
-    const stashInfo = await api.query.phalaModule.stashState.at(hash, stash);
+    const stashInfo = await api.query.phala.stashState.at(hash, stash);
     return stashInfo.payoutPrefs.target;
 }
 
@@ -96,7 +96,7 @@ async function main () {
     console.log('payouts', argAddrs.map((addr, i) => ({addr: addr.toHuman(), amount: data[i][1]})));
 
     await new Promise(async resolve => {
-        const unsub = await api.tx.sudo.sudo(api.tx.phalaModule.forceAddFire(argAddrs, argAmounts))
+        const unsub = await api.tx.sudo.sudo(api.tx.phala.forceAddFire(argAddrs, argAmounts))
             .signAndSend(root, (result) => {
                 console.log(`Current status is ${result.status}`);
                 if (result.status.isInBlock) {

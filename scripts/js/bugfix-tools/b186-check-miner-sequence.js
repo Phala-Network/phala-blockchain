@@ -11,21 +11,21 @@ async function hashOfHeight(api, height) {
 }
 
 async function seqAt(api, height, stash) {
-    return (await api.query.phalaModule.workerIngress.at(
+    return (await api.query.phala.workerIngress.at(
         await hashOfHeight(api, height),
         stash,
     )).toNumber(); 
 }
 
 async function miningStateAt(api, height, stash) {
-    return (await api.query.phalaModule.workerState.at(
+    return (await api.query.phala.workerState.at(
         await hashOfHeight(api, height),
         stash
     )).toHuman();
 }
 
 async function lastActivityAt(api, height, stash) {
-    return (await api.query.phalaModule.lastWorkerActivity.at(
+    return (await api.query.phala.lastWorkerActivity.at(
         await hashOfHeight(api, height),
         stash,
     )).toNumber(); 
@@ -36,7 +36,7 @@ async function main () {
     const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
 
     const stash = '45psUjc7jD6Nj3y8o27dxif71CGnTE7YgVTd17jkFqWWhCf5';
-    const controller = (await api.query.phalaModule.stashState.at(
+    const controller = (await api.query.phala.stashState.at(
         await hashOfHeight(api, 1820543),
         stash
     )).toJSON().controller;

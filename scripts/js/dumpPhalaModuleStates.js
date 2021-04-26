@@ -9,7 +9,7 @@ const typedefs = require('@phala/typedefs').latest;
 
 async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     const workerState = {};
-    const entries = await api.query.phalaModule.workerState.entriesAt(hash);
+    const entries = await api.query.phala.workerState.entriesAt(hash);
     for (let [k, v] of entries) {
         if (logEntries) {
             console.log(`${k.args.map(k => k.toHuman())} =>`, v.toJSON());
@@ -18,9 +18,9 @@ async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     }
 
     const [onlineWorkers, totalPower, delta] = await Promise.all([
-        api.query.phalaModule.onlineWorkers.at(hash),
-        api.query.phalaModule.totalPower.at(hash),
-        api.query.phalaModule.pendingExitingDelta.at(hash),
+        api.query.phala.onlineWorkers.at(hash),
+        api.query.phala.totalPower.at(hash),
+        api.query.phala.pendingExitingDelta.at(hash),
     ]);
     const onchainData = {
         onlineWorkers: onlineWorkers.toNumber() + delta.numWorker.toNumber(),
