@@ -17,12 +17,42 @@ require('dotenv').config();
 
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
+const fs = require('fs');
 
 const typedefs = require('@phala/typedefs').latest;
 const bn1e9 = new BN(10).pow(new BN(9));
 const bn1e12 = new BN(10).pow(new BN(12));
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
 const kVerbose = parseInt(process.env.VERBOSE || '0') === 1;
+
+function readAddress(path) {
+    try {
+        const data = fs.readFileSync(path, {encoding: 'utf-8'});
+        return data
+            .split('\n')
+            .map(x => x.trim())
+            .filter(x => !!x);
+    } catch (err) {
+        return [];
+    }
+}
+
+async function controllersFromPayout(api, payoutTarget) {
+    const entries = await api.query.phala.stashState.entries();
+    let controllers = [];
+    for (let [k, v] of entries) {
+        const jsonValue = v.toJSON();
+        const controller = jsonValue.controller;
+
+        if (jsonValue.payoutPrefs.target === payoutTarget) {
+            if (kVerbose) {
+                console.log(`${k.args.map(k => k.toHuman())} =>`, jsonValue);
+            }
+            controllers.push(controller);
+        }
+    }    
+    return controllers;
+}
 
 async function getBalances (api, addresses) {
     return await new Promise(async resolve => {
@@ -44,24 +74,12 @@ async function main () {
     const keyring = new Keyring({ type: 'sr25519' });
     const sender = keyring.addFromUri(process.env.PRIVKEY);
 
-    const payoutTarget = process.env.TOPUP_PAYOUT_TARGET;
-    // const amount = new BN(process.env.AMOUNT).mul(bn1e12);
-    const targetAmount = parseFloat(process.env.TARGET_AMOUNT);
-
-    console.log('Getting controllers');
-    const entries = await api.query.phala.stashState.entries();
-    let controllers = [];
-    for (let [k, v] of entries) {
-        const jsonValue = v.toJSON();
-        const controller = jsonValue.controller;
-
-        if (jsonValue.payoutPrefs.target === payoutTarget) {
-            if (kVerbose) {
-                console.log(`${k.args.map(k => k.toHuman())} =>`, jsonValue);
-            }
-
-            controllers.push(controller);
-        }
+    const targetAmount = parseFloat(process.env.TARGET_AMOUNT)
+    let controllers = readAddress(process.env.CONTROLLER_ADDRESS_FILE);
+    if (!controllers) {
+        console.log('Getting controllers');
+        const payoutTarget = process.env.TOPUP_PAYOUT_TARGET;
+        controllers = controllersFromPayout(api, payoutTarget)
     }
     console.log(`Found ${controllers.length}`);
 
@@ -74,8 +92,9 @@ async function main () {
             amount: targetAmount - balancesFloat[idx]
         }))
         .filter(({amount}) => amount > 0);
+    const total = topUpPlan.reduce((a, x) => a + x.amount, 0);
     console.log({topUpPlan});
-    console.log(`Found ${topUpPlan.length}`);
+    console.log(`Found ${topUpPlan.length}, total: ${total}`);
 
     topUpPlan = topUpPlan.map(({address, amount}) => ({
         address,
