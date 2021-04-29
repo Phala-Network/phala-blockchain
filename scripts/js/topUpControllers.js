@@ -4,6 +4,7 @@
  * ENVs:
  *  - PRIVKEY: sr25519 privkey sURI
  *  - ENDPOINT: full node WS (WSS) RPC endpoint
+ *  - CONTROLLER_ADDRESS_FILE: a text file with an address in each line to top up; if this is used the next option will be ignored
  *  - TOPUP_PAYOUT_TARGET: the mining payout target account that owns the controllers to top up
  *  - TARGET_AMOUNT: top up to the specified amount. no-op if the account has more token
  *  - AMOUNT_MIN: skip the controller if it has this min amount, float accepted
