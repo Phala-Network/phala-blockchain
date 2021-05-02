@@ -44,7 +44,7 @@ use codec::{Encode, Decode};
 use sp_core::{
 	crypto::KeyTypeId,
 	u32_trait::{_1, _2, _3, _4, _5},
-	OpaqueMetadata,
+	OpaqueMetadata
 };
 pub use node_primitives::{AccountId, Signature};
 pub use node_primitives::{AccountIndex, Balance, BlockNumber, Hash, Index, Moment};
@@ -95,6 +95,8 @@ use sp_runtime::generic::Era;
 
 pub use pallet_phala;
 pub use pallet_claim;
+pub use pallet_bridge;
+pub use pallet_bridge_transfer;
 
 #[cfg(not(feature = "native-nostd-hasher"))]
 type Hasher = sp_runtime::traits::BlakeTwo256;
@@ -1120,6 +1122,25 @@ impl pallet_mining_staking::Config for Runtime {
 	type Currency = Balances;
 }
 
+parameter_types! {
+    pub const BridgeChainId: u8 = 1;
+    pub const ProposalLifetime: BlockNumber = 50;
+}
+
+impl pallet_bridge::Config for Runtime {
+	type Event = Event;
+	type AdminOrigin = EnsureRoot<AccountId>;
+	type Proposal = Call;
+	type ChainId = BridgeChainId;
+	type ProposalLifetime = ProposalLifetime;
+}
+
+impl pallet_bridge_transfer::Config for Runtime {
+    type Event = Event;
+    type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
+    type Currency = Balances;
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1166,6 +1187,8 @@ construct_runtime!(
 		Mmr: pallet_mmr::{Pallet, Storage},
 		Lottery: pallet_lottery::{Pallet, Call, Storage, Event<T>},
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
+		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
+		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
 	}
 );
 

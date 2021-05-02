@@ -88,6 +88,8 @@ pallet-vesting = { version = "3.0.0", default-features = false, path = "../../su
 pallet-phala = { default-features = false, path = "../../pallets/phala", package = "pallet-phala" }
 pallet-claim = { default-features = false, path = "../../pallets/claim", package = "pallet-claim" }
 pallet-mining-staking = { default-features = false, path = "../../pallets/mining_staking", package = "pallet-mining-staking" }
+pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
+pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
 
 native-nostd-hasher = { version = "3.0.0", path = "../../native-nostd-hasher", optional = true }
 
@@ -166,6 +168,8 @@ std = [
 	"sp-npos-elections/std",
 	"pallet-phala/std",
 	"pallet-claim/std",
+	"pallet-bridge/std",
+	"pallet-bridge-transfer/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap,
+	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -37,6 +37,7 @@ use sp_consensus_babe::{AuthorityId as BabeId};
 use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
+use pallet_bridge;
 
 pub use node_primitives::{AccountId, Balance, Signature};
 pub use node_runtime::GenesisConfig;
@@ -334,6 +335,10 @@ pub fn testnet_genesis(
 			max_members: 999,
 		},
 		pallet_vesting: Default::default(),
+		pallet_bridge_transfer: BridgeTransferConfig {
+			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
+			bridge_hashid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"hash")),
+		},
 	}
 }
 
