@@ -55,7 +55,7 @@ pallet-contracts = { version = "3.0.0", default-features = false, path = "../../
 pallet-contracts-primitives = { version = "3.0.0", default-features = false, path = "../../substrate/frame/contracts/common/" }
 pallet-contracts-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../substrate/frame/contracts/rpc/runtime-api/" }
 pallet-democracy = { version = "3.0.0", default-features = false, path = "../../substrate/frame/democracy" }
-pallet-elections-phragmen = { version = "3.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
+pallet-elections-phragmen = { version = "4.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
 pallet-election-provider-multi-phase = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
 pallet-grandpa = { version = "3.0.0", default-features = false, path = "../../substrate/frame/grandpa" }
 pallet-im-online = { version = "3.0.0", default-features = false, path = "../../substrate/frame/im-online" }
