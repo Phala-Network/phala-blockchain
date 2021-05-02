@@ -2381,28 +2381,9 @@ checksum = "7f24254aa9a54b5c858eaee2f5bccdb46aaf0e486a595ed5fd8f86ba55232a70"
 
 [[package]]
 name = "hex-literal"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "961de220ec9a91af2e1e5bd80d02109155695e516771762381ef8581317066e0"
-dependencies = [
- "hex-literal-impl",
- "proc-macro-hack",
-]
-
-[[package]]
-name = "hex-literal"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5af1f635ef1bc545d78392b136bfe1c9809e029023c84a3638a864a10b8819c8"
-
-[[package]]
-name = "hex-literal-impl"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "853f769599eb31de176303197b7ba4973299c38c7a7604a6bc88c3eef05b9b46"
-dependencies = [
- "proc-macro-hack",
-]
 
 [[package]]
 name = "hex_fmt"
@@ -4438,22 +4419,38 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-claim"
-version = "2.0.1"
+name = "pallet-bridge"
+version = "0.0.1"
 dependencies = [
+ "blake2-rfc",
  "frame-support",
  "frame-system",
- "hex-literal 0.2.1",
- "log",
  "pallet-balances",
- "pallet-timestamp",
  "parity-scale-codec",
- "rustc-hex",
  "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "substrate-wasm-builder-runner",
+]
+
+[[package]]
+name = "pallet-bridge-transfer"
+version = "0.0.1"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "pallet-balances",
+ "pallet-bridge",
+ "parity-scale-codec",
+ "serde",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "substrate-wasm-builder-runner",
 ]
 
 [[package]]
@@ -4815,7 +4812,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "hex",
- "hex-literal 0.3.1",
+ "hex-literal",
  "itertools 0.8.2",
  "libsecp256k1",
  "log",
@@ -5435,7 +5432,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "futures 0.3.14",
- "hex-literal 0.3.1",
+ "hex-literal",
  "jsonrpc-core 14.2.0",
  "jsonrpc-pubsub 14.2.0",
  "libp2p-wasm-ext",
@@ -5447,6 +5444,8 @@ dependencies = [
  "node-rpc",
  "pallet-authority-discovery",
  "pallet-balances",
+ "pallet-bridge",
+ "pallet-bridge-transfer",
  "pallet-contracts",
  "pallet-grandpa",
  "pallet-im-online",
@@ -5518,7 +5517,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
- "hex-literal 0.3.1",
+ "hex-literal",
  "log",
  "native-nostd-hasher",
  "node-primitives",
@@ -5528,7 +5527,8 @@ dependencies = [
  "pallet-babe",
  "pallet-balances",
  "pallet-bounties",
- "pallet-claim",
+ "pallet-bridge",
+ "pallet-bridge-transfer",
  "pallet-collective",
  "pallet-contracts",
  "pallet-contracts-primitives",
@@ -6315,7 +6315,7 @@ name = "remote-externalities"
 version = "0.9.0"
 dependencies = [
  "env_logger 0.8.3",
- "hex-literal 0.3.1",
+ "hex-literal",
  "jsonrpsee-http-client",
  "jsonrpsee-proc-macros",
  "jsonrpsee-types",
@@ -7330,7 +7330,7 @@ dependencies = [
  "fdlimit",
  "futures 0.1.31",
  "futures 0.3.14",
- "hex-literal 0.3.1",
+ "hex-literal",
  "log",
  "parity-scale-codec",
  "parking_lot 0.11.1",
@@ -8841,6 +8841,12 @@ dependencies = [
  "walkdir",
  "wasm-gc-api",
 ]
+
+[[package]]
+name = "substrate-wasm-builder-runner"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "54cab12167e32b38a62c5ea5825aa0874cde315f907a46aad2b05aa8ef3d862f"
 
 [[package]]
 name = "subtle"

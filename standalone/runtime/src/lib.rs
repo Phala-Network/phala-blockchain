@@ -94,7 +94,6 @@ use constants::{time::*, currency::*};
 use sp_runtime::generic::Era;
 
 pub use pallet_phala;
-pub use pallet_claim;
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
 
@@ -1111,12 +1110,6 @@ impl pallet_phala::Config for Runtime {
 	type OfflineReportReward = OfflineReportReward;
 }
 
-impl pallet_claim::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
-	type Currency = Balances;
-}
-
 impl pallet_mining_staking::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
@@ -1157,7 +1150,6 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 		Phala: pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
-		PhaClaim: pallet_claim::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config, Event<T>},
