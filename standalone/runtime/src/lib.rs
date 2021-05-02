@@ -1129,10 +1129,10 @@ parameter_types! {
 
 impl pallet_bridge::Config for Runtime {
 	type Event = Event;
-    type AdminOrigin = EnsureRoot<AccountId>;
+	type AdminOrigin = EnsureRoot<AccountId>;
 	type Proposal = Call;
 	type ChainId = BridgeChainId;
-    type ProposalLifetime = ProposalLifetime;
+	type ProposalLifetime = ProposalLifetime;
 }
 
 impl pallet_bridge_transfer::Config for Runtime {
@@ -1188,7 +1188,7 @@ construct_runtime!(
 		Lottery: pallet_lottery::{Pallet, Call, Storage, Event<T>},
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
-        BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
+		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
 	}
 );
 
