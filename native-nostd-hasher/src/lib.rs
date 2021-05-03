@@ -43,12 +43,12 @@ pub mod blake2 {
     impl Hash for Blake2Hasher {
         type Output = H256;
 
-        fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>) -> Self::Output {
-            Layout::<Self>::trie_root(input)
-        }
-
         fn ordered_trie_root(input: Vec<Vec<u8>>) -> Self::Output {
             Layout::<Self>::ordered_trie_root(input)
+        }
+
+        fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>) -> Self::Output {
+            Layout::<Self>::trie_root(input)
         }
     }
 }
