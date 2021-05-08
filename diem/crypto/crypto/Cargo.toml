@@ -43,7 +43,6 @@ aes-gcm = { path = "../../vendor/aes-gcm", version = "0.8.0" }
 diem-crypto-derive = { path = "../crypto-derive", version = "0.1.0" }
 bcs = { path = "../../vendor/bcs" }
 diem-nibble = { path = "../../common/nibble", version = "0.1.0" }
-diem-workspace-hack = { path = "../../common/workspace-hack", version = "0.1.0" }
 
 [dev-dependencies]
 bitvec = "0.19.4"

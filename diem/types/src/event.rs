@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::account_address::AccountAddress;
-use anyhow::{ensure, Error, Result};
+use hex::FromHex;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest_derive::Arbitrary;
 #[cfg(any(test, feature = "fuzzing"))]
@@ -43,10 +43,8 @@ impl EventKey {
 
     /// Get the account address part in this event key
     pub fn get_creator_address(&self) -> AccountAddress {
-        let mut arr_bytes = [0u8; AccountAddress::LENGTH];
-        arr_bytes.copy_from_slice(&self.0[EventKey::LENGTH - AccountAddress::LENGTH..]);
-
-        AccountAddress::new(arr_bytes)
+		AccountAddress::try_from(&self.0[EventKey::LENGTH - AccountAddress::LENGTH..])
+			.expect("get_creator_address failed")
     }
 
     /// If this is the `ith` EventKey` created by `get_creator_address()`, return `i`
@@ -70,15 +68,26 @@ impl EventKey {
         rhs.copy_from_slice(addr.as_ref());
         EventKey(output_bytes)
     }
+
+	pub fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, EventKeyParseError> {
+		<[u8; Self::LENGTH]>::from_hex(hex)
+			.map_err(|_| EventKeyParseError)
+			.map(Self)
+	}
+
+	pub fn from_bytes<T: AsRef<[u8]>>(bytes: T) -> Result<Self, EventKeyParseError> {
+		<[u8; Self::LENGTH]>::try_from(bytes.as_ref())
+			.map_err(|_| EventKeyParseError)
+			.map(Self)
+	}
 }
 
 impl FromStr for EventKey {
-    type Err = Error;
+	type Err = EventKeyParseError;
 
-    fn from_str(s: &str) -> Result<Self> {
-        let bytes_out = ::hex::decode(s)?;
-        EventKey::try_from(bytes_out.as_slice())
-    }
+	fn from_str(s: &str) -> Result<Self, EventKeyParseError> {
+		EventKey::from_hex(s)
+	}
 }
 
 impl From<EventKey> for [u8; EventKey::LENGTH] {
@@ -93,7 +102,6 @@ impl From<&EventKey> for [u8; EventKey::LENGTH] {
     }
 }
 
-// TODO(#1307)
 impl ser::Serialize for EventKey {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -115,14 +123,11 @@ impl<'de> de::Deserialize<'de> for EventKey {
     where
         D: de::Deserializer<'de>,
     {
+		use serde::de::Error;
+
         if deserializer.is_human_readable() {
             let s = <String>::deserialize(deserializer)?;
-            Self::try_from(
-                hex::decode(s)
-                    .map_err(<D::Error as ::serde::de::Error>::custom)?
-                    .as_slice(),
-            )
-            .map_err(<D::Error as ::serde::de::Error>::custom)
+			EventKey::from_hex(s).map_err(D::Error::custom)
         } else {
             // See comment in serialize.
             #[derive(::serde::Deserialize)]
@@ -130,26 +135,30 @@ impl<'de> de::Deserialize<'de> for EventKey {
             struct Value<'a>(&'a [u8]);
 
             let value = Value::deserialize(deserializer)?;
-            Self::try_from(value.0).map_err(<D::Error as ::serde::de::Error>::custom)
+            Self::try_from(value.0).map_err(D::Error::custom)
         }
     }
 }
 
 impl TryFrom<&[u8]> for EventKey {
-    type Error = Error;
+	type Error = EventKeyParseError;
 
-    /// Tries to convert the provided byte array into Event Key.
-    fn try_from(bytes: &[u8]) -> Result<EventKey> {
-        ensure!(
-            bytes.len() == Self::LENGTH,
-            "The Event Key {:?} is of invalid length",
-            bytes
-        );
-        let mut addr = [0u8; Self::LENGTH];
-        addr.copy_from_slice(bytes);
-        Ok(EventKey(addr))
-    }
+	/// Tries to convert the provided byte array into Event Key.
+	fn try_from(bytes: &[u8]) -> Result<EventKey, EventKeyParseError> {
+		Self::from_bytes(bytes)
+	}
 }
+
+#[derive(Clone, Copy, Debug)]
+pub struct EventKeyParseError;
+
+impl fmt::Display for EventKeyParseError {
+	fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
+		write!(f, "unable to parse EventKey")
+	}
+}
+
+impl std::error::Error for EventKeyParseError {}
 
 /// A Rust representation of an Event Handle Resource.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -170,6 +179,7 @@ impl EventHandle {
     pub fn key(&self) -> &EventKey {
         &self.key
     }
+
     /// Return the counter for the handle
     pub fn count(&self) -> u64 {
         self.count
@@ -200,14 +210,66 @@ impl EventHandle {
 }
 
 impl fmt::LowerHex for EventKey {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", hex::encode(self.as_bytes()))
-    }
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		if f.alternate() {
+			write!(f, "0x")?;
+		}
+
+		for byte in &self.0 {
+			write!(f, "{:02x}", byte)?;
+		}
+
+		Ok(())
+	}
 }
 
 impl fmt::Display for EventKey {
     fn fmt(&self, f: &mut fmt::Formatter) -> std::fmt::Result {
-        // Forward to the LowerHex impl with a "0x" prepended (the # flag).
-        write!(f, "{:#x}", self)
+		write!(f, "{:x}", self)
     }
+}
+
+#[cfg(test)]
+mod tests {
+	use super::EventKey;
+
+	#[test]
+	fn test_display_impls() {
+		let hex = "1000000000000000ca843279e3427144cead5e4d5999a3d0";
+
+		let key = EventKey::from_hex(hex).unwrap();
+
+		assert_eq!(format!("{}", key), hex);
+		assert_eq!(format!("{:x}", key), hex);
+
+		assert_eq!(format!("{:#x}", key), format!("0x{}", hex));
+	}
+
+	#[test]
+	fn test_invalid_length() {
+		let bytes = vec![1; 123];
+		EventKey::from_bytes(bytes).unwrap_err();
+	}
+
+	#[test]
+	fn test_deserialize_from_json_value() {
+		let key = EventKey::random();
+		let json_value = serde_json::to_value(key).unwrap();
+		let key2: EventKey = serde_json::from_value(json_value).unwrap();
+		assert_eq!(key, key2);
+	}
+
+	#[test]
+	fn test_serde_json() {
+		let hex = "1000000000000000ca843279e3427144cead5e4d5999a3d0";
+		let json_hex = "\"1000000000000000ca843279e3427144cead5e4d5999a3d0\"";
+
+		let key = EventKey::from_hex(hex).unwrap();
+
+		let json = serde_json::to_string(&key).unwrap();
+		let json_key: EventKey = serde_json::from_str(json_hex).unwrap();
+
+		assert_eq!(json, json_hex);
+		assert_eq!(key, json_key);
+	}
 }

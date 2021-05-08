@@ -11,11 +11,6 @@ use anyhow::Result;
 use diem_crypto::{ed25519::*, test_utils::KeyPair, traits::SigningKey};
 use std::string::String;
 
-// TODO: chrono-sgx clock feature broken
-// TODO: UNSAFE
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::untrusted::time::SystemTimeEx;
-
 pub fn create_unsigned_txn(
     payload: TransactionPayload,
     sender_address: AccountAddress,

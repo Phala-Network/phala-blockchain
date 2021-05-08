@@ -33,12 +33,12 @@ use diem_crypto::{
     traits::*,
     HashValue,
 };
-use diem_proptest_helpers::Index;
 use move_core_types::language_storage::TypeTag;
 use proptest::{
     collection::{vec, SizeRange},
     option,
     prelude::*,
+	sample::Index,
 };
 use proptest_derive::Arbitrary;
 use serde_json::Value;
@@ -345,6 +345,16 @@ fn new_raw_transaction(
             expiration_time_secs,
             chain_id,
         ),
+		TransactionPayload::ScriptFunction(script_fn) => RawTransaction::new_script_function(
+			sender,
+			sequence_number,
+			script_fn,
+			max_gas_amount,
+			gas_unit_price,
+			gas_currency_code,
+			expiration_time_secs,
+			chain_id,
+		),
         TransactionPayload::WriteSet(WriteSetPayload::Direct(write_set)) => {
             // It's a bit unfortunate that max_gas_amount etc is generated but
             // not used, but it isn't a huge deal.

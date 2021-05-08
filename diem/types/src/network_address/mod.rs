@@ -1,23 +1,18 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-#![cfg_attr(all(feature = "mesalock_sgx", not(target_env = "sgx")), no_std)]
-#![cfg_attr(all(target_env = "sgx", target_vendor = "mesalock"), feature(rustc_private))]
-
-#[cfg(all(feature = "mesalock_sgx", not(target_env = "sgx")))]
-#[macro_use]
-extern crate sgx_tstd as std;
-
-use crate::encrypted::{EncNetworkAddress, Key, KeyVersion};
+use crate::{
+    account_address::AccountAddress,
+    network_address::encrypted::{EncNetworkAddress, Key, KeyVersion},
+};
 use diem_crypto::{
     traits::{CryptoMaterialError, ValidCryptoMaterialStringExt},
     x25519,
 };
-use move_core_types::account_address::AccountAddress;
-// #[cfg(any(test, feature = "fuzzing"))]
-// use proptest::{collection::vec, prelude::*};
-// #[cfg(any(test, feature = "fuzzing"))]
-// use proptest_derive::Arbitrary;
+#[cfg(any(test, feature = "fuzzing"))]
+use proptest::{collection::vec, prelude::*};
+#[cfg(any(test, feature = "fuzzing"))]
+use proptest_derive::Arbitrary;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use std::{
     convert::{Into, TryFrom},
@@ -27,8 +22,8 @@ use std::{
     num,
     str::FromStr,
     string::{String, ToString},
-    vec::Vec,
-    borrow::ToOwned,
+	vec::Vec,
+	borrow::ToOwned
 };
 use thiserror::Error;
 
@@ -36,10 +31,11 @@ pub mod encrypted;
 
 const MAX_DNS_NAME_SIZE: usize = 255;
 
+/// ## Overview
+///
 /// Diem `NetworkAddress` is a compact, efficient, self-describing and
 /// future-proof network address represented as a stack of protocols. Essentially
-/// libp2p's [multiaddr](https://multiformats.io/multiaddr/) but using [`bcs`] to
-/// describe the binary format.
+/// libp2p's [multiaddr] but using [`bcs`] to describe the binary format.
 ///
 /// Most validators will advertise a network address like:
 ///
@@ -54,6 +50,8 @@ const MAX_DNS_NAME_SIZE: usize = 255;
 ///    connection with the peer.
 /// 4. Perform a DiemNet version negotiation handshake (version 1).
 ///
+/// ## Self-describing, Upgradable
+///
 /// One key concept behind `NetworkAddress` is that it is fully self-describing,
 /// which allows us to easily "pre-negotiate" protocols while also allowing for
 /// future upgrades. For example, it is generally unsafe to negotiate a secure
@@ -64,16 +62,21 @@ const MAX_DNS_NAME_SIZE: usize = 255;
 /// transport protocol to use; in this sense, the secure transport protocol is
 /// "pre-negotiated" by the dialier selecting which advertised protocol to use.
 ///
+/// Each network address is encoded with the length of the encoded `NetworkAddress`
+/// and then the serialized protocol slices to allow for transparent upgradeability.
+/// For example, if the current software cannot decode a `NetworkAddress` within
+/// a `Vec<NetworkAddress>` it can still decode the underlying `Vec<u8>` and
+/// retrieve the remaining `Vec<NetworkAddress>`.
+///
+/// ## Transport
+///
 /// In addition, `NetworkAddress` is integrated with the DiemNet concept of a
 /// [`Transport`], which takes a `NetworkAddress` when dialing and peels off
-/// [`Protocols`] to establish a connection and perform initial handshakes.
-/// Similarly, the `Transport` takes `NetworkAddress` to listen on, which tells
+/// [`Protocol`]s to establish a connection and perform initial handshakes.
+/// Similarly, the [`Transport`] takes `NetworkAddress` to listen on, which tells
 /// it what protocols to expect on the socket.
 ///
-/// The network address is encoded with the length of the encoded NetworkAddresses and then the
-/// the protocol slices to allow for transparent upgradeability. For example, if the current
-/// software cannot decode a NetworkAddress within a Vec<NetworkAddress> it can still decode the
-/// underlying Vec<u8> and retrieve the remaining Vec<NetworkAddress>.
+/// ## Example
 ///
 /// An example of a serialized `NetworkAddress`:
 ///
@@ -93,7 +96,7 @@ const MAX_DNS_NAME_SIZE: usize = 255;
 /// //               \  '-- uvarint number of protocols
 /// //                '-- length of encoded network address
 ///
-/// use diem_network_address::NetworkAddress;
+/// use diem_types::network_address::NetworkAddress;
 /// use bcs;
 /// use std::{str::FromStr, convert::TryFrom};
 ///
@@ -104,11 +107,14 @@ const MAX_DNS_NAME_SIZE: usize = 255;
 ///
 /// assert_eq!(expected_ser_addr, actual_ser_addr);
 /// ```
-#[derive(Clone, Eq, PartialEq)]
+///
+/// [multiaddr]: https://multiformats.io/multiaddr/
+/// [`Transport`]: ../netcore/transport/trait.Transport.html
+#[derive(Clone, Eq, Hash, PartialEq)]
 pub struct NetworkAddress(Vec<Protocol>);
 
 /// A single protocol in the [`NetworkAddress`] protocol stack.
-#[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Deserialize, Serialize)]
 #[cfg_attr(any(test, feature = "fuzzing"), derive(Arbitrary))]
 pub enum Protocol {
     Ip4(Ipv4Addr),
@@ -142,9 +148,9 @@ pub enum Protocol {
 ///
 /// So the restrictions we're adding are (1) no '/' characters and (2) the name
 /// is a valid unicode string. We do this because '/' characters are already our
-/// protocol delimiter and Rust's [`::std::net::ToSocketAddr`] API requires a
+/// protocol delimiter and Rust's [`std::net::ToSocketAddrs`] API requires a
 /// `&str`.
-#[derive(Clone, Debug, Eq, PartialEq, Serialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, Serialize)]
 pub struct DnsName(String);
 
 /// Possible errors when parsing a human-readable [`NetworkAddress`].
@@ -214,6 +220,7 @@ impl NetworkAddress {
         self
     }
 
+    /// See [`EncNetworkAddress::encrypt`].
     pub fn encrypt(
         self,
         shared_val_netaddr_key: &Key,
@@ -239,7 +246,7 @@ impl NetworkAddress {
     ///
     /// ```rust
     /// use diem_crypto::{traits::ValidCryptoMaterialStringExt, x25519};
-    /// use diem_network_address::NetworkAddress;
+    /// use diem_types::network_address::NetworkAddress;
     /// use std::str::FromStr;
     ///
     /// let pubkey_str = "080e287879c918794170e258bfaddd75acac5b3e350419044655e4983a487120";
@@ -280,7 +287,7 @@ impl NetworkAddress {
     /// ### Example
     ///
     /// ```rust
-    /// use diem_network_address::NetworkAddress;
+    /// use diem_types::network_address::NetworkAddress;
     /// use std::str::FromStr;
     ///
     /// let addr_str = "/ip4/1.2.3.4/tcp/6180/ln-noise-ik/080e287879c918794170e258bfaddd75acac5b3e350419044655e4983a487120/ln-handshake/0";
@@ -588,9 +595,9 @@ impl DnsName {
     }
 }
 
-impl Into<String> for DnsName {
-    fn into(self) -> String {
-        self.0
+impl From<DnsName> for String {
+    fn from(dns_name: DnsName) -> String {
+        dns_name.0
     }
 }
 
@@ -767,7 +774,7 @@ pub fn parse_handshake(protos: &[Protocol]) -> Option<(u8, &[Protocol])> {
 
 /// parse canonical diemnet protocols
 ///
-/// See: `NetworkAddress::is_diemnet_addr(&self)`
+/// See: [`NetworkAddress::is_diemnet_addr`]
 fn parse_diemnet_protos(protos: &[Protocol]) -> Option<&[Protocol]> {
     // parse base transport layer
     // ---
