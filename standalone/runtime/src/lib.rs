@@ -93,6 +93,7 @@ pub mod constants;
 use constants::{time::*, currency::*};
 use sp_runtime::generic::Era;
 
+pub use pallet_kitties;
 pub use pallet_phala;
 pub use pallet_claim;
 
@@ -1109,6 +1110,10 @@ impl pallet_phala::Config for Runtime {
 	type OfflineReportReward = OfflineReportReward;
 }
 
+impl pallet_kitties::Config for Runtime {
+	type Event = Event;
+}
+
 impl pallet_claim::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -1135,6 +1140,7 @@ construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
+		KittyStorage: pallet_kitties::{Pallet, Call, Config, Storage, Event<T>},
 		Phala: pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 		PhaClaim: pallet_claim::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>},

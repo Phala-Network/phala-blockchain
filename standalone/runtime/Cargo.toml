@@ -85,6 +85,7 @@ pallet-transaction-payment = { version = "3.0.0", default-features = false, path
 pallet-transaction-payment-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { version = "3.0.0", default-features = false, path = "../../substrate/frame/vesting" }
 
+pallet-kitties = { default-features = false, path = "../../pallets/kitties", package = "pallet-kitties" }
 pallet-phala = { default-features = false, path = "../../pallets/phala", package = "pallet-phala" }
 pallet-claim = { default-features = false, path = "../../pallets/claim", package = "pallet-claim" }
 pallet-mining-staking = { default-features = false, path = "../../pallets/mining_staking", package = "pallet-mining-staking" }
@@ -164,6 +165,7 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
+	"pallet-kitties/std",
 	"pallet-phala/std",
 	"pallet-claim/std",
 ]

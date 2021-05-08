@@ -72,7 +72,7 @@ mod types;
 
 use contracts::{
     AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, DATA_PLAZA, DIEM, SYSTEM,
-    WEB3_ANALYTICS,
+    WEB3_ANALYTICS, SUBSTRATE_KITTIES, BTC_LOTTERY
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -161,6 +161,8 @@ struct RuntimeState {
     contract3: contracts::assets::Assets,
     contract4: contracts::web3analytics::Web3Analytics,
     contract5: contracts::diem::Diem,
+    contract6: contracts::substrate_kitties::SubstrateKitties,
+    contract7: contracts::btc_lottery::BtcLottery,
     #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
     light_client: ChainLightValidation,
     main_bridge: u64,
@@ -235,6 +237,8 @@ lazy_static! {
             contract3: contracts::assets::Assets::new(),
             contract4: contracts::web3analytics::Web3Analytics::new(),
             contract5: contracts::diem::Diem::new(),
+            contract6: contracts::substrate_kitties::SubstrateKitties::new(None),
+            contract7: contracts::btc_lottery::BtcLottery::new(None),
             light_client: ChainLightValidation::new(),
             main_bridge: 0
         })
@@ -1097,7 +1101,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
-    state.contract2 = contracts::balances::Balances::new(Some(id_pair));
+    state.contract2 = contracts::balances::Balances::new(Some(id_pair.clone()));
+    state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
+    state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
     // Initialize other states
     local_state.headernum = 1;
     local_state.blocknum = 1;
@@ -1206,6 +1212,14 @@ fn handle_execution(
         },
         DIEM => match serde_json::from_slice(inner_data.as_slice()) {
             Ok(cmd) => state.contract5.handle_command(&origin, pos, cmd),
+            _ => TransactionStatus::BadCommand,
+        },
+        SUBSTRATE_KITTIES => match serde_json::from_slice(inner_data.as_slice()) {
+            Ok(cmd) => state.contract6.handle_command(&origin, pos,cmd),
+            _ => TransactionStatus::BadCommand,
+        },
+        BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
+            Ok(cmd) => state.contract7.handle_command(&origin, pos,cmd),
             _ => TransactionStatus::BadCommand,
         },
         _ => {
@@ -1444,6 +1458,9 @@ fn handle_events(
                     state.contract2.handle_event(evt.event.clone());
                 }
             }
+        } else if let chain::Event::pallet_kitties(pe) = &evt.event{
+            println!("pallet_kitties event: {:?}", pe);
+            state.contract6.handle_event(evt.event.clone());
         }
     }
     Ok(())
@@ -1705,6 +1722,24 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (diem::Request)"))?
+                    .request,
+            ),
+        )
+        .unwrap(),
+        SUBSTRATE_KITTIES => serde_json::to_value(
+            state.contract6.handle_query(
+                ref_origin,
+                types::deopaque_query(opaque_query)
+                    .map_err(|_| error_msg("Malformed request (substrate_kitties::Request)"))?
+                    .request,
+            ),
+        )
+        .unwrap(),
+        BTC_LOTTERY => serde_json::to_value(
+            state.contract7.handle_query(
+                ref_origin,
+                types::deopaque_query(opaque_query)
+                    .map_err(|_| error_msg("Malformed request (btc_lottery::Request)"))?
                     .request,
             ),
         )

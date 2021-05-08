@@ -101,12 +101,20 @@ pub struct Query {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
     PendingChainTransfer { sequence: u64 },     // Balances
+    PendingKittyTransfer {sequence: u64},       // Kitties
+    PendingLotteryTransfer {sequence: u64},     // Btc lottery
     GetWorkerEgress { start_sequence: u64 },    // System
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QueryRespData {
     PendingChainTransfer {
+        transfer_queue_b64: String,
+    },
+    PendingKittyTransfer {
+        transfer_queue_b64: String,
+    },
+    PendingLotteryTransfer {
         transfer_queue_b64: String,
     },
     GetWorkerEgress {
@@ -137,6 +145,31 @@ pub struct TransferData {
     pub signature: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct KittyTransfer {
+    pub dest: [u8; 32],
+    pub kitty_id: Vec<u8>,
+    pub sequence: u64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct KittyTransferData {
+    pub data: KittyTransfer,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BtcTransfer {
+    dest: [u8; 32],
+    tx: String,
+    sequence: u64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub struct BtcTransferData {
+    data: BtcTransfer,
+    signature: Vec<u8>,
+}
 
 // API: init_runtime
 

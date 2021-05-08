@@ -349,3 +349,41 @@ pub mod mining_staking {
         pub to: T::AccountId,
     }
 }
+
+pub mod kitties {
+    use super::PhalaNodeRuntime;
+    use codec::{Encode, Decode};
+    use subxt::{module, Call, Store, system::System, balances::Balances};
+    use core::marker::PhantomData;
+
+    /// The subset of the `pallet_phala::Trait` that a client must implement.
+    #[module]
+    pub trait KittyStorage: System + Balances {
+    }
+
+    impl KittyStorage for PhalaNodeRuntime {}
+    /// The call to transfer_to_chain
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct TransferToChainCall<T: KittyStorage> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The transfer transaction data, SCALA encoded
+        pub data: Vec<u8>,
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct IngressSequenceStore<T: KittyStorage> {
+        #[store(returns = u64)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+        pub contract_id: u32,
+    }
+    impl<T: KittyStorage> IngressSequenceStore<T> {
+        pub fn new(contract_id: u32) -> Self {
+            Self {
+                _runtime: Default::default(),
+                contract_id,
+            }
+        }
+    }
+}

@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap,
+	TechnicalCommitteeConfig, PhalaConfig, KittyStorageConfig, wasm_binary_unwrap,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -274,6 +274,10 @@ pub fn testnet_genesis(
 				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
 			// Now we have 4 contracts but reserver 10 for convenience
+			contract_keys: std::iter::repeat(dev_ecdsa_pubkey.clone()).take(10).collect(),
+		},
+		pallet_kitties: KittyStorageConfig {
+			// Now we have 4 contracts but reserver 10 for convenience
 			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
 		},
 		pallet_staking: StakingConfig {
@@ -377,6 +381,14 @@ fn local_testnet_genesis() -> GenesisConfig {
 
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn local_testnet_config() -> ChainSpec {
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "PHA".into());
+		p.insert("tokenDecimals".into(), 12.into());
+		p.insert("ss58Format".into(), 30.into());
+		p
+	};
+
 	ChainSpec::from_genesis(
 		"Local Testnet",
 		"local_testnet",
@@ -385,7 +397,7 @@ pub fn local_testnet_config() -> ChainSpec {
 		vec![],
 		None,
 		None,
-		None,
+		Some(properties),
 		Default::default(),
 	)
 }

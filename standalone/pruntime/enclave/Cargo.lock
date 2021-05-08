@@ -10,6 +10,7 @@ dependencies = [
  "base64 0.13.0",
  "bcs",
  "bit-vec",
+ "bitcoin",
  "chrono 0.4.11",
  "csv-core",
  "derive_more",
@@ -245,10 +246,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "bech32"
+version = "0.7.2"
+source = "git+https://github.com/Phala-Network/rust-bech32?branch=v0.7.2-sgx#7a142a676e83e647416a679af4ccfcfb6ed29a3d"
+dependencies = [
+ "sgx_tstd",
+]
+
+[[package]]
 name = "bit-vec"
 version = "0.6.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "349f9b6a179ed607305526ca489b34ad0a41aed5f7980fa90eb03160b69598fb"
+
+[[package]]
+name = "bitcoin"
+version = "0.26.0"
+source = "git+https://github.com/Phala-Network/rust-bitcoin#b420e16702aecee649a738aea30abc3517aa6b62"
+dependencies = [
+ "bech32",
+ "bitcoin_hashes",
+ "secp256k1",
+ "serde 1.0.118",
+ "sgx_tstd",
+]
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.9.1"
+source = "git+https://github.com/Phala-Network/bitcoin_hashes?branch=0.9.1-sgx#89c04cd1a6726fa5fa994f504a917ead75289ce9"
+dependencies = [
+ "serde 1.0.118",
+ "sgx_tstd",
+]
 
 [[package]]
 name = "bitflags"
@@ -1858,6 +1888,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-kitties"
+version = "3.0.0"
+dependencies = [
+ "blake2-rfc",
+ "frame-support",
+ "frame-system",
+ "libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pallet-balances",
+ "pallet-randomness-collective-flip",
+ "parity-scale-codec 2.1.1",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-lottery"
 version = "3.0.0"
 dependencies = [
@@ -2336,6 +2382,7 @@ dependencies = [
  "pallet-identity",
  "pallet-im-online",
  "pallet-indices",
+ "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
  "pallet-mining-staking",
@@ -2863,6 +2910,24 @@ dependencies = [
  "ring 0.16.19",
  "sgx_tstd",
  "untrusted",
+]
+
+[[package]]
+name = "secp256k1"
+version = "0.20.1"
+source = "git+https://github.com/Phala-Network/rust-secp256k1?branch=0.20.1-sgx#490010695a673932bebb4bf9672ebf73819cbfc8"
+dependencies = [
+ "secp256k1-sys",
+ "sgx_tstd",
+]
+
+[[package]]
+name = "secp256k1-sys"
+version = "0.4.0"
+source = "git+https://github.com/Phala-Network/rust-secp256k1?branch=0.20.1-sgx#490010695a673932bebb4bf9672ebf73819cbfc8"
+dependencies = [
+ "cc",
+ "sgx_tstd",
 ]
 
 [[package]]

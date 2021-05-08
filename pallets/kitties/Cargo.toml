@@ -1,0 +1,41 @@
+[package]
+authors = ['Substrate DevHub <https://github.com/substrate-developer-hub>']
+description = 'FRAME pallet template for defining custom runtime logic.'
+edition = '2018'
+homepage = 'https://substrate.dev'
+license = 'Unlicense'
+name = 'pallet-kitties'
+repository = 'https://github.com/substrate-developer-hub/substrate-node-template/'
+version = '3.0.0'
+
+[package.metadata.docs.rs]
+targets = ['x86_64-unknown-linux-gnu']
+[dependencies]
+codec = { package = "parity-scale-codec", version = "2.0.0", default-features = false }
+
+serde = { version = "1.0.101", default-features = false, optional = true }
+frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
+frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
+sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
+sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
+sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
+pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
+libsecp256k1 = { version = "0.3.2", default-features = false }
+blake2-rfc = { version = "0.2.18", default-features = false }
+
+[dependencies.pallet-balances]
+default-features = false
+version = "3.0.0"
+path = "../../substrate/frame/balances"
+
+[features]
+default = ["std"]
+std = [
+    "frame-support/std",
+    "serde/std",
+    "frame-system/std",
+    "sp-io/std",
+    "sp-runtime/std",
+    "sp-std/std",
+    "pallet-randomness-collective-flip/std"
+]
