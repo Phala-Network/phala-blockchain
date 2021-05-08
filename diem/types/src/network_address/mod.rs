@@ -22,8 +22,8 @@ use std::{
     num,
     str::FromStr,
     string::{String, ToString},
-	vec::Vec,
-	borrow::ToOwned
+    vec::Vec,
+    borrow::ToOwned
 };
 use thiserror::Error;
 

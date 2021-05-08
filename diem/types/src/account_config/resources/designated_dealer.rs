@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-	account_config::{PreburnQueueResource, PreburnResource},
-	event::EventHandle,
+    account_config::{PreburnQueueResource, PreburnResource},
+    event::EventHandle,
 };
 use move_core_types::{identifier::Identifier, move_resource::MoveResource};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,6 @@ impl MoveResource for DesignatedDealer {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum DesignatedDealerPreburns {
-	Preburn(BTreeMap<Identifier, PreburnResource>),
-	PreburnQueue(BTreeMap<Identifier, PreburnQueueResource>),
+    Preburn(BTreeMap<Identifier, PreburnResource>),
+    PreburnQueue(BTreeMap<Identifier, PreburnQueueResource>),
 }

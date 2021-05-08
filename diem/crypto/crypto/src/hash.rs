@@ -107,13 +107,12 @@ use once_cell::sync::{Lazy, OnceCell};
 use proptest_derive::Arbitrary;
 use rand::{rngs::OsRng, Rng};
 use serde::{de, ser};
-use std::{
-	self,
-	convert::{AsRef, TryFrom},
-	fmt,
-	str::FromStr,
-	string::String,
-	vec::Vec
+use std::{self,
+    convert::{AsRef, TryFrom},
+    fmt,
+    str::FromStr,
+    string::String,
+    vec::Vec
 };
 use tiny_keccak::{Hasher, Sha3};
 
@@ -140,11 +139,11 @@ impl HashValue {
         HashValue { hash }
     }
 
-	pub fn from_slice<T: AsRef<[u8]>>(bytes: T) -> Result<Self, HashValueParseError> {
-		<[u8; Self::LENGTH]>::try_from(bytes.as_ref())
-			.map_err(|_| HashValueParseError)
-			.map(Self::new)
-	}
+    pub fn from_slice<T: AsRef<[u8]>>(bytes: T) -> Result<Self, HashValueParseError> {
+        <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
+            .map_err(|_| HashValueParseError)
+            .map(Self::new)
+    }
 
     /// Dumps into a vector.
     pub fn to_vec(&self) -> Vec<u8> {
@@ -211,12 +210,12 @@ impl HashValue {
     }
 
     /// Constructs a `HashValue` from an iterator of bits.
-	pub fn from_bit_iter(
-		iter: impl ExactSizeIterator<Item = bool>,
-	) -> Result<Self, HashValueParseError> {
-		if iter.len() != Self::LENGTH_IN_BITS {
-			return Err(HashValueParseError);
-		}
+    pub fn from_bit_iter(
+        iter: impl ExactSizeIterator<Item = bool>,
+    ) -> Result<Self, HashValueParseError> {
+        if iter.len() != Self::LENGTH_IN_BITS {
+            return Err(HashValueParseError);
+        }
 
         let mut buf = [0; Self::LENGTH];
         for (i, bit) in iter.enumerate() {
@@ -237,16 +236,15 @@ impl HashValue {
 
     /// Full hex representation of a given hash value.
     pub fn to_hex(&self) -> String {
-        //hex::encode(self.hash)
-		format!("{:x}", self)
+        format!("{:x}", self)
     }
 
     /// Parse a given hex string to a hash value.
-	pub fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, HashValueParseError> {
-		<[u8; Self::LENGTH]>::from_hex(hex)
-			.map_err(|_| HashValueParseError)
-			.map(Self::new)
-	}
+    pub fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, HashValueParseError> {
+        <[u8; Self::LENGTH]>::from_hex(hex)
+            .map_err(|_| HashValueParseError)
+            .map(Self::new)
+    }
 }
 
 impl ser::Serialize for HashValue {
@@ -300,11 +298,11 @@ impl AsRef<[u8; HashValue::LENGTH]> for HashValue {
 }
 
 impl std::ops::Deref for HashValue {
-	type Target = [u8; Self::LENGTH];
+    type Target = [u8; Self::LENGTH];
 
-	fn deref(&self) -> &Self::Target {
-		&self.hash
-	}
+    fn deref(&self) -> &Self::Target {
+        &self.hash
+    }
 }
 
 impl std::ops::Index<usize> for HashValue {
@@ -359,11 +357,11 @@ impl From<HashValue> for Bytes {
 }
 
 impl FromStr for HashValue {
-	type Err = HashValueParseError;
+    type Err = HashValueParseError;
 
-	fn from_str(s: &str) -> Result<Self, HashValueParseError> {
-		HashValue::from_hex(s)
-	}
+    fn from_str(s: &str) -> Result<Self, HashValueParseError> {
+        HashValue::from_hex(s)
+    }
 }
 
 /// Parse error when attempting to construct a HashValue
@@ -371,9 +369,9 @@ impl FromStr for HashValue {
 pub struct HashValueParseError;
 
 impl fmt::Display for HashValueParseError {
-	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "unable to parse HashValue")
-	}
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unable to parse HashValue")
+    }
 }
 
 impl std::error::Error for HashValueParseError {}

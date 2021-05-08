@@ -560,7 +560,7 @@ pub enum StatusCode {
     DUPLICATE_MODULE_NAME = 1095,
     // The sender is trying to publish a module that breaks the compatibility checks
     BACKWARD_INCOMPATIBLE_MODULE_UPDATE = 1096,
-	// The updated module introduces a cyclic dependency (i.e., A uses B and B also uses A)
+    // The updated module introduces a cyclic dependency (i.e., A uses B and B also uses A)
     CYCLIC_MODULE_DEPENDENCY = 1097,
     NUMBER_OF_ARGUMENTS_MISMATCH = 1098,
     INVALID_PARAM_TYPE_FOR_DESERIALIZATION = 1099,
@@ -618,7 +618,7 @@ pub enum StatusCode {
     VALUE_SERIALIZATION_ERROR = 3022,
     VALUE_DESERIALIZATION_ERROR = 3023,
     CODE_DESERIALIZATION_ERROR = 3024,
-	INVALID_FLAG_BITS = 3025,
+    INVALID_FLAG_BITS = 3025,
 
     // Errors that can arise at runtime
     // Runtime Errors: 4000-4999

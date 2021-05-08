@@ -17,11 +17,11 @@ static EMPTY_SCRIPT: &[u8] = include_bytes!("empty_script.mv");
 
 // Create an expiration time 'seconds' after now
 fn expiration_time(seconds: u64) -> u64 {
-	std::time::SystemTime::now()
-		.duration_since(std::time::SystemTime::UNIX_EPOCH)
-		.expect("System time is before the UNIX_EPOCH")
-		.as_secs()
-		+ seconds
+    std::time::SystemTime::now()
+        .duration_since(std::time::SystemTime::UNIX_EPOCH)
+        .expect("System time is before the UNIX_EPOCH")
+        .as_secs()
+        + seconds
 }
 
 // Test helper for transaction creation

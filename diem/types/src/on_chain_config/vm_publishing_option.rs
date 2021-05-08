@@ -54,11 +54,11 @@ impl OnChainConfig for VMPublishingOption {
     const IDENTIFIER: &'static str = "DiemTransactionPublishingOption";
 
     fn deserialize_into_config(bytes: &[u8]) -> Result<Self> {
-		bcs::from_bytes(&bytes).map_err(|e| {
-			format_err!(
+        bcs::from_bytes(&bytes).map_err(|e| {
+            format_err!(
                 "Failed first round of deserialization for VMPublishingOptionInner: {}",
                 e
             )
-		})
+        })
     }
 }

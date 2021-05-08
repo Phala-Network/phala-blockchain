@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::{
-	account_address::AccountAddress,
-	network_address::{encrypted::EncNetworkAddress, NetworkAddress},
+    account_address::AccountAddress,
+    network_address::{encrypted::EncNetworkAddress, NetworkAddress},
 };
 use diem_crypto::ed25519::Ed25519PublicKey;
 use move_core_types::move_resource::MoveResource;

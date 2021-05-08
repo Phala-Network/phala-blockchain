@@ -33,20 +33,20 @@ impl NewBlockEvent {
         bcs::from_bytes(bytes).map_err(Into::into)
     }
 
-	#[cfg(any(test, feature = "fuzzing"))]
-	pub fn new(
-		round: u64,
-		proposer: AccountAddress,
-		previous_block_votes: Vec<AccountAddress>,
-		time_micro_seconds: u64,
-	) -> Self {
-		Self {
-			round,
-			proposer,
-			previous_block_votes,
-			time_micro_seconds,
-		}
-	}
+    #[cfg(any(test, feature = "fuzzing"))]
+    pub fn new(
+        round: u64,
+        proposer: AccountAddress,
+        previous_block_votes: Vec<AccountAddress>,
+        time_micro_seconds: u64,
+    ) -> Self {
+        Self {
+            round,
+            proposer,
+            previous_block_votes,
+            time_micro_seconds,
+        }
+    }
 }
 
 impl MoveResource for NewBlockEvent {

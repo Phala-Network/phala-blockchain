@@ -203,23 +203,23 @@ pub struct GasConstants {
 }
 
 impl GasConstants {
-	pub fn to_internal_units(&self, units: GasUnits<GasCarrier>) -> InternalGasUnits<GasCarrier> {
-		InternalGasUnits::new(units.get() * self.gas_unit_scaling_factor)
-	}
+    pub fn to_internal_units(&self, units: GasUnits<GasCarrier>) -> InternalGasUnits<GasCarrier> {
+        InternalGasUnits::new(units.get() * self.gas_unit_scaling_factor)
+    }
 
-	pub fn to_external_units(&self, units: InternalGasUnits<GasCarrier>) -> GasUnits<GasCarrier> {
-		GasUnits::new(units.get() / self.gas_unit_scaling_factor)
-	}
+    pub fn to_external_units(&self, units: InternalGasUnits<GasCarrier>) -> GasUnits<GasCarrier> {
+        GasUnits::new(units.get() / self.gas_unit_scaling_factor)
+    }
 }
 
 impl Default for GasConstants {
     fn default() -> Self {
         Self {
-			global_memory_per_byte_cost: InternalGasUnits(4),
-			global_memory_per_byte_write_cost: InternalGasUnits(9),
-			min_transaction_gas_units: InternalGasUnits(600),
-			large_transaction_cutoff: LARGE_TRANSACTION_CUTOFF,
-			intrinsic_gas_per_byte: GasUnits(8),
+            global_memory_per_byte_cost: InternalGasUnits(4),
+            global_memory_per_byte_write_cost: InternalGasUnits(9),
+            min_transaction_gas_units: InternalGasUnits(600),
+            large_transaction_cutoff: LARGE_TRANSACTION_CUTOFF,
+            intrinsic_gas_per_byte: GasUnits(8),
             maximum_number_of_gas_units: GasUnits(4_000_000),
             min_price_per_gas_unit: GasPrice(0),
             max_price_per_gas_unit: GasPrice(10_000),
@@ -270,7 +270,7 @@ impl GasCost {
         }
     }
 
-	/// Convert a GasCost to a total gas charge in `InternalGasUnits`.
+    /// Convert a GasCost to a total gas charge in `InternalGasUnits`.
     #[inline]
     pub fn total(&self) -> InternalGasUnits<GasCarrier> {
         self.instruction_gas.add(self.memory_gas)

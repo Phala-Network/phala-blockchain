@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 use crate::account_config::resources::{
-	ChildVASP, Credential, DesignatedDealer, DesignatedDealerPreburns, ParentVASP,
+    ChildVASP, Credential, DesignatedDealer, DesignatedDealerPreburns, ParentVASP,
 };
 use serde::{Deserialize, Serialize};
 

@@ -133,45 +133,45 @@ pub type TestAccumulatorProof = AccumulatorProof<TestOnlyHasher>;
 /// hash. For example, `TransactionInfoToAccountProof` can be constructed on top of this structure.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SparseMerkleProof<V> {
-	/// This proof can be used to authenticate whether a given leaf exists in the tree or not.
-	///     - If this is `Some(leaf_node)`
-	///         - If `leaf_node.key` equals requested key, this is an inclusion proof and
-	///           `leaf_node.value_hash` equals the hash of the corresponding account blob.
-	///         - Otherwise this is a non-inclusion proof. `leaf_node.key` is the only key
-	///           that exists in the subtree and `leaf_node.value_hash` equals the hash of the
-	///           corresponding account blob.
-	///     - If this is `None`, this is also a non-inclusion proof which indicates the subtree is
-	///       empty.
-	leaf: Option<SparseMerkleLeafNode>,
+    /// This proof can be used to authenticate whether a given leaf exists in the tree or not.
+    ///     - If this is `Some(leaf_node)`
+    ///         - If `leaf_node.key` equals requested key, this is an inclusion proof and
+    ///           `leaf_node.value_hash` equals the hash of the corresponding account blob.
+    ///         - Otherwise this is a non-inclusion proof. `leaf_node.key` is the only key
+    ///           that exists in the subtree and `leaf_node.value_hash` equals the hash of the
+    ///           corresponding account blob.
+    ///     - If this is `None`, this is also a non-inclusion proof which indicates the subtree is
+    ///       empty.
+    leaf: Option<SparseMerkleLeafNode>,
 
-	/// All siblings in this proof, including the default ones. Siblings are ordered from the bottom
-	/// level to the root level.
-	siblings: Vec<HashValue>,
+    /// All siblings in this proof, including the default ones. Siblings are ordered from the bottom
+    /// level to the root level.
+    siblings: Vec<HashValue>,
 
-	phantom: PhantomData<V>,
+    phantom: PhantomData<V>,
 }
 
 impl<V> SparseMerkleProof<V>
 where
-	V: CryptoHash,
+    V: CryptoHash,
 {
 /// Constructs a new `SparseMerkleProof` using leaf and a list of siblings.
 pub fn new(leaf: Option<SparseMerkleLeafNode>, siblings: Vec<HashValue>) -> Self {
-	SparseMerkleProof {
-		leaf,
-		siblings,
-		phantom: PhantomData,
-	}
+    SparseMerkleProof {
+        leaf,
+        siblings,
+        phantom: PhantomData,
+    }
 }
 
 /// Returns the leaf node in this proof.
 pub fn leaf(&self) -> Option<SparseMerkleLeafNode> {
-	self.leaf
+    self.leaf
 }
 
 /// Returns the list of siblings in this proof.
 pub fn siblings(&self) -> &[HashValue] {
-	&self.siblings
+    &self.siblings
 }
 
 /// If `element_value` is present, verifies an element whose key is `element_key` and value is
@@ -179,61 +179,61 @@ pub fn siblings(&self) -> &[HashValue] {
 /// verifies the proof is a valid non-inclusion proof that shows this key doesn't exist in the
 /// tree.
 pub fn verify(
-	&self,
-	expected_root_hash: HashValue,
-	element_key: HashValue,
-	element_value: Option<&V>,
+    &self,
+    expected_root_hash: HashValue,
+    element_key: HashValue,
+    element_value: Option<&V>,
 ) -> Result<()> {
-	ensure!(
+    ensure!(
             self.siblings.len() <= HashValue::LENGTH_IN_BITS,
             "Sparse Merkle Tree proof has more than {} ({}) siblings.",
             HashValue::LENGTH_IN_BITS,
             self.siblings.len(),
         );
 
-	match (element_value, self.leaf) {
-		(Some(value), Some(leaf)) => {
-			// This is an inclusion proof, so the key and value hash provided in the proof
-			// should match element_key and element_value_hash. `siblings` should prove the
-			// route from the leaf node to the root.
-			ensure!(
+    match (element_value, self.leaf) {
+        (Some(value), Some(leaf)) => {
+            // This is an inclusion proof, so the key and value hash provided in the proof
+            // should match element_key and element_value_hash. `siblings` should prove the
+            // route from the leaf node to the root.
+            ensure!(
                     element_key == leaf.key,
                     "Keys do not match. Key in proof: {:x}. Expected key: {:x}.",
                     leaf.key,
                     element_key
                 );
-			let hash = value.hash();
-			ensure!(
+            let hash = value.hash();
+            ensure!(
                     hash == leaf.value_hash,
                     "Value hashes do not match. Value hash in proof: {:x}. \
                      Expected value hash: {:x}",
                     leaf.value_hash,
                     hash,
                 );
-		}
-		(Some(_value), None) => bail!("Expected inclusion proof. Found non-inclusion proof."),
-		(None, Some(leaf)) => {
-			// This is a non-inclusion proof. The proof intends to show that if a leaf node
-			// representing `element_key` is inserted, it will break a currently existing leaf
-			// node represented by `proof_key` into a branch. `siblings` should prove the
-			// route from that leaf node to the root.
-			ensure!(
+        }
+        (Some(_value), None) => bail!("Expected inclusion proof. Found non-inclusion proof."),
+        (None, Some(leaf)) => {
+            // This is a non-inclusion proof. The proof intends to show that if a leaf node
+            // representing `element_key` is inserted, it will break a currently existing leaf
+            // node represented by `proof_key` into a branch. `siblings` should prove the
+            // route from that leaf node to the root.
+            ensure!(
                     element_key != leaf.key,
                     "Expected non-inclusion proof, but key exists in proof.",
                 );
-			ensure!(
+            ensure!(
                     element_key.common_prefix_bits_len(leaf.key) >= self.siblings.len(),
                     "Key would not have ended up in the subtree where the provided key in proof \
                      is the only existing key, if it existed. So this is not a valid \
                      non-inclusion proof.",
                 );
-		}
-		(None, None) => {
-			// This is a non-inclusion proof. The proof intends to show that if a leaf node
-			// representing `element_key` is inserted, it will show up at a currently empty
-			// position. `sibling` should prove the route from this empty position to the root.
-		}
-	}
+        }
+        (None, None) => {
+            // This is a non-inclusion proof. The proof intends to show that if a leaf node
+            // representing `element_key` is inserted, it will show up at a currently empty
+            // position. `sibling` should prove the route from this empty position to the root.
+        }
+    }
 
         let current_hash = self
             .leaf

@@ -3,8 +3,8 @@
 
 use crate::{serde_helper::vec_bytes, transaction::transaction_argument::TransactionArgument};
 use move_core_types::{
-	identifier::{IdentStr, Identifier},
-	language_storage::{ModuleId, TypeTag},
+    identifier::{IdentStr, Identifier},
+    language_storage::{ModuleId, TypeTag},
 };
 use serde::{Deserialize, Serialize};
 use std::{fmt, string::String, vec::Vec};
@@ -60,22 +60,22 @@ impl fmt::Debug for Script {
 /// How to call a particular Move script (aka. an "ABI").
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub enum ScriptABI {
-	TransactionScript(TransactionScriptABI),
-	ScriptFunction(ScriptFunctionABI),
+    TransactionScript(TransactionScriptABI),
+    ScriptFunction(ScriptFunctionABI),
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ScriptFunctionABI {
-	/// The public name of the script.
-	name: String,
-	/// The module name where the script lives.
-	module_name: ModuleId,
-	/// Some text comment.
-	doc: String,
-	/// The names of the type arguments.
-	ty_args: Vec<TypeArgumentABI>,
-	/// The description of regular arguments.
-	args: Vec<ArgumentABI>,
+    /// The public name of the script.
+    name: String,
+    /// The module name where the script lives.
+    module_name: ModuleId,
+    /// Some text comment.
+    doc: String,
+    /// The names of the type arguments.
+    ty_args: Vec<TypeArgumentABI>,
+    /// The description of regular arguments.
+    args: Vec<ArgumentABI>,
 }
 
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
@@ -149,79 +149,79 @@ impl TransactionScriptABI {
 }
 
 impl ScriptFunctionABI {
-	pub fn new(
-		name: String,
-		module_name: ModuleId,
-		doc: String,
-		ty_args: Vec<TypeArgumentABI>,
-		args: Vec<ArgumentABI>,
-	) -> Self {
-		Self {
-			name,
-			module_name,
-			doc,
-			ty_args,
-			args,
-		}
-	}
+    pub fn new(
+        name: String,
+        module_name: ModuleId,
+        doc: String,
+        ty_args: Vec<TypeArgumentABI>,
+        args: Vec<ArgumentABI>,
+    ) -> Self {
+        Self {
+            name,
+            module_name,
+            doc,
+            ty_args,
+            args,
+        }
+    }
 
-	pub fn name(&self) -> &str {
-		&self.name
-	}
+    pub fn name(&self) -> &str {
+        &self.name
+    }
 
-	pub fn module_name(&self) -> &ModuleId {
-		&self.module_name
-	}
+    pub fn module_name(&self) -> &ModuleId {
+        &self.module_name
+    }
 
-	pub fn doc(&self) -> &str {
-		&self.doc
-	}
+    pub fn doc(&self) -> &str {
+        &self.doc
+    }
 
-	pub fn ty_args(&self) -> &[TypeArgumentABI] {
-		&self.ty_args
-	}
+    pub fn ty_args(&self) -> &[TypeArgumentABI] {
+        &self.ty_args
+    }
 
-	pub fn args(&self) -> &[ArgumentABI] {
-		&self.args
-	}
+    pub fn args(&self) -> &[ArgumentABI] {
+        &self.args
+    }
 }
 
 impl ScriptABI {
-	pub fn is_script_fun_abi(&self) -> bool {
-		matches!(self, Self::ScriptFunction(_))
-	}
+    pub fn is_script_fun_abi(&self) -> bool {
+        matches!(self, Self::ScriptFunction(_))
+    }
 
-	pub fn is_transaction_script_abi(&self) -> bool {
-		matches!(self, Self::TransactionScript(_))
-	}
+    pub fn is_transaction_script_abi(&self) -> bool {
+        matches!(self, Self::TransactionScript(_))
+    }
 
-	pub fn name(&self) -> &str {
-		match self {
-			Self::TransactionScript(abi) => abi.name(),
-			Self::ScriptFunction(abi) => abi.name(),
-		}
-	}
+    pub fn name(&self) -> &str {
+        match self {
+            Self::TransactionScript(abi) => abi.name(),
+            Self::ScriptFunction(abi) => abi.name(),
+        }
+    }
 
-	pub fn doc(&self) -> &str {
-		match self {
-			Self::TransactionScript(abi) => abi.doc(),
-			Self::ScriptFunction(abi) => abi.doc(),
-		}
-	}
+    pub fn doc(&self) -> &str {
+        match self {
+            Self::TransactionScript(abi) => abi.doc(),
+            Self::ScriptFunction(abi) => abi.doc(),
+        }
+    }
 
-	pub fn ty_args(&self) -> &[TypeArgumentABI] {
-		match self {
-			Self::TransactionScript(abi) => abi.ty_args(),
-			Self::ScriptFunction(abi) => abi.ty_args(),
-		}
-	}
+    pub fn ty_args(&self) -> &[TypeArgumentABI] {
+        match self {
+            Self::TransactionScript(abi) => abi.ty_args(),
+            Self::ScriptFunction(abi) => abi.ty_args(),
+        }
+    }
 
-	pub fn args(&self) -> &[ArgumentABI] {
-		match self {
-			Self::TransactionScript(abi) => abi.args(),
-			Self::ScriptFunction(abi) => abi.args(),
-		}
-	}
+    pub fn args(&self) -> &[ArgumentABI] {
+        match self {
+            Self::TransactionScript(abi) => abi.args(),
+            Self::ScriptFunction(abi) => abi.args(),
+        }
+    }
 }
 
 impl ArgumentABI {
@@ -251,41 +251,41 @@ impl TypeArgumentABI {
 /// Call a Move script function.
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ScriptFunction {
-	module: ModuleId,
-	function: Identifier,
-	ty_args: Vec<TypeTag>,
-	#[serde(with = "vec_bytes")]
-	args: Vec<Vec<u8>>,
+    module: ModuleId,
+    function: Identifier,
+    ty_args: Vec<TypeTag>,
+    #[serde(with = "vec_bytes")]
+    args: Vec<Vec<u8>>,
 }
 
 impl ScriptFunction {
-	pub fn new(
-		module: ModuleId,
-		function: Identifier,
-		ty_args: Vec<TypeTag>,
-		args: Vec<Vec<u8>>,
-	) -> Self {
-		ScriptFunction {
-			module,
-			function,
-			ty_args,
-			args,
-		}
-	}
+    pub fn new(
+        module: ModuleId,
+        function: Identifier,
+        ty_args: Vec<TypeTag>,
+        args: Vec<Vec<u8>>,
+    ) -> Self {
+        ScriptFunction {
+            module,
+            function,
+            ty_args,
+            args,
+        }
+    }
 
-	pub fn module(&self) -> &ModuleId {
-		&self.module
-	}
+    pub fn module(&self) -> &ModuleId {
+        &self.module
+    }
 
-	pub fn function(&self) -> &IdentStr {
-		&self.function
-	}
+    pub fn function(&self) -> &IdentStr {
+        &self.function
+    }
 
-	pub fn ty_args(&self) -> &[TypeTag] {
-		&self.ty_args
-	}
+    pub fn ty_args(&self) -> &[TypeTag] {
+        &self.ty_args
+    }
 
-	pub fn args(&self) -> &[Vec<u8>] {
-		&self.args
-	}
+    pub fn args(&self) -> &[Vec<u8>] {
+        &self.args
+    }
 }

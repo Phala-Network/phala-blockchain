@@ -38,7 +38,7 @@ use std::{borrow::Borrow, fmt, ops::Deref, borrow::ToOwned, vec::Vec, string::St
 /// Note: there are stricter restrictions on whether a character can begin a Move
 /// identifier--only alphabetic characters are allowed here.
 pub fn is_valid_identifier_char(c: char) -> bool {
-	matches!(c, '_' | 'a'..='z' | 'A'..='Z' | '0'..='9')
+    matches!(c, '_' | 'a'..='z' | 'A'..='Z' | '0'..='9')
 }
 
 /// Describes what identifiers are allowed.
