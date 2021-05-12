@@ -337,7 +337,7 @@ pub fn testnet_genesis(
 		pallet_vesting: Default::default(),
 		pallet_bridge_transfer: BridgeTransferConfig {
 			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
-			bridge_hashid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"hash")),
+			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
 		},
 	}
 }

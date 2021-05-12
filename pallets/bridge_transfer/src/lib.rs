@@ -10,6 +10,7 @@ use pallet_bridge as bridge;
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_core::U256;
 use sp_std::prelude::*;
+use codec::{Encode, Decode};
 
 mod mock;
 mod tests;
@@ -20,7 +21,8 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 pub trait Config: system::Config + bridge::Config {
-	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
+	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
+
 	/// Specifies the origin check provided by the bridge for calls that can only be called by the bridge pallet
 	type BridgeOrigin: EnsureOrigin<Self::Origin, Success = Self::AccountId>;
 
@@ -31,24 +33,25 @@ pub trait Config: system::Config + bridge::Config {
 decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
 		BridgeTokenId get(fn bridge_tokenid): ResourceId;
-		BridgeHashId get(fn bridge_hashid): ResourceId;
+		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
 	}
 
 	add_extra_genesis {
 		config(bridge_tokenid): ResourceId;
-		config(bridge_hashid): ResourceId;
+		config(bridge_lotteryid): ResourceId;
 		build(|config: &GenesisConfig| {
 			BridgeTokenId::put(config.bridge_tokenid);
-			BridgeHashId::put(config.bridge_hashid);
+			BridgeLotteryId::put(config.bridge_lotteryid);
 		});
 	}
 }
 
 decl_event! {
-	pub enum Event<T> where
-		<T as frame_system::Config>::Hash,
-	{
-		Remark(Hash),
+	pub enum Event {
+		/// Received BTC lottery encoded command
+		LotteryCommand(Vec<u8>),
+		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
+		BTCSignedTxSend(bridge::ChainId, ResourceId, Vec<u8>),
 	}
 }
 
@@ -66,13 +69,27 @@ decl_module! {
 		// Initiation calls. These start a bridge transfer.
 		//
 
-		/// Transfers an arbitrary hash to a (whitelisted) destination chain.
+		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn transfer_hash(origin, hash: T::Hash, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_signed(origin)?;
 
-			let resource_id = Self::bridge_hashid();
-			let metadata: Vec<u8> = hash.as_ref().to_vec();
+			let resource_id = Self::bridge_lotteryid();
+
+			let payload_len: u32 = payload.len().saturated_into();
+			let mut encoded_payload_len: Vec<u8> = payload_len.encode();
+			encoded_payload_len.reverse();
+
+			let mut encoded_round_id: Vec<u8> = round_id.encode();
+			encoded_round_id.reverse();
+
+			let mut encoded_token_id: Vec<u8> = token_id.encode();
+			encoded_token_id.reverse();
+
+			let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
+
+			Self::deposit_event(Event::BTCSignedTxSend(dest_id, resource_id, payload));
+
 			<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
 		}
 
@@ -95,7 +112,7 @@ decl_module! {
 
 		/// Executes a simple currency transfer using the bridge account as the source
 		#[weight = 195_000_000]
-		pub fn transfer(origin, to: T::AccountId, amount: BalanceOf<T>, r_id: ResourceId) -> DispatchResult {
+		pub fn transfer(origin, to: T::AccountId, amount: BalanceOf<T>, rid: ResourceId) -> DispatchResult {
 			let source = T::BridgeOrigin::ensure_origin(origin)?;
 			<T as Config>::Currency::transfer(&source, &to, amount.into(), AllowDeath)?;
 			Ok(())
@@ -103,9 +120,13 @@ decl_module! {
 
 		/// This can be called by the bridge to demonstrate an arbitrary call from a proposal.
 		#[weight = 195_000_000]
-		pub fn remark(origin, hash: T::Hash, r_id: ResourceId) -> DispatchResult {
+		pub fn lottery_handler(origin, metadata: Vec<u8>, rid: ResourceId) -> DispatchResult {
 			T::BridgeOrigin::ensure_origin(origin)?;
-			Self::deposit_event(RawEvent::Remark(hash));
+
+			Self::deposit_event(Event::LotteryCommand(metadata));
+
+			// TODO: Send to BTC Lottery pallet to handle this
+
 			Ok(())
 		}
 	}
