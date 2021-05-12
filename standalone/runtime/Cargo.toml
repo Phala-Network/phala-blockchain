@@ -62,7 +62,6 @@ pallet-indices = { version = "3.0.0", default-features = false, path = "../../su
 pallet-identity = { version = "3.0.0", default-features = false, path = "../../substrate/frame/identity" }
 pallet-lottery = { version = "3.0.0", default-features = false, path = "../../substrate/frame/lottery" }
 pallet-membership = { version = "3.0.0", default-features = false, path = "../../substrate/frame/membership" }
-pallet-mmr = { version = "3.0.0", default-features = false, path = "../../substrate/frame/merkle-mountain-range" }
 pallet-multisig = { version = "3.0.0", default-features = false, path = "../../substrate/frame/multisig" }
 pallet-offences = { version = "3.0.0", default-features = false, path = "../../substrate/frame/offences" }
 pallet-offences-benchmarking = { version = "3.0.0", path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
@@ -125,7 +124,6 @@ std = [
 	"sp-inherents/std",
 	"pallet-lottery/std",
 	"pallet-membership/std",
-	"pallet-mmr/std",
 	"pallet-multisig/std",
 	"pallet-identity/std",
 	"pallet-scheduler/std",
@@ -186,7 +184,6 @@ runtime-benchmarks = [
 	"pallet-indices/runtime-benchmarks",
 	"pallet-lottery/runtime-benchmarks",
 	"pallet-membership/runtime-benchmarks",
-	"pallet-mmr/runtime-benchmarks",
 	"pallet-multisig/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
@@ -221,7 +218,6 @@ try-runtime = [
 	"pallet-indices/try-runtime",
 	"pallet-lottery/try-runtime",
 	"pallet-membership/try-runtime",
-	"pallet-mmr/try-runtime",
 	"pallet-multisig/try-runtime",
 	"pallet-identity/try-runtime",
 	"pallet-scheduler/try-runtime",
