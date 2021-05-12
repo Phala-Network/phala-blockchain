@@ -44,7 +44,6 @@ frame-system = { version = "3.0.0", default-features = false, path = "../../subs
 frame-system-benchmarking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system/benchmarking", optional = true }
 frame-system-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system/rpc/runtime-api/" }
 frame-try-runtime = { version = "0.9.0", default-features = false, path = "../../substrate/frame/try-runtime", optional = true }
-pallet-assets = { version = "3.0.0", default-features = false, path = "../../substrate/frame/assets" }
 pallet-authority-discovery = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authority-discovery" }
 pallet-authorship = { version = "3.0.0", default-features = false, path = "../../substrate/frame/authorship" }
 pallet-babe = { version = "3.0.0", default-features = false, path = "../../substrate/frame/babe" }
@@ -105,7 +104,6 @@ native-nostd = ["native-nostd-hasher"]
 with-tracing = [ "frame-executive/with-tracing" ]
 std = [
 	"sp-authority-discovery/std",
-	"pallet-assets/std",
 	"pallet-authority-discovery/std",
 	"pallet-authorship/std",
 	"sp-consensus-babe/std",
@@ -175,7 +173,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
-	"pallet-assets/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
@@ -210,7 +207,6 @@ try-runtime = [
 	"frame-executive/try-runtime",
 	"frame-try-runtime",
 	"frame-system/try-runtime",
-	"pallet-assets/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-babe/try-runtime",

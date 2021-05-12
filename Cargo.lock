@@ -4371,18 +4371,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-assets"
-version = "3.0.0"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "parity-scale-codec",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-authority-discovery"
 version = "3.0.0"
 dependencies = [
@@ -5565,7 +5553,6 @@ dependencies = [
  "log",
  "native-nostd-hasher",
  "node-primitives",
- "pallet-assets",
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
