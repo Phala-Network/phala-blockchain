@@ -23,6 +23,7 @@ use diem_crypto::{
     HashValue,
 };
 use diem_crypto_derive::{BCSCryptoHash, CryptoHasher};
+use move_core_types::transaction_argument::convert_txn_args;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest_derive::Arbitrary;
 use serde::{Deserialize, Serialize};
@@ -46,7 +47,10 @@ mod transaction_argument;
 
 pub use change_set::ChangeSet;
 pub use module::Module;
-pub use script::{ArgumentABI, Script, ScriptABI, TypeArgumentABI, SCRIPT_HASH_LENGTH};
+pub use script::{
+	ArgumentABI, Script, ScriptABI, ScriptFunction, ScriptFunctionABI, TransactionScriptABI,
+	TypeArgumentABI, SCRIPT_HASH_LENGTH,
+};
 
 use std::ops::Deref;
 pub use transaction_argument::{parse_transaction_argument, TransactionArgument};
@@ -60,14 +64,14 @@ pub const PRE_GENESIS_VERSION: Version = u64::max_value();
 #[derive(Clone, Debug, Hash, Eq, PartialEq, Serialize, Deserialize, CryptoHasher, BCSCryptoHash)]
 pub struct RawTransaction {
     /// Sender's address.
-    pub sender: AccountAddress,
+    sender: AccountAddress,
 
     /// Sequence number of this transaction. This must match the sequence number
     /// stored in the sender's account at the time the transaction executes.
-    pub sequence_number: u64,
+    sequence_number: u64,
 
     /// The transaction payload, e.g., a script to execute.
-    pub payload: TransactionPayload,
+    payload: TransactionPayload,
 
     /// Maximal total gas to spend for this transaction.
     max_gas_amount: u64,
@@ -141,6 +145,31 @@ impl RawTransaction {
             chain_id,
         }
     }
+
+	/// Create a new `RawTransaction` with a script function.
+    ///
+    /// A script transaction contains only code to execute. No publishing is allowed in scripts.
+	pub fn new_script_function(
+		sender: AccountAddress,
+		sequence_number: u64,
+		script_function: ScriptFunction,
+		max_gas_amount: u64,
+		gas_unit_price: u64,
+		gas_currency_code: String,
+		expiration_timestamp_secs: u64,
+		chain_id: ChainId,
+	) -> Self {
+		RawTransaction {
+			sender,
+			sequence_number,
+			payload: TransactionPayload::ScriptFunction(script_function),
+			max_gas_amount,
+			gas_unit_price,
+			gas_currency_code,
+			expiration_timestamp_secs,
+			chain_id,
+		}
+	}
 
     /// Create a new `RawTransaction` with a module to publish.
     ///
@@ -258,18 +287,22 @@ impl RawTransaction {
     }
 
     pub fn format_for_client(&self, get_transaction_name: impl Fn(&[u8]) -> String) -> String {
-        let empty_vec = vec![];
-        let (code, args) = match &self.payload {
-            TransactionPayload::WriteSet(_) => ("genesis".to_string(), &empty_vec[..]),
-            TransactionPayload::Script(script) => {
-                (get_transaction_name(script.code()), script.args())
-            }
-            TransactionPayload::Module(_) => ("module publishing".to_string(), &empty_vec[..]),
-        };
-        let mut f_args: String = "".to_string();
-        for arg in args {
-            f_args = format!("{}\n\t\t\t{:#?},", f_args, arg);
-        }
+		let (code, args) = match &self.payload {
+			TransactionPayload::WriteSet(_) => ("genesis".to_string(), vec![]),
+			TransactionPayload::Script(script) => (
+				get_transaction_name(script.code()),
+				convert_txn_args(script.args()),
+			),
+			TransactionPayload::ScriptFunction(script_fn) => (
+				format!("{}::{}", script_fn.module(), script_fn.function()),
+				script_fn.args().to_vec(),
+			),
+			TransactionPayload::Module(_) => ("module publishing".to_string(), vec![]),
+		};
+		let mut f_args: String = "".to_string();
+		for arg in args {
+			f_args = format!("{}\n\t\t\t{:02X?},", f_args, arg);
+		}
         format!(
             "RawTransaction {{ \n\
              \tsender: {}, \n\
@@ -300,6 +333,10 @@ impl RawTransaction {
     pub fn sender(&self) -> AccountAddress {
         self.sender
     }
+
+	pub fn sequence_number(&self) -> u64 {
+		self.sequence_number
+	}
 }
 
 /// Different kinds of transactions.
@@ -311,15 +348,24 @@ pub enum TransactionPayload {
     Script(Script),
     /// A transaction that publishes code.
     Module(Module),
+	/// A transaction that executes an existing script function published on-chain.
+	ScriptFunction(ScriptFunction),
 }
 
 impl TransactionPayload {
-    pub fn should_trigger_reconfiguration_by_default(&self) -> bool {
-        match self {
-            Self::WriteSet(ws) => ws.should_trigger_reconfiguration_by_default(),
-            Self::Script(_) | Self::Module(_) => false,
-        }
-    }
+	pub fn should_trigger_reconfiguration_by_default(&self) -> bool {
+		match self {
+			Self::WriteSet(ws) => ws.should_trigger_reconfiguration_by_default(),
+			Self::Script(_) | Self::ScriptFunction(_) | Self::Module(_) => false,
+		}
+	}
+
+	pub fn into_script_function(self) -> ScriptFunction {
+		match self {
+			Self::ScriptFunction(f) => f,
+			payload => panic!("Expected ScriptFunction(_) payload, found: {:#?}", payload),
+		}
+	}
 }
 
 /// Two different kinds of WriteSet transactions.
@@ -356,7 +402,7 @@ impl WriteSetPayload {
 #[derive(Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
 pub struct SignedTransaction {
     /// The raw transaction
-    pub raw_txn: RawTransaction,
+    raw_txn: RawTransaction,
 
     /// Public key and signature to authenticate
     authenticator: TransactionAuthenticator,
@@ -768,7 +814,7 @@ impl TransactionOutput {
 #[cfg_attr(any(test, feature = "fuzzing"), derive(Arbitrary))]
 pub struct TransactionInfo {
     /// The hash of this transaction.
-    pub transaction_hash: HashValue,
+    transaction_hash: HashValue,
 
     /// The root hash of Sparse Merkle Tree describing the world state at the end of this
     /// transaction.

@@ -1,13 +1,15 @@
 // Copyright (c) The Diem Core Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-use crate::{NetworkAddress, ParseError};
+use crate::{
+    account_address::AccountAddress,
+    network_address::{NetworkAddress, ParseError},
+};
 use aes_gcm::{
     aead::{generic_array::GenericArray, AeadInPlace, NewAead},
     Aes256Gcm,
 };
 use diem_crypto::{compat::Sha3_256, hkdf::Hkdf};
-use move_core_types::account_address::AccountAddress;
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -44,7 +46,7 @@ pub const TEST_SHARED_VAL_NETADDR_KEY_VERSION: KeyVersion = 0;
 /// also equal to the hash value `SHA3-256(b"DIEM_ENCRYPTED_NETWORK_ADDRESS_SALT")`.
 ///
 /// ```
-/// use diem_network_address::encrypted::HKDF_SALT;
+/// use diem_types::network_address::encrypted::HKDF_SALT;
 /// use diem_crypto::hash::HashValue;
 ///
 /// let derived_salt = HashValue::sha3_256_of(b"DIEM_ENCRYPTED_NETWORK_ADDRESS_SALT");
@@ -55,7 +57,7 @@ pub const HKDF_SALT: [u8; 32] = [
     0x59, 0x2c, 0x85, 0xe0, 0x24, 0x45, 0xb8, 0x75, 0xf0, 0x2d, 0xed, 0x51, 0xa5, 0x20, 0xba, 0x2a,
 ];
 
-/// An encrypted `NetworkAddress`.
+/// An encrypted [`NetworkAddress`].
 ///
 /// ### Threat Model
 ///
@@ -65,7 +67,7 @@ pub const HKDF_SALT: [u8; 32] = [
 /// to other validators.
 ///
 /// These encrypted network addresses are intended to be stored on-chain under
-/// each validator's advertised network addresses in their `ValidatorConfig`s.
+/// each validator's advertised network addresses in their [`ValidatorConfig`]s.
 /// All validators share the secret `shared_val_netaddr_key`, though each validator's addresses
 /// are encrypted using a per-validator `derived_key`.
 ///
@@ -80,9 +82,9 @@ pub const HKDF_SALT: [u8; 32] = [
 /// )
 /// ```
 ///
-/// where `hkdf_sha3_256_extract_and_expand` is
+/// where `HKDF-SHA3-256::extract_and_expand` is
 /// [HKDF extract-and-expand](https://tools.ietf.org/html/rfc5869) with SHA3-256,
-/// `HKDF_SALT` is a constant salt for application separation, `shared_val_netaddr_key` is the
+/// [`HKDF_SALT`] is a constant salt for application separation, `shared_val_netaddr_key` is the
 /// shared secret distributed amongst all the validators, and `account_address`
 /// is the specific validator's [`AccountAddress`].
 ///
@@ -105,7 +107,7 @@ pub const HKDF_SALT: [u8; 32] = [
 ///
 /// where `nonce` is a 96-bit integer as described below, `key_version` is
 /// the key version as a u32 big-endian integer, `addr` is the serialized
-/// `NetworkAddress`, and `enc_addr` is the encrypted network address
+/// [`NetworkAddress`], and `enc_addr` is the encrypted network address
 /// concatenated with the 16-byte authentication tag.
 ///
 /// ### Nonce
@@ -128,6 +130,8 @@ pub const HKDF_SALT: [u8; 32] = [
 /// The `EncNetworkAddress` struct contains a `key_version` field, which
 /// identifies the specific `shared_val_netaddr_key` used to encrypt/decrypt the
 /// `EncNetworkAddress`.
+///
+/// [`ValidatorConfig`]: https://github.com/diem/diem/blob/main/language/diem-framework/modules/doc/ValidatorConfig.md
 #[derive(Clone, Debug, Eq, PartialEq, Deserialize, Serialize)]
 pub struct EncNetworkAddress {
     key_version: KeyVersion,
@@ -295,7 +299,6 @@ impl Arbitrary for EncNetworkAddress {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::NetworkAddress;
 
     // Ensure that modifying the ciphertext or associated data causes a decryption
     // error.

@@ -23,6 +23,10 @@ indent_size=4
 indent_style=space
 indent_size=4
 
+[diem/**.rs]
+indent_style=space
+indent_size=4
+
 [scripts/**]
 indent_style=space
 indent_size=4

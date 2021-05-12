@@ -99,18 +99,21 @@
 //! let hash_value = hasher.finish();
 //! ```
 
-use anyhow::{ensure, Error, Result};
 use bytes::Bytes;
-use diem_nibble::Nibble;
+use hex::FromHex;
 // use mirai_annotations::*;
 use once_cell::sync::{Lazy, OnceCell};
 #[cfg(any(test, feature = "fuzzing"))]
 use proptest_derive::Arbitrary;
 use rand::{rngs::OsRng, Rng};
 use serde::{de, ser};
-use short_hex_str::ShortHexStr;
-use static_assertions::const_assert;
-use std::{self, convert::AsRef, fmt, str::FromStr, string::String, vec::Vec};
+use std::{self,
+    convert::{AsRef, TryFrom},
+    fmt,
+    str::FromStr,
+    string::String,
+    vec::Vec
+};
 use tiny_keccak::{Hasher, Sha3};
 
 /// A prefix used to begin the salt of every diem hashable structure. The salt
@@ -130,26 +133,16 @@ impl HashValue {
     pub const LENGTH: usize = 32;
     /// The length of the hash in bits.
     pub const LENGTH_IN_BITS: usize = Self::LENGTH * 8;
-    /// The length of the hash in nibbles.
-    pub const LENGTH_IN_NIBBLES: usize = Self::LENGTH * 2;
 
     /// Create a new [`HashValue`] from a byte array.
     pub fn new(hash: [u8; HashValue::LENGTH]) -> Self {
         HashValue { hash }
     }
 
-    /// Create from a slice (e.g. retrieved from storage).
-    pub fn from_slice(src: &[u8]) -> Result<Self> {
-        ensure!(
-            src.len() == HashValue::LENGTH,
-            "HashValue decoding failed due to length mismatch. HashValue \
-             length: {}, src length: {}",
-            HashValue::LENGTH,
-            src.len()
-        );
-        let mut value = Self::zero();
-        value.hash.copy_from_slice(src);
-        Ok(value)
+    pub fn from_slice<T: AsRef<[u8]>>(bytes: T) -> Result<Self, HashValueParseError> {
+        <[u8; Self::LENGTH]>::try_from(bytes.as_ref())
+            .map_err(|_| HashValueParseError)
+            .map(Self::new)
     }
 
     /// Dumps into a vector.
@@ -217,13 +210,12 @@ impl HashValue {
     }
 
     /// Constructs a `HashValue` from an iterator of bits.
-    pub fn from_bit_iter(iter: impl ExactSizeIterator<Item = bool>) -> Result<Self> {
-        ensure!(
-            iter.len() == Self::LENGTH_IN_BITS,
-            "The iterator should yield exactly {} bits. Actual number of bits: {}.",
-            Self::LENGTH_IN_BITS,
-            iter.len(),
-        );
+    pub fn from_bit_iter(
+        iter: impl ExactSizeIterator<Item = bool>,
+    ) -> Result<Self, HashValueParseError> {
+        if iter.len() != Self::LENGTH_IN_BITS {
+            return Err(HashValueParseError);
+        }
 
         let mut buf = [0; Self::LENGTH];
         for (i, bit) in iter.enumerate() {
@@ -242,40 +234,19 @@ impl HashValue {
             .count()
     }
 
-    /// Returns the length of common prefix of `self` and `other` in nibbles.
-    pub fn common_prefix_nibbles_len(&self, other: HashValue) -> usize {
-        self.common_prefix_bits_len(other) / 4
-    }
-
-    /// Returns the `index`-th nibble.
-    pub fn get_nibble(&self, index: usize) -> Nibble {
-        // precondition!(index < HashValue::LENGTH);
-        Nibble::from(if index % 2 == 0 {
-            self[index / 2] >> 4
-        } else {
-            self[index / 2] & 0x0F
-        })
-    }
-
-    /// Returns first 4 bytes as hex-formatted string
-    pub fn short_str(&self) -> ShortHexStr {
-        const_assert!(HashValue::LENGTH >= ShortHexStr::SOURCE_LENGTH);
-        ShortHexStr::try_from_bytes(&self.hash)
-            .expect("This can never fail since HashValue::LENGTH >= ShortHexStr::SOURCE_LENGTH")
-    }
-
     /// Full hex representation of a given hash value.
     pub fn to_hex(&self) -> String {
-        hex::encode(self.hash)
+        format!("{:x}", self)
     }
 
     /// Parse a given hex string to a hash value.
-    pub fn from_hex(hex_str: &str) -> Result<Self> {
-        Self::from_slice(hex::decode(hex_str)?.as_slice())
+    pub fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, HashValueParseError> {
+        <[u8; Self::LENGTH]>::from_hex(hex)
+            .map_err(|_| HashValueParseError)
+            .map(Self::new)
     }
 }
 
-// TODO(#1307)
 impl ser::Serialize for HashValue {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -322,6 +293,14 @@ impl Default for HashValue {
 
 impl AsRef<[u8; HashValue::LENGTH]> for HashValue {
     fn as_ref(&self) -> &[u8; HashValue::LENGTH] {
+        &self.hash
+    }
+}
+
+impl std::ops::Deref for HashValue {
+    type Target = [u8; Self::LENGTH];
+
+    fn deref(&self) -> &Self::Target {
         &self.hash
     }
 }
@@ -378,12 +357,24 @@ impl From<HashValue> for Bytes {
 }
 
 impl FromStr for HashValue {
-    type Err = Error;
+    type Err = HashValueParseError;
 
-    fn from_str(s: &str) -> Result<Self> {
+    fn from_str(s: &str) -> Result<Self, HashValueParseError> {
         HashValue::from_hex(s)
     }
 }
+
+/// Parse error when attempting to construct a HashValue
+#[derive(Clone, Copy, Debug)]
+pub struct HashValueParseError;
+
+impl fmt::Display for HashValueParseError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "unable to parse HashValue")
+    }
+}
+
+impl std::error::Error for HashValueParseError {}
 
 /// An iterator over `HashValue` that generates one bit for each iteration.
 pub struct HashValueBitIterator<'a> {
