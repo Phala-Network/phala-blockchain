@@ -77,7 +77,7 @@ decl_module! {
 		#[weight = 195_000_000]
 		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::transfer_lottery(round_id, token_id, payload, dest_id)
+			Self::do_transfer_lottery(round_id, token_id, payload, dest_id)
 		}
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
@@ -147,7 +147,7 @@ decl_module! {
 }
 
 impl<T: Config> Module<T> {
-	pub fn transfer_lottery(round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+	pub fn do_transfer_lottery(round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
 		ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 
 		let resource_id = Self::bridge_lotteryid();
