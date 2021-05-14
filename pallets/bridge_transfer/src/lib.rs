@@ -5,11 +5,12 @@ use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowD
 use frame_support::{
 	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
 };
-use frame_system::{self as system, ensure_signed};
+use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_core::U256;
 use sp_std::prelude::*;
+use sp_std::convert::TryFrom;
 use codec::{Encode, Decode};
 
 mod mock;
@@ -48,8 +49,10 @@ decl_storage! {
 
 decl_event! {
 	pub enum Event {
-		/// Received BTC lottery encoded command
-		LotteryCommand(Vec<u8>),
+		/// Receive command: Newround. [roundId, totalCount, winnerCount]
+		LotteryNewround(u32, u32, u32),
+		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
+		LotteryOpenbox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
 		BTCSignedTxSend(bridge::ChainId, ResourceId, Vec<u8>),
 	}
@@ -58,6 +61,7 @@ decl_event! {
 decl_error! {
 	pub enum Error for Module<T: Config>{
 		InvalidTransfer,
+		InvalidCommand,
 	}
 }
 
@@ -71,26 +75,9 @@ decl_module! {
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
-			ensure_signed(origin)?;
-
-			let resource_id = Self::bridge_lotteryid();
-
-			let payload_len: u32 = payload.len().saturated_into();
-			let mut encoded_payload_len: Vec<u8> = payload_len.encode();
-			encoded_payload_len.reverse();
-
-			let mut encoded_round_id: Vec<u8> = round_id.encode();
-			encoded_round_id.reverse();
-
-			let mut encoded_token_id: Vec<u8> = token_id.encode();
-			encoded_token_id.reverse();
-
-			let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
-
-			Self::deposit_event(Event::BTCSignedTxSend(dest_id, resource_id, payload));
-
-			<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
+		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::transfer_lottery(round_id, token_id, payload, dest_id)
 		}
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
@@ -123,11 +110,62 @@ decl_module! {
 		pub fn lottery_handler(origin, metadata: Vec<u8>, rid: ResourceId) -> DispatchResult {
 			T::BridgeOrigin::ensure_origin(origin)?;
 
-			Self::deposit_event(Event::LotteryCommand(metadata));
+			let op = u8::from_be_bytes(<[u8; 1]>::try_from(&metadata[..1]).map_err(|_| Error::<T>::InvalidCommand)?);
+			if op == 0 {
+				ensure!(
+					metadata.len() == 13,
+					Error::<T>::InvalidCommand
+				);
 
-			// TODO: Send to BTC Lottery pallet to handle this
+				Self::deposit_event(Event::LotteryNewround(
+					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
+					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// totalCount
+					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..]).map_err(|_| Error::<T>::InvalidCommand)?)	// winnerCount
+				));
+			} else if op == 1 {
+				ensure!(
+					metadata.len() > 13,
+					Error::<T>::InvalidCommand
+				);
+
+				let address_len: usize = u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..13]).map_err(|_| Error::<T>::InvalidCommand)?).saturated_into();
+				ensure!(
+					metadata.len() == (13 + address_len),
+					Error::<T>::InvalidCommand
+				);
+
+				Self::deposit_event(Event::LotteryOpenbox(
+					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
+					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// tokenId
+					metadata[13..].to_vec()						// btcAddress
+				));
+			}
 
 			Ok(())
 		}
+	}
+}
+
+impl<T: Config> Module<T> {
+	pub fn transfer_lottery(round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+		ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
+
+		let resource_id = Self::bridge_lotteryid();
+
+		let payload_len: u32 = payload.len().saturated_into();
+		let mut encoded_payload_len: Vec<u8> = payload_len.encode();
+		encoded_payload_len.reverse();
+
+		let mut encoded_round_id: Vec<u8> = round_id.encode();
+		encoded_round_id.reverse();
+
+		let mut encoded_token_id: Vec<u8> = token_id.encode();
+		encoded_token_id.reverse();
+
+		let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
+
+		Self::deposit_event(Event::BTCSignedTxSend(dest_id, resource_id, payload));
+
+		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
 	}
 }
