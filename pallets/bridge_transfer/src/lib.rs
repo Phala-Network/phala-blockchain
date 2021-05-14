@@ -50,9 +50,9 @@ decl_storage! {
 decl_event! {
 	pub enum Event {
 		/// Receive command: Newround. [roundId, totalCount, winnerCount]
-		LotteryNewround(u32, u32, u32),
+		LotteryNewRound(u32, u32, u32),
 		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
-		LotteryOpenbox(u32, u32, Vec<u8>),
+		LotteryOpenBox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
 		BTCSignedTxSend(bridge::ChainId, ResourceId, Vec<u8>),
 	}
@@ -117,7 +117,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::deposit_event(Event::LotteryNewround(
+				Self::deposit_event(Event::LotteryNewRound(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// totalCount
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..]).map_err(|_| Error::<T>::InvalidCommand)?)	// winnerCount
@@ -134,11 +134,13 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::deposit_event(Event::LotteryOpenbox(
+				Self::deposit_event(Event::LotteryOpenBox(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// tokenId
 					metadata[13..].to_vec()						// btcAddress
 				));
+			} else {
+				// ignore
 			}
 
 			Ok(())
