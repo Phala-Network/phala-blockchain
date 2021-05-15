@@ -3,7 +3,7 @@
 
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, Get};
 use frame_support::{
-	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure,
+	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
@@ -140,7 +140,7 @@ decl_module! {
 					metadata[13..].to_vec()						// btcAddress
 				));
 			} else {
-				// ignore
+				fail!(Error::<T>::InvalidCommand);
 			}
 
 			Ok(())
