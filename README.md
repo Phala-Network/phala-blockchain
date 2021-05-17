@@ -4,32 +4,27 @@
 
 ![Rust](https://github.com/Phala-Network/phala-blockchain/workflows/Build/badge.svg)
 
-Phala Network is a TEE-Blockchain hybrid architecture implementing Confidential Contract. This repo
-includes:
+Phala Network is a blockchain-based confidential computing cloud. This repo includes:
 
 - `node/`: the main blockchain built on Substrate
-- `phost/`: the bridge daemon to connect the blockchain and pRuntime
-- `pruntime/`: the contract execution kernel running inside TEE enclave
+- `standalone/phost/`: the bridge relayer to connect the blockchain and pRuntime
+- `standalone/pruntime/`: the contract execution kernel running inside TEE enclave
 
 ## Overview
 
-![](docs/static/diagram.png)
+![](docs/static/phala-design.png)
 
-The **blockchain** is the central compoent of the system. It records commands (confidential contract
-invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
+The **blockchain** is the central compoent of the system. It records commands (confidential contract invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
 
-**pHost** is a daemon program that connects the blockchain and the pRuntime. It passes the block
-data from the chain to pRuntime and passes pRuntime side effects back to the chain.
+**pHost** (runtime-bridge) is the bridge relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge).
 
-**pRuntime** (Phala Network TEE Runtime) is a runtime to execute confidential smart contracts, based on Intel SGX.
+**pRuntime** (Phala Network Secure Enclave Runtime) is a runtime to execute confidential smart contracts, based on confidential computing.
 
 Related repos:
 
-- [phala-docs](https://github.com/Phala-Network/phala-docs): The central repo for documentations.
-- [phala-polka-apps](https://github.com/Phala-Network/phala-polka-apps): The Web UI and SDK to
-  interact with confidential contract. Based on polkadot.js.
-- [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker): The W3F M2 docker
-  build with the blockchain, pHost and pRuntime.
+- [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentations.
+- [apps-ng](https://github.com/Phala-Network/apps-ng): The fontend, with the UI of the Phase Wallet and the Phala confidential contract api sdk. (Will be upgraded to [apps-nng](https://github.com/Phala-Network/apps-nng) soon.)
+- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, phost, and pRuntime. 
 
 ### File structure
 
@@ -45,14 +40,14 @@ Related repos:
 │   └── init.sh
 └───standalone
     ├── node                  Blockchain node
-    ├── phost                 pHost, the bridge deamon
-    ├── pruntime              pRuntime, the TEE kernel
+    ├── phost                 pHost, the bridge relayer
+    ├── pruntime              pRuntime, the Secure Encalve kernel
     └── runtime               Phala Substrate Runtime
 ```
 
 ## Docker build
 
-Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker). It includes both the blockchain and pRuntime.
+Plase refer to [phala-docker](https://github.com/Phala-Network/phala-docker).
 
 ## Native Build
 
@@ -94,7 +89,7 @@ Make sure you have Rust and LLVM-10 installed.
 cargo build --release
 ```
 
-The build script enforces LLVM-9 or newer is used. LLVM-9 is needed because of the wasm port of rust
+The build script enforces LLVM-10 or newer is used. LLVM-10 is needed because of the wasm port of rust
 crypto library, `ring`. We have to compile the C code into wasm while keeping the compatibility with
 the _current_ rustc.
 
@@ -135,7 +130,7 @@ the _current_ rustc.
     Finally, run pRuntime:
     ```bash
     cd bin/
-    LD_LIBRARY_PATH=/opt/sgxsdk/lib64/ ./app
+    ./app
     ```
 
 3. Run pHost (node and pRuntime required):
@@ -147,8 +142,7 @@ the _current_ rustc.
 4. Use the WebUI
 
     Clone the
-    [Experimental Apps for Phala Network](https://github.com/Phala-Network/apps-ng) repository and
-read its documentation to build and run the WebUI.
+    [Web UI for Phala Network](https://github.com/Phala-Network/apps-ng) repository and read its documentation to build and run the WebUI.
 
 
 ## Run with tmuxp
@@ -159,10 +153,10 @@ You can launch the full stack (semi-automatically) by:
 tmuxp load ./scripts/tmuxp/three-nodes.yaml
 ```
 
-Or a 4-node testnet-poc2 setup:
+Or a 4-node testnet-poc4 setup:
 
 ```bash
-CHAIN=poc2 tmuxp load ./scripts/tmuxp/four-nodes.yaml
+CHAIN=poc4 tmuxp load ./scripts/tmuxp/four-nodes.yaml
 ```
 
 [tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convinient tool that can bring up a tmux session
