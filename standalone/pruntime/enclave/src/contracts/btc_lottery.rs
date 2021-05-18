@@ -14,17 +14,23 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair;
 use sp_core::ecdsa;
+use std::collections::btree_map::Entry::{Occupied, Vacant};
 extern crate runtime as chain;
 use crate::std::collections::BTreeMap;
 use crate::std::string::String;
 use crate::std::vec::Vec;
 use crate::types::TxRef;
 use crate::TransactionStatus;
-use rand::Rng;
-use sgx_rand::sample;
+type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
+    chain::BlockNumber,
+    <chain::Runtime as frame_system::Config>::Hashing,
+    chain::Balance,
+>;
+use phala_types::pruntime::BlockHeaderWithEvents as GenericBlockHeaderWithEvents;
+use rand::{rngs::SmallRng, seq::index::IndexVec, seq::IteratorRandom, Rng, SeedableRng};
 use sp_core::hashing::blake2_128;
 use sp_core::U256;
-
+type EcdhKey = ring::agreement::EphemeralPrivateKey;
 type SequenceType = u64;
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
@@ -47,7 +53,7 @@ pub struct BtcLottery {
     queue: Vec<BtcTransferData>,
     #[serde(skip)]
     secret: Option<ecdsa::Pair>,
-    // Txid, vout, amount
+    /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
     admin: Vec<AccountIdWrapper>,
 }
@@ -58,10 +64,10 @@ impl core::fmt::Debug for BtcLottery {
     }
 }
 
-/// These two structs below are used for transferring messages to chain.
+// These two structs below are used for transferring messages to chain.
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct BtcTransfer {
-    dest: AccountIdWrapper,
+    token_id: Vec<u8>,
     tx: Vec<u8>,
     sequence: SequenceType,
 }
@@ -69,11 +75,6 @@ pub struct BtcTransfer {
 pub struct BtcTransferData {
     data: BtcTransfer,
     signature: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Error {
-    NotAuthorized,
 }
 
 // Phala端调用
@@ -115,7 +116,6 @@ pub enum Response {
         utxo: BTreeMap<Address, (Txid, u32, u64)>,
     },
     // GetSignedTx { round_id: u32 },
-    Error(Error),
 }
 
 impl BtcLottery {
@@ -140,8 +140,8 @@ impl BtcLottery {
         secp: &Secp256k1<All>,
         digest: &[u8],
         key: &PrivateKey,
-    ) -> Result<Signature, Error> {
-        Ok(secp.sign(&Message::from_slice(digest).unwrap(), &key.key))
+    ) -> Result<Signature, bitcoin::secp256k1::Error> {
+        Ok(secp.sign(&Message::from_slice(digest)?, &key.key))
     }
 }
 
@@ -163,21 +163,19 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 address,
                 utxo,
             } => {
-                // 判断origin，只有Admin可以调用
-                // 把utxo存储合约中，供以后查询
                 let sender = AccountIdWrapper(_origin.clone());
                 let btc_address = Address::from_str(&address).unwrap();
                 if self.admin.contains(&sender) {
-                    let mut round_utxo = match self.utxo.get(&round_id) {
-                        Some(_) => self.utxo.get(&round_id).unwrap().clone(),
-                        None => BTreeMap::<Address, (Txid, u32, u64)>::new(),
+                    let round_utxo = match self.utxo.entry(round_id) {
+                        Occupied(entry) => entry.into_mut(),
+                        Vacant(entry) => entry.insert(Default::default()),
                     };
                     round_utxo.insert(btc_address, utxo);
-                    self.utxo.insert(round_id, round_utxo);
                 }
                 TransactionStatus::Ok
             }
             Command::SetAdmin { new_admin } => {
+                // TODO: listen to some specific privileged account instead of ALICE
                 let origin_admin = AccountIdWrapper::from_hex(ALICE);
                 let sender = AccountIdWrapper(_origin.clone());
                 let new_admin = AccountIdWrapper::from_hex(&new_admin);
@@ -190,104 +188,94 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
     }
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
-            match req {
-                Request::GetAllRounds => {
-                    return Ok(Response::GetAllRounds {
-                        round_id: self.round_id.clone(),
-                    })
-                }
-                Request::GetRoundInfo { round_id } => {
-                    let token_number = self.token_set.get(&round_id).unwrap().len();
-                    let winner_count = self.lottery_set.get(&round_id).unwrap().len();
-                    return Ok(Response::GetRoundInfo {
-                        token_number: token_number as u32,
-                        winner_count: winner_count as u32,
-                    });
-                }
-                Request::QueryUtxo { round_id } => {
-                    return Ok(Response::QueryUtxo {
-                        utxo: self.utxo.get(&round_id).unwrap().clone(),
-                    })
+        match req {
+            Request::GetAllRounds => {
+                return Response::GetAllRounds {
+                    round_id: self.round_id,
                 }
             }
-        };
-        match inner() {
-            Err(error) => Response::Error(error),
-            Ok(resp) => resp,
+            Request::GetRoundInfo { round_id } => {
+                let token_number = self.token_set.get(&round_id).unwrap().len();
+                let winner_count = self.lottery_set.get(&round_id).unwrap().len();
+                return Response::GetRoundInfo {
+                    token_number: token_number as u32,
+                    winner_count: winner_count as u32,
+                };
+            }
+            Request::QueryUtxo { round_id } => {
+                return Response::QueryUtxo {
+                    utxo: self.utxo.get(&round_id).unwrap().clone(),
+                }
+            }
         }
     }
 
     fn handle_event(&mut self, ce: chain::Event) {
-        if let chain::Event::pallet_kitties(pe) = ce {
-            if let chain::pallet_kitties::RawEvent::NewLottery(total_count, winner_count) = pe {
-                let raw_seed = LOTTERY.as_bytes();
-                let mut nonce = 1;
-                // This indicates the token's kind, let's just suppose that 1 represents box,
-                // maybe if we introduce more tokens later, this can be formulated strictly
-                let kind = 1;
-                // For now, the token id is 0....01000...000, this will be used to construct the
-                // box ID below, combined with random index id and NFT flags
-                let token_id: U256 = U256::from(kind) << 128;
-                for token in 0..total_count {
-                    let mut rng = rand::thread_rng();
-                    let seed: [u8; 16] = rng.gen();
-                    let raw_data = (seed, nonce);
-                    nonce += 1;
-                    let hash_data = blake2_128(&Encode::encode(&raw_data));
-                    let index_id = u128::from_be_bytes(hash_data);
+        if let chain::Event::pallet_bridge_transfer(pe) = ce {
+            if let chain::pallet_bridge_transfer::Event::LotteryNewRound(
+                round_id,
+                total_count,
+                winner_count,
+            ) = pe
+            {
+                // let blocknum = block_with_events.block_header.number;
+                let raw_seed = round_id;
+                let token_id: U256 = U256::from(round_id) << 128;
+                for index_id in 0..total_count {
                     let nft_id = (token_id + index_id) | *TYPE_NF_BIT;
                     let token_id = format!("{:#x}", nft_id);
-                    let mut round_token = match self.token_set.get(&self.round_id) {
-                        Some(_) => self.token_set.get(&self.round_id).unwrap().clone(),
+                    let mut round_token = match self.token_set.get(&round_id) {
+                        Some(_) => self.token_set.get(&round_id).unwrap().clone(),
                         None => Vec::new(),
                     };
                     round_token.push(token_id);
-                    self.token_set.insert(self.round_id, round_token);
+                    self.token_set.insert(round_id, round_token);
                 }
-                let mut r = sgx_rand::thread_rng();
-                let sample = sample(
-                    &mut r,
-                    self.token_set.get(&self.round_id).unwrap().iter(),
-                    winner_count as usize,
-                );
-                let mut lottery_token = match self.lottery_set.get(&self.round_id) {
-                    Some(_) => self.lottery_set.get(&self.round_id).unwrap().clone(),
-                    None => BTreeMap::<String, PrivateKey>::new(),
+                let lottery_token = match self.lottery_set.entry(round_id) {
+                    Occupied(entry) => entry.into_mut(),
+                    Vacant(entry) => entry.insert(Default::default()),
                 };
+                let mut r = rand::rngs::SmallRng::from_entropy();
+                let sample = self
+                    .token_set
+                    .get(&round_id)
+                    .unwrap()
+                    .iter()
+                    .choose_multiple(&mut r, winner_count as usize);
+                let mut salt = round_id * 10000;
                 for winner_id in sample {
-                    let mut salt = self.round_id * 10000;
                     let s = Secp256k1::new();
                     let raw_data = (raw_seed, salt);
                     let seed = blake2_128(&Encode::encode(&raw_data));
-                    let pk = ExtendedPrivKey::new_master(Network::Bitcoin, &seed)
+                    let sk = ExtendedPrivKey::new_master(Network::Bitcoin, &seed)
                         .unwrap()
                         .private_key;
-                    lottery_token.insert(String::from(winner_id), pk);
+                    lottery_token.insert(String::from(winner_id), sk);
                     salt += 1;
                 }
-                self.lottery_set.insert(self.round_id, lottery_token);
-                self.round_id += 1;
-            } else if let chain::pallet_kitties::RawEvent::Open(round_id, token_id, btc_address) =
-                pe
+                self.round_id = round_id;
+            } else if let chain::pallet_bridge_transfer::Event::LotteryOpenBox(
+                round_id,
+                token_id,
+                btc_address,
+            ) = pe
             {
                 let token_id = format!("{:#x}", token_id);
-                let btc_address = format!("{:#x}", btc_address);
+                let btc_address = String::from_utf8(btc_address.clone()).unwrap();
                 let sender = AccountIdWrapper::from_hex(ALICE);
                 let target = Address::from_str(&btc_address).unwrap();
                 let sequence = self.sequence + 1;
-                let data;
-                if (!self
+                let data = if (!self
                     .lottery_set
                     .get(&round_id)
                     .unwrap()
                     .contains_key(&token_id))
                 {
-                    data = BtcTransfer {
-                        dest: sender.clone(),
+                    BtcTransfer {
+                        token_id: token_id.as_bytes().to_vec(),
                         tx: Vec::new(),
                         sequence,
-                    };
+                    }
                 } else {
                     let secp = Secp256k1::new();
                     let private_key: PrivateKey = *self
@@ -297,9 +285,9 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                         .get(&token_id)
                         .unwrap();
                     let public_key = PublicKey::from_private_key(&secp, &private_key);
-                    let private_addr = Address::p2pkh(&public_key, Network::Bitcoin);
+                    let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
                     let round_utxo = self.utxo.get(&round_id).unwrap();
-                    let (txid, vout, amount) = round_utxo.get(&private_addr).unwrap();
+                    let (txid, vout, amount) = round_utxo.get(&prize_addr).unwrap();
                     let mut tx = Transaction {
                         input: vec![TxIn {
                             previous_output: OutPoint {
@@ -310,6 +298,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                             witness: Vec::new(),
                             script_sig: Script::new(),
                         }],
+                        // TODO: deal with fee
                         output: vec![TxOut {
                             script_pubkey: target.script_pubkey(),
                             value: *amount,
@@ -319,13 +308,10 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     };
                     let sighash = tx.signature_hash(
                         0,
-                        &private_addr.script_pubkey(),
+                        &prize_addr.script_pubkey(),
                         SigHashType::All.as_u32(),
                     );
                     let secp_sign: Secp256k1<All> = Secp256k1::<All>::new();
-                    // let tx_sign = secp_sign
-                    //     .sign(&Message::from_slice(&sighash[..]), &private_key.key)
-                    //     .serialize_der();
                     let tx_sign = Self::sign(&secp_sign, &sighash[..], &private_key)
                         .unwrap()
                         .serialize_der();
@@ -337,12 +323,12 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                         .into_script();
                     tx.input[0].witness.clear();
                     let tx_bytes = serialize(&tx);
-                    data = BtcTransfer {
-                        dest: sender.clone(),
+                    BtcTransfer {
+                        token_id: token_id.as_bytes().to_vec(),
                         tx: tx_bytes,
                         sequence,
-                    };
-                }
+                    }
+                };
                 let secret = self.secret.as_ref().unwrap();
                 let signature = secret.sign(&Encode::encode(&data));
 

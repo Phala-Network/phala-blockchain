@@ -114,8 +114,8 @@ pub enum QueryRespData {
     PendingKittyTransfer {
         transfer_queue_b64: String,
     },
-    PendingLotteryTransfer {
-        transfer_queue_b64: String,
+    PendingLotteryEgress {
+        lottery_queue_b64: String,
     },
     GetWorkerEgress {
         length: usize,
@@ -161,7 +161,7 @@ pub struct KittyTransferData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BtcTransfer {
-    dest: [u8; 32],
+    token_id: [u8; 32],
     tx: String,
     sequence: u64,
 }

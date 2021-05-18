@@ -1461,6 +1461,9 @@ fn handle_events(
         } else if let chain::Event::pallet_kitties(pe) = &evt.event{
             println!("pallet_kitties event: {:?}", pe);
             state.contract6.handle_event(evt.event.clone());
+        } else if let chain::Event::pallet_bridge_transfer(pe) = &evt.event{
+            println!("pallet_bridge_transfer event: {:?}", pe);
+            state.contract7.handle_event(evt.event.clone());
         }
     }
     Ok(())
