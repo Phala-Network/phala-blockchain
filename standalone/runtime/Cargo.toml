@@ -55,7 +55,7 @@ pallet-contracts = { version = "3.0.0", default-features = false, path = "../../
 pallet-contracts-primitives = { version = "3.0.0", default-features = false, path = "../../substrate/frame/contracts/common/" }
 pallet-contracts-rpc-runtime-api = { version = "3.0.0", default-features = false, path = "../../substrate/frame/contracts/rpc/runtime-api/" }
 pallet-democracy = { version = "3.0.0", default-features = false, path = "../../substrate/frame/democracy" }
-pallet-elections-phragmen = { version = "3.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
+pallet-elections-phragmen = { version = "4.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
 pallet-election-provider-multi-phase = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
 pallet-grandpa = { version = "3.0.0", default-features = false, path = "../../substrate/frame/grandpa" }
 pallet-im-online = { version = "3.0.0", default-features = false, path = "../../substrate/frame/im-online" }
@@ -87,8 +87,9 @@ pallet-vesting = { version = "3.0.0", default-features = false, path = "../../su
 
 pallet-kitties = { default-features = false, path = "../../pallets/kitties", package = "pallet-kitties" }
 pallet-phala = { default-features = false, path = "../../pallets/phala", package = "pallet-phala" }
-pallet-claim = { default-features = false, path = "../../pallets/claim", package = "pallet-claim" }
 pallet-mining-staking = { default-features = false, path = "../../pallets/mining_staking", package = "pallet-mining-staking" }
+pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
+pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
 
 native-nostd-hasher = { version = "3.0.0", path = "../../native-nostd-hasher", optional = true }
 
@@ -167,7 +168,8 @@ std = [
 	"sp-npos-elections/std",
 	"pallet-kitties/std",
 	"pallet-phala/std",
-	"pallet-claim/std",
+	"pallet-bridge/std",
+	"pallet-bridge-transfer/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

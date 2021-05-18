@@ -13,7 +13,7 @@ ARG VERSION='2.13.100.4-focal1'
 ADD ./dockerfile.d/04_psw.sh /root
 RUN bash /root/04_psw.sh
 
-ARG RUST_TOOLCHAIN='nightly-2021-03-25'
+ARG RUST_TOOLCHAIN='nightly-2021-04-25'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 ADD ./dockerfile.d/06_wasm.sh /root

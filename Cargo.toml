@@ -6,11 +6,7 @@ exclude = [
 	"webpki",
 	"ring",
 	"native-nostd-hasher",
-	"serde_no_std",
-	"serde_derive_no_std",
-	"serde_json_no_std",
 	"standalone/pruntime",
-	"jsonrpsee"
 ]
 
 members = [
@@ -21,6 +17,8 @@ members = [
 	"standalone/runtime",
 	"standalone/phost",
 	"pallets/phala",
+	"pallets/mining_staking",
+	"pallets/bridge",
 	"pallets/mining_staking",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
