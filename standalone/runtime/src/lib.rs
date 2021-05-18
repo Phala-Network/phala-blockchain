@@ -71,7 +71,6 @@ pub use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment, Currency
 use pallet_session::{historical as pallet_session_historical};
 use sp_inherents::{InherentData, CheckInherentsResult};
 use static_assertions::const_assert;
-use pallet_contracts::weights::WeightInfo;
 
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -116,6 +115,7 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 }
 
 /// Runtime version.
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("phale-node"),
 	impl_name: create_runtime_str!("phala-node-poc4"),
@@ -782,53 +782,6 @@ impl pallet_tips::Config for Runtime {
 	type WeightInfo = pallet_tips::weights::SubstrateWeight<Runtime>;
 }
 
-parameter_types! {
-	pub TombstoneDeposit: Balance = deposit(
-		1,
-		<pallet_contracts::Pallet<Runtime>>::contract_info_size(),
-	);
-	pub DepositPerContract: Balance = TombstoneDeposit::get();
-	pub const DepositPerStorageByte: Balance = deposit(0, 1);
-	pub const DepositPerStorageItem: Balance = deposit(1, 0);
-	pub RentFraction: Perbill = Perbill::from_rational(1u32, 30 * DAYS);
-	pub const SurchargeReward: Balance = 150 * MILLICENTS;
-	pub const SignedClaimHandicap: u32 = 2;
-	pub const MaxValueSize: u32 = 16 * 1024;
-	// The lazy deletion runs inside on_initialize.
-	pub DeletionWeightLimit: Weight = AVERAGE_ON_INITIALIZE_RATIO *
-		RuntimeBlockWeights::get().max_block;
-	// The weight needed for decoding the queue should be less or equal than a fifth
-	// of the overall weight dedicated to the lazy deletion.
-	pub DeletionQueueDepth: u32 = ((DeletionWeightLimit::get() / (
-			<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(1) -
-			<Runtime as pallet_contracts::Config>::WeightInfo::on_initialize_per_queue_item(0)
-		)) / 5) as u32;
-	pub MaxCodeSize: u32 = 128 * 1024;
-}
-
-impl pallet_contracts::Config for Runtime {
-	type Time = Timestamp;
-	type Randomness = RandomnessCollectiveFlip;
-	type Currency = Balances;
-	type Event = Event;
-	type RentPayment = ();
-	type SignedClaimHandicap = SignedClaimHandicap;
-	type TombstoneDeposit = TombstoneDeposit;
-	type DepositPerContract = DepositPerContract;
-	type DepositPerStorageByte = DepositPerStorageByte;
-	type DepositPerStorageItem = DepositPerStorageItem;
-	type RentFraction = RentFraction;
-	type SurchargeReward = SurchargeReward;
-	type CallStack = [pallet_contracts::Frame<Self>; 31];
-	type MaxValueSize = MaxValueSize;
-	type WeightPrice = pallet_transaction_payment::Pallet<Self>;
-	type WeightInfo = pallet_contracts::weights::SubstrateWeight<Self>;
-	type ChainExtension = ();
-	type DeletionQueueDepth = DeletionQueueDepth;
-	type DeletionWeightLimit = DeletionWeightLimit;
-	type MaxCodeSize = MaxCodeSize;
-}
-
 impl pallet_sudo::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -1019,18 +972,9 @@ impl pallet_vesting::Config for Runtime {
 	type WeightInfo = pallet_vesting::weights::SubstrateWeight<Runtime>;
 }
 
-impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
-	type Hashing = <Runtime as frame_system::Config>::Hashing;
-	type Hash = <Runtime as frame_system::Config>::Hash;
-	type LeafData = frame_system::Pallet<Self>;
-	type OnNewRoot = ();
-	type WeightInfo = ();
-}
-
 parameter_types! {
 	pub const LotteryPalletId: PalletId = PalletId(*b"py/lotto");
-	pub const MaxCalls: usize = 10;
+	pub const MaxCalls: u32 = 10;
 	pub const MaxGenerateRandom: u32 = 10;
 }
 
@@ -1045,30 +989,6 @@ impl pallet_lottery::Config for Runtime {
 	type ValidateCall = Lottery;
 	type MaxGenerateRandom = MaxGenerateRandom;
 	type WeightInfo = pallet_lottery::weights::SubstrateWeight<Runtime>;
-}
-
-parameter_types! {
-	pub const AssetDeposit: Balance = 100 * DOLLARS;
-	pub const ApprovalDeposit: Balance = 1 * DOLLARS;
-	pub const StringLimit: u32 = 50;
-	pub const MetadataDepositBase: Balance = 10 * DOLLARS;
-	pub const MetadataDepositPerByte: Balance = 1 * DOLLARS;
-}
-
-impl pallet_assets::Config for Runtime {
-	type Event = Event;
-	type Balance = u64;
-	type AssetId = u32;
-	type Currency = Balances;
-	type ForceOrigin = EnsureRoot<AccountId>;
-	type AssetDeposit = AssetDeposit;
-	type MetadataDepositBase = MetadataDepositBase;
-	type MetadataDepositPerByte = MetadataDepositPerByte;
-	type ApprovalDeposit = ApprovalDeposit;
-	type StringLimit = StringLimit;
-	type Freezer = ();
-	type Extra = ();
-	type WeightInfo = pallet_assets::weights::SubstrateWeight<Runtime>;
 }
 
 parameter_types! {
@@ -1162,7 +1082,6 @@ construct_runtime!(
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>},
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned},
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
-		Contracts: pallet_contracts::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Sudo: pallet_sudo::{Pallet, Call, Config<T>, Storage, Event<T>},
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>},
 		AuthorityDiscovery: pallet_authority_discovery::{Pallet, Call, Config},
@@ -1178,8 +1097,6 @@ construct_runtime!(
 		Multisig: pallet_multisig::{Pallet, Call, Storage, Event<T>},
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>},
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>},
-		Assets: pallet_assets::{Pallet, Call, Storage, Event<T>},
-		Mmr: pallet_mmr::{Pallet, Storage},
 		Lottery: pallet_lottery::{Pallet, Call, Storage, Event<T>},
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
@@ -1226,20 +1143,6 @@ pub type Executive = frame_executive::Executive<
 	AllPallets,
 	(),
 >;
-
-/// MMR helper types.
-mod mmr {
-	use super::Runtime;
-	pub use pallet_mmr::primitives::*;
-
-	pub type Leaf = <
-	<Runtime as pallet_mmr::Config>::LeafData
-	as
-	LeafDataProvider
-	>::LeafData;
-	pub type Hash = <Runtime as pallet_mmr::Config>::Hash;
-	pub type Hashing = <Runtime as pallet_mmr::Config>::Hashing;
-}
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -1392,47 +1295,6 @@ impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_contracts_rpc_runtime_api::ContractsApi<
-		Block, AccountId, Balance, BlockNumber, Hash,
-	>
-		for Runtime
-	{
-		fn call(
-			origin: AccountId,
-			dest: AccountId,
-			value: Balance,
-			gas_limit: u64,
-			input_data: Vec<u8>,
-		) -> pallet_contracts_primitives::ContractExecResult {
-			Contracts::bare_call(origin, dest, value, gas_limit, input_data)
-		}
-
-		fn instantiate(
-			origin: AccountId,
-			endowment: Balance,
-			gas_limit: u64,
-			code: pallet_contracts_primitives::Code<Hash>,
-			data: Vec<u8>,
-			salt: Vec<u8>,
-		) -> pallet_contracts_primitives::ContractInstantiateResult<AccountId, BlockNumber>
-		{
-			Contracts::bare_instantiate(origin, endowment, gas_limit, code, data, salt, true)
-		}
-
-		fn get_storage(
-			address: AccountId,
-			key: [u8; 32],
-		) -> pallet_contracts_primitives::GetStorageResult {
-			Contracts::get_storage(address, key)
-		}
-
-		fn rent_projection(
-			address: AccountId,
-		) -> pallet_contracts_primitives::RentProjectionResult<BlockNumber> {
-			Contracts::rent_projection(address)
-		}
-	}
-
 	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentApi<
 		Block,
 		Balance,
@@ -1442,37 +1304,6 @@ impl_runtime_apis! {
 		}
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
-		}
-	}
-
-	impl pallet_mmr::primitives::MmrApi<
-		Block,
-		mmr::Hash,
-	> for Runtime {
-		fn generate_proof(leaf_index: u64)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<mmr::Hash>), mmr::Error>
-		{
-			Mmr::generate_proof(leaf_index)
-				.map(|(leaf, proof)| (mmr::EncodableOpaqueLeaf::from_leaf(&leaf), proof))
-		}
-
-		fn verify_proof(leaf: mmr::EncodableOpaqueLeaf, proof: mmr::Proof<mmr::Hash>)
-			-> Result<(), mmr::Error>
-		{
-			let leaf: mmr::Leaf = leaf
-				.into_opaque_leaf()
-				.try_decode()
-				.ok_or(mmr::Error::Verify)?;
-			Mmr::verify_leaf(leaf, proof)
-		}
-
-		fn verify_proof_stateless(
-			root: mmr::Hash,
-			leaf: mmr::EncodableOpaqueLeaf,
-			proof: mmr::Proof<mmr::Hash>
-		) -> Result<(), mmr::Error> {
-			let node = mmr::DataOrHash::Data(leaf.into_opaque_leaf());
-			pallet_mmr::verify_leaf_proof::<mmr::Hashing, _>(root, node, proof)
 		}
 	}
 
@@ -1531,12 +1362,10 @@ impl_runtime_apis! {
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
-			add_benchmark!(params, batches, pallet_assets, Assets);
 			add_benchmark!(params, batches, pallet_babe, Babe);
 			add_benchmark!(params, batches, pallet_balances, Balances);
 			add_benchmark!(params, batches, pallet_bounties, Bounties);
 			add_benchmark!(params, batches, pallet_collective, Council);
-			add_benchmark!(params, batches, pallet_contracts, Contracts);
 			add_benchmark!(params, batches, pallet_democracy, Democracy);
 			add_benchmark!(params, batches, pallet_elections_phragmen, Elections);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
@@ -1546,7 +1375,6 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_indices, Indices);
 			add_benchmark!(params, batches, pallet_lottery, Lottery);
 			add_benchmark!(params, batches, pallet_membership, TechnicalMembership);
-			add_benchmark!(params, batches, pallet_mmr, Mmr);
 			add_benchmark!(params, batches, pallet_multisig, Multisig);
 			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
 			add_benchmark!(params, batches, pallet_proxy, Proxy);

@@ -32,10 +32,6 @@ use subxt::{
         Balances,
         BalancesEventTypeRegistry,
     },
-    contracts::{
-        Contracts,
-        ContractsEventTypeRegistry,
-    },
     session::{
         Session,
         SessionEventTypeRegistry,
@@ -65,7 +61,6 @@ use self::phala::PhalaEventTypeRegistry;
 /// # Note
 ///
 /// Main difference is `type Address = AccountId`.
-/// Also the contracts module is not part of the kusama runtime.
 #[derive(Debug, Clone, Eq, PartialEq, Default)]
 pub struct PhalaNodeRuntime;
 
@@ -75,15 +70,12 @@ impl Runtime for PhalaNodeRuntime {
 
     fn register_type_sizes(event_type_registry: &mut EventTypeRegistry<Self>) {
         event_type_registry.with_system();
-        event_type_registry.with_contracts();
         event_type_registry.with_sudo();
 
         event_type_registry.with_phala();
         event_type_registry.with_balances();
         event_type_registry.with_staking();
         event_type_registry.with_session();
-
-        event_type_registry.register_type_size::<u64>("Assets::Balance");
 
         register_default_type_sizes(event_type_registry);
     }
@@ -104,8 +96,6 @@ impl System for PhalaNodeRuntime {
 impl Balances for PhalaNodeRuntime {
     type Balance = u128;
 }
-
-impl Contracts for PhalaNodeRuntime {}
 
 impl Staking for PhalaNodeRuntime {}
 
@@ -167,10 +157,6 @@ pub mod phala {
     pub trait Phala: System + Balances {
         #![event_type(BlockRewardInfo)]
         #![event_type(PayoutReason)]
-
-        // Types used by pallets/claim
-        #![event_type(EthereumTxHash)]
-        #![event_type(EthereumAddress)]
     }
 
     #[derive(Clone, Debug, PartialEq, Call, Encode)]

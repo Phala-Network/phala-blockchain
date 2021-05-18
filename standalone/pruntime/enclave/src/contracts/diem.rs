@@ -17,12 +17,12 @@ use crate::TransactionStatus;
 use crate::std::string::ToString;
 use core::convert::TryFrom;
 use diem_crypto::hash::CryptoHash;
-use diem_types::account_address::AccountAddress;
+use diem_types::account_address::{AccountAddress, HashAccountAddress};
 use diem_types::account_state_blob::AccountStateBlob;
 use diem_types::epoch_change::EpochChangeProof;
 use diem_types::ledger_info::LedgerInfoWithSignatures;
 use diem_types::proof::{
-    AccountStateProof, SparseMerkleProof, TransactionAccumulatorProof, TransactionInfoWithProof,
+    AccountStateProof, TransactionAccumulatorProof, TransactionInfoWithProof,
 };
 use diem_types::transaction::TransactionInfo;
 use diem_types::transaction::{SignedTransaction, Transaction, TransactionPayload};
@@ -33,7 +33,7 @@ use crate::hex;
 use crate::std::borrow::ToOwned;
 use diem_crypto::{
     ed25519::{Ed25519PrivateKey, Ed25519PublicKey},
-    hash::HashValue,
+    //hash::HashValue,
     test_utils::KeyPair,
     Uniform,
 };
@@ -43,6 +43,7 @@ use diem_types::{
     chain_id::{ChainId, NamedChain},
     transaction::helpers::create_user_txn,
 };
+type SparseMerkleProof = diem_types::proof::SparseMerkleProof<AccountStateBlob>;
 use parity_scale_codec::{Decode, Encode};
 use rand::{rngs::OsRng, Rng, SeedableRng};
 const GAS_UNIT_PRICE: u64 = 0;
@@ -302,17 +303,17 @@ impl Diem {
             return Ok(transaction);
         }
 
-        let signed_tx: SignedTransaction = transaction
+        let signed_tx: &SignedTransaction = transaction
             .as_signed_user_txn()
-            .expect("This must be a user tx; qed.")
-            .clone();
-        if signed_tx.raw_txn.sender != address {
+            .expect("This must be a user tx; qed.");
+        let raw_transaction = signed_tx.clone().into_raw_transaction();
+        if raw_transaction.sender() != address {
             // Incoming tx doesn't need to be sequential
             let mut found = false;
-            if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
-                for arg in script.args {
+            if let TransactionPayload::Script(script) = raw_transaction.clone().into_payload() {
+                for arg in script.args() {
                     if let TransactionArgument::Address(recv_address) = arg {
-                        if recv_address == address {
+                        if recv_address == &address {
                             found = true;
                             break;
                         }
@@ -330,7 +331,7 @@ impl Diem {
         } else {
             // Outgoing tx must be synced sequencely
             if let Some(seq) = self.seq_number.get(&account_address) {
-                if seq + 1 != signed_tx.raw_txn.sequence_number {
+                if seq + 1 != raw_transaction.sequence_number() {
                     error!("Bad sequence number");
 
                     return Err(anyhow::Error::msg(Error::Other(String::from(
@@ -339,7 +340,7 @@ impl Diem {
                 }
             }
             self.seq_number
-                .insert(account_address.clone(), signed_tx.raw_txn.sequence_number);
+                .insert(account_address.clone(), raw_transaction.sequence_number());
         }
 
         Ok(transaction)
@@ -362,12 +363,12 @@ impl Diem {
             .get_mut(&o)
             .ok_or(anyhow::Error::msg(Error::Other("Bad account".to_string())))?;
 
-        let signed_tx: SignedTransaction = transaction.as_signed_user_txn()
-            .expect("Not a signed transaction")
-            .clone();
-        let sequence_number = signed_tx.raw_txn.sequence_number;
+        let signed_tx: &SignedTransaction = transaction.as_signed_user_txn()
+            .expect("Not a signed transaction");
+        let raw_transaction = signed_tx.clone().into_raw_transaction();
+        let sequence_number = raw_transaction.sequence_number();
         // TODO: check the whitelisted script here
-        if let TransactionPayload::Script(script) = signed_tx.raw_txn.payload {
+        if let TransactionPayload::Script(script) = raw_transaction.clone().into_payload() {
             if transaction_builder::get_transaction_name(script.code()).as_str()
                 != "peer_to_peer_with_metadata_transaction"
             {
@@ -379,10 +380,10 @@ impl Diem {
             if let [Address(_addr), U64(amount), U8Vector(_), U8Vector(_)] =
                 &args[..]
             {
-                if signed_tx.raw_txn.sender != address {
+                if raw_transaction.sender() != address {
                     account.free += amount;
 
-                    let sender_address = signed_tx.raw_txn.sender.to_string();
+                    let sender_address = raw_transaction.sender().to_string();
                     if let Some(so) = self.address.get(&sender_address) {
                         if let Some(sender_account) = self.accounts.get_mut(&so) {
                             if sender_account.locked >= *amount {
@@ -394,7 +395,7 @@ impl Diem {
                         }
                     }
                 } else {
-                    if account.is_child && signed_tx.raw_txn.sequence_number != account.sequence {
+                    if account.is_child && raw_transaction.sequence_number() != account.sequence {
                         return Err(anyhow::Error::msg(Error::Other("Bad sequence".to_string())))?;
                     }
 
@@ -708,7 +709,7 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                     if tx_hash
                         != transaction_with_proof
                             .transaction_info
-                            .transaction_hash
+                            .transaction_hash()
                             .to_hex()
                     {
                         error!("transaction hash doesn't match");

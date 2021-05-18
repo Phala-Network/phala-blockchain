@@ -9,7 +9,7 @@
 
 use anyhow::{anyhow, Error, Result};
 use diem_crypto::HashValue;
-use diem_types::transaction::{ScriptABI, SCRIPT_HASH_LENGTH};
+use diem_types::transaction::{TransactionScriptABI, SCRIPT_HASH_LENGTH};
 use std::{convert::TryFrom, fmt};
 use std::{string::{String, ToString}, vec::Vec};
 
@@ -130,7 +130,7 @@ impl StdlibScript {
     }
 
     /// Return the ABI of the script (including the bytecode).
-    pub fn abi(self) -> ScriptABI {
+    pub fn abi(self) -> TransactionScriptABI {
         if self.name() == "create_child_vasp_account" {
             let content = hex::decode(CHILD_ABI).unwrap();
             bcs::from_bytes(&content)

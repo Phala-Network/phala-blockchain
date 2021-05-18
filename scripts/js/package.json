@@ -7,7 +7,7 @@
   "dependencies": {
     "@acala-network/api": "^0.7.3",
     "@acala-network/types": "^0.7.3",
-    "@phala/typedefs": "^0.1.0",
+    "@phala/typedefs": "^0.1.1",
     "@polkadot/api": "^4.6.2",
     "@polkadot/util-crypto": "^6.2.1",
     "bn.js": "^5.2.0",

@@ -22,7 +22,7 @@ use sc_chain_spec::{ChainSpecExtension, Properties};
 use sp_core::{Pair, Public, crypto::UncheckedInto, sr25519};
 use serde::{Serialize, Deserialize};
 use node_runtime::{
-	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, ContractsConfig, CouncilConfig,
+	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
 	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
@@ -217,7 +217,7 @@ pub fn testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-	enable_println: bool,
+	_enable_println: bool,
 ) -> GenesisConfig {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
@@ -306,11 +306,6 @@ pub fn testnet_genesis(
 						.cloned()
 						.collect(),
 			phantom: Default::default(),
-		},
-		pallet_contracts: ContractsConfig {
-			// println should only be enabled on development chains
-			current_schedule: pallet_contracts::Schedule::default()
-				.enable_println(enable_println),
 		},
 		pallet_sudo: SudoConfig {
 			key: root_key,

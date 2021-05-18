@@ -17,9 +17,7 @@
 use jsonrpsee_ws_client::Error as RequestError;
 use sp_core::crypto::SecretStringError;
 use sp_runtime::{
-    transaction_validity::TransactionValidityError,
-    DispatchError,
-    TokenError,
+    transaction_validity::TransactionValidityError, DispatchError, TokenError, ArithmeticError
 };
 use thiserror::Error;
 
@@ -115,6 +113,9 @@ pub enum RuntimeError {
     /// Token error.
     #[error("An error to do with tokens.")]
     TokenError(TokenError),
+    /// Arithmetic error.
+    #[error("Arithmetic error.")]
+    Arithmetic(ArithmeticError),
     /// Other error.
     #[error("Other error: {0}")]
     Other(String),
@@ -144,6 +145,7 @@ impl RuntimeError {
             DispatchError::ConsumerRemaining => Ok(Self::ConsumerRemaining),
             DispatchError::NoProviders => Ok(Self::NoProviders),
             DispatchError::Token(err) => Ok(Self::TokenError(err)),
+            DispatchError::Arithmetic(err) => Ok(Self::Arithmetic(err)),
             DispatchError::Other(msg) => Ok(Self::Other(msg.into())),
         }
     }

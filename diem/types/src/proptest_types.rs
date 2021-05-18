@@ -33,12 +33,12 @@ use diem_crypto::{
     traits::*,
     HashValue,
 };
-use diem_proptest_helpers::Index;
 use move_core_types::language_storage::TypeTag;
 use proptest::{
     collection::{vec, SizeRange},
     option,
     prelude::*,
+    sample::Index,
 };
 use proptest_derive::Arbitrary;
 use serde_json::Value;
@@ -339,6 +339,16 @@ fn new_raw_transaction(
             sender,
             sequence_number,
             script,
+            max_gas_amount,
+            gas_unit_price,
+            gas_currency_code,
+            expiration_time_secs,
+            chain_id,
+        ),
+        TransactionPayload::ScriptFunction(script_fn) => RawTransaction::new_script_function(
+            sender,
+            sequence_number,
+            script_fn,
             max_gas_amount,
             gas_unit_price,
             gas_currency_code,

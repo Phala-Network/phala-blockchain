@@ -25,7 +25,6 @@ thiserror = { git = "https://github.com/mesalock-linux/thiserror-sgx.git" }
 once_cell = { git = "https://github.com/mesalock-linux/once_cell-sgx.git" }
 
 bcs = { path = "../../../vendor/bcs", version = "0.1.2" }
-diem-workspace-hack = { path = "../../../common/workspace-hack", version = "0.1.0" }
 diem-crypto = { path = "../../../crypto/crypto", version = "0.1.0", default-features = false }
 diem-crypto-derive = { path = "../../../crypto/crypto-derive", version = "0.1.0" }
 short-hex-str = { path = "../../../common/short-hex-str", version = "0.1.0" }

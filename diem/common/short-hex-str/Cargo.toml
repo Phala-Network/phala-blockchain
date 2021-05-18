@@ -15,8 +15,6 @@ sgx_tstd = { git = "https://github.com/apache/teaclave-sgx-sdk.git", rev = "v1.1
 serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", default-features = false }
 thiserror = { git = "https://github.com/mesalock-linux/thiserror-sgx.git" }
 
-diem-workspace-hack = { path = "../workspace-hack", version = "0.1.0" }
-
 [dev-dependencies]
 hex = "0.4.2"
 proptest = "0.10.1"
