@@ -488,9 +488,9 @@ checksum = "6245d59a3e82a7fc217c5828a6692dbc6dfb63a0c8c90495621f7b9d79704a0e"
 
 [[package]]
 name = "cpufeatures"
-version = "0.1.1"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dec1028182c380cc45a2e2c5ec841134f2dfd0f8f5f0a5bcd68004f81b5efdf4"
+checksum = "ed00c67cb5d0a7d64a44f6ad2668db7e7530311dd53ea79bcd4fb022c64911c8"
 dependencies = [
  "libc",
 ]
@@ -600,9 +600,9 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "0.99.13"
+version = "0.99.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f82b1b72f1263f214c0f823371768776c4f5841b942c9883aa8e5ec584fd0ba6"
+checksum = "5cc7b9cef1e351660e5443924e4f43ab25fbbed3e9a5f052df3677deb4d6b320"
 dependencies = [
  "convert_case",
  "proc-macro2",
@@ -1107,7 +1107,7 @@ dependencies = [
 [[package]]
 name = "hashbrown_tstd"
 version = "0.9.0"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "hermit-abi"
@@ -1697,6 +1697,7 @@ dependencies = [
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 2.1.1",
  "sp-arithmetic",
+ "sp-core",
  "sp-io",
  "sp-npos-elections",
  "sp-runtime",
@@ -2884,12 +2885,12 @@ dependencies = [
 [[package]]
 name = "sgx_alloc"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "sgx_backtrace"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_backtrace_sys",
  "sgx_demangle",
@@ -2903,7 +2904,7 @@ dependencies = [
 [[package]]
 name = "sgx_backtrace_sys"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "cc",
  "sgx_build_helper",
@@ -2913,17 +2914,17 @@ dependencies = [
 [[package]]
 name = "sgx_build_helper"
 version = "0.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "sgx_demangle"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "sgx_libc"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_types",
 ]
@@ -2931,7 +2932,7 @@ dependencies = [
 [[package]]
 name = "sgx_rand"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_trts",
  "sgx_tstd",
@@ -2941,7 +2942,7 @@ dependencies = [
 [[package]]
 name = "sgx_rand_derive"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "quote 0.3.15",
  "syn 0.11.11",
@@ -2950,7 +2951,7 @@ dependencies = [
 [[package]]
 name = "sgx_serialize_derive"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "quote 0.3.15",
  "sgx_serialize_derive_internals",
@@ -2960,7 +2961,7 @@ dependencies = [
 [[package]]
 name = "sgx_serialize_derive_internals"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "syn 0.11.11",
 ]
@@ -2968,7 +2969,7 @@ dependencies = [
 [[package]]
 name = "sgx_tcrypto"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_types",
 ]
@@ -2976,7 +2977,7 @@ dependencies = [
 [[package]]
 name = "sgx_tprotected_fs"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_trts",
  "sgx_types",
@@ -2985,7 +2986,7 @@ dependencies = [
 [[package]]
 name = "sgx_trts"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_libc",
  "sgx_types",
@@ -2994,7 +2995,7 @@ dependencies = [
 [[package]]
 name = "sgx_tse"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_types",
 ]
@@ -3002,7 +3003,7 @@ dependencies = [
 [[package]]
 name = "sgx_tseal"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_tcrypto",
  "sgx_trts",
@@ -3013,7 +3014,7 @@ dependencies = [
 [[package]]
 name = "sgx_tstd"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "hashbrown_tstd",
  "sgx_alloc",
@@ -3029,12 +3030,12 @@ dependencies = [
 [[package]]
 name = "sgx_types"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "sgx_unwind"
 version = "0.1.1"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "sgx_build_helper",
 ]

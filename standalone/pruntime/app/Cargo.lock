@@ -199,9 +199,9 @@ dependencies = [
 
 [[package]]
 name = "cpufeatures"
-version = "0.1.1"
+version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dec1028182c380cc45a2e2c5ec841134f2dfd0f8f5f0a5bcd68004f81b5efdf4"
+checksum = "ed00c67cb5d0a7d64a44f6ad2668db7e7530311dd53ea79bcd4fb022c64911c8"
 dependencies = [
  "libc",
 ]
@@ -684,9 +684,9 @@ dependencies = [
 
 [[package]]
 name = "notify"
-version = "4.0.16"
+version = "4.0.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2599080e87c9bd051ddb11b10074f4da7b1223298df65d4c2ec5bcf309af1533"
+checksum = "ae03c8c853dba7bfd23e571ff0cff7bc9dceb40a4cd684cd1681824183f45257"
 dependencies = [
  "bitflags",
  "filetime",
@@ -914,12 +914,12 @@ dependencies = [
 
 [[package]]
 name = "rocket"
-version = "0.4.7"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7febfdfd4d43facfc7daba20349ebe2c310c6735bd6a2a9255ea8bc425b4cb13"
+checksum = "864129cddfc12f5f411280837483d8b962d7b8dffc39b8639521ba3d665a8fca"
 dependencies = [
  "atty",
- "base64 0.12.3",
+ "base64 0.13.0",
  "log 0.4.14",
  "memchr",
  "num_cpus",
@@ -935,9 +935,9 @@ dependencies = [
 
 [[package]]
 name = "rocket_codegen"
-version = "0.4.7"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ceac2c55b2c8b1cdc53add64332defa5fc227f64263b86b4114d1386286d42a3"
+checksum = "ead6f30d0f57d1e81fa2182e7698cc43ed6b3a64e697f81337e40e730cdccbc8"
 dependencies = [
  "devise",
  "glob",
@@ -950,9 +950,9 @@ dependencies = [
 
 [[package]]
 name = "rocket_contrib"
-version = "0.4.7"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d7954a707f9ca18aa74ca8c1f5d1f900f52a4dceb68e96e3112143f759cfd20e"
+checksum = "bba0aa6a85c01e161af4aa3568b0b0266c1f0b18ceaa0efd638a8ee0a0ea4aa1"
 dependencies = [
  "log 0.4.14",
  "notify",
@@ -979,9 +979,9 @@ dependencies = [
 
 [[package]]
 name = "rocket_http"
-version = "0.4.7"
+version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce364100ed7a1bf39257b69ebd014c1d5b4979b0d365d8c9ab0aa9c79645493d"
+checksum = "596061b85bcc644728653978de084bb08ddc8fe3c41bee9c013bd3339861b109"
 dependencies = [
  "cookie",
  "hyper",
@@ -1046,12 +1046,12 @@ dependencies = [
 [[package]]
 name = "sgx_types"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 
 [[package]]
 name = "sgx_urts"
 version = "1.1.3"
-source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#5f04deb0911ea7074d7b6e141e932b264a0e99ff"
+source = "git+https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git#d1e2a909ee0a4e95437ba75149d12ab9d07fcfe1"
 dependencies = [
  "libc",
  "sgx_types",
