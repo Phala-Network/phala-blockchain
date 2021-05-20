@@ -7,7 +7,7 @@ use log::{error, info};
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData},
+    types::{ReqData, QueryRespData, TransferData, KittyTransferData, BtcTransferData},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -161,6 +161,48 @@ impl<'a> MsgSync<'a> {
         Ok(())
     }
 
+    pub async fn maybe_sync_lottery_egress(&mut self, sequence: &mut u64) -> Result<()> {
+        let query_resp = self.pr.query(7, ReqData::PendingLotteryEgress {sequence: *sequence}).await?;
+        let transfer_data = match query_resp {
+            QueryRespData::PendingLotteryEgress { lottery_queue_b64 } =>
+                base64::decode(&transfer_queue_b64)
+                    .map_err(|_| Error::FailedToDecode)?,
+            _ => return Err(anyhow!(Error::FailedToDecode))
+        };
+
+        let transfer_queue: Vec<BtcTransferData> = Decode::decode(&mut &transfer_data[..])
+            .map_err(|_|Error::FailedToDecode)?;
+        // No pending message. We are done.
+        if transfer_queue.is_empty() {
+            return Ok(());
+        }
+
+        self.maybe_update_signer_nonce().await?;
+
+        let mut next_seq = *sequence;
+        for transfer_data in &transfer_queue {
+            let msg_seq = transfer_data.data.sequence;
+            if msg_seq <= *sequence {
+                println!("Lottery {} has been submitted. Skipping...", msg_seq);
+                continue;
+            }
+            next_seq = cmp::max(next_seq, msg_seq);
+            let ret = self.client.submit(runtimes::lottery::TransferToChainCall {
+                _runtime: PhantomData,
+                data: transfer_data.encode()
+            }, self.signer).await;
+
+            if let Err(err) = ret {
+                println!("Failed to submit tx: {:?}", err);
+                // TODO: Should we fail early?
+            }
+            self.signer.increment_nonce();
+        }
+
+        *sequence = next_seq;
+
+        Ok(())
+    }
 
     /// Updates the nonce if it's not updated.
     ///

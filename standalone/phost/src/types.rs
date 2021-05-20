@@ -102,7 +102,7 @@ pub struct Query {
 pub enum ReqData {
     PendingChainTransfer { sequence: u64 },     // Balances
     PendingKittyTransfer {sequence: u64},       // Kitties
-    PendingLotteryTransfer {sequence: u64},     // Btc lottery
+    PendingLotteryEgress {sequence: u64},       // Btc lottery
     GetWorkerEgress { start_sequence: u64 },    // System
 }
 
@@ -161,8 +161,10 @@ pub struct KittyTransferData {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct BtcTransfer {
-    token_id: [u8; 32],
-    tx: String,
+    round_id: u32,
+    chain_id: u8,
+    token_id: Vec<u8>,
+    tx: Vec<u8>,
     sequence: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]

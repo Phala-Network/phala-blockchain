@@ -67,6 +67,8 @@ impl core::fmt::Debug for BtcLottery {
 // These two structs below are used for transferring messages to chain.
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct BtcTransfer {
+    round_id: u32,
+    chain_id: u8,
     token_id: Vec<u8>,
     tx: Vec<u8>,
     sequence: SequenceType,
@@ -219,7 +221,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             ) = pe
             {
                 // let blocknum = block_with_events.block_header.number;
-                let raw_seed = round_id;
+                let raw_seed = self.secret.as_ref().unwrap().to_raw_vec();
                 let token_id: U256 = U256::from(round_id) << 128;
                 for index_id in 0..total_count {
                     let nft_id = (token_id + index_id) | *TYPE_NF_BIT;
@@ -245,7 +247,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 let mut salt = round_id * 10000;
                 for winner_id in sample {
                     let s = Secp256k1::new();
-                    let raw_data = (raw_seed, salt);
+                    let raw_data = (raw_seed.clone(), salt);
                     let seed = blake2_128(&Encode::encode(&raw_data));
                     let sk = ExtendedPrivKey::new_master(Network::Bitcoin, &seed)
                         .unwrap()
@@ -261,6 +263,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             ) = pe
             {
                 let token_id = format!("{:#x}", token_id);
+                // from Vec<u8> to String
                 let btc_address = String::from_utf8(btc_address.clone()).unwrap();
                 let sender = AccountIdWrapper::from_hex(ALICE);
                 let target = Address::from_str(&btc_address).unwrap();
@@ -272,6 +275,8 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     .contains_key(&token_id))
                 {
                     BtcTransfer {
+                        round_id,
+                        chain_id: 1,
                         token_id: token_id.as_bytes().to_vec(),
                         tx: Vec::new(),
                         sequence,
@@ -324,6 +329,8 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     tx.input[0].witness.clear();
                     let tx_bytes = serialize(&tx);
                     BtcTransfer {
+                        round_id,
+                        chain_id: 1,
                         token_id: token_id.as_bytes().to_vec(),
                         tx: tx_bytes,
                         sequence,
@@ -339,6 +346,29 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 };
                 self.queue.push(transfer_data);
                 self.sequence = sequence;
+            } else if let chain::pallet_bridge_transfer::Event::BTCSignedTxSend(
+                round_id,
+                chain_id,
+                token_id,
+                tx,
+                sequence,
+            ) = pe
+            {
+                let transfer_data = BtcTransferData {
+                    data: BtcTransfer {
+                        round_id,
+                        chain_id,
+                        token_id,
+                        tx,
+                        sequence,
+                    },
+                    signature: Vec::new(),
+                };
+                println!("transfer data:{:?}", transfer_data);
+                // message dequeue
+                self.queue
+                    .retain(|x| x.data.sequence > transfer_data.data.sequence);
+                println!("queue len: {:}", self.queue.len());
             }
         }
     }
