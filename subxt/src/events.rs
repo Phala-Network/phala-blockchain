@@ -142,6 +142,7 @@ impl<T: System> EventsDecoder<T> {
         decoder.register_type_size::<(T::BlockNumber, u32)>("TaskAddress<BlockNumber>");
         // More
         decoder.register_type_size::<[u8; 32]>("CallHash");
+        decoder.register_type_size::<(T::BlockNumber, u32)>("Timepoint<BlockNumber>");
         decoder
     }
 
