@@ -35,20 +35,6 @@ pub struct BtcTransferData {
 	signature: Vec<u8>,
 }
 
-pub trait SignedDataType<T> {
-	fn raw_data(&self) -> Vec<u8>;
-	fn signature(&self) -> T;
-}
-
-impl<AccountId: Encode> SignedDataType<Vec<u8>> for BtcTransferData {
-	fn raw_data(&self) -> Vec<u8> {
-		Encode::encode(&self.data)
-	}
-
-	fn signature(&self) -> Vec<u8> {
-		self.signature.clone()
-	}
-}
 pub trait Config: system::Config + bridge::Config {
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
 
@@ -63,20 +49,15 @@ decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
 		BridgeTokenId get(fn bridge_tokenid): ResourceId;
 		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
-		ContractKey get(fn contract_key): map hasher(twox_64_concat) u32 => Vec<u8>;
 		IngressSequence get(fn ingress_sequence): map hasher(twox_64_concat) u32 => u64;
 	}
 
 	add_extra_genesis {
 		config(bridge_tokenid): ResourceId;
 		config(bridge_lotteryid): ResourceId;
-		config(contract_keys): Vec<Vec<u8>>;
 		build(|config: &GenesisConfig| {
 			BridgeTokenId::put(config.bridge_tokenid);
 			BridgeLotteryId::put(config.bridge_lotteryid);
-			for (i, key) in config.contract_keys.iter().enumerate() {
-				ContractKey::insert(i as u32, key);
-			};
 		});
 	}
 }
@@ -88,7 +69,7 @@ decl_event! {
 		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
 		LotteryOpenBox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
-		BTCSignedTxSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u32),
+		BTCSignedTxSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u64),
 	}
 }
 
@@ -109,7 +90,7 @@ decl_module! {
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u32) -> DispatchResult {
+		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::do_transfer_lottery(round_id, token_id, payload, dest_id, sequence)
 		}
@@ -181,31 +162,26 @@ decl_module! {
 		}
 
 		#[weight = 195_000_000]
-		pub fn transfer_to_chain(origin, data: Vec<u8>) -> Result {
+		pub fn transfer_to_chain(origin, data: Vec<u8>) -> DispatchResult {
 			const CONTRACT_ID: u32 = 7;
 			let transfer_data: BtcTransferData = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidCommand)?;
 			// Check sequence
 			let sequence = IngressSequence::get(CONTRACT_ID);
 			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::InvalidCommand);
-			// Contract key
-			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidCommand);
-			let pubkey = ContractKey::get(CONTRACT_ID);
 
 			let round_id = &transfer_data.data.round_id;
 			let chain_id = &transfer_data.data.chain_id;
 			let token_id = &transfer_data.data.token_id;
 			let tx_bytes = &transfer_data.data.tx;
-			// Validate TEE signature
-			Self::verify_signature(&pubkey, &transfer_data)?;
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::sudo_transfer_lottery(round_id, token_id, tx_bytes, chain_id, sequence + 1)?;
+			Self::sudo_transfer_lottery(origin, *round_id, token_id.clone(), tx_bytes.to_vec(), *chain_id, sequence + 1)?;
 			Ok(())
 		}
 	}
 }
 
 impl<T: Config> Module<T> {
-	pub fn do_transfer_lottery(round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u32) -> DispatchResult {
+	pub fn do_transfer_lottery(round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
 		ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 
 		let resource_id = Self::bridge_lotteryid();
@@ -217,7 +193,7 @@ impl<T: Config> Module<T> {
 		let mut encoded_round_id: Vec<u8> = round_id.encode();
 		encoded_round_id.reverse();
 
-		let mut encoded_token_id: Vec<u8> = token_id.encode();
+		let mut encoded_token_id: Vec<u8> = token_id;
 		encoded_token_id.reverse();
 
 		let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
@@ -225,31 +201,5 @@ impl<T: Config> Module<T> {
 		Self::deposit_event(Event::BTCSignedTxSend(round_id, dest_id, resource_id, payload, sequence));
 
 		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
-	}
-	pub fn verify_signature(
-		serialized_pk: &Vec<u8>,
-		data: &impl SignedDataType<Vec<u8>>,
-	) -> Result {
-		let pub_key = Self::try_parse_ecdsa_key(serialized_pk)?;
-		let signature = secp256k1::Signature::parse_slice(&data.signature())
-			.map_err(|_| Error::<T>::InvalidSignature)?;
-		let msg_hash = hashing::blake2_256(&data.raw_data());
-		let mut buffer = [0u8; 32];
-		buffer.copy_from_slice(&msg_hash);
-		let message = secp256k1::Message::parse(&buffer);
-		let verified = secp256k1::verify(&message, &signature, &pub_key);
-		ensure!(verified, Error::<T>::FailedToVerify);
-		Ok(())
-	}
-
-	fn try_parse_ecdsa_key(
-		serialized_pk: &Vec<u8>,
-	) -> frame_support::dispatch::result::Result<secp256k1::PublicKey, Error<T>> {
-		let mut pk = [0u8; 33];
-		if serialized_pk.len() != 33 {
-			return Err(Error::<T>::InvalidPubKey);
-		}
-		pk.copy_from_slice(&serialized_pk);
-		secp256k1::PublicKey::parse_compressed(&pk).map_err(|_| Error::<T>::InvalidPubKey)
 	}
 }

@@ -21,16 +21,10 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 use crate::types::TxRef;
 use crate::TransactionStatus;
-type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
-    chain::BlockNumber,
-    <chain::Runtime as frame_system::Config>::Hashing,
-    chain::Balance,
->;
-use phala_types::pruntime::BlockHeaderWithEvents as GenericBlockHeaderWithEvents;
+use log::info;
 use rand::{rngs::SmallRng, seq::index::IndexVec, seq::IteratorRandom, Rng, SeedableRng};
 use sp_core::hashing::blake2_128;
 use sp_core::U256;
-type EcdhKey = ring::agreement::EphemeralPrivateKey;
 type SequenceType = u64;
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
@@ -166,7 +160,10 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 utxo,
             } => {
                 let sender = AccountIdWrapper(_origin.clone());
-                let btc_address = Address::from_str(&address).unwrap();
+                let btc_address = match Address::from_str(&address) {
+                    Ok(e) => e,
+                    Err(error) => return TransactionStatus::BadCommand,
+                };
                 if self.admin.contains(&sender) {
                     let round_utxo = match self.utxo.entry(round_id) {
                         Occupied(entry) => entry.into_mut(),
@@ -197,16 +194,43 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 }
             }
             Request::GetRoundInfo { round_id } => {
-                let token_number = self.token_set.get(&round_id).unwrap().len();
-                let winner_count = self.lottery_set.get(&round_id).unwrap().len();
-                return Response::GetRoundInfo {
-                    token_number: token_number as u32,
-                    winner_count: winner_count as u32,
-                };
+                if (self.token_set.contains_key(&round_id)
+                    && self.lottery_set.contains_key(&round_id))
+                {
+                    let token_number = self
+                        .token_set
+                        .get(&round_id)
+                        .expect("round_id is invalid in token_set")
+                        .len();
+                    let winner_count = self
+                        .lottery_set
+                        .get(&round_id)
+                        .expect("round_id is invalid in lottery_set")
+                        .len();
+                    return Response::GetRoundInfo {
+                        token_number: token_number as u32,
+                        winner_count: winner_count as u32,
+                    };
+                } else {
+                    return Response::GetRoundInfo {
+                        token_number: 0,
+                        winner_count: 0,
+                    };
+                }
             }
             Request::QueryUtxo { round_id } => {
-                return Response::QueryUtxo {
-                    utxo: self.utxo.get(&round_id).unwrap().clone(),
+                if (self.utxo.contains_key(&round_id)) {
+                    return Response::QueryUtxo {
+                        utxo: self
+                            .utxo
+                            .get(&round_id)
+                            .expect("round_id is invalid in utxo")
+                            .clone(),
+                    };
+                } else {
+                    return Response::QueryUtxo {
+                        utxo: BTreeMap::<Address, (Txid, u32, u64)>::new(),
+                    };
                 }
             }
         }
@@ -220,28 +244,27 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 winner_count,
             ) = pe
             {
-                // let blocknum = block_with_events.block_header.number;
                 let raw_seed = self.secret.as_ref().unwrap().to_raw_vec();
                 let token_id: U256 = U256::from(round_id) << 128;
+                let mut round_token = match self.token_set.get(&round_id) {
+                    Some(_) => self
+                        .token_set
+                        .get(&round_id)
+                        .expect("invalid round_id in token_set")
+                        .clone(),
+                    None => Vec::new(),
+                };
                 for index_id in 0..total_count {
                     let nft_id = (token_id + index_id) | *TYPE_NF_BIT;
                     let token_id = format!("{:#x}", nft_id);
-                    let mut round_token = match self.token_set.get(&round_id) {
-                        Some(_) => self.token_set.get(&round_id).unwrap().clone(),
-                        None => Vec::new(),
-                    };
                     round_token.push(token_id);
-                    self.token_set.insert(round_id, round_token);
                 }
                 let lottery_token = match self.lottery_set.entry(round_id) {
                     Occupied(entry) => entry.into_mut(),
                     Vacant(entry) => entry.insert(Default::default()),
                 };
                 let mut r = rand::rngs::SmallRng::from_entropy();
-                let sample = self
-                    .token_set
-                    .get(&round_id)
-                    .unwrap()
+                let sample = round_token
                     .iter()
                     .choose_multiple(&mut r, winner_count as usize);
                 let mut salt = round_id * 10000;
@@ -249,12 +272,17 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     let s = Secp256k1::new();
                     let raw_data = (raw_seed.clone(), salt);
                     let seed = blake2_128(&Encode::encode(&raw_data));
-                    let sk = ExtendedPrivKey::new_master(Network::Bitcoin, &seed)
-                        .unwrap()
-                        .private_key;
+                    let sk = match ExtendedPrivKey::new_master(Network::Bitcoin, &seed) {
+                        Ok(e) => e.private_key,
+                        Err(err) => {
+                            info!("error in handle_event");
+                            return;
+                        }
+                    };
                     lottery_token.insert(String::from(winner_id), sk);
                     salt += 1;
                 }
+                self.token_set.insert(round_id, round_token);
                 self.round_id = round_id;
             } else if let chain::pallet_bridge_transfer::Event::LotteryOpenBox(
                 round_id,
@@ -262,90 +290,113 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 btc_address,
             ) = pe
             {
-                let token_id = format!("{:#x}", token_id);
-                // from Vec<u8> to String
-                let btc_address = String::from_utf8(btc_address.clone()).unwrap();
-                let sender = AccountIdWrapper::from_hex(ALICE);
-                let target = Address::from_str(&btc_address).unwrap();
-                let sequence = self.sequence + 1;
-                let data = if (!self
-                    .lottery_set
-                    .get(&round_id)
-                    .unwrap()
-                    .contains_key(&token_id))
-                {
-                    BtcTransfer {
-                        round_id,
-                        chain_id: 1,
-                        token_id: token_id.as_bytes().to_vec(),
-                        tx: Vec::new(),
-                        sequence,
-                    }
-                } else {
-                    let secp = Secp256k1::new();
-                    let private_key: PrivateKey = *self
+                if (self.lottery_set.contains_key(&round_id) && self.utxo.contains_key(&round_id)) {
+                    let token_id = format!("{:#x}", token_id);
+                    // from Vec<u8> to String
+                    let btc_address = match String::from_utf8(btc_address.clone()) {
+                        Ok(e) => e,
+                        Err(err) => {
+                            info!("error in handle_event");
+                            return;
+                        }
+                    };
+                    let sender = AccountIdWrapper::from_hex(ALICE);
+                    let target = match Address::from_str(&btc_address) {
+                        Ok(e) => e,
+                        Err(error) => {
+                            info!("error in handle_event");
+                            return;
+                        }
+                    };
+                    let sequence = self.sequence + 1;
+                    let data = if (!self
                         .lottery_set
                         .get(&round_id)
-                        .unwrap()
-                        .get(&token_id)
-                        .unwrap();
-                    let public_key = PublicKey::from_private_key(&secp, &private_key);
-                    let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
-                    let round_utxo = self.utxo.get(&round_id).unwrap();
-                    let (txid, vout, amount) = round_utxo.get(&prize_addr).unwrap();
-                    let mut tx = Transaction {
-                        input: vec![TxIn {
-                            previous_output: OutPoint {
-                                txid: *txid,
-                                vout: *vout,
-                            },
-                            sequence: RBF,
-                            witness: Vec::new(),
-                            script_sig: Script::new(),
-                        }],
-                        // TODO: deal with fee
-                        output: vec![TxOut {
-                            script_pubkey: target.script_pubkey(),
-                            value: *amount,
-                        }],
-                        lock_time: 0,
-                        version: 2,
+                        .expect("round_id is invalid in lottery_set")
+                        .contains_key(&token_id))
+                    {
+                        BtcTransfer {
+                            round_id,
+                            chain_id: 1,
+                            token_id: token_id.as_bytes().to_vec(),
+                            tx: Vec::new(),
+                            sequence,
+                        }
+                    } else {
+                        let secp = Secp256k1::new();
+                        let private_key: PrivateKey = *self
+                            .lottery_set
+                            .get(&round_id)
+                            .expect("round_id is invalid in lottery_set")
+                            .get(&token_id)
+                            .expect("token_id is invalid in lottery_set");
+                        let public_key = PublicKey::from_private_key(&secp, &private_key);
+                        let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
+                        let round_utxo = self
+                            .utxo
+                            .get(&round_id)
+                            .expect("round_id is invalid in utxo");
+                        let (txid, vout, amount) = round_utxo
+                            .get(&prize_addr)
+                            .expect("address is invalid in utxo");
+                        let mut tx = Transaction {
+                            input: vec![TxIn {
+                                previous_output: OutPoint {
+                                    txid: *txid,
+                                    vout: *vout,
+                                },
+                                sequence: RBF,
+                                witness: Vec::new(),
+                                script_sig: Script::new(),
+                            }],
+                            // TODO: deal with fee
+                            output: vec![TxOut {
+                                script_pubkey: target.script_pubkey(),
+                                value: *amount,
+                            }],
+                            lock_time: 0,
+                            version: 2,
+                        };
+                        let sighash = tx.signature_hash(
+                            0,
+                            &prize_addr.script_pubkey(),
+                            SigHashType::All.as_u32(),
+                        );
+                        let secp_sign: Secp256k1<All> = Secp256k1::<All>::new();
+                        let tx_sign = match Self::sign(&secp_sign, &sighash[..], &private_key) {
+                            Ok(e) => e.serialize_der(),
+                            Err(err) => {
+                                info!("error in handle_event");
+                                return;
+                            }
+                        };
+                        let mut with_hashtype = tx_sign.to_vec();
+                        with_hashtype.push(SigHashType::All.as_u32() as u8);
+                        tx.input[0].script_sig = Builder::new()
+                            .push_slice(with_hashtype.as_slice())
+                            .push_slice(public_key.to_bytes().as_slice())
+                            .into_script();
+                        tx.input[0].witness.clear();
+                        let tx_bytes = serialize(&tx);
+                        BtcTransfer {
+                            round_id,
+                            chain_id: 1,
+                            token_id: token_id.as_bytes().to_vec(),
+                            tx: tx_bytes,
+                            sequence,
+                        }
                     };
-                    let sighash = tx.signature_hash(
-                        0,
-                        &prize_addr.script_pubkey(),
-                        SigHashType::All.as_u32(),
-                    );
-                    let secp_sign: Secp256k1<All> = Secp256k1::<All>::new();
-                    let tx_sign = Self::sign(&secp_sign, &sighash[..], &private_key)
-                        .unwrap()
-                        .serialize_der();
-                    let mut with_hashtype = tx_sign.to_vec();
-                    with_hashtype.push(SigHashType::All.as_u32() as u8);
-                    tx.input[0].script_sig = Builder::new()
-                        .push_slice(with_hashtype.as_slice())
-                        .push_slice(public_key.to_bytes().as_slice())
-                        .into_script();
-                    tx.input[0].witness.clear();
-                    let tx_bytes = serialize(&tx);
-                    BtcTransfer {
-                        round_id,
-                        chain_id: 1,
-                        token_id: token_id.as_bytes().to_vec(),
-                        tx: tx_bytes,
-                        sequence,
-                    }
-                };
-                let secret = self.secret.as_ref().unwrap();
-                let signature = secret.sign(&Encode::encode(&data));
+                    let secret = self.secret.as_ref().unwrap();
+                    let signature = secret.sign(&Encode::encode(&data));
 
-                println!("signature={:?}", signature);
-                let transfer_data = BtcTransferData {
-                    data,
-                    signature: signature.0.to_vec(),
-                };
-                self.queue.push(transfer_data);
-                self.sequence = sequence;
+                    println!("signature={:?}", signature);
+                    let transfer_data = BtcTransferData {
+                        data,
+                        signature: signature.0.to_vec(),
+                    };
+                    self.queue.push(transfer_data);
+                    self.sequence = sequence;
+                }
             } else if let chain::pallet_bridge_transfer::Event::BTCSignedTxSend(
                 round_id,
                 chain_id,
@@ -358,7 +409,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     data: BtcTransfer {
                         round_id,
                         chain_id,
-                        token_id,
+                        token_id: token_id.to_vec(),
                         tx,
                         sequence,
                     },

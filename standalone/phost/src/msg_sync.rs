@@ -165,7 +165,7 @@ impl<'a> MsgSync<'a> {
         let query_resp = self.pr.query(7, ReqData::PendingLotteryEgress {sequence: *sequence}).await?;
         let transfer_data = match query_resp {
             QueryRespData::PendingLotteryEgress { lottery_queue_b64 } =>
-                base64::decode(&transfer_queue_b64)
+                base64::decode(&lottery_queue_b64)
                     .map_err(|_| Error::FailedToDecode)?,
             _ => return Err(anyhow!(Error::FailedToDecode))
         };
