@@ -22,7 +22,7 @@ use crate::std::vec::Vec;
 use crate::types::TxRef;
 use crate::TransactionStatus;
 use log::info;
-use rand::{rngs::SmallRng, seq::index::IndexVec, seq::IteratorRandom, Rng, SeedableRng};
+use rand::{rngs::OsRng, Rng, SeedableRng};
 use sp_core::hashing::blake2_128;
 use sp_core::U256;
 type SequenceType = u64;
@@ -44,7 +44,7 @@ pub struct BtcLottery {
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     sequence: SequenceType,
-    queue: Vec<BtcTransferData>,
+    queue: Vec<SendLotteryData>,
     #[serde(skip)]
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
@@ -60,7 +60,7 @@ impl core::fmt::Debug for BtcLottery {
 
 // These two structs below are used for transferring messages to chain.
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct BtcTransfer {
+pub struct SendLottery {
     round_id: u32,
     chain_id: u8,
     token_id: Vec<u8>,
@@ -68,8 +68,8 @@ pub struct BtcTransfer {
     sequence: SequenceType,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct BtcTransferData {
-    data: BtcTransfer,
+pub struct SendLotteryData {
+    data: SendLottery,
     signature: Vec<u8>,
 }
 
@@ -98,6 +98,7 @@ pub enum Request {
     QueryUtxo { round_id: u32 },
     // 获取某个round的已签名交易
     // GetSignedTx { round_id: u32 },
+    PendingLotteryEgress { sequence: SequenceType },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -112,6 +113,9 @@ pub enum Response {
         utxo: BTreeMap<Address, (Txid, u32, u64)>,
     },
     // GetSignedTx { round_id: u32 },
+    PendingLotteryEgress {
+        lottery_queue_b64: String,
+    },
 }
 
 impl BtcLottery {
@@ -188,11 +192,9 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
-            Request::GetAllRounds => {
-                return Response::GetAllRounds {
-                    round_id: self.round_id,
-                }
-            }
+            Request::GetAllRounds => Response::GetAllRounds {
+                round_id: self.round_id,
+            },
             Request::GetRoundInfo { round_id } => {
                 if (self.token_set.contains_key(&round_id)
                     && self.lottery_set.contains_key(&round_id))
@@ -207,30 +209,42 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                         .get(&round_id)
                         .expect("round_id is invalid in lottery_set")
                         .len();
-                    return Response::GetRoundInfo {
+                    Response::GetRoundInfo {
                         token_number: token_number as u32,
                         winner_count: winner_count as u32,
-                    };
+                    }
                 } else {
-                    return Response::GetRoundInfo {
+                    Response::GetRoundInfo {
                         token_number: 0,
                         winner_count: 0,
-                    };
+                    }
                 }
             }
             Request::QueryUtxo { round_id } => {
                 if (self.utxo.contains_key(&round_id)) {
-                    return Response::QueryUtxo {
+                    Response::QueryUtxo {
                         utxo: self
                             .utxo
                             .get(&round_id)
                             .expect("round_id is invalid in utxo")
                             .clone(),
-                    };
+                    }
                 } else {
-                    return Response::QueryUtxo {
+                    Response::QueryUtxo {
                         utxo: BTreeMap::<Address, (Txid, u32, u64)>::new(),
-                    };
+                    }
+                }
+            }
+            Request::PendingLotteryEgress { sequence } => {
+                println!("PendingLotteryEgress");
+                let transfer_queue: Vec<&SendLotteryData> = self
+                    .queue
+                    .iter()
+                    .filter(|x| x.data.sequence > sequence)
+                    .collect::<_>();
+
+                Response::PendingLotteryEgress {
+                    lottery_queue_b64: base64::encode(&transfer_queue.encode()),
                 }
             }
         }
@@ -263,7 +277,8 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     Occupied(entry) => entry.into_mut(),
                     Vacant(entry) => entry.insert(Default::default()),
                 };
-                let mut r = rand::rngs::SmallRng::from_entropy();
+                let mut seed_rng = OsRng;
+                let mut r = rand::rngs::StdRng::from_seed(seed_rng.gen());
                 let sample = round_token
                     .iter()
                     .choose_multiple(&mut r, winner_count as usize);
@@ -315,7 +330,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                         .expect("round_id is invalid in lottery_set")
                         .contains_key(&token_id))
                     {
-                        BtcTransfer {
+                        SendLottery {
                             round_id,
                             chain_id: 1,
                             token_id: token_id.as_bytes().to_vec(),
@@ -378,7 +393,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                             .into_script();
                         tx.input[0].witness.clear();
                         let tx_bytes = serialize(&tx);
-                        BtcTransfer {
+                        SendLottery {
                             round_id,
                             chain_id: 1,
                             token_id: token_id.as_bytes().to_vec(),
@@ -390,7 +405,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     let signature = secret.sign(&Encode::encode(&data));
 
                     println!("signature={:?}", signature);
-                    let transfer_data = BtcTransferData {
+                    let transfer_data = SendLotteryData {
                         data,
                         signature: signature.0.to_vec(),
                     };
@@ -405,8 +420,8 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 sequence,
             ) = pe
             {
-                let transfer_data = BtcTransferData {
-                    data: BtcTransfer {
+                let transfer_data = SendLotteryData {
+                    data: SendLottery {
                         round_id,
                         chain_id,
                         token_id: token_id.to_vec(),

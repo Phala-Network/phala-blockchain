@@ -22,7 +22,7 @@ type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub struct BtcTransfer {
+pub struct SendLottery {
 	round_id: u32,
 	chain_id: u8,
     token_id: Vec<u8>,
@@ -30,8 +30,8 @@ pub struct BtcTransfer {
     sequence: u64,
 }
 #[derive(Debug, Clone, Encode, Decode)]
-pub struct BtcTransferData {
-	data: BtcTransfer,
+pub struct SendLotteryData {
+	data: SendLottery,
 	signature: Vec<u8>,
 }
 
@@ -164,7 +164,7 @@ decl_module! {
 		#[weight = 195_000_000]
 		pub fn transfer_to_chain(origin, data: Vec<u8>) -> DispatchResult {
 			const CONTRACT_ID: u32 = 7;
-			let transfer_data: BtcTransferData = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidCommand)?;
+			let transfer_data: SendLotteryData = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidCommand)?;
 			// Check sequence
 			let sequence = IngressSequence::get(CONTRACT_ID);
 			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::InvalidCommand);

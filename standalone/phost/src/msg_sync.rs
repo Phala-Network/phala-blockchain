@@ -7,7 +7,7 @@ use log::{error, info};
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData, BtcTransferData},
+    types::{ReqData, QueryRespData, TransferData, KittyTransferData, SendLotteryData},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -170,7 +170,7 @@ impl<'a> MsgSync<'a> {
             _ => return Err(anyhow!(Error::FailedToDecode))
         };
 
-        let transfer_queue: Vec<BtcTransferData> = Decode::decode(&mut &transfer_data[..])
+        let transfer_queue: Vec<SendLotteryData> = Decode::decode(&mut &transfer_data[..])
             .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
         if transfer_queue.is_empty() {

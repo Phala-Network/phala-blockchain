@@ -161,7 +161,7 @@ pub struct KittyTransferData {
 
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
-pub struct BtcTransfer {
+pub struct SendLottery {
     round_id: u32,
     chain_id: u8,
     token_id: Vec<u8>,
@@ -170,8 +170,8 @@ pub struct BtcTransfer {
 }
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
-pub struct BtcTransferData {
-    pub data: BtcTransfer,
+pub struct SendLotteryData {
+    pub data: SendLottery,
     signature: Vec<u8>,
 }
 
