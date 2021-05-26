@@ -148,10 +148,10 @@ impl BtcLottery {
                     return;
                 }
             };
-            let token_id: U256 = U256::from(round_id) << 128;
+            let token_round_id: U256 = U256::from(round_id) << 128;
             let mut round_token = Vec::new();
-            for index_id in 1..=total_count {
-                let nft_id = (token_id + index_id) | *TYPE_NF_BIT;
+            for token_no in 1..=total_count {
+                let nft_id = (token_round_id + token_no) | *TYPE_NF_BIT;
                 let token_id = format!("{:#x}", nft_id);
                 round_token.push(token_id);
             }
@@ -182,6 +182,8 @@ impl BtcLottery {
             self.lottery_set.insert(round_id, lottery_token);
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
+        } else {
+            error!("Round {} has already started", round_id);
         }
     }
 
@@ -303,6 +305,8 @@ impl BtcLottery {
             };
             self.queue.push(transfer_data);
             self.sequence = sequence;
+        } else {
+            error!("Round {} has already started", round_id);
         }
     }
 }
