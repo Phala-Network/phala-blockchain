@@ -21,6 +21,20 @@ type ResourceId = bridge::ResourceId;
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+#[derive(Debug, Clone, Encode, Decode, PartialEq)]
+pub struct SendLottery {
+	round_id: u32,
+	chain_id: u8,
+    token_id: Vec<u8>,
+    tx: Vec<u8>,
+    sequence: u64,
+}
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SendLotteryData {
+	data: SendLottery,
+	signature: Vec<u8>,
+}
+
 pub trait Config: system::Config + bridge::Config {
 	type Event: From<Event> + Into<<Self as frame_system::Config>::Event>;
 
@@ -35,6 +49,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
 		BridgeTokenId get(fn bridge_tokenid): ResourceId;
 		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
+		IngressSequence get(fn ingress_sequence): map hasher(twox_64_concat) u32 => u64;
 	}
 
 	add_extra_genesis {
@@ -54,7 +69,7 @@ decl_event! {
 		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
 		LotteryOpenBox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
-		BTCSignedTxSend(bridge::ChainId, ResourceId, Vec<u8>),
+		BTCSignedTxSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u64),
 	}
 }
 
@@ -75,9 +90,9 @@ decl_module! {
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::do_transfer_lottery(round_id, token_id, payload, dest_id)
+			Self::do_transfer_lottery(round_id, token_id, payload, dest_id, sequence)
 		}
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
@@ -145,11 +160,28 @@ decl_module! {
 
 			Ok(())
 		}
+
+		#[weight = 195_000_000]
+		pub fn transfer_to_chain(origin, data: Vec<u8>) -> DispatchResult {
+			const CONTRACT_ID: u32 = 7;
+			let transfer_data: SendLotteryData = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidCommand)?;
+			// Check sequence
+			let sequence = IngressSequence::get(CONTRACT_ID);
+			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::InvalidCommand);
+
+			let round_id = &transfer_data.data.round_id;
+			let chain_id = &transfer_data.data.chain_id;
+			let token_id = &transfer_data.data.token_id;
+			let tx_bytes = &transfer_data.data.tx;
+			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			Self::sudo_transfer_lottery(origin, *round_id, token_id.clone(), tx_bytes.to_vec(), *chain_id, sequence + 1)?;
+			Ok(())
+		}
 	}
 }
 
 impl<T: Config> Module<T> {
-	pub fn do_transfer_lottery(round_id: u32, token_id: u32, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+	pub fn do_transfer_lottery(round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
 		ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 
 		let resource_id = Self::bridge_lotteryid();
@@ -161,12 +193,12 @@ impl<T: Config> Module<T> {
 		let mut encoded_round_id: Vec<u8> = round_id.encode();
 		encoded_round_id.reverse();
 
-		let mut encoded_token_id: Vec<u8> = token_id.encode();
+		let mut encoded_token_id: Vec<u8> = token_id;
 		encoded_token_id.reverse();
 
 		let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
 
-		Self::deposit_event(Event::BTCSignedTxSend(dest_id, resource_id, payload));
+		Self::deposit_event(Event::BTCSignedTxSend(round_id, dest_id, resource_id, payload, sequence));
 
 		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
 	}

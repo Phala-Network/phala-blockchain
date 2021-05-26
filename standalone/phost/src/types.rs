@@ -101,6 +101,8 @@ pub struct Query {
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
     PendingChainTransfer { sequence: u64 },     // Balances
+    PendingKittyTransfer {sequence: u64},       // Kitties
+    PendingLotteryEgress {sequence: u64},       // Btc lottery
     GetWorkerEgress { start_sequence: u64 },    // System
 }
 
@@ -108,6 +110,12 @@ pub enum ReqData {
 pub enum QueryRespData {
     PendingChainTransfer {
         transfer_queue_b64: String,
+    },
+    PendingKittyTransfer {
+        transfer_queue_b64: String,
+    },
+    PendingLotteryEgress {
+        lottery_queue_b64: String,
     },
     GetWorkerEgress {
         length: usize,
@@ -137,6 +145,35 @@ pub struct TransferData {
     pub signature: Vec<u8>,
 }
 
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct KittyTransfer {
+    pub dest: [u8; 32],
+    pub kitty_id: Vec<u8>,
+    pub sequence: u64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct KittyTransferData {
+    pub data: KittyTransfer,
+    pub signature: Vec<u8>,
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct SendLottery {
+    round_id: u32,
+    chain_id: u8,
+    token_id: Vec<u8>,
+    tx: Vec<u8>,
+    pub sequence: u64,
+}
+#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode)]
+pub struct SendLotteryData {
+    pub data: SendLottery,
+    signature: Vec<u8>,
+}
 
 // API: init_runtime
 

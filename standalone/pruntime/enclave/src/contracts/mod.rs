@@ -16,6 +16,8 @@ pub mod balances;
 pub mod data_plaza;
 pub mod diem;
 pub mod web3analytics;
+pub mod substrate_kitties;
+pub mod btc_lottery;
 pub mod woothee;
 
 pub type ContractId = u32;
@@ -26,6 +28,8 @@ pub const BALANCES: ContractId = 2;
 pub const ASSETS: ContractId = 3;
 pub const WEB3_ANALYTICS: ContractId = 4;
 pub const DIEM: ContractId = 5;
+pub const SUBSTRATE_KITTIES: ContractId = 6;
+pub const BTC_LOTTERY: ContractId = 7;
 
 pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
 where
