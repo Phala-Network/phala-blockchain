@@ -17,7 +17,7 @@ use sp_core::ecdsa;
 use std::collections::btree_map::Entry::{Occupied, Vacant};
 extern crate runtime as chain;
 use crate::std::collections::BTreeMap;
-use crate::std::string::String;
+use crate::std::string::{String, ToString};
 use crate::std::vec::Vec;
 use crate::types::TxRef;
 use crate::TransactionStatus;
@@ -89,6 +89,7 @@ pub enum Error {
 pub enum Request {
     GetAllRounds,
     GetRoundInfo { round_id: u32 },
+    GetRoundAddress { round_id: u32 },
     QueryUtxo { round_id: u32 },
     // GetSignedTx { round_id: u32 },
     PendingLotteryEgress { sequence: SequenceType },
@@ -101,6 +102,9 @@ pub enum Response {
     GetRoundInfo {
         token_number: u32,
         winner_count: u32,
+    },
+    GetRoundAddress {
+        prize_addr: Vec<String>,
     },
     QueryUtxo {
         utxo: BTreeMap<Address, (Txid, u32, u64)>,
@@ -377,6 +381,26 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     Response::GetRoundInfo {
                         token_number: token_number as u32,
                         winner_count: winner_count as u32,
+                    }
+                } else {
+                    Response::Error(Error::InvalidRequest)
+                }
+            }
+            Request::GetRoundAddress { round_id } => {
+                if self.lottery_set.contains_key(&round_id) {
+                    let temp = self
+                        .lottery_set
+                        .get(&round_id)
+                        .expect("round_id is known in the lottery_set; qed");
+                    let mut address_set = Vec::new();
+                    for (_, private_key) in temp.iter() {
+                        let secp = Secp256k1::new();
+                        let public_key = PublicKey::from_private_key(&secp, &private_key);
+                        let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
+                        address_set.push(prize_addr.to_string());
+                    }
+                    Response::GetRoundAddress {
+                        prize_addr: address_set,
                     }
                 } else {
                     Response::Error(Error::InvalidRequest)
