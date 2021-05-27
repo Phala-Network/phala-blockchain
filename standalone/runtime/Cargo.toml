@@ -53,7 +53,7 @@ pallet-collective = { version = "3.0.0", default-features = false, path = "../..
 pallet-democracy = { version = "3.0.0", default-features = false, path = "../../substrate/frame/democracy" }
 pallet-elections-phragmen = { version = "4.0.0", default-features = false, path = "../../substrate/frame/elections-phragmen" }
 pallet-election-provider-multi-phase = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-multi-phase" }
-pallet-grandpa = { version = "3.0.0", default-features = false, path = "../../substrate/frame/grandpa" }
+pallet-grandpa = { version = "3.1.0", default-features = false, path = "../../substrate/frame/grandpa" }
 pallet-im-online = { version = "3.0.0", default-features = false, path = "../../substrate/frame/im-online" }
 pallet-indices = { version = "3.0.0", default-features = false, path = "../../substrate/frame/indices" }
 pallet-identity = { version = "3.0.0", default-features = false, path = "../../substrate/frame/identity" }

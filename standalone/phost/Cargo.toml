@@ -32,7 +32,7 @@ sc-finality-grandpa = { version = "0.9.0", path = "../../substrate/client/finali
 sp-finality-grandpa = { version = "3.0.0", package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
 codec = { package = 'parity-scale-codec', version = "2.1" }
 
-pallet-grandpa = { version = "3.0.0", path = "../../substrate/frame/grandpa" }
+pallet-grandpa = { version = "3.1.0", path = "../../substrate/frame/grandpa" }
 pallet-indices = { version = "3.0.0", path = "../../substrate/frame/indices" }
 balances = { version = "3.0.0", package = "pallet-balances", path = "../../substrate/frame/balances" }
 sp-keyring = { version = "3.0.0", package = "sp-keyring", path = "../../substrate/primitives/keyring" }
