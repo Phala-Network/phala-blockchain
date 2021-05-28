@@ -34,6 +34,7 @@ use sc_client_api::{ExecutorProvider, RemoteBackend};
 use node_executor::Executor;
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_consensus_babe::SlotProportion;
+use sc_client_db::PruningMode;
 
 type FullClient = sc_service::TFullClient<Block, RuntimeApi, Executor>;
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -160,6 +161,11 @@ pub fn new_partial(
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
+		let backend = backend.clone();
+		let is_archive_mode = match config.state_pruning {
+			PruningMode::Constrained(_) => false,
+			PruningMode::ArchiveAll | PruningMode::ArchiveCanonical => true,
+		};
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
@@ -182,7 +188,9 @@ pub fn new_partial(
 				},
 			};
 
-			node_rpc::create_full(deps)
+			let mut io = node_rpc::create_full(deps);
+			rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode);
+			io
 		};
 
 		(rpc_extensions_builder, rpc_setup)

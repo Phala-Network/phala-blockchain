@@ -1,0 +1,29 @@
+[package]
+name = "rpc-ext"
+version = "0.1.0"
+edition = "2018"
+authors = ["Phala Network"]
+license = "Apache-2.0"
+homepage = "https://phala.network/"
+repository = "https://github.com/Phala-Network/phala-blockchain"
+
+[dependencies]
+# third-party dependencies
+serde = { version = "1.0.102", features = ["derive"] }
+thiserror = "1.0"
+jsonrpc-derive = "15.1"
+jsonrpc-core = "15.1"
+jsonrpc-core-client = "15.1"
+impl-serde = "0.3"
+
+# primitives
+sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
+sp-blockchain = { version = "3.0.0", path = "../../substrate/primitives/blockchain" }
+sp-api = { version = "3.0.0", path = "../../substrate/primitives/api" }
+
+# client dependencies
+sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
+
+# node-specific dependencies
+node-rpc = { version = "2.0.0", path = "../rpc" }
+
