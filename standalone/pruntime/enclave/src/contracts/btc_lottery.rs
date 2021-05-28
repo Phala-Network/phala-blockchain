@@ -56,10 +56,8 @@ impl core::fmt::Debug for BtcLottery {
 // These two structs below are used for transferring messages to chain.
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct SendLottery {
-    // payload_type: 0 represents btc_addr, 1 represents signed_tx
-    payload_type: u8,
     chain_id: u8,
-    payload: Vec<u8>,
+    payload: LotteryPayload,
     sequence: SequenceType,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
@@ -207,9 +205,8 @@ impl BtcLottery {
 
             let payload = LotteryPayload::BtcAddresses { address_set };
             let data = SendLottery {
-                payload_type: 0,
                 chain_id: 1,
-                payload: Encode::encode(&payload),
+                payload,
                 sequence,
             };
             let signature = secret.sign(&Encode::encode(&data));
@@ -263,9 +260,8 @@ impl BtcLottery {
                     tx: Vec::new(),
                 };
                 SendLottery {
-                    payload_type: 1,
                     chain_id: 1,
-                    payload: Encode::encode(&payload),
+                    payload,
                     sequence,
                 }
             } else {
@@ -330,9 +326,8 @@ impl BtcLottery {
                     tx: tx_bytes,
                 };
                 SendLottery {
-                    payload_type: 1,
                     chain_id: 1,
-                    payload: Encode::encode(&payload),
+                    payload,
                     sequence,
                 }
             };
@@ -494,17 +489,22 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             {
                 Self::open_lottery(self, round_id, token_id, btc_address);
             } else if let chain::pallet_bridge_transfer::Event::LotteryPayloadSend(
-                payload_type,
                 chain_id,
                 payload,
                 sequence,
             ) = pe
             {
+                let payload_data = match LotteryPayload::decode(&mut &payload[..]) {
+                    Ok(p) => p,
+                    Err(err) => {
+                        error!("Decode of payload: {:?} crashes!", payload);
+                        return;
+                    }
+                };
                 let transfer_data = SendLotteryData {
                     data: SendLottery {
-                        payload_type,
                         chain_id,
-                        payload,
+                        payload: payload_data,
                         sequence,
                     },
                     signature: Vec::new(),
