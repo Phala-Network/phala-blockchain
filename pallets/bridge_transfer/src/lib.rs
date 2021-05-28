@@ -69,7 +69,7 @@ decl_event! {
 		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
 		LotteryOpenBox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
-		BTCSignedTxSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u64),
+		LotteryPayloadSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u64),
 	}
 }
 
@@ -198,7 +198,7 @@ impl<T: Config> Module<T> {
 
 		let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
 
-		Self::deposit_event(Event::BTCSignedTxSend(round_id, dest_id, resource_id, payload, sequence));
+		Self::deposit_event(Event::LotteryPayloadSend(round_id, dest_id, resource_id, payload, sequence));
 
 		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
 	}
