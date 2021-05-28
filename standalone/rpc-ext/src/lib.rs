@@ -49,6 +49,11 @@ pub enum Error {
         /// End of the block range.
         to: String,
     },
+
+    /// Aborted due resource limiting such as MAX_NUMBER_OF_BLOCKS.
+    #[error("Resource limited, {0}.")]
+    ResourceLimited(String),
+
     /// Error occurred while processing some block.
     #[error("Error occurred while processing the block {0}.")]
     InvalidBlock(String),
@@ -79,8 +84,9 @@ impl From<Error> for jsonrpc_core::Error {
 
 #[rpc]
 pub trait NodeRpcExtApi<BlockHash> {
-    /// Return the storage changes for each block one by one from `from` to `to`.
-    /// The order is reversed.
+    /// Return the storage changes for each block one by one from `from` to `to` in reversed order.
+    /// To get better performance, the client should limit the amount of requested block properly.
+    /// 100 blocks for each call should be OK. REQUESTS FOR TOO LARGE NUMBER OF BLOCKS WILL BE REJECTED.
     #[rpc(name = "pha_getStorageChanges")]
     fn get_storage_changes(
         &self,
@@ -120,6 +126,7 @@ where
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
     Block: BlockT + 'static,
+    <<Block as BlockT>::Header as Header>::Number: Into<u64>,
 {
     fn get_storage_changes(
         &self,
@@ -154,6 +161,7 @@ where
     Block: BlockT + 'static,
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+    <<Block as BlockT>::Header as Header>::Number: Into<u64>,
 {
     fn header<Client: HeaderBackend<Block>, Block: BlockT>(
         client: &Client,
@@ -165,13 +173,20 @@ where
             .ok_or_else(|| Error::invalid_block(id, "header not found"))
     }
 
-    let n_from = *header(client, BlockId::Hash(from))?.number();
-    let n_to = *header(client, BlockId::Hash(to))?.number();
+    let n_from: u64 = (*header(client, BlockId::Hash(from))?.number()).into();
+    let n_to: u64 = (*header(client, BlockId::Hash(to))?.number()).into();
+
     if n_from >= n_to {
         return Err(Error::InvalidBlockRange {
             from: format!("{}({})", from, n_from),
             to: format!("{}({})", to, n_to),
         });
+    }
+
+    // TODO: Set max_number_of_blocks properly.
+    let max_number_of_blocks = 10000u64;
+    if n_to - n_from > max_number_of_blocks {
+        return Err(Error::ResourceLimited("Too large number of blocks".into()));
     }
 
     let api = client.runtime_api();
@@ -233,6 +248,7 @@ pub fn extend_rpc<Client, BE, Block>(
     Block: BlockT + 'static,
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+    <<Block as BlockT>::Header as Header>::Number: Into<u64>,
 {
     io.extend_with(NodeRpcExtApi::to_delegate(NodeRpcExt::new(
         client,
