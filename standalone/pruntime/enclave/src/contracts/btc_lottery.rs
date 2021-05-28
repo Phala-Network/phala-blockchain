@@ -56,10 +56,10 @@ impl core::fmt::Debug for BtcLottery {
 // These two structs below are used for transferring messages to chain.
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct SendLottery {
-    round_id: u32,
+    // payload_type: 0 represents btc_addr, 1 represents signed_tx
+    payload_type: u8,
     chain_id: u8,
-    token_id: Vec<u8>,
-    tx: Vec<u8>,
+    payload: Vec<u8>,
     sequence: SequenceType,
 }
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
@@ -70,8 +70,14 @@ pub struct SendLotteryData {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub enum LotteryPayload {
-    SignedTx { tx: Vec<u8> },
-    BtcAddresses { address_set: Vec<Vec<u8>> },
+    SignedTx {
+        round_id: u32,
+        token_id: Vec<u8>,
+        tx: Vec<u8>,
+    },
+    BtcAddresses {
+        address_set: Vec<Vec<u8>>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -201,10 +207,9 @@ impl BtcLottery {
 
             let payload = LotteryPayload::BtcAddresses { address_set };
             let data = SendLottery {
-                round_id,
+                payload_type: 0,
                 chain_id: 1,
-                token_id: Vec::new(),
-                tx: Encode::encode(&payload),
+                payload: Encode::encode(&payload),
                 sequence,
             };
             let signature = secret.sign(&Encode::encode(&data));
@@ -252,12 +257,15 @@ impl BtcLottery {
                 .expect("round_id is known in the lottery_set; qed")
                 .contains_key(&token_id)
             {
-                let payload = LotteryPayload::SignedTx { tx: Vec::new() };
-                SendLottery {
+                let payload = LotteryPayload::SignedTx {
                     round_id,
-                    chain_id: 1,
                     token_id: token_id.as_bytes().to_vec(),
-                    tx: Encode::encode(&payload),
+                    tx: Vec::new(),
+                };
+                SendLottery {
+                    payload_type: 1,
+                    chain_id: 1,
+                    payload: Encode::encode(&payload),
                     sequence,
                 }
             } else {
@@ -316,12 +324,15 @@ impl BtcLottery {
                     .into_script();
                 tx.input[0].witness.clear();
                 let tx_bytes = serialize(&tx);
-                let payload = LotteryPayload::SignedTx { tx: tx_bytes };
-                SendLottery {
+                let payload = LotteryPayload::SignedTx {
                     round_id,
-                    chain_id: 1,
                     token_id: token_id.as_bytes().to_vec(),
-                    tx: Encode::encode(&payload),
+                    tx: tx_bytes,
+                };
+                SendLottery {
+                    payload_type: 1,
+                    chain_id: 1,
+                    payload: Encode::encode(&payload),
                     sequence,
                 }
             };
@@ -483,19 +494,17 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             {
                 Self::open_lottery(self, round_id, token_id, btc_address);
             } else if let chain::pallet_bridge_transfer::Event::LotteryPayloadSend(
-                round_id,
+                payload_type,
                 chain_id,
-                token_id,
-                tx,
+                payload,
                 sequence,
             ) = pe
             {
                 let transfer_data = SendLotteryData {
                     data: SendLottery {
-                        round_id,
+                        payload_type,
                         chain_id,
-                        token_id: token_id.to_vec(),
-                        tx,
+                        payload,
                         sequence,
                     },
                     signature: Vec::new(),

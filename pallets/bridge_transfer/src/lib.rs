@@ -1,6 +1,7 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use codec::{Decode, Encode};
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, Get};
 use frame_support::{
 	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
@@ -9,9 +10,8 @@ use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_core::U256;
-use sp_std::prelude::*;
 use sp_std::convert::TryFrom;
-use codec::{Encode, Decode};
+use sp_std::prelude::*;
 
 mod mock;
 mod tests;
@@ -23,16 +23,27 @@ type BalanceOf<T> =
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct SendLottery {
-	round_id: u32,
+	payload_type: u8,
 	chain_id: u8,
-    token_id: Vec<u8>,
-    tx: Vec<u8>,
-    sequence: u64,
+	payload: Vec<u8>,
+	sequence: u64,
 }
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct SendLotteryData {
 	data: SendLottery,
 	signature: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct SignedTx {
+	round_id: u32,
+	token_id: Vec<u8>,
+	tx: Vec<u8>,
+}
+
+#[derive(Debug, Clone, Encode, Decode)]
+pub struct BtcAddresses {
+	address_set: Vec<Vec<u8>>,
 }
 
 pub trait Config: system::Config + bridge::Config {
@@ -69,7 +80,7 @@ decl_event! {
 		/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
 		LotteryOpenBox(u32, u32, Vec<u8>),
 		/// A signed BTC transaction was send. [dest_chain, resource_id, payload]
-		LotteryPayloadSend(u32, bridge::ChainId, ResourceId, Vec<u8>, u64),
+		LotteryPayloadSend(u8, bridge::ChainId, Vec<u8>, u64),
 	}
 }
 
@@ -90,9 +101,9 @@ decl_module! {
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn sudo_transfer_lottery(origin, round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
+		pub fn sudo_transfer_lottery(origin, payload_type: u8, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::do_transfer_lottery(round_id, token_id, payload, dest_id, sequence)
+			Self::do_transfer_lottery(payload_type, payload, dest_id, sequence)
 		}
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
@@ -169,23 +180,37 @@ decl_module! {
 			let sequence = IngressSequence::get(CONTRACT_ID);
 			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::InvalidCommand);
 
-			let round_id = &transfer_data.data.round_id;
+			let payload_type = &transfer_data.data.payload_type;
 			let chain_id = &transfer_data.data.chain_id;
-			let token_id = &transfer_data.data.token_id;
-			let tx_bytes = &transfer_data.data.tx;
+			let payload = transfer_data.data.payload;
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::sudo_transfer_lottery(origin, *round_id, token_id.clone(), tx_bytes.to_vec(), *chain_id, sequence + 1)?;
+			Self::sudo_transfer_lottery(origin, *payload_type, payload, *chain_id, sequence + 1)?;
 			Ok(())
 		}
 	}
 }
 
 impl<T: Config> Module<T> {
-	pub fn do_transfer_lottery(round_id: u32, token_id: Vec<u8>, payload: Vec<u8>, dest_id: bridge::ChainId, sequence: u64) -> DispatchResult {
-		ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
+	pub fn do_transfer_lottery(
+		payload_type: u8,
+		payload: Vec<u8>,
+		dest_id: bridge::ChainId,
+		sequence: u64,
+	) -> DispatchResult {
+		ensure!(
+			<bridge::Module<T>>::chain_whitelisted(dest_id),
+			Error::<T>::InvalidTransfer
+		);
 
 		let resource_id = Self::bridge_lotteryid();
-
+		let mut round_id: u32 = 0;
+		let mut token_id: Vec<u8> = Vec::new();
+		if payload_type == 1 {
+			let tx_data: SignedTx =
+				Decode::decode(&mut &payload[..]).map_err(|_| Error::<T>::InvalidCommand)?;
+			round_id = tx_data.round_id;
+			token_id = tx_data.token_id;
+		};
 		let payload_len: u32 = payload.len().saturated_into();
 		let mut encoded_payload_len: Vec<u8> = payload_len.encode();
 		encoded_payload_len.reverse();
@@ -196,9 +221,20 @@ impl<T: Config> Module<T> {
 		let mut encoded_token_id: Vec<u8> = token_id;
 		encoded_token_id.reverse();
 
-		let metadata: Vec<u8> = [encoded_round_id, encoded_token_id, encoded_payload_len, payload.clone()].concat();
+		let metadata: Vec<u8> = [
+			encoded_round_id,
+			encoded_token_id,
+			encoded_payload_len,
+			payload.clone(),
+		]
+		.concat();
 
-		Self::deposit_event(Event::LotteryPayloadSend(round_id, dest_id, resource_id, payload, sequence));
+		Self::deposit_event(Event::LotteryPayloadSend(
+			payload_type,
+			dest_id,
+			payload,
+			sequence,
+		));
 
 		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
 	}

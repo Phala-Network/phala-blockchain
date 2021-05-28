@@ -162,10 +162,9 @@ pub struct KittyTransferData {
 #[derive(Serialize, Deserialize, Debug)]
 #[derive(Encode, Decode)]
 pub struct SendLottery {
-    round_id: u32,
+    payload_type: u8,
     chain_id: u8,
-    token_id: Vec<u8>,
-    tx: Vec<u8>,
+    payload: Vec<u8>,
     pub sequence: u64,
 }
 #[derive(Serialize, Deserialize, Debug)]
