@@ -2,19 +2,40 @@
 
 use super::*;
 
-use frame_support::{ord_parameter_types, parameter_types, weights::Weight};
+use frame_support::{ord_parameter_types, parameter_types, weights::Weight, PalletId};
 use frame_system::{self as system};
 use sp_core::hashing::blake2_128;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{AccountIdConversion, BlakeTwo256, IdentityLookup},
-	ModuleId, Perbill,
+	Perbill,
 };
 
 use crate::{self as example, Config};
-use chainbridge as bridge;
+use pallet_bridge as bridge;
 pub use pallet_balances as balances;
+
+pub(crate) type Balance = u128;
+pub(crate) type BlockNumber = u64;
+
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
+type Block = frame_system::mocking::MockBlock<Test>;
+
+frame_support::construct_runtime!(
+	pub enum Test where
+		Block = Block,
+		NodeBlock = Block,
+		UncheckedExtrinsic = UncheckedExtrinsic
+	{
+		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
+		Erc721: erc721::{Pallet, Call, Storage, Event<T>},
+		Example: example::{Pallet, Call, Event<T>}
+	}
+);
+
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
@@ -47,6 +68,7 @@ impl frame_system::Config for Test {
 	type BlockWeights = ();
 	type BlockLength = ();
 	type SS58Prefix = ();
+	type OnSetCode = ();
 }
 
 parameter_types! {
@@ -100,30 +122,13 @@ impl Config for Test {
 	type Erc721Id = Erc721Id;
 }
 
-pub type Block = sp_runtime::generic::Block<Header, UncheckedExtrinsic>;
-pub type UncheckedExtrinsic = sp_runtime::generic::UncheckedExtrinsic<u32, u64, Call, ()>;
-
-frame_support::construct_runtime!(
-	pub enum Test where
-		Block = Block,
-		NodeBlock = Block,
-		UncheckedExtrinsic = UncheckedExtrinsic
-	{
-		System: system::{Module, Call, Event<T>},
-		Balances: balances::{Module, Call, Storage, Config<T>, Event<T>},
-		Bridge: bridge::{Module, Call, Storage, Event<T>},
-		Erc721: erc721::{Module, Call, Storage, Event<T>},
-		Example: example::{Module, Call, Event<T>}
-	}
-);
-
 pub const RELAYER_A: u64 = 0x2;
 pub const RELAYER_B: u64 = 0x3;
 pub const RELAYER_C: u64 = 0x4;
 pub const ENDOWED_BALANCE: u64 = 100_000_000;
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let bridge_id = ModuleId(*b"cb/bridg").into_account();
+	let bridge_id = PalletId(*b"cb/bridg").into_account();
 	let mut t = frame_system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
@@ -138,7 +143,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 fn last_event() -> Event {
-	system::Module::<Test>::events()
+	system::Pallet::<Test>::events()
 		.pop()
 		.map(|e| e.event)
 		.expect("Event expected")

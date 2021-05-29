@@ -30,6 +30,7 @@ pallet-balances = { version = "3.0.0", default-features = false, path = "../../s
 
 [build-dependencies]
 wasm-builder-runner = { version = "2.0.0", package = "substrate-wasm-builder-runner" }
+
 [features]
 default = ["std"]
 std = [
