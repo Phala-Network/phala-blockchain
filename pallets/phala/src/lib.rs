@@ -450,7 +450,7 @@ decl_module! {
 			// Validate time
 			let raw_report_timestamp = parsed_report["timestamp"].as_str().unwrap_or("UNKNOWN").to_owned() + "Z";
 			let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp).map_err(|_| Error::<T>::BadIASReport)?.timestamp();
-			ensure!((now as i64 - report_timestamp) < 60, Error::<T>::OutdatedIASReport);
+			ensure!((now as i64 - report_timestamp) < 3600, Error::<T>::OutdatedIASReport);
 
 			// Filter valid `isvEnclaveQuoteStatus`
 			let quote_status = &parsed_report["isvEnclaveQuoteStatus"].as_str().unwrap_or("UNKNOWN");
