@@ -13,7 +13,9 @@ use sp_std::prelude::*;
 use sp_std::convert::TryFrom;
 use codec::{Encode, Decode};
 
+#[cfg(test)]
 mod mock;
+#[cfg(test)]
 mod tests;
 
 type ResourceId = bridge::ResourceId;

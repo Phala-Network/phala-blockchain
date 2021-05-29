@@ -155,7 +155,7 @@ pub fn expect_event<E: Into<Event>>(e: E) {
 
 // Asserts that the event was emitted at some point.
 pub fn event_exists<E: Into<Event>>(e: E) {
-	let actual: Vec<Event> = system::Module::<Test>::events()
+	let actual: Vec<Event> = system::Pallet::<Test>::events()
 		.iter()
 		.map(|e| e.event.clone())
 		.collect();
@@ -173,7 +173,7 @@ pub fn event_exists<E: Into<Event>>(e: E) {
 // Checks events against the latest. A contiguous set of events must be provided. They must
 // include the most recent event, but do not have to include every past event.
 pub fn assert_events(mut expected: Vec<Event>) {
-	let mut actual: Vec<Event> = system::Module::<Test>::events()
+	let mut actual: Vec<Event> = system::Pallet::<Test>::events()
 		.iter()
 		.map(|e| e.event.clone())
 		.collect();

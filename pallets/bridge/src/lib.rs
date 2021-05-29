@@ -18,7 +18,9 @@ use sp_std::prelude::*;
 
 use codec::{Decode, Encode, EncodeLike};
 
+#[cfg(test)]
 mod mock;
+#[cfg(test)]
 mod tests;
 
 pub mod hashing;
