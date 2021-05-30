@@ -48,6 +48,7 @@ use sp_core::H256 as Hash;
 
 use http_req::request::{Method, Request};
 use std::time::Duration;
+use std::time::SystemTime;
 
 use pink::InkModule;
 
@@ -663,6 +664,7 @@ const ACTION_GET_RUNTIME_INFO: u8 = 10;
 const ACTION_SET: u8 = 21;
 const ACTION_GET: u8 = 22;
 const ACTION_TEST_INK: u8 = 100;
+const ACTION_TEST_THREAD: u8 = 111;
 
 #[no_mangle]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
@@ -707,6 +709,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
+                ACTION_TEST_THREAD => test_thread(payload),
                 _ => unknown(),
             }
         }
@@ -1629,6 +1632,56 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
             let result = InkModule::call(contract_key, tx);
             info!(">>> Code called with result {:?}", result.unwrap());
         }
+    }
+
+    Ok(json!({}))
+}
+
+const INTERVAL: u64 = 30;
+const MAX_NUM: u128 = 65536*1024;
+
+fn is_prime(num: u128) -> bool {
+    let tmp = num - 1;
+    for i in tmp..=2 {
+        if num % i == 0 {
+            return false;
+        }
+    }
+
+    true
+}
+
+fn check_prime() {
+    for i in 2..MAX_NUM {
+        let _ = is_prime(i);
+    }
+}
+
+fn test_thread(input: &Map<String, Value>) -> Result<Value, Value> {
+    let index = input.get("index").unwrap().as_i64().unwrap();
+
+    println!("=======Begin Thread {:?} Test=======", index);
+
+    loop {
+        let mut counter: u64 = 0;
+
+        let now = SystemTime::now();
+
+        let mut timeout = false;
+
+        while !timeout {
+            check_prime();
+
+            counter += 1;
+
+            if let Ok(elapsed) = now.elapsed() {
+                if elapsed.as_secs() >= INTERVAL {
+                    timeout = true;
+                }
+            }
+        }
+
+        println!("the counter of thread[{:}] is {:} in {:} secs", index, counter, INTERVAL);
     }
 
     Ok(json!({}))

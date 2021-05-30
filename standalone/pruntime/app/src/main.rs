@@ -1,5 +1,7 @@
 #![feature(decl_macro)]
 
+use std::thread;
+
 extern crate env_logger;
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -359,6 +361,43 @@ fn init_runtime(contract_input: Json<ContractInput>) -> JsonValue {
         ecall_handle(
             eid, &mut retval,
             1,
+            input_string.as_ptr(), input_string.len(),
+            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
+        )
+    };
+
+    match result {
+        sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+            json!(output_value)
+        },
+        _ => {
+            error!("[-] ECALL Enclave Failed {}!", result.as_str());
+            json!({
+                "status": "error",
+                "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
+            })
+        }
+    }
+}
+
+fn test_thread(index: u8) -> JsonValue {
+
+    let eid = get_eid();
+
+    let input_string = format!(r#"{{"input":{{"index":{:}}}}}"#, index);
+    let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
+    let mut output_len : usize = 0;
+    let output_slice = &mut return_output_buf;
+    let output_ptr = output_slice.as_mut_ptr();
+    let output_len_ptr = &mut output_len as *mut usize;
+
+    let mut retval = sgx_status_t::SGX_SUCCESS;
+    let result = unsafe {
+        ecall_handle(
+            eid, &mut retval,
+            111,
             input_string.as_ptr(), input_string.len(),
             output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
         )
@@ -854,7 +893,30 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    rocket().launch();
+    let mut core_num: u8 = 6;
+    let args: Vec<_> = env::args().collect();
+    if args.len() > 1 {
+        let arg1 = &args[1];
+        core_num = arg1.parse::<u8>().unwrap();;
+    }
+    println!("core number: {}", core_num);
+
+    let rocket = thread::spawn(move || {
+        rocket().launch();
+    });
+
+    let mut v = vec![];
+    for i in 0..core_num - 1 {
+        let child = thread::spawn(move || {
+            test_thread(i+1);
+        });
+        v.push(child);
+    }
+
+    rocket.join();
+    for child in v {
+        child.join();
+    }
 
     info!("Quit signal received, destroying enclave...");
     destroy_enclave();
