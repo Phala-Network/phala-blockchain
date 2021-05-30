@@ -48,6 +48,8 @@ Because the validator set rotation in every era, the relayer can only sync the b
 5. `pRuntime` applies the authority change at the last block of era 1
 6. ...
 
+![Grandpa Light Client](./static/grandpa-light-client.png)
+
 ### Block Header Stream
 
 Init `pRuntime`
