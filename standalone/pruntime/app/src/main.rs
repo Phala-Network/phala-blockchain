@@ -1,5 +1,7 @@
 #![feature(decl_macro)]
 
+use std::thread;
+
 extern crate env_logger;
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -448,7 +450,30 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    rocket().launch();
+    let mut core_num: u8 = 6;
+    let args: Vec<_> = env::args().collect();
+    if args.len() > 1 {
+        let arg1 = &args[1];
+        core_num = arg1.parse::<u8>().unwrap();;
+    }
+    println!("core number: {}", core_num);
+
+    let rocket = thread::spawn(move || {
+        rocket().launch();
+    });
+
+    let mut v = vec![];
+    for i in 0..core_num - 1 {
+        let child = thread::spawn(move || {
+            test_thread(i+1);
+        });
+        v.push(child);
+    }
+
+    rocket.join();
+    for child in v {
+        child.join();
+    }
 
     info!("Quit signal received, destroying enclave...");
     destroy_enclave();
