@@ -494,25 +494,8 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 sequence,
             ) = pe
             {
-                let payload_data = match LotteryPayload::decode(&mut &payload[..]) {
-                    Ok(p) => p,
-                    Err(err) => {
-                        error!("Decode of payload: {:?} crashes!", payload);
-                        return;
-                    }
-                };
-                let transfer_data = SendLotteryData {
-                    data: SendLottery {
-                        chain_id,
-                        payload: payload_data,
-                        sequence,
-                    },
-                    signature: Vec::new(),
-                };
-                println!("transfer data:{:?}", transfer_data);
                 // message dequeue
-                self.queue
-                    .retain(|x| x.data.sequence > transfer_data.data.sequence);
+                self.queue.retain(|x| x.data.sequence > sequence);
                 println!("queue len: {:}", self.queue.len());
             }
         }
