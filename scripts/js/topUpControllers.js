@@ -68,12 +68,21 @@ function realToBn(f) {
     return new BN(f * 1e3 | 0).mul(bn1e9);
 }
 
+function bnToReal(b) {
+    return b.div(bn1e9).toNumber() / 1e3;
+}
+
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
     const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
 
     const keyring = new Keyring({ type: 'sr25519' });
     const sender = keyring.addFromUri(process.env.PRIVKEY);
+
+    console.log(`Sender account:`, {
+        address: sender.address,
+        balance: bnToReal((await api.query.system.account(sender.address)).data.free),
+    });
 
     const targetAmount = parseFloat(process.env.TARGET_AMOUNT)
     let controllers = readAddress(process.env.CONTROLLER_ADDRESS_FILE);
@@ -86,7 +95,7 @@ async function main () {
 
     console.log('Getting balance');
     const balances = await getBalances(api, controllers);
-    const balancesFloat = balances.map(b => b.div(bn1e9).toNumber() / 1e3);
+    const balancesFloat = balances.map(bnToReal);
     let topUpPlan = controllers
         .map((address, idx) => ({
             address,
