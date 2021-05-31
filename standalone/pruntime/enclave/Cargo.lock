@@ -375,9 +375,9 @@ dependencies = [
 
 [[package]]
 name = "bumpalo"
-version = "3.6.1"
+version = "3.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "63396b8a4b9de3f4fdfb320ab6080762242f66a8ef174c49d8e19b674db4cdbe"
+checksum = "9c59e7af012c713f529e7a3ee57ce9b31ddd858d4b512923602f74608b009631"
 
 [[package]]
 name = "byte-slice-cast"
@@ -907,6 +907,7 @@ dependencies = [
  "frame-support-procedural",
  "impl-trait-for-tuples",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "max-encoded-len",
  "parity-scale-codec 2.1.1",
  "paste",
  "smallvec",
@@ -1408,6 +1409,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "max-encoded-len"
+version = "3.0.0"
+dependencies = [
+ "impl-trait-for-tuples",
+ "max-encoded-len-derive",
+ "parity-scale-codec 2.1.1",
+ "primitive-types",
+]
+
+[[package]]
+name = "max-encoded-len-derive"
+version = "3.0.0"
+dependencies = [
+ "proc-macro-crate 1.0.0",
+ "proc-macro2",
+ "quote 1.0.9",
+ "syn 1.0.72",
+]
+
+[[package]]
 name = "memchr"
 version = "2.2.1"
 source = "git+https://github.com/mesalock-linux/rust-memchr-sgx#fb51ee32766cb9a2be39b7fb2b5de26bb86dcdeb"
@@ -1641,6 +1662,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "max-encoded-len",
  "parity-scale-codec 2.1.1",
  "sp-runtime",
  "sp-std",
@@ -1671,7 +1693,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "substrate-wasm-builder-runner",
 ]
 
 [[package]]
@@ -1687,7 +1708,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "substrate-wasm-builder-runner",
 ]
 
 [[package]]
@@ -1927,6 +1947,7 @@ version = "3.0.0"
 dependencies = [
  "frame-support",
  "frame-system",
+ "max-encoded-len",
  "parity-scale-codec 2.1.1",
  "sp-core",
  "sp-io",
@@ -2254,6 +2275,7 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "max-encoded-len",
  "native-nostd-hasher",
  "node-primitives",
  "pallet-authority-discovery",
@@ -3190,6 +3212,7 @@ dependencies = [
 name = "sp-application-crypto"
 version = "3.0.0"
 dependencies = [
+ "max-encoded-len",
  "parity-scale-codec 2.1.1",
  "sp-core",
  "sp-io",
@@ -3288,6 +3311,7 @@ dependencies = [
  "hex 0.4.3",
  "libsecp256k1 0.3.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "max-encoded-len",
  "merlin",
  "num-traits 0.2.14",
  "parity-scale-codec 2.1.1",
@@ -3398,6 +3422,7 @@ dependencies = [
  "hash256-std-hasher",
  "impl-trait-for-tuples",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "max-encoded-len",
  "parity-scale-codec 2.1.1",
  "parity-util-mem",
  "paste",
@@ -3575,12 +3600,6 @@ dependencies = [
  "walkdir",
  "wasm-gc-api",
 ]
-
-[[package]]
-name = "substrate-wasm-builder-runner"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "54cab12167e32b38a62c5ea5825aa0874cde315f907a46aad2b05aa8ef3d862f"
 
 [[package]]
 name = "subtle"

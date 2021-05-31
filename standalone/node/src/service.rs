@@ -34,7 +34,6 @@ use sc_client_api::{ExecutorProvider, RemoteBackend};
 use node_executor::Executor;
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sc_consensus_babe::SlotProportion;
-use sc_client_db::PruningMode;
 
 type FullClient = sc_service::TFullClient<Block, RuntimeApi, Executor>;
 type FullBackend = sc_service::TFullBackend<Block>;
@@ -161,11 +160,6 @@ pub fn new_partial(
 		let select_chain = select_chain.clone();
 		let keystore = keystore_container.sync_keystore();
 		let chain_spec = config.chain_spec.cloned_box();
-		let backend = backend.clone();
-		let is_archive_mode = match config.state_pruning {
-			PruningMode::Constrained(_) => false,
-			PruningMode::ArchiveAll | PruningMode::ArchiveCanonical => true,
-		};
 
 		let rpc_extensions_builder = move |deny_unsafe, subscription_executor| {
 			let deps = node_rpc::FullDeps {
@@ -188,9 +182,7 @@ pub fn new_partial(
 				},
 			};
 
-			let mut io = node_rpc::create_full(deps);
-			rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode);
-			io
+			node_rpc::create_full(deps)
 		};
 
 		(rpc_extensions_builder, rpc_setup)
@@ -212,7 +204,6 @@ pub struct NewFullBase {
 	pub task_manager: TaskManager,
 	pub client: Arc<FullClient>,
 	pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
-	pub network_status_sinks: sc_service::NetworkStatusSinks<Block>,
 	pub transaction_pool: Arc<sc_transaction_pool::FullPool<Block, FullClient>>,
 }
 
@@ -250,7 +241,7 @@ pub fn new_full_base(
 		)
 	);
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -287,7 +278,6 @@ pub fn new_full_base(
 			task_manager: &mut task_manager,
 			on_demand: None,
 			remote_blockchain: None,
-			network_status_sinks: network_status_sinks.clone(),
 			system_rpc_tx,
 			telemetry: telemetry.as_mut(),
 		},
@@ -423,7 +413,6 @@ pub fn new_full_base(
 		task_manager,
 		client,
 		network,
-		network_status_sinks,
 		transaction_pool,
 	})
 }
@@ -527,7 +516,7 @@ pub fn new_light_base(
 		telemetry.as_ref().map(|x| x.handle()),
 	)?;
 
-	let (network, network_status_sinks, system_rpc_tx, network_starter) =
+	let (network, system_rpc_tx, network_starter) =
 		sc_service::build_network(sc_service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -584,7 +573,7 @@ pub fn new_light_base(
 			client: client.clone(),
 			transaction_pool: transaction_pool.clone(),
 			keystore: keystore_container.sync_keystore(),
-			config, backend, network_status_sinks, system_rpc_tx,
+			config, backend, system_rpc_tx,
 			network: network.clone(),
 			task_manager: &mut task_manager,
 			telemetry: telemetry.as_mut(),

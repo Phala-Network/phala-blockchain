@@ -35,6 +35,7 @@ sp-session = { version = "3.0.0", default-features = false, path = "../../substr
 sp-transaction-pool = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/transaction-pool" }
 sp-version = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/version" }
 sp-npos-elections = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/npos-elections" }
+max-encoded-len = { version = "3.0.0", default-features = false, path = "../../substrate/max-encoded-len", features = ["derive"] }
 
 # frame dependencies
 frame-executive = { version = "3.0.0", default-features = false, path = "../../substrate/frame/executive" }
@@ -156,6 +157,7 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
+	"max-encoded-len/std",
 	"pallet-kitties/std",
 	"pallet-phala/std",
 	"pallet-bridge/std",
