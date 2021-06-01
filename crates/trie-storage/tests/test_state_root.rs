@@ -1,12 +1,11 @@
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::path::PathBuf;
-use trie_storage::*;
 use sp_core::Hasher;
 use sp_runtime::traits::Hash;
 use sp_trie::trie_types::Layout;
 use sp_trie::TrieConfiguration as _;
-
+use std::collections::HashMap;
+use std::path::PathBuf;
+use trie_storage::*;
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct NativeBlakeTwo256;
@@ -35,6 +34,7 @@ impl Hash for NativeBlakeTwo256 {
 
 /// Storage key.
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(crate = "serde")]
 pub struct TestStorageKey(#[serde(with = "impl_serde::serialize")] Vec<u8>);
 
 /// Storage value.
@@ -47,12 +47,13 @@ type TestStorageCollection = Vec<(TestStorageKey, Option<TestStorageValue>)>;
 type TestChildStorageCollection = Vec<(TestStorageKey, TestStorageCollection)>;
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
+#[serde(crate = "serde")]
 struct RpcResponse {
     result: Vec<Changes>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
+#[serde(rename_all = "camelCase", crate = "serde")]
 struct Changes {
     main_storage_changes: TestStorageCollection,
     child_storage_changes: TestChildStorageCollection,
