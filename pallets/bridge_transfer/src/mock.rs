@@ -13,8 +13,8 @@ use sp_runtime::{
 };
 
 use crate::{self as example, Config};
-use pallet_bridge as bridge;
 pub use pallet_balances as balances;
+use pallet_bridge as bridge;
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
@@ -35,7 +35,6 @@ frame_support::construct_runtime!(
 		Example: example::{Pallet, Call, Event<T>}
 	}
 );
-
 
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;

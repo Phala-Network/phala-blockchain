@@ -4,15 +4,15 @@
 
 use super::*;
 
-use codec::Encode;
-use frame_system::RawOrigin;
-use frame_benchmarking::{benchmarks, account, whitelisted_caller};
-use sp_runtime::traits::Bounded;
-use crate::Pallet as PhalaPallet;
 use crate::types::{
-	Transfer, TransferData, RoundStats, WorkerStateEnum,
-	WorkerMessagePayload, WorkerMessage, SignedWorkerMessage,
+	RoundStats, SignedWorkerMessage, Transfer, TransferData, WorkerMessage, WorkerMessagePayload,
+	WorkerStateEnum,
 };
+use crate::Pallet as PhalaPallet;
+use codec::Encode;
+use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+use frame_system::RawOrigin;
+use sp_runtime::traits::Bounded;
 const CONTRACT_ID: u32 = 123;
 const SEED: u32 = 0;
 const DOLLARS: u128 = 1_000_000_000_000;
@@ -72,14 +72,35 @@ pub static IAS_SERVER_ROOTS: webpki::TLSServerTrustAnchors = webpki::TLSServerTr
 
 pub const IAS_REPORT_SAMPLE: &[u8] = include_bytes!("../sample/report");
 pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signature");
-pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] = include_bytes!("../sample/report_signing_certificate");
-pub const ENCODED_RUNTIME_INFO: &[u8] =  &[1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90, 188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50, 211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0];
-pub const MR_ENCLAVE: &[u8] = &[197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60, 149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174];
-pub const MR_SIGNER: &[u8] = &[131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219, 105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158];
+pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] =
+	include_bytes!("../sample/report_signing_certificate");
+pub const ENCODED_RUNTIME_INFO: &[u8] = &[
+	1, 122, 238, 139, 126, 110, 55, 54, 207, 3, 19, 185, 137, 120, 238, 90, 71, 2, 28, 239, 90,
+	188, 129, 213, 193, 164, 64, 149, 82, 38, 229, 204, 150, 142, 110, 10, 182, 8, 122, 212, 50,
+	211, 194, 12, 193, 229, 219, 235, 185, 232, 8, 4, 0, 0, 0, 1, 0, 0, 0,
+];
+pub const MR_ENCLAVE: &[u8] = &[
+	197, 133, 134, 94, 240, 217, 241, 198, 183, 30, 13, 63, 33, 137, 194, 220, 173, 192, 217, 60,
+	149, 183, 155, 167, 154, 211, 78, 127, 110, 181, 249, 174,
+];
+pub const MR_SIGNER: &[u8] = &[
+	131, 215, 25, 231, 125, 234, 202, 20, 112, 246, 186, 246, 42, 77, 119, 67, 3, 200, 153, 219,
+	105, 2, 15, 156, 112, 238, 29, 252, 8, 199, 206, 158,
+];
 pub const ISV_PROD_ID: &[u8] = &[0, 0];
 pub const ISV_SVN: &[u8] = &[0, 0];
-pub const TRANSFERDATASIG: &[u8] = &[183, 44, 217, 136, 114, 98, 81, 55, 139, 1, 17, 128, 125, 144, 62, 253, 168, 121, 42, 165, 3, 167, 211, 202, 133, 18, 248, 42, 189, 204, 69, 75, 68, 12, 46, 11, 158, 139, 159, 198, 37, 100, 52, 130, 225, 156, 204, 89, 158, 25, 86, 246, 182, 241, 193, 182, 200, 224, 155, 139, 192, 232, 181, 212, 0];
-pub const WORKMESSAGESIG: &[u8] = &[77, 39, 136, 77, 181, 131, 61, 148, 132, 59, 159, 217, 196, 162, 190, 219, 179, 121, 60, 89, 35, 21, 101, 185, 217, 143, 154, 196, 56, 49, 153, 13, 37, 157, 76, 131, 244, 5, 217, 70, 162, 20, 13, 246, 218, 146, 27, 249, 180, 68, 150, 252, 166, 123, 167, 66, 114, 102, 31, 138, 237, 221, 220, 55, 1];
+pub const TRANSFERDATASIG: &[u8] = &[
+	183, 44, 217, 136, 114, 98, 81, 55, 139, 1, 17, 128, 125, 144, 62, 253, 168, 121, 42, 165, 3,
+	167, 211, 202, 133, 18, 248, 42, 189, 204, 69, 75, 68, 12, 46, 11, 158, 139, 159, 198, 37, 100,
+	52, 130, 225, 156, 204, 89, 158, 25, 86, 246, 182, 241, 193, 182, 200, 224, 155, 139, 192, 232,
+	181, 212, 0,
+];
+pub const WORKMESSAGESIG: &[u8] = &[
+	77, 39, 136, 77, 181, 131, 61, 148, 132, 59, 159, 217, 196, 162, 190, 219, 179, 121, 60, 89,
+	35, 21, 101, 185, 217, 143, 154, 196, 56, 49, 153, 13, 37, 157, 76, 131, 244, 5, 217, 70, 162,
+	20, 13, 246, 218, 146, 27, 249, 180, 68, 150, 252, 166, 123, 167, 66, 114, 102, 31, 138, 237,
+	221, 220, 55, 1,
+];
 
 benchmarks! {
 	push_command {

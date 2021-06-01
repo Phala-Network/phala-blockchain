@@ -13,11 +13,11 @@ use serde::{
 
 pub mod assets;
 pub mod balances;
+pub mod btc_lottery;
 pub mod data_plaza;
 pub mod diem;
-pub mod web3analytics;
 pub mod substrate_kitties;
-pub mod btc_lottery;
+pub mod web3analytics;
 pub mod woothee;
 
 pub type ContractId = u32;

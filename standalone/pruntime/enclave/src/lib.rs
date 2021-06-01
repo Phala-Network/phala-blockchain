@@ -71,8 +71,8 @@ mod system;
 mod types;
 
 use contracts::{
-    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, DATA_PLAZA, DIEM, SYSTEM,
-    WEB3_ANALYTICS, SUBSTRATE_KITTIES, BTC_LOTTERY
+    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, BTC_LOTTERY, DATA_PLAZA, DIEM,
+    SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -1215,11 +1215,11 @@ fn handle_execution(
             _ => TransactionStatus::BadCommand,
         },
         SUBSTRATE_KITTIES => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract6.handle_command(&origin, pos,cmd),
+            Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
         BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract7.handle_command(&origin, pos,cmd),
+            Ok(cmd) => state.contract7.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
         _ => {
@@ -1458,10 +1458,10 @@ fn handle_events(
                     state.contract2.handle_event(evt.event.clone());
                 }
             }
-        } else if let chain::Event::pallet_kitties(pe) = &evt.event{
+        } else if let chain::Event::pallet_kitties(pe) = &evt.event {
             println!("pallet_kitties event: {:?}", pe);
             state.contract6.handle_event(evt.event.clone());
-        } else if let chain::Event::pallet_bridge_transfer(pe) = &evt.event{
+        } else if let chain::Event::pallet_bridge_transfer(pe) = &evt.event {
             println!("pallet_bridge_transfer event: {:?}", pe);
             state.contract7.handle_event(evt.event.clone());
         }

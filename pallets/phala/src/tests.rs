@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use codec::Encode;
 use frame_support::{
-	assert_noop, assert_ok, assert_err,
+	assert_err, assert_noop, assert_ok,
 	traits::{Currency, OnFinalize},
 };
 use frame_system::RawOrigin;
@@ -85,31 +85,37 @@ pub const IAS_REPORT_SIGNATURE: &[u8] = include_bytes!("../sample/report_signatu
 pub const IAS_REPORT_SIGNING_CERTIFICATE: &[u8] =
 	include_bytes!("../sample/report_signing_certificate");
 pub const ENCODED_RUNTIME_INFO: &[u8] = &[
-	1, 0, 0, 0, 245, 151, 21, 190, 193, 117, 248, 122, 224, 159, 253, 213, 21, 40, 218, 86, 2, 25, 129, 16, 9, 148, 237, 233, 24, 87, 49, 149, 68, 206, 59, 178, 136, 85, 70, 184, 49, 52, 238, 212, 135, 126, 1, 60, 194, 6, 214, 225, 53, 8, 4, 0, 0, 0, 1, 0, 0, 0
+	1, 0, 0, 0, 245, 151, 21, 190, 193, 117, 248, 122, 224, 159, 253, 213, 21, 40, 218, 86, 2, 25,
+	129, 16, 9, 148, 237, 233, 24, 87, 49, 149, 68, 206, 59, 178, 136, 85, 70, 184, 49, 52, 238,
+	212, 135, 126, 1, 60, 194, 6, 214, 225, 53, 8, 4, 0, 0, 0, 1, 0, 0, 0,
 ];
 pub const MR_ENCLAVE: &[u8] = &[
-	193, 119, 31, 106, 165, 11, 108, 56, 50, 228, 133, 114, 217, 104, 99, 119, 205, 66, 59, 160, 248, 168, 133, 153, 173, 165, 142, 87, 223, 26, 158, 120,
+	193, 119, 31, 106, 165, 11, 108, 56, 50, 228, 133, 114, 217, 104, 99, 119, 205, 66, 59, 160,
+	248, 168, 133, 153, 173, 165, 142, 87, 223, 26, 158, 120,
 ];
 pub const MR_SIGNER: &[u8] = &[
-	129, 95, 66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106, 29, 160, 19, 12, 59, 2, 139, 103, 49, 51, 166, 108, 249, 163, 224, 230,
+	129, 95, 66, 241, 28, 246, 68, 48, 195, 11, 171, 120, 22, 186, 89, 106, 29, 160, 19, 12, 59, 2,
+	139, 103, 49, 51, 166, 108, 249, 163, 224, 230,
 ];
 pub const ISV_PROD_ID: &[u8] = &[0, 0];
 pub const ISV_SVN: &[u8] = &[0, 0];
 
 fn ias_report_sample() -> Vec<u8> {
-	IAS_REPORT_SAMPLE[..(IAS_REPORT_SAMPLE.len() - 1)].to_vec()  // strip trailing `\n`
+	IAS_REPORT_SAMPLE[..(IAS_REPORT_SAMPLE.len() - 1)].to_vec() // strip trailing `\n`
 }
 
 fn ias_report_signature() -> Vec<u8> {
 	base64::decode(
-		&IAS_REPORT_SIGNATURE[..(IAS_REPORT_SIGNATURE.len() - 1)]  // strip trailing `\n`
-	).expect("decode sig failed")
+		&IAS_REPORT_SIGNATURE[..(IAS_REPORT_SIGNATURE.len() - 1)], // strip trailing `\n`
+	)
+	.expect("decode sig failed")
 }
 
 fn ias_report_signing_certificate() -> Vec<u8> {
 	base64::decode(
-		&IAS_REPORT_SIGNING_CERTIFICATE[..(IAS_REPORT_SIGNING_CERTIFICATE.len() - 1)] // strip trailing `\n`
-	).expect("decode cert failed")
+		&IAS_REPORT_SIGNING_CERTIFICATE[..(IAS_REPORT_SIGNING_CERTIFICATE.len() - 1)], // strip trailing `\n`
+	)
+	.expect("decode cert failed")
 }
 
 #[test]
@@ -121,18 +127,17 @@ fn test_validate_cert() {
 	let chain: Vec<&[u8]> = Vec::new();
 	let now_func = webpki::Time::from_seconds_since_unix_epoch(1613312566);
 
-	sig_cert.verify_is_valid_tls_server_cert(
-		SUPPORTED_SIG_ALGS,
-		&IAS_SERVER_ROOTS,
-		&chain,
-		now_func,
-	).expect("verify cert failed");
+	sig_cert
+		.verify_is_valid_tls_server_cert(SUPPORTED_SIG_ALGS, &IAS_SERVER_ROOTS, &chain, now_func)
+		.expect("verify cert failed");
 
-	sig_cert.verify_signature(
-		&webpki::RSA_PKCS1_2048_8192_SHA256,
-		&ias_report_sample(),
-		&sig,
-	).expect("verify sig failed");
+	sig_cert
+		.verify_signature(
+			&webpki::RSA_PKCS1_2048_8192_SHA256,
+			&ias_report_sample(),
+			&sig,
+		)
+		.expect("verify sig failed");
 }
 
 #[test]
@@ -144,7 +149,13 @@ fn test_register_worker() {
 		System::set_block_number(1);
 		Timestamp::set_timestamp(1613315656000);
 
-		assert_ok!(PhalaPallet::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaPallet::add_mrenclave(
+			Origin::root(),
+			MR_ENCLAVE.to_vec(),
+			MR_SIGNER.to_vec(),
+			ISV_PROD_ID.to_vec(),
+			ISV_SVN.to_vec()
+		));
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(1), 1));
 		assert_ok!(PhalaPallet::register_worker(
 			Origin::signed(1),
@@ -166,9 +177,24 @@ fn test_register_worker() {
 		System::set_block_number(1);
 		Timestamp::set_timestamp(1633310550000);
 
-		assert_ok!(PhalaPallet::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(PhalaPallet::add_mrenclave(
+			Origin::root(),
+			MR_ENCLAVE.to_vec(),
+			MR_SIGNER.to_vec(),
+			ISV_PROD_ID.to_vec(),
+			ISV_SVN.to_vec()
+		));
 		assert_ok!(PhalaPallet::set_stash(Origin::signed(1), 1));
-		assert_err!(PhalaPallet::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()), Error::<Test>::OutdatedIASReport);
+		assert_err!(
+			PhalaPallet::register_worker(
+				Origin::signed(1),
+				ENCODED_RUNTIME_INFO.to_vec(),
+				ias_report_sample(),
+				sig.clone(),
+				sig_cert_dec.clone()
+			),
+			Error::<Test>::OutdatedIASReport
+		);
 	});
 }
 
@@ -417,7 +443,10 @@ fn test_round_stats() {
 		);
 		assert_matches!(
 			events().as_slice(),
-			[Event::phala(RawEvent::RewardSeed(_)), Event::phala(RawEvent::NewMiningRound(1))]
+			[
+				Event::phala(RawEvent::RewardSeed(_)),
+				Event::phala(RawEvent::NewMiningRound(1))
+			]
 		);
 		// Block 2
 		System::set_block_number(2);
@@ -851,8 +880,8 @@ fn test_slash_verification() {
 	new_test_ext().execute_with(|| {
 		// Basic setup
 		System::set_block_number(1);
-		setup_test_worker(1);	// Not mining
-		setup_test_worker(2);	// Mining
+		setup_test_worker(1); // Not mining
+		setup_test_worker(2); // Mining
 		assert_ok!(PhalaPallet::start_mining_intention(Origin::signed(2)));
 		PhalaPallet::on_finalize(1);
 		System::finalize();
@@ -890,7 +919,7 @@ fn test_slash_verification() {
 			Error::<Test>::ReportedWorkerStillAlive
 		);
 		// Invalid proof
-		set_block_reward_base(102, U256::zero());  // Nobody can hit the target
+		set_block_reward_base(102, U256::zero()); // Nobody can hit the target
 		assert_noop!(
 			PhalaPallet::report_offline(Origin::signed(10), 2, 102),
 			Error::<Test>::InvalidProof
@@ -901,7 +930,7 @@ fn test_slash_verification() {
 #[test]
 fn test_worker_slash() {
 	new_test_ext().execute_with(|| {
-		use frame_support::storage::{StorageMap};
+		use frame_support::storage::StorageMap;
 		System::set_block_number(1);
 
 		// Block 1: register a worker at stash1 and start mining
@@ -978,7 +1007,7 @@ fn test_stash_fire() {
 
 		PhalaPallet::handle_claim_reward(&1, &2, false, true, 100, 1);
 		let round_worker_stats = crate::RoundWorkerStats::<Test>::get(1);
-		assert_eq!(round_worker_stats.compute_received, 7507_507507507507);	
+		assert_eq!(round_worker_stats.compute_received, 7507_507507507507);
 	});
 }
 
@@ -997,12 +1026,15 @@ fn setup_test_worker(stash: u64) {
 
 fn set_block_reward_base(block: BlockNumber, target: U256) {
 	use frame_support::storage::StorageMap;
-	crate::BlockRewardSeeds::<Test>::insert(block, BlockRewardInfo {
-		seed: U256::zero(),
-		// Set targets to MAX so the worker can hit the reward
-		online_target: target,
-		compute_target: target,
-	});
+	crate::BlockRewardSeeds::<Test>::insert(
+		block,
+		BlockRewardInfo {
+			seed: U256::zero(),
+			// Set targets to MAX so the worker can hit the reward
+			online_target: target,
+			compute_target: target,
+		},
+	);
 }
 
 fn ecdsa_load_sk(raw_key: &[u8]) -> secp256k1::SecretKey {
