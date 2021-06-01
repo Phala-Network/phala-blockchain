@@ -95,15 +95,3 @@ where
         self.0.root()
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::TrieStorage;
-    use sp_runtime::traits::BlakeTwo256;
-
-    #[test]
-    fn test_default() {
-        let trie: TrieStorage<BlakeTwo256> = Default::default();
-        assert_eq!(&[0u8; 32], trie.root().as_bytes());
-    }
-}
