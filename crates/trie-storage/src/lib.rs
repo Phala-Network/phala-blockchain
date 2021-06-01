@@ -47,9 +47,10 @@ where
         {
             let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
             for (key, value) in pairs {
-                let _ = trie_db
-                    .insert(key.as_ref(), value.as_ref())
-                    .expect("Insert item into trie DB should not fail");
+                match trie_db.insert(key.as_ref(), value.as_ref()) {
+                    Err(_) => panic!("Insert item into trie DB should not fail"),
+                    _ => (),
+                }
             }
         }
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(mdb, root));
