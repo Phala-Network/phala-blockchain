@@ -16,6 +16,7 @@ members = [
     "standalone/node",
 	"standalone/runtime",
 	"standalone/phost",
+	"crates/trie-storage",
 	"pallets/phala",
 	"pallets/mining_staking",
 	"pallets/bridge",

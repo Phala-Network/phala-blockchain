@@ -9467,6 +9467,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "trie-storage"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "impl-serde",
+ "parity-scale-codec",
+ "serde",
+ "serde_json",
+ "sp-core",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
+]
+
+[[package]]
 name = "trust-dns-proto"
 version = "0.20.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
