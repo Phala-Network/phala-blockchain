@@ -1,8 +1,37 @@
 use serde::{Deserialize, Serialize};
-use sp_runtime::traits::BlakeTwo256;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use trie_storage::*;
+use sp_core::Hasher;
+use sp_runtime::traits::Hash;
+use sp_trie::trie_types::Layout;
+use sp_trie::TrieConfiguration as _;
+
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub struct NativeBlakeTwo256;
+
+impl Hasher for NativeBlakeTwo256 {
+    type Out = sp_core::H256;
+    type StdHasher = hash256_std_hasher::Hash256StdHasher;
+    const LENGTH: usize = 32;
+
+    fn hash(s: &[u8]) -> Self::Out {
+        sp_core::hashing::blake2_256(s).into()
+    }
+}
+
+impl Hash for NativeBlakeTwo256 {
+    type Output = sp_core::H256;
+
+    fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>) -> Self::Output {
+        Layout::<Self>::trie_root(input)
+    }
+
+    fn ordered_trie_root(input: Vec<Vec<u8>>) -> Self::Output {
+        Layout::<Self>::ordered_trie_root(input)
+    }
+}
 
 /// Storage key.
 #[derive(Serialize, Deserialize, Clone, Debug)]
@@ -48,8 +77,8 @@ fn load_changes() -> Vec<Changes> {
     changes
 }
 
-fn load_genesis_trie() -> TrieStorage<BlakeTwo256> {
-    let mut trie: TrieStorage<BlakeTwo256> = Default::default();
+fn load_genesis_trie() -> TrieStorage<NativeBlakeTwo256> {
+    let mut trie: TrieStorage<NativeBlakeTwo256> = Default::default();
 
     let json_str = std::fs::read_to_string(data_dir().join("db-0.json")).unwrap();
     let json_value: serde_json::Value = serde_json::from_str(&json_str).unwrap();
