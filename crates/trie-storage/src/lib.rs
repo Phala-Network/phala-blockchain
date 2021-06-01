@@ -2,7 +2,7 @@
 
 extern crate alloc;
 
-mod ser;
+pub mod ser;
 
 use alloc::vec::Vec;
 
