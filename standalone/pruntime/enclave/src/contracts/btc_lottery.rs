@@ -25,6 +25,9 @@ use log::error;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use sp_core::hashing::blake2_256;
 use sp_core::U256;
+
+use phala_types::messaging::{Lottery, LotteryMessage, SignedLotteryMessage};
+
 type SequenceType = u64;
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
@@ -38,8 +41,9 @@ pub struct BtcLottery {
     round_id: u32,
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
-    sequence: SequenceType,
-    queue: Vec<SendLotteryData>,
+    sequence: SequenceType, // Starting from zero
+    #[serde(with = "super::serde_scale")]
+    queue: Vec<SignedLotteryMessage>,
     #[serde(skip)]
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
@@ -51,31 +55,6 @@ impl core::fmt::Debug for BtcLottery {
     fn fmt(&self, f: &mut core::fmt::Formatter) -> core::fmt::Result {
         write!(f, "Hi")
     }
-}
-
-// These two structs below are used for transferring messages to chain.
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct SendLottery {
-    chain_id: u8,
-    payload: LotteryPayload,
-    sequence: SequenceType,
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct SendLotteryData {
-    data: SendLottery,
-    signature: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub enum LotteryPayload {
-    SignedTx {
-        round_id: u32,
-        token_id: Vec<u8>,
-        tx: Vec<u8>,
-    },
-    BtcAddresses {
-        address_set: Vec<Vec<u8>>,
-    },
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -121,6 +100,7 @@ pub enum Response {
     },
     // GetSignedTx { round_id: u32 },
     PendingLotteryEgress {
+        length: usize,
         lottery_queue_b64: String,
     },
     Error(Error),
@@ -154,8 +134,9 @@ impl BtcLottery {
     }
 
     pub fn new_round(&mut self, round_id: u32, total_count: u32, winner_count: u32) {
+        info!("new_round({}, {}, {})", round_id, total_count, winner_count);
         if !self.token_set.contains_key(&round_id) && !self.lottery_set.contains_key(&round_id) {
-            let sequence = self.sequence + 1;
+            let sequence = self.sequence;
             let secret = match self.secret.as_ref() {
                 Some(s) => s,
                 None => {
@@ -170,12 +151,15 @@ impl BtcLottery {
                 let token_id = format!("{:#x}", nft_id);
                 round_token.push(token_id);
             }
+            info!("new_round: n round_token: {}", round_token.len());
             let mut lottery_token = BTreeMap::<String, PrivateKey>::new();
             let raw_seed = blake2_256(&Encode::encode(&(secret.to_raw_vec(), round_id)));
             let mut r: StdRng = SeedableRng::from_seed(raw_seed.clone());
             let sample = round_token
                 .iter()
                 .choose_multiple(&mut r, winner_count as usize);
+
+            info!("new_round: n sampled: {}", sample.len());
             let mut address_set = Vec::new();
             let mut salt = round_id * 10000;
             for winner_id in sample {
@@ -203,21 +187,21 @@ impl BtcLottery {
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
 
-            let payload = LotteryPayload::BtcAddresses { address_set };
-            let data = SendLottery {
-                chain_id: 1,
-                payload,
+            let msg = LotteryMessage {
+                payload: Lottery::BtcAddresses { address_set },
                 sequence,
             };
-            let signature = secret.sign(&Encode::encode(&data));
+            let perimage = Encode::encode(&msg);
+            let signature = secret.sign(&perimage).0.to_vec();
 
-            println!("signature={:?}", signature);
-            let transfer_data = SendLotteryData {
-                data,
-                signature: signature.0.to_vec(),
+            println!("new_round: data to sign (len={})", perimage.len());
+            println!("new_round: signature (len={})", signature.len());
+            let lottery_msg = SignedLotteryMessage {
+                data: msg,
+                signature,
             };
-            self.queue.push(transfer_data);
-            self.sequence = sequence;
+            self.queue.push(lottery_msg);
+            self.sequence = sequence + 1;
         } else {
             error!("Round {} has already started", round_id);
         }
@@ -254,16 +238,12 @@ impl BtcLottery {
                 .expect("round_id is known in the lottery_set; qed")
                 .contains_key(&token_id)
             {
-                let payload = LotteryPayload::SignedTx {
+                let payload = Lottery::SignedTx {
                     round_id,
                     token_id: token_id.as_bytes().to_vec(),
                     tx: Vec::new(),
                 };
-                SendLottery {
-                    chain_id: 1,
-                    payload,
-                    sequence,
-                }
+                LotteryMessage { payload, sequence }
             } else {
                 let secp = Secp256k1::new();
                 let private_key: PrivateKey = *self
@@ -320,16 +300,12 @@ impl BtcLottery {
                     .into_script();
                 tx.input[0].witness.clear();
                 let tx_bytes = serialize(&tx);
-                let payload = LotteryPayload::SignedTx {
+                let payload = Lottery::SignedTx {
                     round_id,
                     token_id: token_id.as_bytes().to_vec(),
                     tx: tx_bytes,
                 };
-                SendLottery {
-                    chain_id: 1,
-                    payload,
-                    sequence,
-                }
+                LotteryMessage { payload, sequence }
             };
             let secret = match self.secret.as_ref() {
                 Some(s) => s,
@@ -341,11 +317,11 @@ impl BtcLottery {
             let signature = secret.sign(&Encode::encode(&data));
 
             println!("signature={:?}", signature);
-            let transfer_data = SendLotteryData {
+            let message_data = SignedLotteryMessage {
                 data,
                 signature: signature.0.to_vec(),
             };
-            self.queue.push(transfer_data);
+            self.queue.push(message_data);
             self.sequence = sequence;
         } else {
             error!("Round {} has already started", round_id);
@@ -459,13 +435,14 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             }
             Request::PendingLotteryEgress { sequence } => {
                 println!("PendingLotteryEgress");
-                let transfer_queue: Vec<&SendLotteryData> = self
+                let transfer_queue: Vec<_> = self
                     .queue
                     .iter()
-                    .filter(|x| x.data.sequence > sequence)
-                    .collect::<_>();
+                    .filter(|x| x.data.sequence >= sequence)
+                    .collect();
 
                 Response::PendingLotteryEgress {
+                    length: transfer_queue.len(),
                     lottery_queue_b64: base64::encode(&transfer_queue.encode()),
                 }
             }
@@ -473,30 +450,27 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
     }
 
     fn handle_event(&mut self, ce: chain::Event) {
-        if let chain::Event::pallet_bridge_transfer(pe) = ce {
-            if let chain::pallet_bridge_transfer::Event::LotteryNewRound(
+        use chain::{
+            pallet_bridge_transfer::Event as BridgeTransferEvent,
+            pallet_phala::Event as PhalaEvent, Event,
+        };
+        match ce {
+            Event::pallet_bridge_transfer(BridgeTransferEvent::LotteryNewRound(
                 round_id,
                 total_count,
                 winner_count,
-            ) = pe
-            {
-                Self::new_round(self, round_id, total_count, winner_count);
-            } else if let chain::pallet_bridge_transfer::Event::LotteryOpenBox(
+            )) => Self::new_round(self, round_id, total_count, winner_count),
+            Event::pallet_bridge_transfer(BridgeTransferEvent::LotteryOpenBox(
                 round_id,
                 token_id,
                 btc_address,
-            ) = pe
-            {
-                Self::open_lottery(self, round_id, token_id, btc_address);
-            } else if let chain::pallet_bridge_transfer::Event::LotteryPayloadSend(
-                chain_id,
-                payload,
-                sequence,
-            ) = pe
-            {
-                // message dequeue
+            )) => Self::open_lottery(self, round_id, token_id, btc_address),
+            Event::pallet_phala(PhalaEvent::<chain::Runtime>::LotteryMessageReceived(sequence)) => {
                 self.queue.retain(|x| x.data.sequence > sequence);
-                println!("queue len: {:}", self.queue.len());
+                error!("Filtered queue len: {:}", self.queue.len());
+            }
+            _ => {
+                info!("BtcLottery: handle_event - skip unknown events");
             }
         }
     }

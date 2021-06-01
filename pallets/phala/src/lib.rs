@@ -1,5 +1,6 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
+use core::fmt::Debug;
 use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
@@ -9,8 +10,9 @@ use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch,
 use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
 use alloc::{borrow::ToOwned, vec::Vec};
-use codec::Decode;
+use codec::{Decode, Encode};
 use frame_support::{
+	dispatch::DispatchResult,
 	traits::{
 		Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness,
 		UnixTime,
@@ -32,6 +34,7 @@ pub mod weights;
 // types
 extern crate phala_types as types;
 use types::{
+	messaging::{Lottery, Message, MessageOrigin, SignedMessage},
 	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
 	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
 	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
@@ -59,10 +62,25 @@ type NegativeImbalanceOf<T> = <<T as Config>::TEECurrency as Currency<
 	<T as frame_system::Config>::AccountId,
 >>::NegativeImbalance;
 
+// Events
+
 pub trait OnRoundEnd {
 	fn on_round_end(_round: u32) {}
 }
 impl OnRoundEnd for () {}
+
+pub trait OnMessageReceived<AccountId, P>
+where
+	P: Encode + Decode + Clone + Debug,
+{
+	fn on_message_received(
+		_origin: &MessageOrigin<AccountId>,
+		_message: &Message<P>,
+	) -> DispatchResult {
+		Ok(())
+	}
+}
+impl<AccountId, P: Encode + Decode + Clone + Debug> OnMessageReceived<AccountId, P> for () {}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config {
@@ -73,6 +91,7 @@ pub trait Config: frame_system::Config {
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	type WeightInfo: WeightInfo;
 	type OnRoundEnd: OnRoundEnd;
+	type OnLotteryMessage: OnMessageReceived<Self::AccountId, Lottery>;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour: Get<u32>; // 2 tx
@@ -261,6 +280,8 @@ decl_event!(
 		WorkerReset(AccountId, Vec<u8>),
 		/// [dest, reward, treasury, reason]
 		PayoutReward(AccountId, Balance, Balance, PayoutReason),
+		/// A lottery contract message was received. [sequence]
+		LotteryMessageReceived(u64),
 	}
 );
 
@@ -294,7 +315,7 @@ decl_error! {
 		AlreadyPaired,
 		/// Commission is not between 0 and 100
 		InvalidCommission,
-		// Messagging
+		// Messaging
 		/// Cannot decode the message
 		InvalidMessage,
 		/// Wrong sequence number of a message
@@ -649,6 +670,36 @@ decl_module! {
 			}
 			// Advance ingress sequence
 			WorkerIngress::<T>::insert(&stash, expected_seq + 1);
+			Ok(())
+		}
+
+		#[weight = 0]
+		fn sync_lottery_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
+			// TODO: refacter as a generic message queue.
+
+			// This is a specialized Contract-to-Chain message passing where the confidential
+			// contract is always BtcLottery (id = 7)
+			// Anyone can call this method. As long as the message meets all the requirements
+			// (signature, sequence id, etc), it's considered as a valid message.
+			const CONTRACT_ID: u32 = 7;
+			ensure_signed(origin)?;
+			let signed_msg: SignedMessage<Lottery>
+				= Decode::decode(&mut &msg[..]).map_err(|_| Error::<T>::InvalidInput)?;
+			// Check sequence
+			let sequence = IngressSequence::get(CONTRACT_ID);
+			ensure!(signed_msg.data.sequence == sequence, Error::<T>::BadMessageSequence);
+			// Contract key
+			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
+			let pubkey = ContractKey::get(CONTRACT_ID);
+			// Validate TEE signature
+			Self::verify_signature(&pubkey, &signed_msg)?;
+			// Call the handler
+			use sp_core::H256;
+			let msg_origin = MessageOrigin::Contract(H256::from_low_u64_be(CONTRACT_ID as u64));
+			T::OnLotteryMessage::on_message_received(&msg_origin, &signed_msg.data)?;
+			// Announce the successful execution
+			IngressSequence::insert(CONTRACT_ID, sequence + 1);
+			Self::deposit_event(RawEvent::LotteryMessageReceived(sequence));
 			Ok(())
 		}
 

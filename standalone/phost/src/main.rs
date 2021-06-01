@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{error, debug, info, warn};
 use tokio::time::delay_for;
 use std::cmp;
@@ -249,9 +249,11 @@ async fn maybe_take_worker_snapshot(
 ) -> Result<()> {
     for bwe in dispatch_batch {
         let data = bwe.events.as_ref().unwrap();
-        if chain_client::check_round_end_event(events_decoder, data)? {
-            let snapshot = chain_client::snapshot_online_worker_at(
-                xt, Some(bwe.block_header.hash())).await;
+        if chain_client::check_round_end_event(events_decoder, data)
+            .with_context(|| format!("Error decoding block at: {}", bwe.block_header.number))?
+        {
+            let snapshot =
+                chain_client::snapshot_online_worker_at(xt, Some(bwe.block_header.hash())).await;
             bwe.worker_snapshot = match snapshot {
                 Ok(snapshot) => Some(snapshot),
                 Err(e) if e.is::<Error>() && matches!(e.downcast_ref().unwrap(), Error::ComputeWorkerNotEnabled) => None,
@@ -444,12 +446,12 @@ async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64> {
     client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None).await.or(Ok(0))
 }
 
-async fn get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
+async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
     client.fetch_or_default(&runtimes::kitties::IngressSequenceStore::new(6), None).await.or(Ok(0))
 }
 
 async fn get_lottery_ingress_seq(client: &XtClient) -> Result<u64> {
-    client.fetch_or_default(&runtimes::lottery::IngressSequenceStore::new(7), None).await.or(Ok(0))
+    client.fetch_or_default(&runtimes::phala::IngressSequenceStore::new(7), None).await.or(Ok(0))
 }
 
 async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
@@ -650,7 +652,6 @@ async fn bridge(args: Args) -> Result<()> {
     // Don't just sync message if we want to wait for some block
     let mut defer_block = wait_block_until.is_some();
     let mut balance_seq = get_balances_ingress_seq(&client).await?;
-    let mut kitty_sequence = get_kitties_ingress_seq(&client).await?;
     let mut lottery_sequence = get_lottery_ingress_seq(&client).await?;
     let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
@@ -736,7 +737,8 @@ async fn bridge(args: Args) -> Result<()> {
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                msg_sync.maybe_sync_kitty_egress(&mut kitty_sequence).await?;
+                // TODO: exam get_info for fast egress fetching
+                // msg_sync.maybe_sync_kitty_egress(&mut kitty_sequence).await?;
                 msg_sync.maybe_sync_lottery_egress(&mut lottery_sequence).await?;
                 msg_sync.maybe_sync_balances_egress(&mut balance_seq).await?;
             }

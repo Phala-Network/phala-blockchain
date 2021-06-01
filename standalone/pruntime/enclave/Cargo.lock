@@ -860,6 +860,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
 dependencies = [
+ "byteorder 1.4.3",
  "static_assertions",
 ]
 
@@ -1702,7 +1703,9 @@ dependencies = [
  "frame-support",
  "frame-system",
  "pallet-bridge",
+ "pallet-phala",
  "parity-scale-codec 2.1.1",
+ "phala-types",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -1932,6 +1935,7 @@ dependencies = [
  "pallet-randomness-collective-flip",
  "parity-scale-codec 2.1.1",
  "phala-types",
+ "primitive-types",
  "serde_json 1.0.64",
  "sp-core",
  "sp-io",

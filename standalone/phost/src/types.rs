@@ -159,21 +159,6 @@ pub struct KittyTransferData {
     pub signature: Vec<u8>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-#[derive(Encode, Decode)]
-pub struct SendLottery {
-    payload_type: u8,
-    chain_id: u8,
-    payload: Vec<u8>,
-    pub sequence: u64,
-}
-#[derive(Serialize, Deserialize, Debug)]
-#[derive(Encode, Decode)]
-pub struct SendLotteryData {
-    pub data: SendLottery,
-    signature: Vec<u8>,
-}
-
 // API: init_runtime
 
 #[derive(Serialize, Deserialize, Debug)]

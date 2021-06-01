@@ -2,6 +2,7 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
+use core::fmt::Debug;
 use codec::{Decode, Encode};
 use sp_core::U256;
 
@@ -10,6 +11,8 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "pruntime")]
 pub mod pruntime;
+
+// Messages: Phase Wallet
 
 #[derive(Encode, Decode)]
 pub struct Transfer<AccountId, Balance> {
@@ -23,6 +26,62 @@ pub struct TransferData<AccountId, Balance> {
     pub data: Transfer<AccountId, Balance>,
     pub signature: Vec<u8>,
 }
+
+pub mod messaging {
+    use alloc::vec::Vec;
+    use core::fmt::Debug;
+    use sp_core::H256;
+    use codec::{Decode, Encode};
+
+    /// The origin of a Phala message
+    // TODO: should we use XCM MultiLocation directly?
+    pub enum MessageOrigin<AccountId> {
+        /// Runtime pallets
+        Runtime,
+        /// A confidential contract
+        Contract(H256),
+        /// A user
+        AccountId(AccountId),
+        /// A remote location (parachain, etc.)
+        Multilocaiton(Vec<u8>),
+    }
+
+    // Messages: Lottery
+
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub enum Lottery {
+        SignedTx {
+            round_id: u32,
+            token_id: Vec<u8>,
+            tx: Vec<u8>,
+        },
+        BtcAddresses {
+            address_set: Vec<Vec<u8>>,
+        },
+    }
+
+    /// A generic message
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct Message<P: Encode + Decode + Clone + Debug> {
+        pub payload: P,
+        pub sequence: u64,
+    }
+
+    /// Signed generic message
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct SignedMessage<P: Encode + Decode + Clone + Debug> {
+        pub data: Message<P>,
+        pub signature: Vec<u8>,
+    }
+
+    // Convenient alias
+
+    pub type LotteryMessage = Message<Lottery>;
+    pub type SignedLotteryMessage = SignedMessage<Lottery>;
+}
+
+
+// Messages: System
 
 #[derive(Encode, Decode, Clone, Debug)]
 #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
@@ -48,6 +107,8 @@ pub struct SignedWorkerMessage {
     pub signature: Vec<u8>,
 }
 
+// Message support trait
+
 pub trait SignedDataType<T> {
     fn raw_data(&self) -> Vec<u8>;
     fn signature(&self) -> T;
@@ -65,6 +126,15 @@ impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>>
 }
 
 impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
+    fn raw_data(&self) -> Vec<u8> {
+        Encode::encode(&self.data)
+    }
+    fn signature(&self) -> Vec<u8> {
+        self.signature.clone()
+    }
+}
+
+impl<P: Encode + Decode + Clone + Debug> SignedDataType<Vec<u8>> for messaging::SignedMessage<P> {
     fn raw_data(&self) -> Vec<u8> {
         Encode::encode(&self.data)
     }
