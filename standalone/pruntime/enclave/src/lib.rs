@@ -79,6 +79,7 @@ use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use system::{CommandIndex, TransactionReceipt, TransactionStatus};
 use types::{Error, TxRef};
+use trie_storage::TrieStorage;
 
 type HeaderToSync =
     GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
@@ -89,6 +90,8 @@ type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
 >;
 type OnlineWorkerSnapshot =
     phala_types::pruntime::OnlineWorkerSnapshot<chain::BlockNumber, chain::Balance>;
+
+type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
 extern "C" {
     pub fn ocall_load_ias_spid(
@@ -180,6 +183,7 @@ struct LocalState {
     machine_id: [u8; 16],
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
+    runtime_state: TrieStorage<RuntimeHasher>,
 }
 
 struct TestContract {
@@ -263,6 +267,7 @@ lazy_static! {
                 machine_id: [0; 16],
                 dev_mode: false,
                 runtime_info: None,
+                runtime_state: Default::default(),
             }
         )
     };
@@ -1116,6 +1121,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     };
     local_state.runtime_info = Some(resp.clone());
     local_state.initialized = true;
+    // TODO: init genesis state
     Ok(serde_json::to_value(resp).unwrap())
 }
 
@@ -1331,7 +1337,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let mut local_state = LOCAL_STATE.lock().unwrap();
     // Ignore processed blocks
     let blocks: Vec<_> = all_blocks
-        .iter()
+        .into_iter()
         .filter(|b| b.block_header.number >= local_state.blocknum)
         .collect();
     // Validate blocks
@@ -1361,9 +1367,19 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             .expect("ECDH not initizlied"),
     );
     let mut last_block = 0;
-    for block in blocks.iter() {
+    for block in blocks.into_iter() {
         if block.events.is_none() {
             return Err(error_msg("Event was required"));
+        }
+
+        let changes = &block.storage_changes;
+        local_state
+            .runtime_state
+            .apply_changes(&changes.main_storage_changes, &changes.child_storage_changes);
+
+        if block.block_header.state_root != *local_state.runtime_state.root() {
+            // TODO: rollback the state
+            return Err(error_msg("State root mismatch"));
         }
 
         handle_events(&block, &ecdh_privkey, local_state.dev_mode)?;

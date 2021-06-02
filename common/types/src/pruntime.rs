@@ -4,6 +4,7 @@ use core::convert::TryFrom;
 
 use sp_core::U256;
 use sp_runtime::{generic::Header, traits::Hash as HashT};
+use trie_storage::ser::StorageChanges;
 
 pub type RawStorageKey = Vec<u8>;
 pub type StorageProof = Vec<Vec<u8>>;
@@ -54,4 +55,5 @@ where
     pub events: Option<Vec<u8>>,
     pub proof: Option<Vec<Vec<u8>>>,
     pub worker_snapshot: Option<OnlineWorkerSnapshot<BlockNumber, Balance>>,
+    pub storage_changes: StorageChanges,
 }
