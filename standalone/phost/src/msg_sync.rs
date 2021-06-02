@@ -7,7 +7,7 @@ use log::{error, info};
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData, SendLotteryData},
+    types::{ReqData, QueryRespData, TransferData, KittyTransferData},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -118,7 +118,7 @@ impl<'a> MsgSync<'a> {
         Ok(())
     }
 
-    pub async fn maybe_sync_kitty_egress(&mut self, sequence: &mut u64) -> Result<()> {
+    pub async fn _maybe_sync_kitty_egress(&mut self, sequence: &mut u64) -> Result<()> {
         let query_resp = self.pr.query(6, ReqData::PendingKittyTransfer {sequence: *sequence}).await?;
         let transfer_data = match query_resp {
             QueryRespData::PendingKittyTransfer { transfer_queue_b64 } =>
@@ -163,33 +163,33 @@ impl<'a> MsgSync<'a> {
 
     pub async fn maybe_sync_lottery_egress(&mut self, sequence: &mut u64) -> Result<()> {
         let query_resp = self.pr.query(7, ReqData::PendingLotteryEgress {sequence: *sequence}).await?;
-        let transfer_data = match query_resp {
+        let msg_data = match query_resp {
             QueryRespData::PendingLotteryEgress { lottery_queue_b64 } =>
                 base64::decode(&lottery_queue_b64)
                     .map_err(|_| Error::FailedToDecode)?,
             _ => return Err(anyhow!(Error::FailedToDecode))
         };
 
-        let transfer_queue: Vec<SendLotteryData> = Decode::decode(&mut &transfer_data[..])
+        let queue: Vec<phala_types::messaging::SignedLotteryMessage> = Decode::decode(&mut &msg_data[..])
             .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
-        if transfer_queue.is_empty() {
+        if queue.is_empty() {
             return Ok(());
         }
 
         self.maybe_update_signer_nonce().await?;
 
         let mut next_seq = *sequence;
-        for transfer_data in &transfer_queue {
-            let msg_seq = transfer_data.data.sequence;
-            if msg_seq <= *sequence {
+        for msg in &queue {
+            let msg_seq = msg.data.sequence;
+            if msg_seq < *sequence {
                 println!("Lottery {} has been submitted. Skipping...", msg_seq);
                 continue;
             }
-            next_seq = cmp::max(next_seq, msg_seq);
-            let ret = self.client.submit(runtimes::lottery::TransferToChainCall {
+            next_seq = cmp::max(next_seq, msg_seq + 1);
+            let ret = self.client.submit(runtimes::phala::SyncLotteryMessageCall {
                 _runtime: PhantomData,
-                data: transfer_data.encode()
+                msg: msg.encode()
             }, self.signer).await;
 
             if let Err(err) = ret {

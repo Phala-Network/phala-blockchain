@@ -1,14 +1,15 @@
 // Creating mock runtime here
 
 use crate as phala;
+use frame_support::parameter_types;
+use frame_support_test::TestRandomness;
+use frame_system as system;
 use sp_core::H256;
 use sp_runtime::{
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
 	Permill,
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
 };
-use frame_system as system;
-use frame_support::{parameter_types};
-use frame_support_test::TestRandomness;
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
@@ -104,6 +105,7 @@ impl phala::Config for Test {
 	type Treasury = ();
 	type WeightInfo = ();
 	type OnRoundEnd = ();
+	type OnLotteryMessage = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;

@@ -23,6 +23,8 @@ sp-arithmetic = { version = "3.0.0", default-features = false, path = "../../sub
 frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
 frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
 
+phala-types = { path = "../../common/types", default-features = false }
+pallet-phala = { path = "../phala", default-features = false }
 pallet-bridge = { path = "../bridge" , default-features = false }
 
 [dev-dependencies]

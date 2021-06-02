@@ -54,8 +54,6 @@ use subxt::{
     register_default_type_sizes
 };
 
-use self::phala::PhalaEventTypeRegistry;
-
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
 /// # Note
@@ -71,11 +69,15 @@ impl Runtime for PhalaNodeRuntime {
     fn register_type_sizes(event_type_registry: &mut EventTypeRegistry<Self>) {
         event_type_registry.with_system();
         event_type_registry.with_sudo();
-
-        event_type_registry.with_phala();
         event_type_registry.with_balances();
         event_type_registry.with_staking();
         event_type_registry.with_session();
+
+        use phala::PhalaEventTypeRegistry;
+        use chain_bridge::ChainBridgeEventTypeRegistry;
+
+        event_type_registry.with_phala();
+        event_type_registry.with_chain_bridge();
 
         register_default_type_sizes(event_type_registry);
     }
@@ -109,6 +111,8 @@ impl Session for PhalaNodeRuntime {
 impl phala::Phala for PhalaNodeRuntime {}
 
 impl mining_staking::MiningStaking for PhalaNodeRuntime {}
+
+impl chain_bridge::ChainBridge for PhalaNodeRuntime {}
 
 pub mod grandpa {
     use super::PhalaNodeRuntime;
@@ -306,6 +310,15 @@ pub mod phala {
         /// The raw message, SCALE encoded
         pub msg: Vec<u8>,
     }
+
+    /// The call to sync_lottery_message
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct SyncLotteryMessageCall<T: Phala> {
+        /// Runtime marker
+        pub _runtime: PhantomData<T>,
+        /// The raw message, SCALE encoded
+        pub msg: Vec<u8>,
+    }
 }
 
 pub mod mining_staking {
@@ -338,7 +351,7 @@ pub mod mining_staking {
 
 pub mod kitties {
     use super::PhalaNodeRuntime;
-    use codec::{Encode, Decode};
+    use codec::Encode;
     use subxt::{module, Call, Store, system::System, balances::Balances};
     use core::marker::PhantomData;
 
@@ -374,40 +387,15 @@ pub mod kitties {
     }
 }
 
-pub mod lottery {
-    use super::PhalaNodeRuntime;
-    use codec::{Encode, Decode};
-    use subxt::{module, Call, Store, system::System, balances::Balances};
-    use core::marker::PhantomData;
-
-    /// The subset of the `pallet_phala::Trait` that a client must implement.
+pub mod chain_bridge {
+    use subxt::{
+        module,
+        system::System,
+    };
     #[module]
-    pub trait BridgeTransfer: System + Balances {
-    }
-
-    impl BridgeTransfer for PhalaNodeRuntime {}
-    /// The call to transfer_to_chain
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct TransferToChainCall<T: BridgeTransfer> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The transfer transaction data, SCALA encoded
-        pub data: Vec<u8>,
-    }
-
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct IngressSequenceStore<T: BridgeTransfer> {
-        #[store(returns = u64)]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-        pub contract_id: u32,
-    }
-    impl<T: BridgeTransfer> IngressSequenceStore<T> {
-        pub fn new(contract_id: u32) -> Self {
-            Self {
-                _runtime: Default::default(),
-                contract_id,
-            }
-        }
+    pub trait ChainBridge: System {
+        #![event_alias(ChainId = u8)]
+        #![event_alias(ResourceId = [u8; 32])]
+        #![event_alias(DepositNonce = u64)]
     }
 }

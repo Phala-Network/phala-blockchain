@@ -1013,6 +1013,7 @@ impl pallet_phala::Config for Runtime {
 	type UnixTime = Timestamp;
 	type Treasury = Treasury;
 	type OnRoundEnd = MiningStaking;
+	type OnLotteryMessage = BridgeTransfer;
 	type WeightInfo = pallet_phala::weights::SubstrateWeight<Runtime>;
 
 	// Parameters

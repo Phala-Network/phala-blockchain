@@ -155,7 +155,7 @@ decl_module! {
 			Ok(())
 		}
 		#[weight = 0]
-		fn transfer(origin, to: T::AccountId, kitty_id: T::Hash) -> Result {
+		fn transfer(_origin, to: T::AccountId, kitty_id: T::Hash) -> Result {
 			let sender = Self::account_id();
 
 			let _owner = Self::owner_of(kitty_id).ok_or("No owner for this kitty")?;
