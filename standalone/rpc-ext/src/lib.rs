@@ -6,7 +6,7 @@ use node_rpc::IoHandler;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
 use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
 use serde::{Deserialize, Serialize};
-use sp_api::{ApiExt, Core, ProvideRuntimeApi};
+use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
 use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::fmt::Display;
@@ -84,7 +84,7 @@ impl From<Error> for jsonrpc_core::Error {
 
 #[rpc]
 pub trait NodeRpcExtApi<BlockHash> {
-    /// Return the storage changes for each block one by one from `from` to `to` in reversed order.
+    /// Return the storage changes for each block one by one from `from` to `to`(both inclusive) in reversed order.
     /// To get better performance, the client should limit the amount of requested block properly.
     /// 100 blocks for each call should be OK. REQUESTS FOR TOO LARGE NUMBER OF BLOCKS WILL BE REJECTED.
     #[rpc(name = "pha_getStorageChanges")]
@@ -176,7 +176,7 @@ where
     let n_from: u64 = (*header(client, BlockId::Hash(from))?.number()).into();
     let n_to: u64 = (*header(client, BlockId::Hash(to))?.number()).into();
 
-    if n_from >= n_to {
+    if n_from > n_to {
         return Err(Error::InvalidBlockRange {
             from: format!("{}({})", from, n_from),
             to: format!("{}({})", to, n_to),
@@ -203,6 +203,21 @@ where
         let parent_hash = *header.parent_hash();
         let parent_id = BlockId::Hash(parent_hash);
 
+        if (*header.number()).into() == 0u64 {
+            let state = backend
+                .state_at(id)
+                .map_err(|e| Error::invalid_block(parent_id, e))?;
+            changes.push(StorageChanges {
+                main_storage_changes: state
+                    .pairs()
+                    .into_iter()
+                    .map(|(k, v)| (StorageKey(k), Some(StorageKey(v))))
+                    .collect(),
+                child_storage_changes: vec![],
+            });
+            break;
+        }
+
         // Remove all `Seal`s as they are added by the consensus engines after building the block.
         // On import they are normally removed by the consensus engine.
         header.digest_mut().logs.retain(|d| d.as_seal().is_none());
@@ -223,7 +238,7 @@ where
             main_storage_changes: storage_changes.main_storage_changes.into_(),
             child_storage_changes: storage_changes.child_storage_changes.into_(),
         });
-        if parent_hash == from {
+        if this_block == from {
             break;
         } else {
             this_block = parent_hash;
