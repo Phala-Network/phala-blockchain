@@ -48,8 +48,9 @@ where
     /// Overwrite all data in the trie DB with given key/value pairs.
     pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
         let trie_be = core::mem::replace(self, Default::default()).0;
-        let mut root = *trie_be.root();
+        let mut root = Default::default();
         let mut mdb = trie_be.into_storage();
+        mdb.clear();
         {
             let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
             for (key, value) in pairs {
@@ -68,6 +69,15 @@ where
         delta: StorageCollection,
         child_deltas: ChildStorageCollection,
     ) {
+        if self.is_empty() {
+            self.load(delta.into_iter().map(|(k, v)| {
+                (k, match v {
+                    Some(v) => v,
+                    None => Vec::new(),
+                })
+            }));
+            return;
+        }
         let child_deltas: Vec<(ChildInfo, StorageCollection)> = child_deltas
             .into_iter()
             .map(|(k, v)| {
@@ -99,5 +109,10 @@ where
     /// Return the state root hash
     pub fn root(&self) -> &H::Out {
         self.0.root()
+    }
+
+    fn is_empty(&self) -> bool {
+        // TODO: a reliable way
+        *self.0.root() == Default::default()
     }
 }
