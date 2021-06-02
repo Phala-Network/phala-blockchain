@@ -119,7 +119,7 @@ fn test_apply_main_changes() {
             .map(|(k, v)| (k.0, map_storage_collection(v)))
             .collect();
 
-        trie.apply_changes(main_storage_changes, child_storage_changes);
+        trie.apply_changes(&main_storage_changes, &child_storage_changes);
         assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
     }
 }
@@ -138,7 +138,7 @@ fn test_apply_including_genesis() {
             .map(|(k, v)| (k.0, map_storage_collection(v)))
             .collect();
 
-        trie.apply_changes(main_storage_changes, child_storage_changes);
+        trie.apply_changes(&main_storage_changes, &child_storage_changes);
         assert_eq!(format!("{:?}", trie.root()), roots[number]);
     }
 }

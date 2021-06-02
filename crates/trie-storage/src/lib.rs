@@ -64,24 +64,24 @@ where
     }
 
     /// Apply storage changes grabbed from chain node to the trie DB.
-    pub fn apply_changes(
+    pub fn apply_changes<'a>(
         &mut self,
-        delta: StorageCollection,
-        child_deltas: ChildStorageCollection,
+        delta: &'a StorageCollection,
+        child_deltas: &'a ChildStorageCollection,
     ) {
         if self.is_empty() {
-            self.load(delta.into_iter().map(|(k, v)| {
+            self.load(delta.iter().map(|(k, v)| {
                 (k, match v {
-                    Some(v) => v,
+                    Some(v) => v.clone(),
                     None => Vec::new(),
                 })
             }));
             return;
         }
-        let child_deltas: Vec<(ChildInfo, StorageCollection)> = child_deltas
+        let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
             .into_iter()
             .map(|(k, v)| {
-                let chinfo = ChildInfo::new_default(k.as_ref());
+                let chinfo = ChildInfo::new_default(k);
                 (chinfo, v)
             })
             .collect();
