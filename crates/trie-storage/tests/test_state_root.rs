@@ -74,7 +74,6 @@ fn load_changes() -> Vec<Changes> {
     let json_str = std::fs::read_to_string(data_dir().join("changes.json")).unwrap();
     let response: RpcResponse = serde_json::from_str(json_str.as_str()).unwrap();
     let mut changes = response.result;
-    changes.reverse();
     changes
 }
 

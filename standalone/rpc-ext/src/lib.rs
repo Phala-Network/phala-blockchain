@@ -84,7 +84,7 @@ impl From<Error> for jsonrpc_core::Error {
 
 #[rpc]
 pub trait NodeRpcExtApi<BlockHash> {
-    /// Return the storage changes for each block one by one from `from` to `to`(both inclusive) in reversed order.
+    /// Return the storage changes for each block one by one from `from` to `to`(both inclusive).
     /// To get better performance, the client should limit the amount of requested block properly.
     /// 100 blocks for each call should be OK. REQUESTS FOR TOO LARGE NUMBER OF BLOCKS WILL BE REJECTED.
     #[rpc(name = "pha_getStorageChanges")]
@@ -244,6 +244,7 @@ where
             this_block = parent_hash;
         }
     }
+    changes.reverse();
     Ok(GetStorageChangesResponse(changes))
 }
 
