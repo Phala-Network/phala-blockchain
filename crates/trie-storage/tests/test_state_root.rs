@@ -123,3 +123,22 @@ fn test_apply_main_changes() {
         assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
     }
 }
+
+#[test]
+fn test_apply_including_genesis() {
+    let mut trie: TrieStorage<NativeBlakeTwo256> = Default::default();
+    let changes = load_changes();
+    let roots = load_roots();
+
+    for (number, change) in changes.into_iter().take(30).enumerate() {
+        let main_storage_changes = map_storage_collection(change.main_storage_changes);
+        let child_storage_changes: Vec<_> = change
+            .child_storage_changes
+            .into_iter()
+            .map(|(k, v)| (k.0, map_storage_collection(v)))
+            .collect();
+
+        trie.apply_changes(main_storage_changes, child_storage_changes);
+        assert_eq!(format!("{:?}", trie.root()), roots[number]);
+    }
+}
