@@ -26,5 +26,9 @@ enable_serde = [
 	"serde/alloc"
 ]
 pruntime = [
-	"sp-runtime"
+	"sp-runtime",
+	"trie-storage",
+]
+sgx = [
+	"trie-storage/sgx",
 ]
