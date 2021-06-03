@@ -273,13 +273,19 @@ pub fn extend_rpc<Client, BE, Block>(
 
 // Stuffs to convert ChildStorageCollection and StorageCollection types,
 // in order to dump the keys values into hex strings instead of list of dec numbers.
-trait MakeInto<T>: Sized {
+pub trait MakeInto<T>: Sized {
     fn into_(self) -> T;
 }
 
 impl MakeInto<StorageKey> for Vec<u8> {
     fn into_(self) -> StorageKey {
         StorageKey(self)
+    }
+}
+
+impl MakeInto<Vec<u8>> for StorageKey {
+    fn into_(self) -> Vec<u8> {
+        self.0
     }
 }
 
