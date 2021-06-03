@@ -5,6 +5,8 @@ use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
 use phala_types::pruntime::{self, StorageProof};
+use trie_storage::ser::StorageChanges;
+
 use std::vec::Vec;
 
 // Node Runtime
@@ -219,6 +221,7 @@ pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
     pub events: Option<Vec<u8>>,
     pub proof: Option<StorageProof>,
+    pub storage_changes: StorageChanges,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]

@@ -154,6 +154,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>) -> Result<Bloc
     let hash = block.block.header.hash();
 
     let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
+    let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
     if let Some((raw_events, proof, _key)) = events_with_proof {
         info!("          ... with events {} bytes", raw_events.len());
         let (events, proof) = (Some(raw_events), Some(proof));
@@ -161,6 +162,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>) -> Result<Bloc
             block,
             events,
             proof,
+            storage_changes,
         });
     }
 
@@ -169,6 +171,7 @@ async fn get_block_with_events(client: &XtClient, h: Option<u32>) -> Result<Bloc
             block,
             events: None,
             proof: None,
+            storage_changes,
         });
     }
 
@@ -340,6 +343,7 @@ async fn sync_events_only(
             events: bwe.events,
             proof: bwe.proof,
             worker_snapshot: None,
+            storage_changes: bwe.storage_changes,
         })
         .collect();
     maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
@@ -478,6 +482,7 @@ async fn batch_sync_block(
                         events: bwe.events,
                         proof: bwe.proof,
                         worker_snapshot: None,
+                        storage_changes: bwe.storage_changes,
                     })
                     .collect();
                 maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;

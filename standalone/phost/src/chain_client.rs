@@ -17,6 +17,8 @@ use crate::{
         utils::raw_proof,
     }
 };
+use trie_storage::ser::StorageChanges;
+use rpc_ext::MakeInto as _;
 
 /// Gets a single storage item
 pub  async fn get_storage(
@@ -49,6 +51,18 @@ pub async fn fetch_events(client: &XtClient, hash: &Hash)
         None => None,
     };
     Ok(result)
+}
+
+pub async fn fetch_storage_changes(client: &XtClient, hash: &Hash) -> Result<StorageChanges> {
+    let response = client.rpc.get_storage_changes(hash, hash).await?;
+    let first = response
+        .into_iter()
+        .next()
+        .ok_or(anyhow!(crate::error::Error::BlockNotFound))?;
+    Ok(StorageChanges {
+        main_storage_changes: first.main_storage_changes.into_(),
+        child_storage_changes: first.child_storage_changes.into_(),
+    })
 }
 
 /// Takes a snapshot of the necessary information for calculating compute works at a certain block
