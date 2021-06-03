@@ -88,6 +88,7 @@ use crate::{
         SystemEvents,
     },
 };
+use rpc_ext::GetStorageChangesResponse;
 
 pub type ChainBlock<T> =
     SignedBlock<Block<<T as System>::Header, <T as System>::Extrinsic>>;
@@ -346,6 +347,22 @@ impl<T: Runtime> Rpc<T> {
         let params = &[to_json_value(keys)?, to_json_value(at)?];
         self.client
             .request("state_queryStorageAt", params)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Query storage changes
+    pub async fn get_storage_changes(
+        &self,
+        from: &T::Hash,
+        to: &T::Hash,
+    ) -> Result<GetStorageChangesResponse, Error> {
+        let params = &[
+            to_json_value(from)?,
+            to_json_value(to)?,
+        ];
+        self.client
+            .request("pha_getStorageChanges", params)
             .await
             .map_err(Into::into)
     }
