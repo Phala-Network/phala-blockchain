@@ -320,6 +320,16 @@ impl<T: Runtime> Rpc<T> {
         Ok(data)
     }
 
+    /// Returns the keys with prefix, leave empty to get all the keys
+    pub async fn storage_pairs(&self, prefix: StorageKey, hash: Option<T::Hash>) -> Result<Vec<(StorageKey, StorageData)>, Error> {
+        let params = &[
+            to_json_value(prefix)?,
+            to_json_value(hash)?,
+        ];
+        let data = self.client.request("state_getPairs", params).await?;
+        Ok(data)
+    }
+
     /// Query historical storage entries
     pub async fn query_storage(
         &self,
