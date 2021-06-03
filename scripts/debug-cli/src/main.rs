@@ -44,7 +44,7 @@ enum Cli {
     DecodeBridgeLotteryMessage {
         #[structopt(short)]
         hex_data: String,
-    }
+    },
 }
 
 fn main() {
@@ -118,7 +118,18 @@ fn main() {
         }
         Cli::DecodeBridgeLotteryMessage { hex_data } => {
             use phala_types::messaging::Lottery;
-            decode_hex_print::<Lottery>(&hex_data);
+            let lottery = decode_hex_print::<Lottery>(&hex_data);
+
+            match lottery {
+                Lottery::BtcAddresses { address_set } => {
+                    let addrs: Vec<_> = address_set
+                        .iter()
+                        .map(|raw_addr| std::str::from_utf8(&raw_addr).unwrap())
+                        .collect();
+                    println!("Lottery::BtcAddresses {:?}", addrs);
+                }
+                _ => {}
+            }
         }
     }
 }
@@ -132,8 +143,9 @@ fn decode_hex(hex_str: &str) -> Vec<u8> {
     hex::decode(raw_hex).expect("Failed to parse hex_data")
 }
 
-fn decode_hex_print<T: Decode + Debug>(hex_data: &str) {
+fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
     let data = decode_hex(hex_data);
     let message = T::decode(&mut data.as_slice());
     println!("Decode: {:?}", message);
+    message.unwrap()
 }
