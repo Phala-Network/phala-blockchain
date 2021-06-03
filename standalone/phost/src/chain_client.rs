@@ -65,6 +65,13 @@ pub async fn fetch_storage_changes(client: &XtClient, hash: &Hash) -> Result<Sto
     })
 }
 
+pub async fn fetch_genesis_storage(client: &XtClient) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+    let hash = Some(*client.genesis());
+    let response = client.rpc.storage_pairs(StorageKey(vec![]), hash).await?;
+    let storage = response.into_iter().map(|(k, v)| (k.0, v.0)).collect();
+    Ok(storage)
+}
+
 /// Takes a snapshot of the necessary information for calculating compute works at a certain block
 pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
 -> Result<OnlineWorkerSnapshot<BlockNumber, Balance>> {

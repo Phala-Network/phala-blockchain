@@ -1110,6 +1110,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
     state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
     // Initialize other states
+    local_state.runtime_state.load(input.genesis_state.into_iter());
+    info!("Genesis state loaded: {:?}", local_state.runtime_state.root());
+
     local_state.headernum = 1;
     local_state.blocknum = 1;
     // Response
@@ -1121,7 +1124,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     };
     local_state.runtime_info = Some(resp.clone());
     local_state.initialized = true;
-    // TODO: init genesis state
     Ok(serde_json::to_value(resp).unwrap())
 }
 
@@ -1381,6 +1383,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             // TODO: rollback the state
             return Err(error_msg("State root mismatch"));
         }
+        info!("New state root: {:?}", local_state.runtime_state.root());
 
         handle_events(&block, &ecdh_privkey, local_state.dev_mode)?;
 
