@@ -1,4 +1,5 @@
-use codec::{Decode, Encode};
+use codec::Decode;
+use std::fmt::Debug;
 use structopt::StructOpt;
 
 // use phala_types;
@@ -36,13 +37,21 @@ enum Cli {
         #[structopt(short)]
         b64_data: String,
     },
+    DecodeSignedLotteryMessage {
+        #[structopt(short)]
+        hex_data: String,
+    },
+    DecodeBridgeLotteryMessage {
+        #[structopt(short)]
+        hex_data: String,
+    }
 }
 
 fn main() {
     let cli = Cli::from_args();
     match cli {
         Cli::DecodeWorkerMessage { hex_data } => {
-            let data = hex::decode(hex_data).expect("Failed to parse hex_data");
+            let data = decode_hex(&hex_data);
             let msg: phala_types::SignedWorkerMessage =
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
             println!("Decoded: {:?}", msg);
@@ -57,7 +66,7 @@ fn main() {
             hex_data,
             print_field,
         } => {
-            let data = hex::decode(hex_data).expect("Failed to parse hex_data");
+            let data = decode_hex(&hex_data);
             let msg: phala_types::PRuntimeInfo =
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
             match print_field {
@@ -78,7 +87,7 @@ fn main() {
         }
         Cli::DecodeHeader { hex_data } => {
             use sp_runtime::{generic::Header, traits::BlakeTwo256};
-            let data = hex::decode(hex_data).expect("Failed to parse hex_data");
+            let data = decode_hex(&hex_data);
             let header = Header::<u128, BlakeTwo256>::decode(&mut data.as_slice())
                 .expect("Faield to parse Header");
             let hash = header.hash();
@@ -86,7 +95,7 @@ fn main() {
             println!("Hash: 0x{}", hex::encode(&hash));
         }
         Cli::DecodeWorkerSnapshot { hex_data } => {
-            let data = hex::decode(hex_data).expect("Failed to parse hex_data");
+            let data = decode_hex(&hex_data);
             let snapshot = phala_types::pruntime::OnlineWorkerSnapshot::<u32, u128>::decode(
                 &mut data.as_slice(),
             );
@@ -94,7 +103,7 @@ fn main() {
             println!("Decoded: {:?}", snapshot);
         }
         Cli::DecodeBhwe { b64_data } => {
-            use sp_runtime::{generic::Header, traits::BlakeTwo256};
+            use sp_runtime::traits::BlakeTwo256;
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
                 phala_types::pruntime::BlockHeaderWithEvents::<u32, BlakeTwo256, u128>::decode(
@@ -103,5 +112,28 @@ fn main() {
 
             println!("Decoded: {:?}", snapshot);
         }
+        Cli::DecodeSignedLotteryMessage { hex_data } => {
+            use phala_types::messaging::SignedLotteryMessage;
+            decode_hex_print::<SignedLotteryMessage>(&hex_data);
+        }
+        Cli::DecodeBridgeLotteryMessage { hex_data } => {
+            use phala_types::messaging::Lottery;
+            decode_hex_print::<Lottery>(&hex_data);
+        }
     }
+}
+
+fn decode_hex(hex_str: &str) -> Vec<u8> {
+    let raw_hex = if hex_str.starts_with("0x") {
+        &hex_str[2..]
+    } else {
+        hex_str
+    };
+    hex::decode(raw_hex).expect("Failed to parse hex_data")
+}
+
+fn decode_hex_print<T: Decode + Debug>(hex_data: &str) {
+    let data = decode_hex(hex_data);
+    let message = T::decode(&mut data.as_slice());
+    println!("Decode: {:?}", message);
 }
