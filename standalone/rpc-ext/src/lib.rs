@@ -34,9 +34,7 @@ pub struct StorageChanges {
 }
 
 /// Response for the `pha_getStorageChanges` RPC.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct GetStorageChangesResponse(Vec<StorageChanges>);
+pub type GetStorageChangesResponse = Vec<StorageChanges>;
 
 /// State RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -245,7 +243,7 @@ where
         }
     }
     changes.reverse();
-    Ok(GetStorageChangesResponse(changes))
+    Ok(changes)
 }
 
 pub fn extend_rpc<Client, BE, Block>(
