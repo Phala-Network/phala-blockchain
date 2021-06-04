@@ -261,7 +261,7 @@ impl contracts::Contract<Command, Request, Response> for DataPlaza {
         txref: &TxRef,
         cmd: Command,
     ) -> TransactionStatus {
-        let address_hex = crate::hex::encode_hex_compact(origin.as_ref());
+        let address_hex = hex::encode(origin);
         let status = match cmd {
             Command::List(details) => {
                 self.items.push(Item {

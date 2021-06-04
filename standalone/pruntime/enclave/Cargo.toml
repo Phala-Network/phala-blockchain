@@ -40,9 +40,11 @@ serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
 serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx.git" }
 
-anyhow      = { version = "1.0", default-features = false }
-bit-vec     = { version = "*", default-features = false }
-itertools   = { version = "0.8", default-features = false }
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
+hex-literal = "0.3"
+anyhow = { version = "1.0", default-features = false }
+bit-vec = { version = "*", default-features = false }
+itertools = { version = "0.8", default-features = false }
 lazy_static = { version = "*", default-features = false, features = ["spin_no_std"] }
 
 trie-storage = { path = "../../../crates/trie-storage", default-features = false, features = ["sgx"] }

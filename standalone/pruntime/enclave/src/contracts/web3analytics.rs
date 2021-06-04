@@ -1,7 +1,6 @@
 use super::TransactionStatus;
 use crate::contracts::AccountIdWrapper;
 use crate::cryptography::aead;
-use crate::hex;
 use crate::std::collections::BTreeMap;
 use crate::std::collections::HashMap;
 use crate::std::prelude::v1::*;
@@ -23,7 +22,8 @@ const HOUR_IN_SECONDS: u32 = 60 * MINUTE_IN_SECONDS;
 const DAY_IN_SECONDS: u32 = 24 * HOUR_IN_SECONDS;
 const WEEK_IN_SECONDS: u32 = 7 * DAY_IN_SECONDS;
 
-const KEY: &str = "290c3c5d812a4ba7ce33adf09598a462692a615beb6c80fdafb3f9e3bbef8bc6";
+const KEY: &[u8] =
+    &hex_literal::hex!("290c3c5d812a4ba7ce33adf09598a462692a615beb6c80fdafb3f9e3bbef8bc6");
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PageView {
@@ -248,8 +248,7 @@ impl Web3Analytics {
             weekly_sites: Vec::<WeeklySite>::new(),
             weekly_devices: Vec::<WeeklyDevice>::new(),
             total_stat: HourlyPageViewStat::default(),
-
-            key: hex::decode_hex(KEY),
+            key: KEY.to_owned(),
 
             parser: woothee::parser::Parser::new(),
 
@@ -937,7 +936,7 @@ impl contracts::Contract<Command, Request, Response> for Web3Analytics {
                         if page_view.uid.len() == 64
                             && self
                                 .no_tracking
-                                .contains_key(&AccountIdWrapper::from_hex(&page_view.uid))
+                                .contains_key(&AccountIdWrapper::from_hex(&page_view.uid)?)
                         {
                             continue;
                         }

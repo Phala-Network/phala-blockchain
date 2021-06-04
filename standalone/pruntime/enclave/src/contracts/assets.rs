@@ -119,31 +119,11 @@ pub enum Response {
     Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
 }
 
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
-const SUPPLY: u128 = 1_024_000_000_000_000;
-const SYMBOL: &'static str = "TTT";
-
 impl Assets {
     pub fn new() -> Self{
-        let mut assets = BTreeMap::<u32, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
-        let mut metadata = BTreeMap::<u32, AssetMetadata>::new();
-
-        let owner = AccountIdWrapper::from_hex(ALICE);
-        let symbol = String::from(SYMBOL);
-        let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
-        accounts.insert(owner.clone(), SUPPLY);
-
-        let metadatum = AssetMetadata {
-            owner: owner.clone(),
-            total_supply: SUPPLY,
-            symbol,
-            id: 0
-        };
-
-        metadata.insert(0, metadatum);
-        assets.insert(0, accounts);
-
-        Assets { next_id: 1, assets, metadata, history: Default::default() }
+        let assets = BTreeMap::<u32, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
+        let metadata = BTreeMap::<u32, AssetMetadata>::new();
+        Assets { next_id: 0, assets, metadata, history: Default::default() }
     }
 }
 

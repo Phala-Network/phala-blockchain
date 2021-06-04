@@ -23,7 +23,7 @@ const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5
 // 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
 const BOB: &'static str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
 // 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-const CHARLIE: &'static str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
+// const CHARLIE: &'static str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
 // 5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y
 type SequenceType = u64;
 
@@ -203,7 +203,8 @@ impl contracts::Contract<Command, Request, Response> for SubstrateKitties {
                     let token_id: U256 = U256::from(kind) << 128;
                     // Let's just suppose that ALICE owns all the boxes as default, and ALICE can
                     // transfer to anyone that is on the chain
-                    let default_owner = AccountIdWrapper::from_hex(ALICE);
+                    let default_owner = AccountIdWrapper::from_hex(ALICE)
+                        .expect("Admin must has a good address; qed.");
                     for (kitty_id, _kitty) in self.kitties.iter() {
                         let mut rng = rand::thread_rng();
                         let seed: [u8; 16] = rng.gen();
@@ -259,7 +260,10 @@ impl contracts::Contract<Command, Request, Response> for SubstrateKitties {
                 // TODO: check owner & dest not overflow & sender not underflow
                 let sender = AccountIdWrapper(_origin.clone());
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
-                let reciever = AccountIdWrapper::from_hex(&dest);
+                let reciever = match AccountIdWrapper::from_hex(&dest) {
+                    Ok(a) => a,
+                    Err(_) => return TransactionStatus::BadInput,
+                };
                 if sender == original_owner {
                     println!(
                         "Transfer: [{}] -> [{}]: {}",

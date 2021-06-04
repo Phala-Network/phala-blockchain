@@ -63,12 +63,12 @@ use phala_types::{
 mod cert;
 mod contracts;
 mod cryptography;
-mod hex;
 mod light_validation;
 mod msg_channel;
 mod rpc_types;
 mod system;
 mod types;
+mod utils;
 
 use crate::light_validation::utils::storage_prefix;
 use contracts::{
@@ -256,8 +256,8 @@ lazy_static! {
 
     static ref LOCAL_STATE: SgxMutex<LocalState> = {
         // Give it an uninitialized default. Will be reset when initialig pRuntime. x
-        let raw_pk = hex::decode_hex("0000000000000000000000000000000000000000000000000000000000000001");
-        let sk = SecretKey::parse_slice(raw_pk.as_slice()).unwrap();
+        const RAW_PK: &[u8] = &hex_literal::hex!("0000000000000000000000000000000000000000000000000000000000000001");
+        let sk = SecretKey::parse_slice(RAW_PK).unwrap();
         let pk = PublicKey::from_secret_key(&sk);
 
         SgxMutex::new(
@@ -301,7 +301,7 @@ fn ias_spid() -> sgx_spid_t {
     let key_str = str::from_utf8(key_slice).unwrap();
     // println!("IAS SPID: {}", key_str.to_owned());
 
-    hex::decode_spid(&key_str[..key_len])
+    utils::decode_spid(&key_str[..key_len])
 }
 
 fn ias_key() -> String {
@@ -736,7 +736,7 @@ pub extern "C" fn ecall_handle(
             json!({
                 "status": "ok",
                 "payload": s_payload,
-                "signature": hex::encode_hex_compact(signature.serialize().as_ref()),
+                "signature": hex::encode(signature.serialize().as_ref()),
             })
         }
         Err(payload) => {
@@ -749,7 +749,7 @@ pub extern "C" fn ecall_handle(
             json!({
                 "status": "error",
                 "payload": s_payload,
-                "signature": hex::encode_hex_compact(signature.serialize().as_ref()),
+                "signature": hex::encode(signature.serialize().as_ref()),
             })
         }
     };
@@ -796,17 +796,14 @@ fn save_secret_keys(
 
     let data = PersistentRuntimeData {
         version: 1,
-        sk: hex::encode_hex_compact(serialized_sk.as_ref()),
-        ecdh_sk: hex::encode_hex_compact(serialized_ecdh_sk.as_ref()),
+        sk: hex::encode(serialized_sk.as_ref()),
+        ecdh_sk: hex::encode(serialized_ecdh_sk.as_ref()),
         dev_mode,
     };
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!(
-        "Encoded slice: {:?}",
-        hex::encode_hex_compact(encoded_slice)
-    );
+    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
@@ -865,10 +862,7 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
     let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!(
-        "Encoded slice: {:?}",
-        hex::encode_hex_compact(encoded_slice)
-    );
+    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
@@ -899,27 +893,28 @@ fn init_secret_keys(
     };
 
     // load identity
-    let ecdsa_raw_key: [u8; 32] = hex::decode_hex(&data.sk)
+    let ecdsa_raw_key: [u8; 32] = hex::decode(&data.sk)
+        .expect("Unalbe to decode identity key hex")
         .as_slice()
         .try_into()
         .expect("slice with incorrect length");
     let ecdsa_sk = SecretKey::parse(&ecdsa_raw_key).expect("can't parse private key");
     let ecdsa_pk = PublicKey::from_secret_key(&ecdsa_sk);
     let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
-    let ecdsa_hex_pk = hex::encode_hex_compact(ecdsa_serialized_pk.as_ref());
+    let ecdsa_hex_pk = hex::encode(ecdsa_serialized_pk.as_ref());
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
-    let ecdh_raw_key = hex::decode_hex(&data.ecdh_sk);
+    let ecdh_raw_key = hex::decode(&data.ecdh_sk).expect("Unable to decode ECDH key hex");
     let ecdh_sk = ecdh::create_key(ecdh_raw_key.as_slice()).expect("can't create ecdh key");
     let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
-    let ecdh_hex_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
     // Generate Seal Key as Machine Id
     // This SHOULD be stable on the same CPU
     let machine_id = generate_seal_key();
-    info!("Machine id: {:?}", hex::encode_hex_compact(&machine_id));
+    info!("Machine id: {:?}", hex::encode(&machine_id));
 
     // Save
     *local_state.public_key = ecdsa_pk.clone();
@@ -974,14 +969,16 @@ fn dump_states(_input: &Map<String, Value>) -> Result<Value, Value> {
     aead::encrypt(&iv, SECRET, &mut in_out);
 
     Ok(json!({
-        "data": hex::encode_hex_compact(in_out.as_ref()),
-        "nonce": hex::encode_hex_compact(&iv)
+        "data": hex::encode(&in_out),
+        "nonce": hex::encode(&iv)
     }))
 }
 
 fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
-    let nonce_vec = hex::decode_hex(input.get("nonce").unwrap().as_str().unwrap());
-    let mut in_out = hex::decode_hex(input.get("data").unwrap().as_str().unwrap());
+    let nonce_vec = hex::decode(input.get("nonce").unwrap().as_str().unwrap())
+        .expect("Unable to decode nonce hex");
+    let mut in_out = hex::decode(input.get("data").unwrap().as_str().unwrap())
+        .expect("Unable to decode data hex");
     debug!("{}", input.get("data").unwrap().as_str().unwrap());
 
     let decrypted_data = aead::decrypt(&nonce_vec, &*SECRET, &mut in_out);
@@ -1011,7 +1008,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         if input.skip_ra == false {
             return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
         }
-        let raw_key = hex::decode_hex(&key);
+        let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
         let ecdsa_key = SecretKey::parse_slice(raw_key.as_slice())
             .map_err(|_| error_msg("can't parse private key"))?;
         let ecdh_key =
@@ -1025,12 +1022,12 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     let ecdsa_pk = &local_state.public_key;
     let ecdsa_serialized_pk = ecdsa_pk.serialize_compressed();
-    let ecdsa_hex_pk = hex::encode_hex_compact(ecdsa_serialized_pk.as_ref());
+    let ecdsa_hex_pk = hex::encode(ecdsa_serialized_pk.as_ref());
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
     let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
-    let ecdh_hex_pk = hex::encode_hex_compact(ecdh_pk.as_ref());
+    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
     // Measure machine score
@@ -1061,7 +1058,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
 
     info!("Encoded runtime info");
-    info!("{:?}", hex::encode_hex_compact(&encoded_runtime_info));
+    info!("{:?}", hex::encode(&encoded_runtime_info));
 
     // Produce remote attestation report
     let mut attestation: Option<InitRespAttestation> = None;
@@ -1179,12 +1176,12 @@ fn parse_block(data: &Vec<u8>) -> Result<chain::SignedBlock> {
 
 fn format_address(addr: &chain::Address) -> String {
     match addr {
-        chain::Address::Id(id) => hex::encode_hex_compact(id.as_ref()),
+        chain::Address::Id(id) => hex::encode(&id),
         chain::Address::Index(index) => format!("index:{:?}", index),
         // TODO: Verify these
-        chain::Address::Raw(address) => hex::encode_hex_compact(address.as_ref()),
-        chain::Address::Address32(address) => hex::encode_hex_compact(address.as_ref()),
-        chain::Address::Address20(address) => hex::encode_hex_compact(address.as_ref()),
+        chain::Address::Raw(address) => hex::encode(&address),
+        chain::Address::Address32(address) => hex::encode(&address),
+        chain::Address::Address20(address) => hex::encode(&address),
     }
 }
 
@@ -1198,9 +1195,8 @@ fn handle_execution(
     command_index: CommandIndex,
     ecdh_privkey: &EcdhKey,
 ) -> Result<()> {
-    let payload: types::Payload =
-        serde_json::from_slice(payload.as_slice())
-            .map_err(|e| anyhow!("Failed to decode payload: {}", e))?;
+    let payload: types::Payload = serde_json::from_slice(payload.as_slice())
+        .map_err(|e| anyhow!("Failed to decode payload: {}", e))?;
     let inner_data = match payload {
         types::Payload::Plain(data) => data.into_bytes(),
         types::Payload::Cipher(cipher) => {
@@ -1483,7 +1479,10 @@ fn handle_events(
                         ecdh_privkey,
                     );
                     if let Err(e) = result {
-                        error!("handle_execution failed with {:?}, skipping bad command...", e);
+                        error!(
+                            "handle_execution failed with {:?}, skipping bad command...",
+                            e
+                        );
                     }
                 }
                 _ => {
@@ -1506,14 +1505,14 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
 
     let initialized = local_state.initialized;
     let pk = &local_state.public_key;
-    let s_pk = hex::encode_hex_compact(pk.serialize_compressed().as_ref());
+    let s_pk = hex::encode(pk.serialize_compressed().as_ref());
     let s_ecdh_pk = match &local_state.ecdh_public_key {
-        Some(ecdh_public_key) => hex::encode_hex_compact(ecdh_public_key.as_ref()),
+        Some(ecdh_public_key) => hex::encode(ecdh_public_key.as_ref()),
         None => "".to_string(),
     };
     let headernum = local_state.headernum;
     let blocknum = local_state.blocknum;
-    let state_root = hex::encode_hex_compact(local_state.runtime_state.root().as_ref());
+    let state_root = hex::encode(&local_state.runtime_state.root());
     let machine_id = local_state.machine_id;
 
     let system_state = SYSTEM_STATE.lock().unwrap();
@@ -1611,8 +1610,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     }
     // Load and decrypt if necessary
     let payload: types::Payload =
-        serde_json::from_slice(payload_data)
-            .map_err(|_| error_msg("Failed to decode payload"))?;
+        serde_json::from_slice(payload_data).map_err(|_| error_msg("Failed to decode payload"))?;
     let (msg, secret, pubkey) = {
         let local_state = LOCAL_STATE.lock().unwrap();
         match payload {
@@ -1848,7 +1846,7 @@ fn test_ecdh(params: TestEcdhParam) {
         0xbf, 0x33, 0x78, 0x32, 0x96,
     ];
 
-    let pubkey_data = params.pubkey_hex.map(|h| hex::decode_hex(&h));
+    let pubkey_data = params.pubkey_hex.map(|h| hex::decode(&h).unwrap());
     let pk = match pubkey_data.as_ref() {
         Some(d) => d.as_slice(),
         None => bob_pub.as_ref(),
@@ -1860,15 +1858,15 @@ fn test_ecdh(params: TestEcdhParam) {
         .as_ref()
         .expect("ECDH private key not initialized");
     let key = ecdh::agree(alice_priv, pk);
-    debug!("ECDH derived secret key: {}", hex::encode_hex_compact(&key));
+    debug!("ECDH derived secret key: {}", hex::encode(&key));
 
     if let Some(msg_b64) = params.message_b64 {
         let mut msg = base64::decode(&msg_b64).expect("Failed to decode msg_b64");
         let iv = aead::generate_iv();
         aead::encrypt(&iv, &key, &mut msg);
 
-        debug!("AES-GCM: {}", hex::encode_hex_compact(&msg));
-        debug!("IV: {}", hex::encode_hex_compact(&iv));
+        debug!("AES-GCM: {}", hex::encode(&msg));
+        debug!("IV: {}", hex::encode(&iv));
     }
 }
 
