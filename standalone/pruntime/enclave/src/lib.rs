@@ -1617,6 +1617,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     let headernum = local_state.headernum;
     let blocknum = local_state.blocknum;
+    let state_root = format!("{:?}", local_state.runtime_state.root());
     let machine_id = local_state.machine_id;
 
     let system_state = SYSTEM_STATE.lock().unwrap();
@@ -1629,6 +1630,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "ecdh_public_key": s_ecdh_pk,
         "headernum": headernum,
         "blocknum": blocknum,
+        "state_root": state_root,
         "machine_id": machine_id,
         "dev_mode": local_state.dev_mode,
         "system_egress": {
