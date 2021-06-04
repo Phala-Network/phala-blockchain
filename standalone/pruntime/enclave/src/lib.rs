@@ -1392,19 +1392,18 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             .1;
 
         let changes = &block.storage_changes;
-        local_state.runtime_state.apply_changes(
+        let (state_root, transaction) = local_state.runtime_state.calc_root_if_changes(
             &changes.main_storage_changes,
             &changes.child_storage_changes,
         );
 
-        // TODO.kevin: rollback the state on failure
-        let state_root = local_state.runtime_state.root();
-        if &expected_root != state_root {
+        if expected_root != state_root {
             error!("expected root: {:?}", expected_root);
             error!("real root: {:?}", state_root);
             return Err(error_msg("State root mismatch"));
         }
         info!("New state root: {:?}", state_root);
+        local_state.runtime_state.apply_changes(state_root, transaction);
 
         let event_storage_key = storage_prefix("System", "Events");
         let events = local_state

@@ -63,21 +63,12 @@ where
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(mdb, root));
     }
 
-    /// Apply storage changes grabbed from chain node to the trie DB.
-    pub fn apply_changes<'a>(
-        &mut self,
+    /// Calculate the new state root given storage changes. Returns the new root and a transaction to apply.
+    pub fn calc_root_if_changes<'a>(
+        &self,
         delta: &'a StorageCollection,
         child_deltas: &'a ChildStorageCollection,
-    ) {
-        if self.is_empty() {
-            self.load(delta.iter().map(|(k, v)| {
-                (k, match v {
-                    Some(v) => v.clone(),
-                    None => Vec::new(),
-                })
-            }));
-            return;
-        }
+    ) -> (H::Out, MemoryDB<H>) {
         let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
             .into_iter()
             .map(|(k, v)| {
@@ -85,7 +76,7 @@ where
                 (chinfo, v)
             })
             .collect();
-        let (root, transaction) = self.0.full_storage_root(
+        self.0.full_storage_root(
             delta
                 .iter()
                 .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
@@ -96,14 +87,14 @@ where
                         .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
                 )
             }),
-        );
-        // self.0.apply_transaction(root, transaction);  // TrieBackend has this api for std
-        {
-            // workaround for no_std
-            self.0.backend_storage_mut().consolidate(transaction);
-            let trie_be = core::mem::replace(self, Default::default()).0;
-            let _ = core::mem::replace(&mut self.0, TrieBackend::new(trie_be.into_storage(), root));
-        }
+        )
+    }
+
+    /// Apply storage changes calculated from `calc_root_if_changes`.
+    pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
+        self.0.backend_storage_mut().consolidate(transaction);
+        let trie_be = core::mem::replace(self, Default::default()).0;
+        let _ = core::mem::replace(&mut self.0, TrieBackend::new(trie_be.into_storage(), root));
     }
 
     /// Return the state root hash
