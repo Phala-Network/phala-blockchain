@@ -96,8 +96,7 @@ type Storage = TrieStorage<RuntimeHasher>;
 pub struct OnlineWorkerSnapshot {
     pub worker_state_kv: Vec<StorageKV<WorkerInfo<chain::BlockNumber>>>,
     pub stake_received_kv: Vec<StorageKV<chain::Balance>>,
-    pub online_workers_kv: StorageKV<u32>,
-    pub compute_workers_kv: StorageKV<u32>,
+    pub compute_workers: u32,
 }
 
 extern "C" {

@@ -341,16 +341,13 @@ fn snapshot_online_worker(trie: &crate::Storage) -> anyhow::Result<Option<Online
     debug!("- stake_received_data: vec[{}]", stake_received_data.len());
 
     // Snapshot fields
-    let online_workers_kv = StorageKV::<u32>(online_workers_key, online_workers);
-    let compute_workers_kv = StorageKV::<u32>(compute_workers_key, compute_workers);
     let worker_state_kv = storage_kv_from_data(online_worker_data);
     let stake_received_kv = storage_kv_from_data(stake_received_data);
 
     Ok(Some(crate::OnlineWorkerSnapshot {
         worker_state_kv,
         stake_received_kv,
-        online_workers_kv,
-        compute_workers_kv,
+        compute_workers,
     }))
 }
 

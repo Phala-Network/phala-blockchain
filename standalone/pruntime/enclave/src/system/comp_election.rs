@@ -10,12 +10,12 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
     // Collect the weight for each candidate
     let weights = extract_weights(candidates);
     let num_winners = cmp::min(
-        *candidates.compute_workers_kv.value() as usize,
+        candidates.compute_workers as usize,
         weights.len(),
     );
     info!(
         "elect: electing {} winners from {} candidates",
-        candidates.compute_workers_kv.value(),
+        candidates.compute_workers,
         weights.len()
     );
     // Weighted sample without replacement
