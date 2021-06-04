@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use std::cmp;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
-use subxt::{system::AccountStoreExt, EventsDecoder, Signer};
+use subxt::{system::AccountStoreExt, Signer};
 
 mod chain_client;
 mod error;
@@ -152,30 +152,11 @@ async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<OpaqueSignedB
 async fn get_block_with_events(client: &XtClient, h: Option<u32>) -> Result<BlockWithEvents> {
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
-
-    let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
     let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
-    if let Some((raw_events, proof, _key)) = events_with_proof {
-        info!("          ... with events {} bytes", raw_events.len());
-        let (events, proof) = (Some(raw_events), Some(proof));
-        return Ok(BlockWithEvents {
-            block,
-            events,
-            proof,
-            storage_changes,
-        });
-    }
-
-    if h == Some(0) {
-        return Ok(BlockWithEvents {
-            block,
-            events: None,
-            proof: None,
-            storage_changes,
-        });
-    }
-
-    Err(anyhow!(Error::EventNotFound))
+    return Ok(BlockWithEvents {
+        block,
+        storage_changes,
+    });
 }
 
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange> {
@@ -291,9 +272,7 @@ where
 
 /// Syncs only the events to pRuntime till `sync_to`
 async fn sync_events_only(
-    xt: &XtClient,
     pr: &PrClient,
-    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     sync_to: BlockNumber,
     batch_window: usize,
@@ -308,7 +287,7 @@ async fn sync_events_only(
             break;
         }
     }
-    let mut blocks: Vec<BlockHeaderWithEvents> = block_buf
+    let blocks: Vec<BlockHeaderWithEvents> = block_buf
         .drain(..n)
         .map(|bwe| BlockHeaderWithEvents {
             block_header: bwe.block.block.header,
@@ -327,7 +306,6 @@ const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 async fn batch_sync_block(
     client: &XtClient,
     pr: &PrClient,
-    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
 ) -> Result<usize> {
@@ -443,7 +421,7 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let mut dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
+                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
                     .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
@@ -628,7 +606,6 @@ async fn bridge(args: Args) -> Result<()> {
         .skip_type_sizes_check()
         .build()
         .await?;
-    let events_decoder = client.events_decoder();
     info!(
         "Connected to substrate at: {}",
         args.substrate_ws_endpoint.clone()
@@ -774,6 +751,8 @@ async fn bridge(args: Args) -> Result<()> {
             latest_block.header.number,
             next_block + args.fetch_blocks - 1,
         );
+
+        // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
             let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justifications.is_some() {
@@ -796,9 +775,7 @@ async fn bridge(args: Args) -> Result<()> {
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
             sync_events_only(
-                &client,
                 &pr,
-                events_decoder,
                 &mut sync_state,
                 // info.headernum is the next unknown header. So we sync to headernum - 1
                 info.headernum - 1,
@@ -808,14 +785,8 @@ async fn bridge(args: Args) -> Result<()> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(
-            &client,
-            &pr,
-            events_decoder,
-            &mut sync_state,
-            args.sync_blocks,
-        )
-        .await?;
+        let synced_blocks =
+            batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if !defer_block && synced_blocks == 0 {

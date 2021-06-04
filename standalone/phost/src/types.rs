@@ -21,7 +21,6 @@ pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
 pub type AccountId = <Runtime as subxt::system::System>::AccountId;
 
-pub type RawEvents = Vec<u8>;
 pub type HeaderToSync = pruntime::HeaderToSync<BlockNumber, Hashing>;
 pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing>;
 
@@ -219,8 +218,6 @@ impl Resp for SyncHeaderReq {
 #[derive(Clone, Debug)]
 pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<StorageProof>,
     pub storage_changes: StorageChanges,
 }
 
