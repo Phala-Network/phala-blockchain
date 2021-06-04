@@ -33,7 +33,7 @@ use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
-use anyhow::Result;
+use anyhow::{anyhow, Context, Result};
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
@@ -1198,14 +1198,15 @@ fn handle_execution(
     payload: &Vec<u8>,
     command_index: CommandIndex,
     ecdh_privkey: &EcdhKey,
-) {
+) -> Result<()> {
     let payload: types::Payload =
-        serde_json::from_slice(payload.as_slice()).expect("Failed to decode payload");
+        serde_json::from_slice(payload.as_slice())
+            .map_err(|e| anyhow!("Failed to decode payload: {}", e))?;
     let inner_data = match payload {
         types::Payload::Plain(data) => data.into_bytes(),
         types::Payload::Cipher(cipher) => {
             cryptography::decrypt(&cipher, ecdh_privkey)
-                .expect("Decrypt failed")
+                .context("Decrypt failed")?
                 .msg
         }
     };
@@ -1262,6 +1263,8 @@ fn handle_execution(
             status,
         },
     );
+
+    Ok(())
 }
 
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
@@ -1470,7 +1473,7 @@ fn handle_events(
                         blocknum: block_number,
                         index: *num,
                     };
-                    handle_execution(
+                    let result = handle_execution(
                         event_handler.system,
                         state,
                         &pos,
@@ -1480,6 +1483,9 @@ fn handle_events(
                         *num,
                         ecdh_privkey,
                     );
+                    if let Err(e) = result {
+                        error!("handle_execution failed with {:?}, skipping bad command...", e);
+                    }
                 }
                 _ => {
                     state.contract2.handle_event(evt.event.clone());
@@ -1606,7 +1612,8 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     }
     // Load and decrypt if necessary
     let payload: types::Payload =
-        serde_json::from_slice(payload_data).expect("Failed to decode payload");
+        serde_json::from_slice(payload_data)
+            .map_err(|_| error_msg("Failed to decode payload"))?;
     let (msg, secret, pubkey) = {
         let local_state = LOCAL_STATE.lock().unwrap();
         match payload {
@@ -1617,7 +1624,8 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                     .ecdh_private_key
                     .as_ref()
                     .expect("ECDH not initizlied");
-                let result = cryptography::decrypt(&cipher, ecdh_privkey).expect("Decrypt failed");
+                let result = cryptography::decrypt(&cipher, ecdh_privkey)
+                    .map_err(|_| error_msg("Decrypt failed"))?;
                 (
                     result.msg,
                     Some(result.secret),
