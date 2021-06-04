@@ -1131,6 +1131,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         attestation,
     };
     local_state.runtime_info = Some(resp.clone());
+    local_state.block_hashes.clear();
     local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
 }
