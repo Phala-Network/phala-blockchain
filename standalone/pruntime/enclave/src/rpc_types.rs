@@ -6,6 +6,7 @@ pub struct InitRuntimeReq {
     pub skip_ra: bool,
     pub bridge_genesis_info_b64: String,
     pub debug_set_key: Option<String>,
+    pub genesis_state: Vec<(Vec<u8>, Vec<u8>)>, // TODO.kevin: serialize efficiently.
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct InitRuntimeResp {

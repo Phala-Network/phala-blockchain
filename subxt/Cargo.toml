@@ -54,6 +54,7 @@ sp-rpc = { path = "../substrate/primitives/rpc" }
 sp-core = { path = "../substrate/primitives/core" }
 substrate-subxt-client = { version = "0.7.0", path = "client", optional = true }
 substrate-subxt-proc-macro = { version = "0.15.0", path = "proc-macro" }
+rpc-ext = { path = "../standalone/rpc-ext" }
 
 [dev-dependencies]
 async-std = { version = "1.9.0", features = ["attributes"] }

@@ -4,6 +4,7 @@ use core::convert::TryFrom;
 
 use sp_core::U256;
 use sp_runtime::{generic::Header, traits::Hash as HashT};
+use trie_storage::ser::StorageChanges;
 
 pub type RawStorageKey = Vec<u8>;
 pub type StorageProof = Vec<Vec<u8>>;
@@ -20,19 +21,6 @@ impl<T: FullCodec + Clone> StorageKV<T> {
     }
 }
 
-#[derive(Debug, Encode, Decode, Clone)]
-pub struct OnlineWorkerSnapshot<BlockNumber, Balance>
-where
-    BlockNumber: FullCodec + Clone,
-    Balance: FullCodec + Clone,
-{
-    pub worker_state_kv: Vec<StorageKV<super::WorkerInfo<BlockNumber>>>,
-    pub stake_received_kv: Vec<StorageKV<Balance>>,
-    pub online_workers_kv: StorageKV<u32>,
-    pub compute_workers_kv: StorageKV<u32>,
-    pub proof: StorageProof,
-}
-
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct HeaderToSync<BlockNumber, Hash>
 where
@@ -44,14 +32,11 @@ where
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
-pub struct BlockHeaderWithEvents<BlockNumber, Hash, Balance>
+pub struct BlockHeaderWithEvents<BlockNumber, Hash>
 where
     BlockNumber: Copy + Into<U256> + TryFrom<U256> + FullCodec + Clone,
     Hash: HashT,
-    Balance: FullCodec + Clone,
 {
     pub block_header: Header<BlockNumber, Hash>,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<Vec<Vec<u8>>>,
-    pub worker_snapshot: Option<OnlineWorkerSnapshot<BlockNumber, Balance>>,
+    pub storage_changes: StorageChanges,
 }

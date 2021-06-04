@@ -59,6 +59,7 @@ dependencies = [
  "sp-trie",
  "substrate-fixed",
  "transaction-builder",
+ "trie-storage",
  "webpki 0.21.4",
  "webpki-roots",
  "yasna",
@@ -826,6 +827,12 @@ dependencies = [
  "sgx_tstd",
  "termcolor",
 ]
+
+[[package]]
+name = "environmental"
+version = "1.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "68b91989ae21441195d7d9b9993a2f9295c7e1a8c96255d8b729accddc124797"
 
 [[package]]
 name = "erased-serde"
@@ -2347,6 +2354,7 @@ dependencies = [
  "serde 1.0.126",
  "sp-core",
  "sp-runtime",
+ "trie-storage",
 ]
 
 [[package]]
@@ -3343,6 +3351,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp-externalities"
+version = "0.9.0"
+dependencies = [
+ "environmental",
+ "parity-scale-codec 2.1.1",
+ "sp-std",
+ "sp-storage",
+]
+
+[[package]]
 name = "sp-finality-grandpa"
 version = "3.0.0"
 dependencies = [
@@ -3481,6 +3499,22 @@ dependencies = [
  "parity-scale-codec 2.1.1",
  "sp-runtime",
  "sp-std",
+]
+
+[[package]]
+name = "sp-state-machine"
+version = "0.9.0"
+dependencies = [
+ "hash-db",
+ "num-traits 0.2.14",
+ "parity-scale-codec 2.1.1",
+ "smallvec",
+ "sp-core",
+ "sp-externalities",
+ "sp-std",
+ "sp-trie",
+ "trie-db",
+ "trie-root",
 ]
 
 [[package]]
@@ -3821,6 +3855,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "652931506d2c1244d7217a70b99f56718a7b4161b37f04e7cd868072a99f68cd"
 dependencies = [
  "hash-db",
+]
+
+[[package]]
+name = "trie-storage"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec 2.1.1",
+ "serde 1.0.118",
+ "sp-core",
+ "sp-io",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]

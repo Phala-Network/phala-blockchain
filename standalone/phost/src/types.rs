@@ -5,6 +5,8 @@ use sp_finality_grandpa::{AuthorityList, SetId};
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
 use phala_types::pruntime::{self, StorageProof};
+use trie_storage::ser::StorageChanges;
+
 use std::vec::Vec;
 
 // Node Runtime
@@ -18,11 +20,9 @@ pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
 pub type AccountId = <Runtime as subxt::system::System>::AccountId;
-pub type Balance = <Runtime as subxt::balances::Balances>::Balance;
 
-pub type RawEvents = Vec<u8>;
 pub type HeaderToSync = pruntime::HeaderToSync<BlockNumber, Hashing>;
-pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing, Balance>;
+pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing>;
 
 // pRuntime APIs
 
@@ -163,6 +163,7 @@ pub struct InitRuntimeReq {
     pub skip_ra: bool,
     pub bridge_genesis_info_b64: String,
     pub debug_set_key: Option<String>,
+    pub genesis_state: Vec<(Vec<u8>, Vec<u8>)>, // TODO: serialize efficiently.
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
@@ -217,8 +218,7 @@ impl Resp for SyncHeaderReq {
 #[derive(Clone, Debug)]
 pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<StorageProof>,
+    pub storage_changes: StorageChanges,
 }
 
 #[derive(Encode, Decode, Clone, PartialEq, Debug)]

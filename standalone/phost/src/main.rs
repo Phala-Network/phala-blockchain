@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use std::cmp;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
-use subxt::{system::AccountStoreExt, EventsDecoder, Signer};
+use subxt::{system::AccountStoreExt, Signer};
 
 mod chain_client;
 mod error;
@@ -152,27 +152,11 @@ async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<OpaqueSignedB
 async fn get_block_with_events(client: &XtClient, h: Option<u32>) -> Result<BlockWithEvents> {
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
-
-    let events_with_proof = chain_client::fetch_events(&client, &hash).await?;
-    if let Some((raw_events, proof, _key)) = events_with_proof {
-        info!("          ... with events {} bytes", raw_events.len());
-        let (events, proof) = (Some(raw_events), Some(proof));
-        return Ok(BlockWithEvents {
-            block,
-            events,
-            proof,
-        });
-    }
-
-    if h == Some(0) {
-        return Ok(BlockWithEvents {
-            block,
-            events: None,
-            proof: None,
-        });
-    }
-
-    Err(anyhow!(Error::EventNotFound))
+    let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
+    return Ok(BlockWithEvents {
+        block,
+        storage_changes,
+    });
 }
 
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange> {
@@ -286,39 +270,9 @@ where
     Ok(resp)
 }
 
-/// Attaches a worker snapshot for NewRound blocks for compute worker election
-async fn maybe_take_worker_snapshot(
-    xt: &XtClient,
-    events_decoder: &EventsDecoder<Runtime>,
-    dispatch_batch: &mut Vec<BlockHeaderWithEvents>,
-) -> Result<()> {
-    for bwe in dispatch_batch {
-        let data = bwe.events.as_ref().unwrap();
-        if chain_client::check_round_end_event(events_decoder, data)
-            .with_context(|| format!("Error decoding block at: {}", bwe.block_header.number))?
-        {
-            let snapshot =
-                chain_client::snapshot_online_worker_at(xt, Some(bwe.block_header.hash())).await;
-            bwe.worker_snapshot = match snapshot {
-                Ok(snapshot) => Some(snapshot),
-                Err(e)
-                    if e.is::<Error>()
-                        && matches!(e.downcast_ref().unwrap(), Error::ComputeWorkerNotEnabled) =>
-                {
-                    None
-                }
-                Err(err) => return Err(err),
-            };
-        }
-    }
-    Ok(())
-}
-
 /// Syncs only the events to pRuntime till `sync_to`
 async fn sync_events_only(
-    xt: &XtClient,
     pr: &PrClient,
-    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     sync_to: BlockNumber,
     batch_window: usize,
@@ -333,16 +287,13 @@ async fn sync_events_only(
             break;
         }
     }
-    let mut blocks: Vec<BlockHeaderWithEvents> = block_buf
+    let blocks: Vec<BlockHeaderWithEvents> = block_buf
         .drain(..n)
         .map(|bwe| BlockHeaderWithEvents {
             block_header: bwe.block.block.header,
-            events: bwe.events,
-            proof: bwe.proof,
-            worker_snapshot: None,
+            storage_changes: bwe.storage_changes,
         })
         .collect();
-    maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
     for chunk in blocks.chunks(batch_window) {
         let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
         debug!("  ..dispatch_block: {:?}", r);
@@ -355,7 +306,6 @@ const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 async fn batch_sync_block(
     client: &XtClient,
     pr: &PrClient,
-    events_decoder: &EventsDecoder<Runtime>,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
 ) -> Result<usize> {
@@ -471,16 +421,13 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let mut dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
+                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
                     .drain(..=(batch_end as usize))
                     .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
-                        events: bwe.events,
-                        proof: bwe.proof,
-                        worker_snapshot: None,
+                        storage_changes: bwe.storage_changes,
                     })
                     .collect();
-                maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 debug!("  ..dispatch_block: {:?}", r);
 
@@ -563,6 +510,7 @@ async fn init_runtime(
         .await?
         .expect("No genesis block?");
     let set_proof = get_authority_with_proof_at(&client, hash).await?;
+    let genesis_state = chain_client::fetch_genesis_storage(&client).await?;
     let info = GenesisInfo {
         header: genesis_block.header,
         validators: set_proof.authority_set.authority_set,
@@ -590,6 +538,7 @@ async fn init_runtime(
                 skip_ra,
                 bridge_genesis_info_b64: info_b64,
                 debug_set_key,
+                genesis_state,
             },
         )
         .await?;
@@ -657,7 +606,6 @@ async fn bridge(args: Args) -> Result<()> {
         .skip_type_sizes_check()
         .build()
         .await?;
-    let events_decoder = client.events_decoder();
     info!(
         "Connected to substrate at: {}",
         args.substrate_ws_endpoint.clone()
@@ -803,6 +751,8 @@ async fn bridge(args: Args) -> Result<()> {
             latest_block.header.number,
             next_block + args.fetch_blocks - 1,
         );
+
+        // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
             let block = get_block_with_events(&client, Some(b)).await?;
             if block.block.justifications.is_some() {
@@ -825,9 +775,7 @@ async fn bridge(args: Args) -> Result<()> {
         // if the header syncs faster than the event, let the events to catch up
         if info.headernum > info.blocknum {
             sync_events_only(
-                &client,
                 &pr,
-                events_decoder,
                 &mut sync_state,
                 // info.headernum is the next unknown header. So we sync to headernum - 1
                 info.headernum - 1,
@@ -837,14 +785,8 @@ async fn bridge(args: Args) -> Result<()> {
         }
 
         // send the blocks to pRuntime in batch
-        let synced_blocks = batch_sync_block(
-            &client,
-            &pr,
-            events_decoder,
-            &mut sync_state,
-            args.sync_blocks,
-        )
-        .await?;
+        let synced_blocks =
+            batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
         if !defer_block && synced_blocks == 0 {

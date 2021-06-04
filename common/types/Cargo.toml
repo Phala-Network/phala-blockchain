@@ -10,18 +10,25 @@ codec = { package = "parity-scale-codec", version = "2.1", default-features = fa
 sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
+trie-storage = { path = "../../crates/trie-storage", default-features = false, optional = true  }
+
 [features]
 default = ["std", "pruntime", "enable_serde"]
 std = [
-    "serde/std",
-    "codec/std",
-    "sp-core/full_crypto",
+	"serde/std",
+	"codec/std",
+	"sp-core/full_crypto",
 	"sp-runtime/std",
+	"trie-storage/std",
 ]
 enable_serde = [
 	"serde/derive",
 	"serde/alloc"
 ]
 pruntime = [
-	"sp-runtime"
+	"sp-runtime",
+	"trie-storage",
+]
+sgx = [
+	"trie-storage/sgx",
 ]
