@@ -1490,7 +1490,13 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             .expect("ECDH not initizlied"),
     );
     let mut last_block = 0;
-    for (i, block) in blocks.into_iter().enumerate() {
+    for block in blocks.into_iter() {
+        let expected_root = local_state
+            .block_hashes
+            .get(0)
+            .ok_or(error_msg("No enough headers to validate the blocks"))?
+            .1;
+
         let changes = &block.storage_changes;
         local_state.runtime_state.apply_changes(
             &changes.main_storage_changes,
@@ -1498,19 +1504,15 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         );
 
         // TODO.kevin: rollback the state on failure
-        let expected_root = &local_state
-            .block_hashes
-            .get(0)
-            .ok_or(error_msg("No enough header to validate blocks"))?
-            .1;
-        if expected_root != local_state.runtime_state.root() {
+        let state_root = local_state.runtime_state.root();
+        if &expected_root != state_root {
             error!("expected root: {:?}", expected_root);
-            error!("real root: {:?}", local_state.runtime_state.root());
+            error!("real root: {:?}", state_root);
             return Err(error_msg("State root mismatch"));
         }
-        info!("New state root: {:?}", local_state.runtime_state.root());
+        info!("New state root: {:?}", state_root);
 
-        let event_storage_key = light_validation::utils::storage_prefix("System", "Events");
+        let event_storage_key = storage_prefix("System", "Events");
         let events = local_state
             .runtime_state
             .get(&event_storage_key)
