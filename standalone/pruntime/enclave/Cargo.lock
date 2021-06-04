@@ -3863,7 +3863,6 @@ version = "0.1.0"
 dependencies = [
  "parity-scale-codec 2.1.1",
  "serde 1.0.118",
- "serde 1.0.126",
  "sp-core",
  "sp-io",
  "sp-state-machine",
