@@ -57,7 +57,7 @@ use phala_types::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
         StorageKV,
     },
-    PRuntimeInfo, WorkerStateEnum,
+    PRuntimeInfo, WorkerInfo, WorkerStateEnum,
 };
 
 mod cert;
@@ -91,10 +91,15 @@ type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
     chain::BlockNumber,
     <chain::Runtime as frame_system::Config>::Hashing,
 >;
-type OnlineWorkerSnapshot =
-    phala_types::pruntime::OnlineWorkerSnapshot<chain::BlockNumber, chain::Balance>;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
+
+pub struct OnlineWorkerSnapshot {
+    pub worker_state_kv: Vec<StorageKV<WorkerInfo<chain::BlockNumber>>>,
+    pub stake_received_kv: Vec<StorageKV<chain::Balance>>,
+    pub online_workers_kv: StorageKV<u32>,
+    pub compute_workers_kv: StorageKV<u32>,
+}
 
 extern "C" {
     pub fn ocall_load_ias_spid(

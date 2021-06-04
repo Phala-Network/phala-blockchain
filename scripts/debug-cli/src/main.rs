@@ -28,10 +28,6 @@ enum Cli {
         #[structopt(short)]
         hex_data: String,
     },
-    DecodeWorkerSnapshot {
-        #[structopt(short)]
-        hex_data: String,
-    },
     DecodeBhwe {
         #[structopt(short)]
         b64_data: String,
@@ -84,14 +80,6 @@ fn main() {
             let hash = header.hash();
             println!("Decoded: {:?}", header);
             println!("Hash: 0x{}", hex::encode(&hash));
-        }
-        Cli::DecodeWorkerSnapshot { hex_data } => {
-            let data = hex::decode(hex_data).expect("Failed to parse hex_data");
-            let snapshot = phala_types::pruntime::OnlineWorkerSnapshot::<u32, u128>::decode(
-                &mut data.as_slice(),
-            );
-
-            println!("Decoded: {:?}", snapshot);
         }
         Cli::DecodeBhwe { b64_data } => {
             use sp_runtime::{generic::Header, traits::BlakeTwo256};

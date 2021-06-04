@@ -21,18 +21,6 @@ impl<T: FullCodec + Clone> StorageKV<T> {
     }
 }
 
-#[derive(Debug, Encode, Decode, Clone)]
-pub struct OnlineWorkerSnapshot<BlockNumber, Balance>
-where
-    BlockNumber: FullCodec + Clone,
-    Balance: FullCodec + Clone,
-{
-    pub worker_state_kv: Vec<StorageKV<super::WorkerInfo<BlockNumber>>>,
-    pub stake_received_kv: Vec<StorageKV<Balance>>,
-    pub online_workers_kv: StorageKV<u32>,
-    pub compute_workers_kv: StorageKV<u32>,
-}
-
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct HeaderToSync<BlockNumber, Hash>
 where
