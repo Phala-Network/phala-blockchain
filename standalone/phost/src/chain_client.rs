@@ -13,7 +13,7 @@ use super::XtClient;
 use crate::{
     runtimes,
     types::{
-        Runtime, Hash, BlockNumber, AccountId, RawEvents, Balance,
+        Runtime, Hash, BlockNumber, AccountId, RawEvents,
         utils::raw_proof,
     }
 };
@@ -72,92 +72,6 @@ pub async fn fetch_genesis_storage(client: &XtClient) -> Result<Vec<(Vec<u8>, Ve
     Ok(storage)
 }
 
-/// Takes a snapshot of the necessary information for calculating compute works at a certain block
-pub async fn snapshot_online_worker_at(xt: &XtClient, hash: Option<Hash>)
--> Result<OnlineWorkerSnapshot<BlockNumber, Balance>> {
-    use runtimes::{phala::*, mining_staking::*};
-    use phala_types::*;
-    // Stats numbers
-    let online_workers_store = <OnlineWorkers<_> as Default>::default();
-    let compute_workers_store = <ComputeWorkers<_> as Default>::default();
-    let online_workers_key = online_workers_store.key(xt.metadata())?;
-    let compute_workers_key = compute_workers_store.key(xt.metadata())?;
-    let online_workers: u32 = xt.fetch_or_default(&online_workers_store, hash).await?;
-    let compute_workers: u32 = xt.fetch_or_default(&compute_workers_store, hash).await?;
-    if online_workers == 0 || compute_workers == 0 {
-        error!(
-            "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
-            online_workers, compute_workers);
-        return Err(anyhow!(crate::error::Error::ComputeWorkerNotEnabled));
-    }
-    info!("- Stats Online Workers: {}", online_workers);
-    info!("- Stats Compute Workers: {}", compute_workers);
-    // Online workers and stake received
-    let worker_data =
-        fetch_map::<WorkerStateStore<_>>(xt, hash).await?;
-    let stake_received_data =
-        fetch_map::<StakeReceivedStore<_>>(xt, hash).await?;
-    let online_worker_data: Vec<_> = worker_data
-        .into_iter()
-        .filter(|(_k, worker_info)|
-            match worker_info.state {
-                WorkerStateEnum::<BlockNumber>::Mining(_)
-                | WorkerStateEnum::<BlockNumber>::MiningStopping => true,
-                _ => false,
-            }
-        ).collect();
-    let stashes: HashSet<AccountId> = online_worker_data
-        .iter()
-        .map(|(k, _v)| account_id_from_map_key(&k.0))
-        .collect();
-    let stake_received_data: Vec<_> = stake_received_data
-        .into_iter()
-        .filter(|(k, _v)| stashes.contains(&account_id_from_map_key(&k.0)))
-        .collect();
-    debug!("- online_worker_data: vec[{}]", online_worker_data.len());
-    debug!("- stake_received_data: vec[{}]", stake_received_data.len());
-
-    // Proof of all the storage keys
-    let mut all_keys: Vec<StorageKey> = online_worker_data
-        .iter().map(|(k, _)| k)
-        .chain(stake_received_data.iter().map(|(k, _)| k))
-        .cloned()
-        .collect();
-    all_keys.push(online_workers_key.clone());
-    all_keys.push(compute_workers_key.clone());
-    debug!("- All Storage Keys: vec[{}]", all_keys.len());
-    let read_proof = xt.read_proof(all_keys, hash).await?;
-    let proof = raw_proof(read_proof);
-
-    // Snapshot fields
-    let online_workers_kv = StorageKV::<u32>(online_workers_key.0, online_workers);
-    let compute_workers_kv = StorageKV::<u32>(compute_workers_key.0, compute_workers);
-    let worker_state_kv = storage_kv_from_data(online_worker_data);
-    let stake_received_kv = storage_kv_from_data(stake_received_data);
-    Ok(OnlineWorkerSnapshot {
-        worker_state_kv,
-        stake_received_kv,
-        online_workers_kv,
-        compute_workers_kv,
-        proof,
-    })
-}
-
-/// Check if the given raw event (in `Vec<u8>`) contains `Phala.NewMiningRound`
-pub fn check_round_end_event(
-    decoder: &EventsDecoder::<Runtime>, value: &Vec<u8>
-) -> Result<bool> {
-    let raw_events = decoder.decode_events(&mut value.as_slice())?;
-    for (_phase, raw) in &raw_events {
-        if let Raw::Event(event) = raw {
-            if event.module == "Phala" && event.variant == "NewMiningRound" {
-                return Ok(true)
-            }
-        }
-    }
-    Ok(false)
-}
-
 // Storage functions
 
 /// Fetches all the StorageMap entries from Substrate
@@ -177,17 +91,6 @@ where
     Ok(data)
 }
 
-/// Converts the raw data `Vec<(StorageKey, T)>` to `Vec<StorageKV<T>>`
-fn storage_kv_from_data<T>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>>
-where
-    T: FullCodec + Clone
-{
-    storage_data
-        .into_iter()
-        .map(|(k, v)| StorageKV(k.0, v))
-        .collect()
-}
-
 // Utility functions
 
 /// Calculates the Substrate storage key prefix
@@ -195,13 +98,4 @@ pub fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
     let mut key = twox_128(module.as_bytes()).to_vec();
     key.extend(&twox_128(storage_key_name.as_bytes()));
     key
-}
-
-/// Extract the last 256 bits as the AccountId (unsafe)
-fn account_id_from_map_key(key: &[u8]) -> AccountId {
-    // TODO: decode the key regularly
-    // (twox128(module) + twox128(storage) + black2_128_concat(accountid))
-    let mut raw_key: [u8; 32] = Default::default();
-    raw_key.copy_from_slice(&key[(key.len() - 32)..]);
-    AccountId::from(raw_key)
 }

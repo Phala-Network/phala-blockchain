@@ -31,7 +31,6 @@ where
     pub stake_received_kv: Vec<StorageKV<Balance>>,
     pub online_workers_kv: StorageKV<u32>,
     pub compute_workers_kv: StorageKV<u32>,
-    pub proof: StorageProof,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -45,15 +44,11 @@ where
 }
 
 #[derive(Encode, Decode, Clone, Debug)]
-pub struct BlockHeaderWithEvents<BlockNumber, Hash, Balance>
+pub struct BlockHeaderWithEvents<BlockNumber, Hash>
 where
     BlockNumber: Copy + Into<U256> + TryFrom<U256> + FullCodec + Clone,
     Hash: HashT,
-    Balance: FullCodec + Clone,
 {
     pub block_header: Header<BlockNumber, Hash>,
-    pub events: Option<Vec<u8>>,
-    pub proof: Option<Vec<Vec<u8>>>,
-    pub worker_snapshot: Option<OnlineWorkerSnapshot<BlockNumber, Balance>>,
     pub storage_changes: StorageChanges,
 }

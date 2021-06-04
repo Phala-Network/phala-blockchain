@@ -289,34 +289,6 @@ where
     Ok(resp)
 }
 
-/// Attaches a worker snapshot for NewRound blocks for compute worker election
-async fn maybe_take_worker_snapshot(
-    xt: &XtClient,
-    events_decoder: &EventsDecoder<Runtime>,
-    dispatch_batch: &mut Vec<BlockHeaderWithEvents>,
-) -> Result<()> {
-    for bwe in dispatch_batch {
-        let data = bwe.events.as_ref().unwrap();
-        if chain_client::check_round_end_event(events_decoder, data)
-            .with_context(|| format!("Error decoding block at: {}", bwe.block_header.number))?
-        {
-            let snapshot =
-                chain_client::snapshot_online_worker_at(xt, Some(bwe.block_header.hash())).await;
-            bwe.worker_snapshot = match snapshot {
-                Ok(snapshot) => Some(snapshot),
-                Err(e)
-                    if e.is::<Error>()
-                        && matches!(e.downcast_ref().unwrap(), Error::ComputeWorkerNotEnabled) =>
-                {
-                    None
-                }
-                Err(err) => return Err(err),
-            };
-        }
-    }
-    Ok(())
-}
-
 /// Syncs only the events to pRuntime till `sync_to`
 async fn sync_events_only(
     xt: &XtClient,
@@ -340,13 +312,9 @@ async fn sync_events_only(
         .drain(..n)
         .map(|bwe| BlockHeaderWithEvents {
             block_header: bwe.block.block.header,
-            events: bwe.events,
-            proof: bwe.proof,
-            worker_snapshot: None,
             storage_changes: bwe.storage_changes,
         })
         .collect();
-    maybe_take_worker_snapshot(xt, events_decoder, &mut blocks).await?;
     for chunk in blocks.chunks(batch_window) {
         let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
         debug!("  ..dispatch_block: {:?}", r);
@@ -479,13 +447,9 @@ async fn batch_sync_block(
                     .drain(..=(batch_end as usize))
                     .map(|bwe| BlockHeaderWithEvents {
                         block_header: bwe.block.block.header,
-                        events: bwe.events,
-                        proof: bwe.proof,
-                        worker_snapshot: None,
                         storage_changes: bwe.storage_changes,
                     })
                     .collect();
-                maybe_take_worker_snapshot(client, events_decoder, &mut dispatch_batch).await?;
                 let r = req_dispatch_block(pr, &dispatch_batch).await?;
                 debug!("  ..dispatch_block: {:?}", r);
 

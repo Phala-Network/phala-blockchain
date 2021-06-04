@@ -97,7 +97,7 @@ fn main() {
             use sp_runtime::{generic::Header, traits::BlakeTwo256};
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
-                phala_types::pruntime::BlockHeaderWithEvents::<u32, BlakeTwo256, u128>::decode(
+                phala_types::pruntime::BlockHeaderWithEvents::<u32, BlakeTwo256>::decode(
                     &mut data.as_slice(),
                 );
 

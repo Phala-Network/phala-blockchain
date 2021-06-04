@@ -38,7 +38,7 @@ use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
-use parity_scale_codec::{Decode, Encode, FullCodec};
+use parity_scale_codec::{Decode, Encode, Error as DecodeError, FullCodec};
 use secp256k1::{PublicKey, SecretKey};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
@@ -57,7 +57,7 @@ use phala_types::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
         StorageKV,
     },
-    PRuntimeInfo,
+    PRuntimeInfo, WorkerStateEnum,
 };
 
 mod cert;
@@ -70,6 +70,7 @@ mod rpc_types;
 mod system;
 mod types;
 
+use crate::light_validation::utils::storage_prefix;
 use contracts::{
     AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, BTC_LOTTERY, DATA_PLAZA, DIEM,
     SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
@@ -77,16 +78,18 @@ use contracts::{
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
+use sp_core::storage::StorageKey;
+use sp_runtime::traits::Header;
+use std::collections::HashSet;
 use system::{CommandIndex, TransactionReceipt, TransactionStatus};
-use types::{Error, TxRef};
 use trie_storage::TrieStorage;
+use types::{Error, TxRef};
 
 type HeaderToSync =
     GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
 type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
     chain::BlockNumber,
     <chain::Runtime as frame_system::Config>::Hashing,
-    chain::Balance,
 >;
 type OnlineWorkerSnapshot =
     phala_types::pruntime::OnlineWorkerSnapshot<chain::BlockNumber, chain::Balance>;
@@ -175,9 +178,9 @@ struct LocalState {
     initialized: bool,
     public_key: Box<PublicKey>,
     private_key: Box<SecretKey>,
-    headernum: u32, // the height of synced block
-    blocknum: u32,  // the height of dispatched block
-    block_hashes: Vec<Hash>,
+    headernum: u32,                  // the height of synced block
+    blocknum: u32,                   // the height of dispatched block
+    block_hashes: Vec<(Hash, Hash)>, // TODO.kevin: use VecDeque for better efficient
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
@@ -1110,8 +1113,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
     state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
     // Initialize other states
-    local_state.runtime_state.load(input.genesis_state.into_iter());
-    info!("Genesis state loaded: {:?}", local_state.runtime_state.root());
+    local_state
+        .runtime_state
+        .load(input.genesis_state.into_iter());
+    info!(
+        "Genesis state loaded: {:?}",
+        local_state.runtime_state.root()
+    );
 
     local_state.headernum = 1;
     local_state.blocknum = 1;
@@ -1319,10 +1327,122 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
 
     // Save the block hashes for future dispatch
     for header in headers.iter() {
-        local_state.block_hashes.push(header.header.hash());
+        local_state
+            .block_hashes
+            .push((header.header.hash(), header.header.state_root));
     }
 
     Ok(json!({ "synced_to": last_header }))
+}
+
+/// Converts the raw data `Vec<(StorageKey, T)>` to `Vec<StorageKV<T>>`
+fn storage_kv_from_data<T>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>>
+where
+    T: FullCodec + Clone,
+{
+    storage_data
+        .into_iter()
+        .map(|(k, v)| StorageKV(k.0, v))
+        .collect()
+}
+
+fn account_id_from_map_key(key: &[u8]) -> &[u8] {
+    // (twox128(module) + twox128(storage) + black2_128_concat(accountid))
+    &key[256 / 8..]
+}
+
+pub fn snapshot_online_worker(
+    trie: &TrieStorage<RuntimeHasher>,
+) -> Result<Option<OnlineWorkerSnapshot>, Value> {
+    // Stats numbers
+    let online_workers_key = storage_prefix("Phala", "OnlineWorkers");
+    let compute_workers_key = storage_prefix("Phala", "ComputeWorkers");
+    let worker_state_key = storage_prefix("Phala", "WorkerState");
+    let stake_received_key = storage_prefix("MiningStaking", "StakeReceived");
+
+    fn decode<T: Decode>(mut data: &[u8]) -> Result<T, DecodeError> {
+        Decode::decode(&mut data)
+    }
+
+    let online_workers: u32 = match trie.get(&online_workers_key) {
+        Some(v) => decode(&v).map_err(|_| error_msg("Decode OnlineWorkers failed"))?,
+        None => 0,
+    };
+
+    let compute_workers: u32 = match trie.get(&compute_workers_key) {
+        Some(v) => decode(&v).map_err(|_| error_msg("Decode ComputeWorkers failed"))?,
+        None => 0,
+    };
+
+    if online_workers == 0 || compute_workers == 0 {
+        info!(
+            "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
+            online_workers, compute_workers
+        );
+        return Ok(None);
+    }
+
+    info!("- Stats Online Workers: {}", online_workers);
+    info!("- Stats Compute Workers: {}", compute_workers);
+
+    // Online workers and stake received
+    // TODO.kevin: take attention to the memory usage.
+    let worker_data: Vec<(StorageKey, phala_types::WorkerInfo<chain::BlockNumber>)> = trie
+        .pairs(&worker_state_key)
+        .into_iter()
+        .try_fold(Vec::new(), |mut out, value| -> Result<_, Value> {
+            out.push((
+                StorageKey(value.0),
+                decode(&value.1).map_err(|_| error_msg("Decode worker data failed"))?,
+            ));
+            Ok(out)
+        })?;
+
+    let stake_received_data: Vec<(StorageKey, chain::Balance)> = trie
+        .pairs(&stake_received_key)
+        .into_iter()
+        .try_fold(Vec::new(), |mut out, value| -> Result<_, Value> {
+            out.push((
+                StorageKey(value.0),
+                decode(&value.1).map_err(|_| error_msg("Decode stake_received_data failed"))?,
+            ));
+            Ok(out)
+        })?;
+
+    let online_worker_data: Vec<_> = worker_data
+        .into_iter()
+        .filter(|(_k, worker_info)| match worker_info.state {
+            WorkerStateEnum::<chain::BlockNumber>::Mining(_)
+            | WorkerStateEnum::<chain::BlockNumber>::MiningStopping => true,
+            _ => false,
+        })
+        .collect();
+
+    let stashes: HashSet<&[u8]> = online_worker_data
+        .iter()
+        .map(|(k, _v)| account_id_from_map_key(&k.0))
+        .collect();
+
+    let stake_received_data: Vec<_> = stake_received_data
+        .into_iter()
+        .filter(|(k, _v)| stashes.contains(account_id_from_map_key(&k.0)))
+        .collect();
+
+    debug!("- online_worker_data: vec[{}]", online_worker_data.len());
+    debug!("- stake_received_data: vec[{}]", stake_received_data.len());
+
+    // Snapshot fields
+    let online_workers_kv = StorageKV::<u32>(online_workers_key, online_workers);
+    let compute_workers_kv = StorageKV::<u32>(compute_workers_key, compute_workers);
+    let worker_state_kv = storage_kv_from_data(online_worker_data);
+    let stake_received_kv = storage_kv_from_data(stake_received_data);
+
+    Ok(Some(OnlineWorkerSnapshot {
+        worker_state_kv,
+        stake_received_kv,
+        online_workers_kv,
+        compute_workers_kv,
+    }))
 }
 
 fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
@@ -1356,8 +1476,8 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         return Err(error_msg("Unsynced block"));
     }
     for (i, block) in blocks.iter().enumerate() {
-        let expected_hash = &local_state.block_hashes[i];
-        if block.block_header.hash() != *expected_hash {
+        let expected_hash = local_state.block_hashes[i].0;
+        if block.block_header.hash() != expected_hash {
             return Err(error_msg("Unexpected block hash"));
         }
     }
@@ -1369,23 +1489,36 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             .expect("ECDH not initizlied"),
     );
     let mut last_block = 0;
-    for block in blocks.into_iter() {
-        if block.events.is_none() {
-            return Err(error_msg("Event was required"));
-        }
-
+    for (i, block) in blocks.into_iter().enumerate() {
         let changes = &block.storage_changes;
-        local_state
-            .runtime_state
-            .apply_changes(&changes.main_storage_changes, &changes.child_storage_changes);
+        local_state.runtime_state.apply_changes(
+            &changes.main_storage_changes,
+            &changes.child_storage_changes,
+        );
 
-        if block.block_header.state_root != *local_state.runtime_state.root() {
-            // TODO: rollback the state
+        let expected_root = &local_state.block_hashes[i].1;
+        if expected_root != local_state.runtime_state.root() {
+            // TODO.kevin: rollback the state
             return Err(error_msg("State root mismatch"));
         }
         info!("New state root: {:?}", local_state.runtime_state.root());
 
-        handle_events(&block, &ecdh_privkey, local_state.dev_mode)?;
+        let event_storage_key = light_validation::utils::storage_prefix("System", "Events");
+        let events = local_state
+            .runtime_state
+            .get(&event_storage_key)
+            .ok_or(error_msg("Can not get Events from storage"))?;
+
+        let worker_snapshot = snapshot_online_worker(&local_state.runtime_state)?;
+
+        // TODO.kevin: rollback the state on failure
+        handle_events(
+            block.block_header.number,
+            events,
+            worker_snapshot,
+            &ecdh_privkey,
+            local_state.dev_mode,
+        )?;
 
         last_block = block.block_header.number;
         local_state.block_hashes.remove(0);
@@ -1403,39 +1536,16 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
 }
 
 fn handle_events(
-    block_with_events: &BlockHeaderWithEvents,
+    block_number: chain::BlockNumber,
+    mut events: Vec<u8>,
+    worker_snapshot: Option<OnlineWorkerSnapshot>,
     ecdh_privkey: &EcdhKey,
     dev_mode: bool,
 ) -> Result<(), Value> {
     let ref mut state = STATE.lock().unwrap();
-    let missing_field = error_msg("Missing field");
-    // Validate sotrage proof for events
-    let events = block_with_events
-        .events
-        .as_ref()
-        .ok_or(missing_field.clone())?;
-    let proof = block_with_events
-        .proof
-        .as_ref()
-        .ok_or(missing_field.clone())?;
-    let event_storage_key = light_validation::utils::storage_prefix("System", "Events");
-    let state_root = block_with_events.block_header.state_root;
-    state
-        .light_client
-        .validate_storage_proof(
-            state_root,
-            proof.clone(),
-            &[(event_storage_key.as_slice(), events.as_slice())],
-        )
-        .map_err(|_| error_msg("Bad storage proof for events"))?;
-    // Validate worker snapshot (if applicable)
-    if let Some(worker_snapshot) = block_with_events.worker_snapshot.as_ref() {
-        if !validate_worker_snapshot(&state.light_client, state_root, worker_snapshot) {
-            return Err(error_msg("Invalid worker_snapshot storage proof"));
-        }
-    }
     // Dispatch events
-    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events.as_slice())
+    let mut events: &[u8] = events.as_ref();
+    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
         .map_err(|_| error_msg("Decode events error"))?;
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
@@ -1443,7 +1553,7 @@ fn handle_events(
         if let chain::Event::pallet_phala(pe) = &evt.event {
             // Dispatch to system contract anyway
             event_handler
-                .feed(block_with_events, &pe)
+                .feed(block_number, &pe, worker_snapshot.as_ref())
                 .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
             // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
             if !dev_mode {
@@ -1457,9 +1567,8 @@ fn handle_events(
                         contract_id,
                         payload.len()
                     );
-                    let blocknum = block_with_events.block_header.number;
                     let pos = TxRef {
-                        blocknum,
+                        blocknum: block_number,
                         index: *num,
                     };
                     handle_execution(
@@ -1486,77 +1595,6 @@ fn handle_events(
         }
     }
     Ok(())
-}
-
-fn validate_worker_snapshot(
-    light_client: &ChainLightValidation,
-    state_root: Hash,
-    snapshot: &OnlineWorkerSnapshot,
-) -> bool {
-    info!("validate_worker_snapshot()");
-    use light_validation::utils::storage_prefix;
-    use phala_types::WorkerStateEnum;
-    let prefix_onlineworkers = storage_prefix("Phala", "OnlineWorkers");
-    let prefix_computeworkers = storage_prefix("Phala", "ComputeWorkers");
-    let prefix_workerstate = storage_prefix("Phala", "WorkerState");
-    let prefix_stakereceived = storage_prefix("MiningStaking", "StakeReceived");
-
-    let cond = [
-        // Check keys
-        snapshot.online_workers_kv.key() == prefix_onlineworkers.as_slice(),
-        snapshot.compute_workers_kv.key() == prefix_computeworkers.as_slice(),
-        snapshot
-            .worker_state_kv
-            .iter()
-            .all(|kv| kv.key().starts_with(prefix_workerstate.as_slice())),
-        // WorkerState key is real
-        snapshot
-            .stake_received_kv
-            .iter()
-            .all(|kv| kv.key().starts_with(prefix_stakereceived.as_slice())),
-        // There's no missing entry in WorkerState
-        snapshot.online_workers_kv.value() == &(snapshot.worker_state_kv.len() as u32),
-        // Compute worker is enabled
-        snapshot.compute_workers_kv.value() != &0,
-        // All the workers are online
-        snapshot
-            .worker_state_kv
-            .iter()
-            .all(|kv| match kv.value().state {
-                WorkerStateEnum::Mining(_) => true,
-                _ => false,
-            }),
-    ];
-    if !cond.iter().all(|x| *x) {
-        info!("Checks: {:?}", cond);
-        info!(
-            "stake_received key: {}",
-            hex::encode_hex_compact(snapshot.stake_received_kv[0].key())
-        );
-        info!("snapshot: {:?}", snapshot);
-        return false;
-    }
-
-    // Validate the storage proof
-    fn raw_kv<'a, T: FullCodec + Clone>(kv: &'a StorageKV<T>) -> (&'a [u8], Vec<u8>) {
-        (&kv.0, kv.1.encode())
-    }
-    let mut raw_items = Vec::<(&[u8], Vec<u8>)>::new();
-    raw_items.extend(snapshot.worker_state_kv.iter().map(raw_kv));
-    raw_items.extend(snapshot.stake_received_kv.iter().map(raw_kv));
-    raw_items.push(raw_kv(&snapshot.online_workers_kv));
-    raw_items.push(raw_kv(&snapshot.compute_workers_kv));
-    let raw_items_ref: Vec<_> = raw_items.iter().map(|(k, v)| (*k, v.as_slice())).collect();
-    let r = light_client.validate_storage_proof(
-        state_root,
-        snapshot.proof.clone(),
-        raw_items_ref.as_slice(),
-    );
-    if r.is_err() {
-        error!("Snapshot light validation: {:?}", r);
-        return false;
-    }
-    true
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

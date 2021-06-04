@@ -111,6 +111,23 @@ where
         self.0.root()
     }
 
+    /// Given storage key return storage value
+    pub fn get(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>> {
+        self.0.storage(key.as_ref()).ok().flatten()
+    }
+
+    /// Return storage pairs which start with given storage key prefix
+    pub fn pairs(&self, prefix: impl AsRef<[u8]>) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.0
+            .keys(prefix.as_ref())
+            .into_iter()
+            .map(|key| {
+                let value = self.get(&key).expect("Reflected key should exists");
+                (key, value)
+            })
+            .collect()
+    }
+
     fn is_empty(&self) -> bool {
         // TODO: a reliable way
         *self.0.root() == Default::default()

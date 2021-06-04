@@ -215,8 +215,9 @@ pub struct EventHandler<'a> {
 impl<'a> EventHandler<'a> {
     pub fn feed(
         &mut self,
-        block_context: &'a super::BlockHeaderWithEvents,
+        block_number: chain::BlockNumber,
         event: &PhalaEvent,
+        worker_snapshot: Option<&'a super::OnlineWorkerSnapshot>,
     ) -> Result<()> {
         match event {
             // Reset the egress queue once we detected myself is re-registered
@@ -242,14 +243,13 @@ impl<'a> EventHandler<'a> {
                 }
             }
             phala::RawEvent::RewardSeed(reward_info) => {
-                let blocknum = block_context.block_header.number;
                 self.seed = Some(reward_info.seed);
-                self.system.handle_reward_seed(blocknum, &reward_info)?;
+                self.system.handle_reward_seed(block_number, &reward_info)?;
             }
             phala::RawEvent::NewMiningRound(round) => {
                 info!("System::handle_event: new mining round ({})", round);
                 // Save the snapshot for later use
-                self.snapshot = block_context.worker_snapshot.as_ref();
+                self.snapshot = worker_snapshot;
                 self.new_round = true;
             }
             _ => (),

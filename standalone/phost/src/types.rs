@@ -20,11 +20,10 @@ pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
 pub type AccountId = <Runtime as subxt::system::System>::AccountId;
-pub type Balance = <Runtime as subxt::balances::Balances>::Balance;
 
 pub type RawEvents = Vec<u8>;
 pub type HeaderToSync = pruntime::HeaderToSync<BlockNumber, Hashing>;
-pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing, Balance>;
+pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing>;
 
 // pRuntime APIs
 
