@@ -1496,9 +1496,15 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             &changes.child_storage_changes,
         );
 
-        let expected_root = &local_state.block_hashes[i].1;
+        // TODO.kevin: rollback the state on failure
+        let expected_root = &local_state
+            .block_hashes
+            .get(0)
+            .ok_or(error_msg("No enough header to validate blocks"))?
+            .1;
         if expected_root != local_state.runtime_state.root() {
-            // TODO.kevin: rollback the state
+            error!("expected root: {:?}", expected_root);
+            error!("real root: {:?}", local_state.runtime_state.root());
             return Err(error_msg("State root mismatch"));
         }
         info!("New state root: {:?}", local_state.runtime_state.root());
@@ -1511,7 +1517,6 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
 
         let worker_snapshot = snapshot_online_worker(&local_state.runtime_state)?;
 
-        // TODO.kevin: rollback the state on failure
         handle_events(
             block.block_header.number,
             events,
