@@ -15,9 +15,9 @@ trie-storage = { path = "../../crates/trie-storage", default-features = false, o
 [features]
 default = ["std", "pruntime", "enable_serde"]
 std = [
-    "serde/std",
-    "codec/std",
-    "sp-core/full_crypto",
+	"serde/std",
+	"codec/std",
+	"sp-core/full_crypto",
 	"sp-runtime/std",
 	"trie-storage/std",
 ]
