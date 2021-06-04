@@ -80,7 +80,7 @@ use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use sp_core::storage::StorageKey;
 use sp_runtime::traits::Header;
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 use system::{CommandIndex, TransactionReceipt, TransactionStatus};
 use trie_storage::TrieStorage;
 use types::{Error, TxRef};
@@ -180,7 +180,7 @@ struct LocalState {
     private_key: Box<SecretKey>,
     headernum: u32,                  // the height of synced block
     blocknum: u32,                   // the height of dispatched block
-    block_hashes: Vec<(Hash, Hash)>, // TODO.kevin: use VecDeque for better efficient
+    block_hashes: VecDeque<(Hash, Hash)>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
@@ -264,7 +264,7 @@ lazy_static! {
                 private_key: Box::new(sk),
                 headernum: 0,
                 blocknum: 0,
-                block_hashes: Vec::new(),
+                block_hashes: VecDeque::new(),
                 ecdh_private_key: None,
                 ecdh_public_key: None,
                 machine_id: [0; 16],
@@ -1329,7 +1329,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     for header in headers.iter() {
         local_state
             .block_hashes
-            .push((header.header.hash(), header.header.state_root));
+            .push_back((header.header.hash(), header.header.state_root));
     }
 
     Ok(json!({ "synced_to": last_header }))
@@ -1526,7 +1526,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         )?;
 
         last_block = block.block_header.number;
-        local_state.block_hashes.remove(0);
+        let _ = local_state.block_hashes.pop_front();
         local_state.blocknum = last_block + 1;
     }
 
