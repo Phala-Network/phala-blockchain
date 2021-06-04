@@ -1513,7 +1513,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     let headernum = local_state.headernum;
     let blocknum = local_state.blocknum;
-    let state_root = format!("{:?}", local_state.runtime_state.root());
+    let state_root = hex::encode_hex_compact(local_state.runtime_state.root().as_ref());
     let machine_id = local_state.machine_id;
 
     let system_state = SYSTEM_STATE.lock().unwrap();
