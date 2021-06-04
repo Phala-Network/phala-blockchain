@@ -3,16 +3,19 @@ use anyhow::Result;
 use core::fmt;
 use log::info;
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 
-use parity_scale_codec::Encode;
-use phala_types::{BlockRewardInfo, SignedWorkerMessage, WorkerMessagePayload};
-use sp_core::ecdsa;
-use sp_core::hashing::blake2_256;
-use sp_core::U256;
+use parity_scale_codec::{Decode, Encode, Error as DecodeError, FullCodec};
+use phala_types::{
+    pruntime::StorageKV, BlockRewardInfo, SignedWorkerMessage, WorkerMessagePayload,
+    WorkerStateEnum,
+};
+use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
 
 use crate::contracts::AccountIdWrapper;
+use crate::light_validation::utils::storage_prefix;
 use crate::msg_channel::MsgChannel;
+use crate::OnlineWorkerSnapshot;
 
 mod comp_election;
 
@@ -209,7 +212,7 @@ pub struct EventHandler<'a> {
     pub system: &'a mut System,
     seed: Option<U256>,
     new_round: bool,
-    snapshot: Option<&'a super::OnlineWorkerSnapshot>,
+    snapshot: Option<super::OnlineWorkerSnapshot>,
 }
 
 impl<'a> EventHandler<'a> {
@@ -217,7 +220,7 @@ impl<'a> EventHandler<'a> {
         &mut self,
         block_number: chain::BlockNumber,
         event: &PhalaEvent,
-        worker_snapshot: Option<&'a super::OnlineWorkerSnapshot>,
+        storage: &crate::Storage,
     ) -> Result<()> {
         match event {
             // Reset the egress queue once we detected myself is re-registered
@@ -249,7 +252,7 @@ impl<'a> EventHandler<'a> {
             phala::RawEvent::NewMiningRound(round) => {
                 info!("System::handle_event: new mining round ({})", round);
                 // Save the snapshot for later use
-                self.snapshot = worker_snapshot;
+                self.snapshot = snapshot_online_worker(storage)?;
                 self.new_round = true;
             }
             _ => (),
@@ -258,11 +261,119 @@ impl<'a> EventHandler<'a> {
     }
 }
 
+fn snapshot_online_worker(trie: &crate::Storage) -> anyhow::Result<Option<OnlineWorkerSnapshot>> {
+    // Stats numbers
+    let online_workers_key = storage_prefix("Phala", "OnlineWorkers");
+    let compute_workers_key = storage_prefix("Phala", "ComputeWorkers");
+    let worker_state_key = storage_prefix("Phala", "WorkerState");
+    let stake_received_key = storage_prefix("MiningStaking", "StakeReceived");
+
+    fn decode<T: Decode>(mut data: &[u8]) -> Result<T, DecodeError> {
+        Decode::decode(&mut data)
+    }
+
+    let online_workers: u32 = match trie.get(&online_workers_key) {
+        Some(v) => decode(&v).map_err(|_| anyhow::anyhow!("Decode OnlineWorkers failed"))?,
+        None => 0,
+    };
+
+    let compute_workers: u32 = match trie.get(&compute_workers_key) {
+        Some(v) => decode(&v).map_err(|_| anyhow::anyhow!("Decode ComputeWorkers failed"))?,
+        None => 0,
+    };
+
+    if online_workers == 0 || compute_workers == 0 {
+        info!(
+            "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
+            online_workers, compute_workers
+        );
+        return Ok(None);
+    }
+
+    info!("- Stats Online Workers: {}", online_workers);
+    info!("- Stats Compute Workers: {}", compute_workers);
+
+    // Online workers and stake received
+    // TODO.kevin: take attention to the memory usage.
+    let worker_data: Vec<(StorageKey, phala_types::WorkerInfo<chain::BlockNumber>)> = trie
+        .pairs(&worker_state_key)
+        .into_iter()
+        .try_fold(Vec::new(), |mut out, value| -> anyhow::Result<_> {
+            out.push((
+                StorageKey(value.0),
+                decode(&value.1).map_err(|_| anyhow::anyhow!("Decode worker data failed"))?,
+            ));
+            Ok(out)
+        })?;
+
+    let stake_received_data: Vec<(StorageKey, chain::Balance)> = trie
+        .pairs(&stake_received_key)
+        .into_iter()
+        .try_fold(Vec::new(), |mut out, value| -> anyhow::Result<_> {
+            out.push((
+                StorageKey(value.0),
+                decode(&value.1)
+                    .map_err(|_| anyhow::anyhow!("Decode stake_received_data failed"))?,
+            ));
+            Ok(out)
+        })?;
+
+    let online_worker_data: Vec<_> = worker_data
+        .into_iter()
+        .filter(|(_k, worker_info)| match worker_info.state {
+            WorkerStateEnum::<chain::BlockNumber>::Mining(_)
+            | WorkerStateEnum::<chain::BlockNumber>::MiningStopping => true,
+            _ => false,
+        })
+        .collect();
+
+    let stashes: HashSet<&[u8]> = online_worker_data
+        .iter()
+        .map(|(k, _v)| account_id_from_map_key(&k.0))
+        .collect();
+
+    let stake_received_data: Vec<_> = stake_received_data
+        .into_iter()
+        .filter(|(k, _v)| stashes.contains(account_id_from_map_key(&k.0)))
+        .collect();
+
+    debug!("- online_worker_data: vec[{}]", online_worker_data.len());
+    debug!("- stake_received_data: vec[{}]", stake_received_data.len());
+
+    // Snapshot fields
+    let online_workers_kv = StorageKV::<u32>(online_workers_key, online_workers);
+    let compute_workers_kv = StorageKV::<u32>(compute_workers_key, compute_workers);
+    let worker_state_kv = storage_kv_from_data(online_worker_data);
+    let stake_received_kv = storage_kv_from_data(stake_received_data);
+
+    Ok(Some(crate::OnlineWorkerSnapshot {
+        worker_state_kv,
+        stake_received_kv,
+        online_workers_kv,
+        compute_workers_kv,
+    }))
+}
+
+fn storage_kv_from_data<T>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>>
+where
+    T: FullCodec + Clone,
+{
+    storage_data
+        .into_iter()
+        .map(|(k, v)| crate::StorageKV(k.0, v))
+        .collect()
+}
+
+fn account_id_from_map_key(key: &[u8]) -> &[u8] {
+    // (twox128(module) + twox128(storage) + black2_128_concat(accountid))
+    &key[256 / 8..]
+}
+
 impl<'a> Drop for EventHandler<'a> {
     fn drop(&mut self) {
         if let (true, Some(seed)) = (self.new_round, self.seed) {
             self.system
-                .handle_new_round(seed, self.snapshot)
+                .handle_new_round(seed, self.snapshot.as_ref())
                 .expect("System EventHandler::drop() should never fail; qed.");
         }
     }
