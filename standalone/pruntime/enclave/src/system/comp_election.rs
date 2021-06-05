@@ -35,7 +35,7 @@ pub fn elect(seed: u64, candidates: &OnlineWorkerSnapshot, mid: &Vec<u8>) -> boo
         info!(
             "- winner[{}]: mid={} score={} weight={}",
             i,
-            crate::hex::encode_hex_compact(&worker_info.machine_id),
+            hex::encode(&worker_info.machine_id),
             worker_info.score.as_ref().unwrap().overall_score,
             weights[i as usize],
         );

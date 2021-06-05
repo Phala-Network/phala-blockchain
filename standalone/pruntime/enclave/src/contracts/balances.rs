@@ -16,8 +16,6 @@ use crate::types::TxRef;
 use crate::TransactionStatus;
 extern crate runtime as chain;
 
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
-
 type SequenceType = u64;
 
 #[derive(Serialize, Deserialize)]
@@ -92,15 +90,11 @@ pub enum Response {
     Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
 }
 
-const SUPPLY: u128 = 0;
-
 impl Balances {
     pub fn new(id: Option<ecdsa::Pair>) -> Self {
-        let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
-        accounts.insert(AccountIdWrapper::from_hex(ALICE), SUPPLY);
         Balances {
             total_issuance: 0,
-            accounts,
+            accounts: BTreeMap::new(),
             sequence: 0,
             queue: Vec::new(),
             id,

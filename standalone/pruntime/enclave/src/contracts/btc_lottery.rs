@@ -10,7 +10,7 @@ use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid};
 use core::str::FromStr;
 use lazy_static;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair;
 use sp_core::ecdsa;
@@ -115,7 +115,7 @@ impl BtcLottery {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
-        let admin = AccountIdWrapper::from_hex(ALICE);
+        let admin = AccountIdWrapper::from_hex(ALICE).expect("Bad initial admin hex");
         BtcLottery {
             round_id: 0,
             token_set,
@@ -357,7 +357,7 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 let sender = AccountIdWrapper(origin.clone());
                 let btc_address = match Address::from_str(&address) {
                     Ok(e) => e,
-                    Err(error) => return TransactionStatus::BadCommand,
+                    Err(_) => return TransactionStatus::BadCommand,
                 };
                 if self.admin == sender {
                     let round_utxo = match self.utxo.entry(round_id) {
@@ -371,11 +371,14 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             Command::SetAdmin { new_admin } => {
                 // TODO: listen to some specific privileged account instead of ALICE
                 let sender = AccountIdWrapper(origin.clone());
-                let new_admin = AccountIdWrapper::from_hex(&new_admin);
-                if self.admin == sender {
-                    self.admin = new_admin;
+                if let Ok(new_admin) = AccountIdWrapper::from_hex(&new_admin) {
+                    if self.admin == sender {
+                        self.admin = new_admin;
+                    }
+                    TransactionStatus::Ok
+                } else {
+                    TransactionStatus::InvalidAccount
                 }
-                TransactionStatus::Ok
             }
         }
     }

@@ -3,7 +3,7 @@ use crate::std::string::String;
 
 use super::TransactionStatus;
 use crate::types::TxRef;
-use anyhow::Result;
+use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
 use serde::{
@@ -21,7 +21,6 @@ pub mod web3analytics;
 pub mod woothee;
 
 pub type ContractId = u32;
-pub type SequenceType = u64;
 pub const SYSTEM: ContractId = 0;
 pub const DATA_PLAZA: ContractId = 1;
 pub const BALANCES: ContractId = 2;
@@ -40,18 +39,21 @@ where
     fn id(&self) -> ContractId;
     fn handle_command(
         &mut self,
-        origin: &chain::AccountId,
-        txref: &TxRef,
-        cmd: Cmd,
-    ) -> TransactionStatus;
+        _origin: &chain::AccountId,
+        _txref: &TxRef,
+        _cmd: Cmd,
+    ) -> TransactionStatus {
+        TransactionStatus::Ok
+    }
+
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
     fn handle_event(&mut self, _re: runtime::Event) {}
 }
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     use core::convert::TryFrom;
-    let bytes = crate::hex::decode_hex(accid_hex);
-    chain::AccountId::try_from(bytes.as_slice()).map_err(|_| anyhow::Error::msg(""))
+    let bytes = hex::decode(accid_hex).map_err(Error::msg)?;
+    chain::AccountId::try_from(bytes.as_slice()).map_err(|_| Error::msg("Bad account id"))
 }
 
 /// Serde module to serialize or deserialize parity scale codec types
@@ -126,18 +128,21 @@ pub mod serde_anyhow {
 pub struct AccountIdWrapper(pub chain::AccountId);
 
 impl<'a> AccountIdWrapper {
-    fn from(b: &'a [u8]) -> Self {
+    fn try_from(b: &'a [u8]) -> Result<Self> {
         let mut a = AccountIdWrapper::default();
         use core::convert::TryFrom;
-        a.0 = sp_core::crypto::AccountId32::try_from(b).unwrap();
-        a
+        a.0 = sp_core::crypto::AccountId32::try_from(b)
+            .map_err(|_| Error::msg("Failed to parse AccountId32"))?;
+        Ok(a)
     }
-    fn from_hex(s: &str) -> Self {
-        let bytes = crate::hex::decode_hex(s); // TODO: error handling
-        AccountIdWrapper::from(&bytes)
+    fn from_hex(s: &str) -> Result<Self> {
+        let bytes = hex::decode(s)
+            .map_err(Error::msg)
+            .context("Failed to decode AccountId hex")?;
+        Self::try_from(&bytes)
     }
     fn to_string(&self) -> String {
-        crate::hex::encode_hex_compact(self.0.as_ref())
+        hex::encode(&self.0)
     }
 }
 
@@ -174,8 +179,10 @@ impl<'de> Visitor<'de> for AcidVisitor {
         E: de::Error,
     {
         if v.len() == 64 {
-            let bytes = crate::hex::decode_hex(v); // TODO: error handling
-            Ok(AccountIdWrapper::from(&bytes))
+            let bytes =
+                hex::decode(v).map_err(|e| E::custom(format!("Cannot decode hex: {}", e)))?;
+            AccountIdWrapper::try_from(&bytes)
+                .map_err(|_| E::custom("Unknown error creating AccountIdWrapper"))
         } else {
             Err(E::custom(format!("AccountId hex length wrong: {}", v)))
         }

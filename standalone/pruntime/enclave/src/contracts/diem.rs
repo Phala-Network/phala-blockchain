@@ -1,11 +1,11 @@
-use std::collections::btree_map::Entry::{Occupied, Vacant};
 use crate::std::collections::BTreeMap;
 use crate::std::string::String;
 use crate::std::vec::Vec;
+use std::collections::btree_map::Entry::{Occupied, Vacant};
 
 use anyhow::Result;
 use core::{fmt, str};
-use log::{error, info, warn};
+use log::{error, info};
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;
@@ -21,15 +21,12 @@ use diem_types::account_address::{AccountAddress, HashAccountAddress};
 use diem_types::account_state_blob::AccountStateBlob;
 use diem_types::epoch_change::EpochChangeProof;
 use diem_types::ledger_info::LedgerInfoWithSignatures;
-use diem_types::proof::{
-    AccountStateProof, TransactionAccumulatorProof, TransactionInfoWithProof,
-};
+use diem_types::proof::{AccountStateProof, TransactionAccumulatorProof, TransactionInfoWithProof};
 use diem_types::transaction::TransactionInfo;
 use diem_types::transaction::{SignedTransaction, Transaction, TransactionPayload};
 use diem_types::trusted_state::{TrustedState, TrustedStateChange};
 use move_core_types::transaction_argument::TransactionArgument;
 
-use crate::hex;
 use crate::std::borrow::ToOwned;
 use diem_crypto::{
     ed25519::{Ed25519PrivateKey, Ed25519PublicKey},
@@ -50,7 +47,8 @@ const GAS_UNIT_PRICE: u64 = 0;
 const MAX_GAS_AMOUNT: u64 = 1_000_000;
 const TX_EXPIRATION: i64 = 180;
 const CHAIN_ID_UNINITIALIZED: u8 = 0;
-const ALICE_PRIVATE_KEY: &str = "818ad9a64e3d1bbc388f8bf1e43c78d125237b875a1b70a18f412f7d18efbeea";
+const ALICE_PRIVATE_KEY: &[u8] =
+    &hex_literal::hex!("818ad9a64e3d1bbc388f8bf1e43c78d125237b875a1b70a18f412f7d18efbeea");
 const ALICE_ADDRESS: &str = "D4F0C053205BA934BB2AC0C4E8479E77";
 
 const ALICE_PHALA: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
@@ -235,7 +233,7 @@ pub struct Diem {
 impl Diem {
     pub fn new() -> Self {
         let alice_priv_key =
-            Ed25519PrivateKey::from_bytes_unchecked(&hex::decode_hex(ALICE_PRIVATE_KEY)).expect("Bad private key");
+            Ed25519PrivateKey::from_bytes_unchecked(ALICE_PRIVATE_KEY).expect("Bad private key");
         let alice_key_pair: KeyPair<Ed25519PrivateKey, Ed25519PublicKey> =
             KeyPair::from(alice_priv_key);
         let alice_account_address =
@@ -251,14 +249,12 @@ impl Diem {
             is_child: false,
         };
 
+        let alice_addr = AccountIdWrapper::from_hex(ALICE_PHALA).expect("Bad init master account");
         let mut accounts = BTreeMap::<AccountIdWrapper, Account>::new();
-        accounts.insert(AccountIdWrapper::from_hex(ALICE_PHALA), alice_account);
+        accounts.insert(alice_addr.clone(), alice_account);
 
         let mut address = BTreeMap::<String, AccountIdWrapper>::new();
-        address.insert(
-            ALICE_ADDRESS.to_string(),
-            AccountIdWrapper::from_hex(ALICE_PHALA),
-        );
+        address.insert(ALICE_ADDRESS.to_string(), alice_addr);
 
         let mut account_address: Vec<String> = Vec::new();
         account_address.push(ALICE_ADDRESS.to_string());
@@ -363,7 +359,8 @@ impl Diem {
             .get_mut(&o)
             .ok_or(anyhow::Error::msg(Error::Other("Bad account".to_string())))?;
 
-        let signed_tx: &SignedTransaction = transaction.as_signed_user_txn()
+        let signed_tx: &SignedTransaction = transaction
+            .as_signed_user_txn()
             .expect("Not a signed transaction");
         let raw_transaction = signed_tx.clone().into_raw_transaction();
         let sequence_number = raw_transaction.sequence_number();
@@ -377,9 +374,7 @@ impl Diem {
             }
             use TransactionArgument::*;
             let args = script.args();
-            if let [Address(_addr), U64(amount), U8Vector(_), U8Vector(_)] =
-                &args[..]
-            {
+            if let [Address(_addr), U64(amount), U8Vector(_), U8Vector(_)] = &args[..] {
                 if raw_transaction.sender() != address {
                     account.free += amount;
 
@@ -626,13 +621,13 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         .expect("Bad trusted state data");
                 let ledger_info_with_signatures: LedgerInfoWithSignatures =
                     bcs::from_bytes(&ledger_info_with_signatures_data)
-                    .expect("Unable to parse ledger info");
+                        .expect("Unable to parse ledger info");
                 let epoch_change_proof_data = base64::decode(epoch_change_proof_b64)
                     .or(Err(TransactionStatus::BadEpochChangedProofData))
                     .expect("Bad epoch changed proof data");
                 let epoch_change_proof: EpochChangeProof =
                     bcs::from_bytes(&epoch_change_proof_data)
-                    .expect("Unable to parse epoch changed proof data");
+                        .expect("Unable to parse epoch changed proof data");
 
                 info!(
                     "ledger_info_with_signatures: {:?}",
@@ -744,13 +739,16 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                 let o = AccountIdWrapper(origin.clone());
                 info!("NewAccount {:}, seq_number:{:}", o.to_string(), seq_number);
 
-                let alice = AccountIdWrapper::from_hex(ALICE_PHALA);
+                let alice =
+                    AccountIdWrapper::from_hex(ALICE_PHALA).expect("Bad init master account");
                 if o == alice {
                     error!("Alice can't execute NewAccount command");
                     return TransactionStatus::InvalidAccount;
                 }
 
-                let alice_account = self.accounts.get(&alice)
+                let alice_account = self
+                    .accounts
+                    .get(&alice)
                     .expect("Alice account was required");
 
                 let alice_key_pair = &alice_account.key;
@@ -917,8 +915,8 @@ impl contracts::Contract<Command, Request, Response> for Diem {
                         match self.pending_transactions.entry(sender_address) {
                             Vacant(entry) => entry.insert(vec![]),
                             Occupied(entry) => entry.into_mut(),
-                        }.push(pending_tx);
-
+                        }
+                        .push(pending_tx);
 
                         sender_account.locked += amount;
                         sender_account.free -= amount;

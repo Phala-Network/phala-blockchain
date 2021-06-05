@@ -25,6 +25,8 @@ type PhalaEvent = phala::RawEvent<sp_runtime::AccountId32, u128>;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
     Ok,
+    BadInput,
+    // general
     InsufficientBalance,
     NoBalance,
     UnknownError,
