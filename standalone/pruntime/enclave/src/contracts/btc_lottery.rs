@@ -41,6 +41,7 @@ pub struct BtcLottery {
     round_id: u32,
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
+    tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
     #[serde(with = "super::serde_scale")]
     queue: Vec<SignedLotteryMessage>,
@@ -80,7 +81,7 @@ pub enum Request {
     GetRoundInfo { round_id: u32 },
     GetRoundAddress { round_id: u32 },
     QueryUtxo { round_id: u32 },
-    // GetSignedTx { round_id: u32 },
+    GetSignedTx { round_id: u32 },
     PendingLotteryEgress { sequence: SequenceType },
 }
 #[derive(Serialize, Deserialize, Debug)]
@@ -98,7 +99,9 @@ pub enum Response {
     QueryUtxo {
         utxo: BTreeMap<Address, (Txid, u32, u64)>,
     },
-    // GetSignedTx { round_id: u32 },
+    GetSignedTx {
+        tx_set: Vec<Vec<u8>>,
+    },
     PendingLotteryEgress {
         length: usize,
         lottery_queue_b64: String,
@@ -117,6 +120,7 @@ impl BtcLottery {
             round_id: 0,
             token_set,
             lottery_set,
+            tx_set: Vec::new(),
             sequence: 0,
             queue: Vec::new(),
             secret,
@@ -207,9 +211,11 @@ impl BtcLottery {
         }
     }
 
-    pub fn open_lottery(&mut self, round_id: u32, token_id: u32, btc_address: Vec<u8>) {
+    pub fn open_lottery(&mut self, round_id: u32, token_no: u32, btc_address: Vec<u8>) {
         if self.lottery_set.contains_key(&round_id) && self.utxo.contains_key(&round_id) {
-            let token_id = format!("{:#x}", token_id);
+            let token_round_id: U256 = U256::from(round_id) << 128;
+            let nft_id = (token_round_id + token_no) | *TYPE_NF_BIT;
+            let token_id = format!("{:#x}", nft_id);
             // from Vec<u8> to String
             let btc_address = match String::from_utf8(btc_address.clone()) {
                 Ok(e) => e,
@@ -300,6 +306,7 @@ impl BtcLottery {
                     .into_script();
                 tx.input[0].witness.clear();
                 let tx_bytes = serialize(&tx);
+                self.tx_set.push(tx_bytes.clone());
                 let payload = Lottery::SignedTx {
                     round_id,
                     token_id: token_id.as_bytes().to_vec(),
@@ -433,6 +440,9 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                     Response::Error(Error::InvalidRequest)
                 }
             }
+            Request::GetSignedTx { round_id } => Response::GetSignedTx {
+                tx_set: self.tx_set.clone(),
+            },
             Request::PendingLotteryEgress { sequence } => {
                 println!("PendingLotteryEgress");
                 let transfer_queue: Vec<_> = self
