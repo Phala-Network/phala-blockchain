@@ -1347,7 +1347,8 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
-    let all_blocks = parsed_blocks.map_err(|_| error_msg("Invalid block"))?;
+    let all_blocks = parsed_blocks.map_err(|e| error_msg(
+        &format!("Invalid block: {:?}", e)))?;
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
     // Ignore processed blocks
