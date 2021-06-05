@@ -217,7 +217,18 @@ impl BtcLottery {
             let token_round_id: U256 = U256::from(round_id) << 128;
             let nft_id = (token_round_id + token_no) | *TYPE_NF_BIT;
             let token_id = format!("{:#x}", nft_id);
-            let target = match Address::from_str(&btc_address.to_hex()) {
+            // from Vec<u8> to String
+            let btc_address = match String::from_utf8(btc_address.clone()) {
+                Ok(e) => e,
+                Err(err) => {
+                    error!(
+                        "LotteryOpenBox: cannot convert btc_address to String: {:?}",
+                        &btc_address
+                    );
+                    return;
+                }
+            };
+            let target = match Address::from_str(&btc_address) {
                 Ok(e) => e,
                 Err(error) => {
                     error!("LotteryOpenBox: cannot convert btc_address to Address");
