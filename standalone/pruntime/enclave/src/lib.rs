@@ -768,7 +768,7 @@ pub extern "C" fn ecall_handle(
         ptr::copy_nonoverlapping(
             output_json_vec_len_ptr,
             output_len_ptr,
-            std::mem::size_of_val(&output_json_vec_len),
+            1,
         );
     }
 
