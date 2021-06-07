@@ -4506,6 +4506,7 @@ dependencies = [
 name = "pallet-contracts"
 version = "3.0.0"
 dependencies = [
+ "bitflags",
  "frame-support",
  "frame-system",
  "log",
