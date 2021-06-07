@@ -93,6 +93,8 @@ where
     /// Apply storage changes calculated from `calc_root_if_changes`.
     pub fn apply_changes(&mut self, root: H::Out, transaction: MemoryDB<H>) {
         self.0.backend_storage_mut().consolidate(transaction);
+        // TODO: purge in a lower frequency for better performance.
+        self.0.backend_storage_mut().purge();
         let trie_be = core::mem::replace(self, Default::default()).0;
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(trie_be.into_storage(), root));
     }
