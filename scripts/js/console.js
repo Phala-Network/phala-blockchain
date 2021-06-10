@@ -89,6 +89,7 @@ program
         const api = await substrateApi();
         const cid = parseInt(contractId);
         const command = JSON.parse(plainCommand);
+        const keyring = new Keyring({ type: 'sr25519' });
         const pair = keyring.addFromUri(options.suri);
         const r = await api.tx.phala.pushCommand(
             cid,
