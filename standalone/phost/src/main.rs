@@ -511,6 +511,7 @@ async fn init_runtime(
         .expect("No genesis block?");
     let set_proof = get_authority_with_proof_at(&client, hash).await?;
     let genesis_state = chain_client::fetch_genesis_storage(&client).await?;
+    let genesis_state_b64 = base64::encode(&Encode::encode(&genesis_state));;
     let info = GenesisInfo {
         header: genesis_block.header,
         validators: set_proof.authority_set.authority_set,
@@ -538,7 +539,7 @@ async fn init_runtime(
                 skip_ra,
                 bridge_genesis_info_b64: info_b64,
                 debug_set_key,
-                genesis_state,
+                genesis_state_b64,
             },
         )
         .await?;

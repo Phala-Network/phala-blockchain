@@ -1112,10 +1112,18 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     state.contract2 = contracts::balances::Balances::new(Some(id_pair.clone()));
     state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
     state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
+
+    let genesis_state_scl = base64::decode(input.genesis_state_b64)
+        .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
+    let mut genesis_state_scl = &genesis_state_scl[..];
+    let genesis_state: Vec<(Vec<u8>, Vec<u8>)> = Decode::decode(&mut genesis_state_scl)
+        .map_err(|_| error_msg("Scale decode genesis state failed"))?;
+
     // Initialize other states
     local_state
         .runtime_state
-        .load(input.genesis_state.into_iter());
+        .load(genesis_state.into_iter());
+
     info!(
         "Genesis state loaded: {:?}",
         local_state.runtime_state.root()
