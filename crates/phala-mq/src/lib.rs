@@ -2,31 +2,17 @@
 
 extern crate alloc;
 
+mod types;
+mod simple_mpsc;
+mod dispatcher;
+mod send_queue;
 
-pub mod types {
-    use alloc::vec::Vec;
+pub use types::*;
+pub use send_queue::{MessageSendQueue, MessageSendHandle, Signer};
+pub use dispatcher::MessageDispatcher;
 
-    pub enum Origin {
-        /// Runtime pallets
-        Runtime,
-        /// A confidential contract running in some pRuntime.
-        Contract(Vec<u8>),
-        /// An chain user
-        Account(Vec<u8>),
-        /// A remote location (parachain, etc.)
-        Multilocaiton(Vec<u8>)
-    }
-
-    pub struct Message {
-        pub sender: Origin,
-        pub sequence: u64,
-        pub dst_recource: Vec<u8>,
-        pub payload: Vec<u8>,
-    }
-
-    pub struct SignedMessage {
-        pub message: Message,
-        pub signature: Vec<u8>,
-    }
-}
-
+// TODO.kevin: use std::sync::Mutex instead.
+// See:
+//    https://matklad.github.io/2020/01/02/spinlocks-considered-harmful.html
+//    https://matklad.github.io/2020/01/04/mutexes-are-faster-than-spinlocks.html
+use spin::mutex::Mutex;
