@@ -170,7 +170,7 @@ impl<'a> MsgSync<'a> {
             _ => return Err(anyhow!(Error::FailedToDecode))
         };
 
-        let queue: Vec<phala_types::messaging::SignedLotteryMessage> = Decode::decode(&mut &msg_data[..])
+        let queue: Vec<phala_types::messaging::SignedMessage> = Decode::decode(&mut &msg_data[..])
             .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
         if queue.is_empty() {
@@ -181,7 +181,7 @@ impl<'a> MsgSync<'a> {
 
         let mut next_seq = *sequence;
         for msg in &queue {
-            let msg_seq = msg.data.sequence;
+            let msg_seq = msg.sequence;
             if msg_seq < *sequence {
                 println!("Lottery {} has been submitted. Skipping...", msg_seq);
                 continue;

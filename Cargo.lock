@@ -4509,8 +4509,8 @@ dependencies = [
  "frame-system",
  "pallet-balances",
  "pallet-bridge",
- "pallet-phala",
  "parity-scale-codec",
+ "phala-pallets",
  "phala-types",
  "serde 1.0.126",
  "sp-arithmetic",
@@ -4749,9 +4749,9 @@ dependencies = [
  "itertools 0.8.2",
  "log",
  "pallet-balances",
- "pallet-phala",
  "pallet-timestamp",
  "parity-scale-codec",
+ "phala-pallets",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4806,39 +4806,6 @@ dependencies = [
  "sp-runtime",
  "sp-staking",
  "sp-std",
-]
-
-[[package]]
-name = "pallet-phala"
-version = "3.2.6"
-dependencies = [
- "assert_matches",
- "base64 0.11.0",
- "blake2-rfc",
- "chrono",
- "frame-benchmarking",
- "frame-support",
- "frame-support-test",
- "frame-system",
- "hex",
- "hex-literal",
- "itertools 0.8.2",
- "libsecp256k1",
- "log",
- "pallet-balances",
- "pallet-randomness-collective-flip",
- "pallet-timestamp",
- "parity-scale-codec",
- "phala-types",
- "primitive-types",
- "rand 0.7.3",
- "serde_json",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "untrusted",
- "webpki 0.22.0",
 ]
 
 [[package]]
@@ -5551,7 +5518,6 @@ dependencies = [
  "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",
- "pallet-phala",
  "pallet-proxy",
  "pallet-randomness-collective-flip",
  "pallet-recovery",
@@ -5570,6 +5536,7 @@ dependencies = [
  "pallet-utility",
  "pallet-vesting",
  "parity-scale-codec",
+ "phala-pallets",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -5588,6 +5555,39 @@ dependencies = [
  "sp-version",
  "static_assertions",
  "substrate-wasm-builder",
+]
+
+[[package]]
+name = "phala-pallets"
+version = "3.2.6"
+dependencies = [
+ "assert_matches",
+ "base64 0.11.0",
+ "blake2-rfc",
+ "chrono",
+ "frame-benchmarking",
+ "frame-support",
+ "frame-support-test",
+ "frame-system",
+ "hex",
+ "hex-literal",
+ "itertools 0.8.2",
+ "libsecp256k1",
+ "log",
+ "pallet-balances",
+ "pallet-randomness-collective-flip",
+ "pallet-timestamp",
+ "parity-scale-codec",
+ "phala-types",
+ "primitive-types",
+ "rand 0.7.3",
+ "serde_json",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "untrusted",
+ "webpki 0.22.0",
 ]
 
 [[package]]

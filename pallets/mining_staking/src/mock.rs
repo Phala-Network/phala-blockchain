@@ -1,7 +1,7 @@
 // Creating mock runtime here
 
 use crate as mining_staking;
-use frame_support::{parameter_types};
+use frame_support::parameter_types;
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use sp_core::H256;

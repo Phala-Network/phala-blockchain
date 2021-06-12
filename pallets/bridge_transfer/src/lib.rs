@@ -12,6 +12,8 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
+use phala_pallets::pallet_phala;
+
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
@@ -166,7 +168,7 @@ decl_module! {
 }
 
 use pallet_phala::OnMessageReceived;
-use phala_types::messaging::{Lottery, LotteryMessage, MessageOrigin};
+use phala_types::messaging::{Lottery, Message, MessageOrigin};
 
 impl<T: Config> Module<T> {
 	pub fn lottery_output(payload: &Lottery, dest_id: bridge::ChainId) -> DispatchResult {
@@ -180,12 +182,10 @@ impl<T: Config> Module<T> {
 	}
 }
 
-impl<T: Config> OnMessageReceived<T::AccountId, Lottery> for Module<T> {
-	fn on_message_received(
-		_origin: &MessageOrigin<T::AccountId>,
-		message: &LotteryMessage,
-	) -> DispatchResult {
+impl<T: Config> OnMessageReceived for Module<T> {
+	fn on_message_received(_origin: &MessageOrigin, message: &Message) -> DispatchResult {
 		// Dest chain 0 is EVM chain, and 1 is ourself
-		Self::lottery_output(&message.payload, 0)
+		let output: Lottery = message.parse().or(Err(Error::<T>::InvalidPayload))?;
+		Self::lottery_output(&output, 0)
 	}
 }
