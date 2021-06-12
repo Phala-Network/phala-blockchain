@@ -51,7 +51,7 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-extern crate pallet_phala as phala;
+use phala_pallets::pallet_phala as phala;
 use phala_types::{
     pruntime::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,

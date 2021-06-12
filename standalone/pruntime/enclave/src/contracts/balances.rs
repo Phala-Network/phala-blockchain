@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair;
 use sp_core::ecdsa;
 
+use phala_pallets::pallet_phala as phala;
+
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
 use crate::types::TxRef;

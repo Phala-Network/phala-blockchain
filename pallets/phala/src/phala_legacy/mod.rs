@@ -686,8 +686,7 @@ decl_module! {
 			// Validate TEE signature
 			Self::verify_signature(&pubkey, &signed_msg)?;
 			// Call the handler
-			use sp_core::H256;
-			let msg_origin = MessageOrigin::Contract(H256::from_low_u64_be(CONTRACT_ID as u64));
+			let msg_origin = MessageOrigin::native_contract(CONTRACT_ID);
 			T::OnLotteryMessage::on_message_received(&msg_origin, &signed_msg.message)?;
 			// Announce the successful execution
 			IngressSequence::insert(CONTRACT_ID, sequence + 1);

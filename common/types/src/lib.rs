@@ -50,6 +50,9 @@ pub mod messaging {
     }
 
     impl MessageOrigin {
+        pub fn native_contract(id: u32) -> Self {
+            MessageOrigin::Contract(H256::from_low_u64_be(id as u64))
+        }
         pub fn is_offchain(&self) -> bool {
             match self {
                 MessageOrigin::Contract(_) | MessageOrigin::Worker(_) => true,
@@ -93,11 +96,6 @@ pub mod messaging {
         pub sequence: u64,
         pub signature: Vec<u8>,
     }
-
-    // // Convenient alias
-
-    // pub type LotteryMessage = Message<Lottery>;
-    // pub type SignedLotteryMessage = SignedMessage<Lottery>;
 }
 
 // Messages: System
