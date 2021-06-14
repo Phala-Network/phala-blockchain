@@ -5,7 +5,9 @@ use serde::{Deserialize, Serialize};
 pub type Path = Vec<u8>;
 pub type SenderId = Vec<u8>;
 
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize,
+)]
 pub enum Origin {
     /// Runtime pallets
     Runtime,
@@ -25,7 +27,11 @@ pub struct Message {
 }
 
 impl Message {
-    pub fn new(sender: impl Into<SenderId>, destination: impl Into<Path>, payload: Vec<u8>) -> Self {
+    pub fn new(
+        sender: impl Into<SenderId>,
+        destination: impl Into<Path>,
+        payload: Vec<u8>,
+    ) -> Self {
         Message {
             sender: sender.into(),
             destination: destination.into(),

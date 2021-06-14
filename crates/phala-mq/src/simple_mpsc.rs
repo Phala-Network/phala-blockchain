@@ -1,8 +1,8 @@
+use crate::Mutex;
 use alloc::collections::VecDeque;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use derive_more::Display;
-use crate::Mutex;
 
 struct Channel<T> {
     deque: VecDeque<T>,

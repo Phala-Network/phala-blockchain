@@ -58,17 +58,10 @@ fn test_send_message() {
         assert_eq!(queue.messages(&&contract1).len(), 3);
     }
 
-
     {
-        queue.purge(|sender| {
-            match &sender[..] {
-                b"r0" => {
-                    1
-                }
-                _ => {
-                    0
-                }
-            }
+        queue.purge(|sender| match &sender[..] {
+            b"r0" => 1,
+            _ => 0,
         });
 
         let runtime_msgs = queue.messages(&runtime);
@@ -123,5 +116,4 @@ fn test_dispatcher() {
         assert_eq!(msgs[0].destination, b"path0");
         assert_eq!(msgs[0].payload, b"payload3");
     }
-    
 }

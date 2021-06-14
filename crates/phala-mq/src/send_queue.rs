@@ -1,4 +1,4 @@
-use crate::types::{SignedMessage, Message};
+use crate::types::{Message, SignedMessage};
 use crate::{Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
@@ -56,7 +56,7 @@ impl MessageSendQueue {
 pub use msg_handle::*;
 mod msg_handle {
     use super::*;
-    use crate::{SenderId, types::Path};
+    use crate::{types::Path, SenderId};
 
     pub trait Signer {
         fn sign(&self, sequence: u64, message: &Message) -> Vec<u8>;
@@ -89,7 +89,11 @@ mod msg_handle {
                     payload,
                 };
                 let signature = signer.sign(sequence, &message);
-                SignedMessage { message, sequence, signature }
+                SignedMessage {
+                    message,
+                    sequence,
+                    signature,
+                }
             })
         }
     }

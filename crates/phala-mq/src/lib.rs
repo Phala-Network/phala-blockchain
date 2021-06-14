@@ -2,14 +2,14 @@
 
 extern crate alloc;
 
-mod types;
-mod simple_mpsc;
 mod dispatcher;
 mod send_queue;
+mod simple_mpsc;
+mod types;
 
-pub use types::*;
-pub use send_queue::{MessageSendQueue, MessageSendHandle, Signer};
 pub use dispatcher::MessageDispatcher;
+pub use send_queue::{MessageSendHandle, MessageSendQueue, Signer};
+pub use types::*;
 
 // TODO.kevin: use std::sync::Mutex instead.
 // See:
