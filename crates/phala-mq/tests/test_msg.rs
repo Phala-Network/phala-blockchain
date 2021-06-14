@@ -3,7 +3,7 @@ use phala_mq::{Message, MessageDispatcher, MessageSendQueue, Signer};
 struct TestSigner(Vec<u8>);
 
 impl Signer for TestSigner {
-    fn sign(&self, sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
+    fn sign(&self, _sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
         let mut sig = self.0.clone();
         sig.extend(message.payload.iter());
         sig
@@ -81,4 +81,47 @@ fn test_send_message() {
 
 #[test]
 fn test_dispatcher() {
+    let mut dispatcher = MessageDispatcher::new();
+
+    let mut sub0 = dispatcher.subscribe(*b"path0");
+    let mut sub1 = dispatcher.subscribe(*b"path1");
+
+    let n = dispatcher.dispatch(Message::new(*b"0", *b"path0", b"payload0".to_vec()));
+    assert_eq!(n, 1);
+
+    let mut sub2 = dispatcher.subscribe(*b"path0");
+    let n = dispatcher.dispatch(Message::new(*b"0", *b"path1", b"payload1".to_vec()));
+    assert_eq!(n, 1);
+    let _ = dispatcher.dispatch(Message::new(*b"1", *b"path1", b"payload2".to_vec()));
+    let n = dispatcher.dispatch(Message::new(*b"1", *b"path0", b"payload3".to_vec()));
+    assert_eq!(n, 2);
+
+    {
+        let msgs: Vec<Message> = sub0.drain().collect();
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].sender, b"0");
+        assert_eq!(msgs[0].destination, b"path0");
+        assert_eq!(msgs[0].payload, b"payload0");
+        assert_eq!(msgs[1].sender, b"1");
+        assert_eq!(msgs[1].destination, b"path0");
+        assert_eq!(msgs[1].payload, b"payload3");
+    }
+    {
+        let msgs: Vec<Message> = sub1.drain().collect();
+        assert_eq!(msgs.len(), 2);
+        assert_eq!(msgs[0].sender, b"0");
+        assert_eq!(msgs[0].destination, b"path1");
+        assert_eq!(msgs[0].payload, b"payload1");
+        assert_eq!(msgs[1].sender, b"1");
+        assert_eq!(msgs[1].destination, b"path1");
+        assert_eq!(msgs[1].payload, b"payload2");
+    }
+    {
+        let msgs: Vec<Message> = sub2.drain().collect();
+        assert_eq!(msgs.len(), 1);
+        assert_eq!(msgs[0].sender, b"1");
+        assert_eq!(msgs[0].destination, b"path0");
+        assert_eq!(msgs[0].payload, b"payload3");
+    }
+    
 }

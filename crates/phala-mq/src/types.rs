@@ -25,6 +25,14 @@ pub struct Message {
 }
 
 impl Message {
+    pub fn new(sender: impl Into<SenderId>, destination: impl Into<Path>, payload: Vec<u8>) -> Self {
+        Message {
+            sender: sender.into(),
+            destination: destination.into(),
+            payload,
+        }
+    }
+
     pub fn sender(&self) -> Option<Origin> {
         let mut sender = &self.sender[..];
         Decode::decode(&mut sender).ok()
