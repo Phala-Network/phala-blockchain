@@ -17,7 +17,8 @@
 use jsonrpsee_ws_client::Error as RequestError;
 use sp_core::crypto::SecretStringError;
 use sp_runtime::{
-    transaction_validity::TransactionValidityError, DispatchError, TokenError, ArithmeticError
+    transaction_validity::TransactionValidityError, TokenError, ArithmeticError,
+    DispatchError,
 };
 use thiserror::Error;
 

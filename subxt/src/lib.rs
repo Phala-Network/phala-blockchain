@@ -211,7 +211,7 @@ impl<T: Runtime> ClientBuilder<T> {
             if url.starts_with("ws://") || url.starts_with("wss://") {
                 let client = WsClientBuilder::default()
                     .max_notifs_per_subscription(4096)
-                    .build(&url)
+                    .build(url)
                     .await?;
                 RpcClient::WebSocket(Arc::new(client))
             } else {
@@ -353,6 +353,11 @@ impl<T: Runtime> Client<T> {
     /// Returns the system properties
     pub fn properties(&self) -> &SystemProperties {
         &self.properties
+    }
+
+    /// Returns the rpc client.
+    pub fn rpc_client(&self) -> &RpcClient {
+        &self.rpc.client
     }
 
     /// Fetch the value under an unhashed storage key

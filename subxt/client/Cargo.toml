@@ -15,17 +15,18 @@ keywords = ["parity", "substrate", "blockchain"]
 async-std = "1.8.0"
 futures = { version = "0.3.9", features = ["compat"], package = "futures" }
 futures01 = { package = "futures", version = "0.1.29" }
-jsonrpsee-types = "=0.2.0-alpha.6"
+jsonrpsee-types = "0.2.0"
 log = "0.4.13"
-sc-network = { path = "../../substrate/client/network", default-features = false }
-sc-client-db = { path = "../../substrate/client/db" }
-sc-service = { path = "../../substrate/client/service", default-features = false }
 serde_json = "1.0.61"
-sp-keyring = { path = "../../substrate/primitives/keyring" }
 thiserror = "1.0.23"
 
+sc-client-db = { version = "0.9.0", path = "../../substrate/client/db" }
+sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
+sc-network = { version = "0.9.0", default-features = false, path = "../../substrate/client/network" }
+sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
+
 [target.'cfg(target_arch="x86_64")'.dependencies]
-sc-service = { path = "../../substrate/client/service", default-features = false, features = ["wasmtime"] }
+sc-service = { version = "0.9.0", default-features = false, features = ["wasmtime"], path = "../../substrate/client/service" }
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }

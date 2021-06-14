@@ -248,19 +248,19 @@ pub fn testnet_genesis(
 	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
 
 	GenesisConfig {
-		frame_system: SystemConfig {
+		system: SystemConfig {
 			code: wasm_binary_unwrap().to_vec(),
 			changes_trie_config: Default::default(),
 		},
-		pallet_balances: BalancesConfig {
+		balances: BalancesConfig {
 			balances: endowed_accounts.iter().cloned()
 				.map(|x| (x, ENDOWMENT))
 				.collect()
 		},
-		pallet_indices: IndicesConfig {
+		indices: IndicesConfig {
 			indices: vec![],
 		},
-		pallet_session: SessionConfig {
+		session: SessionConfig {
 			keys: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.0.clone(), session_keys(
 					x.2.clone(),
@@ -270,18 +270,18 @@ pub fn testnet_genesis(
 				))
 			}).collect::<Vec<_>>(),
 		},
-		pallet_phala: PhalaConfig {
+		phala: PhalaConfig {
 			stakers: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
 			}).collect(),
 			// Now we have 4 contracts but reserver 10 for convenience
 			contract_keys: std::iter::repeat(dev_ecdsa_pubkey.clone()).take(10).collect(),
 		},
-		pallet_kitties: KittyStorageConfig {
+		kitty_storage: KittyStorageConfig {
 			// Now we have 4 contracts but reserver 10 for convenience
 			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
 		},
-		pallet_staking: StakingConfig {
+		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
 			minimum_validator_count: initial_authorities.len() as u32,
 			stakers: initial_authorities.iter().map(|x| {
@@ -291,41 +291,41 @@ pub fn testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			.. Default::default()
 		},
-		pallet_democracy: DemocracyConfig::default(),
-		pallet_elections_phragmen: ElectionsConfig {
+		democracy: DemocracyConfig::default(),
+		elections: ElectionsConfig {
 			members: endowed_accounts.iter()
 						.take((num_endowed_accounts + 1) / 2)
 						.cloned()
 						.map(|member| (member, STASH))
 						.collect(),
 		},
-		pallet_collective_Instance1: CouncilConfig::default(),
-		pallet_collective_Instance2: TechnicalCommitteeConfig {
+		council: CouncilConfig::default(),
+		technical_committee: TechnicalCommitteeConfig {
 			members: endowed_accounts.iter()
 						.take((num_endowed_accounts + 1) / 2)
 						.cloned()
 						.collect(),
 			phantom: Default::default(),
 		},
-		pallet_sudo: SudoConfig {
+		technical_membership: Default::default(),
+		sudo: SudoConfig {
 			key: root_key,
 		},
-		pallet_babe: BabeConfig {
+		babe: BabeConfig {
 			authorities: vec![],
 			epoch_config: Some(node_runtime::BABE_GENESIS_EPOCH_CONFIG),
 		},
-		pallet_im_online: ImOnlineConfig {
+		im_online: ImOnlineConfig {
 			keys: vec![],
 		},
-		pallet_authority_discovery: AuthorityDiscoveryConfig {
+		authority_discovery: AuthorityDiscoveryConfig {
 			keys: vec![],
 		},
-		pallet_grandpa: GrandpaConfig {
+		grandpa: GrandpaConfig {
 			authorities: vec![],
 		},
-		pallet_membership_Instance1: Default::default(),
-		pallet_treasury: Default::default(),
-		pallet_society: SocietyConfig {
+		treasury: Default::default(),
+		society: SocietyConfig {
 			members: endowed_accounts.iter()
 						.take((num_endowed_accounts + 1) / 2)
 						.cloned()
@@ -333,8 +333,8 @@ pub fn testnet_genesis(
 			pot: 0,
 			max_members: 999,
 		},
-		pallet_vesting: Default::default(),
-		pallet_bridge_transfer: BridgeTransferConfig {
+		vesting: Default::default(),
+		bridge_transfer: BridgeTransferConfig {
 			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
 			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
 		},

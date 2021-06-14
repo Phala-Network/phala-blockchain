@@ -1,5 +1,5 @@
 [workspace]
-members = [".", "client", "proc-macro", "test-node"]
+members = [".", "client", "proc-macro"]
 
 [package]
 name = "substrate-subxt"
@@ -19,50 +19,51 @@ include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 [features]
 default = ["tokio02"]
 client = ["substrate-subxt-client"]
-# jsonrpsee http client can be configured to use tokio02 or tokio1.
-tokio02 = ["jsonrpsee-http-client/tokio02"]
-tokio1 = ["jsonrpsee-http-client/tokio1"]
+# jsonrpsee can be configured to use tokio02 or tokio1.
+tokio02 = ["jsonrpsee-http-client/tokio02", "jsonrpsee-ws-client/tokio02"]
+tokio1 = ["jsonrpsee-http-client/tokio1", "jsonrpsee-ws-client/tokio1"]
 
 [dependencies]
 async-trait = "0.1.49"
-log = "0.4.14"
-thiserror = "1.0.24"
+codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive", "full"] }
+dyn-clone = "1.0.4"
 futures = "0.3.13"
-jsonrpsee-proc-macros = "=0.2.0-alpha.6"
-jsonrpsee-ws-client = "=0.2.0-alpha.6"
-jsonrpsee-http-client = { version = "=0.2.0-alpha.6", default-features = false }
-jsonrpsee-utils = { version = "=0.2.0-alpha.6", default-features = false }
-jsonrpsee-types = "=0.2.0-alpha.6"
+hex = "0.4.3"
+jsonrpsee-proc-macros = "0.2.0"
+jsonrpsee-ws-client = { version = "0.2.0", default-features = false }
+jsonrpsee-http-client = { version = "0.2.0", default-features = false }
+jsonrpsee-types = "0.2.0"
+log = "0.4.14"
 num-traits = { version = "0.2.14", default-features = false }
 serde = { version = "1.0.124", features = ["derive"] }
 serde_json = "1.0.64"
+thiserror = "1.0.24"
 url = "2.2.1"
-codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive", "full"] }
-dyn-clone = "1.0.4"
 
-frame-metadata = { path = "../substrate/frame/metadata" }
-frame-support = { path = "../substrate/frame/support" }
-sp-runtime = { path = "../substrate/primitives/runtime" }
-sp-version = { path = "../substrate/primitives/version" }
-pallet-indices = { path = "../substrate/frame/indices" }
-hex = "0.4.3"
-sp-std = { path = "../substrate/primitives/std" }
-application-crypto = { path = "../substrate/primitives/application-crypto", package = "sp-application-crypto" }
-pallet-staking = { path = "../substrate/frame/staking" }
-
-sp-rpc = { path = "../substrate/primitives/rpc" }
-sp-core = { path = "../substrate/primitives/core" }
 substrate-subxt-client = { version = "0.7.0", path = "client", optional = true }
 substrate-subxt-proc-macro = { version = "0.15.0", path = "proc-macro" }
+
+sp-application-crypto = { version = "3.0.0", path = "../substrate/primitives/application-crypto" }
+sp-core = { version = "3.0.0", path = "../substrate/primitives/core" }
+sp-rpc = { version = "3.0.0", path = "../substrate/primitives/rpc" }
+sp-runtime = { version = "3.0.0", path = "../substrate/primitives/runtime" }
+sp-std = { version = "3.0.0", path = "../substrate/primitives/std" }
+sp-version = { version = "3.0.0", path = "../substrate/primitives/version" }
+
+frame-metadata = { version = "13.0.0", path = "../substrate/frame/metadata" }
+frame-support = { version = "3.0.0", path = "../substrate/frame/support" }
+pallet-indices = { version = "3.0.0", path = "../substrate/frame/indices" }
+pallet-staking = { version = "3.0.0", path = "../substrate/frame/staking" }
+
 rpc-ext = { path = "../standalone/rpc-ext" }
 
 [dev-dependencies]
-async-std = { version = "1.9.0", features = ["attributes"] }
+assert_matches = "1.5.0"
+async-std = { version = "1.9.0", features = ["attributes", "tokio1"] }
 env_logger = "0.8.3"
-frame-system = { path = "../substrate/frame/system" }
-pallet-balances = { path = "../substrate/frame/balances" }
-sp-keyring = { path = "../substrate/primitives/keyring" }
 tempdir = "0.3.7"
 wabt = "0.10.0"
 which = "4.0.2"
-assert_matches = "1.5.0"
+sp-keyring = { version = "3.0.0", path = "../substrate/primitives/keyring" }
+frame-system = { version = "3.0.0", path = "../substrate/frame/system" }
+pallet-balances = { version = "3.0.0", path = "../substrate/frame/balances" }

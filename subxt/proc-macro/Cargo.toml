@@ -29,9 +29,10 @@ async-std = { version = "1.8.0", features = ["attributes"] }
 codec = { package = "parity-scale-codec", version = "2.1", features = ["derive"] }
 env_logger = "0.8.2"
 pretty_assertions = "0.6.1"
-sp-keyring = { path = "../../substrate/primitives/keyring" }
 substrate-subxt = { path = ".." }
 trybuild = "1.0.38"
+
+sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
 
 [[test]]
 name = "balances"
