@@ -1,4 +1,4 @@
-use phala_mq::{Message, MessageDispatcher, MessageSendQueue, Origin, Signer};
+use phala_mq::{Message, MessageDispatcher, MessageSendQueue, Signer};
 
 struct TestSigner(Vec<u8>);
 
@@ -13,8 +13,8 @@ impl Signer for TestSigner {
 #[test]
 fn test_send_message() {
     let queue = MessageSendQueue::new();
-    let runtime = Origin::Runtime;
-    let contract1 = Origin::Contract(b"contract1".to_vec());
+    let runtime = b"r0".to_vec();
+    let contract1 = b"contract1".to_vec();
 
     {
         let signer = TestSigner(b"key0".to_vec());
@@ -48,7 +48,7 @@ fn test_send_message() {
     }
 
     {
-        let signer = TestSigner(b"\x00\x01".to_vec());
+        let signer = TestSigner(b"a key".to_vec());
         let handle = queue.create_handle(contract1.clone(), signer);
 
         handle.send(b"energy".to_vec(), b"/the/hole".to_vec());
@@ -61,8 +61,8 @@ fn test_send_message() {
 
     {
         queue.purge(|sender| {
-            match sender {
-                Origin::Runtime => {
+            match &sender[..] {
+                b"r0" => {
                     1
                 }
                 _ => {

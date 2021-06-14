@@ -1,11 +1,11 @@
-use crate::types::{SignedMessage, Message, Origin};
-use crate::Mutex;
+use crate::types::{SignedMessage, Message};
+use crate::{Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 #[derive(Clone)]
 pub struct MessageSendQueue {
     // Map: sender -> (sequence, messages)
-    inner: Arc<Mutex<BTreeMap<Origin, (u64, Vec<SignedMessage>)>>>,
+    inner: Arc<Mutex<BTreeMap<SenderId, (u64, Vec<SignedMessage>)>>>,
 }
 
 impl MessageSendQueue {
@@ -14,13 +14,13 @@ impl MessageSendQueue {
             inner: Default::default(),
         }
     }
-    pub fn create_handle<Si: Signer>(&self, sender: Origin, signer: Si) -> MessageSendHandle<Si> {
+    pub fn create_handle<Si: Signer>(&self, sender: SenderId, signer: Si) -> MessageSendHandle<Si> {
         MessageSendHandle::new(self.clone(), sender, signer)
     }
 
-    pub fn queue_message(
+    pub fn enqueue_message(
         &self,
-        sender: Origin,
+        sender: SenderId,
         constructor: impl FnOnce(u64) -> SignedMessage,
     ) {
         let mut inner = self.inner.lock();
@@ -34,17 +34,17 @@ impl MessageSendQueue {
         let inner = self.inner.lock();
         inner
             .iter()
-            .flat_map(|(k, v)| v.1.iter().cloned())
+            .flat_map(|(_k, v)| v.1.iter().cloned())
             .collect()
     }
 
-    pub fn messages(&self, sender: &Origin) -> Vec<SignedMessage> {
+    pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
         inner.get(sender).map(|x| x.1.clone()).unwrap_or(Vec::new())
     }
 
     /// Purge the messages which are aready accepted on chain.
-    pub fn purge(&self, next_sequence_for: impl Fn(&Origin) -> u64) {
+    pub fn purge(&self, next_sequence_for: impl Fn(&SenderId) -> u64) {
         let mut inner = self.inner.lock();
         for (k, v) in inner.iter_mut() {
             let seq = next_sequence_for(k);
@@ -56,7 +56,7 @@ impl MessageSendQueue {
 pub use msg_handle::*;
 mod msg_handle {
     use super::*;
-    use crate::types::Path;
+    use crate::{SenderId, types::Path};
 
     pub trait Signer {
         fn sign(&self, sequence: u64, message: &Message) -> Vec<u8>;
@@ -65,12 +65,12 @@ mod msg_handle {
     #[derive(Clone)]
     pub struct MessageSendHandle<Si: Signer> {
         queue: MessageSendQueue,
-        sender: Origin,
+        sender: SenderId,
         signer: Si,
     }
 
     impl<Si: Signer> MessageSendHandle<Si> {
-        pub fn new(queue: MessageSendQueue, sender: Origin, signer: Si) -> Self {
+        pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
             MessageSendHandle {
                 queue,
                 sender,
@@ -82,9 +82,9 @@ mod msg_handle {
             let sender = self.sender.clone();
             let signer = &self.signer;
 
-            self.queue.queue_message(sender.clone(), move |sequence| {
+            self.queue.enqueue_message(sender.clone(), move |sequence| {
                 let message = Message {
-                    sender: sender,
+                    sender,
                     destination: to.into(),
                     payload,
                 };

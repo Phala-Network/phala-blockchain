@@ -3,16 +3,15 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 
 pub type Path = Vec<u8>;
+pub type SenderId = Vec<u8>;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, Serialize, Deserialize)]
 pub enum Origin {
-    /// Anonymous message
-    Anonymous,
     /// Runtime pallets
     Runtime,
     /// A confidential contract running in some pRuntime.
     Contract(Vec<u8>),
-    /// An chain user
+    /// A chain user
     Account(Vec<u8>),
     /// A remote location (parachain, etc.)
     Multilocaiton(Vec<u8>),
@@ -20,9 +19,16 @@ pub enum Origin {
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
 pub struct Message {
-    pub sender: Origin,
+    pub sender: SenderId,
     pub destination: Path,
     pub payload: Vec<u8>,
+}
+
+impl Message {
+    pub fn sender(&self) -> Option<Origin> {
+        let mut sender = &self.sender[..];
+        Decode::decode(&mut sender).ok()
+    }
 }
 
 #[derive(Debug, Clone, Encode, Decode, Serialize, Deserialize)]
