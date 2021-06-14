@@ -86,8 +86,8 @@ dyn_clone::clone_trait_object!(TypeSegmenter);
 
 struct TypeMarker<T>(PhantomData<T>);
 impl<T> TypeSegmenter for TypeMarker<T>
-where
-    T: Codec + Send + Sync,
+    where
+        T: Codec + Send + Sync,
 {
     fn segment(&self, input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), Error> {
         T::decode(input).map_err(Error::from)?.encode_to(output);
@@ -157,6 +157,7 @@ impl<T: Runtime + System> EventsDecoder<T> {
             let mut event_data = Vec::<u8>::new();
             let mut event_errors = Vec::<RuntimeError>::new();
             let result = self.decode_raw_bytes(
+                module.name(),
                 &event_metadata.arguments(),
                 input,
                 &mut event_data,
@@ -192,6 +193,7 @@ impl<T: Runtime + System> EventsDecoder<T> {
 
     fn decode_raw_bytes<W: Output>(
         &self,
+        module: &str,
         args: &[EventArg],
         input: &mut &[u8],
         output: &mut W,
@@ -203,7 +205,7 @@ impl<T: Runtime + System> EventsDecoder<T> {
                     let len = <Compact<u32>>::decode(input)?;
                     len.encode_to(output);
                     for _ in 0..len.0 {
-                        self.decode_raw_bytes(&[*arg.clone()], input, output, errors)?
+                        self.decode_raw_bytes(module, &[*arg.clone()], input, output, errors)?
                     }
                 }
                 EventArg::Option(arg) => {
@@ -211,7 +213,7 @@ impl<T: Runtime + System> EventsDecoder<T> {
                         0 => output.push_byte(0),
                         1 => {
                             output.push_byte(1);
-                            self.decode_raw_bytes(&[*arg.clone()], input, output, errors)?
+                            self.decode_raw_bytes(module, &[*arg.clone()], input, output, errors)?
                         }
                         _ => {
                             return Err(Error::Other(
@@ -221,14 +223,14 @@ impl<T: Runtime + System> EventsDecoder<T> {
                     }
                 }
                 EventArg::Tuple(args) => {
-                    self.decode_raw_bytes(args, input, output, errors)?
+                    self.decode_raw_bytes(module, args, input, output, errors)?
                 }
                 EventArg::Primitive(name) => {
                     let result = match name.as_str() {
                         "DispatchResult" => DispatchResult::decode(input)?,
                         "DispatchError" => Err(DispatchError::decode(input)?),
                         _ => {
-                            if let Some(seg) = self.event_type_registry.resolve(name) {
+                            if let Some(seg) = self.event_type_registry.resolve(module, name) {
                                 let mut buf = Vec::<u8>::new();
                                 seg.segment(input, &mut buf)?;
                                 output.write(&buf);
@@ -336,8 +338,9 @@ impl<T: Runtime> EventTypeRegistry<T> {
     }
 
     /// Resolve a segmenter for a type by its name.
-    pub fn resolve(&self, name: &str) -> Option<&Box<dyn TypeSegmenter>> {
-        self.segmenters.get(name)
+    pub fn resolve(&self, module: &str, name: &str) -> Option<&Box<dyn TypeSegmenter>> {
+        let specific_name = format!("{}::{}", module, name);
+        self.segmenters.get(&specific_name).or(self.segmenters.get(name))
     }
 }
 
