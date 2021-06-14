@@ -231,7 +231,7 @@ impl contracts::Contract<Command, Request, Response> for Balances {
     }
 
     fn handle_event(&mut self, ce: chain::Event) {
-        if let chain::Event::pallet_phala(pe) = ce {
+        if let chain::Event::Phala(pe) = ce {
             if let phala::RawEvent::TransferToTee(who, amount) = pe {
                 info!("TransferToTee from :{:?}, {:}", who, amount);
                 let dest = AccountIdWrapper(who);

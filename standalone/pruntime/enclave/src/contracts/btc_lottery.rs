@@ -468,17 +468,17 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             pallet_phala::Event as PhalaEvent, Event,
         };
         match ce {
-            Event::pallet_bridge_transfer(BridgeTransferEvent::LotteryNewRound(
+            Event::BridgeTransfer(BridgeTransferEvent::LotteryNewRound(
                 round_id,
                 total_count,
                 winner_count,
             )) => Self::new_round(self, round_id, total_count, winner_count),
-            Event::pallet_bridge_transfer(BridgeTransferEvent::LotteryOpenBox(
+            Event::BridgeTransfer(BridgeTransferEvent::LotteryOpenBox(
                 round_id,
                 token_id,
                 btc_address,
             )) => Self::open_lottery(self, round_id, token_id, btc_address),
-            Event::pallet_phala(PhalaEvent::<chain::Runtime>::LotteryMessageReceived(sequence)) => {
+            Event::Phala(PhalaEvent::<chain::Runtime>::LotteryMessageReceived(sequence)) => {
                 self.queue.retain(|x| x.data.sequence > sequence);
                 error!("Filtered queue len: {:}", self.queue.len());
             }

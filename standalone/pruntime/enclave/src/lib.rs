@@ -1456,7 +1456,7 @@ fn handle_events(
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
     for evt in &events {
-        if let chain::Event::pallet_phala(pe) = &evt.event {
+        if let chain::Event::Phala(pe) = &evt.event {
             // Dispatch to system contract anyway
             event_handler
                 .feed(block_number, &pe, storage)
@@ -1498,10 +1498,10 @@ fn handle_events(
                     state.contract2.handle_event(evt.event.clone());
                 }
             }
-        } else if let chain::Event::pallet_kitties(pe) = &evt.event {
+        } else if let chain::Event::KittyStorage(pe) = &evt.event {
             println!("pallet_kitties event: {:?}", pe);
             state.contract6.handle_event(evt.event.clone());
-        } else if let chain::Event::pallet_bridge_transfer(pe) = &evt.event {
+        } else if let chain::Event::BridgeTransfer(pe) = &evt.event {
             println!("pallet_bridge_transfer event: {:?}", pe);
             state.contract7.handle_event(evt.event.clone());
         }

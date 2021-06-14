@@ -389,7 +389,7 @@ impl contracts::Contract<Command, Request, Response> for SubstrateKitties {
     }
 
     fn handle_event(&mut self, ce: chain::Event) {
-        if let chain::Event::pallet_kitties(pe) = ce {
+        if let chain::Event::KittyStorage(pe) = ce {
             // create_kitties() is called on the chain
             if let chain::pallet_kitties::RawEvent::Created(account_id, kitty_id) = pe {
                 println!("Created Kitty {:?} by default owner: Kitty!!!", kitty_id);
