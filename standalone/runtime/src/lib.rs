@@ -227,6 +227,8 @@ impl frame_system::Config for Runtime {
 	type OnSetCode = ();
 }
 
+impl pallet_randomness_collective_flip::Config for Runtime {}
+
 impl pallet_utility::Config for Runtime {
 	type Event = Event;
 	type Call = Call;
@@ -1032,6 +1034,7 @@ impl pallet_phala::Config for Runtime {
 
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
+	type Randomness = RandomnessCollectiveFlip;
 }
 
 impl pallet_mining_staking::Config for Runtime {

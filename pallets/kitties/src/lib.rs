@@ -51,6 +51,9 @@ impl<AccountId: Encode> SignedDataType<Vec<u8>> for KittyTransferData<AccountId>
 
 pub trait Config: balances::Config {
 	type Event: From<Event<Self>> + Into<<Self as system::Config>::Event>;
+
+	/// Something that provides randomness in the runtime.
+	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 }
 
 decl_event!(
@@ -113,7 +116,6 @@ decl_storage! {
 
 decl_module! {
 	pub struct Module<T: Config> for enum Call where origin: T::Origin {
-
 		fn deposit_event()= default;
 
 		#[weight = 0]
@@ -127,7 +129,12 @@ decl_module! {
 			let all_kitties_count = Self::all_kitties_count();
 			let new_all_kitties_count = all_kitties_count.checked_add(1).ok_or("Overflow adding a new kitty to total supply")?;
 			let nonce = <Nonce>::get();
-			let random_hash = (<pallet_randomness_collective_flip::Module<T>>::random_seed(), &sender, nonce)
+
+			// we'll need a random seed here.
+			// TODO: deal with randomness freshness
+			// https://github.com/paritytech/substrate/issues/8312
+			let (seed, _) = T::Randomness::random(b"kitties");
+			let random_hash = (seed, &sender, nonce)
 				.using_encoded(<T as system::Config>::Hashing::hash);
 
 			ensure!(!<KittyOwner<T>>::contains_key(random_hash), "Kitty already exists");
@@ -225,6 +232,7 @@ impl<T: Config> Module<T> {
 	pub fn account_id() -> T::AccountId {
 		PALLET_ID.into_account()
 	}
+
 	pub fn verify_signature(
 		serialized_pk: &Vec<u8>,
 		data: &impl SignedDataType<Vec<u8>>,
