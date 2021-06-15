@@ -2,8 +2,8 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use core::fmt::Debug;
 use codec::{Decode, Encode};
+use core::fmt::Debug;
 use sp_core::U256;
 
 #[cfg(feature = "enable_serde")]
@@ -29,21 +29,58 @@ pub struct TransferData<AccountId, Balance> {
 
 pub mod messaging {
     use alloc::vec::Vec;
+    use codec::{Decode, Encode};
     use core::fmt::Debug;
     use sp_core::H256;
-    use codec::{Decode, Encode};
 
     /// The origin of a Phala message
     // TODO: should we use XCM MultiLocation directly?
-    pub enum MessageOrigin<AccountId> {
-        /// Runtime pallets
-        Runtime,
+    // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
+    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+    pub enum MessageOrigin {
+        /// Runtime pallets (identified by pallet name)
+        Pallet(Vec<u8>),
         /// A confidential contract
         Contract(H256),
+        /// A pRuntime worker
+        Worker(Vec<u8>),
         /// A user
-        AccountId(AccountId),
+        AccountId(H256),
         /// A remote location (parachain, etc.)
         Multilocaiton(Vec<u8>),
+    }
+
+    impl MessageOrigin {
+        /// Builds a new native confidential contract `MessageOrigin`
+        pub fn native_contract(id: u32) -> Self {
+            MessageOrigin::Contract(H256::from_low_u64_be(id as u64))
+        }
+        /// Returns if the origin is located off-chain
+        pub fn is_offchain(&self) -> bool {
+            match self {
+                MessageOrigin::Contract(_) | MessageOrigin::Worker(_) => true,
+                _ => false,
+            }
+        }
+    }
+
+    /// The topic in the message queue, indicating a group of destination message receivers
+    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+    pub enum Topic {
+        /// The topic targets a cetrain receiver identified by `MessageOrigin`
+        Targeted(MessageOrigin),
+        /// A general topic that can be subscribed by anyone
+        Named(Vec<u8>),
+    }
+
+    impl Topic {
+        pub fn is_offchain(&self) -> bool {
+            if let Topic::Targeted(origin) = self {
+                origin.is_offchain()
+            } else {
+                false
+            }
+        }
     }
 
     // Messages: Lottery
@@ -61,25 +98,27 @@ pub mod messaging {
     }
 
     /// A generic message
-    #[derive(Encode, Decode, Clone, Debug)]
-    pub struct Message<P: Encode + Decode + Clone + Debug> {
-        pub payload: P,
-        pub sequence: u64,
+    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+    pub struct Message {
+        pub sender: MessageOrigin,
+        pub destination: Topic,
+        pub payload: Vec<u8>,
+    }
+
+    impl Message {
+        pub fn parse<T: Decode>(&self) -> Result<T, ()> {
+            Decode::decode(&mut &self.payload[..]).or(Err(()))
+        }
     }
 
     /// Signed generic message
-    #[derive(Encode, Decode, Clone, Debug)]
-    pub struct SignedMessage<P: Encode + Decode + Clone + Debug> {
-        pub data: Message<P>,
+    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+    pub struct SignedMessage {
+        pub message: Message,
+        pub sequence: u64,
         pub signature: Vec<u8>,
     }
-
-    // Convenient alias
-
-    pub type LotteryMessage = Message<Lottery>;
-    pub type SignedLotteryMessage = SignedMessage<Lottery>;
 }
-
 
 // Messages: System
 
@@ -134,9 +173,9 @@ impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
     }
 }
 
-impl<P: Encode + Decode + Clone + Debug> SignedDataType<Vec<u8>> for messaging::SignedMessage<P> {
+impl SignedDataType<Vec<u8>> for messaging::SignedMessage {
     fn raw_data(&self) -> Vec<u8> {
-        Encode::encode(&self.data)
+        Encode::encode(&(&self.message, &self.sequence))
     }
     fn signature(&self) -> Vec<u8> {
         self.signature.clone()

@@ -33,7 +33,7 @@ enum Cli {
         #[structopt(short)]
         b64_data: String,
     },
-    DecodeSignedLotteryMessage {
+    DecodeSignedMessage {
         #[structopt(short)]
         hex_data: String,
     },
@@ -100,9 +100,9 @@ fn main() {
 
             println!("Decoded: {:?}", snapshot);
         }
-        Cli::DecodeSignedLotteryMessage { hex_data } => {
-            use phala_types::messaging::SignedLotteryMessage;
-            decode_hex_print::<SignedLotteryMessage>(&hex_data);
+        Cli::DecodeSignedMessage { hex_data } => {
+            use phala_types::messaging::SignedMessage;
+            decode_hex_print::<SignedMessage>(&hex_data);
         }
         Cli::DecodeBridgeLotteryMessage { hex_data } => {
             use phala_types::messaging::Lottery;

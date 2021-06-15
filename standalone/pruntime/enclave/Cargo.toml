@@ -56,7 +56,7 @@ parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", defa
 
 # Phala specific
 runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime", features = ["native-nostd"] }
-pallet-phala = { package = "pallet-phala", path = "../../../pallets/phala", default-features = false }
+phala-pallets = { path = "../../../pallets/phala", default-features = false }
 phala-types = { path = "../../../common/types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
 
 csv-core = { version = "0.1.10", default-features = false }

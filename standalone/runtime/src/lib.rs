@@ -93,7 +93,11 @@ use constants::{time::*, currency::*};
 use sp_runtime::generic::Era;
 
 pub use pallet_kitties;
-pub use pallet_phala;
+pub use phala_pallets::{
+    pallet_phala,
+    pallet_mq,
+    pallet_registry,
+};
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
 
@@ -1061,6 +1065,14 @@ impl pallet_bridge_transfer::Config for Runtime {
     type Currency = Balances;
 }
 
+impl pallet_registry::Config for Runtime {
+	type Event = Event;
+}
+impl pallet_mq::Config for Runtime {
+	type Event = Event;
+    type QueueNotifyConfig = ();
+}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1106,6 +1118,9 @@ construct_runtime!(
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event, Config, Storage},
+        // Phala new pallets
+        PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
+        PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
 	}
 );
 

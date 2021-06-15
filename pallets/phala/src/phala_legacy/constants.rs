@@ -1,4 +1,4 @@
-use crate::PalletId;
+use super::PalletId;
 
 pub const PALLET_ID: PalletId = PalletId(*b"Phala!!!");
 pub const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
