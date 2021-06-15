@@ -33,36 +33,7 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::H256;
 
-    /// The origin of a Phala message
-    // TODO: should we use XCM MultiLocation directly?
-    // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-    pub enum MessageOrigin {
-        /// Runtime pallets (identified by pallet name)
-        Pallet(Vec<u8>),
-        /// A confidential contract
-        Contract(H256),
-        /// A pRuntime worker
-        Worker(Vec<u8>),
-        /// A user
-        AccountId(H256),
-        /// A remote location (parachain, etc.)
-        Multilocaiton(Vec<u8>),
-    }
-
-    impl MessageOrigin {
-        /// Builds a new native confidential contract `MessageOrigin`
-        pub fn native_contract(id: u32) -> Self {
-            MessageOrigin::Contract(H256::from_low_u64_be(id as u64))
-        }
-        /// Returns if the origin is located off-chain
-        pub fn is_offchain(&self) -> bool {
-            match self {
-                MessageOrigin::Contract(_) | MessageOrigin::Worker(_) => true,
-                _ => false,
-            }
-        }
-    }
+    pub use phala_mq::Origin as MessageOrigin;
 
     /// The topic in the message queue, indicating a group of destination message receivers
     #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]

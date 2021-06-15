@@ -6,15 +6,17 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-parity-scale-codec = { version = "2", default-features = false, features = ["derive"] }
 derive_more = { version = "0.99", default-features = false, features = ["display"] }
 
+parity-scale-codec = { version = "2", default-features = false, features = ["derive"], optional = true }
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"], optional = true }
 serde = { package="serde", version = "1", default-features = false, features = ["derive", "alloc"], optional = true }
 serde_sgx = { package="serde", git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive", "alloc"], optional = true }
 
 [features]
-default = ["serde", "dispatcher", "queue"]
+default = ["serde", "dispatcher", "queue", "scale-codec"]
+scale-codec = ["parity-scale-codec"]
 dispatcher = ["spin"]
 queue = ["spin"]
 sgx = ["serde_sgx"]
+signers = []

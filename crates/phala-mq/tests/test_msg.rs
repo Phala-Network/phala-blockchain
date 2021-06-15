@@ -3,7 +3,7 @@
 fn test_send_message() {
     struct TestSigner(Vec<u8>);
 
-    impl Signer for TestSigner {
+    impl MessageSigner for TestSigner {
         fn sign(&self, _sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
             let mut sig = self.0.clone();
             sig.extend(message.payload.iter());
@@ -11,7 +11,7 @@ fn test_send_message() {
         }
     }
 
-    use phala_mq::{MessageSendQueue, Signer};
+    use phala_mq::{MessageSendQueue, MessageSigner};
     let queue = MessageSendQueue::new();
     let runtime = b"r0".to_vec();
     let contract1 = b"contract1".to_vec();

@@ -6,6 +6,8 @@ pub extern crate serde_sgx as serde;
 extern crate alloc;
 
 mod types;
+mod signer;
+
 #[cfg(feature = "dispatcher")]
 mod dispatcher;
 #[cfg(feature = "queue")]
@@ -16,7 +18,10 @@ mod simple_mpsc;
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::MessageDispatcher;
 #[cfg(feature = "queue")]
-pub use send_queue::{MessageSendHandle, MessageSendQueue, Signer};
+pub use send_queue::{MessageSendHandle, MessageSendQueue};
+
+pub use signer::{MessageSigner};
+
 pub use types::*;
 
 // TODO.kevin: use std::sync::Mutex instead.

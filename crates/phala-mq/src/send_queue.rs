@@ -1,5 +1,5 @@
 use crate::types::{Message, SignedMessage};
-use crate::{Mutex, SenderId};
+use crate::{Mutex, SenderId, MessageSigner};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 #[derive(Clone)]
@@ -14,7 +14,8 @@ impl MessageSendQueue {
             inner: Default::default(),
         }
     }
-    pub fn create_handle<Si: Signer>(&self, sender: SenderId, signer: Si) -> MessageSendHandle<Si> {
+
+    pub fn create_handle<Si: MessageSigner>(&self, sender: SenderId, signer: Si) -> MessageSendHandle<Si> {
         MessageSendHandle::new(self.clone(), sender, signer)
     }
 
@@ -56,20 +57,16 @@ impl MessageSendQueue {
 pub use msg_handle::*;
 mod msg_handle {
     use super::*;
-    use crate::{types::Path, SenderId};
-
-    pub trait Signer {
-        fn sign(&self, sequence: u64, message: &Message) -> Vec<u8>;
-    }
+    use crate::{types::Path, SenderId, MessageSigner};
 
     #[derive(Clone)]
-    pub struct MessageSendHandle<Si: Signer> {
+    pub struct MessageSendHandle<Si: MessageSigner> {
         queue: MessageSendQueue,
         sender: SenderId,
         signer: Si,
     }
 
-    impl<Si: Signer> MessageSendHandle<Si> {
+    impl<Si: MessageSigner> MessageSendHandle<Si> {
         pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
             MessageSendHandle {
                 queue,

@@ -14,7 +14,6 @@ pub use self::pallet::*;
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
-	use sp_core::H256;
 	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
 	use sp_std::vec::Vec;
@@ -40,7 +39,7 @@ pub mod pallet {
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, Vec<u8>>;
+	pub type ContractKey<T> = StorageMap<_, Twox64Concat, Vec<u8>, Vec<u8>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -51,6 +50,7 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		CannotHandleUnknownMessage,
+		InvalidSender,
 		InvalidPubKey,
 		MalformedSignature,
 		InvalidSignatureLength,
@@ -84,7 +84,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_register_contract(
 			origin: OriginFor<T>,
-			contract: H256,
+			contract: Vec<u8>,
 			pubkey: Vec<u8>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
