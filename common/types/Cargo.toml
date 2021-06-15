@@ -19,7 +19,7 @@ std = [
 	"codec/std",
 	"sp-core/full_crypto",
 	"sp-runtime/std",
-	"trie-storage/std",
+	"trie-storage",
 ]
 enable_serde = [
 	"serde/derive",
