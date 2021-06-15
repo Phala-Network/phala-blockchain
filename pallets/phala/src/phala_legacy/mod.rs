@@ -43,10 +43,6 @@ mod constants;
 pub use constants::*;
 
 #[cfg(test)]
-#[macro_use]
-extern crate assert_matches;
-
-#[cfg(test)]
 mod mock;
 
 #[cfg(test)]
