@@ -33,26 +33,8 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::H256;
 
-    pub use phala_mq::Origin as MessageOrigin;
+    pub use phala_mq::{Origin as MessageOrigin, Message, SignedMessage, SenderId, Path};
 
-    /// The topic in the message queue, indicating a group of destination message receivers
-    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-    pub enum Topic {
-        /// The topic targets a cetrain receiver identified by `MessageOrigin`
-        Targeted(MessageOrigin),
-        /// A general topic that can be subscribed by anyone
-        Named(Vec<u8>),
-    }
-
-    impl Topic {
-        pub fn is_offchain(&self) -> bool {
-            if let Topic::Targeted(origin) = self {
-                origin.is_offchain()
-            } else {
-                false
-            }
-        }
-    }
 
     // Messages: Lottery
 
@@ -66,28 +48,6 @@ pub mod messaging {
         BtcAddresses {
             address_set: Vec<Vec<u8>>,
         },
-    }
-
-    /// A generic message
-    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-    pub struct Message {
-        pub sender: MessageOrigin,
-        pub destination: Topic,
-        pub payload: Vec<u8>,
-    }
-
-    impl Message {
-        pub fn parse<T: Decode>(&self) -> Result<T, ()> {
-            Decode::decode(&mut &self.payload[..]).or(Err(()))
-        }
-    }
-
-    /// Signed generic message
-    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-    pub struct SignedMessage {
-        pub message: Message,
-        pub sequence: u64,
-        pub signature: Vec<u8>,
     }
 }
 

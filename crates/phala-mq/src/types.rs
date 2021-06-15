@@ -13,6 +13,7 @@ pub type SenderId = Vec<u8>;
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
 #[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
 #[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Origin {
@@ -44,10 +45,32 @@ impl Origin {
     }
 }
 
+/// The topic in the message queue, indicating a group of destination message receivers
+#[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
+#[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Topic {
+    /// The topic targets a cetrain receiver identified by `MessageOrigin`
+    Targeted(MessageOrigin),
+    /// A general topic that can be subscribed by anyone
+    Named(Vec<u8>),
+}
+
+impl Topic {
+    pub fn is_offchain(&self) -> bool {
+        if let Topic::Targeted(origin) = self {
+            origin.is_offchain()
+        } else {
+            false
+        }
+    }
+}
 
 #[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
 #[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub sender: SenderId,
     pub destination: Path,
@@ -69,14 +92,19 @@ impl Message {
 
     #[cfg(feature = "scale-codec")]
     pub fn sender(&self) -> Option<Origin> {
-        let mut sender = &self.sender[..];
-        Decode::decode(&mut sender).ok()
+        Decode::decode(&mut &self.sender[..]).ok()
+    }
+
+    #[cfg(feature = "scale-codec")]
+    pub fn decode_payload<T: Decode>(&self) -> Option<T> {
+        Decode::decode(&mut &self.payload[..]).ok()
     }
 }
 
 #[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
 #[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SignedMessage {
     pub message: Message,
     pub sequence: u64,

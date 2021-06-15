@@ -96,7 +96,8 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
 			let pubkey_copy: Vec<u8>;
-			let pubkey = match &message.message.sender {
+			let sender = message.message.sender().ok_or(Error::<T>::CannotHandleUnknownMessage)?;
+			let pubkey = match &sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknwonContract)?;
