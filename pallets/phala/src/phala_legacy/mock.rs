@@ -1,6 +1,6 @@
 // Creating mock runtime here
 
-use crate as phala;
+use crate::phala_legacy as phala;
 use frame_support::parameter_types;
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -27,7 +27,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		PhalaPallet: phala::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Phala: phala::{Pallet, Call, Config<T>, Storage, Event<T>},
 	}
 );
 
@@ -129,7 +129,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let mut t = system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
-	crate::GenesisConfig::<Test> {
+	super::GenesisConfig::<Test> {
 		stakers: Default::default(),
 		contract_keys: Default::default(),
 	}
