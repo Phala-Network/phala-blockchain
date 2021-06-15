@@ -1,17 +1,17 @@
-use phala_mq::{Message, MessageDispatcher, MessageSendQueue, Signer};
-
-struct TestSigner(Vec<u8>);
-
-impl Signer for TestSigner {
-    fn sign(&self, _sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
-        let mut sig = self.0.clone();
-        sig.extend(message.payload.iter());
-        sig
-    }
-}
-
+#[cfg(feature = "queue")]
 #[test]
 fn test_send_message() {
+    struct TestSigner(Vec<u8>);
+
+    impl Signer for TestSigner {
+        fn sign(&self, _sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
+            let mut sig = self.0.clone();
+            sig.extend(message.payload.iter());
+            sig
+        }
+    }
+
+    use phala_mq::{MessageSendQueue, Signer};
     let queue = MessageSendQueue::new();
     let runtime = b"r0".to_vec();
     let contract1 = b"contract1".to_vec();
@@ -72,8 +72,11 @@ fn test_send_message() {
     }
 }
 
+#[cfg(feature = "dispatcher")]
 #[test]
 fn test_dispatcher() {
+    use phala_mq::{Message, MessageDispatcher};
+
     let mut dispatcher = MessageDispatcher::new();
 
     let mut sub0 = dispatcher.subscribe(*b"path0");
