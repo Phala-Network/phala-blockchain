@@ -31,7 +31,7 @@ use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid};
 
 use phala_types::{
-    messaging::{Lottery, Message, MessageOrigin, SignedMessage},
+    messaging::{Lottery, Topic, Message, MessageOrigin, SignedMessage},
     SignedDataType,
 };
 
@@ -161,7 +161,7 @@ impl BtcLottery {
         let mut msg = SignedMessage {
             message: Message {
                 sender: MessageOrigin::native_contract(self.id()),
-                destination: b"phala/bridge".to_vec(),
+                destination: Topic::Targeted(MessageOrigin::Pallet(b"BridgeTransfer".to_vec())),
                 payload: Encode::encode(body),
             },
             sequence: self.sequence,

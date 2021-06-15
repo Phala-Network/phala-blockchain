@@ -83,7 +83,7 @@ pub mod pallet {
 			// Notify subcribers
 			T::QueueNotifyConfig::on_message_received(&message);
 			// Notify the off-chain components
-			if T::QueueNotifyConfig::should_push_event(&message.sender) {
+			if T::QueueNotifyConfig::should_push_event(&message) {
 				Self::deposit_event(Event::OutboundMessage(message));
 			}
 		}
@@ -92,8 +92,8 @@ pub mod pallet {
 	/// Defines the behavior of received messages.
 	pub trait QueueNotifyConfig {
 		/// If true, the message queue will emit an event to notify the subscribers
-		fn should_push_event(origin: &MessageOrigin) -> bool {
-			origin.is_offchain()
+		fn should_push_event(message: &Message) -> bool {
+			message.destination.is_offchain()
 		}
 		/// Handles an incoming message
 		fn on_message_received(_message: &Message) {}

@@ -35,10 +35,11 @@ pub mod messaging {
 
     /// The origin of a Phala message
     // TODO: should we use XCM MultiLocation directly?
+    // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
     #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
     pub enum MessageOrigin {
-        /// Runtime pallets
-        Runtime,
+        /// Runtime pallets (identified by pallet name)
+        Pallet(Vec<u8>),
         /// A confidential contract
         Contract(H256),
         /// A pRuntime worker
@@ -50,13 +51,34 @@ pub mod messaging {
     }
 
     impl MessageOrigin {
+        /// Builds a new native confidential contract `MessageOrigin`
         pub fn native_contract(id: u32) -> Self {
             MessageOrigin::Contract(H256::from_low_u64_be(id as u64))
         }
+        /// Returns if the origin is located off-chain
         pub fn is_offchain(&self) -> bool {
             match self {
                 MessageOrigin::Contract(_) | MessageOrigin::Worker(_) => true,
                 _ => false,
+            }
+        }
+    }
+
+    /// The topic in the message queue, indicating a group of destination message receivers
+    #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+    pub enum Topic {
+        /// The topic targets a cetrain receiver identified by `MessageOrigin`
+        Targeted(MessageOrigin),
+        /// A general topic that can be subscribed by anyone
+        Named(Vec<u8>),
+    }
+
+    impl Topic {
+        pub fn is_offchain(&self) -> bool {
+            if let Topic::Targeted(origin) = self {
+                origin.is_offchain()
+            } else {
+                false
             }
         }
     }
@@ -79,7 +101,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
     pub struct Message {
         pub sender: MessageOrigin,
-        pub destination: Vec<u8>,
+        pub destination: Topic,
         pub payload: Vec<u8>,
     }
 

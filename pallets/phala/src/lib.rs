@@ -15,7 +15,6 @@
 ///
 /// The `mq` pallet has a basic implementation and it's supposed to work. The `registry` pallet
 /// only has very basic API for testing.
-
 pub mod mq;
 pub mod phala_legacy;
 pub mod registry;
