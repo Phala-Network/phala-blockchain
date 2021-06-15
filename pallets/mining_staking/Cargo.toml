@@ -21,7 +21,7 @@ sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 log = { version = "0.4.14", default-features = false }
 
-pallet-phala = { default-features = false, path = "../phala" }
+phala-pallets = { default-features = false, path = "../phala" }
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 
 [dev-dependencies]
@@ -38,7 +38,7 @@ std = [
     "sp-io/std",
     "sp-std/std",
     "sp-core/full_crypto",
-    "pallet-phala/std",
+    "phala-pallets/std",
     "pallet-balances/std",
     "log/std"
 ]

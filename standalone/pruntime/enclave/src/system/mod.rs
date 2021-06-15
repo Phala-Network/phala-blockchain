@@ -12,6 +12,8 @@ use phala_types::{
 };
 use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
 
+use phala_pallets::pallet_phala as phala;
+
 use crate::contracts::AccountIdWrapper;
 use crate::light_validation::utils::storage_prefix;
 use crate::msg_channel::MsgChannel;

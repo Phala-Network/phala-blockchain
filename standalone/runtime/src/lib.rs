@@ -93,7 +93,7 @@ use constants::{time::*, currency::*};
 use sp_runtime::generic::Era;
 
 pub use pallet_kitties;
-pub use pallet_phala;
+pub use phala_pallets::pallet_phala;
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
 

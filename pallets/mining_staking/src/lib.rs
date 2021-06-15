@@ -6,15 +6,13 @@ use sp_std::prelude::*;
 
 use alloc::vec::Vec;
 use frame_support::{
-	traits::{
-		Currency, ExistenceRequirement::AllowDeath, ExistenceRequirement::KeepAlive,
-	},
-	PalletId
+	traits::{Currency, ExistenceRequirement::AllowDeath, ExistenceRequirement::KeepAlive},
+	PalletId,
 };
 pub use pallet::*;
-use sp_runtime::{
-	traits::{AccountIdConversion, Zero},
-};
+use sp_runtime::traits::{AccountIdConversion, Zero};
+
+use phala_pallets::pallet_phala;
 
 #[cfg(test)]
 mod mock;
