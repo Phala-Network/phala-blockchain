@@ -2,7 +2,7 @@ use crate::types::{Message, SignedMessage, MessageToBeSigned};
 use crate::{Mutex, SenderId, MessageSigner};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct MessageSendQueue {
     // Map: sender -> (sequence, messages)
     inner: Arc<Mutex<BTreeMap<SenderId, (u64, Vec<SignedMessage>)>>>,

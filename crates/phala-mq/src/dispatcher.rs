@@ -3,6 +3,7 @@ use alloc::{collections::BTreeMap, vec::Vec};
 use crate::simple_mpsc::{channel, Receiver, Sender};
 use crate::types::{Message, Path};
 
+#[derive(Default)]
 pub struct MessageDispatcher {
     subscribers: BTreeMap<Path, Vec<Sender<Message>>>,
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,

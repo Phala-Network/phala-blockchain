@@ -27,6 +27,7 @@ use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
+use crate::light_validation::LightValidation;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
@@ -59,6 +60,7 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
+use phala_mq::{MessageSendQueue, MessageDispatcher};
 
 mod cert;
 mod contracts;
@@ -190,6 +192,8 @@ struct LocalState {
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
     runtime_state: Storage,
+    send_mq: MessageSendQueue, // TODO: move it into the Runtime state
+    recv_mq: MessageDispatcher,
 }
 
 struct TestContract {
@@ -240,19 +244,7 @@ fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(
 }
 
 lazy_static! {
-    static ref STATE: SgxMutex<RuntimeState> = {
-        SgxMutex::new(RuntimeState {
-            contract1: contracts::data_plaza::DataPlaza::new(),
-            contract2: contracts::balances::Balances::new(None),
-            contract3: contracts::assets::Assets::new(),
-            contract4: contracts::web3analytics::Web3Analytics::new(),
-            contract5: contracts::diem::Diem::new(),
-            contract6: contracts::substrate_kitties::SubstrateKitties::new(None),
-            contract7: contracts::btc_lottery::BtcLottery::new(None),
-            light_client: ChainLightValidation::new(),
-            main_bridge: 0
-        })
-    };
+    static ref STATE: SgxMutex<Option<RuntimeState>> = Default::default();
 
     static ref LOCAL_STATE: SgxMutex<LocalState> = {
         // Give it an uninitialized default. Will be reset when initialig pRuntime. x
@@ -274,6 +266,8 @@ lazy_static! {
                 dev_mode: false,
                 runtime_info: None,
                 runtime_state: Default::default(),
+                send_mq: Default::default(),
+                recv_mq: Default::default(),
             }
         )
     };
@@ -984,7 +978,7 @@ fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
     let decrypted_data = aead::decrypt(&nonce_vec, &*SECRET, &mut in_out);
     debug!("{}", String::from_utf8(decrypted_data.to_vec()).unwrap());
 
-    let deserialized: RuntimeState = serde_json::from_slice(decrypted_data).unwrap();
+    let deserialized: Option<RuntimeState> = serde_json::from_slice(decrypted_data).unwrap();
 
     debug!("{}", serde_json::to_string_pretty(&deserialized).unwrap());
 
@@ -1091,17 +1085,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let genesis =
         light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
             .expect("Can't decode bridge_genesis_info_b64");
-    // Set up the bridge in local state
     let mut state = STATE.lock().unwrap();
-    let bridge_id = state
-        .light_client
+    let mut light_client = LightValidation::new();
+    let main_bridge = light_client
         .initialize_bridge(
             genesis.block_header,
             genesis.validator_set,
             genesis.validator_set_proof,
         )
         .expect("Bridge initialize failed");
-    state.main_bridge = bridge_id;
     let ecdsa_seed = local_state.private_key.serialize();
     let id_pair = sp_core::ecdsa::Pair::from_seed_slice(&ecdsa_seed)
         .expect("Unexpected ecdsa key error in init_runtime");
@@ -1109,9 +1101,18 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
-    state.contract2 = contracts::balances::Balances::new(Some(id_pair.clone()));
-    state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
-    state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
+
+    *state = Some(RuntimeState {
+        contract1: contracts::data_plaza::DataPlaza::new(),
+        contract2: contracts::balances::Balances::new(Some(id_pair.clone())),
+        contract3: contracts::assets::Assets::new(),
+        contract4: contracts::web3analytics::Web3Analytics::new(),
+        contract5: contracts::diem::Diem::new(),
+        contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
+        contract7: contracts::btc_lottery::BtcLottery::new(Some(id_pair)),
+        light_client,
+        main_bridge,
+    });
 
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
         .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
@@ -1306,6 +1307,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
         accenstor_proof.reverse(); // from high to low
                                    // 4. submit to light client
         let mut state = STATE.lock().unwrap();
+        let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
         let bridge_id = state.main_bridge;
         let authority_set_change = input
             .authority_set_change_b64
@@ -1449,6 +1451,7 @@ fn handle_events(
     dev_mode: bool,
 ) -> Result<(), Value> {
     let ref mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     // Dispatch events
     let mut events: &[u8] = events.as_ref();
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
@@ -1654,6 +1657,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     };
     // Dispatch
     let mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
         DATA_PLAZA => serde_json::to_value(
@@ -1754,6 +1758,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
     let state = STATE.lock().unwrap();
+    let state = state.as_ref().ok_or(error_msg("Runtime not initialized"))?;
     let path = input.get("path").unwrap().as_str().unwrap();
 
     let data = match state.contract1.get(&path.to_string()) {
@@ -1771,6 +1776,7 @@ fn get(input: &Map<String, Value>) -> Result<Value, Value> {
 
 fn set(input: &Map<String, Value>) -> Result<Value, Value> {
     let mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let path = input.get("path").unwrap().as_str().unwrap();
     let data_b64 = input.get("data").unwrap().as_str().unwrap();
 
@@ -1794,8 +1800,8 @@ fn test_bridge() {
     debug!("bridge_genesis_info_b64: {:?}", genesis);
 
     let mut state = STATE.lock().unwrap();
-    let id = state
-        .light_client
+    let mut light_client = LightValidation::new();
+    let id = light_client
         .initialize_bridge(
             genesis.block_header,
             genesis.validator_set,
@@ -1808,10 +1814,21 @@ fn test_bridge() {
     let header = chain::Header::decode(&mut raw_header.as_slice()).expect("Bad block1 header; qed");
     let justification = base64::decode("CgAAAAAAAADew4hPceq4QYh0sxLxlaq0lTl+SWKw88vuBatKPewDcwEAAAAI3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAAXWeJEfa3FLKCvN8SYsx3wBx3N78oHP4THt65DyExstiuwZpF62Ci18/8hdr4cf+jbdYkSBBeMJuL9dTUY/QzAojcNBfVBY7EtFA+DBLqGgqJviAP6YkiQj1DNAFPprDu3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAA8TA1VpLNnlBnetJ74i0IY/Bv6InpDTkG2q4LCy0qVPG3WQhgadGFMInCyc38vOHKKwA7X2r7FGfQmuuPlwRCA9F8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAA==").unwrap();
 
-    state
-        .light_client
+    light_client
         .submit_simple_header(id, header, justification)
         .expect("Submit first block failed; qed");
+
+    *state = Some(RuntimeState {
+        contract1: contracts::data_plaza::DataPlaza::new(),
+        contract2: todo!(),
+        contract3: contracts::assets::Assets::new(),
+        contract4: contracts::web3analytics::Web3Analytics::new(),
+        contract5: contracts::diem::Diem::new(),
+        contract6: todo!(),
+        contract7: todo!(),
+        light_client,
+        main_bridge: id,
+    });
 }
 
 fn test_parse_block() {
