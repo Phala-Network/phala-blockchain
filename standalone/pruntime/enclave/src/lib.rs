@@ -175,6 +175,8 @@ struct RuntimeState {
     contract7: contracts::btc_lottery::BtcLottery,
     light_client: ChainLightValidation,
     main_bridge: u64,
+    send_mq: MessageSendQueue,
+    recv_mq: MessageDispatcher,
 }
 
 struct LocalState {
@@ -190,8 +192,6 @@ struct LocalState {
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
     runtime_state: Storage,
-    send_mq: MessageSendQueue, // TODO: move it into the Runtime state
-    recv_mq: MessageDispatcher,
 }
 
 struct TestContract {
@@ -264,8 +264,6 @@ lazy_static! {
                 dev_mode: false,
                 runtime_info: None,
                 runtime_state: Default::default(),
-                send_mq: Default::default(),
-                recv_mq: Default::default(),
             }
         )
     };
@@ -1063,7 +1061,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
 
-    let mq = &local_state.send_mq;
+    let send_mq = MessageSendQueue::default();
+    let recv_mq = MessageDispatcher::default();
 
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
@@ -1074,11 +1073,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contract7: {
             let sender = Origin::native_contract(contracts::BTC_LOTTERY);
-            let queue = mq.channel(sender, id_pair.clone());
+            let queue = send_mq.channel(sender, id_pair.clone());
             contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), queue.into_typed())
         },
         light_client,
         main_bridge,
+        send_mq,
+        recv_mq,
     });
 
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
@@ -1757,45 +1758,7 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn test_bridge() {
-    // 1. load genesis
-    let raw_genesis = base64::decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh9rd6Uku4dTja+JQVMLsOZ5GtS4nU0cdpuvgchlapeMDFwoudZe3t+PYTAU5HROaYrFX54eG2MCC8p3PTBETFAAIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAAAMoQKALhCA33I0FGiDoLZ6HBWl1uCIt+sLgUbPlfMJqUk/gukhEt6AviHkl5KFGndUmA+ClBT2kPSvmBOvZTWowWjNYfynHU6AOFjSvKwU3s/vvRg7QOrJeehLgo9nGfN91yHXkHcWLkuAUJegqkIzp2A6LPkZouRRsKgiY4Wu92V8JXrn3aSXrw2AXDYZ0c8CICTMvasQ+rEpErmfEmg+BzH19s/zJX4LP8adAWRyYW5kcGFfYXV0aG9yaXRpZXNJAQEIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAABtAYKmqACASqIhjIQMli+MpltqIZlc2FVhXCd/m9F6k9Q5u13xU3JQXHh0cmluc2ljX2luZGV4EAAAAACAc0yvcsUiYcma5kSPZKxrMxbyDufisOfMmIsX1bDxfHc=")
-        .expect("Bad bridge_genesis_innfo_b64");
-    let genesis =
-        light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
-            .expect("Can't decode bridge_genesis_info_b64");
-
-    debug!("bridge_genesis_info_b64: {:?}", genesis);
-
-    let mut state = STATE.lock().unwrap();
-    let mut light_client = LightValidation::new();
-    let id = light_client
-        .initialize_bridge(
-            genesis.block_header,
-            genesis.validator_set,
-            genesis.validator_set_proof,
-        )
-        .expect("Init bridge failed; qed");
-
-    // 2. import a few blocks
-    let raw_header = base64::decode("/YNUiuLexTFhCwS9smQZzq1EggRC0DWkgGuCbyaKKSQEhrlzSqBeoaYA0f7EXN/Z0WJINIurZbvBQU/2dKyaFxA8RCHwO2aMQ+Agbl7pMtC9Yn6AH0rYW30BFRZmva2k5QgGYXVyYSAQWrUPAAAAAAVhdXJhAQFsP5YkXJ1qPXxseyMUtX5QXTQZBbIKDqYeZq1mw1f6MyROgQ3BIJpp8wCgSTlPttAQmkw4Ol4b5tJ5VaBzUd2B").unwrap();
-    let header = chain::Header::decode(&mut raw_header.as_slice()).expect("Bad block1 header; qed");
-    let justification = base64::decode("CgAAAAAAAADew4hPceq4QYh0sxLxlaq0lTl+SWKw88vuBatKPewDcwEAAAAI3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAAXWeJEfa3FLKCvN8SYsx3wBx3N78oHP4THt65DyExstiuwZpF62Ci18/8hdr4cf+jbdYkSBBeMJuL9dTUY/QzAojcNBfVBY7EtFA+DBLqGgqJviAP6YkiQj1DNAFPprDu3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAA8TA1VpLNnlBnetJ74i0IY/Bv6InpDTkG2q4LCy0qVPG3WQhgadGFMInCyc38vOHKKwA7X2r7FGfQmuuPlwRCA9F8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAA==").unwrap();
-
-    light_client
-        .submit_simple_header(id, header, justification)
-        .expect("Submit first block failed; qed");
-
-    *state = Some(RuntimeState {
-        contract1: contracts::data_plaza::DataPlaza::new(),
-        contract2: todo!(),
-        contract3: contracts::assets::Assets::new(),
-        contract4: contracts::web3analytics::Web3Analytics::new(),
-        contract5: contracts::diem::Diem::new(),
-        contract6: todo!(),
-        contract7: todo!(),
-        light_client,
-        main_bridge: id,
-    });
+    todo!()
 }
 
 fn test_parse_block() {
