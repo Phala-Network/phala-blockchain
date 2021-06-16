@@ -20,7 +20,7 @@ pub use dispatcher::MessageDispatcher;
 #[cfg(feature = "queue")]
 pub use send_queue::{MessageSendHandle, MessageSendQueue};
 
-pub use signer::{MessageSigner};
+pub use signer::MessageSigner;
 
 pub use types::*;
 

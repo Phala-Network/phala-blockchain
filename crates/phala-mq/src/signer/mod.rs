@@ -1,30 +1,23 @@
 use alloc::vec::Vec;
 
-use crate::types::Message;
-
-pub trait Pen {
-    fn sign(&self, data: &[u8]) -> Vec<u8>;
-}
+use crate::SignedMessage;
 
 pub trait MessageSigner {
-    fn sign(&self, sequence: u64, message: &Message) -> Vec<u8>;
+    fn sign(&self, data: &[u8]) -> Vec<u8>;
+}
+pub trait MessageVerifier {
+    fn verify(&self, message: &SignedMessage) -> bool;
 }
 
 #[cfg(feature = "signers")]
 mod signers {
-    use super::Pen;
-    use crate::{MessageSigner, Message};
-    use alloc::prelude::v1::Vec;
-    use parity_scale_codec::Encode;
+    use super::MessageSigner;
+    use sp_core::{ecdsa, crypto::Pair as PairTrait};
+    use alloc::vec::Vec;
 
-    struct ConcatSignerWithPen<P: Pen>(P);
-
-    impl<P: Pen> MessageSigner for ConcatSignerWithPen<P> {
-        fn sign(&self, sequence: u64, message: &Message) -> Vec<u8> {
-            let mut buf = Vec::new();
-            sequence.encode_to(&mut buf);
-            message.encode_to(&mut buf);
-            self.0.sign(buf.as_slice())
+    impl MessageSigner for ecdsa::Pair {
+        fn sign(&self, data: &[u8]) -> Vec<u8> {
+            PairTrait::sign(self, data).0.to_vec()
         }
     }
 }

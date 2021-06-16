@@ -6,10 +6,8 @@ fn test_send_message() {
     struct TestSigner(Vec<u8>);
 
     impl MessageSigner for TestSigner {
-        fn sign(&self, _sequence: u64, message: &phala_mq::Message) -> Vec<u8> {
-            let mut sig = self.0.clone();
-            sig.extend(message.payload.iter());
-            sig
+        fn sign(&self, _data: &[u8]) -> Vec<u8> {
+            self.0.clone()
         }
     }
 
@@ -38,15 +36,15 @@ fn test_send_message() {
 
         assert_eq!(messages[0].message.sender, runtime);
         assert_eq!(messages[0].sequence, 0);
-        assert_eq!(messages[0].signature, b"key0payload00");
+        assert_eq!(messages[0].signature, b"key0");
 
         assert_eq!(messages[1].message.sender, runtime);
         assert_eq!(messages[1].sequence, 1);
-        assert_eq!(messages[1].signature, b"key1payload01");
+        assert_eq!(messages[1].signature, b"key1");
 
         assert_eq!(messages[2].message.sender, runtime);
         assert_eq!(messages[2].sequence, 2);
-        assert_eq!(messages[2].signature, b"key0payload02");
+        assert_eq!(messages[2].signature, b"key0");
     }
 
     {

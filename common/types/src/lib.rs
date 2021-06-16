@@ -105,7 +105,7 @@ impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
 
 impl SignedDataType<Vec<u8>> for messaging::SignedMessage {
     fn raw_data(&self) -> Vec<u8> {
-        Encode::encode(&(&self.message, &self.sequence))
+        self.data_be_signed()
     }
     fn signature(&self) -> Vec<u8> {
         self.signature.clone()

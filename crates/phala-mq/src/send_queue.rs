@@ -1,4 +1,4 @@
-use crate::types::{Message, SignedMessage};
+use crate::types::{Message, SignedMessage, MessageToBeSigned};
 use crate::{Mutex, SenderId, MessageSigner};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
@@ -87,7 +87,11 @@ mod msg_handle {
                     destination: to.into().into(),
                     payload,
                 };
-                let signature = signer.sign(sequence, &message);
+                let be_signed = MessageToBeSigned {
+                    message: &message,
+                    sequence
+                }.encode();
+                let signature = signer.sign(&be_signed);
                 SignedMessage {
                     message,
                     sequence,

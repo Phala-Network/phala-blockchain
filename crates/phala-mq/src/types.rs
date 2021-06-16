@@ -135,3 +135,24 @@ pub struct SignedMessage {
     pub sequence: u64,
     pub signature: Vec<u8>,
 }
+
+impl SignedMessage {
+    pub fn data_be_signed(&self) -> Vec<u8> {
+        MessageToBeSigned {
+            message: &self.message,
+            sequence: self.sequence,
+        }.raw_data()
+    }
+}
+
+#[derive(Encode)]
+pub(crate) struct MessageToBeSigned<'a> {
+    pub(crate) message: &'a Message,
+    pub(crate) sequence: u64,
+}
+
+impl<'a> MessageToBeSigned<'a> {
+    pub(crate) fn raw_data(&self) -> Vec<u8> {
+        self.encode()
+    }
+}

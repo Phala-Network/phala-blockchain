@@ -11,9 +11,10 @@ parity-scale-codec = { version = "2", default-features = false, features = ["der
 primitive-types = { version = "0.9", default-features = false, features = ["codec", "byteorder"] }
 
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"], optional = true }
+sp-core = { path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"], optional = true }
 
 [features]
-default = ["dispatcher", "queue"]
+default = ["dispatcher", "queue", "signers"]
 dispatcher = ["spin"]
 queue = ["spin"]
-signers = []
+signers = ["sp-core"]
