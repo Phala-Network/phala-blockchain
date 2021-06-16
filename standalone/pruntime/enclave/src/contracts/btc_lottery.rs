@@ -17,7 +17,7 @@ use anyhow::{anyhow, Result};
 use lazy_static;
 use log::error;
 use parity_scale_codec::Encode;
-use phala_mq::EcdsaTypedMessageChannel;
+use phala_mq::EcdsaTypedMessageChannel as MessageChannel;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -31,10 +31,7 @@ use bitcoin::secp256k1::{All, Secp256k1, Signature};
 use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid};
 
-use phala_types::{
-    messaging::{Lottery, Topic, Message, MessageOrigin, SignedMessage},
-    SignedDataType,
-};
+use phala_types::messaging::Lottery;
 
 type SequenceType = u64;
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
@@ -52,7 +49,7 @@ pub struct BtcLottery {
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
     #[serde(skip)]
-    queue: EcdsaTypedMessageChannel<Lottery>,
+    queue: MessageChannel<Lottery>,
     #[serde(skip)]
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
@@ -118,7 +115,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>, queue: EcdsaTypedMessageChannel<Lottery>) -> Self {
+    pub fn new(secret: Option<ecdsa::Pair>, queue: MessageChannel<Lottery>) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();

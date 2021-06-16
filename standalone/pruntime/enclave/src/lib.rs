@@ -943,49 +943,12 @@ fn unknown() -> Result<Value, Value> {
     }))
 }
 
-const SECRET: &[u8; 32] = b"24e3e78e1f15150cdbad02f3205f6dd0";
-
 fn dump_states(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let sessions = STATE.lock().unwrap();
-    let serialized = serde_json::to_string(&*sessions).unwrap();
-
-    // Your private data
-    let content = serialized.as_bytes().to_vec();
-    info!("Content to encrypt's size {}", content.len());
-    debug!("{}", serialized);
-
-    // Ring uses the same input variable as output
-    let mut in_out = content.clone();
-    info!("in_out len {}", in_out.len());
-
-    // Random data must be used only once per encryption
-    let iv = aead::generate_iv();
-    aead::encrypt(&iv, SECRET, &mut in_out);
-
-    Ok(json!({
-        "data": hex::encode(&in_out),
-        "nonce": hex::encode(&iv)
-    }))
+    todo!("@Kevin")
 }
 
-fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
-    let nonce_vec = hex::decode(input.get("nonce").unwrap().as_str().unwrap())
-        .expect("Unable to decode nonce hex");
-    let mut in_out = hex::decode(input.get("data").unwrap().as_str().unwrap())
-        .expect("Unable to decode data hex");
-    debug!("{}", input.get("data").unwrap().as_str().unwrap());
-
-    let decrypted_data = aead::decrypt(&nonce_vec, &*SECRET, &mut in_out);
-    debug!("{}", String::from_utf8(decrypted_data.to_vec()).unwrap());
-
-    let deserialized: Option<RuntimeState> = serde_json::from_slice(decrypted_data).unwrap();
-
-    debug!("{}", serde_json::to_string_pretty(&deserialized).unwrap());
-
-    let mut sessions = STATE.lock().unwrap();
-    let _ = std::mem::replace(&mut *sessions, deserialized);
-
-    Ok(json!({}))
+fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
+    todo!("@Kevin")
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
