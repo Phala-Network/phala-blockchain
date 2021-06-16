@@ -19,13 +19,13 @@ fn test_send_message() {
     {
         let signer = TestSigner(b"key0".to_vec());
 
-        let handle00 = queue.create_handle(runtime.clone(), signer);
+        let handle00 = queue.channel(runtime.clone(), signer);
 
         handle00.send(b"payload00".to_vec(), b"phala.network/test0".to_vec());
 
         let signer = TestSigner(b"key1".to_vec());
 
-        let handle01 = queue.create_handle(runtime.clone(), signer);
+        let handle01 = queue.channel(runtime.clone(), signer);
         handle01.send(b"payload01".to_vec(), b"phala.network/test1".to_vec());
 
         handle00.send(b"payload02".to_vec(), b"phala.network/test1".to_vec());
@@ -49,7 +49,7 @@ fn test_send_message() {
 
     {
         let signer = TestSigner(b"a key".to_vec());
-        let handle = queue.create_handle(worker0.clone(), signer);
+        let handle = queue.channel(worker0.clone(), signer);
 
         handle.send(b"energy".to_vec(), b"/the/hole".to_vec());
         handle.send(b"energy".to_vec(), b"/the/hole".to_vec());

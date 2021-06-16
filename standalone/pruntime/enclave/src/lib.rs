@@ -60,7 +60,7 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
-use phala_mq::{MessageSendQueue, MessageDispatcher};
+use phala_mq::{MessageSendQueue, MessageDispatcher, Origin};
 
 mod cert;
 mod contracts;
@@ -1102,6 +1102,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
 
+    let mq = &local_state.send_mq;
+
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
         contract2: contracts::balances::Balances::new(Some(id_pair.clone())),
@@ -1109,7 +1111,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         contract4: contracts::web3analytics::Web3Analytics::new(),
         contract5: contracts::diem::Diem::new(),
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
-        contract7: contracts::btc_lottery::BtcLottery::new(Some(id_pair)),
+        contract7: {
+            let sender = Origin::native_contract(contracts::BTC_LOTTERY);
+            let queue = mq.channel(sender, id_pair.clone());
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), queue.into_typed())
+        },
         light_client,
         main_bridge,
     });

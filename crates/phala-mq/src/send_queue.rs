@@ -15,8 +15,8 @@ impl MessageSendQueue {
         }
     }
 
-    pub fn create_handle<Si: MessageSigner>(&self, sender: SenderId, signer: Si) -> MessageSendHandle<Si> {
-        MessageSendHandle::new(self.clone(), sender, signer)
+    pub fn channel<Si: MessageSigner>(&self, sender: SenderId, signer: Si) -> MessageChannel<Si> {
+        MessageChannel::new(self.clone(), sender, signer)
     }
 
     pub fn enqueue_message(
@@ -62,15 +62,15 @@ mod msg_handle {
     use core::marker::PhantomData;
 
     #[derive(Clone)]
-    pub struct MessageSendHandle<Si: MessageSigner> {
+    pub struct MessageChannel<Si: MessageSigner> {
         queue: MessageSendQueue,
         sender: SenderId,
         signer: Si,
     }
 
-    impl<Si: MessageSigner> MessageSendHandle<Si> {
+    impl<Si: MessageSigner> MessageChannel<Si> {
         pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
-            MessageSendHandle {
+            MessageChannel {
                 queue,
                 sender,
                 signer,
@@ -92,6 +92,8 @@ mod msg_handle {
                     sequence
                 }.encode();
                 let signature = signer.sign(&be_signed);
+                // TODO.kevin: log
+                // info!("send msg: data[{}], sig[{}], seq={}", be_signed.len(), signature.len(), sequence);
                 SignedMessage {
                     message,
                     sequence,
@@ -100,23 +102,39 @@ mod msg_handle {
             })
         }
 
-        pub fn into_typed<MT: Encode>(self) -> TypedMessageSendHandle<Si, MT> {
-            TypedMessageSendHandle {
-                handle: self,
+        pub fn into_typed<MT: Encode>(self) -> TypedMessageChannel<Si, MT> {
+            TypedMessageChannel {
+                handle: Some(self),
                 _mt: Default::default(),
             }
         }
     }
 
     #[derive(Clone)]
-    pub struct TypedMessageSendHandle<Si: MessageSigner, MT: Encode> {
-        handle: MessageSendHandle<Si>,
+    pub struct TypedMessageChannel<Si: MessageSigner, MT: Encode> {
+        handle: Option<MessageChannel<Si>>,
         _mt: PhantomData<MT>,
     }
 
-    impl<Si: MessageSigner, MT: Encode> TypedMessageSendHandle<Si, MT> {
+    impl<Si: MessageSigner, MT: Encode> Default for TypedMessageChannel<Si, MT> {
+        fn default() -> Self {
+            TypedMessageChannel {
+                handle: Default::default(),
+                _mt: Default::default(),
+            }
+        }
+    }
+
+    impl<Si: MessageSigner, MT: Encode> TypedMessageChannel<Si, MT> {
+        pub fn set_handle(&mut self, handle: MessageChannel<Si>) {
+            self.handle = Some(handle)
+        }
+
         pub fn send(&self, message: &MT, to: impl Into<Path>) {
-            self.handle.send(message.encode(), to)
+            self.handle
+                .as_ref()
+                .expect("BUG: inner handle must be set before send message")
+                .send(message.encode(), to)
         }
     }
 }

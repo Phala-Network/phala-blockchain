@@ -17,6 +17,7 @@ use anyhow::{anyhow, Result};
 use lazy_static;
 use log::error;
 use parity_scale_codec::Encode;
+use phala_mq::EcdsaTypedMessageChannel;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -50,8 +51,8 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    #[serde(with = "super::serde_scale")]
-    queue: Vec<SignedMessage>,
+    #[serde(skip)]
+    queue: EcdsaTypedMessageChannel<Lottery>,
     #[serde(skip)]
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
@@ -89,7 +90,6 @@ pub enum Request {
     GetRoundAddress { round_id: u32 },
     QueryUtxo { round_id: u32 },
     GetSignedTx { round_id: u32 },
-    PendingLotteryEgress { sequence: SequenceType },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
@@ -118,7 +118,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>) -> Self {
+    pub fn new(secret: Option<ecdsa::Pair>, queue: EcdsaTypedMessageChannel<Lottery>) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
@@ -129,7 +129,7 @@ impl BtcLottery {
             lottery_set,
             tx_set: Vec::new(),
             sequence: 0,
-            queue: Vec::new(),
+            queue,
             secret,
             utxo,
             admin,
@@ -154,30 +154,7 @@ impl BtcLottery {
     }
 
     fn send_lottery_message(&mut self, body: &Lottery) -> Result<()> {
-        let secret = match self.secret.as_ref() {
-            Some(s) => s,
-            None => return Err(anyhow!("Secret not ready")),
-        };
-        let mut msg = SignedMessage {
-            message: Message {
-                sender: MessageOrigin::native_contract(self.id()),
-                destination: Topic::new(*b"^BridgeTransfer"),
-                payload: Encode::encode(body),
-            },
-            sequence: self.sequence,
-            signature: Vec::new(),
-        };
-        let preimage = msg.raw_data();
-        msg.signature = secret.sign(&preimage).0.to_vec();
-
-        info!(
-            "send_lottery_message: data[{}], sig[{}], seq = {}",
-            preimage.len(),
-            msg.signature.len(),
-            self.sequence,
-        );
-        self.queue.push(msg);
-        self.sequence += 1;
+        self.queue.send(body, *b"^BridgeTransfer");
         Ok(())
     }
 
@@ -459,19 +436,6 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             }
             Request::GetSignedTx { round_id } => Response::GetSignedTx {
                 tx_set: self.tx_set.clone(),
-            },
-            Request::PendingLotteryEgress { sequence } => {
-                println!("PendingLotteryEgress");
-                let transfer_queue: Vec<_> = self
-                    .queue
-                    .iter()
-                    .filter(|x| x.sequence >= sequence)
-                    .collect();
-
-                Response::PendingLotteryEgress {
-                    length: transfer_queue.len(),
-                    lottery_queue_b64: base64::encode(&transfer_queue.encode()),
-                }
             }
         }
     }
@@ -492,10 +456,6 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
                 token_id,
                 btc_address,
             )) => Self::open_lottery(self, round_id, token_id, btc_address),
-            Event::Phala(PhalaEvent::<chain::Runtime>::LotteryMessageReceived(sequence)) => {
-                self.queue.retain(|x| x.sequence > sequence);
-                info!("Filtered queue len: {:}", self.queue.len());
-            }
             _ => {
                 info!("BtcLottery: handle_event - skip unknown events");
             }
