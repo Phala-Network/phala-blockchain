@@ -58,6 +58,8 @@ pub use msg_handle::*;
 mod msg_handle {
     use super::*;
     use crate::{types::Path, SenderId, MessageSigner};
+    use parity_scale_codec::Encode;
+    use core::marker::PhantomData;
 
     #[derive(Clone)]
     pub struct MessageSendHandle<Si: MessageSigner> {
@@ -92,6 +94,25 @@ mod msg_handle {
                     signature,
                 }
             })
+        }
+
+        pub fn into_typed<MT: Encode>(self) -> TypedMessageSendHandle<Si, MT> {
+            TypedMessageSendHandle {
+                handle: self,
+                _mt: Default::default(),
+            }
+        }
+    }
+
+    #[derive(Clone)]
+    pub struct TypedMessageSendHandle<Si: MessageSigner, MT: Encode> {
+        handle: MessageSendHandle<Si>,
+        _mt: PhantomData<MT>,
+    }
+
+    impl<Si: MessageSigner, MT: Encode> TypedMessageSendHandle<Si, MT> {
+        pub fn send(&self, message: &MT, to: impl Into<Path>) {
+            self.handle.send(message.encode(), to)
         }
     }
 }
