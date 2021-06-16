@@ -41,16 +41,13 @@ lazy_static! {
     static ref TYPE_NF_BIT: U256 = U256::from(1) << 255;
 }
 
-#[derive(Serialize, Deserialize, Default, Clone)]
 pub struct BtcLottery {
     round_id: u32,
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    #[serde(skip)]
     queue: MessageChannel<Lottery>,
-    #[serde(skip)]
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,

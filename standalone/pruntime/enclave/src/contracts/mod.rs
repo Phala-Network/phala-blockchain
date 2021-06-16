@@ -30,7 +30,7 @@ pub const DIEM: ContractId = 5;
 pub const SUBSTRATE_KITTIES: ContractId = 6;
 pub const BTC_LOTTERY: ContractId = 7;
 
-pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
+pub trait Contract<Cmd, QReq, QResp>
 where
     Cmd: Serialize + DeserializeOwned + Debug,
     QReq: Serialize + DeserializeOwned + Debug,

@@ -165,7 +165,6 @@ pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
-#[derive(Serialize, Deserialize, Debug)]
 struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
     contract2: contracts::balances::Balances,
@@ -174,7 +173,6 @@ struct RuntimeState {
     contract5: contracts::diem::Diem,
     contract6: contracts::substrate_kitties::SubstrateKitties,
     contract7: contracts::btc_lottery::BtcLottery,
-    #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
     light_client: ChainLightValidation,
     main_bridge: u64,
 }
