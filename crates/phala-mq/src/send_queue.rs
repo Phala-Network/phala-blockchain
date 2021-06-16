@@ -82,7 +82,7 @@ mod msg_handle {
             self.queue.enqueue_message(sender.clone(), move |sequence| {
                 let message = Message {
                     sender,
-                    destination: to.into(),
+                    destination: to.into().into(),
                     payload,
                 };
                 let signature = signer.sign(sequence, &message);

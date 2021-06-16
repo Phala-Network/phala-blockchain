@@ -28,7 +28,7 @@ impl MessageDispatcher {
     /// Returns number of receivers dispatched to.
     pub fn dispatch(&mut self, message: Message) -> usize {
         let mut count = 0;
-        if let Some(receivers) = self.subscribers.get_mut(&message.destination) {
+        if let Some(receivers) = self.subscribers.get_mut(message.destination.path()) {
             receivers.retain(|receiver| {
                 if let Err(error) = receiver.send(message.clone()) {
                     use crate::simple_mpsc::SendError::*;

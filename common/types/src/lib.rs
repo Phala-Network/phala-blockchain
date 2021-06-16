@@ -31,9 +31,8 @@ pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
     use core::fmt::Debug;
-    use sp_core::H256;
 
-    pub use phala_mq::{Origin as MessageOrigin, Message, SignedMessage, SenderId, Path};
+    pub use phala_mq::{Origin as MessageOrigin, Message, SignedMessage, Topic};
 
 
     // Messages: Lottery

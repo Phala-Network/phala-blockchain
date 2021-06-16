@@ -14,7 +14,7 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{Message, MessageOrigin, SignedMessage, SenderId};
+	use phala_types::messaging::{Message, MessageOrigin, SignedMessage};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -29,7 +29,7 @@ pub mod pallet {
 
 	/// The next expected sequence of a ingress message coming from a certain sender (origin)
 	#[pallet::storage]
-	pub type OffchainIngress<T> = StorageMap<_, Twox64Concat, SenderId, u64>;
+	pub type OffchainIngress<T> = StorageMap<_, Twox64Concat, MessageOrigin, u64>;
 
 	#[pallet::event]
 	// #[pallet::metadata(T::AccountId = "AccountId")]
@@ -43,6 +43,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		BadSender,
 		BadSequence,
+		BadDestination,
 	}
 
 	#[pallet::call]
@@ -59,15 +60,14 @@ pub mod pallet {
 			ensure_signed(origin)?;
 
 			// Check sender
-			// TODO.kevin: Remove the check.
-			// 	I don't think we need to check the sender type here.
-			// 	Any requests to this RPC that passing the other checks should be considered valid.
-			let sender = signed_message.message.sender().ok_or(Error::<T>::BadSender)?;
+			let sender = &signed_message.message.sender;
 			ensure!(sender.is_offchain(), Error::<T>::BadSender);
 
-			let sender = signed_message.message.sender.clone();
+			// Check destination
+			ensure!(signed_message.message.destination.is_valid(), Error::<T>::BadDestination);
+
 			// Check ingress sequence
-			let expected_seq = OffchainIngress::<T>::get(&sender).unwrap_or(0);
+			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 			ensure!(
 				signed_message.sequence == expected_seq,
 				Error::<T>::BadSequence
@@ -75,7 +75,7 @@ pub mod pallet {
 			// Validate signature
 			crate::registry::Pallet::<T>::check_message(&signed_message)?;
 			// Update ingress
-			OffchainIngress::<T>::insert(sender, expected_seq + 1);
+			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
 			// Call push_message
 			Self::push_message(signed_message.message);
 			Ok(())

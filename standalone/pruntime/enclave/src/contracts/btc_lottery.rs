@@ -160,8 +160,8 @@ impl BtcLottery {
         };
         let mut msg = SignedMessage {
             message: Message {
-                sender: MessageOrigin::native_contract(self.id()).encode(),
-                destination: Topic::Targeted(MessageOrigin::Pallet(b"BridgeTransfer".to_vec())),
+                sender: MessageOrigin::native_contract(self.id()),
+                destination: Topic::new(*b"^BridgeTransfer"),
                 payload: Encode::encode(body),
             },
             sequence: self.sequence,

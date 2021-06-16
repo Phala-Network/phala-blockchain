@@ -11,7 +11,7 @@ sp-core = { version = "3.0.0", default-features = false, path = "../../substrate
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
 trie-storage = { path = "../../crates/trie-storage", default-features = false, optional = true  }
-phala-mq = { path = "../../crates/phala-mq", default-features = false, features = ["scale-codec"] }
+phala-mq = { path = "../../crates/phala-mq", default-features = false }
 
 [features]
 default = ["std", "pruntime", "enable_serde"]
@@ -21,12 +21,10 @@ std = [
 	"sp-core/full_crypto",
 	"sp-runtime/std",
 	"trie-storage",
-	"phala-mq/serde",
 ]
 enable_serde = [
 	"serde/derive",
 	"serde/alloc",
-	"phala-mq/serde",
 ]
 pruntime = [
 	"sp-runtime",
@@ -34,5 +32,4 @@ pruntime = [
 ]
 sgx = [
 	"trie-storage/sgx",
-	"phala-mq/sgx",
 ]

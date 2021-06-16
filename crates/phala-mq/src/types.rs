@@ -1,20 +1,15 @@
 use alloc::vec::Vec;
+use primitive_types::H256;
 
-#[cfg(feature = "scale-codec")]
 use parity_scale_codec::{Decode, Encode};
 
-#[cfg(any(feature = "serde", feature = "serde_sgx"))]
-use serde::{Deserialize, Serialize};
-
 pub type Path = Vec<u8>;
-pub type SenderId = Vec<u8>;
+pub type SenderId = Origin;
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
-#[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
+#[derive(Encode, Decode)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Origin {
     /// Runtime pallets (identified by pallet name)
@@ -31,9 +26,8 @@ pub enum Origin {
 
 impl Origin {
     /// Builds a new native confidential contract `MessageOrigin`
-    #[cfg(feature = "scale-codec")]
     pub fn native_contract(id: u32) -> Self {
-        Self::Contract(id.encode())
+        Self::Contract(H256::from_low_u64_be(id as u64))
     }
 
     /// Returns if the origin is located off-chain
@@ -45,35 +39,74 @@ impl Origin {
     }
 }
 
-/// The topic in the message queue, indicating a group of destination message receivers
-#[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
-#[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub enum Topic {
-    /// The topic targets a cetrain receiver identified by `MessageOrigin`
-    Targeted(MessageOrigin),
-    /// A general topic that can be subscribed by anyone
-    Named(Vec<u8>),
-}
+/// The topic in the message queue, indicating a group of destination message receivers.
+///
+/// A topic can be any non-empty binary string except there are some reserved value for the first byte.
+///
+/// # The reserved values for the first byte:
+///
+/// ~!@#$%&*_+-=|<>?,./;:'
+///
+/// # Indicator byte
+///  Meaning of some special values appearing at the first byte:
+///
+///  - `^`: The topic is on-chain only.
+///
+/// # Example:
+/// ```rust
+///    use phala_mq::Topic;
+///
+///    // An on-chain only topic. Messages sent to this topic will not be dispatched
+///    // to off-chain components.
+///    let an_onchain_topic = Topic::new(*b"^topic path");
+///    assert!(!an_onchain_topic.is_offchain());
+///
+///    // An normal topic. Messages sent to this topic will be dispatched to off-chain subscribers
+///    // as well as on-chain ones.
+///    let an_normal_topic = Topic::new(*b"topic path");
+///    assert!(an_normal_topic.is_offchain());
+/// ```
+///
+#[derive(Encode, Decode)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+pub struct Topic(Path);
 
 impl Topic {
+    pub fn new(path: impl Into<Path>) -> Self {
+        Self(path.into())
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.0
+    }
+
     pub fn is_offchain(&self) -> bool {
-        if let Topic::Targeted(origin) = self {
-            origin.is_offchain()
-        } else {
-            false
+        if !self.is_valid() {
+            return false;
         }
+        self.0[0] != b'^'
+    }
+
+    pub fn is_valid(&self) -> bool {
+        if self.0.is_empty() {
+            return false;
+        }
+        const RESERVED_BYTES: &[u8] = b"~!@#$%&*_+-=|<>?,./;:'";
+        !RESERVED_BYTES.contains(&self.0[0])
     }
 }
 
-#[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
-#[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
+impl From<Path> for Topic {
+    fn from(path: Path) -> Self {
+        Self::new(path)
+    }
+}
+
+#[derive(Encode, Decode)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub sender: SenderId,
-    pub destination: Path,
+    pub destination: Topic,
     pub payload: Vec<u8>,
 }
 
@@ -85,25 +118,17 @@ impl Message {
     ) -> Self {
         Message {
             sender: sender.into(),
-            destination: destination.into(),
+            destination: Topic::new(destination),
             payload,
         }
     }
 
-    #[cfg(feature = "scale-codec")]
-    pub fn sender(&self) -> Option<Origin> {
-        Decode::decode(&mut &self.sender[..]).ok()
-    }
-
-    #[cfg(feature = "scale-codec")]
     pub fn decode_payload<T: Decode>(&self) -> Option<T> {
         Decode::decode(&mut &self.payload[..]).ok()
     }
 }
 
-#[cfg_attr(any(feature = "serde", feature = "serde_sgx"), derive(Serialize, Deserialize))]
-#[cfg_attr(feature = "serde_sgx", serde(crate="serde"))]
-#[cfg_attr(feature = "scale-codec", derive(Encode, Decode))]
+#[derive(Encode, Decode)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SignedMessage {
     pub message: Message,
