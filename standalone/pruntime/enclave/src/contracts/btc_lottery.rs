@@ -48,7 +48,7 @@ pub struct BtcLottery {
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
     mq: MessageChannel,
-    secret: Option<ecdsa::Pair>,
+    secret: Option<ecdsa::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
     admin: AccountIdWrapper,
