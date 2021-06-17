@@ -59,7 +59,6 @@ mod msg_handle {
     use super::*;
     use crate::{BindTopic, MessageSigner, SenderId, types::Path};
     use parity_scale_codec::Encode;
-    use core::marker::PhantomData;
 
     #[derive(Clone)]
     pub struct MessageChannel<Si: MessageSigner> {
@@ -77,7 +76,7 @@ mod msg_handle {
             }
         }
 
-        pub fn send(&self, payload: Vec<u8>, to: impl Into<Path>) {
+        pub fn send_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
             let sender = self.sender.clone();
             let signer = &self.signer;
 
@@ -102,43 +101,12 @@ mod msg_handle {
             })
         }
 
-        pub fn into_typed<MT: Encode>(self) -> TypedMessageChannel<Si, MT> {
-            TypedMessageChannel {
-                handle: Some(self),
-                _mt: Default::default(),
-            }
-        }
-    }
-
-    #[derive(Clone)]
-    pub struct TypedMessageChannel<Si: MessageSigner, MT: Encode> {
-        handle: Option<MessageChannel<Si>>,
-        _mt: PhantomData<MT>,
-    }
-
-    impl<Si: MessageSigner, MT: Encode> Default for TypedMessageChannel<Si, MT> {
-        fn default() -> Self {
-            TypedMessageChannel {
-                handle: Default::default(),
-                _mt: Default::default(),
-            }
-        }
-    }
-
-    impl<Si: MessageSigner, MT: Encode> TypedMessageChannel<Si, MT> {
-        pub fn set_handle(&mut self, handle: MessageChannel<Si>) {
-            self.handle = Some(handle)
+        pub fn sendto<M: Encode>(&self, message: &M, to: impl Into<Path>) {
+            self.send_data(message.encode(), to)
         }
 
-        pub fn sendto(&self, message: &MT, to: impl Into<Path>) {
-            self.handle
-                .as_ref()
-                .expect("BUG: inner handle must be set before send message")
-                .send(message.encode(), to)
-        }
-
-        pub fn send(&self, message: &MT) where MT: BindTopic {
-            self.sendto(message, <MT as BindTopic>::TOPIC)
+        pub fn send<M: Encode + BindTopic>(&self, message: &M) {
+            self.sendto(message, <M as BindTopic>::TOPIC)
         }
     }
 }

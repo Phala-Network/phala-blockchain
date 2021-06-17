@@ -48,6 +48,10 @@ pub mod messaging {
             address_set: Vec<Vec<u8>>,
         },
     }
+
+    impl BindTopic for Lottery {
+        const TOPIC: &'static [u8] = b"^phala/BridgeTransfer";
+    }
 }
 
 // Messages: System

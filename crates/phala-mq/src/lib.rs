@@ -18,7 +18,7 @@ mod simple_mpsc;
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::MessageDispatcher;
 #[cfg(feature = "queue")]
-pub use send_queue::{MessageSendQueue, MessageChannel, TypedMessageChannel};
+pub use send_queue::{MessageSendQueue, MessageChannel};
 
 pub use signer::MessageSigner;
 
@@ -39,5 +39,5 @@ pub use alias::*;
 mod alias {
     use super::*;
     use sp_core::ecdsa;
-    pub type EcdsaTypedMessageChannel<T> = TypedMessageChannel<ecdsa::Pair, T>;
+    pub type EcdsaMessageChannel = MessageChannel<ecdsa::Pair>;
 }

@@ -60,7 +60,7 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
-use phala_mq::{MessageSendQueue, MessageDispatcher, Origin};
+use phala_mq::{MessageSendQueue, MessageDispatcher, MessageOrigin};
 
 mod cert;
 mod contracts;
@@ -1072,9 +1072,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         contract5: contracts::diem::Diem::new(),
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contract7: {
-            let sender = Origin::native_contract(contracts::BTC_LOTTERY);
+            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
             let queue = send_mq.channel(sender, id_pair.clone());
-            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), queue.into_typed())
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), queue)
         },
         light_client,
         main_bridge,

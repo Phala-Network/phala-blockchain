@@ -17,7 +17,7 @@ use anyhow::{anyhow, Result};
 use lazy_static;
 use log::error;
 use parity_scale_codec::Encode;
-use phala_mq::EcdsaTypedMessageChannel as MessageChannel;
+use phala_mq::EcdsaMessageChannel as MessageChannel;
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -47,7 +47,7 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    queue: MessageChannel<Lottery>,
+    queue: MessageChannel,
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
@@ -112,7 +112,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>, queue: MessageChannel<Lottery>) -> Self {
+    pub fn new(secret: Option<ecdsa::Pair>, queue: MessageChannel) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
@@ -148,7 +148,7 @@ impl BtcLottery {
     }
 
     fn send_lottery_message(&mut self, body: &Lottery) -> Result<()> {
-        self.queue.send(body, *b"^BridgeTransfer");
+        self.queue.send(body);
         Ok(())
     }
 
