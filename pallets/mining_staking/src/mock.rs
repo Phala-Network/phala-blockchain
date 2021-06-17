@@ -27,7 +27,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-		PhalaPallet: pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>},
+		Phala: phala_pallets::pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>},
 		MiningStaking: mining_staking::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -100,7 +100,7 @@ parameter_types! {
 	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
-impl pallet_phala::Config for Test {
+impl phala_pallets::pallet_phala::Config for Test {
 	type Event = Event;
 	type Randomness = TestRandomness<Self>;
 	type TEECurrency = Balances;
@@ -108,6 +108,8 @@ impl pallet_phala::Config for Test {
 	type Treasury = ();
 	type WeightInfo = ();
 	type OnRoundEnd = ();
+
+	type OnLotteryMessage = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
