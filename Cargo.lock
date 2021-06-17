@@ -4507,6 +4507,7 @@ version = "0.0.1"
 dependencies = [
  "frame-support",
  "frame-system",
+ "hex",
  "pallet-balances",
  "pallet-bridge",
  "parity-scale-codec",

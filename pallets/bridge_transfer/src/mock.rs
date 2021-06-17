@@ -12,7 +12,7 @@ use sp_runtime::{
 	Perbill,
 };
 
-use crate::{self as example, Config};
+use crate::{self as bride_transfer, Config};
 pub use pallet_balances as balances;
 use pallet_bridge as bridge;
 
@@ -31,8 +31,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
-		Erc721: erc721::{Pallet, Call, Storage, Event<T>},
-		Example: example::{Pallet, Call, Event<T>}
+		BridgeTransfer: bride_transfer::{Pallet, Call, Event, Config, Storage},
 	}
 );
 
@@ -103,24 +102,10 @@ impl bridge::Config for Test {
 	type ProposalLifetime = ProposalLifetime;
 }
 
-parameter_types! {
-	pub HashId: bridge::ResourceId = bridge::derive_resource_id(1, &blake2_128(b"hash"));
-	pub NativeTokenId: bridge::ResourceId = bridge::derive_resource_id(1, &blake2_128(b"DAV"));
-	pub Erc721Id: bridge::ResourceId = bridge::derive_resource_id(1, &blake2_128(b"NFT"));
-}
-
-impl erc721::Config for Test {
-	type Event = Event;
-	type Identifier = Erc721Id;
-}
-
 impl Config for Test {
 	type Event = Event;
 	type BridgeOrigin = bridge::EnsureBridge<Test>;
 	type Currency = Balances;
-	type HashId = HashId;
-	type NativeTokenId = NativeTokenId;
-	type Erc721Id = Erc721Id;
 }
 
 pub const RELAYER_A: u64 = 0x2;
@@ -129,7 +114,7 @@ pub const RELAYER_C: u64 = 0x4;
 pub const ENDOWED_BALANCE: u64 = 100_000_000;
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let bridge_id = PalletId(*b"cb/bridg").into_account();
+	let bridge_id = PalletId(*b"phala/bg").into_account();
 	let mut t = frame_system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
