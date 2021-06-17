@@ -5,7 +5,7 @@ pub extern crate serde_sgx as serde;
 
 extern crate alloc;
 
-mod types;
+pub mod types;
 mod signer;
 
 #[cfg(feature = "dispatcher")]

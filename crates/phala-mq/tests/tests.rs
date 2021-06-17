@@ -1,4 +1,4 @@
-use phala_mq::Origin;
+use phala_mq::MessageOrigin;
 
 #[cfg(feature = "queue")]
 #[test]
@@ -13,8 +13,8 @@ fn test_send_message() {
 
     use phala_mq::{MessageSendQueue, MessageSigner};
     let queue = MessageSendQueue::new();
-    let runtime = Origin::Pallet(b"p0".to_vec());
-    let worker0 = Origin::Worker(b"worker0".to_vec());
+    let runtime = MessageOrigin::Pallet(b"p0".to_vec());
+    let worker0 = MessageOrigin::Worker(b"worker0".to_vec());
 
     {
         let signer = TestSigner(b"key0".to_vec());
@@ -60,7 +60,7 @@ fn test_send_message() {
 
     {
         queue.purge(|sender| match &sender {
-            Origin::Pallet(_) => 1,
+            MessageOrigin::Pallet(_) => 1,
             _ => 0,
         });
 
@@ -76,8 +76,8 @@ fn test_send_message() {
 #[test]
 fn test_dispatcher() {
     use phala_mq::{Message, MessageDispatcher};
-    let sender0 = Origin::Pallet(b"sender0".to_vec());
-    let sender1 = Origin::Pallet(b"sender1".to_vec());
+    let sender0 = MessageOrigin::Pallet(b"sender0".to_vec());
+    let sender1 = MessageOrigin::Pallet(b"sender1".to_vec());
 
     let mut dispatcher = MessageDispatcher::new();
 

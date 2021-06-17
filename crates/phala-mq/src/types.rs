@@ -4,14 +4,14 @@ use primitive_types::H256;
 use parity_scale_codec::{Decode, Encode};
 
 pub type Path = Vec<u8>;
-pub type SenderId = Origin;
+pub type SenderId = MessageOrigin;
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
 #[derive(Encode, Decode)]
 #[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Origin {
+pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     Pallet(Vec<u8>),
     /// A confidential contract
@@ -24,7 +24,7 @@ pub enum Origin {
     Multilocaiton(Vec<u8>),
 }
 
-impl Origin {
+impl MessageOrigin {
     /// Builds a new native confidential contract `MessageOrigin`
     pub fn native_contract(id: u32) -> Self {
         Self::Contract(H256::from_low_u64_be(id as u64))

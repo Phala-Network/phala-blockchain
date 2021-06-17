@@ -32,7 +32,7 @@ pub mod messaging {
     use codec::{Decode, Encode};
     use core::fmt::Debug;
 
-    pub use phala_mq::{Origin as MessageOrigin, Message, SignedMessage, Topic};
+    pub use phala_mq::types::*;
 
 
     // Messages: Lottery

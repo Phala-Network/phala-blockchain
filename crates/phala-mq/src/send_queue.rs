@@ -57,7 +57,7 @@ impl MessageSendQueue {
 pub use msg_handle::*;
 mod msg_handle {
     use super::*;
-    use crate::{types::Path, SenderId, MessageSigner};
+    use crate::{BindTopic, MessageSigner, SenderId, types::Path};
     use parity_scale_codec::Encode;
     use core::marker::PhantomData;
 
