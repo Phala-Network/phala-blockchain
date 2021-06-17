@@ -37,9 +37,12 @@ pub struct Query<T> {
 impl<T> Query<T> where T: Serialize + DeserializeOwned + Debug + Clone {}
 
 pub type OpaqueQuery = Query<serde_json::Value>;
+pub type OpaqueReply = serde_json::Value;
+pub type OpaqueError = serde_json::Value;
+
 pub fn deopaque_query<T>(q: OpaqueQuery) -> Result<Query<T>, Error>
 where
-    T: Serialize + DeserializeOwned + Debug + Clone,
+    T: Serialize + DeserializeOwned + Debug,
 {
     Ok(Query {
         contract_id: q.contract_id,

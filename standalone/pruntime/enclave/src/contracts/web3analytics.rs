@@ -896,7 +896,7 @@ impl Web3Analytics {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for Web3Analytics {
+impl contracts::LegacyContract<Command, Request, Response> for Web3Analytics {
     fn id(&self) -> contracts::ContractId {
         contracts::WEB3_ANALYTICS
     }

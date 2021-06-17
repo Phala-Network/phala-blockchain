@@ -28,12 +28,14 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
+use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
+
 use anyhow::{anyhow, Context, Result};
 use core::convert::TryInto;
 use frame_system::EventRecord;
@@ -52,7 +54,9 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-use phala_pallets::pallet_phala as phala;
+use crate::contracts::Contract as _;
+use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_pallets::{pallet_mq, pallet_phala as phala};
 use phala_types::{
     pruntime::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
@@ -60,7 +64,6 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
-use phala_mq::{MessageSendQueue, MessageDispatcher, MessageOrigin};
 
 mod cert;
 mod contracts;
@@ -74,8 +77,8 @@ mod utils;
 
 use crate::light_validation::utils::storage_prefix;
 use contracts::{
-    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, BTC_LOTTERY, DATA_PLAZA, DIEM,
-    SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
+    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
+    DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -172,7 +175,7 @@ struct RuntimeState {
     contract4: contracts::web3analytics::Web3Analytics,
     contract5: contracts::diem::Diem,
     contract6: contracts::substrate_kitties::SubstrateKitties,
-    contract7: contracts::btc_lottery::BtcLottery,
+    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
     light_client: ChainLightValidation,
     main_bridge: u64,
     send_mq: MessageSendQueue,
@@ -183,8 +186,8 @@ struct LocalState {
     initialized: bool,
     public_key: Box<PublicKey>,
     private_key: Box<SecretKey>,
-    headernum: u32,                  // the height of synced block
-    blocknum: u32,                   // the height of dispatched block
+    headernum: u32, // the height of synced block
+    blocknum: u32,  // the height of dispatched block
     block_hashes: VecDeque<(Hash, Hash)>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
@@ -755,11 +758,7 @@ pub extern "C" fn ecall_handle(
         } else {
             warn!("Too much output. Buffer overflow.");
         }
-        ptr::copy_nonoverlapping(
-            output_json_vec_len_ptr,
-            output_len_ptr,
-            1,
-        );
+        ptr::copy_nonoverlapping(output_json_vec_len_ptr, output_len_ptr, 1);
     }
 
     sgx_status_t::SGX_SUCCESS
@@ -1062,7 +1061,18 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     system_state.set_machine_id(local_state.machine_id.to_vec());
 
     let send_mq = MessageSendQueue::default();
-    let recv_mq = MessageDispatcher::default();
+    let mut recv_mq = MessageDispatcher::default();
+
+    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
+        Default::default();
+
+    let contract7 = {
+        let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
+        let mq = send_mq.channel(sender, id_pair.clone());
+        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), mq);
+        Box::new(contracts::NativeCompatContract::new(contract, &mut recv_mq))
+    };
+    other_contracts.insert(contract7.id(), contract7);
 
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
@@ -1071,11 +1081,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         contract4: contracts::web3analytics::Web3Analytics::new(),
         contract5: contracts::diem::Diem::new(),
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
-        contract7: {
-            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
-            let mq = send_mq.channel(sender, id_pair.clone());
-            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), mq)
-        },
+        contracts: other_contracts,
         light_client,
         main_bridge,
         send_mq,
@@ -1089,9 +1095,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .map_err(|_| error_msg("Scale decode genesis state failed"))?;
 
     // Initialize other states
-    local_state
-        .runtime_state
-        .load(genesis_state.into_iter());
+    local_state.runtime_state.load(genesis_state.into_iter());
 
     info!(
         "Genesis state loaded: {:?}",
@@ -1212,10 +1216,11 @@ fn handle_execution(
             Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
-        BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract7.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
+        // TODO.kevin replace it with mq
+        // BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
+        //     Ok(cmd) => state.contract7.handle_command(&origin, pos, cmd),
+        //     _ => TransactionStatus::BadCommand,
+        // },
         _ => {
             warn!(
                 "handle_execution: Skipped unknown contract: {}",
@@ -1231,7 +1236,6 @@ fn handle_execution(
             account: AccountIdWrapper(origin),
             block_num: pos.blocknum,
             contract_id,
-            command: inner_data_string.to_string(),
             status,
         },
     );
@@ -1325,8 +1329,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
-    let all_blocks = parsed_blocks.map_err(|e| error_msg(
-        &format!("Invalid block: {:?}", e)))?;
+    let all_blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
     // Ignore processed blocks
@@ -1380,7 +1383,9 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             return Err(error_msg("State root mismatch"));
         }
         info!("New state root: {:?}", state_root);
-        local_state.runtime_state.apply_changes(state_root, transaction);
+        local_state
+            .runtime_state
+            .apply_changes(state_root, transaction);
 
         let event_storage_key = storage_prefix("System", "Events");
         let events = local_state
@@ -1426,7 +1431,7 @@ fn handle_events(
         .map_err(|_| error_msg("Decode events error"))?;
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
-    for evt in &events {
+    for evt in events {
         if let chain::Event::Phala(pe) = &evt.event {
             // Dispatch to system contract anyway
             event_handler
@@ -1472,10 +1477,22 @@ fn handle_events(
         } else if let chain::Event::KittyStorage(pe) = &evt.event {
             println!("pallet_kitties event: {:?}", pe);
             state.contract6.handle_event(evt.event.clone());
-        } else if let chain::Event::BridgeTransfer(pe) = &evt.event {
-            println!("pallet_bridge_transfer event: {:?}", pe);
-            state.contract7.handle_event(evt.event.clone());
+        } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
+        {
+            // TODO.kevin skip commands if !dev_mode
+            info!("mq dispatching message: {:?}", message);
+            state.recv_mq.dispatch(message);
         }
+    }
+
+    // TODO.kevin: Refactor the contract and mq to some kind of multi-threaded or async model.
+    //      So that we can avoid to call the process_events manually.
+    let mut env = ExecuteEnv {
+        block_number,
+        system: event_handler.system,
+    };
+    for contract in state.contracts.values_mut() {
+        contract.process_events(&mut env);
     }
     Ok(())
 }
@@ -1682,15 +1699,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             ),
         )
         .unwrap(),
-        BTC_LOTTERY => serde_json::to_value(
-            state.contract7.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (btc_lottery::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
         SYSTEM => {
             let mut system_state = SYSTEM_STATE.lock().unwrap();
             serde_json::to_value(
@@ -1703,7 +1711,14 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             )
             .unwrap()
         }
-        _ => return Err(Value::Null),
+        _ => {
+            let contract = state
+                .contracts
+                .get_mut(&opaque_query.contract_id)
+                .ok_or(error_msg("Contract not found"))?;
+            let response = contract.handle_query(ref_origin, opaque_query)?;
+            response
+        }
     };
     // Encrypt response if necessary
     let res_json = res.to_string();

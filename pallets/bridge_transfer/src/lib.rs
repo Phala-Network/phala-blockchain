@@ -60,7 +60,7 @@ decl_event! {
 }
 
 impl phala_types::messaging::BindTopic for Event {
-	const TOPIC: &'static [u8] = b"phala/btc_lottery_event";
+	const TOPIC: &'static [u8] = b"phala/lottery/event";
 }
 
 decl_error! {

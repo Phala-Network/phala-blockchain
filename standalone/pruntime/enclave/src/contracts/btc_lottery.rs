@@ -1,5 +1,5 @@
 use crate::chain;
-use crate::contracts::{self, AccountIdWrapper, Contract};
+use crate::contracts::{self, AccountIdWrapper, LagecyContract};
 use crate::types::TxRef;
 use crate::TransactionStatus;
 
@@ -16,8 +16,8 @@ use crate::std::{
 use anyhow::{anyhow, Result};
 use lazy_static;
 use log::error;
-use parity_scale_codec::Encode;
-use phala_mq::EcdsaMessageChannel as MessageChannel;
+use parity_scale_codec::{Decode, Encode};
+use phala_mq::{BindTopic, EcdsaMessageChannel as MessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -29,8 +29,12 @@ use bitcoin::consensus::encode::serialize;
 use bitcoin::network::constants::Network;
 use bitcoin::secp256k1::{All, Secp256k1, Signature};
 use bitcoin::util::bip32::ExtendedPrivKey;
-use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid};
+use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTxid};
+use bitcoin_hashes::Hash as _;
 
+use chain::{
+    pallet_bridge_transfer::Event as BridgeTransferEvent, pallet_phala::Event as PhalaEvent, Event,
+};
 use phala_types::messaging::Lottery;
 
 type SequenceType = u64;
@@ -60,7 +64,17 @@ impl core::fmt::Debug for BtcLottery {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+// TODO.kevin: this is a workarond for SCALE encoding bitcoin::Txid
+#[derive(Encode, Decode, Debug, Serialize, Deserialize, Clone, Copy)]
+pub struct Txid([u8; 32]);
+
+impl From<Txid> for BtcTxid {
+    fn from(txid: Txid) -> Self {
+        BtcTxid::from_inner(txid.0)
+    }
+}
+
+#[derive(Encode, Decode, Debug)]
 pub enum Command {
     SubmitUtxo {
         round_id: u32,
@@ -70,6 +84,10 @@ pub enum Command {
     SetAdmin {
         new_admin: String,
     },
+}
+
+impl BindTopic for Command {
+    const TOPIC: &'static [u8] = b"phala/lottery/command";
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -270,7 +288,7 @@ impl BtcLottery {
                 let mut tx = Transaction {
                     input: vec![TxIn {
                         previous_output: OutPoint {
-                            txid: *txid,
+                            txid: Into::into(*txid),
                             vout: *vout,
                         },
                         sequence: RBF,
@@ -321,7 +339,12 @@ impl BtcLottery {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for BtcLottery {
+impl contracts::NativeContract for BtcLottery {
+    type Cmd = Command;
+    type Event = BridgeTransferEvent;
+    type QReq = Request;
+    type QResp = Response;
+
     // Returns the contract id
     fn id(&self) -> contracts::ContractId {
         contracts::BTC_LOTTERY
@@ -430,28 +453,17 @@ impl contracts::Contract<Command, Request, Response> for BtcLottery {
             }
             Request::GetSignedTx { round_id } => Response::GetSignedTx {
                 tx_set: self.tx_set.clone(),
-            }
+            },
         }
     }
 
-    fn handle_event(&mut self, ce: chain::Event) {
-        use chain::{
-            pallet_bridge_transfer::Event as BridgeTransferEvent,
-            pallet_phala::Event as PhalaEvent, Event,
-        };
+    fn handle_event(&mut self, ce: BridgeTransferEvent) {
         match ce {
-            Event::BridgeTransfer(BridgeTransferEvent::LotteryNewRound(
-                round_id,
-                total_count,
-                winner_count,
-            )) => Self::new_round(self, round_id, total_count, winner_count),
-            Event::BridgeTransfer(BridgeTransferEvent::LotteryOpenBox(
-                round_id,
-                token_id,
-                btc_address,
-            )) => Self::open_lottery(self, round_id, token_id, btc_address),
-            _ => {
-                info!("BtcLottery: handle_event - skip unknown events");
+            BridgeTransferEvent::LotteryNewRound(round_id, total_count, winner_count) => {
+                Self::new_round(self, round_id, total_count, winner_count)
+            }
+            BridgeTransferEvent::LotteryOpenBox(round_id, token_id, btc_address) => {
+                Self::open_lottery(self, round_id, token_id, btc_address)
             }
         }
     }

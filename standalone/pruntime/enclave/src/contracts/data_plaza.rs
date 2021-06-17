@@ -250,7 +250,7 @@ impl DataPlaza {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for DataPlaza {
+impl contracts::LegacyContract<Command, Request, Response> for DataPlaza {
     fn id(&self) -> contracts::ContractId {
         contracts::DATA_PLAZA
     }

@@ -62,7 +62,6 @@ pub struct TransactionReceipt {
     pub account: AccountIdWrapper,
     pub block_num: chain::BlockNumber,
     pub contract_id: u32,
-    pub command: String,
     pub status: TransactionStatus,
 }
 

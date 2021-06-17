@@ -1,11 +1,15 @@
+use crate::error_msg;
 use crate::std::fmt::Debug;
 use crate::std::string::String;
+use crate::system::System;
+use crate::system::TransactionReceipt;
 
 use super::TransactionStatus;
-use crate::types::TxRef;
+use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef};
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
+use phala_mq::{BindTopic, MessageDispatcher, TypedReceiveError, TypedReceiver};
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -30,7 +34,7 @@ pub const DIEM: ContractId = 5;
 pub const SUBSTRATE_KITTIES: ContractId = 6;
 pub const BTC_LOTTERY: ContractId = 7;
 
-pub trait Contract<Cmd, QReq, QResp>
+pub trait LegacyContract<Cmd, QReq, QResp>
 where
     Cmd: Serialize + DeserializeOwned + Debug,
     QReq: Serialize + DeserializeOwned + Debug,
@@ -48,6 +52,168 @@ where
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
     fn handle_event(&mut self, _re: runtime::Event) {}
+}
+
+pub struct ExecuteEnv<'a> {
+    pub block_number: chain::BlockNumber,
+    pub system: &'a mut System,
+}
+
+pub trait Contract: Send + Sync {
+    fn id(&self) -> ContractId;
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError>;
+    fn process_events(&mut self, env: &mut ExecuteEnv);
+}
+
+#[derive(Encode, Decode, Debug)]
+pub struct PushCommand<Cmd> {
+    pub origin: chain::AccountId,
+    pub contract_id: ContractId,
+    pub command: Cmd,
+    pub number: u64,
+}
+
+impl<Cmd> BindTopic for PushCommand<Cmd>
+where
+    Cmd: Encode + Decode + BindTopic,
+{
+    const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
+}
+
+pub trait NativeContract {
+    type Cmd: Decode + BindTopic + Debug;
+    type Event: Decode + BindTopic + Debug;
+    type QReq: Serialize + DeserializeOwned + Debug;
+    type QResp: Serialize + DeserializeOwned + Debug;
+
+    fn id(&self) -> ContractId;
+    fn handle_command(
+        &mut self,
+        _origin: &chain::AccountId,
+        _txref: &TxRef,
+        _cmd: Self::Cmd,
+    ) -> TransactionStatus {
+        TransactionStatus::Ok
+    }
+    fn handle_event(&mut self, event: Self::Event) {}
+    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
+}
+
+pub struct NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug,
+    Event: Decode + BindTopic + Debug,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
+{
+    contract: Con,
+    cmd_rcv_mq: TypedReceiver<PushCommand<Cmd>>,
+    event_rcv_mq: TypedReceiver<Event>,
+}
+
+impl<Con, Cmd, Event, QReq, QResp> NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug + Send + Sync,
+    Event: Decode + BindTopic + Debug + Send + Sync,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
+    PushCommand<Cmd>: Decode + BindTopic + Debug,
+{
+    pub fn new(contract: Con, dispatcher: &mut MessageDispatcher) -> Self {
+        NativeCompatContract {
+            contract,
+            cmd_rcv_mq: dispatcher.subscribe_bound(),
+            event_rcv_mq: dispatcher.subscribe_bound(),
+        }
+    }
+}
+
+impl<Con, Cmd, Event, QReq, QResp> Contract for NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug + Send + Sync,
+    Event: Decode + BindTopic + Debug + Send + Sync,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
+    PushCommand<Cmd>: Decode + BindTopic + Debug,
+{
+    fn id(&self) -> ContractId {
+        self.contract.id()
+    }
+
+    fn handle_query(
+        &mut self,
+        origin: Option<&runtime::AccountId>,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError> {
+        serde_json::to_value(
+            self.contract.handle_query(
+                origin,
+                deopaque_query(req)
+                    .map_err(|_| error_msg("Malformed request"))?
+                    .request,
+            ),
+        )
+        .map_err(|_| error_msg("serde_json serilize failed"))
+    }
+
+    fn process_events(&mut self, env: &mut ExecuteEnv) {
+        loop {
+            match self.cmd_rcv_mq.try_next() {
+                Ok(Some((cmd, _from))) => {
+                    let pos = TxRef {
+                        blocknum: env.block_number,
+                        index: cmd.number,
+                    };
+                    let status = self.contract.handle_command(&cmd.origin, &pos, cmd.command);
+                    env.system.add_receipt(
+                        cmd.number,
+                        TransactionReceipt {
+                            account: AccountIdWrapper(cmd.origin),
+                            block_num: pos.blocknum,
+                            contract_id: cmd.contract_id,
+                            status,
+                        },
+                    );
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => match e {
+                    TypedReceiveError::CodecError(e) => {
+                        error!("Decode command failed: {:?}", e);
+                    }
+                    TypedReceiveError::SenderGone => {
+                        error!("Commnad queue sender has gone");
+                    }
+                },
+            };
+        }
+        loop {
+            match self.event_rcv_mq.try_next() {
+                Ok(Some((event, _))) => {
+                    self.contract.handle_event(event);
+                }
+                Ok(None) => {
+                    break;
+                }
+                Err(e) => match e {
+                    TypedReceiveError::CodecError(e) => {
+                        error!("Decode event failed: {:?}", e);
+                    }
+                    TypedReceiveError::SenderGone => {
+                        error!("Event queue sender has gone");
+                    }
+                },
+            };
+        }
+    }
 }
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {

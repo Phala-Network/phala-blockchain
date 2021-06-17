@@ -174,7 +174,7 @@ impl SubstrateKitties {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for SubstrateKitties {
+impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties {
     // Returns the contract id
     fn id(&self) -> contracts::ContractId {
         contracts::SUBSTRATE_KITTIES

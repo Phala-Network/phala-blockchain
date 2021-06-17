@@ -541,7 +541,7 @@ fn auth_key_prefix(auth_key: Vec<u8>) -> Vec<u8> {
     auth_key[0..16].to_vec()
 }
 
-impl contracts::Contract<Command, Request, Response> for Diem {
+impl contracts::LegacyContract<Command, Request, Response> for Diem {
     fn id(&self) -> contracts::ContractId {
         contracts::DIEM
     }

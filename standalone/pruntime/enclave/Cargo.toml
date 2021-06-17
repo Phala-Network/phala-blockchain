@@ -35,6 +35,7 @@ rand        = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.
 regex       = { git = "https://github.com/mesalock-linux/regex-sgx" }
 http_req    = { git = "https://github.com/mesalock-linux/http_req-sgx", features = ["rust-tls"]}
 bitcoin     = { git = "https://github.com/Phala-Network/rust-bitcoin", features = ["use-serde"]}
+bitcoin_hashes = { branch = "0.9.1-sgx", git = "https://github.com/Phala-Network/bitcoin_hashes" }
 
 serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive"] }
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
@@ -53,7 +54,7 @@ phala-mq = { path = "../../../crates/phala-mq" }
 sp-io                = { path = "../../../substrate/primitives/io", default-features = false, features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", default-features = false, features = ["disable_target_static_assertions"] }
 sp-runtime           = { path = "../../../substrate/primitives/runtime", default-features = false }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full"] }
 
 # Phala specific
 runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime", features = ["native-nostd"] }
