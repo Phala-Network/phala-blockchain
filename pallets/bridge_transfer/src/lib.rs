@@ -59,6 +59,10 @@ decl_event! {
 	}
 }
 
+impl phala_types::messaging::BindTopic for Event {
+	const TOPIC: &'static [u8] = b"phala/btc_lottery_event";
+}
+
 decl_error! {
 	pub enum Error for Module<T: Config>{
 		InvalidTransfer,

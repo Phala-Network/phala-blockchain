@@ -130,11 +130,15 @@ mod msg_handle {
             self.handle = Some(handle)
         }
 
-        pub fn send(&self, message: &MT, to: impl Into<Path>) {
+        pub fn sendto(&self, message: &MT, to: impl Into<Path>) {
             self.handle
                 .as_ref()
                 .expect("BUG: inner handle must be set before send message")
                 .send(message.encode(), to)
+        }
+
+        pub fn send(&self, message: &MT) where MT: BindTopic {
+            self.sendto(message, <MT as BindTopic>::TOPIC)
         }
     }
 }

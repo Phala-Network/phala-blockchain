@@ -102,6 +102,18 @@ impl From<Path> for Topic {
     }
 }
 
+impl From<Topic> for Path {
+    fn from(topic: Topic) -> Self {
+        topic.0
+    }
+}
+
+/// Messages implementing BindTopic can be sent without giving the destination. 
+pub trait BindTopic {
+    const TOPIC: &'static [u8];
+}
+
+
 #[derive(Encode, Decode)]
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct Message {
