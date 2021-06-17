@@ -98,7 +98,7 @@ impl<T: Decode> From<Receiver<Message>> for TypedReceiver<T> {
     fn from(queue: Receiver<Message>) -> Self {
         Self {
             queue,
-            _t: Default::default()
+            _t: Default::default(),
         }
     }
 }

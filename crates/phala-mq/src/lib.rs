@@ -5,8 +5,8 @@ pub extern crate serde_sgx as serde;
 
 extern crate alloc;
 
-pub mod types;
 mod signer;
+pub mod types;
 
 #[cfg(feature = "dispatcher")]
 mod dispatcher;
@@ -16,11 +16,11 @@ mod send_queue;
 mod simple_mpsc;
 
 #[cfg(feature = "dispatcher")]
-pub use dispatcher::{MessageDispatcher, TypedReceiver, TypedReceiveError};
+pub use dispatcher::{MessageDispatcher, TypedReceiveError, TypedReceiver};
 #[cfg(feature = "queue")]
-pub use send_queue::{MessageSendQueue, MessageChannel};
+pub use send_queue::{MessageChannel, MessageSendQueue};
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
-pub use simple_mpsc::{Receiver, ReceiveError};
+pub use simple_mpsc::{ReceiveError, Receiver};
 
 pub use signer::MessageSigner;
 
@@ -33,11 +33,10 @@ pub use types::*;
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 use spin::mutex::Mutex;
 
-
-#[cfg(all(feature = "queue", feature="signers"))]
+#[cfg(all(feature = "queue", feature = "signers"))]
 pub use alias::*;
 
-#[cfg(all(feature = "queue", feature="signers"))]
+#[cfg(all(feature = "queue", feature = "signers"))]
 mod alias {
     use super::*;
     use sp_core::ecdsa;

@@ -9,8 +9,7 @@ pub type SenderId = MessageOrigin;
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode)]
-#[derive(Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     Pallet(Vec<u8>),
@@ -67,8 +66,7 @@ impl MessageOrigin {
 ///    assert!(an_normal_topic.is_offchain());
 /// ```
 ///
-#[derive(Encode, Decode)]
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Topic(Path);
 
 impl Topic {
@@ -109,7 +107,7 @@ impl From<Topic> for Path {
 }
 
 // TODO.kevin: create a derive macro for convinient.
-/// Messages implementing BindTopic can be sent without giving the destination. 
+/// Messages implementing BindTopic can be sent without giving the destination.
 pub trait BindTopic {
     const TOPIC: &'static [u8];
     // fn encrypted_topic() -> Path {
@@ -117,9 +115,7 @@ pub trait BindTopic {
     // }
 }
 
-
-#[derive(Encode, Decode)]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub sender: SenderId,
     pub destination: Topic,
@@ -144,8 +140,7 @@ impl Message {
     }
 }
 
-#[derive(Encode, Decode)]
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]
 pub struct SignedMessage {
     pub message: Message,
     pub sequence: u64,
@@ -157,7 +152,8 @@ impl SignedMessage {
         MessageToBeSigned {
             message: &self.message,
             sequence: self.sequence,
-        }.raw_data()
+        }
+        .raw_data()
     }
 }
 

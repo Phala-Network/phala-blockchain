@@ -84,14 +84,30 @@ fn test_dispatcher() {
     let mut sub0 = dispatcher.subscribe(*b"path0");
     let mut sub1 = dispatcher.subscribe(*b"path1");
 
-    let n = dispatcher.dispatch(Message::new(sender0.clone(), *b"path0", b"payload0".to_vec()));
+    let n = dispatcher.dispatch(Message::new(
+        sender0.clone(),
+        *b"path0",
+        b"payload0".to_vec(),
+    ));
     assert_eq!(n, 1);
 
     let mut sub2 = dispatcher.subscribe(*b"path0");
-    let n = dispatcher.dispatch(Message::new(sender0.clone(), *b"path1", b"payload1".to_vec()));
+    let n = dispatcher.dispatch(Message::new(
+        sender0.clone(),
+        *b"path1",
+        b"payload1".to_vec(),
+    ));
     assert_eq!(n, 1);
-    let _ = dispatcher.dispatch(Message::new(sender1.clone(), *b"path1", b"payload2".to_vec()));
-    let n = dispatcher.dispatch(Message::new(sender1.clone(), *b"path0", b"payload3".to_vec()));
+    let _ = dispatcher.dispatch(Message::new(
+        sender1.clone(),
+        *b"path1",
+        b"payload2".to_vec(),
+    ));
+    let n = dispatcher.dispatch(Message::new(
+        sender1.clone(),
+        *b"path0",
+        b"payload3".to_vec(),
+    ));
     assert_eq!(n, 2);
 
     {

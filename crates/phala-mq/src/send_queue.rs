@@ -1,5 +1,5 @@
-use crate::types::{Message, SignedMessage, MessageToBeSigned};
-use crate::{Mutex, SenderId, MessageSigner};
+use crate::types::{Message, MessageToBeSigned, SignedMessage};
+use crate::{MessageSigner, Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 #[derive(Clone, Default)]
@@ -57,7 +57,7 @@ impl MessageSendQueue {
 pub use msg_handle::*;
 mod msg_handle {
     use super::*;
-    use crate::{BindTopic, MessageSigner, SenderId, types::Path};
+    use crate::{types::Path, BindTopic, MessageSigner, SenderId};
     use parity_scale_codec::Encode;
 
     #[derive(Clone)]
@@ -88,8 +88,9 @@ mod msg_handle {
                 };
                 let be_signed = MessageToBeSigned {
                     message: &message,
-                    sequence
-                }.encode();
+                    sequence,
+                }
+                .encode();
                 let signature = signer.sign(&be_signed);
                 // TODO.kevin: log
                 // info!("send msg: data[{}], sig[{}], seq={}", be_signed.len(), signature.len(), sequence);
