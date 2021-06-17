@@ -1073,8 +1073,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contract7: {
             let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
-            let queue = send_mq.channel(sender, id_pair.clone());
-            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), queue)
+            let mq = send_mq.channel(sender, id_pair.clone());
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), mq)
         },
         light_client,
         main_bridge,

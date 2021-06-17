@@ -47,7 +47,7 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    queue: MessageChannel,
+    mq: MessageChannel,
     secret: Option<ecdsa::Pair>,
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
@@ -112,7 +112,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>, queue: MessageChannel) -> Self {
+    pub fn new(secret: Option<ecdsa::Pair>, mq: MessageChannel) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
@@ -123,7 +123,7 @@ impl BtcLottery {
             lottery_set,
             tx_set: Vec::new(),
             sequence: 0,
-            queue,
+            mq,
             secret,
             utxo,
             admin,
@@ -148,7 +148,7 @@ impl BtcLottery {
     }
 
     fn send_lottery_message(&mut self, body: &Lottery) -> Result<()> {
-        self.queue.send(body);
+        self.mq.send(body);
         Ok(())
     }
 
