@@ -16,9 +16,11 @@ mod send_queue;
 mod simple_mpsc;
 
 #[cfg(feature = "dispatcher")]
-pub use dispatcher::MessageDispatcher;
+pub use dispatcher::{MessageDispatcher, TypedReceiver, TypedReceiveError};
 #[cfg(feature = "queue")]
 pub use send_queue::{MessageSendQueue, MessageChannel};
+#[cfg(any(feature = "queue", feature = "dispatcher"))]
+pub use simple_mpsc::{Receiver, ReceiveError};
 
 pub use signer::MessageSigner;
 
