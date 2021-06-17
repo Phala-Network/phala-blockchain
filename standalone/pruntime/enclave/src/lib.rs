@@ -1418,7 +1418,7 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
 
 fn handle_events(
     block_number: chain::BlockNumber,
-    mut events: Vec<u8>,
+    events: Vec<u8>,
     storage: &Storage,
     ecdh_privkey: &EcdhKey,
     dev_mode: bool,
@@ -1431,6 +1431,9 @@ fn handle_events(
         .map_err(|_| error_msg("Decode events error"))?;
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
+
+    state.recv_mq.reset_sequence();
+
     for evt in events {
         if let chain::Event::Phala(pe) = &evt.event {
             // Dispatch to system contract anyway

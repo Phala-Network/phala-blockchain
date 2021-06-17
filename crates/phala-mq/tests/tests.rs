@@ -111,7 +111,7 @@ fn test_dispatcher() {
     assert_eq!(n, 2);
 
     {
-        let msgs: Vec<Message> = sub0.drain().collect();
+        let msgs: Vec<Message> = sub0.drain().map(|x| x.1).collect();
         assert_eq!(msgs.len(), 2);
         assert_eq!(&msgs[0].sender, &sender0);
         assert_eq!(msgs[0].destination.path(), b"path0");
@@ -121,7 +121,7 @@ fn test_dispatcher() {
         assert_eq!(msgs[1].payload, b"payload3");
     }
     {
-        let msgs: Vec<Message> = sub1.drain().collect();
+        let msgs: Vec<Message> = sub1.drain().map(|x| x.1).collect();
 
         assert_eq!(msgs.len(), 2);
         assert_eq!(&msgs[0].sender, &sender0);
@@ -132,10 +132,43 @@ fn test_dispatcher() {
         assert_eq!(msgs[1].payload, b"payload2");
     }
     {
-        let msgs: Vec<Message> = sub2.drain().collect();
+        let msgs: Vec<Message> = sub2.drain().map(|x| x.1).collect();
         assert_eq!(msgs.len(), 1);
         assert_eq!(&msgs[0].sender, &sender1);
         assert_eq!(msgs[0].destination.path(), b"path0");
         assert_eq!(msgs[0].payload, b"payload3");
     }
+}
+
+#[cfg(feature = "dispatcher")]
+#[test]
+fn test_select_order() {
+    use phala_mq::{Message, MessageDispatcher};
+
+    let sender = MessageOrigin::Pallet(b"sender1".to_vec());
+    let mut dispatcher = MessageDispatcher::new();
+
+    let mut sub0 = dispatcher.subscribe(*b"path0");
+    let mut sub1 = dispatcher.subscribe(*b"path1");
+
+    dispatcher.dispatch(Message::new(sender.clone(), *b"path0", b"0".to_vec()));
+    dispatcher.dispatch(Message::new(sender.clone(), *b"path1", b"1".to_vec()));
+    dispatcher.dispatch(Message::new(sender.clone(), *b"path0", b"2".to_vec()));
+    dispatcher.dispatch(Message::new(sender.clone(), *b"path0", b"3".to_vec()));
+    dispatcher.dispatch(Message::new(sender.clone(), *b"path1", b"4".to_vec()));
+    let mut payloads = Vec::new();
+    loop {
+        let ok = phala_mq::select! {
+            msg = sub0 => {
+                payloads.push(msg.unwrap().unwrap().0);
+            },
+            msg = sub1 => {
+                payloads.push(msg.unwrap().unwrap().0);
+            },
+        };
+        if !ok {
+            break;
+        }
+    }
+    assert_eq!(payloads, [0, 1, 2, 3, 4]);
 }

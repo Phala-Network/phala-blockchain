@@ -69,6 +69,7 @@ pub trait Contract: Send + Sync {
     fn process_events(&mut self, env: &mut ExecuteEnv);
 }
 
+// TODO.kevin: move it to a seperate crate.
 #[derive(Encode, Decode, Debug)]
 pub struct PushCommand<Cmd> {
     pub origin: chain::AccountId,
@@ -165,53 +166,52 @@ where
 
     fn process_events(&mut self, env: &mut ExecuteEnv) {
         loop {
-            match self.cmd_rcv_mq.try_next() {
-                Ok(Some((cmd, _from))) => {
-                    let pos = TxRef {
-                        blocknum: env.block_number,
-                        index: cmd.number,
-                    };
-                    let status = self.contract.handle_command(&cmd.origin, &pos, cmd.command);
-                    env.system.add_receipt(
-                        cmd.number,
-                        TransactionReceipt {
-                            account: AccountIdWrapper(cmd.origin),
-                            block_num: pos.blocknum,
-                            contract_id: cmd.contract_id,
-                            status,
-                        },
-                    );
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => match e {
-                    TypedReceiveError::CodecError(e) => {
-                        error!("Decode command failed: {:?}", e);
+            let ok = phala_mq::select! {
+                next_cmd = self.cmd_rcv_mq => match next_cmd {
+                    Ok(Some((_, cmd, _))) => {
+                        let pos = TxRef {
+                            blocknum: env.block_number,
+                            index: cmd.number,
+                        };
+                        let status = self.contract.handle_command(&cmd.origin, &pos, cmd.command);
+                        env.system.add_receipt(
+                            cmd.number,
+                            TransactionReceipt {
+                                account: AccountIdWrapper(cmd.origin),
+                                block_num: pos.blocknum,
+                                contract_id: cmd.contract_id,
+                                status,
+                            },
+                        );
                     }
-                    TypedReceiveError::SenderGone => {
-                        error!("Commnad queue sender has gone");
+                    Ok(None) => {}
+                    Err(e) => match e {
+                        TypedReceiveError::CodecError(e) => {
+                            error!("Decode command failed: {:?}", e);
+                        }
+                        TypedReceiveError::SenderGone => {
+                            error!("Commnad queue sender has gone");
+                        }
+                    },
+                },
+                next_event = self.event_rcv_mq => match next_event {
+                    Ok(Some((_, event, _))) => {
+                        self.contract.handle_event(event);
                     }
+                    Ok(None) => {}
+                    Err(e) => match e {
+                        TypedReceiveError::CodecError(e) => {
+                            error!("Decode event failed: {:?}", e);
+                        }
+                        TypedReceiveError::SenderGone => {
+                            error!("Event queue sender has gone");
+                        }
+                    },
                 },
             };
-        }
-        loop {
-            match self.event_rcv_mq.try_next() {
-                Ok(Some((event, _))) => {
-                    self.contract.handle_event(event);
-                }
-                Ok(None) => {
-                    break;
-                }
-                Err(e) => match e {
-                    TypedReceiveError::CodecError(e) => {
-                        error!("Decode event failed: {:?}", e);
-                    }
-                    TypedReceiveError::SenderGone => {
-                        error!("Event queue sender has gone");
-                    }
-                },
-            };
+            if !ok {
+                break;
+            }
         }
     }
 }

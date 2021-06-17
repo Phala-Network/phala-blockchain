@@ -2,22 +2,32 @@ use core::marker::PhantomData;
 
 use alloc::{collections::BTreeMap, vec::Vec};
 
-use crate::simple_mpsc::{channel, ReceiveError, Receiver, Sender};
+use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
 use crate::types::{Message, Path};
 use crate::{BindTopic, MessageOrigin};
 use derive_more::Display;
 use parity_scale_codec::{Decode, Error as CodecError};
 
+impl Seq for (u64, Message) {
+    fn seq(&self) -> u64 {
+        self.0
+    }
+}
+
 #[derive(Default)]
 pub struct MessageDispatcher {
-    subscribers: BTreeMap<Path, Vec<Sender<Message>>>,
+    subscribers: BTreeMap<Path, Vec<Sender<(u64, Message)>>>,
+    sequence: u64,
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,
 }
+
+pub type Receiver<T> = RawReceiver<(u64, T)>;
 
 impl MessageDispatcher {
     pub fn new() -> Self {
         MessageDispatcher {
             subscribers: Default::default(),
+            sequence: 0,
         }
     }
 
@@ -40,9 +50,11 @@ impl MessageDispatcher {
     /// Returns number of receivers dispatched to.
     pub fn dispatch(&mut self, message: Message) -> usize {
         let mut count = 0;
+        let sn = self.sequence;
+        self.sequence += 1;
         if let Some(receivers) = self.subscribers.get_mut(message.destination.path()) {
             receivers.retain(|receiver| {
-                if let Err(error) = receiver.send(message.clone()) {
+                if let Err(error) = receiver.send((sn, message.clone())) {
                     use crate::simple_mpsc::SendError::*;
                     match error {
                         ReceiverGone => false,
@@ -54,6 +66,10 @@ impl MessageDispatcher {
             });
         }
         count
+    }
+
+    pub fn reset_sequence(&mut self) {
+        self.sequence = 0;
     }
 }
 
@@ -77,20 +93,20 @@ pub struct TypedReceiver<T: Decode> {
 }
 
 impl<T: Decode> TypedReceiver<T> {
-    pub fn try_next(&mut self) -> Result<Option<(T, MessageOrigin)>, TypedReceiveError> {
+    pub fn try_next(&mut self) -> Result<Option<(u64, T, MessageOrigin)>, TypedReceiveError> {
         let message = self.queue.try_next().map_err(|e| match e {
             ReceiveError::SenderGone => TypedReceiveError::SenderGone,
         })?;
-        let Message {
-            sender,
-            destination: _,
-            payload,
-        } = match message {
+        let (sn, msg) = match message {
             None => return Ok(None),
             Some(m) => m,
         };
-        let typed = Decode::decode(&mut &payload[..])?;
-        Ok(Some((typed, sender)))
+        let typed = Decode::decode(&mut &msg.payload[..])?;
+        Ok(Some((sn, typed, msg.sender)))
+    }
+
+    pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
+        self.queue.peek_seq()
     }
 }
 
@@ -101,4 +117,41 @@ impl<T: Decode> From<Receiver<Message>> for TypedReceiver<T> {
             _t: Default::default(),
         }
     }
+}
+
+#[macro_export]
+macro_rules! select {
+    (
+        $( $bind:pat = $mq:expr => $handle:expr, )+
+    ) => {{
+        let mut min = None;
+        let mut min_ind = 0;
+        let mut ind = 0;
+        $({
+            match $mq.peek_seq() {
+                Ok(Some(sn)) => match min {
+                    None => { min = Some(sn); min_ind = ind; }
+                    Some(old) if sn < old => { min = Some(sn); min_ind = ind; }
+                    _ => (),
+                },
+                Err(_) => { min = Some(0); min_ind = ind; }
+                _ => (),
+            }
+            ind += 1;
+        })+
+
+        let mut ind = 0;
+        if min.is_some() {
+            $({
+                if min_ind == ind {
+                    let $bind = $mq.try_next();
+                    $handle
+                }
+                ind += 1;
+            })+
+            true
+        } else {
+            false
+        }
+    }};
 }

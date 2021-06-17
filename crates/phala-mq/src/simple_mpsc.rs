@@ -93,6 +93,18 @@ impl<T> Receiver<T> {
     }
 }
 
+impl<T: Seq> Receiver<T> {
+    pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
+        let ch = self.0.lock();
+        if let Some(value) = ch.deque.get(0) {
+            return Ok(Some(value.seq()));
+        } else if ch.sender_count == 0 {
+            return Err(ReceiveError::SenderGone);
+        }
+        Ok(None)
+    }
+}
+
 impl<T> Drop for Receiver<T> {
     fn drop(&mut self) {
         self.0.lock().receiver_gone = true;
@@ -104,4 +116,8 @@ pub fn channel<T>() -> (Receiver<T>, Sender<T>) {
     let rx = Receiver(ch.clone());
     let tx = Sender(ch);
     (rx, tx)
+}
+
+pub trait Seq {
+    fn seq(&self) -> u64;
 }

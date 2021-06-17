@@ -70,6 +70,8 @@ impl MessageOrigin {
 pub struct Topic(Path);
 
 impl Topic {
+    const RESERVED_BYTES: &'static [u8] = b"~!@#$%&*_+-=|<>?,./;:'";
+
     pub fn new(path: impl Into<Path>) -> Self {
         Self(path.into())
     }
@@ -89,8 +91,7 @@ impl Topic {
         if self.0.is_empty() {
             return false;
         }
-        const RESERVED_BYTES: &[u8] = b"~!@#$%&*_+-=|<>?,./;:'";
-        !RESERVED_BYTES.contains(&self.0[0])
+        !Self::RESERVED_BYTES.contains(&self.0[0])
     }
 }
 
