@@ -257,6 +257,18 @@ pub struct NotifyReq {
     pub initial_sync_finished: bool,
 }
 
+// API: get_egress_messages
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetEgressMessagesReq;
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct GetEgressMessagesResp {
+    pub messages: String,
+}
+impl Resp for GetEgressMessagesReq {
+    type Resp = GetEgressMessagesResp;
+}
+
 pub mod utils {
     use super::StorageProof;
     use subxt::ReadProof;

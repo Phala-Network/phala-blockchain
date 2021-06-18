@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use sp_core::{storage::StorageKey};
-use phala_types::pruntime::{StorageProof};
+use phala_types::{messaging::MessageOrigin, pruntime::{StorageProof}};
+use super::runtimes;
 
 use super::XtClient;
 use crate::types::{ Hash, utils::raw_proof};
@@ -47,3 +48,12 @@ pub async fn fetch_genesis_storage(client: &XtClient) -> Result<Vec<(Vec<u8>, Ve
     let storage = response.into_iter().map(|(k, v)| (k.0, v.0)).collect();
     Ok(storage)
 }
+
+/// Fetch latest sequences for given sender
+pub async fn fetch_mq_ingress_seq(client: &XtClient, sender: MessageOrigin) -> Result<u64> {
+    client
+        .fetch_or_default(&runtimes::phala_mq::OffchainIngressStore::new(sender), None)
+        .await
+        .or(Ok(0))
+}
+

@@ -815,6 +815,7 @@ async fn bridge(args: Args) -> Result<()> {
                 msg_sync
                     .maybe_sync_balances_egress(&mut balance_seq)
                     .await?;
+                msg_sync.maybe_sync_mq_egress().await?;
             }
         }
         if synced_blocks == 0 {

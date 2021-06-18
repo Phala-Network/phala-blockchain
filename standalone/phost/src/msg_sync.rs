@@ -1,13 +1,16 @@
 use anyhow::{anyhow, Result};
+use phala_types::messaging::{MessageOrigin, SignedMessage};
 use std::cmp;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
-use log::{error, info};
+use log::{error, info, debug};
+
+use crate::chain_client::fetch_mq_ingress_seq;
 
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData},
+    types::{ReqData, QueryRespData, TransferData, KittyTransferData, GetEgressMessagesReq},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -201,6 +204,55 @@ impl<'a> MsgSync<'a> {
 
         *sequence = next_seq;
 
+        Ok(())
+    }
+
+    pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
+        // Send the query
+        let resp = self
+            .pr
+            .req_decode("get_egress_messages", GetEgressMessagesReq)
+            .await?;
+        let messages_scl = base64::decode(&resp.messages).map_err(|_| Error::FailedToDecode)?;
+        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> =
+            Decode::decode(&mut &messages_scl[..]).map_err(|_| Error::FailedToDecode)?;
+
+        // No pending message. We are done.
+        if messages.is_empty() {
+            return Ok(());
+        }
+
+        self.maybe_update_signer_nonce().await?;
+
+        for (sender, messages) in messages {
+            let min_seq = fetch_mq_ingress_seq(self.client, sender).await?;
+            for message in messages {
+                if message.sequence < min_seq {
+                    info!("{} has been submitted. Skipping...", message.sequence);
+                    continue;
+                }
+                info!(
+                    "Submitting message, seq={} dest={}",
+                    message.sequence,
+                    String::from_utf8_lossy(&message.message.destination.path()[..])
+                );
+                let ret = self
+                    .client
+                    .submit(
+                        runtimes::phala_mq::SyncOffchainMessageCall {
+                            _runtime: PhantomData,
+                            message,
+                        },
+                        self.signer,
+                    )
+                    .await;
+                if let Err(err) = ret {
+                    error!("Failed to submit tx: {:?}", err);
+                    // TODO: Should we fail early?
+                }
+                self.signer.increment_nonce();
+            }
+        }
         Ok(())
     }
 

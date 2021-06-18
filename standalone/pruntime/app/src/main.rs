@@ -348,7 +348,6 @@ macro_rules! delegate_rpc {
     };
 }
 
-
 delegate_rpc!("/test", test, actions::ACTION_TEST);
 delegate_rpc!("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME);
 delegate_rpc!("/get_info", get_info, actions::ACTION_GET_INFO);
