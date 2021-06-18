@@ -409,6 +409,7 @@ impl<T: Config> fmt::Debug for BridgeInitInfo<T> {
 pub mod utils {
     use crate::std::vec::Vec;
     use anyhow::{Context, Result};
+    use parity_scale_codec::Encode;
 
     /// Gets the prefix of a storage item
     pub fn storage_prefix(module: &str, storage: &str) -> Vec<u8> {
@@ -418,15 +419,11 @@ pub mod utils {
     }
 
     /// Calculates the Substrate storage key prefix for a StorageMap
-    pub fn storage_map_prefix(module: &str, storage_item: &str, storage_item_key: &str) -> Result<Vec<u8>> {
-        let mut bytes = storage_prefix(module, storage_item);
-        let item_key: Vec<_> = hex::decode(storage_item_key)
-            .map_err(anyhow::Error::msg)
-            .context("Bad storage item key")?;
-        let hash = sp_core::twox_64(&item_key);
-        bytes.extend(&hash);
-        bytes.extend(&item_key);
-        Ok(bytes)
+    pub fn storage_map_prefix_twox_64(module: &[u8], storage_item: &[u8], key: &impl Encode) -> Vec<u8> {
+        let mut bytes = sp_core::twox_128(module).to_vec();
+        bytes.extend(&sp_core::twox_128(storage_item)[..]);
+        bytes.extend(&key.using_encoded(sp_core::twox_64)[..]);
+        bytes
     }
 
     /// Gets the last 32 bytes as the account key (`storage_key` must be longer than that)

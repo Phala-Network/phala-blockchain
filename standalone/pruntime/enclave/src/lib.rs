@@ -76,7 +76,7 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::storage_prefix;
+use crate::light_validation::utils::{storage_prefix, storage_map_prefix_twox_64};
 use contracts::{
     AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
     DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
@@ -1374,7 +1374,12 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             let mut state = STATE.lock().unwrap();
             if let Some(state) = state.as_mut() {
                 state.send_mq.purge(|sender| {
-                    let key = pallet_mq::OffchainIngress::<chain::Runtime>::hashed_key_for(sender);
+                    use pallet_mq::StorageMapTrait as _;
+                    type OffchainIngress = pallet_mq::OffchainIngress::<chain::Runtime>;
+
+                    let module_prefix = OffchainIngress::module_prefix();
+                    let storage_prefix = OffchainIngress::storage_prefix();
+                    let key = storage_map_prefix_twox_64(module_prefix, storage_prefix, sender);
                     let sequence = local_state
                         .runtime_state
                         .get(&key)

@@ -1,4 +1,5 @@
 pub use self::pallet::*;
+pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 // #[cfg(test)]
 // mod mock;
