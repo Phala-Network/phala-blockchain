@@ -15,7 +15,7 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{Message, MessageOrigin, SignedMessage};
+	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -92,6 +92,11 @@ pub mod pallet {
 			if T::QueueNotifyConfig::should_push_event(&message) {
 				Self::deposit_event(Event::OutboundMessage(message));
 			}
+		}
+
+		pub fn push_message_typed<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+			let message = Message::new(sender, M::TOPIC, payload.encode());
+			Self::push_message(message);
 		}
 	}
 
