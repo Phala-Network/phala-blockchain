@@ -116,6 +116,15 @@ pub trait BindTopic {
     // }
 }
 
+#[macro_export]
+macro_rules! bind_topic {
+    ($t: tt, $path: expr) => {
+        impl $crate::types::BindTopic for $t {
+            const TOPIC: &'static [u8] = $path;
+        }
+    }
+}
+
 #[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub sender: SenderId,

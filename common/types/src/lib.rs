@@ -33,6 +33,7 @@ pub mod messaging {
     use core::fmt::Debug;
 
     pub use phala_mq::types::*;
+    pub use phala_mq::bind_topic;
 
 
     // Messages: Lottery
@@ -49,9 +50,7 @@ pub mod messaging {
         },
     }
 
-    impl BindTopic for Lottery {
-        const TOPIC: &'static [u8] = b"^phala/BridgeTransfer";
-    }
+    bind_topic!(Lottery, b"^phala/BridgeTransfer");
 }
 
 // Messages: System

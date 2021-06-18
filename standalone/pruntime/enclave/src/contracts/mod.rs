@@ -100,7 +100,7 @@ pub trait NativeContract {
     ) -> TransactionStatus {
         TransactionStatus::Ok
     }
-    fn handle_event(&mut self, event: Self::Event) {}
+    fn handle_event(&mut self, _event: Self::Event) {}
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
 }
 

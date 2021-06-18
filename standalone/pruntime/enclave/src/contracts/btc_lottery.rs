@@ -1,5 +1,5 @@
 use crate::chain;
-use crate::contracts::{self, AccountIdWrapper, LagecyContract};
+use crate::contracts::{self, AccountIdWrapper};
 use crate::types::TxRef;
 use crate::TransactionStatus;
 
@@ -13,11 +13,11 @@ use crate::std::{
     vec::Vec,
 };
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use lazy_static;
 use log::error;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, EcdsaMessageChannel as MessageChannel};
+use phala_mq::{bind_topic, EcdsaMessageChannel as MessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -32,9 +32,7 @@ use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTxid};
 use bitcoin_hashes::Hash as _;
 
-use chain::{
-    pallet_bridge_transfer::Event as BridgeTransferEvent, pallet_phala::Event as PhalaEvent, Event,
-};
+use chain::pallet_bridge_transfer::Event as BridgeTransferEvent;
 use phala_types::messaging::Lottery;
 
 type SequenceType = u64;
@@ -86,9 +84,8 @@ pub enum Command {
     },
 }
 
-impl BindTopic for Command {
-    const TOPIC: &'static [u8] = b"phala/lottery/command";
-}
+bind_topic!(Command, b"phala/lottery/command");
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {

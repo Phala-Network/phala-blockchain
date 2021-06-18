@@ -59,9 +59,7 @@ decl_event! {
 	}
 }
 
-impl phala_types::messaging::BindTopic for Event {
-	const TOPIC: &'static [u8] = b"phala/lottery/event";
-}
+phala_types::messaging::bind_topic!(Event, b"phala/lottery/event");
 
 decl_error! {
 	pub enum Error for Module<T: Config>{
