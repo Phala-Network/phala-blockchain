@@ -107,7 +107,6 @@ impl From<Topic> for Path {
     }
 }
 
-// TODO.kevin: create a derive macro for convinient.
 /// Messages implementing BindTopic can be sent without giving the destination.
 pub trait BindTopic {
     const TOPIC: &'static [u8];

@@ -165,6 +165,7 @@ where
     }
 
     fn process_events(&mut self, env: &mut ExecuteEnv) {
+        // TODO.kevin: how about encrypted messages
         loop {
             let ok = phala_mq::select! {
                 next_cmd = self.cmd_rcv_mq => match next_cmd {

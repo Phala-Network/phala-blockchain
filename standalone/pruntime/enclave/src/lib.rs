@@ -1216,11 +1216,6 @@ fn handle_execution(
             Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
-        // TODO.kevin replace it with mq
-        // BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
-        //     Ok(cmd) => state.contract7.handle_command(&origin, pos, cmd),
-        //     _ => TransactionStatus::BadCommand,
-        // },
         _ => {
             warn!(
                 "handle_execution: Skipped unknown contract: {}",
@@ -1796,7 +1791,7 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn test_bridge() {
-    todo!()
+    todo!("@Kevin")
 }
 
 fn test_parse_block() {
