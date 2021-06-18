@@ -392,7 +392,7 @@ fn rocket() -> rocket::Rocket {
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
-            set, get, get_runtime_info, test_ink]);
+            set, get, get_runtime_info, get_egress_messages, test_ink]);
 
     if *ENABLE_KICK_API {
         info!("ENABLE `kick` API");
