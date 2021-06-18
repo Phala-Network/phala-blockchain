@@ -164,49 +164,6 @@ impl<'a> MsgSync<'a> {
         Ok(())
     }
 
-    pub async fn maybe_sync_lottery_egress(&mut self, sequence: &mut u64) -> Result<()> {
-        let query_resp = self.pr.query(7, ReqData::PendingLotteryEgress {sequence: *sequence}).await?;
-        let msg_data = match query_resp {
-            QueryRespData::PendingLotteryEgress { lottery_queue_b64 } =>
-                base64::decode(&lottery_queue_b64)
-                    .map_err(|_| Error::FailedToDecode)?,
-            _ => return Err(anyhow!(Error::FailedToDecode))
-        };
-
-        let queue: Vec<phala_types::messaging::SignedMessage> = Decode::decode(&mut &msg_data[..])
-            .map_err(|_|Error::FailedToDecode)?;
-        // No pending message. We are done.
-        if queue.is_empty() {
-            return Ok(());
-        }
-
-        self.maybe_update_signer_nonce().await?;
-
-        let mut next_seq = *sequence;
-        for msg in &queue {
-            let msg_seq = msg.sequence;
-            if msg_seq < *sequence {
-                println!("Lottery {} has been submitted. Skipping...", msg_seq);
-                continue;
-            }
-            next_seq = cmp::max(next_seq, msg_seq + 1);
-            let ret = self.client.submit(runtimes::phala::SyncLotteryMessageCall {
-                _runtime: PhantomData,
-                msg: msg.encode()
-            }, self.signer).await;
-
-            if let Err(err) = ret {
-                println!("Failed to submit tx: {:?}", err);
-                // TODO: Should we fail early?
-            }
-            self.signer.increment_nonce();
-        }
-
-        *sequence = next_seq;
-
-        Ok(())
-    }
-
     pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
         // Send the query
         let resp = self

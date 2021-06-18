@@ -807,11 +807,6 @@ async fn bridge(args: Args) -> Result<()> {
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                // TODO: exam get_info for fast egress fetching
-                // msg_sync.maybe_sync_kitty_egress(&mut kitty_sequence).await?;
-                msg_sync
-                    .maybe_sync_lottery_egress(&mut lottery_sequence)
-                    .await?;
                 msg_sync
                     .maybe_sync_balances_egress(&mut balance_seq)
                     .await?;
