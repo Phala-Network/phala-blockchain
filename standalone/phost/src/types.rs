@@ -259,7 +259,7 @@ pub struct NotifyReq {
 
 // API: get_egress_messages
 #[derive(Serialize, Deserialize, Debug)]
-pub struct GetEgressMessagesReq;
+pub struct GetEgressMessagesReq {}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetEgressMessagesResp {

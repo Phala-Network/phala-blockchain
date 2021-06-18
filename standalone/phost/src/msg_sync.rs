@@ -168,7 +168,7 @@ impl<'a> MsgSync<'a> {
         // Send the query
         let resp = self
             .pr
-            .req_decode("get_egress_messages", GetEgressMessagesReq)
+            .req_decode("get_egress_messages", GetEgressMessagesReq {})
             .await?;
         let messages_scl = base64::decode(&resp.messages).map_err(|_| Error::FailedToDecode)?;
         let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> =
