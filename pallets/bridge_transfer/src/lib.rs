@@ -182,7 +182,7 @@ impl<T: Config> Module<T> {
 
 	fn push_message(payload: impl Encode + BindTopic) {
 		let sender = MessageOrigin::Pallet(b"BridgerTransfer".to_vec());
-		pallet_mq::Pallet::<T>::push_message_typed(sender, payload);
+		pallet_mq::Pallet::<T>::push_bound_message(sender, payload);
 	}
 }
 

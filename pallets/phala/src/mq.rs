@@ -16,6 +16,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
+	use sp_runtime::AccountId32;
+	use sp_std::vec::Vec;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -51,6 +53,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::registry::Config,
+		T: frame_system::Config<AccountId = AccountId32>,
 	{
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
@@ -77,15 +80,27 @@ pub mod pallet {
 			crate::registry::Pallet::<T>::check_message(&signed_message)?;
 			// Update ingress
 			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
-			// Call push_message
-			Self::push_message(signed_message.message);
+			// Call dispatch_message
+			Self::dispatch_message(signed_message.message);
+			Ok(())
+		}
+
+		// Messaging API for end user.
+		// TODO.kevin: confirm the weight
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn push_message(origin: OriginFor<T>, destination: Vec<u8>, payload: Vec<u8>) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let origin: [u8; 32] = *origin.as_ref();
+			let sender = MessageOrigin::AccountId(origin.into());
+			let message = Message::new(sender, destination, payload);
+			Self::dispatch_message(message);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T> {
 		/// Push a validated message to the queue
-		pub fn push_message(message: Message) {
+		pub fn dispatch_message(message: Message) {
 			// Notify subcribers
 			T::QueueNotifyConfig::on_message_received(&message);
 			// Notify the off-chain components
@@ -94,9 +109,9 @@ pub mod pallet {
 			}
 		}
 
-		pub fn push_message_typed<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
 			let message = Message::new(sender, M::TOPIC, payload.encode());
-			Self::push_message(message);
+			Self::dispatch_message(message);
 		}
 	}
 
