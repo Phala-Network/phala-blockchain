@@ -49,7 +49,7 @@ impl MessageOrigin {
 /// # Indicator byte
 ///  Meaning of some special values appearing at the first byte:
 ///
-///  - `^`: The topic is on-chain only.
+///  - b'^': The topic's subscribers are on-chain only.
 ///
 /// # Example:
 /// ```rust
