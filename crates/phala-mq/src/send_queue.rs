@@ -1,5 +1,5 @@
 use crate::types::{Message, MessageToBeSigned, SignedMessage};
-use crate::{MessageSigner, Mutex, SenderId};
+use crate::{MessageOrigin, MessageSigner, Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 #[derive(Clone, Default)]
@@ -36,6 +36,14 @@ impl MessageSendQueue {
         inner
             .iter()
             .flat_map(|(_k, v)| v.1.iter().cloned())
+            .collect()
+    }
+
+    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<SignedMessage>> {
+        let inner = self.inner.lock();
+        inner
+            .iter()
+            .map(|(k, v)| (k.clone(), v.1.clone()))
             .collect()
     }
 

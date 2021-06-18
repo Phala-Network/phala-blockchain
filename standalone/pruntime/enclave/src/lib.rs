@@ -64,6 +64,7 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
+use enclave_api::actions::*;
 
 mod cert;
 mod contracts;
@@ -654,20 +655,6 @@ fn generate_seal_key() -> [u8; 16] {
     seal_key.key
 }
 
-const ACTION_TEST: u8 = 0;
-const ACTION_INIT_RUNTIME: u8 = 1;
-const ACTION_GET_INFO: u8 = 2;
-const ACTION_DUMP_STATES: u8 = 3;
-const ACTION_LOAD_STATES: u8 = 4;
-const ACTION_SYNC_HEADER: u8 = 5;
-const ACTION_QUERY: u8 = 6;
-const ACTION_DISPATCH_BLOCK: u8 = 7;
-// Reserved: 8, 9
-const ACTION_GET_RUNTIME_INFO: u8 = 10;
-const ACTION_SET: u8 = 21;
-const ACTION_GET: u8 = 22;
-const ACTION_TEST_INK: u8 = 100;
-
 #[no_mangle]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
@@ -711,6 +698,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
+                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
                 _ => unknown(),
             }
         }
@@ -1609,6 +1597,19 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     }
 
     Ok(json!({}))
+}
+
+fn get_egress_messages() -> Result<Value, Value> {
+    let guard = STATE.lock().unwrap();
+    let messages: Vec<_> = guard
+        .as_ref()
+        .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
+        .unwrap_or(Default::default());
+    let bin_messages = Encode::encode(&messages);
+    let b64_messages = base64::encode(bin_messages);
+    Ok(json!({
+        "messages": b64_messages,
+    }))
 }
 
 fn query(q: types::SignedQuery) -> Result<Value, Value> {
