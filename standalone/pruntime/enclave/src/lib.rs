@@ -1387,6 +1387,26 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             .runtime_state
             .apply_changes(state_root, transaction);
 
+        {
+            let mut state = STATE.lock().unwrap();
+            if let Some(state) = state.as_mut() {
+                state.send_mq.purge(|sender| {
+                    let key = pallet_mq::OffchainIngress::<chain::Runtime>::hashed_key_for(sender);
+                    let sequence = local_state
+                        .runtime_state
+                        .get(&key)
+                        .map(|v| {
+                            u64::decode(&mut &v[..]).expect(
+                                "Decode value of OffchainIngress Failed.(This should not happen)",
+                            )
+                        })
+                        .unwrap_or(0);
+                    debug!("purging, sequence = {}", sequence);
+                    sequence
+                })
+            }
+        }
+
         let event_storage_key = storage_prefix("System", "Events");
         let events = local_state
             .runtime_state
