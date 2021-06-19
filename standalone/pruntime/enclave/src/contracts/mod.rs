@@ -210,7 +210,7 @@ where
                     },
                 },
             };
-            if !ok {
+            if ok.is_none() {
                 break;
             }
         }

@@ -122,7 +122,7 @@ impl<T: Decode> From<Receiver<Message>> for TypedReceiver<T> {
 #[macro_export]
 macro_rules! select {
     (
-        $( $bind:pat = $mq:expr => $handle:expr, )+
+        $( $bind:pat = $mq:expr => $block:expr, )+
     ) => {{
         let mut min = None;
         let mut min_ind = 0;
@@ -141,17 +141,16 @@ macro_rules! select {
         })+
 
         let mut ind = 0;
+        let mut rv = None;
         if min.is_some() {
             $({
                 if min_ind == ind {
                     let $bind = $mq.try_next();
-                    $handle
+                    rv = Some($block)
                 }
                 ind += 1;
             })+
-            true
-        } else {
-            false
         }
+        rv
     }};
 }

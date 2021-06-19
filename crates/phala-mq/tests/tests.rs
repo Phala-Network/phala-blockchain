@@ -166,7 +166,7 @@ fn test_select_order() {
                 payloads.push(msg.unwrap().unwrap().0);
             },
         };
-        if !ok {
+        if ok.is_none() {
             break;
         }
     }
