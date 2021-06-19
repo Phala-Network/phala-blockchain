@@ -466,13 +466,6 @@ async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
         .or(Ok(0))
 }
 
-async fn get_lottery_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::IngressSequenceStore::new(7), None)
-        .await
-        .or(Ok(0))
-}
-
 async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
     client
         .fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None)
@@ -707,7 +700,6 @@ async fn bridge(args: Args) -> Result<()> {
     // Don't just sync message if we want to wait for some block
     let mut defer_block = wait_block_until.is_some();
     let mut balance_seq = get_balances_ingress_seq(&client).await?;
-    let mut lottery_sequence = get_lottery_ingress_seq(&client).await?;
     let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),

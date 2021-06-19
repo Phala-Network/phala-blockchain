@@ -117,9 +117,4 @@ where
             })
             .collect()
     }
-
-    fn is_empty(&self) -> bool {
-        // TODO: a reliable way
-        *self.0.root() == Default::default()
-    }
 }
