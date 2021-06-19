@@ -78,10 +78,7 @@ pub struct PushCommand<Cmd> {
     pub number: u64,
 }
 
-impl<Cmd> BindTopic for PushCommand<Cmd>
-where
-    Cmd: Encode + Decode + BindTopic,
-{
+impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
     const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
 }
 
