@@ -24,6 +24,8 @@ type ResourceId = bridge::ResourceId;
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+pub const MESSAGE_ORIGIN: &'static [u8] = &*b"BridgerTransfer";
+
 pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 	type Event: Into<<Self as frame_system::Config>::Event>;
 
@@ -181,7 +183,7 @@ impl<T: Config> Module<T> {
 	}
 
 	fn push_message(payload: impl Encode + BindTopic) {
-		let sender = MessageOrigin::Pallet(b"BridgerTransfer".to_vec());
+		let sender = MessageOrigin::Pallet(MESSAGE_ORIGIN.to_vec());
 		pallet_mq::Pallet::<T>::push_bound_message(sender, payload);
 	}
 }

@@ -17,7 +17,7 @@ use anyhow::Result;
 use lazy_static;
 use log::error;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{bind_topic, EcdsaMessageChannel as MessageChannel};
+use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin, bind_topic};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -349,17 +349,22 @@ impl contracts::NativeContract for BtcLottery {
 
     fn handle_command(
         &mut self,
-        origin: &chain::AccountId,
+        origin: MessageOrigin,
         _txref: &TxRef,
         cmd: Command,
     ) -> TransactionStatus {
+        use sp_runtime_interface::pass_by::PassByInner;
+        let origin: chain::AccountId = match origin {
+            MessageOrigin::AccountId(id) => (*id.inner()).into(),
+            _ => return TransactionStatus::BadOrigin,
+        };
         match cmd {
             Command::SubmitUtxo {
                 round_id,
                 address,
                 utxo,
             } => {
-                let sender = AccountIdWrapper(origin.clone());
+                let sender = AccountIdWrapper(origin);
                 let btc_address = match Address::from_str(&address) {
                     Ok(e) => e,
                     Err(_) => return TransactionStatus::BadCommand,
@@ -375,7 +380,7 @@ impl contracts::NativeContract for BtcLottery {
             }
             Command::SetAdmin { new_admin } => {
                 // TODO: listen to some specific privileged account instead of ALICE
-                let sender = AccountIdWrapper(origin.clone());
+                let sender = AccountIdWrapper(origin);
                 if let Ok(new_admin) = AccountIdWrapper::from_hex(&new_admin) {
                     if self.admin == sender {
                         self.admin = new_admin;
@@ -454,7 +459,10 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_event(&mut self, ce: BridgeTransferEvent) {
+    fn handle_event(&mut self, origin: MessageOrigin, ce: BridgeTransferEvent) {
+        if origin != MessageOrigin::Pallet(bridge_transfer::MESSAGE_ORIGIN.to_vec()) {
+            return;
+        }
         match ce {
             BridgeTransferEvent::LotteryNewRound(round_id, total_count, winner_count) => {
                 Self::new_round(self, round_id, total_count, winner_count)

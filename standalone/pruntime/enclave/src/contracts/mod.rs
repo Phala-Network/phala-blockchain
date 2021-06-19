@@ -9,7 +9,7 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef}
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, MessageDispatcher, TypedReceiveError, TypedReceiver};
+use phala_mq::{BindTopic, MessageDispatcher, TypedReceiveError, TypedReceiver, MessageOrigin};
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -94,13 +94,13 @@ pub trait NativeContract {
     fn id(&self) -> ContractId;
     fn handle_command(
         &mut self,
-        _origin: &chain::AccountId,
+        _origin: MessageOrigin,
         _txref: &TxRef,
         _cmd: Self::Cmd,
     ) -> TransactionStatus {
         TransactionStatus::Ok
     }
-    fn handle_event(&mut self, _event: Self::Event) {}
+    fn handle_event(&mut self, _origin: MessageOrigin, _event: Self::Event) {}
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
 }
 
@@ -169,12 +169,12 @@ where
         loop {
             let ok = phala_mq::select! {
                 next_cmd = self.cmd_rcv_mq => match next_cmd {
-                    Ok(Some((_, cmd, _))) => {
+                    Ok(Some((_seq, cmd, origin))) => {
                         let pos = TxRef {
                             blocknum: env.block_number,
                             index: cmd.number,
                         };
-                        let status = self.contract.handle_command(&cmd.origin, &pos, cmd.command);
+                        let status = self.contract.handle_command(origin, &pos, cmd.command);
                         env.system.add_receipt(
                             cmd.number,
                             TransactionReceipt {
@@ -196,8 +196,8 @@ where
                     },
                 },
                 next_event = self.event_rcv_mq => match next_event {
-                    Ok(Some((_, event, _))) => {
-                        self.contract.handle_event(event);
+                    Ok(Some((_seq, event, origin))) => {
+                        self.contract.handle_event(origin, event);
                     }
                     Ok(None) => {}
                     Err(e) => match e {
