@@ -9,11 +9,13 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef}
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, MessageDispatcher, TypedReceiveError, TypedReceiver, MessageOrigin};
+use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, TypedReceiveError, TypedReceiver};
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use sp_core::H256;
+use sp_runtime_interface::pass_by::PassByInner as _;
 
 pub mod assets;
 pub mod balances;
@@ -69,11 +71,9 @@ pub trait Contract: Send + Sync {
     fn process_events(&mut self, env: &mut ExecuteEnv);
 }
 
-// TODO.kevin: move it to a seperate crate.
+// TODO.kevin: move it to a seperate crate. Do we really need this type to distingush commands from events?
 #[derive(Encode, Decode, Debug)]
 pub struct PushCommand<Cmd> {
-    pub origin: chain::AccountId,
-    pub contract_id: ContractId,
     pub command: Cmd,
     pub number: u64,
 }
@@ -174,16 +174,21 @@ where
                             blocknum: env.block_number,
                             index: cmd.number,
                         };
-                        let status = self.contract.handle_command(origin, &pos, cmd.command);
-                        env.system.add_receipt(
-                            cmd.number,
-                            TransactionReceipt {
-                                account: AccountIdWrapper(cmd.origin),
-                                block_num: pos.blocknum,
-                                contract_id: cmd.contract_id,
-                                status,
-                            },
-                        );
+                        // TODO.kevin: allow all kind of origin to send commands to contract?
+                        if let MessageOrigin::AccountId(id) = origin.clone() {
+                            let status = self.contract.handle_command(origin, &pos, cmd.command);
+                            env.system.add_receipt(
+                                cmd.number,
+                                TransactionReceipt {
+                                    account: id.into(),
+                                    block_num: pos.blocknum,
+                                    contract_id: self.id(),
+                                    status,
+                                },
+                            );
+                        } else {
+                            error!("Received command from invalid origin: {:?}", origin);
+                        }
                     }
                     Ok(None) => {}
                     Err(e) => match e {
@@ -294,8 +299,8 @@ pub mod serde_anyhow {
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Encode, Decode)]
 pub struct AccountIdWrapper(pub chain::AccountId);
 
-impl<'a> AccountIdWrapper {
-    fn try_from(b: &'a [u8]) -> Result<Self> {
+impl AccountIdWrapper {
+    fn try_from(b: &[u8]) -> Result<Self> {
         let mut a = AccountIdWrapper::default();
         use core::convert::TryFrom;
         a.0 = sp_core::crypto::AccountId32::try_from(b)
@@ -310,6 +315,12 @@ impl<'a> AccountIdWrapper {
     }
     fn to_string(&self) -> String {
         hex::encode(&self.0)
+    }
+}
+
+impl From<H256> for AccountIdWrapper {
+    fn from(hash: H256) -> Self {
+        Self((*hash.inner()).into())
     }
 }
 

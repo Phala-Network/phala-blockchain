@@ -21,6 +21,7 @@ use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin, bind_topic}
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
+use sp_runtime_interface::pass_by::PassByInner as _;
 
 use bitcoin;
 use bitcoin::blockdata::script::Builder;
@@ -353,7 +354,6 @@ impl contracts::NativeContract for BtcLottery {
         _txref: &TxRef,
         cmd: Command,
     ) -> TransactionStatus {
-        use sp_runtime_interface::pass_by::PassByInner;
         let origin: chain::AccountId = match origin {
             MessageOrigin::AccountId(id) => (*id.inner()).into(),
             _ => return TransactionStatus::BadOrigin,
