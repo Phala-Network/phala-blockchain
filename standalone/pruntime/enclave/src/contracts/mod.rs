@@ -9,7 +9,7 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef}
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, TypedReceiveError, TypedReceiver};
+use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, TypedReceiveError, TypedReceiver, EcdsaMessageChannel as MessageChannel};
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -82,6 +82,11 @@ impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
     const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
 }
 
+pub struct NativeContext<'a> {
+    pub block_number: chain::BlockNumber,
+    pub mq: &'a MessageChannel,
+}
+
 pub trait NativeContract {
     type Cmd: Decode + BindTopic + Debug;
     type Event: Decode + BindTopic + Debug;
@@ -91,13 +96,13 @@ pub trait NativeContract {
     fn id(&self) -> ContractId;
     fn handle_command(
         &mut self,
+        _context: &NativeContext,
         _origin: MessageOrigin,
-        _txref: &TxRef,
         _cmd: Self::Cmd,
     ) -> TransactionStatus {
         TransactionStatus::Ok
     }
-    fn handle_event(&mut self, _origin: MessageOrigin, _event: Self::Event) {}
+    fn handle_event(&mut self, _context: &NativeContext, _origin: MessageOrigin, _event: Self::Event) {}
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
 }
 
@@ -110,6 +115,7 @@ where
     Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
 {
     contract: Con,
+    send_mq: MessageChannel,
     cmd_rcv_mq: TypedReceiver<PushCommand<Cmd>>,
     event_rcv_mq: TypedReceiver<Event>,
 }
@@ -123,9 +129,10 @@ where
     Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
     PushCommand<Cmd>: Decode + BindTopic + Debug,
 {
-    pub fn new(contract: Con, dispatcher: &mut MessageDispatcher) -> Self {
+    pub fn new(contract: Con, send_mq: MessageChannel, dispatcher: &mut MessageDispatcher) -> Self {
         NativeCompatContract {
             contract,
+            send_mq,
             cmd_rcv_mq: dispatcher.subscribe_bound(),
             event_rcv_mq: dispatcher.subscribe_bound(),
         }
@@ -162,23 +169,23 @@ where
     }
 
     fn process_events(&mut self, env: &mut ExecuteEnv) {
+        let context = NativeContext {
+            block_number: env.block_number,
+            mq: &self.send_mq,
+        };
         // TODO.kevin: how about encrypted messages
         loop {
             let ok = phala_mq::select! {
                 next_cmd = self.cmd_rcv_mq => match next_cmd {
                     Ok(Some((_seq, cmd, origin))) => {
-                        let pos = TxRef {
-                            blocknum: env.block_number,
-                            index: cmd.number,
-                        };
                         // TODO.kevin: allow all kind of origin to send commands to contract?
                         if let MessageOrigin::AccountId(id) = origin.clone() {
-                            let status = self.contract.handle_command(origin, &pos, cmd.command);
+                            let status = self.contract.handle_command(&context, origin, cmd.command);
                             env.system.add_receipt(
                                 cmd.number,
                                 TransactionReceipt {
                                     account: id.into(),
-                                    block_num: pos.blocknum,
+                                    block_num: env.block_number,
                                     contract_id: self.id(),
                                     status,
                                 },
@@ -199,7 +206,7 @@ where
                 },
                 next_event = self.event_rcv_mq => match next_event {
                     Ok(Some((_seq, event, origin))) => {
-                        self.contract.handle_event(origin, event);
+                        self.contract.handle_event(&context, origin, event);
                     }
                     Ok(None) => {}
                     Err(e) => match e {

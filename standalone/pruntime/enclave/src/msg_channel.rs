@@ -50,3 +50,8 @@ impl Default for MsgChannel {
         }
     }
 }
+
+pub enum ContracMessage<T> {
+    Plain(T),
+    Cipher(T),
+}

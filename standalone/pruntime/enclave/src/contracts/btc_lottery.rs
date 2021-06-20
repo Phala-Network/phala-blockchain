@@ -36,6 +36,8 @@ use bitcoin_hashes::Hash as _;
 use chain::pallet_bridge_transfer::Event as BridgeTransferEvent;
 use phala_types::messaging::Lottery;
 
+use super::NativeContext;
+
 type SequenceType = u64;
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
@@ -50,7 +52,6 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    mq: MessageChannel,
     secret: Option<ecdsa::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
@@ -128,7 +129,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>, mq: MessageChannel) -> Self {
+    pub fn new(secret: Option<ecdsa::Pair>) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
@@ -139,7 +140,6 @@ impl BtcLottery {
             lottery_set,
             tx_set: Vec::new(),
             sequence: 0,
-            mq,
             secret,
             utxo,
             admin,
@@ -163,12 +163,7 @@ impl BtcLottery {
         }
     }
 
-    fn send_lottery_message(&mut self, body: &Lottery) -> Result<()> {
-        self.mq.send(body);
-        Ok(())
-    }
-
-    pub fn new_round(&mut self, round_id: u32, total_count: u32, winner_count: u32) {
+    pub fn new_round(&mut self, mq: &MessageChannel, round_id: u32, total_count: u32, winner_count: u32) {
         info!("new_round({}, {}, {})", round_id, total_count, winner_count);
         if !self.check_secret_key() {
             return;
@@ -219,14 +214,13 @@ impl BtcLottery {
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
 
-            self.send_lottery_message(&Lottery::BtcAddresses { address_set })
-                .expect("Send message must succeed; qed");
+            mq.send(&Lottery::BtcAddresses { address_set });
         } else {
             error!("Round {} has already started", round_id);
         }
     }
 
-    pub fn open_lottery(&mut self, round_id: u32, token_no: u32, btc_address: Vec<u8>) {
+    pub fn open_lottery(&mut self, mq: &MessageChannel, round_id: u32, token_no: u32, btc_address: Vec<u8>) {
         if !self.check_secret_key() {
             return;
         }
@@ -329,8 +323,7 @@ impl BtcLottery {
                     tx: tx_bytes,
                 }
             };
-            self.send_lottery_message(&data)
-                .expect("Send message must succeed; qed.");
+            mq.send(&data);
         } else {
             error!("Round {} has already started", round_id);
         }
@@ -350,8 +343,8 @@ impl contracts::NativeContract for BtcLottery {
 
     fn handle_command(
         &mut self,
+        _context: &NativeContext,
         origin: MessageOrigin,
-        _txref: &TxRef,
         cmd: Command,
     ) -> TransactionStatus {
         let origin: chain::AccountId = match origin {
@@ -459,16 +452,16 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_event(&mut self, origin: MessageOrigin, ce: BridgeTransferEvent) {
+    fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: BridgeTransferEvent) {
         if origin != MessageOrigin::Pallet(bridge_transfer::MESSAGE_ORIGIN.to_vec()) {
             return;
         }
         match ce {
             BridgeTransferEvent::LotteryNewRound(round_id, total_count, winner_count) => {
-                Self::new_round(self, round_id, total_count, winner_count)
+                Self::new_round(self, context.mq, round_id, total_count, winner_count)
             }
             BridgeTransferEvent::LotteryOpenBox(round_id, token_id, btc_address) => {
-                Self::open_lottery(self, round_id, token_id, btc_address)
+                Self::open_lottery(self, context.mq, round_id, token_id, btc_address)
             }
         }
     }

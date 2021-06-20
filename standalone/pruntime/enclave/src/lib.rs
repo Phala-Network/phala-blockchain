@@ -1057,8 +1057,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let contract7 = {
         let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
         let mq = send_mq.channel(sender, id_pair.clone());
-        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()), mq);
-        Box::new(contracts::NativeCompatContract::new(contract, &mut recv_mq))
+        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+        Box::new(contracts::NativeCompatContract::new(contract, mq, &mut recv_mq))
     };
     other_contracts.insert(contract7.id(), contract7);
 
