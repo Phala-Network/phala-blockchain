@@ -64,7 +64,7 @@ pub struct ExecuteEnv<'a> {
 pub trait Contract: Send + Sync {
     fn id(&self) -> ContractId;
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: OpaqueQuery,
     ) -> Result<OpaqueReply, OpaqueError>;
@@ -103,7 +103,7 @@ pub trait NativeContract {
         TransactionStatus::Ok
     }
     fn handle_event(&mut self, _context: &NativeContext, _origin: MessageOrigin, _event: Self::Event) {}
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
+    fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
 }
 
 pub struct NativeCompatContract<Con, Cmd, Event, QReq, QResp>
@@ -153,7 +153,7 @@ where
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&runtime::AccountId>,
         req: OpaqueQuery,
     ) -> Result<OpaqueReply, OpaqueError> {

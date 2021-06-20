@@ -386,7 +386,7 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(&self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
             Request::GetAllRounds => Response::GetAllRounds {
                 round_id: self.round_id,
