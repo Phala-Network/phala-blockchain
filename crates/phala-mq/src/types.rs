@@ -66,8 +66,15 @@ impl MessageOrigin {
 ///    assert!(an_normal_topic.is_offchain());
 /// ```
 ///
-#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Hash)]
 pub struct Topic(Path);
+
+impl core::fmt::Debug for Topic {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let repr = alloc::string::String::from_utf8_lossy(&self.0[..]);
+        f.write_str(repr.as_ref())
+    }
+}
 
 impl Topic {
     const RESERVED_BYTES: &'static [u8] = b"~!@#$%&*_+-=|<>?,./;:'";
