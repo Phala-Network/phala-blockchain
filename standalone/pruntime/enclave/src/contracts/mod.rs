@@ -1,6 +1,6 @@
+use crate::Storage;
 use crate::error_msg;
-use crate::msg_channel::osp::Peeler;
-use crate::msg_channel::osp::PeelingReceiver;
+use crate::msg_channel::osp::{KeyPair, OcpMq, Peeler, PeelingReceiver, storage_prefix_for_topic_pubkey};
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
@@ -64,6 +64,7 @@ where
 pub struct ExecuteEnv<'a> {
     pub block_number: chain::BlockNumber,
     pub system: &'a mut System,
+    pub storage: &'a Storage,
 }
 
 pub trait Contract: Send + Sync {
@@ -90,6 +91,7 @@ impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
 pub struct NativeContext<'a> {
     pub block_number: chain::BlockNumber,
     pub mq: &'a MessageChannel,
+    pub ocp_mq: OcpMq<'a>,
 }
 
 pub trait NativeContract {
@@ -133,6 +135,7 @@ where
     send_mq: MessageChannel,
     cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
     event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+    ecdh_key: KeyPair,
 }
 
 impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
@@ -154,12 +157,14 @@ where
         send_mq: MessageChannel,
         cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
         event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+        ecdh_key: KeyPair,
     ) -> Self {
         NativeCompatContract {
             contract,
             send_mq,
             cmd_rcv_mq,
             event_rcv_mq,
+            ecdh_key,
         }
     }
 }
@@ -199,9 +204,15 @@ where
     }
 
     fn process_events(&mut self, env: &mut ExecuteEnv) {
+        let storage = env.storage;
+        let keystore = |topic: &phala_mq::Path| {
+            storage.get(&storage_prefix_for_topic_pubkey(topic))
+        };
+        let ocp_mq = OcpMq::new(&self.ecdh_key, &self.send_mq, &keystore);
         let context = NativeContext {
             block_number: env.block_number,
             mq: &self.send_mq,
+            ocp_mq,
         };
         // TODO.kevin: how about encrypted messages
         loop {

@@ -28,7 +28,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
-use crate::msg_channel::osp::PeelingReceiver;
+use crate::msg_channel::osp::{KeyPair, PeelingReceiver};
 use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
@@ -1062,13 +1062,18 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         Default::default();
 
     let contract7 = {
+        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+
         let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
         let mq = send_mq.channel(sender, id_pair.clone());
-        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
-        let cmd_mq = PeelingReceiver::new_osp(recv_mq.subscribe_bound(), ecdh_privkey);
+        let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
         let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
         Box::new(contracts::NativeCompatContract::new(
-            contract, mq, cmd_mq, evt_mq,
+            contract,
+            mq,
+            cmd_mq,
+            evt_mq,
+            KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
         ))
     };
     other_contracts.insert(contract7.id(), contract7);
@@ -1512,6 +1517,7 @@ fn handle_events(
     let mut env = ExecuteEnv {
         block_number,
         system: event_handler.system,
+        storage,
     };
     for contract in state.contracts.values_mut() {
         contract.process_events(&mut env);

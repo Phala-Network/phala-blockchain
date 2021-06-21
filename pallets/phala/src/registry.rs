@@ -42,6 +42,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, Vec<u8>>;
 
+	/// Pubkey for secret topics.
+	#[pallet::storage]
+	pub type TopicKey<T> = StorageMap<_, Twox64Concat, Vec<u8>, Vec<u8>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
@@ -90,6 +94,18 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			ContractKey::<T>::insert(contract, pubkey);
+			Ok(())
+		}
+
+		/// Force register a topic pubkey
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn force_register_topic_pubkey(
+			origin: OriginFor<T>,
+			topic: Vec<u8>,
+			pubkey: Vec<u8>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			TopicKey::<T>::insert(topic, pubkey);
 			Ok(())
 		}
 	}

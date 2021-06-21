@@ -426,6 +426,14 @@ pub mod utils {
         bytes
     }
 
+    /// Calculates the Substrate storage key prefix for a StorageMap
+    pub fn storage_map_prefix_blake2_128(module: &[u8], storage_item: &[u8], key: &impl Encode) -> Vec<u8> {
+        let mut bytes = sp_core::twox_128(module).to_vec();
+        bytes.extend(&sp_core::twox_128(storage_item)[..]);
+        bytes.extend(&key.using_encoded(sp_core::blake2_128)[..]);
+        bytes
+    }
+
     /// Gets the last 32 bytes as the account key (`storage_key` must be longer than that)
     pub fn extract_account_id_key_unsafe<'a>(storage_key: &'a [u8]) -> &'a [u8] {
         if storage_key.len() < 32 {

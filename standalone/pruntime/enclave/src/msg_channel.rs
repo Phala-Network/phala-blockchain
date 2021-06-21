@@ -52,26 +52,112 @@ impl Default for MsgChannel {
 }
 
 pub mod osp {
-    // OSP (Optinal Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
-
+    /// OSP (Optinal Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
     pub use decrypt::*;
     pub use encrypt::*;
 
-    mod encrypt {}
+    use crate::light_validation::utils::storage_map_prefix_blake2_128;
+    use crate::std::vec::Vec;
+
+    use parity_scale_codec::{Decode, Encode};
+
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub struct AeadCipher {
+        pub iv: Vec<u8>,
+        pub cipher: Vec<u8>,
+        pub pubkey: Vec<u8>,
+    }
+
+    #[derive(Encode, Decode, Debug)]
+    pub enum OspPayload<T> {
+        Plain(T),
+        Encrypted(AeadCipher),
+    }
+
+    mod encrypt {
+        use super::{AeadCipher, OspPayload};
+        use crate::{
+            cryptography::{aead, ecdh},
+            std::vec::Vec,
+        };
+        use parity_scale_codec::Encode;
+        use phala_mq::{BindTopic, EcdsaMessageChannel, Path};
+        use ring::agreement::EphemeralPrivateKey;
+
+        pub struct KeyPair {
+            privkey: EphemeralPrivateKey,
+            pubkey: Vec<u8>,
+        }
+
+        impl KeyPair {
+            pub fn new(privkey: EphemeralPrivateKey, pubkey: Vec<u8>) -> Self {
+                KeyPair { privkey, pubkey }
+            }
+        }
+
+        pub struct OcpMq<'a> {
+            key: &'a KeyPair,
+            mq: &'a EcdsaMessageChannel,
+            keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+        }
+
+        impl<'a> OcpMq<'a> {
+            pub fn new(
+                key: &'a KeyPair,
+                mq: &'a EcdsaMessageChannel,
+                keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+            ) -> Self {
+                OcpMq { key, mq, keystore }
+            }
+
+            pub fn get_pubkey(&self, topic: &Path) -> Option<Vec<u8>> {
+                (self.keystore)(topic)
+            }
+
+            pub fn osp_sendto<M: Encode>(
+                &self,
+                message: &M,
+                to: impl Into<Path>,
+                remote_pubkey: Option<Vec<u8>>,
+            ) {
+                match remote_pubkey {
+                    None => {
+                        let msg = OspPayload::Plain(message);
+                        let data = msg.encode();
+                        self.mq.send_data(data, to)
+                    }
+                    Some(pubkey) => {
+                        let mut data = message.encode();
+                        let iv = aead::generate_iv();
+                        let sk = ecdh::agree(&self.key.privkey, &pubkey);
+                        aead::encrypt(&iv, &sk, &mut data);
+                        let payload: OspPayload<M> = OspPayload::Encrypted(AeadCipher {
+                            iv: iv.into(),
+                            cipher: data,
+                            pubkey: self.key.pubkey.clone(),
+                        });
+                        self.mq.send_data(payload.encode(), to)
+                    }
+                }
+            }
+
+            pub fn osp_send<M: Encode + BindTopic>(
+                &self,
+                message: &M,
+                remote_pubkey: Option<Vec<u8>>,
+            ) {
+                self.osp_sendto(message, <M as BindTopic>::TOPIC, remote_pubkey)
+            }
+        }
+    }
 
     mod decrypt {
-        use crate::cryptography::{self, AeadCipher};
-        use anyhow::Context;
-        use core::{any, marker::PhantomData};
+        use super::OspPayload;
+        use crate::cryptography::{aead, ecdh};
+        use core::marker::PhantomData;
         use parity_scale_codec::Decode;
         use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
         use ring::agreement::EphemeralPrivateKey;
-
-        #[derive(Decode, Debug)]
-        pub enum OspPayload<T> {
-            Plain(T),
-            Encrypted(AeadCipher),
-        }
 
         impl<T: BindTopic> BindTopic for OspPayload<T> {
             const TOPIC: &'static [u8] = T::TOPIC;
@@ -113,11 +199,10 @@ pub mod osp {
             fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
                 match msg {
                     OspPayload::Plain(msg) => Ok(msg),
-                    OspPayload::Encrypted(cipher) => {
-                        let msg = cryptography::decrypt(&cipher, &self.privkey)
-                            .context("Decrypt Osp encrypted message failed")?
-                            .msg;
-                        let msg = Decode::decode(&mut &msg[..]).map_err(|_| {
+                    OspPayload::Encrypted(mut cipher) => {
+                        let sk = ecdh::agree(&self.privkey, &cipher.pubkey);
+                        let msg = aead::decrypt(&cipher.iv, &sk, &mut cipher.cipher);
+                        let msg = Decode::decode(&mut msg.as_ref()).map_err(|_| {
                             anyhow::anyhow!("SCALE decode Osp decrypted data failed")
                         })?;
                         Ok(msg)
@@ -175,5 +260,17 @@ pub mod osp {
                 self.receiver.peek_seq()
             }
         }
+    }
+
+    /// Calculates the Substrate storage key prefix for a StorageMap
+    pub fn storage_prefix_for_topic_pubkey(topic: &phala_mq::Path) -> Vec<u8> {
+        use phala_pallets::pallet_mq::StorageMapTrait as _;
+
+        type TopicKey = phala_pallets::pallet_registry::TopicKey<chain::Runtime>;
+
+        let module_prefix = TopicKey::module_prefix();
+        let storage_prefix = TopicKey::storage_prefix();
+
+        storage_map_prefix_blake2_128(module_prefix, storage_prefix, &topic)
     }
 }
