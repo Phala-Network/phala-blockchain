@@ -94,6 +94,7 @@ pub mod pallet {
 		}
 	}
 
+	// TODO.kevin: Move it to mq
 	impl<T: Config> Pallet<T> {
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
 			let pubkey_copy: Vec<u8>;
