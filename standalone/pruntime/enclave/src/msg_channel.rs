@@ -51,7 +51,79 @@ impl Default for MsgChannel {
     }
 }
 
-pub enum ContracMessage<T> {
-    Plain(T),
-    Cipher(T),
+pub mod osp {
+    // OSP (Optinal Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
+
+    pub use decrypt::*;
+    pub use encrypt::*;
+
+    mod encrypt {
+    }
+
+    mod decrypt {
+        use crate::cryptography::{self, AeadCipher};
+        use core::marker::PhantomData;
+        use parity_scale_codec::Decode;
+        use anyhow::Context;
+        use ring::agreement::EphemeralPrivateKey;
+
+        #[derive(Decode)]
+        enum OspPayload<T> {
+            Plain(T),
+            Encrypted(AeadCipher),
+        }
+
+        trait Peeler {
+            type Outer;
+            type Inner;
+            type Error;
+            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error>;
+        }
+
+        #[derive(Default)]
+        struct PlainPeeler<T>(PhantomData<T>);
+
+        impl<T> Peeler for PlainPeeler<T> {
+            type Outer = T;
+            type Inner = T;
+            type Error = ();
+            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error> {
+                Ok(msg)
+            }
+        }
+
+        struct OspPeeler<T> {
+            privkey: EphemeralPrivateKey,
+            _t: PhantomData<T>,
+        }
+
+        impl<T> OspPeeler<T> {
+            pub fn new(privkey: EphemeralPrivateKey) -> Self {
+                OspPeeler {
+                    privkey: privkey,
+                    _t: PhantomData,
+                }
+            }
+        }
+
+        impl<T: Decode> Peeler for OspPeeler<T> {
+            type Outer = OspPayload<T>;
+            type Inner = T;
+            type Error = anyhow::Error;
+            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error> {
+                match msg {
+                    OspPayload::Plain(msg) => Ok(msg),
+                    OspPayload::Encrypted(cipher) => {
+                        let msg = cryptography::decrypt(&cipher, &self.privkey)
+                            .context("Decrypt Osp encrypted message failed")?
+                            .msg;
+                        let msg = Decode::decode(&mut &msg[..]).map_err(|_| {
+                            anyhow::anyhow!("SCALE decode Osp decrypted data failed")
+                        })?;
+                        Ok(msg)
+                    }
+                }
+            }
+        }
+    }
 }
