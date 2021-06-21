@@ -87,7 +87,7 @@ impl From<CodecError> for TypedReceiveError {
     }
 }
 
-pub struct TypedReceiver<T: Decode> {
+pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
     _t: PhantomData<T>,
 }

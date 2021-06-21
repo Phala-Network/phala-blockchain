@@ -1,4 +1,6 @@
 use crate::error_msg;
+use crate::msg_channel::osp::Peeler;
+use crate::msg_channel::osp::PeelingReceiver;
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
@@ -9,7 +11,10 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef}
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, TypedReceiveError, TypedReceiver, EcdsaMessageChannel as MessageChannel};
+use phala_mq::{
+    BindTopic, EcdsaMessageChannel as MessageChannel, MessageDispatcher, MessageOrigin,
+    TypedReceiveError, TypedReceiver,
+};
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -102,47 +107,72 @@ pub trait NativeContract {
     ) -> TransactionStatus {
         TransactionStatus::Ok
     }
-    fn handle_event(&mut self, _context: &NativeContext, _origin: MessageOrigin, _event: Self::Event) {}
+    fn handle_event(
+        &mut self,
+        _context: &NativeContext,
+        _origin: MessageOrigin,
+        _event: Self::Event,
+    ) {
+    }
     fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
 }
 
-pub struct NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
 where
     Cmd: Decode + BindTopic + Debug,
+    CmdWrp: Decode + BindTopic + Debug,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
     Event: Decode + BindTopic + Debug,
+    EventWrp: Decode + BindTopic + Debug,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
     QReq: Serialize + DeserializeOwned + Debug,
     QResp: Serialize + DeserializeOwned + Debug,
     Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
 {
     contract: Con,
     send_mq: MessageChannel,
-    cmd_rcv_mq: TypedReceiver<PushCommand<Cmd>>,
-    event_rcv_mq: TypedReceiver<Event>,
+    cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
+    event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
 }
 
-impl<Con, Cmd, Event, QReq, QResp> NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+    NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
 where
     Cmd: Decode + BindTopic + Debug + Send + Sync,
+    CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
     Event: Decode + BindTopic + Debug + Send + Sync,
+    EventWrp: Decode + BindTopic + Debug + Send + Sync,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
     QReq: Serialize + DeserializeOwned + Debug,
     QResp: Serialize + DeserializeOwned + Debug,
     Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
     PushCommand<Cmd>: Decode + BindTopic + Debug,
 {
-    pub fn new(contract: Con, send_mq: MessageChannel, dispatcher: &mut MessageDispatcher) -> Self {
+    pub fn new(
+        contract: Con,
+        send_mq: MessageChannel,
+        cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
+        event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+    ) -> Self {
         NativeCompatContract {
             contract,
             send_mq,
-            cmd_rcv_mq: dispatcher.subscribe_bound(),
-            event_rcv_mq: dispatcher.subscribe_bound(),
+            cmd_rcv_mq,
+            event_rcv_mq,
         }
     }
 }
 
-impl<Con, Cmd, Event, QReq, QResp> Contract for NativeCompatContract<Con, Cmd, Event, QReq, QResp>
+impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp> Contract
+    for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
 where
     Cmd: Decode + BindTopic + Debug + Send + Sync,
+    CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>> + Send + Sync,
     Event: Decode + BindTopic + Debug + Send + Sync,
+    EventWrp: Decode + BindTopic + Debug + Send + Sync,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event> + Send + Sync,
     QReq: Serialize + DeserializeOwned + Debug,
     QResp: Serialize + DeserializeOwned + Debug,
     Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
@@ -195,27 +225,17 @@ where
                         }
                     }
                     Ok(None) => {}
-                    Err(e) => match e {
-                        TypedReceiveError::CodecError(e) => {
-                            error!("Decode command failed: {:?}", e);
-                        }
-                        TypedReceiveError::SenderGone => {
-                            error!("Commnad queue sender has gone");
-                        }
-                    },
+                    Err(e) => {
+                        error!("Read command failed: {:?}", e);
+                    }
                 },
                 next_event = self.event_rcv_mq => match next_event {
                     Ok(Some((_seq, event, origin))) => {
                         self.contract.handle_event(&context, origin, event);
                     }
                     Ok(None) => {}
-                    Err(e) => match e {
-                        TypedReceiveError::CodecError(e) => {
-                            error!("Decode event failed: {:?}", e);
-                        }
-                        TypedReceiveError::SenderGone => {
-                            error!("Event queue sender has gone");
-                        }
+                    Err(e) => {
+                        error!("Read event failed: {:?}", e);
                     },
                 },
             };

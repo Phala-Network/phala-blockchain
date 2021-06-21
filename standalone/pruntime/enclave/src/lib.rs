@@ -28,6 +28,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
+use crate::msg_channel::osp::PeelingReceiver;
 use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
@@ -55,6 +56,7 @@ use std::time::Duration;
 use pink::InkModule;
 
 use crate::contracts::Contract as _;
+use enclave_api::actions::*;
 use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::{pallet_mq, pallet_phala as phala};
 use phala_types::{
@@ -64,7 +66,6 @@ use phala_types::{
     },
     PRuntimeInfo, WorkerInfo,
 };
-use enclave_api::actions::*;
 
 mod cert;
 mod contracts;
@@ -76,7 +77,7 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::{storage_prefix, storage_map_prefix_twox_64};
+use crate::light_validation::utils::{storage_map_prefix_twox_64, storage_prefix};
 use contracts::{
     AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
     DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
@@ -969,6 +970,12 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
     let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
+    let ecdh_privkey = ecdh::clone_key(
+        local_state
+            .ecdh_private_key
+            .as_ref()
+            .expect("ECDH not initizlied"),
+    );
 
     // Measure machine score
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
@@ -1058,7 +1065,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
         let mq = send_mq.channel(sender, id_pair.clone());
         let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
-        Box::new(contracts::NativeCompatContract::new(contract, mq, &mut recv_mq))
+        let cmd_mq = PeelingReceiver::new_osp(recv_mq.subscribe_bound(), ecdh_privkey);
+        let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+        Box::new(contracts::NativeCompatContract::new(
+            contract, mq, cmd_mq, evt_mq,
+        ))
     };
     other_contracts.insert(contract7.id(), contract7);
 
@@ -1375,7 +1386,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             if let Some(state) = state.as_mut() {
                 state.send_mq.purge(|sender| {
                     use pallet_mq::StorageMapTrait as _;
-                    type OffchainIngress = pallet_mq::OffchainIngress::<chain::Runtime>;
+                    type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
 
                     let module_prefix = OffchainIngress::module_prefix();
                     let storage_prefix = OffchainIngress::storage_prefix();

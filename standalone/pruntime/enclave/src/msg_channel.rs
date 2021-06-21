@@ -57,42 +57,43 @@ pub mod osp {
     pub use decrypt::*;
     pub use encrypt::*;
 
-    mod encrypt {
-    }
+    mod encrypt {}
 
     mod decrypt {
         use crate::cryptography::{self, AeadCipher};
-        use core::marker::PhantomData;
-        use parity_scale_codec::Decode;
         use anyhow::Context;
+        use core::{any, marker::PhantomData};
+        use parity_scale_codec::Decode;
+        use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
         use ring::agreement::EphemeralPrivateKey;
 
-        #[derive(Decode)]
-        enum OspPayload<T> {
+        #[derive(Decode, Debug)]
+        pub enum OspPayload<T> {
             Plain(T),
             Encrypted(AeadCipher),
         }
 
-        trait Peeler {
-            type Outer;
-            type Inner;
-            type Error;
-            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error>;
+        impl<T: BindTopic> BindTopic for OspPayload<T> {
+            const TOPIC: &'static [u8] = T::TOPIC;
         }
 
-        #[derive(Default)]
-        struct PlainPeeler<T>(PhantomData<T>);
+        pub trait Peeler {
+            type Wrp;
+            type Msg;
+            fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error>;
+        }
+
+        pub struct PlainPeeler<T>(PhantomData<T>);
 
         impl<T> Peeler for PlainPeeler<T> {
-            type Outer = T;
-            type Inner = T;
-            type Error = ();
-            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error> {
+            type Wrp = T;
+            type Msg = T;
+            fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
                 Ok(msg)
             }
         }
 
-        struct OspPeeler<T> {
+        pub struct OspPeeler<T> {
             privkey: EphemeralPrivateKey,
             _t: PhantomData<T>,
         }
@@ -107,10 +108,9 @@ pub mod osp {
         }
 
         impl<T: Decode> Peeler for OspPeeler<T> {
-            type Outer = OspPayload<T>;
-            type Inner = T;
-            type Error = anyhow::Error;
-            fn peel(&self, msg: Self::Outer) -> Result<Self::Inner, Self::Error> {
+            type Wrp = OspPayload<T>;
+            type Msg = T;
+            fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
                 match msg {
                     OspPayload::Plain(msg) => Ok(msg),
                     OspPayload::Encrypted(cipher) => {
@@ -123,6 +123,56 @@ pub mod osp {
                         Ok(msg)
                     }
                 }
+            }
+        }
+
+        pub struct PeelingReceiver<Msg, Wrp, Plr> {
+            receiver: TypedReceiver<Wrp>,
+            peeler: Plr,
+            _msg: PhantomData<Msg>,
+        }
+
+        impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, PlainPeeler<Msg>> {
+            pub fn new_plain(receiver: TypedReceiver<Wrp>) -> Self {
+                PeelingReceiver {
+                    receiver,
+                    peeler: PlainPeeler(Default::default()),
+                    _msg: Default::default(),
+                }
+            }
+        }
+
+        impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, OspPeeler<Msg>> {
+            pub fn new_osp(receiver: TypedReceiver<Wrp>, privkey: EphemeralPrivateKey) -> Self {
+                PeelingReceiver {
+                    receiver,
+                    peeler: OspPeeler::new(privkey),
+                    _msg: Default::default(),
+                }
+            }
+        }
+
+        impl<Msg, Plr, Wrp> PeelingReceiver<Msg, Wrp, Plr>
+        where
+            Plr: Peeler<Wrp = Wrp, Msg = Msg>,
+            Msg: Decode,
+            Wrp: Decode,
+        {
+            pub fn try_next(&mut self) -> Result<Option<(u64, Msg, MessageOrigin)>, anyhow::Error> {
+                let omsg = self
+                    .receiver
+                    .try_next()
+                    .map_err(|e| anyhow::anyhow!("{}", e))?;
+                let (seq, msg, origin) = match omsg {
+                    Some(x) => x,
+                    None => return Ok(None),
+                };
+                let msg = self.peeler.peel(msg)?;
+                Ok(Some((seq, msg, origin)))
+            }
+
+            pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
+                self.receiver.peek_seq()
             }
         }
     }
