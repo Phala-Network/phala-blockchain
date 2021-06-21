@@ -182,14 +182,15 @@ impl<'a> MsgSync<'a> {
         self.maybe_update_signer_nonce().await?;
 
         for (sender, messages) in messages {
-            let min_seq = fetch_mq_ingress_seq(self.client, sender).await?;
+            let min_seq = fetch_mq_ingress_seq(self.client, sender.clone()).await?;
             for message in messages {
                 if message.sequence < min_seq {
                     info!("{} has been submitted. Skipping...", message.sequence);
                     continue;
                 }
                 info!(
-                    "Submitting message, seq={} dest={}",
+                    "Submitting message: sender={:?} seq={} dest={}",
+                    sender,
                     message.sequence,
                     String::from_utf8_lossy(&message.message.destination.path()[..])
                 );
