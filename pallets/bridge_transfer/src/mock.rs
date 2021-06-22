@@ -15,6 +15,8 @@ use sp_runtime::{
 use crate::{self as bride_transfer, Config};
 pub use pallet_balances as balances;
 use pallet_bridge as bridge;
+use pallet_mq as mq;
+use pallet_registry as reg;
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
@@ -31,7 +33,9 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
-		BridgeTransfer: bride_transfer::{Pallet, Call, Event, Config, Storage},
+		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage},
+		PhalaMq: mq::{Pallet, Call, Event, Storage},
+		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
 	}
 );
 
@@ -106,6 +110,15 @@ impl Config for Test {
 	type Event = Event;
 	type BridgeOrigin = bridge::EnsureBridge<Test>;
 	type Currency = Balances;
+}
+
+impl mq::Config for Test {
+	type Event = Event;
+	type QueueNotifyConfig = ();
+}
+
+impl reg::Config for Test {
+	type Event = Event;
 }
 
 pub const RELAYER_A: u64 = 0x2;

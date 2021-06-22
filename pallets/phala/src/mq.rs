@@ -135,6 +135,12 @@ pub mod pallet {
 		}
 	}
 
+	impl IntoH256 for u64 {
+		fn into_h256(self) -> H256 {
+			H256::from_low_u64_ne(self)
+		}
+	}
+
 	impl IntoH256 for sp_runtime::AccountId32 {
 		fn into_h256(self) -> H256 {
 			let bytes: [u8; 32] = *self.as_ref();
