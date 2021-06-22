@@ -214,7 +214,6 @@ where
             mq: &self.send_mq,
             ocp_mq,
         };
-        // TODO.kevin: how about encrypted messages
         loop {
             let ok = phala_mq::select! {
                 next_cmd = self.cmd_rcv_mq => match next_cmd {
