@@ -11,11 +11,13 @@ dependencies = [
  "bcs",
  "bit-vec",
  "bitcoin",
+ "bitcoin_hashes",
  "chrono 0.4.11",
  "csv-core",
  "derive_more",
  "diem-crypto",
  "diem-types",
+ "enclave-api",
  "env_logger",
  "finality-grandpa",
  "frame-system",
@@ -30,7 +32,9 @@ dependencies = [
  "move-core-types",
  "num-bigint",
  "num-traits 0.2.14",
+ "pallet-bridge-transfer",
  "parity-scale-codec 2.1.1",
+ "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
  "phala-types",
@@ -799,6 +803,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
+name = "enclave-api"
+version = "0.1.0"
+
+[[package]]
 name = "enumflags2"
 version = "0.6.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1365,7 +1373,7 @@ version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 dependencies = [
- "spin",
+ "spin 0.5.2",
 ]
 
 [[package]]
@@ -1717,6 +1725,7 @@ version = "0.0.1"
 dependencies = [
  "frame-support",
  "frame-system",
+ "hex 0.4.3",
  "pallet-bridge",
  "parity-scale-codec 2.1.1",
  "phala-pallets",
@@ -2260,6 +2269,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-mq"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec 2.1.1",
+ "primitive-types",
+ "sp-core",
+ "spin 0.9.0",
+]
+
+[[package]]
 name = "phala-node-runtime"
 version = "2.0.0"
 dependencies = [
@@ -2310,6 +2330,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec 2.1.1",
  "phala-pallets",
+ "phala-types",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -2359,6 +2380,7 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec 2.1.1",
+ "phala-mq",
  "serde 1.0.126",
  "sp-core",
  "sp-runtime",
@@ -2692,7 +2714,7 @@ source = "git+https://github.com/mesalock-linux/ring-sgx?tag=v0.16.5#844efe271ed
 dependencies = [
  "cc",
  "sgx_tstd",
- "spin",
+ "spin 0.5.2",
  "untrusted",
 ]
 
@@ -2703,7 +2725,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell 1.8.0",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "winapi",
 ]
@@ -2717,7 +2739,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell 1.8.0",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "web-sys",
  "winapi",
@@ -3616,6 +3638,12 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spin"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b87bbf98cb81332a56c1ee8929845836f85e8ddd693157c30d76660196014478"
 
 [[package]]
 name = "static_assertions"

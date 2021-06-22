@@ -70,6 +70,7 @@ name = "app"
 version = "0.0.1"
 dependencies = [
  "base64 0.12.3",
+ "enclave-api",
  "env_logger",
  "hex",
  "hex-literal",
@@ -271,6 +272,10 @@ checksum = "d3dd60d1080a57a05ab032377049e0591415d2b31afd7028356dbf3cc6dcb066"
 dependencies = [
  "generic-array",
 ]
+
+[[package]]
+name = "enclave-api"
+version = "0.1.0"
 
 [[package]]
 name = "env_logger"
