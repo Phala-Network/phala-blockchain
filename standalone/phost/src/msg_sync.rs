@@ -182,6 +182,9 @@ impl<'a> MsgSync<'a> {
         self.maybe_update_signer_nonce().await?;
 
         for (sender, messages) in messages {
+            if messages.is_empty() {
+                continue;
+            }
             let min_seq = fetch_mq_ingress_seq(self.client, sender.clone()).await?;
             for message in messages {
                 if message.sequence < min_seq {
