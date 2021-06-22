@@ -29,6 +29,7 @@ pub struct TransferData<AccountId, Balance> {
 
 pub mod messaging {
     use alloc::vec::Vec;
+    use alloc::string::String;
     use codec::{Decode, Encode};
     use core::fmt::Debug;
 
@@ -38,6 +39,8 @@ pub mod messaging {
 
     // Messages: Lottery
 
+
+    bind_topic!(Lottery, b"^phala/BridgeTransfer");
     #[derive(Encode, Decode, Clone, Debug)]
     pub enum Lottery {
         SignedTx {
@@ -50,7 +53,20 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(Lottery, b"^phala/BridgeTransfer");
+    bind_topic!(LotteryCommand, b"phala/lottery/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum LotteryCommand {
+        SubmitUtxo {
+            round_id: u32,
+            address: String,
+            utxo: (Txid, u32, u64),
+        },
+        SetAdmin {
+            new_admin: String,
+        },
+    }
+
+    pub type Txid = [u8; 32];
 }
 
 // Messages: System

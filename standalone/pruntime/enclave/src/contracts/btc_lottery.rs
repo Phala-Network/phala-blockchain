@@ -34,7 +34,7 @@ use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTx
 use bitcoin_hashes::Hash as _;
 
 use chain::pallet_bridge_transfer::LotteryEvent;
-use phala_types::messaging::Lottery;
+use phala_types::messaging::{Lottery, LotteryCommand as Command, Txid};
 
 use super::NativeContext;
 
@@ -63,31 +63,6 @@ impl core::fmt::Debug for BtcLottery {
         write!(f, "Hi")
     }
 }
-
-// TODO.kevin: this is a workarond for SCALE encoding bitcoin::Txid
-#[derive(Encode, Decode, Debug, Serialize, Deserialize, Clone, Copy)]
-pub struct Txid([u8; 32]);
-
-impl From<Txid> for BtcTxid {
-    fn from(txid: Txid) -> Self {
-        BtcTxid::from_inner(txid.0)
-    }
-}
-
-#[derive(Encode, Decode, Debug)]
-pub enum Command {
-    SubmitUtxo {
-        round_id: u32,
-        address: String,
-        utxo: (Txid, u32, u64),
-    },
-    SetAdmin {
-        new_admin: String,
-    },
-}
-
-bind_topic!(Command, b"phala/lottery/command");
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Error {
@@ -280,7 +255,7 @@ impl BtcLottery {
                 let mut tx = Transaction {
                     input: vec![TxIn {
                         previous_output: OutPoint {
-                            txid: Into::into(*txid),
+                            txid: BtcTxid::from_inner(*txid),
                             vout: *vout,
                         },
                         sequence: RBF,
