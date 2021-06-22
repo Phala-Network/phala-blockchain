@@ -22,6 +22,8 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+mod msg_routing;
+
 use sp_std::prelude::*;
 use frame_support::{
 	construct_runtime, parameter_types, RuntimeDebug,
@@ -1070,7 +1072,7 @@ impl pallet_registry::Config for Runtime {
 }
 impl pallet_mq::Config for Runtime {
 	type Event = Event;
-    type QueueNotifyConfig = ();
+    type QueueNotifyConfig = msg_routing::MessageRouteConfig<Self>;
 }
 
 construct_runtime!(

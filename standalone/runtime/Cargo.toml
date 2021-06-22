@@ -17,6 +17,7 @@ codec = { package = "parity-scale-codec", version = "2.1", default-features = fa
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.1", optional = true }
 log = { version = "0.4.14", default-features = false }
+phala-types = { default-features = false, path = "../../common/types" }
 
 # primitives
 sp-authority-discovery = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/authority-discovery" }

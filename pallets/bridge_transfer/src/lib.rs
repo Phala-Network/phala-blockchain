@@ -193,7 +193,7 @@ impl<T: Config> Module<T> {
 }
 
 impl<T: Config> OnMessageReceived for Module<T> {
-	fn on_message_received(_origin: &MessageOrigin, message: &Message) -> DispatchResult {
+	fn on_message_received(message: &Message) -> DispatchResult {
 		// Dest chain 0 is EVM chain, and 1 is ourself
 		let output: Lottery = message.decode_payload().ok_or(Error::<T>::InvalidPayload)?;
 		Self::lottery_output(&output, 0)

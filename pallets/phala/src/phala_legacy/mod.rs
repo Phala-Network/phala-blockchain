@@ -64,7 +64,7 @@ pub trait OnRoundEnd {
 impl OnRoundEnd for () {}
 
 pub trait OnMessageReceived {
-	fn on_message_received(_origin: &MessageOrigin, _message: &Message) -> DispatchResult {
+	fn on_message_received(_message: &Message) -> DispatchResult {
 		Ok(())
 	}
 }
@@ -661,37 +661,8 @@ decl_module! {
 			Ok(())
 		}
 
-		#[weight = 0]
-		fn sync_lottery_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
-			// TODO: refacter as a generic message queue.
-
-			// This is a specialized Contract-to-Chain message passing where the confidential
-			// contract is always BtcLottery (id = 7)
-			// Anyone can call this method. As long as the message meets all the requirements
-			// (signature, sequence id, etc), it's considered as a valid message.
-			const CONTRACT_ID: u32 = 7;
-			ensure_signed(origin)?;
-			let signed_msg: SignedMessage
-				= Decode::decode(&mut &msg[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Check sequence
-			let sequence = IngressSequence::get(CONTRACT_ID);
-			ensure!(signed_msg.sequence == sequence, Error::<T>::BadMessageSequence);
-			// Contract key
-			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
-			let pubkey = ContractKey::get(CONTRACT_ID);
-			// Validate TEE signature
-			Self::verify_signature(&pubkey, &signed_msg)?;
-			// Call the handler
-			let msg_origin = MessageOrigin::native_contract(CONTRACT_ID);
-			T::OnLotteryMessage::on_message_received(&msg_origin, &signed_msg.message)?;
-			// Announce the successful execution
-			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::deposit_event(RawEvent::LotteryMessageReceived(sequence));
-			Ok(())
-		}
 
 		// Violence
-
 		#[weight = 0]
 		fn report_offline(
 			origin, stash: T::AccountId, block_num: T::BlockNumber
