@@ -218,7 +218,7 @@ where
         loop {
             let ok = phala_mq::select! {
                 next_cmd = self.cmd_rcv_mq => match next_cmd {
-                    Ok(Some((_seq, cmd, origin))) => {
+                    Ok(Some((_, cmd, origin))) => {
                         // TODO.kevin: allow all kind of origin to send commands to contract?
                         if let MessageOrigin::AccountId(id) = origin.clone() {
                             let status = self.contract.handle_command(&context, origin, cmd.command);
@@ -241,7 +241,7 @@ where
                     }
                 },
                 next_event = self.event_rcv_mq => match next_event {
-                    Ok(Some((_seq, event, origin))) => {
+                    Ok(Some((_, event, origin))) => {
                         self.contract.handle_event(&context, origin, event);
                     }
                     Ok(None) => {}

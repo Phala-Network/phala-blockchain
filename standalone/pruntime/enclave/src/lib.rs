@@ -1456,7 +1456,7 @@ fn handle_events(
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
 
-    state.recv_mq.reset_sequence();
+    state.recv_mq.reset_local_index();
 
     for evt in events {
         if let chain::Event::Phala(pe) = &evt.event {

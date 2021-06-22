@@ -17,7 +17,7 @@ impl Seq for (u64, Message) {
 #[derive(Default)]
 pub struct MessageDispatcher {
     subscribers: BTreeMap<Path, Vec<Sender<(u64, Message)>>>,
-    sequence: u64,
+    local_index: u64,
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,
 }
 
@@ -27,7 +27,7 @@ impl MessageDispatcher {
     pub fn new() -> Self {
         MessageDispatcher {
             subscribers: Default::default(),
-            sequence: 0,
+            local_index: 0,
         }
     }
 
@@ -50,8 +50,8 @@ impl MessageDispatcher {
     /// Returns number of receivers dispatched to.
     pub fn dispatch(&mut self, message: Message) -> usize {
         let mut count = 0;
-        let sn = self.sequence;
-        self.sequence += 1;
+        let sn = self.local_index;
+        self.local_index += 1;
         if let Some(receivers) = self.subscribers.get_mut(message.destination.path()) {
             receivers.retain(|receiver| {
                 if let Err(error) = receiver.send((sn, message.clone())) {
@@ -68,8 +68,8 @@ impl MessageDispatcher {
         count
     }
 
-    pub fn reset_sequence(&mut self) {
-        self.sequence = 0;
+    pub fn reset_local_index(&mut self) {
+        self.local_index = 0;
     }
 }
 
@@ -105,8 +105,8 @@ impl<T: Decode> TypedReceiver<T> {
         Ok(Some((sn, typed, msg.sender)))
     }
 
-    pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
-        self.queue.peek_seq()
+    pub fn peek_ind(&self) -> Result<Option<u64>, ReceiveError> {
+        self.queue.peek_ind()
     }
 }
 
@@ -128,7 +128,7 @@ macro_rules! select {
         let mut min_ind = 0;
         let mut ind = 0;
         $({
-            match $mq.peek_seq() {
+            match $mq.peek_ind() {
                 Ok(Some(sn)) => match min {
                     None => { min = Some(sn); min_ind = ind; }
                     Some(old) if sn < old => { min = Some(sn); min_ind = ind; }

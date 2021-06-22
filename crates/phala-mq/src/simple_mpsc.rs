@@ -94,7 +94,7 @@ impl<T> Receiver<T> {
 }
 
 impl<T: Seq> Receiver<T> {
-    pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
+    pub fn peek_ind(&self) -> Result<Option<u64>, ReceiveError> {
         let ch = self.0.lock();
         if let Some(value) = ch.deque.get(0) {
             return Ok(Some(value.seq()));

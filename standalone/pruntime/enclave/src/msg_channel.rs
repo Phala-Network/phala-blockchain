@@ -256,8 +256,8 @@ pub mod osp {
                 Ok(Some((seq, msg, origin)))
             }
 
-            pub fn peek_seq(&self) -> Result<Option<u64>, ReceiveError> {
-                self.receiver.peek_seq()
+            pub fn peek_ind(&self) -> Result<Option<u64>, ReceiveError> {
+                self.receiver.peek_ind()
             }
         }
     }
