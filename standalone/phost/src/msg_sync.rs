@@ -3,7 +3,7 @@ use phala_types::messaging::{MessageOrigin, SignedMessage};
 use std::cmp;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
-use log::{error, info, debug};
+use log::{error, info};
 
 use crate::chain_client::fetch_mq_ingress_seq;
 

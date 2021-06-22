@@ -3,7 +3,7 @@
 use codec::{Decode, Encode};
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, PalletInfo};
 use frame_support::{
-	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
+	decl_error, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
@@ -12,7 +12,7 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
-use phala_pallets::{pallet_phala, pallet_mq, pallet_registry};
+use phala_pallets::{pallet_phala, pallet_mq};
 
 #[cfg(test)]
 mod mock;

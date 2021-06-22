@@ -32,7 +32,7 @@ pub mod weights;
 // types
 extern crate phala_types as types;
 use types::{
-	messaging::{Message, MessageOrigin, SignedMessage},
+	messaging::Message,
 	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
 	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
 	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
