@@ -62,8 +62,8 @@ impl MessageSendQueue {
     }
 }
 
-pub use msg_handle::*;
-mod msg_handle {
+pub use msg_channel::*;
+mod msg_channel {
     use super::*;
     use crate::{types::Path, BindTopic, MessageSigner, SenderId};
     use parity_scale_codec::Encode;
