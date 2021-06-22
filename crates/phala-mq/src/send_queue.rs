@@ -4,7 +4,7 @@ use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
 #[derive(Clone, Default)]
 pub struct MessageSendQueue {
-    // Map: sender -> (sequence, messages)
+    // Map: sender -> (last sequence, messages)
     inner: Arc<Mutex<BTreeMap<SenderId, (u64, Vec<SignedMessage>)>>>,
 }
 
