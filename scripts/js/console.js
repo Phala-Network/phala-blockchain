@@ -110,6 +110,20 @@ program
         console.log(await pr.req('get_info'));
     }));
 
+program
+    .command('query <contract-id> <plain-query>')
+    .description('send a query to a confidential contract via pRuntime directly (anonymously)', {
+        'contract-id': 'confidential contract id (number)',
+        'plain-command': 'the plain query payload (string or json, depending on the definition)',
+    })
+    .action(run(async (contractId, plainQuery) => {
+        const pr = pruntimeApi();
+        const cid = parseInt(contractId);
+        const plainQueryObj = JSON.parse(plainQuery);
+        const r = await pr.query(cid, plainQueryObj);
+        console.dir(r, {depth: 3});
+    }))
+
 // pDiem related
 
 program

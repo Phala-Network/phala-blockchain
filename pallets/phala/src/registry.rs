@@ -17,7 +17,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
-	use sp_std::vec::Vec;
+	use sp_std::vec;
 
 	use phala_types::{
 		messaging::{MessageOrigin, SignedMessage},
