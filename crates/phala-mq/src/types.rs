@@ -62,8 +62,8 @@ impl MessageOrigin {
 ///
 ///    // An normal topic. Messages sent to this topic will be dispatched to off-chain subscribers
 ///    // as well as on-chain ones.
-///    let an_normal_topic = Topic::new(*b"topic path");
-///    assert!(an_normal_topic.is_offchain());
+///    let a_normal_topic = Topic::new(*b"topic path");
+///    assert!(a_normal_topic.is_offchain());
 /// ```
 ///
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Hash)]
