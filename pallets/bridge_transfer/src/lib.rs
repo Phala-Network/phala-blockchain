@@ -1,7 +1,7 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
 use codec::{Decode, Encode};
-use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, PalletInfo};
 use frame_support::{
 	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
@@ -23,8 +23,6 @@ type ResourceId = bridge::ResourceId;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-pub const MESSAGE_ORIGIN: &'static [u8] = &*b"BridgerTransfer";
 
 
 phala_types::messaging::bind_topic!(LotteryEvent, b"phala/lottery/event");
@@ -184,8 +182,13 @@ impl<T: Config> Module<T> {
 	}
 
 	fn push_message(payload: impl Encode + BindTopic) {
-		let sender = MessageOrigin::Pallet(MESSAGE_ORIGIN.to_vec());
-		pallet_mq::Pallet::<T>::push_bound_message(sender, payload);
+		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), payload);
+	}
+
+	pub fn message_origin() -> MessageOrigin  {
+		let name = <T as frame_system::Config>::PalletInfo::name::<Self>()
+			.expect("Lottery pallet should have a name");
+		MessageOrigin::Pallet(name.as_bytes().to_vec())
 	}
 }
 
