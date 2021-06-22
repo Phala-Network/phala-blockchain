@@ -33,7 +33,7 @@ use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTxid};
 use bitcoin_hashes::Hash as _;
 
-use chain::pallet_bridge_transfer::Event as BridgeTransferEvent;
+use chain::pallet_bridge_transfer::LotteryEvent;
 use phala_types::messaging::Lottery;
 
 use super::NativeContext;
@@ -332,7 +332,7 @@ impl BtcLottery {
 
 impl contracts::NativeContract for BtcLottery {
     type Cmd = Command;
-    type Event = BridgeTransferEvent;
+    type Event = LotteryEvent;
     type QReq = Request;
     type QResp = Response;
 
@@ -452,17 +452,17 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: BridgeTransferEvent) {
+    fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryEvent) {
         if origin != MessageOrigin::Pallet(bridge_transfer::MESSAGE_ORIGIN.to_vec()) {
             error!("Received trasfer event from invalid origin: {:?}", origin);
             return;
         }
         info!("Received trasfer event from {:?}", origin);
         match ce {
-            BridgeTransferEvent::LotteryNewRound(round_id, total_count, winner_count) => {
+            LotteryEvent::NewRound(round_id, total_count, winner_count) => {
                 Self::new_round(self, context.mq, round_id, total_count, winner_count)
             }
-            BridgeTransferEvent::LotteryOpenBox(round_id, token_id, btc_address) => {
+            LotteryEvent::OpenBox(round_id, token_id, btc_address) => {
                 Self::open_lottery(self, context.mq, round_id, token_id, btc_address)
             }
         }

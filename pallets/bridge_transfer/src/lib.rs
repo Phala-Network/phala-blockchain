@@ -26,6 +26,16 @@ type BalanceOf<T> =
 
 pub const MESSAGE_ORIGIN: &'static [u8] = &*b"BridgerTransfer";
 
+
+phala_types::messaging::bind_topic!(LotteryEvent, b"phala/lottery/event");
+#[derive(Decode, Encode, Debug, PartialEq, Eq, Clone)]
+pub enum LotteryEvent {
+	/// Receive command: Newround. [roundId, totalCount, winnerCount]
+	NewRound(u32, u32, u32),
+	/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
+	OpenBox(u32, u32, Vec<u8>),
+}
+
 pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 	type Event: Into<<Self as frame_system::Config>::Event>;
 
@@ -52,15 +62,6 @@ decl_storage! {
 	}
 }
 
-#[derive(Decode, Encode, Debug, PartialEq, Eq, Clone)]
-pub enum Event {
-	/// Receive command: Newround. [roundId, totalCount, winnerCount]
-	LotteryNewRound(u32, u32, u32),
-	/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
-	LotteryOpenBox(u32, u32, Vec<u8>),
-}
-
-phala_types::messaging::bind_topic!(Event, b"phala/lottery/event");
 
 decl_error! {
 	pub enum Error for Module<T: Config>{
@@ -123,7 +124,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(Event::LotteryNewRound(
+				Self::push_message(LotteryEvent::NewRound(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// totalCount
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..]).map_err(|_| Error::<T>::InvalidCommand)?)	// winnerCount
@@ -140,7 +141,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(Event::LotteryOpenBox(
+				Self::push_message(LotteryEvent::OpenBox(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// tokenId
 					metadata[13..].to_vec()						// btcAddress
@@ -155,14 +156,14 @@ decl_module! {
 		#[weight = 0]
 		fn force_lottery_new_round(origin, round_id: u32, total_count: u32, winner_count: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(Event::LotteryNewRound(round_id, total_count, winner_count));
+			Self::push_message(LotteryEvent::NewRound(round_id, total_count, winner_count));
 			Ok(())
 		}
 
 		#[weight = 0]
 		fn force_lottery_open_box(origin, round_id: u32, token_id: u32, btc_address: Vec<u8>) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(Event::LotteryOpenBox(round_id, token_id, btc_address));
+			Self::push_message(LotteryEvent::OpenBox(round_id, token_id, btc_address));
 			Ok(())
 		}
 	}
