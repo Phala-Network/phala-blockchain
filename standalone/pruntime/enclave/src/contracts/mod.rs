@@ -15,6 +15,8 @@ use phala_mq::{
     BindTopic, EcdsaMessageChannel as MessageChannel, MessageDispatcher, MessageOrigin,
     TypedReceiveError, TypedReceiver,
 };
+use phala_types::messaging::PushCommand;
+
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
@@ -75,17 +77,6 @@ pub trait Contract: Send + Sync {
         req: OpaqueQuery,
     ) -> Result<OpaqueReply, OpaqueError>;
     fn process_events(&mut self, env: &mut ExecuteEnv);
-}
-
-// TODO.kevin: move it to a seperate crate. Do we really need this type to distingush commands from events?
-#[derive(Encode, Decode, Debug)]
-pub struct PushCommand<Cmd> {
-    pub command: Cmd,
-    pub number: u64,
-}
-
-impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
-    const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
 }
 
 pub struct NativeContext<'a> {

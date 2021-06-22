@@ -36,6 +36,15 @@ pub mod messaging {
     pub use phala_mq::types::*;
     pub use phala_mq::bind_topic;
 
+    #[derive(Encode, Decode, Debug)]
+    pub struct PushCommand<Cmd> {
+        pub command: Cmd,
+        pub number: u64,
+    }
+
+    impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
+        const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
+    }
 
     // Messages: Lottery
 
