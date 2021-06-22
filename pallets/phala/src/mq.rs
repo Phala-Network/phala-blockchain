@@ -16,7 +16,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
-	use sp_runtime::AccountId32;
+	use primitive_types::H256;
 	use sp_std::vec::Vec;
 
 	#[pallet::config]
@@ -53,7 +53,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::registry::Config,
-		T: frame_system::Config<AccountId = AccountId32>,
+		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
@@ -90,8 +90,7 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn push_message(origin: OriginFor<T>, destination: Vec<u8>, payload: Vec<u8>) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
-			let origin: [u8; 32] = *origin.as_ref();
-			let sender = MessageOrigin::AccountId(origin.into());
+			let sender = MessageOrigin::AccountId(origin.into_h256());
 			let message = Message::new(sender, destination, payload);
 			Self::dispatch_message(message);
 			Ok(())
@@ -125,4 +124,21 @@ pub mod pallet {
 		fn on_message_received(_message: &Message) {}
 	}
 	impl QueueNotifyConfig for () {}
+
+	pub trait IntoH256 {
+		fn into_h256(self) -> H256;
+	}
+
+	impl IntoH256 for u32 {
+		fn into_h256(self) -> H256 {
+			H256::from_low_u64_ne(self as _)
+		}
+	}
+
+	impl IntoH256 for sp_runtime::AccountId32 {
+		fn into_h256(self) -> H256 {
+			let bytes: [u8; 32] = *self.as_ref();
+			bytes.into()
+		}
+	}
 }
