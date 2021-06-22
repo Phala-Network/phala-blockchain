@@ -1813,10 +1813,6 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
     }))
 }
 
-fn test_bridge() {
-    todo!("@Kevin")
-}
-
 fn test_parse_block() {
     let raw_block: Vec<u8> = base64::decode("iAKMDRPbdbAZ0eev9OZ1QgaAkoEnazAp6JzH2GeRFYdsR+pFUBbOaAW0+k5K+jPtsEr/P/JKJQDSobnB98Qhf8ug8HkDygkapC5T++CNvzYORIFimatwYSu/U53t66xzpQgGYXVyYSCGvagPAAAAAAVhdXJhAQEuXZ5zy2+qk+60y+/m1r0oZv/+LEiDCxMotfkvjP9aebuUVxBTmd2LCpu645AAjpRUNhqOmVuiKreUoV1aMpWLCCgEAQALoPTZAm8BQQKE/9Q1k8cV/dMcYRQavQSpn9aCLIVYhUzN45pWhOelbaJ9AU5gayhZiGwAEAthrYW6Ucm+acGAR3whdfUk17jp4NMearo4+NxR2w0VsVkEF0gQ/U6AHggnM+BZmvrhhMdSygqlAQAABAD/jq8EFRaHc2Mmyf6hfiX8UodhNpPJEpCcsiaqR5TyakgHABCl1OgA")
         .unwrap();
@@ -1883,9 +1879,6 @@ fn test_ecdh(params: TestEcdhParam) {
 }
 
 fn test(param: TestReq) -> Result<Value, Value> {
-    if param.test_bridge == Some(true) {
-        test_bridge();
-    }
     if let Some(p) = param.test_ecdh {
         test_ecdh(p);
     }
