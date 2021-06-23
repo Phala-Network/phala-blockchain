@@ -52,7 +52,7 @@ impl Default for MsgChannel {
 }
 
 pub mod osp {
-    /// OSP (Optinal Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
+    /// OSP (Optional Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
     pub use decrypt::*;
     pub use encrypt::*;
 
