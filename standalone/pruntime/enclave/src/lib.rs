@@ -77,7 +77,7 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::{storage_map_prefix_twox_64, storage_prefix};
+use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{
     AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
     DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
@@ -1395,7 +1395,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
 
                     let module_prefix = OffchainIngress::module_prefix();
                     let storage_prefix = OffchainIngress::storage_prefix();
-                    let key = storage_map_prefix_twox_64(module_prefix, storage_prefix, sender);
+                    let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
                     let sequence = local_state
                         .runtime_state
                         .get(&key)

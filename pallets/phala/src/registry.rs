@@ -44,7 +44,7 @@ pub mod pallet {
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
-	pub type TopicKey<T> = StorageMap<_, Twox64Concat, Vec<u8>, Vec<u8>>;
+	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]

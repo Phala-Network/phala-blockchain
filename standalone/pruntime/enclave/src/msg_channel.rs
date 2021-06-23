@@ -56,7 +56,7 @@ pub mod osp {
     pub use decrypt::*;
     pub use encrypt::*;
 
-    use crate::light_validation::utils::storage_map_prefix_blake2_128;
+    use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
     use crate::std::vec::Vec;
 
     use parity_scale_codec::{Decode, Encode};
@@ -271,6 +271,6 @@ pub mod osp {
         let module_prefix = TopicKey::module_prefix();
         let storage_prefix = TopicKey::storage_prefix();
 
-        storage_map_prefix_blake2_128(module_prefix, storage_prefix, &topic)
+        storage_map_prefix_blake2_128_concat(module_prefix, storage_prefix, &topic)
     }
 }
