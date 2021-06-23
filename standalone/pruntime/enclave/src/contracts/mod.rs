@@ -1,6 +1,6 @@
 use crate::Storage;
 use crate::error_msg;
-use crate::msg_channel::osp::{KeyPair, OcpMq, Peeler, PeelingReceiver, storage_prefix_for_topic_pubkey};
+use crate::msg_channel::osp::{KeyPair, OspMq, Peeler, PeelingReceiver, storage_prefix_for_topic_pubkey};
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
@@ -82,7 +82,7 @@ pub trait Contract: Send + Sync {
 pub struct NativeContext<'a> {
     pub block_number: chain::BlockNumber,
     pub mq: &'a MessageChannel,
-    pub ocp_mq: OcpMq<'a>,
+    pub ocp_mq: OspMq<'a>,
 }
 
 pub trait NativeContract {
@@ -199,7 +199,7 @@ where
         let keystore = |topic: &phala_mq::Path| {
             storage.get(&storage_prefix_for_topic_pubkey(topic))
         };
-        let ocp_mq = OcpMq::new(&self.ecdh_key, &self.send_mq, &keystore);
+        let ocp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &keystore);
         let context = NativeContext {
             block_number: env.block_number,
             mq: &self.send_mq,

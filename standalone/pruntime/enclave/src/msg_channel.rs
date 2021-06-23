@@ -95,19 +95,19 @@ pub mod osp {
             }
         }
 
-        pub struct OcpMq<'a> {
+        pub struct OspMq<'a> {
             key: &'a KeyPair,
             mq: &'a EcdsaMessageChannel,
             keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
         }
 
-        impl<'a> OcpMq<'a> {
+        impl<'a> OspMq<'a> {
             pub fn new(
                 key: &'a KeyPair,
                 mq: &'a EcdsaMessageChannel,
                 keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
             ) -> Self {
-                OcpMq { key, mq, keystore }
+                OspMq { key, mq, keystore }
             }
 
             pub fn get_pubkey(&self, topic: &Path) -> Option<Vec<u8>> {
