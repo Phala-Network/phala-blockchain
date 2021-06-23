@@ -466,13 +466,6 @@ async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
         .or(Ok(0))
 }
 
-async fn get_lottery_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::IngressSequenceStore::new(7), None)
-        .await
-        .or(Ok(0))
-}
-
 async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
     client
         .fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None)
@@ -707,7 +700,6 @@ async fn bridge(args: Args) -> Result<()> {
     // Don't just sync message if we want to wait for some block
     let mut defer_block = wait_block_until.is_some();
     let mut balance_seq = get_balances_ingress_seq(&client).await?;
-    let mut lottery_sequence = get_lottery_ingress_seq(&client).await?;
     let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
@@ -807,14 +799,10 @@ async fn bridge(args: Args) -> Result<()> {
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                // TODO: exam get_info for fast egress fetching
-                // msg_sync.maybe_sync_kitty_egress(&mut kitty_sequence).await?;
-                msg_sync
-                    .maybe_sync_lottery_egress(&mut lottery_sequence)
-                    .await?;
                 msg_sync
                     .maybe_sync_balances_egress(&mut balance_seq)
                     .await?;
+                msg_sync.maybe_sync_mq_egress().await?;
             }
         }
         if synced_blocks == 0 {

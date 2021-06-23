@@ -5396,6 +5396,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-mq"
+version = "0.1.0"
+dependencies = [
+ "derive_more",
+ "parity-scale-codec",
+ "primitive-types",
+ "sp-core",
+ "spin 0.9.1",
+]
+
+[[package]]
 name = "phala-node"
 version = "3.0.0"
 dependencies = [
@@ -5538,6 +5549,7 @@ dependencies = [
  "pallet-vesting",
  "parity-scale-codec",
  "phala-pallets",
+ "phala-types",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
@@ -5596,6 +5608,7 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec",
+ "phala-mq",
  "serde 1.0.126",
  "sp-core",
  "sp-runtime",
@@ -6335,7 +6348,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "winapi 0.3.9",
 ]
@@ -6349,7 +6362,7 @@ dependencies = [
  "cc",
  "libc",
  "once_cell",
- "spin",
+ "spin 0.5.2",
  "untrusted",
  "web-sys",
  "winapi 0.3.9",
@@ -8711,6 +8724,12 @@ name = "spin"
 version = "0.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
+
+[[package]]
+name = "spin"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f5fdd7196b4ae35a111c6dc97f9cc152ca3ea8ad744f7cb46a9f27b3ef8f2f54"
 
 [[package]]
 name = "stable_deref_trait"

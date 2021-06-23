@@ -127,7 +127,7 @@ impl Assets {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for Assets {
+impl contracts::LegacyContract<Command, Request, Response> for Assets {
     fn id(&self) -> contracts::ContractId { contracts::ASSETS }
 
     fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {

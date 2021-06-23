@@ -104,7 +104,7 @@ impl Balances {
     }
 }
 
-impl contracts::Contract<Command, Request, Response> for Balances {
+impl contracts::LegacyContract<Command, Request, Response> for Balances {
     fn id(&self) -> contracts::ContractId {
         contracts::BALANCES
     }

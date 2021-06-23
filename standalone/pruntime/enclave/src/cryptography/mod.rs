@@ -5,11 +5,12 @@ use core::fmt;
 use serde::{Deserialize, Serialize};
 
 use sp_core::crypto::Pair;
+use parity_scale_codec::{Decode, Encode};
 
 pub mod aead;
 pub mod ecdh;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct AeadCipher {
     pub iv_b64: String,
     pub cipher_b64: String,

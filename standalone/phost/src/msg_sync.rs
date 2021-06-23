@@ -1,13 +1,16 @@
 use anyhow::{anyhow, Result};
+use phala_types::messaging::{MessageOrigin, SignedMessage};
 use std::cmp;
 use codec::{Encode, Decode};
 use core::marker::PhantomData;
 use log::{error, info};
 
+use crate::chain_client::fetch_mq_ingress_seq;
+
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData},
+    types::{ReqData, QueryRespData, TransferData, KittyTransferData, GetEgressMessagesReq},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -161,46 +164,56 @@ impl<'a> MsgSync<'a> {
         Ok(())
     }
 
-    pub async fn maybe_sync_lottery_egress(&mut self, sequence: &mut u64) -> Result<()> {
-        let query_resp = self.pr.query(7, ReqData::PendingLotteryEgress {sequence: *sequence}).await?;
-        let msg_data = match query_resp {
-            QueryRespData::PendingLotteryEgress { lottery_queue_b64 } =>
-                base64::decode(&lottery_queue_b64)
-                    .map_err(|_| Error::FailedToDecode)?,
-            _ => return Err(anyhow!(Error::FailedToDecode))
-        };
+    pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
+        // Send the query
+        let resp = self
+            .pr
+            .req_decode("get_egress_messages", GetEgressMessagesReq {})
+            .await?;
+        let messages_scl = base64::decode(&resp.messages).map_err(|_| Error::FailedToDecode)?;
+        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> =
+            Decode::decode(&mut &messages_scl[..]).map_err(|_| Error::FailedToDecode)?;
 
-        let queue: Vec<phala_types::messaging::SignedMessage> = Decode::decode(&mut &msg_data[..])
-            .map_err(|_|Error::FailedToDecode)?;
         // No pending message. We are done.
-        if queue.is_empty() {
+        if messages.is_empty() {
             return Ok(());
         }
 
         self.maybe_update_signer_nonce().await?;
 
-        let mut next_seq = *sequence;
-        for msg in &queue {
-            let msg_seq = msg.sequence;
-            if msg_seq < *sequence {
-                println!("Lottery {} has been submitted. Skipping...", msg_seq);
+        for (sender, messages) in messages {
+            if messages.is_empty() {
                 continue;
             }
-            next_seq = cmp::max(next_seq, msg_seq + 1);
-            let ret = self.client.submit(runtimes::phala::SyncLotteryMessageCall {
-                _runtime: PhantomData,
-                msg: msg.encode()
-            }, self.signer).await;
-
-            if let Err(err) = ret {
-                println!("Failed to submit tx: {:?}", err);
-                // TODO: Should we fail early?
+            let min_seq = fetch_mq_ingress_seq(self.client, sender.clone()).await?;
+            for message in messages {
+                if message.sequence < min_seq {
+                    info!("{} has been submitted. Skipping...", message.sequence);
+                    continue;
+                }
+                info!(
+                    "Submitting message: sender={:?} seq={} dest={}",
+                    sender,
+                    message.sequence,
+                    String::from_utf8_lossy(&message.message.destination.path()[..])
+                );
+                let ret = self
+                    .client
+                    .submit(
+                        runtimes::phala_mq::SyncOffchainMessageCall {
+                            _runtime: PhantomData,
+                            message,
+                        },
+                        self.signer,
+                    )
+                    .await;
+                if let Err(err) = ret {
+                    error!("Failed to submit tx: {:?}", err);
+                    // TODO: Should we fail early?
+                }
+                self.signer.increment_nonce();
             }
-            self.signer.increment_nonce();
         }
-
-        *sequence = next_seq;
-
         Ok(())
     }
 

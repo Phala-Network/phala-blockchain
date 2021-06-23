@@ -1,15 +1,28 @@
+use crate::Storage;
+use crate::error_msg;
+use crate::msg_channel::osp::{KeyPair, OspMq, Peeler, PeelingReceiver, storage_prefix_for_topic_pubkey};
 use crate::std::fmt::Debug;
 use crate::std::string::String;
+use crate::system::System;
+use crate::system::TransactionReceipt;
 
 use super::TransactionStatus;
-use crate::types::TxRef;
+use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef};
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
+use phala_mq::{
+    BindTopic, EcdsaMessageChannel as MessageChannel, MessageDispatcher, MessageOrigin,
+    TypedReceiveError, TypedReceiver,
+};
+use phala_types::messaging::PushCommand;
+
 use serde::{
     de::{self, DeserializeOwned, Visitor},
     Deserialize, Deserializer, Serialize, Serializer,
 };
+use sp_core::H256;
+use sp_runtime_interface::pass_by::PassByInner as _;
 
 pub mod assets;
 pub mod balances;
@@ -30,7 +43,7 @@ pub const DIEM: ContractId = 5;
 pub const SUBSTRATE_KITTIES: ContractId = 6;
 pub const BTC_LOTTERY: ContractId = 7;
 
-pub trait Contract<Cmd, QReq, QResp>: Serialize + DeserializeOwned + Debug
+pub trait LegacyContract<Cmd, QReq, QResp>
 where
     Cmd: Serialize + DeserializeOwned + Debug,
     QReq: Serialize + DeserializeOwned + Debug,
@@ -48,6 +61,190 @@ where
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
     fn handle_event(&mut self, _re: runtime::Event) {}
+}
+
+pub struct ExecuteEnv<'a> {
+    pub block_number: chain::BlockNumber,
+    pub system: &'a mut System,
+    pub storage: &'a Storage,
+}
+
+pub trait Contract: Send + Sync {
+    fn id(&self) -> ContractId;
+    fn handle_query(
+        &self,
+        origin: Option<&chain::AccountId>,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError>;
+    fn process_events(&mut self, env: &mut ExecuteEnv);
+}
+
+pub struct NativeContext<'a> {
+    pub block_number: chain::BlockNumber,
+    pub mq: &'a MessageChannel,
+    pub ocp_mq: OspMq<'a>,
+}
+
+pub trait NativeContract {
+    type Cmd: Decode + BindTopic + Debug;
+    type Event: Decode + BindTopic + Debug;
+    type QReq: Serialize + DeserializeOwned + Debug;
+    type QResp: Serialize + DeserializeOwned + Debug;
+
+    fn id(&self) -> ContractId;
+    fn handle_command(
+        &mut self,
+        _context: &NativeContext,
+        _origin: MessageOrigin,
+        _cmd: Self::Cmd,
+    ) -> TransactionStatus {
+        TransactionStatus::Ok
+    }
+    fn handle_event(
+        &mut self,
+        _context: &NativeContext,
+        _origin: MessageOrigin,
+        _event: Self::Event,
+    ) {
+    }
+    fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
+}
+
+pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug,
+    CmdWrp: Decode + BindTopic + Debug,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
+    Event: Decode + BindTopic + Debug,
+    EventWrp: Decode + BindTopic + Debug,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
+{
+    contract: Con,
+    send_mq: MessageChannel,
+    cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
+    event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+    ecdh_key: KeyPair,
+}
+
+impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+    NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug + Send + Sync,
+    CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
+    Event: Decode + BindTopic + Debug + Send + Sync,
+    EventWrp: Decode + BindTopic + Debug + Send + Sync,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
+    PushCommand<Cmd>: Decode + BindTopic + Debug,
+{
+    pub fn new(
+        contract: Con,
+        send_mq: MessageChannel,
+        cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
+        event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+        ecdh_key: KeyPair,
+    ) -> Self {
+        NativeCompatContract {
+            contract,
+            send_mq,
+            cmd_rcv_mq,
+            event_rcv_mq,
+            ecdh_key,
+        }
+    }
+}
+
+impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp> Contract
+    for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+where
+    Cmd: Decode + BindTopic + Debug + Send + Sync,
+    CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+    CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>> + Send + Sync,
+    Event: Decode + BindTopic + Debug + Send + Sync,
+    EventWrp: Decode + BindTopic + Debug + Send + Sync,
+    EventPlr: Peeler<Wrp = EventWrp, Msg = Event> + Send + Sync,
+    QReq: Serialize + DeserializeOwned + Debug,
+    QResp: Serialize + DeserializeOwned + Debug,
+    Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
+    PushCommand<Cmd>: Decode + BindTopic + Debug,
+{
+    fn id(&self) -> ContractId {
+        self.contract.id()
+    }
+
+    fn handle_query(
+        &self,
+        origin: Option<&runtime::AccountId>,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError> {
+        serde_json::to_value(
+            self.contract.handle_query(
+                origin,
+                deopaque_query(req)
+                    .map_err(|_| error_msg("Malformed request"))?
+                    .request,
+            ),
+        )
+        .map_err(|_| error_msg("serde_json serilize failed"))
+    }
+
+    fn process_events(&mut self, env: &mut ExecuteEnv) {
+        let storage = env.storage;
+        let key_map = |topic: &phala_mq::Path| {
+            storage.get(&storage_prefix_for_topic_pubkey(topic))
+        };
+        let ocp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
+        let context = NativeContext {
+            block_number: env.block_number,
+            mq: &self.send_mq,
+            ocp_mq,
+        };
+        loop {
+            let ok = phala_mq::select! {
+                next_cmd = self.cmd_rcv_mq => match next_cmd {
+                    Ok(Some((_, cmd, origin))) => {
+                        // TODO.kevin: allow all kind of origin to send commands to contract?
+                        if let MessageOrigin::AccountId(id) = origin.clone() {
+                            let status = self.contract.handle_command(&context, origin, cmd.command);
+                            env.system.add_receipt(
+                                cmd.number,
+                                TransactionReceipt {
+                                    account: id.into(),
+                                    block_num: env.block_number,
+                                    contract_id: self.id(),
+                                    status,
+                                },
+                            );
+                        } else {
+                            error!("Received command from invalid origin: {:?}", origin);
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        error!("Read command failed: {:?}", e);
+                    }
+                },
+                next_event = self.event_rcv_mq => match next_event {
+                    Ok(Some((_, event, origin))) => {
+                        self.contract.handle_event(&context, origin, event);
+                    }
+                    Ok(None) => {}
+                    Err(e) => {
+                        error!("Read event failed: {:?}", e);
+                    },
+                },
+            };
+            if ok.is_none() {
+                break;
+            }
+        }
+    }
 }
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
@@ -127,8 +324,8 @@ pub mod serde_anyhow {
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Encode, Decode)]
 pub struct AccountIdWrapper(pub chain::AccountId);
 
-impl<'a> AccountIdWrapper {
-    fn try_from(b: &'a [u8]) -> Result<Self> {
+impl AccountIdWrapper {
+    fn try_from(b: &[u8]) -> Result<Self> {
         let mut a = AccountIdWrapper::default();
         use core::convert::TryFrom;
         a.0 = sp_core::crypto::AccountId32::try_from(b)
@@ -143,6 +340,12 @@ impl<'a> AccountIdWrapper {
     }
     fn to_string(&self) -> String {
         hex::encode(&self.0)
+    }
+}
+
+impl From<H256> for AccountIdWrapper {
+    fn from(hash: H256) -> Self {
+        Self((*hash.inner()).into())
     }
 }
 

@@ -27,12 +27,16 @@ use sgx_tseal::SgxSealedData;
 use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
+use crate::light_validation::LightValidation;
+use crate::msg_channel::osp::{KeyPair, PeelingReceiver};
+use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
 use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
+
 use anyhow::{anyhow, Context, Result};
 use core::convert::TryInto;
 use frame_system::EventRecord;
@@ -51,7 +55,10 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-use phala_pallets::pallet_phala as phala;
+use crate::contracts::Contract as _;
+use enclave_api::actions::*;
+use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_pallets::{pallet_mq, pallet_phala as phala};
 use phala_types::{
     pruntime::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
@@ -70,10 +77,10 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::storage_prefix;
+use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{
-    AccountIdWrapper, Contract, ContractId, ASSETS, BALANCES, BTC_LOTTERY, DATA_PLAZA, DIEM,
-    SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
+    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
+    DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -163,7 +170,6 @@ pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
-#[derive(Serialize, Deserialize, Debug)]
 struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
     contract2: contracts::balances::Balances,
@@ -171,18 +177,19 @@ struct RuntimeState {
     contract4: contracts::web3analytics::Web3Analytics,
     contract5: contracts::diem::Diem,
     contract6: contracts::substrate_kitties::SubstrateKitties,
-    contract7: contracts::btc_lottery::BtcLottery,
-    #[serde(serialize_with = "se_to_b64", deserialize_with = "de_from_b64")]
+    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
     light_client: ChainLightValidation,
     main_bridge: u64,
+    send_mq: MessageSendQueue,
+    recv_mq: MessageDispatcher,
 }
 
 struct LocalState {
     initialized: bool,
     public_key: Box<PublicKey>,
     private_key: Box<SecretKey>,
-    headernum: u32,                  // the height of synced block
-    blocknum: u32,                   // the height of dispatched block
+    headernum: u32, // the height of synced block
+    blocknum: u32,  // the height of dispatched block
     block_hashes: VecDeque<(Hash, Hash)>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
@@ -240,19 +247,7 @@ fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(
 }
 
 lazy_static! {
-    static ref STATE: SgxMutex<RuntimeState> = {
-        SgxMutex::new(RuntimeState {
-            contract1: contracts::data_plaza::DataPlaza::new(),
-            contract2: contracts::balances::Balances::new(None),
-            contract3: contracts::assets::Assets::new(),
-            contract4: contracts::web3analytics::Web3Analytics::new(),
-            contract5: contracts::diem::Diem::new(),
-            contract6: contracts::substrate_kitties::SubstrateKitties::new(None),
-            contract7: contracts::btc_lottery::BtcLottery::new(None),
-            light_client: ChainLightValidation::new(),
-            main_bridge: 0
-        })
-    };
+    static ref STATE: SgxMutex<Option<RuntimeState>> = Default::default();
 
     static ref LOCAL_STATE: SgxMutex<LocalState> = {
         // Give it an uninitialized default. Will be reset when initialig pRuntime. x
@@ -661,20 +656,6 @@ fn generate_seal_key() -> [u8; 16] {
     seal_key.key
 }
 
-const ACTION_TEST: u8 = 0;
-const ACTION_INIT_RUNTIME: u8 = 1;
-const ACTION_GET_INFO: u8 = 2;
-const ACTION_DUMP_STATES: u8 = 3;
-const ACTION_LOAD_STATES: u8 = 4;
-const ACTION_SYNC_HEADER: u8 = 5;
-const ACTION_QUERY: u8 = 6;
-const ACTION_DISPATCH_BLOCK: u8 = 7;
-// Reserved: 8, 9
-const ACTION_GET_RUNTIME_INFO: u8 = 10;
-const ACTION_SET: u8 = 21;
-const ACTION_GET: u8 = 22;
-const ACTION_TEST_INK: u8 = 100;
-
 #[no_mangle]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
@@ -718,6 +699,7 @@ pub extern "C" fn ecall_handle(
                 ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
+                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
                 _ => unknown(),
             }
         }
@@ -765,11 +747,7 @@ pub extern "C" fn ecall_handle(
         } else {
             warn!("Too much output. Buffer overflow.");
         }
-        ptr::copy_nonoverlapping(
-            output_json_vec_len_ptr,
-            output_len_ptr,
-            1,
-        );
+        ptr::copy_nonoverlapping(output_json_vec_len_ptr, output_len_ptr, 1);
     }
 
     sgx_status_t::SGX_SUCCESS
@@ -949,49 +927,12 @@ fn unknown() -> Result<Value, Value> {
     }))
 }
 
-const SECRET: &[u8; 32] = b"24e3e78e1f15150cdbad02f3205f6dd0";
-
 fn dump_states(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let sessions = STATE.lock().unwrap();
-    let serialized = serde_json::to_string(&*sessions).unwrap();
-
-    // Your private data
-    let content = serialized.as_bytes().to_vec();
-    info!("Content to encrypt's size {}", content.len());
-    debug!("{}", serialized);
-
-    // Ring uses the same input variable as output
-    let mut in_out = content.clone();
-    info!("in_out len {}", in_out.len());
-
-    // Random data must be used only once per encryption
-    let iv = aead::generate_iv();
-    aead::encrypt(&iv, SECRET, &mut in_out);
-
-    Ok(json!({
-        "data": hex::encode(&in_out),
-        "nonce": hex::encode(&iv)
-    }))
+    todo!("@Kevin")
 }
 
-fn load_states(input: &Map<String, Value>) -> Result<Value, Value> {
-    let nonce_vec = hex::decode(input.get("nonce").unwrap().as_str().unwrap())
-        .expect("Unable to decode nonce hex");
-    let mut in_out = hex::decode(input.get("data").unwrap().as_str().unwrap())
-        .expect("Unable to decode data hex");
-    debug!("{}", input.get("data").unwrap().as_str().unwrap());
-
-    let decrypted_data = aead::decrypt(&nonce_vec, &*SECRET, &mut in_out);
-    debug!("{}", String::from_utf8(decrypted_data.to_vec()).unwrap());
-
-    let deserialized: RuntimeState = serde_json::from_slice(decrypted_data).unwrap();
-
-    debug!("{}", serde_json::to_string_pretty(&deserialized).unwrap());
-
-    let mut sessions = STATE.lock().unwrap();
-    let _ = std::mem::replace(&mut *sessions, deserialized);
-
-    Ok(json!({}))
+fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
+    todo!("@Kevin")
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
@@ -1029,6 +970,12 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
     let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
+    let ecdh_privkey = ecdh::clone_key(
+        local_state
+            .ecdh_private_key
+            .as_ref()
+            .expect("ECDH not initizlied"),
+    );
 
     // Measure machine score
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
@@ -1091,17 +1038,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let genesis =
         light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
             .expect("Can't decode bridge_genesis_info_b64");
-    // Set up the bridge in local state
     let mut state = STATE.lock().unwrap();
-    let bridge_id = state
-        .light_client
+    let mut light_client = LightValidation::new();
+    let main_bridge = light_client
         .initialize_bridge(
             genesis.block_header,
             genesis.validator_set,
             genesis.validator_set_proof,
         )
         .expect("Bridge initialize failed");
-    state.main_bridge = bridge_id;
     let ecdsa_seed = local_state.private_key.serialize();
     let id_pair = sp_core::ecdsa::Pair::from_seed_slice(&ecdsa_seed)
         .expect("Unexpected ecdsa key error in init_runtime");
@@ -1109,9 +1054,47 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     system_state.set_id(&id_pair);
     system_state.set_machine_id(local_state.machine_id.to_vec());
-    state.contract2 = contracts::balances::Balances::new(Some(id_pair.clone()));
-    state.contract6 = contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone()));
-    state.contract7 = contracts::btc_lottery::BtcLottery::new(Some(id_pair));
+
+    let send_mq = MessageSendQueue::default();
+    let mut recv_mq = MessageDispatcher::default();
+
+    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
+        Default::default();
+
+    if local_state.dev_mode {
+        // Install contracts when running in dev_mode.
+
+        let contract7 = {
+            let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+
+            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
+            let mq = send_mq.channel(sender, id_pair.clone());
+            let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+            let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+            Box::new(contracts::NativeCompatContract::new(
+                contract,
+                mq,
+                cmd_mq,
+                evt_mq,
+                KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+            ))
+        };
+        other_contracts.insert(contract7.id(), contract7);
+    }
+
+    *state = Some(RuntimeState {
+        contract1: contracts::data_plaza::DataPlaza::new(),
+        contract2: contracts::balances::Balances::new(Some(id_pair.clone())),
+        contract3: contracts::assets::Assets::new(),
+        contract4: contracts::web3analytics::Web3Analytics::new(),
+        contract5: contracts::diem::Diem::new(),
+        contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
+        contracts: other_contracts,
+        light_client,
+        main_bridge,
+        send_mq,
+        recv_mq,
+    });
 
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
         .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
@@ -1120,9 +1103,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .map_err(|_| error_msg("Scale decode genesis state failed"))?;
 
     // Initialize other states
-    local_state
-        .runtime_state
-        .load(genesis_state.into_iter());
+    local_state.runtime_state.load(genesis_state.into_iter());
 
     info!(
         "Genesis state loaded: {:?}",
@@ -1243,10 +1224,6 @@ fn handle_execution(
             Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
-        BTC_LOTTERY => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract7.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
         _ => {
             warn!(
                 "handle_execution: Skipped unknown contract: {}",
@@ -1262,7 +1239,6 @@ fn handle_execution(
             account: AccountIdWrapper(origin),
             block_num: pos.blocknum,
             contract_id,
-            command: inner_data_string.to_string(),
             status,
         },
     );
@@ -1306,6 +1282,7 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
         accenstor_proof.reverse(); // from high to low
                                    // 4. submit to light client
         let mut state = STATE.lock().unwrap();
+        let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
         let bridge_id = state.main_bridge;
         let authority_set_change = input
             .authority_set_change_b64
@@ -1355,8 +1332,7 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
-    let all_blocks = parsed_blocks.map_err(|e| error_msg(
-        &format!("Invalid block: {:?}", e)))?;
+    let all_blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
     // Ignore processed blocks
@@ -1410,7 +1386,34 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             return Err(error_msg("State root mismatch"));
         }
         info!("New state root: {:?}", state_root);
-        local_state.runtime_state.apply_changes(state_root, transaction);
+        local_state
+            .runtime_state
+            .apply_changes(state_root, transaction);
+
+        {
+            let mut state = STATE.lock().unwrap();
+            if let Some(state) = state.as_mut() {
+                state.send_mq.purge(|sender| {
+                    use pallet_mq::StorageMapTrait as _;
+                    type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
+
+                    let module_prefix = OffchainIngress::module_prefix();
+                    let storage_prefix = OffchainIngress::storage_prefix();
+                    let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
+                    let sequence = local_state
+                        .runtime_state
+                        .get(&key)
+                        .map(|v| {
+                            u64::decode(&mut &v[..]).expect(
+                                "Decode value of OffchainIngress Failed.(This should not happen)",
+                            )
+                        })
+                        .unwrap_or(0);
+                    debug!("purging, sequence = {}", sequence);
+                    sequence
+                })
+            }
+        }
 
         let event_storage_key = storage_prefix("System", "Events");
         let events = local_state
@@ -1443,19 +1446,23 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
 
 fn handle_events(
     block_number: chain::BlockNumber,
-    mut events: Vec<u8>,
+    events: Vec<u8>,
     storage: &Storage,
     ecdh_privkey: &EcdhKey,
     dev_mode: bool,
 ) -> Result<(), Value> {
     let ref mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     // Dispatch events
     let mut events: &[u8] = events.as_ref();
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
         .map_err(|_| error_msg("Decode events error"))?;
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let mut event_handler = system.feed_event();
-    for evt in &events {
+
+    state.recv_mq.reset_local_index();
+
+    for evt in events {
         if let chain::Event::Phala(pe) = &evt.event {
             // Dispatch to system contract anyway
             event_handler
@@ -1501,10 +1508,22 @@ fn handle_events(
         } else if let chain::Event::KittyStorage(pe) = &evt.event {
             println!("pallet_kitties event: {:?}", pe);
             state.contract6.handle_event(evt.event.clone());
-        } else if let chain::Event::BridgeTransfer(pe) = &evt.event {
-            println!("pallet_bridge_transfer event: {:?}", pe);
-            state.contract7.handle_event(evt.event.clone());
+        } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
+        {
+            info!("mq dispatching message: {:?}", message);
+            state.recv_mq.dispatch(message);
         }
+    }
+
+    // TODO.kevin: Refactor the contract and mq to some kind of multi-threaded or async model.
+    //      So that we can avoid to call the process_events manually.
+    let mut env = ExecuteEnv {
+        block_number,
+        system: event_handler.system,
+        storage,
+    };
+    for contract in state.contracts.values_mut() {
+        contract.process_events(&mut env);
     }
     Ok(())
 }
@@ -1523,10 +1542,20 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let blocknum = local_state.blocknum;
     let state_root = hex::encode(&local_state.runtime_state.root());
     let machine_id = local_state.machine_id;
+    let dev_mode = local_state.dev_mode;
+    drop(local_state);
 
     let system_state = SYSTEM_STATE.lock().unwrap();
     let sys_seq_start = system_state.egress.sequence;
     let sys_len = system_state.egress.queue.len();
+    drop(system_state);
+
+    let runtime_state = STATE.lock().unwrap();
+    let pending_messages = match runtime_state.as_ref() {
+        None => 0,
+        Some(state) => state.send_mq.count_messages()
+    };
+    drop(runtime_state);
 
     Ok(json!({
         "initialized": initialized,
@@ -1536,11 +1565,12 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "blocknum": blocknum,
         "state_root": state_root,
         "machine_id": machine_id,
-        "dev_mode": local_state.dev_mode,
+        "dev_mode": dev_mode,
         "system_egress": {
             "sequence": sys_seq_start,
             "len": sys_len,
-        }
+        },
+        "pending_messages": pending_messages,
     }))
 }
 
@@ -1605,6 +1635,19 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     Ok(json!({}))
 }
 
+fn get_egress_messages() -> Result<Value, Value> {
+    let guard = STATE.lock().unwrap();
+    let messages: Vec<_> = guard
+        .as_ref()
+        .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
+        .unwrap_or(Default::default());
+    let bin_messages = Encode::encode(&messages);
+    let b64_messages = base64::encode(bin_messages);
+    Ok(json!({
+        "messages": b64_messages,
+    }))
+}
+
 fn query(q: types::SignedQuery) -> Result<Value, Value> {
     let payload_data = q.query_payload.as_bytes();
     // Validate signature
@@ -1654,6 +1697,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     };
     // Dispatch
     let mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
         DATA_PLAZA => serde_json::to_value(
@@ -1710,15 +1754,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             ),
         )
         .unwrap(),
-        BTC_LOTTERY => serde_json::to_value(
-            state.contract7.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (btc_lottery::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
         SYSTEM => {
             let mut system_state = SYSTEM_STATE.lock().unwrap();
             serde_json::to_value(
@@ -1731,7 +1766,14 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             )
             .unwrap()
         }
-        _ => return Err(Value::Null),
+        _ => {
+            let contract = state
+                .contracts
+                .get_mut(&opaque_query.contract_id)
+                .ok_or(error_msg("Contract not found"))?;
+            let response = contract.handle_query(ref_origin, opaque_query)?;
+            response
+        }
     };
     // Encrypt response if necessary
     let res_json = res.to_string();
@@ -1754,6 +1796,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
 fn get(input: &Map<String, Value>) -> Result<Value, Value> {
     let state = STATE.lock().unwrap();
+    let state = state.as_ref().ok_or(error_msg("Runtime not initialized"))?;
     let path = input.get("path").unwrap().as_str().unwrap();
 
     let data = match state.contract1.get(&path.to_string()) {
@@ -1771,6 +1814,7 @@ fn get(input: &Map<String, Value>) -> Result<Value, Value> {
 
 fn set(input: &Map<String, Value>) -> Result<Value, Value> {
     let mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let path = input.get("path").unwrap().as_str().unwrap();
     let data_b64 = input.get("data").unwrap().as_str().unwrap();
 
@@ -1781,37 +1825,6 @@ fn set(input: &Map<String, Value>) -> Result<Value, Value> {
         "path": path.to_string(),
         "data": data_b64.to_string()
     }))
-}
-
-fn test_bridge() {
-    // 1. load genesis
-    let raw_genesis = base64::decode("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAh9rd6Uku4dTja+JQVMLsOZ5GtS4nU0cdpuvgchlapeMDFwoudZe3t+PYTAU5HROaYrFX54eG2MCC8p3PTBETFAAIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAAAMoQKALhCA33I0FGiDoLZ6HBWl1uCIt+sLgUbPlfMJqUk/gukhEt6AviHkl5KFGndUmA+ClBT2kPSvmBOvZTWowWjNYfynHU6AOFjSvKwU3s/vvRg7QOrJeehLgo9nGfN91yHXkHcWLkuAUJegqkIzp2A6LPkZouRRsKgiY4Wu92V8JXrn3aSXrw2AXDYZ0c8CICTMvasQ+rEpErmfEmg+BzH19s/zJX4LP8adAWRyYW5kcGFfYXV0aG9yaXRpZXNJAQEIiNw0F9UFjsS0UD4MEuoaCom+IA/piSJCPUM0AU+msO4BAAAAAAAAANF8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAQAAAAAAAABtAYKmqACASqIhjIQMli+MpltqIZlc2FVhXCd/m9F6k9Q5u13xU3JQXHh0cmluc2ljX2luZGV4EAAAAACAc0yvcsUiYcma5kSPZKxrMxbyDufisOfMmIsX1bDxfHc=")
-        .expect("Bad bridge_genesis_innfo_b64");
-    let genesis =
-        light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
-            .expect("Can't decode bridge_genesis_info_b64");
-
-    debug!("bridge_genesis_info_b64: {:?}", genesis);
-
-    let mut state = STATE.lock().unwrap();
-    let id = state
-        .light_client
-        .initialize_bridge(
-            genesis.block_header,
-            genesis.validator_set,
-            genesis.validator_set_proof,
-        )
-        .expect("Init bridge failed; qed");
-
-    // 2. import a few blocks
-    let raw_header = base64::decode("/YNUiuLexTFhCwS9smQZzq1EggRC0DWkgGuCbyaKKSQEhrlzSqBeoaYA0f7EXN/Z0WJINIurZbvBQU/2dKyaFxA8RCHwO2aMQ+Agbl7pMtC9Yn6AH0rYW30BFRZmva2k5QgGYXVyYSAQWrUPAAAAAAVhdXJhAQFsP5YkXJ1qPXxseyMUtX5QXTQZBbIKDqYeZq1mw1f6MyROgQ3BIJpp8wCgSTlPttAQmkw4Ol4b5tJ5VaBzUd2B").unwrap();
-    let header = chain::Header::decode(&mut raw_header.as_slice()).expect("Bad block1 header; qed");
-    let justification = base64::decode("CgAAAAAAAADew4hPceq4QYh0sxLxlaq0lTl+SWKw88vuBatKPewDcwEAAAAI3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAAXWeJEfa3FLKCvN8SYsx3wBx3N78oHP4THt65DyExstiuwZpF62Ci18/8hdr4cf+jbdYkSBBeMJuL9dTUY/QzAojcNBfVBY7EtFA+DBLqGgqJviAP6YkiQj1DNAFPprDu3sOIT3HquEGIdLMS8ZWqtJU5fklisPPL7gWrSj3sA3MBAAAA8TA1VpLNnlBnetJ74i0IY/Bv6InpDTkG2q4LCy0qVPG3WQhgadGFMInCyc38vOHKKwA7X2r7FGfQmuuPlwRCA9F8LXgj6/Jg/ROPLX4n0RTAFF2Wi1/1AGEl8kFPra5pAA==").unwrap();
-
-    state
-        .light_client
-        .submit_simple_header(id, header, justification)
-        .expect("Submit first block failed; qed");
 }
 
 fn test_parse_block() {
@@ -1880,9 +1893,6 @@ fn test_ecdh(params: TestEcdhParam) {
 }
 
 fn test(param: TestReq) -> Result<Value, Value> {
-    if param.test_bridge == Some(true) {
-        test_bridge();
-    }
     if let Some(p) = param.test_ecdh {
         test_ecdh(p);
     }

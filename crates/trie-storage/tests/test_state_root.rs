@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use trie_storage::*;
 
-#[derive(Debug, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct NativeBlakeTwo256;
 
 impl Hasher for NativeBlakeTwo256 {

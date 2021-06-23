@@ -109,6 +109,7 @@ impl Session for PhalaNodeRuntime {
 }
 
 impl phala::Phala for PhalaNodeRuntime {}
+impl phala_mq::PhalaMq for PhalaNodeRuntime {}
 
 impl mining_staking::MiningStaking for PhalaNodeRuntime {}
 
@@ -318,6 +319,40 @@ pub mod phala {
         pub _runtime: PhantomData<T>,
         /// The raw message, SCALE encoded
         pub msg: Vec<u8>,
+    }
+}
+
+pub mod phala_mq {
+    use codec::Encode;
+    use core::marker::PhantomData;
+    use subxt::{balances::Balances, module, system::System, Call, Store};
+
+    use phala_types::messaging::{MessageOrigin, SignedMessage};
+
+    #[module]
+    pub trait PhalaMq: System + Balances {}
+
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct SyncOffchainMessageCall<T: PhalaMq> {
+        pub _runtime: PhantomData<T>,
+        pub message: SignedMessage,
+    }
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct OffchainIngressStore<T: PhalaMq> {
+        #[store(returns = u64)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+        pub sender: MessageOrigin,
+    }
+
+    impl<T: PhalaMq> OffchainIngressStore<T> {
+        pub fn new(sender: MessageOrigin) -> Self {
+            Self {
+                _runtime: Default::default(),
+                sender,
+            }
+        }
     }
 }
 

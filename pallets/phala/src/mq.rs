@@ -1,4 +1,5 @@
 pub use self::pallet::*;
+pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 // #[cfg(test)]
 // mod mock;
@@ -14,7 +15,9 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{Message, MessageOrigin, SignedMessage};
+	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
+	use primitive_types::H256;
+	use sp_std::vec::Vec;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -43,12 +46,14 @@ pub mod pallet {
 	pub enum Error<T> {
 		BadSender,
 		BadSequence,
+		BadDestination,
 	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::registry::Config,
+		T::AccountId: IntoH256,
 	{
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
@@ -61,6 +66,10 @@ pub mod pallet {
 			// Check sender
 			let sender = &signed_message.message.sender;
 			ensure!(sender.is_offchain(), Error::<T>::BadSender);
+
+			// Check destination
+			ensure!(signed_message.message.destination.is_valid(), Error::<T>::BadDestination);
+
 			// Check ingress sequence
 			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 			ensure!(
@@ -70,22 +79,38 @@ pub mod pallet {
 			// Validate signature
 			crate::registry::Pallet::<T>::check_message(&signed_message)?;
 			// Update ingress
-			OffchainIngress::<T>::insert(sender, expected_seq + 1);
-			// Call push_message
-			Self::push_message(signed_message.message);
+			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
+			// Call dispatch_message
+			Self::dispatch_message(signed_message.message);
+			Ok(())
+		}
+
+		// Messaging API for end user.
+		// TODO.kevin: confirm the weight
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn push_message(origin: OriginFor<T>, destination: Vec<u8>, payload: Vec<u8>) -> DispatchResult {
+			let origin = ensure_signed(origin)?;
+			let sender = MessageOrigin::AccountId(origin.into_h256());
+			let message = Message::new(sender, destination, payload);
+			Self::dispatch_message(message);
 			Ok(())
 		}
 	}
 
 	impl<T: Config> Pallet<T> {
 		/// Push a validated message to the queue
-		pub fn push_message(message: Message) {
+		pub fn dispatch_message(message: Message) {
 			// Notify subcribers
 			T::QueueNotifyConfig::on_message_received(&message);
 			// Notify the off-chain components
 			if T::QueueNotifyConfig::should_push_event(&message) {
 				Self::deposit_event(Event::OutboundMessage(message));
 			}
+		}
+
+		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+			let message = Message::new(sender, M::TOPIC, payload.encode());
+			Self::dispatch_message(message);
 		}
 	}
 
@@ -99,4 +124,27 @@ pub mod pallet {
 		fn on_message_received(_message: &Message) {}
 	}
 	impl QueueNotifyConfig for () {}
+
+	pub trait IntoH256 {
+		fn into_h256(self) -> H256;
+	}
+
+	impl IntoH256 for u32 {
+		fn into_h256(self) -> H256 {
+			H256::from_low_u64_be(self as _)
+		}
+	}
+
+	impl IntoH256 for u64 {
+		fn into_h256(self) -> H256 {
+			H256::from_low_u64_be(self)
+		}
+	}
+
+	impl IntoH256 for sp_runtime::AccountId32 {
+		fn into_h256(self) -> H256 {
+			let bytes: [u8; 32] = *self.as_ref();
+			bytes.into()
+		}
+	}
 }
