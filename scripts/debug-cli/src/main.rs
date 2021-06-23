@@ -45,6 +45,13 @@ enum Cli {
         admin: String,
         number: u64,
     },
+    EncodeLotteryUtxo {
+        round: u32,
+        address: String,
+        txid: String,
+        p0: u32,
+        p1: u64,
+    },
 }
 
 fn main() {
@@ -129,6 +136,21 @@ fn main() {
             let payload = PushCommand {
                 command: LotteryCommand::SetAdmin { new_admin: admin },
                 number
+            };
+            println!("payload: 0x{}", hex::encode(payload.encode()));
+        }
+        Cli::EncodeLotteryUtxo { round, address, txid, p0, p1 } => {
+            use phala_types::messaging::{LotteryCommand, BindTopic, PushCommand};
+            println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
+            let mut txid_buf: [u8; 32] = Default::default();
+            hex::decode_to_slice(txid, &mut txid_buf).unwrap();
+            let payload = PushCommand {
+                command: LotteryCommand::SubmitUtxo {
+                    round_id: round,
+                    address,
+                    utxo: (txid_buf, p0, p1),
+                },
+                number: 1,
             };
             println!("payload: 0x{}", hex::encode(payload.encode()));
         }
