@@ -1539,10 +1539,20 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let blocknum = local_state.blocknum;
     let state_root = hex::encode(&local_state.runtime_state.root());
     let machine_id = local_state.machine_id;
+    let dev_mode = local_state.dev_mode;
+    drop(local_state);
 
     let system_state = SYSTEM_STATE.lock().unwrap();
     let sys_seq_start = system_state.egress.sequence;
     let sys_len = system_state.egress.queue.len();
+    drop(system_state);
+
+    let runtime_state = STATE.lock().unwrap();
+    let pending_messages = match runtime_state.as_ref() {
+        None => 0,
+        Some(state) => state.send_mq.count_messages()
+    };
+    drop(runtime_state);
 
     Ok(json!({
         "initialized": initialized,
@@ -1552,11 +1562,12 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "blocknum": blocknum,
         "state_root": state_root,
         "machine_id": machine_id,
-        "dev_mode": local_state.dev_mode,
+        "dev_mode": dev_mode,
         "system_egress": {
             "sequence": sys_seq_start,
             "len": sys_len,
-        }
+        },
+        "pending_messages": pending_messages,
     }))
 }
 

@@ -52,6 +52,13 @@ impl MessageSendQueue {
         inner.get(sender).map(|x| x.1.clone()).unwrap_or(Vec::new())
     }
 
+    pub fn count_messages(&self) -> usize {
+        self.inner.lock()
+            .iter()
+            .map(|(_k, v)| v.1.len())
+            .sum()
+    }
+
     /// Purge the messages which are aready accepted on chain.
     pub fn purge(&self, next_sequence_for: impl Fn(&SenderId) -> u64) {
         let mut inner = self.inner.lock();
