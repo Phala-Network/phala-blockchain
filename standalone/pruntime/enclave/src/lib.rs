@@ -1061,22 +1061,26 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
         Default::default();
 
-    let contract7 = {
-        let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+    if local_state.dev_mode {
+        // Install contracts when running in dev_mode.
 
-        let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
-        let mq = send_mq.channel(sender, id_pair.clone());
-        let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-        let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-        Box::new(contracts::NativeCompatContract::new(
-            contract,
-            mq,
-            cmd_mq,
-            evt_mq,
-            KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
-        ))
-    };
-    other_contracts.insert(contract7.id(), contract7);
+        let contract7 = {
+            let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+
+            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
+            let mq = send_mq.channel(sender, id_pair.clone());
+            let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+            let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+            Box::new(contracts::NativeCompatContract::new(
+                contract,
+                mq,
+                cmd_mq,
+                evt_mq,
+                KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+            ))
+        };
+        other_contracts.insert(contract7.id(), contract7);
+    }
 
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
@@ -1506,7 +1510,6 @@ fn handle_events(
             state.contract6.handle_event(evt.event.clone());
         } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
         {
-            // TODO.kevin skip commands if !dev_mode
             info!("mq dispatching message: {:?}", message);
             state.recv_mq.dispatch(message);
         }
