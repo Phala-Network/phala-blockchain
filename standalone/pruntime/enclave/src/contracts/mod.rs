@@ -196,10 +196,10 @@ where
 
     fn process_events(&mut self, env: &mut ExecuteEnv) {
         let storage = env.storage;
-        let keystore = |topic: &phala_mq::Path| {
+        let key_map = |topic: &phala_mq::Path| {
             storage.get(&storage_prefix_for_topic_pubkey(topic))
         };
-        let ocp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &keystore);
+        let ocp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
         let context = NativeContext {
             block_number: env.block_number,
             mq: &self.send_mq,

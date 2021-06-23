@@ -98,20 +98,20 @@ pub mod osp {
         pub struct OspMq<'a> {
             key: &'a KeyPair,
             mq: &'a EcdsaMessageChannel,
-            keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+            key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
         }
 
         impl<'a> OspMq<'a> {
             pub fn new(
                 key: &'a KeyPair,
                 mq: &'a EcdsaMessageChannel,
-                keystore: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+                key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
             ) -> Self {
-                OspMq { key, mq, keystore }
+                OspMq { key, mq, key_map }
             }
 
             pub fn get_pubkey(&self, topic: &Path) -> Option<Vec<u8>> {
-                (self.keystore)(topic)
+                (self.key_map)(topic)
             }
 
             pub fn osp_sendto<M: Encode>(

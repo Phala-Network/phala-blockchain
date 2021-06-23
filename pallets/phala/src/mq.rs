@@ -131,13 +131,13 @@ pub mod pallet {
 
 	impl IntoH256 for u32 {
 		fn into_h256(self) -> H256 {
-			H256::from_low_u64_ne(self as _)
+			H256::from_low_u64_be(self as _)
 		}
 	}
 
 	impl IntoH256 for u64 {
 		fn into_h256(self) -> H256 {
-			H256::from_low_u64_ne(self)
+			H256::from_low_u64_be(self)
 		}
 	}
 
