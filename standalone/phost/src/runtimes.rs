@@ -211,22 +211,6 @@ pub mod phala {
     }
 
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct IngressSequenceStore<T: Phala> {
-        #[store(returns = u64)]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-        pub contract_id: u32,
-    }
-    impl<T: Phala> IngressSequenceStore<T> {
-        pub fn new(contract_id: u32) -> Self {
-            Self {
-                _runtime: Default::default(),
-                contract_id,
-            }
-        }
-    }
-
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
     pub struct MachineOwnerStore<T: Phala> {
         #[store(returns = [u8; 32])]
         /// Runtime marker.

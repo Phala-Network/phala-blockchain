@@ -452,13 +452,6 @@ async fn get_stash_account(client: &XtClient, controller: AccountId) -> Result<A
         .map_err(Into::into)
 }
 
-async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None)
-        .await
-        .or(Ok(0))
-}
-
 async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
     client
         .fetch_or_default(&runtimes::kitties::IngressSequenceStore::new(6), None)
@@ -699,7 +692,6 @@ async fn bridge(args: Args) -> Result<()> {
 
     // Don't just sync message if we want to wait for some block
     let mut defer_block = wait_block_until.is_some();
-    let mut balance_seq = get_balances_ingress_seq(&client).await?;
     let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
@@ -799,9 +791,6 @@ async fn bridge(args: Args) -> Result<()> {
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
                 msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                msg_sync
-                    .maybe_sync_balances_egress(&mut balance_seq)
-                    .await?;
                 msg_sync.maybe_sync_mq_egress().await?;
             }
         }

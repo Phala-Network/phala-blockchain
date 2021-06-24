@@ -1,10 +1,12 @@
-use crate::Storage;
 use crate::error_msg;
-use crate::msg_channel::osp::{KeyPair, OspMq, Peeler, PeelingReceiver, storage_prefix_for_topic_pubkey};
+use crate::msg_channel::osp::{
+    storage_prefix_for_topic_pubkey, KeyPair, OspMq, Peeler, PeelingReceiver,
+};
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
 use crate::system::TransactionReceipt;
+use crate::Storage;
 
 use super::TransactionStatus;
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef};
@@ -230,7 +232,6 @@ mod support {
         }
     }
 
-
     pub trait Contract: Send + Sync {
         fn id(&self) -> ContractId;
         fn handle_query(
@@ -266,7 +267,17 @@ mod support {
         fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
     }
 
-    pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+    pub struct NativeCompatContract<
+        Con,
+        Cmd,
+        CmdWrp,
+        CmdPlr,
+        Event,
+        EventWrp,
+        EventPlr,
+        QReq,
+        QResp,
+    >
     where
         Cmd: Decode + BindTopic + Debug,
         CmdWrp: Decode + BindTopic + Debug,
@@ -288,15 +299,15 @@ mod support {
     impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
         NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
     where
-        Cmd: Decode + BindTopic + Debug + Send + Sync,
-        CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+        Cmd: Decode + BindTopic + Debug,
+        CmdWrp: Decode + BindTopic + Debug,
         CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
-        Event: Decode + BindTopic + Debug + Send + Sync,
-        EventWrp: Decode + BindTopic + Debug + Send + Sync,
+        Event: Decode + BindTopic + Debug,
+        EventWrp: Decode + BindTopic + Debug,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
         QReq: Serialize + DeserializeOwned + Debug,
         QResp: Serialize + DeserializeOwned + Debug,
-        Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
+        Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
         PushCommand<Cmd>: Decode + BindTopic + Debug,
     {
         pub fn new(
@@ -352,9 +363,8 @@ mod support {
 
         fn process_events(&mut self, env: &mut ExecuteEnv) {
             let storage = env.storage;
-            let key_map = |topic: &phala_mq::Path| {
-                storage.get(&storage_prefix_for_topic_pubkey(topic))
-            };
+            let key_map =
+                |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
             let osp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
                 block_number: env.block_number,

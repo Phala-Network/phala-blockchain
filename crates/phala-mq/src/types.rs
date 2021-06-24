@@ -129,8 +129,13 @@ pub trait BindTopic {
 
 #[macro_export]
 macro_rules! bind_topic {
-    ($t: tt, $path: expr) => {
+    ($t: ident, $path: expr) => {
         impl $crate::types::BindTopic for $t {
+            const TOPIC: &'static [u8] = $path;
+        }
+    };
+    ($t: ident<$($gt: ident),+>, $path: expr) => {
+        impl<$($gt),+> $crate::types::BindTopic for $t<$($gt),+> {
             const TOPIC: &'static [u8] = $path;
         }
     }

@@ -14,19 +14,6 @@ pub mod pruntime;
 
 // Messages: Phase Wallet
 
-#[derive(Encode, Decode)]
-pub struct Transfer<AccountId, Balance> {
-    pub dest: AccountId,
-    pub amount: Balance,
-    pub sequence: u64,
-}
-
-#[derive(Encode, Decode)]
-pub struct TransferData<AccountId, Balance> {
-    pub data: Transfer<AccountId, Balance>,
-    pub signature: Vec<u8>,
-}
-
 pub mod messaging {
     use alloc::vec::Vec;
     use alloc::string::String;
@@ -46,8 +33,10 @@ pub mod messaging {
         const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
     }
 
+    // TODO.kevin:
+    //    We should create a crate for each contract just like developing apps.
+    //    Then the following types should be put in their own crates.
     // Messages: Lottery
-
 
     bind_topic!(Lottery, b"^phala/BridgeTransfer");
     #[derive(Encode, Decode, Clone, Debug)]
@@ -76,6 +65,35 @@ pub mod messaging {
     }
 
     pub type Txid = [u8; 32];
+
+
+    // Messages for Balances
+
+    bind_topic!(BalanceEvent<AccountId, Balance>, b"phala/balances/event");
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BalanceEvent<AccountId, Balance> {
+        TransferToTee(AccountId, Balance),
+    }
+
+    bind_topic!(BalanceCommand<AccountId, Balance>, b"phala/balances/command");
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BalanceCommand<AccountId, Balance> {
+        Transfer {
+            dest: AccountId,
+            value: Balance,
+        },
+        TransferToChain {
+            dest: AccountId,
+            value: Balance,
+        },
+    }
+
+    bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
+    #[derive(Encode, Decode)]
+    pub struct BalanceTransfer<AccountId, Balance> {
+        pub dest: AccountId,
+        pub amount: Balance,
+    }
 }
 
 // Messages: System
@@ -109,17 +127,6 @@ pub struct SignedWorkerMessage {
 pub trait SignedDataType<T> {
     fn raw_data(&self) -> Vec<u8>;
     fn signature(&self) -> T;
-}
-
-impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>>
-    for TransferData<AccountId, Balance>
-{
-    fn raw_data(&self) -> Vec<u8> {
-        Encode::encode(&self.data)
-    }
-    fn signature(&self) -> Vec<u8> {
-        self.signature.clone()
-    }
 }
 
 impl SignedDataType<Vec<u8>> for SignedWorkerMessage {

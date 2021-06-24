@@ -1,4 +1,5 @@
 extern crate alloc;
+use codec::Encode;
 use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
@@ -21,6 +22,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, One, Zero},
 	Permill, SaturatedConversion,
 };
+use crate::mq::{self, MessageOriginInfo};
 
 #[macro_use]
 mod benchmarking;
@@ -32,9 +34,10 @@ pub mod weights;
 // types
 extern crate phala_types as types;
 use types::{
-	messaging::Message, BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason,
-	RoundInfo, RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
-	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
+	messaging::{Message, BalanceEvent, BalanceTransfer, BindTopic, MessageOrigin},
+	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
+	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
+	WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
 };
 
 // constants
@@ -70,7 +73,7 @@ pub trait OnMessageReceived {
 impl OnMessageReceived for () {}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Config: frame_system::Config {
+pub trait Config: frame_system::Config + mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 	type TEECurrency: Currency<Self::AccountId>;
@@ -78,7 +81,6 @@ pub trait Config: frame_system::Config {
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	type WeightInfo: WeightInfo;
 	type OnRoundEnd: OnRoundEnd;
-	type OnLotteryMessage: OnMessageReceived;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour: Get<u32>; // 2 tx
@@ -236,8 +238,6 @@ decl_event!(
 	{
 		// Chain events
 		CommandPushed(AccountId, u32, Vec<u8>, u64),
-		TransferToTee(AccountId, Balance),
-		TransferToChain(AccountId, Balance, u64),
 		/// [stash, identity_key, machine_id]
 		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
 		/// [stash, machine_id]
@@ -586,36 +586,7 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			T::TEECurrency::transfer(&who, &Self::account_id(), amount, AllowDeath)
 				.map_err(|_| Error::<T>::CannotDeposit)?;
-			Self::deposit_event(RawEvent::TransferToTee(who, amount));
-			Ok(())
-		}
-
-		#[weight = T::WeightInfo::transfer_to_chain()]
-		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
-			// This is a specialized Contract-to-Chain message passing where the confidential
-			// contract is always Balances (id = 2)
-			// Anyone can call this method. As long as the message meets all the requirements
-			// (signature, sequence id, etc), it's considered as a valid message.
-			const CONTRACT_ID: u32 = 2;
-			ensure_signed(origin)?;
-			let transfer_data: TransferData<<T as frame_system::Config>::AccountId, BalanceOf<T>>
-				= Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Check sequence
-			let sequence = IngressSequence::get(CONTRACT_ID);
-			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::BadMessageSequence);
-			// Contract key
-			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
-			let pubkey = ContractKey::get(CONTRACT_ID);
-			// Validate TEE signature
-			Self::verify_signature(&pubkey, &transfer_data)?;
-			// Release funds
-			T::TEECurrency::transfer(
-				&Self::account_id(), &transfer_data.data.dest, transfer_data.data.amount,
-				AllowDeath)
-				.map_err(|_| Error::<T>::CannotWithdraw)?;
-			// Announce the successful execution
-			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest, transfer_data.data.amount, sequence + 1));
+			Self::push_message(BalanceEvent::TransferToTee(who, amount));
 			Ok(())
 		}
 
@@ -1418,6 +1389,34 @@ impl<T: Config> Module<T> {
 		Fire2::<T>::mutate(dest, |x| *x -= to_sub);
 		AccumulatedFire2::<T>::mutate(|x| *x -= to_sub);
 		to_sub
+	}
+
+	fn push_message(message: impl Encode + BindTopic) {
+		mq::Pallet::<T>::push_bound_message(Self::message_origin(), message)
+	}
+}
+
+impl<T: Config> MessageOriginInfo for Module<T> {
+	type Config = T;
+}
+
+impl<T: Config> OnMessageReceived for Module<T> {
+	fn on_message_received(message: &Message) -> DispatchResult {
+		const CONTRACT_ID: u32 = 2;
+
+		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
+			return Err(Error::<T>::InvalidContract)?;
+		}
+
+		let data: BalanceTransfer<T::AccountId, BalanceOf<T>> =
+			message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+
+		// Release funds
+		T::TEECurrency::transfer(
+			&Self::account_id(), &data.dest, data.amount,
+			AllowDeath)
+			.map_err(|_| Error::<T>::CannotWithdraw)?;
+		Ok(())
 	}
 }
 

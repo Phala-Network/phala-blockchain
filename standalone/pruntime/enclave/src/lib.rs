@@ -53,7 +53,6 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-use crate::contracts::Contract as _;
 use enclave_api::actions::*;
 use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::{pallet_mq, pallet_phala as phala};
@@ -77,8 +76,8 @@ mod utils;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{
-    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
-    DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
+    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, DATA_PLAZA, DIEM,
+    SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
 };
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
@@ -170,7 +169,6 @@ type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
-    contract2: contracts::balances::Balances,
     contract3: contracts::assets::Assets,
     contract4: contracts::web3analytics::Web3Analytics,
     contract5: contracts::diem::Diem,
@@ -1047,27 +1045,36 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     if local_state.dev_mode {
         // Install contracts when running in dev_mode.
 
-        let contract7 = {
-            let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+        macro_rules! install_contract {
+            ($id: expr, $inner: expr) => {{
+                let ecdh_privkey = ecdh::clone_key(&ecdh_privkey);
+                let sender = MessageOrigin::native_contract($id);
+                let mq = send_mq.channel(sender, id_pair.clone());
+                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let wrapped = Box::new(contracts::NativeCompatContract::new(
+                    $inner,
+                    mq,
+                    cmd_mq,
+                    evt_mq,
+                    KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+                ));
+                other_contracts.insert($id, wrapped);
+            }};
+        }
 
-            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
-            let mq = send_mq.channel(sender, id_pair.clone());
-            let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-            let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-            Box::new(contracts::NativeCompatContract::new(
-                contract,
-                mq,
-                cmd_mq,
-                evt_mq,
-                KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
-            ))
-        };
-        other_contracts.insert(contract7.id(), contract7);
+        install_contract!(
+            contracts::BTC_LOTTERY,
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+        );
+        install_contract!(
+            contracts::BALANCES,
+            contracts::balances::Balances::new()
+        );
     }
 
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
-        contract2: contracts::balances::Balances::new(Some(id_pair.clone())),
         contract3: contracts::assets::Assets::new(),
         contract4: contracts::web3analytics::Web3Analytics::new(),
         contract5: contracts::diem::Diem::new(),
@@ -1136,10 +1143,6 @@ fn handle_execution(
     let status = match contract_id {
         DATA_PLAZA => match serde_json::from_slice(inner_data.as_slice()) {
             Ok(cmd) => state.contract1.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        BALANCES => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract2.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
         ASSETS => match serde_json::from_slice(inner_data.as_slice()) {
@@ -1436,9 +1439,7 @@ fn handle_events(
                         );
                     }
                 }
-                _ => {
-                    state.contract2.handle_event(evt.event.clone());
-                }
+                _ => {}
             }
         } else if let chain::Event::KittyStorage(pe) = &evt.event {
             println!("pallet_kitties event: {:?}", pe);
@@ -1642,15 +1643,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        BALANCES => serde_json::to_value(
-            state.contract2.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (balances::Request)"))?
                     .request,
             ),
         )

@@ -5,7 +5,7 @@
 use super::*;
 
 use crate::types::{
-	RoundStats, SignedWorkerMessage, Transfer, TransferData, WorkerMessage, WorkerMessagePayload,
+	RoundStats, SignedWorkerMessage, WorkerMessage, WorkerMessagePayload,
 	WorkerStateEnum,
 };
 use crate::Pallet as PhalaPallet;
@@ -247,32 +247,6 @@ benchmarks! {
 	verify {
 		let free_balance: BalanceOf<T> = 50u32.into();
 		assert_eq!(free_balance, T::TEECurrency::free_balance(&caller));
-	}
-
-	transfer_to_chain {
-		let caller: T::AccountId = whitelisted_caller();
-		let receiver: T::AccountId = account("receiver", 0, SEED);
-
-		// let raw_sk = hex::decode("0000000000000000000000000000000000000000000000000000000000000001").unwrap();
-		let pubkey = hex::decode("0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798").unwrap();
-		// let sk = ecdsa_load_sk(&raw_sk);
-		PhalaPallet::<T>::force_set_contract_key(RawOrigin::Root.into(), 2, pubkey)?;
-		T::TEECurrency::deposit_creating(&caller, 200u32.into());
-		PhalaPallet::<T>::transfer_to_tee(RawOrigin::Signed(caller.clone()).into(), 100u32.into())?;
-		let transfer = Transfer::<T::AccountId, BalanceOf<T>> {
-			dest: receiver.clone(),
-			amount: 50u32.into(),
-			sequence: 1,
-		};
-		// let signature = ecdsa_sign(&sk, &transfer);
-
-		// use prepared signature of transfer, see fn test_mockdata_transfer_to_chain() in tests.rs
-		let data = TransferData {
-			data: transfer,
-			signature: TRANSFERDATASIG.to_vec(),
-		};
-	}: {
-		PhalaPallet::<T>::transfer_to_chain(RawOrigin::Signed(caller.clone()).into(), data.encode())?;
 	}
 	verify {
 		let free_balance: BalanceOf<T> = 50u32.into();

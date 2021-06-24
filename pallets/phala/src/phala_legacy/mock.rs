@@ -28,6 +28,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Phala: phala::{Pallet, Call, Config<T>, Storage, Event<T>},
+		PhalaMq: super::mq::{Pallet, Event},
 	}
 );
 
@@ -99,6 +100,11 @@ parameter_types! {
 	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
+impl crate::mq::Config for Test {
+    type Event = Event;
+    type QueueNotifyConfig = ();
+}
+
 impl phala::Config for Test {
 	type Event = Event;
 	type Randomness = TestRandomness<Self>;
@@ -107,7 +113,6 @@ impl phala::Config for Test {
 	type Treasury = ();
 	type WeightInfo = ();
 	type OnRoundEnd = ();
-	type OnLotteryMessage = ();
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;

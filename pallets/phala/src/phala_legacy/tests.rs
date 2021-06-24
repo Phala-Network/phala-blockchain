@@ -6,7 +6,6 @@ use frame_support::{
 	traits::{Currency, OnFinalize},
 };
 use frame_system::RawOrigin;
-use hex_literal::hex;
 use secp256k1;
 use sp_core::U256;
 use sp_runtime::traits::BadOrigin;
@@ -15,10 +14,11 @@ use assert_matches::assert_matches;
 
 use super::{mock::*, Error};
 use super::{
-	types::{BlockRewardInfo, RoundStats, Transfer, TransferData, WorkerStateEnum},
+	types::{BlockRewardInfo, RoundStats, WorkerStateEnum},
 	RawEvent,
 };
-use phala_types::PayoutReason;
+use phala_types::{PayoutReason, messaging::{Message, MessageOrigin, BalanceTransfer, Topic}};
+use crate::phala_legacy::OnMessageReceived;
 
 fn events() -> Vec<Event> {
 	let evt = System::events()
@@ -263,28 +263,6 @@ fn test_remove_mrenclave_works() {
 	});
 }
 
-#[test]
-fn test_verify_signature() {
-	use rand;
-
-	new_test_ext().execute_with(|| {
-		let data = Transfer {
-			dest: 1u64,
-			amount: 2u128,
-			sequence: 3u64,
-		};
-
-		let mut prng = rand::rngs::OsRng::default();
-		let sk = secp256k1::SecretKey::random(&mut prng);
-		let pk = secp256k1::PublicKey::from_secret_key(&sk);
-		let serialized_pk = pk.serialize_compressed().to_vec();
-		let signature = ecdsa_sign(&sk, &data);
-		let transfer_data = super::TransferData { data, signature };
-
-		let actual = Phala::verify_signature(&serialized_pk, &transfer_data);
-		assert_eq!(true, actual.is_ok());
-	});
-}
 
 #[test]
 fn test_force_register_worker() {
@@ -349,16 +327,6 @@ fn test_mine() {
 #[test]
 fn test_transfer() {
 	new_test_ext().execute_with(|| {
-		// set contract key
-		let raw_sk = hex!["0000000000000000000000000000000000000000000000000000000000000001"];
-		let pubkey =
-			hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
-		let sk = ecdsa_load_sk(&raw_sk);
-		assert_ok!(Phala::force_set_contract_key(
-			RawOrigin::Root.into(),
-			2,
-			pubkey
-		));
 		// Get some coins
 		let imbalance = Balances::deposit_creating(&1, 100);
 		drop(imbalance);
@@ -366,17 +334,14 @@ fn test_transfer() {
 		assert_ok!(Phala::transfer_to_tee(Origin::signed(1), 50));
 		assert_eq!(50, Balances::free_balance(1));
 		// transfer_to_chain
-		let transfer = Transfer::<u64, Balance> {
+		let transfer = BalanceTransfer::<u64, Balance> {
 			dest: 2u64,
 			amount: 10,
-			sequence: 1,
 		};
-		let signature = ecdsa_sign(&sk, &transfer);
-		let data = TransferData {
-			data: transfer,
-			signature,
-		};
-		assert_ok!(Phala::transfer_to_chain(Origin::signed(1), data.encode()));
+		let sender = MessageOrigin::native_contract(2);
+		let destination = Topic::new(*b"");
+		let message = Message::new(sender, destination, transfer.encode());
+		assert_ok!(Phala::on_message_received(&message));
 		// check balance
 		assert_eq!(10, Balances::free_balance(2));
 	});

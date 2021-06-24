@@ -10,7 +10,7 @@ use crate::chain_client::fetch_mq_ingress_seq;
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, TransferData, KittyTransferData, GetEgressMessagesReq},
+    types::{ReqData, QueryRespData, KittyTransferData, GetEgressMessagesReq},
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -74,46 +74,6 @@ impl<'a> MsgSync<'a> {
                 error!("Failed to submit tx: {:?}", err);
                 // TODO: Should we fail early?
                 // STATUS: worth reporting error!
-            }
-            self.signer.increment_nonce();
-        }
-        *sequence = next_seq;
-        Ok(())
-    }
-
-    /// Syncs the Balances egress messages when available
-    pub async fn maybe_sync_balances_egress(&mut self, sequence: &mut u64) -> Result<()> {
-        // Check pending messages in Balances' egress queue
-        let query_resp = self.pr.query(2, ReqData::PendingChainTransfer {sequence: *sequence}).await?;
-        let transfer_data = match query_resp {
-            QueryRespData::PendingChainTransfer { transfer_queue_b64 } =>
-                base64::decode(&transfer_queue_b64)
-                    .map_err(|_| Error::FailedToDecode)?,
-            _ => return Err(anyhow!(Error::FailedToDecode))
-        };
-        let transfer_queue: Vec<TransferData> = Decode::decode(&mut &transfer_data[..])
-            .map_err(|_|Error::FailedToDecode)?;
-        // No pending message. We are done.
-        if transfer_queue.is_empty() {
-            return Ok(());
-        }
-        // Send messages
-        self.maybe_update_signer_nonce().await?;
-        let mut next_seq = *sequence;
-        for transfer_data in &transfer_queue {
-            let msg_seq = transfer_data.data.sequence;
-            if msg_seq <= *sequence {   // This seq is 1-based
-                info!("Msg {} has been submitted. Skipping...", msg_seq);
-                continue;
-            }
-            next_seq = cmp::max(next_seq, msg_seq);
-            let ret = self.client.submit(runtimes::phala::TransferToChainCall {
-                _runtime: PhantomData,
-                data: transfer_data.encode()
-            }, self.signer).await;
-            if let Err(err) = ret {
-                error!("Failed to submit tx: {:?}", err);
-                // TODO: Should we fail early?
             }
             self.signer.increment_nonce();
         }
