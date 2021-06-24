@@ -435,10 +435,10 @@ impl contracts::NativeContract for BtcLottery {
         info!("Received trasfer event from {:?}", origin);
         match ce {
             LotteryEvent::NewRound(round_id, total_count, winner_count) => {
-                Self::new_round(self, context.mq, round_id, total_count, winner_count)
+                Self::new_round(self, context.mq(), round_id, total_count, winner_count)
             }
             LotteryEvent::OpenBox(round_id, token_id, btc_address) => {
-                Self::open_lottery(self, context.mq, round_id, token_id, btc_address)
+                Self::open_lottery(self, context.mq(), round_id, token_id, btc_address)
             }
         }
     }
