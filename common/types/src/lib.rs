@@ -193,8 +193,10 @@ pub struct Score {
 }
 
 type MachineId = [u8; 16];
-type WorkerPublicKey = [u8; 33];
-#[derive(Encode, Decode, Debug)]
+pub type WorkerPublicKey = sp_core::ecdsa::Public;
+pub type ContractPublicKey = sp_core::ecdsa::Public;
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct PRuntimeInfo {
     pub version: u32,
     pub machine_id: MachineId,
