@@ -82,7 +82,7 @@ pub trait Contract: Send + Sync {
 pub struct NativeContext<'a> {
     pub block_number: chain::BlockNumber,
     pub mq: &'a MessageChannel,
-    pub ocp_mq: OspMq<'a>,
+    pub osp_mq: OspMq<'a>,
 }
 
 pub trait NativeContract {
@@ -199,11 +199,11 @@ where
         let key_map = |topic: &phala_mq::Path| {
             storage.get(&storage_prefix_for_topic_pubkey(topic))
         };
-        let ocp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
+        let osp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
         let context = NativeContext {
             block_number: env.block_number,
             mq: &self.send_mq,
-            ocp_mq,
+            osp_mq,
         };
         loop {
             let ok = phala_mq::select! {
