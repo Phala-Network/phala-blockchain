@@ -185,11 +185,13 @@ impl<T: Config> Module<T> {
 		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), payload);
 	}
 
-	pub fn message_origin() -> MessageOrigin  {
-		let name = <T as frame_system::Config>::PalletInfo::name::<Self>()
-			.expect("Lottery pallet should have a name");
-		MessageOrigin::Pallet(name.as_bytes().to_vec())
+	pub fn message_origin() -> MessageOrigin {
+		<Self as pallet_mq::MessageOriginInfo>::message_origin()
 	}
+}
+
+impl<T: Config> pallet_mq::MessageOriginInfo for Module<T> {
+	type Config = T;
 }
 
 impl<T: Config> OnMessageReceived for Module<T> {

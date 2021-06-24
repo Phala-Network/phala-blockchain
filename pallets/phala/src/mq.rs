@@ -12,7 +12,7 @@ pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
+	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
@@ -145,6 +145,16 @@ pub mod pallet {
 		fn into_h256(self) -> H256 {
 			let bytes: [u8; 32] = *self.as_ref();
 			bytes.into()
+		}
+	}
+
+	pub trait MessageOriginInfo: Sized + 'static {
+		type Config: frame_system::Config;
+
+		fn message_origin() -> MessageOrigin {
+			let name = <<Self as MessageOriginInfo>::Config as frame_system::Config>::PalletInfo::name::<Self>()
+				.expect("Pallet should have a name");
+			MessageOrigin::Pallet(name.as_bytes().to_vec())
 		}
 	}
 }
