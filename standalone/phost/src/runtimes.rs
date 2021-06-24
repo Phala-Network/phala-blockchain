@@ -80,6 +80,8 @@ impl Runtime for PhalaNodeRuntime {
         event_type_registry.with_chain_bridge();
 
         register_default_type_sizes(event_type_registry);
+        event_type_registry
+            .register_type_size::<phala_types::messaging::Message>("PhalaMq::Message");
     }
 }
 
@@ -432,5 +434,6 @@ pub mod chain_bridge {
         #![event_alias(ChainId = u8)]
         #![event_alias(ResourceId = [u8; 32])]
         #![event_alias(DepositNonce = u64)]
+        #![event_alias(U256 = sp_core::U256)]
     }
 }
