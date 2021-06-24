@@ -41,6 +41,7 @@ max-encoded-len = { version = "3.0.0", default-features = false, path = "../../s
 # frame dependencies
 frame-executive = { version = "3.0.0", default-features = false, path = "../../substrate/frame/executive" }
 frame-benchmarking = { version = "3.1.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+frame-election-provider-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/election-provider-support" }
 frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
 frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
 frame-system-benchmarking = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system/benchmarking", optional = true }

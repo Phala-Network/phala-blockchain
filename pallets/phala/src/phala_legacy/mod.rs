@@ -731,7 +731,7 @@ decl_module! {
 		#[weight = T::WeightInfo::force_reset_fire()]
 		fn force_reset_fire(origin) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
-			Fire2::<T>::remove_all();
+			Fire2::<T>::remove_all(None);
 			AccumulatedFire2::<T>::kill();
 			Ok(())
 		}
@@ -975,7 +975,7 @@ impl<T: Config> Module<T> {
 
 	fn clear_heartbeats() {
 		// TODO: remove?
-		Heartbeats::<T>::remove_all();
+		Heartbeats::<T>::remove_all(None);
 	}
 
 	/// Slashes a worker and put it offline by force
@@ -1182,7 +1182,7 @@ impl<T: Config> Module<T> {
 			start_block: new_block,
 		});
 		Self::update_round_stats(new_round, new_online, compute_workers, new_total_power);
-		RoundWorkerStats::<T>::remove_all();
+		RoundWorkerStats::<T>::remove_all(None);
 		Self::deposit_event(RawEvent::NewMiningRound(new_round));
 	}
 
