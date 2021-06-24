@@ -14,7 +14,7 @@ fn test_send_message() {
     use phala_mq::{MessageSendQueue, MessageSigner};
     let queue = MessageSendQueue::new();
     let runtime = MessageOrigin::Pallet(b"p0".to_vec());
-    let worker0 = MessageOrigin::Worker(b"worker0".to_vec());
+    let worker0 = MessageOrigin::Worker(sp_core::ecdsa::Public::from_raw([0u8; 33]));
 
     {
         let signer = TestSigner(b"key0".to_vec());
