@@ -21,7 +21,7 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{MessageOrigin, SignedMessage},
-		Score, SignedDataType, WorkerInfo, WorkerStateEnum,
+		ContractPublicKey, PRuntimeInfo, SignedDataType, WorkerPublicKey,
 	};
 
 	#[pallet::config]
@@ -35,12 +35,11 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type WorkerState<T: Config> =
-		StorageMap<_, Twox64Concat, Vec<u8>, WorkerInfo<T::BlockNumber>>;
+	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, Vec<u8>>;
+	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, ContractPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
@@ -67,21 +66,21 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Force register a worker with the given pubkey with sudo permission
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn force_register_worker(origin: OriginFor<T>, pubkey: Vec<u8>) -> DispatchResult {
+		pub fn force_register_worker(
+			origin: OriginFor<T>,
+			pubkey: WorkerPublicKey,
+		) -> DispatchResult {
 			ensure_root(origin)?;
-			let worker_info = WorkerInfo::<T::BlockNumber> {
-				machine_id: Vec::new(), // not used
+			let worker_info = WorkerInfo {
 				pubkey: pubkey.clone(),
-				last_updated: 0,
-				state: WorkerStateEnum::Free,
-				score: Some(Score {
-					overall_score: 100,
-					features: vec![1, 4],
-				}),
-				confidence_level: 128u8,
 				runtime_version: 0,
+				last_updated: 0,
+				confidence_level: 128u8,
+				intial_score: None,
+				benchmark_start_ts: None,
+				legacy_scores: vec![1, 4],
 			};
-			WorkerState::<T>::insert(&worker_info.pubkey, &worker_info);
+			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
 			Ok(())
 		}
 
@@ -90,7 +89,7 @@ pub mod pallet {
 		pub fn force_register_contract(
 			origin: OriginFor<T>,
 			contract: H256,
-			pubkey: Vec<u8>,
+			pubkey: ContractPublicKey,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			ContractKey::<T>::insert(contract, pubkey);
@@ -108,12 +107,33 @@ pub mod pallet {
 			TopicKey::<T>::insert(topic, pubkey);
 			Ok(())
 		}
+
+		/// (called by anyone on behalf of a worker)
+		#[pallet::weight(0)]
+		pub fn register_worker(
+			origin: OriginFor<T>,
+			pruntime_info: PRuntimeInfo,
+			attestation: Attestation,
+		) -> DispatchResult {
+			panic!("unimpleneted");
+		}
+
+		/// Unbinds a worker from a miner
+		/// (called by a miner)
+		#[pallet::weight(0)]
+		pub fn miner_unbind(
+			origin: OriginFor<T>,
+			pruntime_info: PRuntimeInfo,
+			attestation: Attestation,
+		) -> DispatchResult {
+			panic!("unimpleneted");
+		}
 	}
 
 	// TODO.kevin: Move it to mq
 	impl<T: Config> Pallet<T> {
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: Vec<u8>;
+			let pubkey_copy: ContractPublicKey;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {
@@ -126,12 +146,9 @@ pub mod pallet {
 		}
 
 		fn verify_signature(
-			serialized_pk: &Vec<u8>,
+			pubkey: &WorkerPublicKey,
 			data: &impl SignedDataType<Vec<u8>>,
 		) -> DispatchResult {
-			ensure!(serialized_pk.len() == 33, Error::<T>::InvalidPubKey);
-			let pubkey = sp_core::ecdsa::Public::try_from(serialized_pk.as_slice())
-				.or(Err(Error::<T>::InvalidPubKey))?;
 			let raw_sig = data.signature();
 			ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::ecdsa::Signature::try_from(raw_sig.as_slice())
@@ -143,5 +160,28 @@ pub mod pallet {
 			);
 			Ok(())
 		}
+	}
+
+	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+	pub enum Attestation {
+		SgxIas {
+			ra_report: Vec<u8>,
+			signature: Vec<u8>,
+		},
+	}
+
+	#[derive(Encode, Decode, Default, Debug, Clone)]
+	pub struct WorkerInfo {
+		// identity
+		pubkey: WorkerPublicKey,
+		// system
+		runtime_version: u32,
+		last_updated: u64,
+		// platform
+		confidence_level: u8,
+		// scoring
+		intial_score: Option<u32>,
+		benchmark_start_ts: Option<u64>,
+		legacy_scores: Vec<u8>,
 	}
 }

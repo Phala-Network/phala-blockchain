@@ -32,9 +32,8 @@ pub mod weights;
 // types
 extern crate phala_types as types;
 use types::{
-	messaging::Message,
-	BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo,
-	RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
+	messaging::Message, BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason,
+	RoundInfo, RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
 	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
 };
 
@@ -509,7 +508,7 @@ decl_module! {
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let runtime_version = runtime_info.version;
 			let machine_id = runtime_info.machine_id.to_vec();
-			let pubkey = runtime_info.pubkey.to_vec();
+			let pubkey = runtime_info.pubkey.as_ref().to_vec();
 
 			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features, confidence_level, runtime_version)
 				.map_err(Into::into)
