@@ -4,7 +4,7 @@ use core::convert::TryInto;
 use ring::agreement::{EphemeralPrivateKey, UnparsedPublicKey};
 use ring::rand::SystemRandom;
 
-// Generates an ECDH key paiir (secp256r1)
+// Generates an ECDH key pair (secp256r1)
 pub fn generate_key() -> EphemeralPrivateKey {
     let prng = SystemRandom::new();
     let ecdh_sk =

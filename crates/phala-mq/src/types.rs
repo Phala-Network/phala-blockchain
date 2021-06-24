@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use primitive_types::H256;
+use core::hash::{Hash, Hasher};
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -9,7 +10,7 @@ pub type SenderId = MessageOrigin;
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     Pallet(Vec<u8>),
@@ -21,6 +22,13 @@ pub enum MessageOrigin {
     AccountId(H256),
     /// A remote location (parachain, etc.)
     Multilocaiton(Vec<u8>),
+}
+
+impl Hash for MessageOrigin {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        let encoded = Encode::encode(self);
+        encoded.hash(state);
+    }
 }
 
 impl MessageOrigin {
