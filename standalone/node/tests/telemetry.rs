@@ -70,7 +70,7 @@ async fn telemetry_works() {
 		}
 	});
 
-	let mut substrate = process::Command::new(cargo_bin("substrate"));
+	let mut substrate = process::Command::new(cargo_bin("phala-node"));
 
 	let mut substrate = substrate
 		.args(&["--dev", "--tmp", "--telemetry-url"])

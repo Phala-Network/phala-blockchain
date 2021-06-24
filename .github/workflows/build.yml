@@ -31,3 +31,5 @@ jobs:
       with:
         name: binaries
         path: target/release/phala-node
+    - name: Tests
+      run: cargo test --verbose

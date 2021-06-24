@@ -98,7 +98,7 @@ impl<'a> ExportImportRevertExecutor<'a> {
 		};
 
 		// Running the command and capturing the output.
-		let output = Command::new(cargo_bin("substrate"))
+		let output = Command::new(cargo_bin("phala-node"))
 			.args(&arguments)
 			.arg(&base_path)
 			.arg(&self.exported_blocks_file)
@@ -165,7 +165,7 @@ impl<'a> ExportImportRevertExecutor<'a> {
 
 	/// Runs the `revert` command.
 	fn run_revert(&self) {
-		let output = Command::new(cargo_bin("substrate"))
+		let output = Command::new(cargo_bin("phala-node"))
 			.args(&["revert", "--dev", "--pruning", "archive", "-d"])
 			.arg(&self.base_path.path())
 			.output()
@@ -188,6 +188,7 @@ impl<'a> ExportImportRevertExecutor<'a> {
 }
 
 #[test]
+#[ignore]
 fn export_import_revert() {
 	let base_path = tempdir().expect("could not create a temp dir");
 	let exported_blocks_file = base_path.path().join("exported_blocks");
