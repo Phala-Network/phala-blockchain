@@ -99,6 +99,8 @@ pub use phala_pallets::{
     pallet_phala,
     pallet_mq,
     pallet_registry,
+	pallet_mining,
+	pallet_stakepool,
 };
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
@@ -1077,6 +1079,14 @@ impl pallet_mq::Config for Runtime {
 	type Event = Event;
     type QueueNotifyConfig = msg_routing::MessageRouteConfig<Self>;
 }
+impl pallet_mining::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+impl pallet_stakepool::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -1126,6 +1136,8 @@ construct_runtime!(
         // Phala new pallets
         PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
         PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
+        PhalaMining: pallet_mining::{Pallet, Call, Event},
+        PhalaStakePool: pallet_stakepool::{Pallet, Call, Event, Storage},
 	}
 );
 

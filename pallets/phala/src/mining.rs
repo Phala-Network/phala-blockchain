@@ -1,5 +1,4 @@
 pub use self::pallet::*;
-pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 #[frame_support::pallet]
 pub mod pallet {

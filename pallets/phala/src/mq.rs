@@ -68,7 +68,10 @@ pub mod pallet {
 			ensure!(sender.is_offchain(), Error::<T>::BadSender);
 
 			// Check destination
-			ensure!(signed_message.message.destination.is_valid(), Error::<T>::BadDestination);
+			ensure!(
+				signed_message.message.destination.is_valid(),
+				Error::<T>::BadDestination
+			);
 
 			// Check ingress sequence
 			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
@@ -88,7 +91,11 @@ pub mod pallet {
 		// Messaging API for end user.
 		// TODO.kevin: confirm the weight
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn push_message(origin: OriginFor<T>, destination: Vec<u8>, payload: Vec<u8>) -> DispatchResult {
+		pub fn push_message(
+			origin: OriginFor<T>,
+			destination: Vec<u8>,
+			payload: Vec<u8>,
+		) -> DispatchResult {
 			let origin = ensure_signed(origin)?;
 			let sender = MessageOrigin::AccountId(origin.into_h256());
 			let message = Message::new(sender, destination, payload);
