@@ -168,7 +168,6 @@ type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
-    contract1: contracts::data_plaza::DataPlaza,
     contract6: contracts::substrate_kitties::SubstrateKitties,
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
     light_client: ChainLightValidation,
@@ -675,8 +674,6 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET_INFO => get_info(payload),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
-                ACTION_GET => get(payload),
-                ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
                 ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
@@ -1060,18 +1057,24 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             }};
         }
 
+        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
+        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
         install_contract!(
             contracts::BTC_LOTTERY,
             contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
         );
-        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::WEB3_ANALYTICS, contracts::web3analytics::Web3Analytics::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        install_contract!(
+            contracts::WEB3_ANALYTICS,
+            contracts::web3analytics::Web3Analytics::new()
+        );
+        install_contract!(
+            contracts::DATA_PLAZA,
+            contracts::data_plaza::DataPlaza::new()
+        );
     }
 
     *state = Some(RuntimeState {
-        contract1: contracts::data_plaza::DataPlaza::new(),
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contracts: other_contracts,
         light_client,
@@ -1135,10 +1138,6 @@ fn handle_execution(
 
     info!("handle_execution: about to call handle_command");
     let status = match contract_id {
-        DATA_PLAZA => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract1.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
         SUBSTRATE_KITTIES => match serde_json::from_slice(inner_data.as_slice()) {
             Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
@@ -1620,15 +1619,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
-        DATA_PLAZA => serde_json::to_value(
-            state.contract1.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
         SUBSTRATE_KITTIES => serde_json::to_value(
             state.contract6.handle_query(
                 ref_origin,
@@ -1676,39 +1666,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
     let res_value = serde_json::to_value(res_payload).unwrap();
     Ok(res_value)
-}
-
-fn get(input: &Map<String, Value>) -> Result<Value, Value> {
-    let state = STATE.lock().unwrap();
-    let state = state.as_ref().ok_or(error_msg("Runtime not initialized"))?;
-    let path = input.get("path").unwrap().as_str().unwrap();
-
-    let data = match state.contract1.get(&path.to_string()) {
-        Some(d) => d,
-        None => return Err(error_msg("Data doesn't exist")),
-    };
-
-    let data_b64 = base64::encode(data);
-
-    Ok(json!({
-        "path": path.to_string(),
-        "value": data_b64
-    }))
-}
-
-fn set(input: &Map<String, Value>) -> Result<Value, Value> {
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-    let path = input.get("path").unwrap().as_str().unwrap();
-    let data_b64 = input.get("data").unwrap().as_str().unwrap();
-
-    let data = base64::decode(data_b64).map_err(|_| error_msg("Failed to decode base64 data"))?;
-    state.contract1.set(path.to_string(), data);
-
-    Ok(json!({
-        "path": path.to_string(),
-        "data": data_b64.to_string()
-    }))
 }
 
 fn test(param: TestReq) -> Result<Value, Value> {

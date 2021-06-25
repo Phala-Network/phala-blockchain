@@ -11,8 +11,6 @@ pub mod actions {
     pub const ACTION_DISPATCH_BLOCK: u8 = 7;
     // Reserved: 8, 9
     pub const ACTION_GET_RUNTIME_INFO: u8 = 10;
-    pub const ACTION_SET: u8 = 21;
-    pub const ACTION_GET: u8 = 22;
     pub const ACTION_GET_EGRESS_MESSAGES: u8 = 23;
     pub const ACTION_TEST_INK: u8 = 100;
 }
