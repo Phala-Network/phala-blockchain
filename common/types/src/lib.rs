@@ -94,6 +94,28 @@ pub mod messaging {
         pub dest: AccountId,
         pub amount: Balance,
     }
+
+    // Messages for Assets
+
+    bind_topic!(AssetCommand<AccountId, Balance>, b"phala/assets/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum AssetCommand<AccountId, Balance> {
+        Issue {
+            symbol: String,
+            total: Balance
+        },
+        Destroy {
+            id: AssetId,
+        },
+        Transfer {
+            id: AssetId,
+            dest: AccountId,
+            value: Balance,
+        },
+    }
+
+    pub type AssetId = u32;
+
 }
 
 // Messages: System

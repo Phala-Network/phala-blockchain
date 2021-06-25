@@ -127,6 +127,10 @@ pub trait BindTopic {
     const TOPIC: &'static [u8];
 }
 
+impl BindTopic for () {
+    const TOPIC: &'static [u8] = b"";
+}
+
 #[macro_export]
 macro_rules! bind_topic {
     ($t: ident, $path: expr) => {

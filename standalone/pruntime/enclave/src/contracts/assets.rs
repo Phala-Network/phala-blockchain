@@ -1,5 +1,6 @@
 use anyhow::Result;
 use log::info;
+use phala_mq::MessageOrigin;
 use std::collections::{BTreeMap};
 use serde::{Serialize, Deserialize};
 use crate::std::string::String;
@@ -9,11 +10,14 @@ use core::{fmt, str};
 use crate::contracts;
 use crate::types::TxRef;
 use crate::contracts::{AccountIdWrapper};
-use super::TransactionStatus;
+use super::{NativeContext, TransactionStatus};
+use phala_types::messaging::{AssetCommand, AssetId, PushCommand};
+
+type Command = AssetCommand<chain::AccountId, chain::Balance>;
+
 
 extern crate runtime as chain;
 
-pub type AssetId = u32;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AssetMetadata {
@@ -23,6 +27,7 @@ pub struct AssetMetadata {
     symbol: String,
     id: u32
 }
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AssetMetadataBalance {
     metadata: AssetMetadata,
@@ -60,24 +65,6 @@ impl fmt::Display for Error {
             Error::Other(e) => write!(f, "{}", e),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Command {
-    Issue {
-        symbol: String,
-        #[serde(with = "super::serde_balance")]
-        total: chain::Balance
-    },
-    Destroy {
-        id: AssetId,
-    },
-    Transfer {
-        id: AssetId,
-        dest: AccountIdWrapper,
-        #[serde(with = "super::serde_balance")]
-        value: chain::Balance,
-    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -127,13 +114,30 @@ impl Assets {
     }
 }
 
-impl contracts::LegacyContract<Command, Request, Response> for Assets {
+impl contracts::NativeContract for Assets {
+    type Cmd = Command;
+    type Event = ();
+    type QReq = Request;
+    type QResp = Response;
+
+
     fn id(&self) -> contracts::ContractId { contracts::ASSETS }
 
-    fn handle_command(&mut self, origin: &chain::AccountId, txref: &TxRef, cmd: Command) -> TransactionStatus {
-        match cmd {
+
+    fn handle_command(
+            &mut self,
+            context: &NativeContext,
+            origin: MessageOrigin,
+            cmd: PushCommand<Self::Cmd>,
+        ) -> TransactionStatus {
+        let origin = match origin {
+            MessageOrigin::AccountId(acc) => acc,
+            _ => return TransactionStatus::BadOrigin,
+        };
+        
+        match cmd.command {
             Command::Issue {symbol, total} => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
                 info!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
                 if let None = self.metadata.iter().find(|(_, metadatum)| metadatum.symbol == symbol) {
@@ -158,7 +162,7 @@ impl contracts::LegacyContract<Command, Request, Response> for Assets {
                 }
             },
             Command::Destroy {id} => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
                     if metadatum.owner.to_string() == o.to_string() {
@@ -174,7 +178,8 @@ impl contracts::LegacyContract<Command, Request, Response> for Assets {
                 }
             },
             Command::Transfer {id, dest, value} => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
+                let dest = AccountIdWrapper(dest);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
@@ -196,8 +201,12 @@ impl contracts::LegacyContract<Command, Request, Response> for Assets {
                             info!("   src: {:>20} -> {:>20}", src0, src0 - value);
                             info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
+                            let txref = TxRef {
+                                blocknum: context.block_number,
+                                index: cmd.number,
+                            };
                             let tx = AssetsTx {
-                                txref: txref.clone(),
+                                txref,
                                 asset_id: id,
                                 from: o.clone(),
                                 to: dest.clone(),
@@ -228,7 +237,7 @@ impl contracts::LegacyContract<Command, Request, Response> for Assets {
         }
     }
 
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp {
         let inner = || -> Result<Response> {
             match req {
                 Request::Balance { id, account } => {

@@ -221,7 +221,7 @@ mod support {
     }
 
     pub struct NativeContext<'a> {
-        block_number: chain::BlockNumber,
+        pub block_number: chain::BlockNumber,
         mq: &'a MessageChannel,
         osp_mq: OspMq<'a>,
     }
