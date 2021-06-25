@@ -34,7 +34,7 @@ use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTx
 use bitcoin_hashes::Hash as _;
 
 use chain::pallet_bridge_transfer::LotteryEvent;
-use phala_types::messaging::{Lottery, LotteryCommand as Command, Txid};
+use phala_types::messaging::{Lottery, LotteryCommand as Command, PushCommand, Txid};
 
 use super::NativeContext;
 
@@ -320,13 +320,14 @@ impl contracts::NativeContract for BtcLottery {
         &mut self,
         _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: Command,
+        cmd: PushCommand<Command>,
     ) -> TransactionStatus {
         let origin: chain::AccountId = match origin {
             MessageOrigin::AccountId(id) => (*id.inner()).into(),
             _ => return TransactionStatus::BadOrigin,
         };
-        match cmd {
+
+        match cmd.command {
             Command::SubmitUtxo {
                 round_id,
                 address,

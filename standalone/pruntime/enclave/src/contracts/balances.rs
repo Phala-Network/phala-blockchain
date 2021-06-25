@@ -15,7 +15,7 @@ use crate::contracts::{AccountIdWrapper, NativeContext};
 use crate::TransactionStatus;
 extern crate runtime as chain;
 
-use phala_types::messaging::{BalanceCommand, BalanceEvent, BalanceTransfer};
+use phala_types::messaging::{BalanceCommand, BalanceEvent, BalanceTransfer, PushCommand};
 
 type Command = BalanceCommand<chain::AccountId, chain::Balance>;
 type Event = BalanceEvent<chain::AccountId, chain::Balance>;
@@ -82,14 +82,14 @@ impl contracts::NativeContract for Balances {
         &mut self,
         context: &NativeContext,
         origin: MessageOrigin,
-        cmd: Command,
+        cmd: PushCommand<Command>,
     ) -> TransactionStatus {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
             _ => return TransactionStatus::BadOrigin,
         };
 
-        let status = match cmd {
+        let status = match cmd.command {
             Command::Transfer { dest, value } => {
                 let o = AccountIdWrapper::from(origin);
                 let dest = AccountIdWrapper(dest);

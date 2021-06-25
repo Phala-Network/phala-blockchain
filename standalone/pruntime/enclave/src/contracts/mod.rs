@@ -253,7 +253,7 @@ mod support {
             &mut self,
             _context: &NativeContext,
             _origin: MessageOrigin,
-            _cmd: Self::Cmd,
+            _cmd: PushCommand<Self::Cmd>,
         ) -> TransactionStatus {
             TransactionStatus::Ok
         }
@@ -377,9 +377,10 @@ mod support {
                         Ok(Some((_, cmd, origin))) => {
                             // TODO.kevin: allow all kind of origin to send commands to contract?
                             if let MessageOrigin::AccountId(id) = origin.clone() {
-                                let status = self.contract.handle_command(&context, origin, cmd.command);
+                                let cmd_number = cmd.number;
+                                let status = self.contract.handle_command(&context, origin, cmd);
                                 env.system.add_receipt(
-                                    cmd.number,
+                                    cmd_number,
                                     TransactionReceipt {
                                         account: id.into(),
                                         block_num: env.block_number,
