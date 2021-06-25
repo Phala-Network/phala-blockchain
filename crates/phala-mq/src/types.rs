@@ -21,7 +21,7 @@ pub enum MessageOrigin {
     /// A user
     AccountId(H256),
     /// A remote location (parachain, etc.)
-    Multilocaiton(Vec<u8>),
+    MultiLocation(Vec<u8>),
 }
 
 impl Hash for MessageOrigin {
