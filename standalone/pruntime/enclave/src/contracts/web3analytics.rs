@@ -1,4 +1,4 @@
-use super::TransactionStatus;
+use super::{NativeContext, TransactionStatus};
 use crate::contracts::AccountIdWrapper;
 use crate::cryptography::aead;
 use crate::std::collections::BTreeMap;
@@ -7,10 +7,12 @@ use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
+use phala_mq::MessageOrigin;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::types::TxRef;
+use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
 
 use super::woothee;
 
@@ -135,11 +137,6 @@ impl fmt::Display for Error {
             Error::Other(e) => write!(f, "{}", e),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Command {
-    SetConfiguration { skip_stat: bool },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -896,20 +893,30 @@ impl Web3Analytics {
     }
 }
 
-impl contracts::LegacyContract<Command, Request, Response> for Web3Analytics {
+impl contracts::NativeContract for Web3Analytics {
+    type Cmd = Command;
+    type Event = ();
+    type QReq = Request;
+    type QResp = Response;
+
     fn id(&self) -> contracts::ContractId {
         contracts::WEB3_ANALYTICS
     }
 
     fn handle_command(
         &mut self,
-        origin: &chain::AccountId,
-        _txref: &TxRef,
-        cmd: Command,
+        _context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: PushCommand<Self::Cmd>,
     ) -> TransactionStatus {
-        let status = match cmd {
+        let origin = match origin {
+            MessageOrigin::AccountId(acc) => acc,
+            _ => return TransactionStatus::BadOrigin,
+        };
+
+        let status = match cmd.command {
             Command::SetConfiguration { skip_stat } => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
                 log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
 
                 if skip_stat {

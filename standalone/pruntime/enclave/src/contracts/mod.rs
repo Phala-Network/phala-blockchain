@@ -235,7 +235,7 @@ mod support {
     pub trait Contract: Send + Sync {
         fn id(&self) -> ContractId;
         fn handle_query(
-            &self,
+            &mut self,
             origin: Option<&chain::AccountId>,
             req: OpaqueQuery,
         ) -> Result<OpaqueReply, OpaqueError>;
@@ -264,7 +264,7 @@ mod support {
             _event: Self::Event,
         ) {
         }
-        fn handle_query(&self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
+        fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
     }
 
     pub struct NativeCompatContract<
@@ -346,7 +346,7 @@ mod support {
         }
 
         fn handle_query(
-            &self,
+            &mut self,
             origin: Option<&runtime::AccountId>,
             req: OpaqueQuery,
         ) -> Result<OpaqueReply, OpaqueError> {

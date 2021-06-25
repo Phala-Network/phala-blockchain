@@ -169,7 +169,6 @@ type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
     contract1: contracts::data_plaza::DataPlaza,
-    contract4: contracts::web3analytics::Web3Analytics,
     contract5: contracts::diem::Diem,
     contract6: contracts::substrate_kitties::SubstrateKitties,
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
@@ -1068,11 +1067,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         );
         install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
         install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+        install_contract!(contracts::WEB3_ANALYTICS, contracts::web3analytics::Web3Analytics::new());
     }
 
     *state = Some(RuntimeState {
         contract1: contracts::data_plaza::DataPlaza::new(),
-        contract4: contracts::web3analytics::Web3Analytics::new(),
         contract5: contracts::diem::Diem::new(),
         contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contracts: other_contracts,
@@ -1139,10 +1138,6 @@ fn handle_execution(
     let status = match contract_id {
         DATA_PLAZA => match serde_json::from_slice(inner_data.as_slice()) {
             Ok(cmd) => state.contract1.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        WEB3_ANALYTICS => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract4.handle_command(&origin, pos, cmd),
             _ => TransactionStatus::BadCommand,
         },
         DIEM => match serde_json::from_slice(inner_data.as_slice()) {
@@ -1635,15 +1630,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
                 ref_origin,
                 types::deopaque_query(opaque_query)
                     .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        WEB3_ANALYTICS => serde_json::to_value(
-            state.contract4.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (w3a::Request)"))?
                     .request,
             ),
         )

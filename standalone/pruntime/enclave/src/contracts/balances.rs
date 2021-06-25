@@ -157,7 +157,7 @@ impl contracts::NativeContract for Balances {
         status
     }
 
-    fn handle_query(&self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response> {
             match req {
                 Request::FreeBalance { account } => {

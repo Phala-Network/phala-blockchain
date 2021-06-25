@@ -116,6 +116,15 @@ pub mod messaging {
 
     pub type AssetId = u32;
 
+
+    // Messages for Web3Analytics
+
+    bind_topic!(Web3AnalyticsCommand, b"phala/web3analytics/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum Web3AnalyticsCommand {
+        SetConfiguration { skip_stat: bool },
+    }
+
 }
 
 // Messages: System
