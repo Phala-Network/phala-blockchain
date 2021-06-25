@@ -159,6 +159,22 @@ pub mod messaging {
         },
     }
 
+    // Messages for Kitties
+
+    bind_topic!(KittyEvent<AccountId, Hash>, b"phala/kitties/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum KittyEvent<AccountId, Hash> {
+		Created(AccountId, Hash),
+    }
+
+
+    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/trasfer");
+    #[derive(Debug, Clone, Encode, Decode, PartialEq)]
+    pub struct KittyTransfer<AccountId> {
+        pub dest: AccountId,
+        pub kitty_id: Vec<u8>,
+    }
+
 }
 
 // Messages: System

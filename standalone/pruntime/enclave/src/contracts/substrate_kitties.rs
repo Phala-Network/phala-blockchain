@@ -2,11 +2,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::types::TxRef;
 use crate::TransactionStatus;
 use lazy_static;
-use sp_core::crypto::Pair;
-use sp_core::ecdsa;
 use sp_core::hashing::blake2_128;
 use sp_core::H256 as Hash;
 use sp_core::U256;
@@ -19,13 +16,19 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 use rand::Rng;
 
+use super::NativeContext;
+use chain::pallet_mq::MessageOriginInfo;
+use phala_types::messaging::{bind_topic, KittyEvent, KittyTransfer, MessageOrigin, PushCommand};
+
+type Event = KittyEvent<chain::AccountId, chain::Hash>;
+type Transfer = KittyTransfer<chain::AccountId>;
+
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 // 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-const BOB: &'static str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
+// const BOB: &'static str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
 // 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
 // const CHARLIE: &'static str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
 // 5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y
-type SequenceType = u64;
 
 lazy_static! {
     // 10000...000, used to tell if this is a NFT
@@ -50,10 +53,6 @@ pub struct SubstrateKitties {
     balances: BTreeMap<(String, AccountIdWrapper), chain::Balance>,
     /// Record the boxes list which the owners own
     owned_boxes: BTreeMap<AccountIdWrapper, Vec<String>>,
-    sequence: SequenceType,
-    queue: Vec<KittyTransferData>,
-    #[serde(skip)]
-    secret: Option<ecdsa::Pair>,
     /// Record the boxes the users opened
     opend_boxes: Vec<String>,
     /// This variable records if there are kitties that not in the boxes
@@ -77,21 +76,10 @@ pub struct Kitty {
     id: Vec<u8>,
 }
 
-/// These two structs below are used for transferring messages to chain.
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct KittyTransfer {
-    dest: AccountIdWrapper,
-    kitty_id: Vec<u8>,
-    sequence: SequenceType,
-}
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
-pub struct KittyTransferData {
-    data: KittyTransfer,
-    signature: Vec<u8>,
-}
+bind_topic!(Command, b"phala/kitties/command");
 /// The commands that the contract accepts from the blockchain. Also called transactions.
 /// Commands are supposed to update the states of the contract.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Command {
     /// Pack the kitties into the corresponding blind boxes
     Pack {},
@@ -118,13 +106,7 @@ pub enum Request {
     /// Users can require to see the kitties which are not in the boxes
     ObserveLeftKitties,
     /// Users can require to know the owner of the specific box(NFT only)
-    OwnerOf {
-        blind_box_id: String,
-    },
-
-    PendingKittyTransfer {
-        sequence: SequenceType,
-    },
+    OwnerOf { blind_box_id: String },
 }
 
 /// Query responses.
@@ -142,16 +124,13 @@ pub enum Response {
     OwnerOf {
         owner: AccountIdWrapper,
     },
-    PendingKittyTransfer {
-        transfer_queue_b64: String,
-    },
     /// Something wrong happened
     Error(Error),
 }
 
 impl SubstrateKitties {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>) -> Self {
+    pub fn new() -> Self {
         let schrodingers = BTreeMap::<String, Vec<u8>>::new();
         let kitties = BTreeMap::<Vec<u8>, Kitty>::new();
         let blind_boxes = BTreeMap::<String, BlindBox>::new();
@@ -165,16 +144,18 @@ impl SubstrateKitties {
             owner,
             balances,
             owned_boxes,
-            sequence: 0,
-            queue: Vec::new(),
-            secret,
             opend_boxes: Vec::new(),
             left_kitties: Vec::new(),
         }
     }
 }
 
-impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties {
+impl contracts::NativeContract for SubstrateKitties {
+    type Cmd = Command;
+    type Event = Event;
+    type QReq = Request;
+    type QResp = Response;
+
     // Returns the contract id
     fn id(&self) -> contracts::ContractId {
         contracts::SUBSTRATE_KITTIES
@@ -183,18 +164,23 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
     // Handles the commands from transactions on the blockchain. This method doesn't respond.
     fn handle_command(
         &mut self,
-        _origin: &chain::AccountId,
-        _txref: &TxRef,
-        cmd: Command,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: PushCommand<Self::Cmd>,
     ) -> TransactionStatus {
-        match cmd {
+        let origin = match origin {
+            MessageOrigin::AccountId(acc) => acc,
+            _ => return TransactionStatus::BadOrigin,
+        };
+
+        match cmd.command {
             // Handle the `Pack` command
             Command::Pack {} => {
                 // Create corresponding amount of kitties and blind boxes if there are
                 // indeed some kitties that need to be packed
                 if !self.left_kitties.is_empty() {
                     let mut nonce = 1;
-                    let _sender = AccountIdWrapper(_origin.clone());
+                    let _sender = AccountIdWrapper::from(origin);
                     // This indicates the token's kind, let's just suppose that 1 represents box,
                     // maybe if we introduce more tokens later, this can be formulated strictly
                     let kind = 1;
@@ -258,7 +244,7 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
             }
             Command::Transfer { dest, blind_box_id } => {
                 // TODO: check owner & dest not overflow & sender not underflow
-                let sender = AccountIdWrapper(_origin.clone());
+                let sender = AccountIdWrapper::from(origin);
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
                 let reciever = match AccountIdWrapper::from_hex(&dest) {
                     Ok(a) => a,
@@ -289,7 +275,7 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
                 TransactionStatus::Ok
             }
             Command::Open { blind_box_id } => {
-                let sender = AccountIdWrapper(_origin.clone());
+                let sender = AccountIdWrapper::from(origin);
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
                 // Open the box if it's legal and not opened yet
                 if sender == original_owner
@@ -298,35 +284,17 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
                 {
                     // Get the kitty based on blind_box_id
                     let kitty_id = self.schrodingers.get(&blind_box_id).unwrap();
-                    let sequence = self.sequence + 1;
 
                     let kitty_id = Hash::from_slice(&kitty_id);
 
                     // Queue the message to sync the owner transfer info to pallet
-                    let data = KittyTransfer {
-                        dest: sender.clone(),
+                    let data = Transfer {
+                        dest: sender.0,
                         kitty_id: kitty_id.clone().encode(),
-                        sequence,
                     };
 
                     self.opend_boxes.push(blind_box_id.clone());
-
-                    // let msg_hash = blake2_256(&Encode::encode(&data));
-                    // let mut buffer = [0u8; 32];
-                    // buffer.copy_from_slice(&msg_hash);
-                    // let message = Message::parse(&buffer);
-                    // let signature = secp256k1::sign(&message, &self.secret.as_ref().unwrap());
-
-                    let secret = self.secret.as_ref().unwrap();
-                    let signature = secret.sign(&Encode::encode(&data));
-
-                    println!("signature={:?}", signature);
-                    let transfer_data = KittyTransferData {
-                        data,
-                        signature: signature.0.to_vec(),
-                    };
-                    self.queue.push(transfer_data);
-                    self.sequence = sequence;
+                    context.mq().send(&data);
                 }
                 TransactionStatus::Ok
             }
@@ -368,18 +336,6 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
                         owner: self.owner.get(&blind_box_id).unwrap().clone(),
                     })
                 }
-                Request::PendingKittyTransfer { sequence } => {
-                    println!("PendingKittyTransfer");
-                    let transfer_queue: Vec<&KittyTransferData> = self
-                        .queue
-                        .iter()
-                        .filter(|x| x.data.sequence > sequence)
-                        .collect::<_>();
-
-                    Ok(Response::PendingKittyTransfer {
-                        transfer_queue_b64: base64::encode(&transfer_queue.encode()),
-                    })
-                }
             }
         };
         match inner() {
@@ -388,10 +344,19 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
         }
     }
 
-    fn handle_event(&mut self, ce: chain::Event) {
-        if let chain::Event::KittyStorage(pe) = ce {
-            // create_kitties() is called on the chain
-            if let chain::pallet_kitties::RawEvent::Created(account_id, kitty_id) = pe {
+    fn handle_event(
+        &mut self,
+        _context: &NativeContext,
+        origin: MessageOrigin,
+        event: Self::Event,
+    ) {
+        if origin != chain::KittyStorage::message_origin() {
+            error!("Received event from unexpected origin: {:?}", origin);
+            return;
+        }
+
+        match event {
+            KittyEvent::Created(account_id, kitty_id) => {
                 println!("Created Kitty {:?} by default owner: Kitty!!!", kitty_id);
                 let dest = AccountIdWrapper(account_id);
                 println!("   dest: {}", dest.to_string());
@@ -401,29 +366,6 @@ impl contracts::LegacyContract<Command, Request, Response> for SubstrateKitties 
                 };
                 self.kitties.insert(new_kitty_id.to_vec(), new_kitty);
                 self.left_kitties.push(new_kitty_id.to_vec());
-            } else if let chain::pallet_kitties::RawEvent::TransferToChain(
-                account_id,
-                kitty_id,
-                sequence,
-            ) = pe
-            {
-                // owner transfer info already recieved
-                println!("TransferToChain who: {:?}", account_id);
-                let new_kitty_id = format!("{:#x}", kitty_id);
-                println!("Kitty: {} is transerferred!!", new_kitty_id);
-                let transfer_data = KittyTransferData {
-                    data: KittyTransfer {
-                        dest: AccountIdWrapper(account_id),
-                        kitty_id: kitty_id.encode(),
-                        sequence,
-                    },
-                    signature: Vec::new(),
-                };
-                println!("transfer data:{:?}", transfer_data);
-                // message dequeue
-                self.queue
-                    .retain(|x| x.data.sequence > transfer_data.data.sequence);
-                println!("queue len: {:}", self.queue.len());
             }
         }
     }

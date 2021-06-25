@@ -168,7 +168,6 @@ type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
-    contract6: contracts::substrate_kitties::SubstrateKitties,
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
     light_client: ChainLightValidation,
     main_bridge: u64,
@@ -1061,6 +1060,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
         install_contract!(contracts::DIEM, contracts::diem::Diem::new());
         install_contract!(
+            contracts::SUBSTRATE_KITTIES,
+            contracts::substrate_kitties::SubstrateKitties::new()
+        );
+        install_contract!(
             contracts::BTC_LOTTERY,
             contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
         );
@@ -1075,7 +1078,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     }
 
     *state = Some(RuntimeState {
-        contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contracts: other_contracts,
         light_client,
         main_bridge,
@@ -1110,58 +1112,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     local_state.block_hashes.clear();
     local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
-}
-
-fn handle_execution(
-    system: &mut system::System,
-    state: &mut RuntimeState,
-    pos: &TxRef,
-    origin: chain::AccountId,
-    contract_id: ContractId,
-    payload: &Vec<u8>,
-    command_index: CommandIndex,
-    ecdh_privkey: &EcdhKey,
-) -> Result<()> {
-    let payload: types::Payload = serde_json::from_slice(payload.as_slice())
-        .map_err(|e| anyhow!("Failed to decode payload: {}", e))?;
-    let inner_data = match payload {
-        types::Payload::Plain(data) => data.into_bytes(),
-        types::Payload::Cipher(cipher) => {
-            cryptography::decrypt(&cipher, ecdh_privkey)
-                .context("Decrypt failed")?
-                .msg
-        }
-    };
-
-    let inner_data_string = String::from_utf8_lossy(&inner_data);
-    info!("handle_execution: incominng cmd: {}", inner_data_string);
-
-    info!("handle_execution: about to call handle_command");
-    let status = match contract_id {
-        SUBSTRATE_KITTIES => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        _ => {
-            warn!(
-                "handle_execution: Skipped unknown contract: {}",
-                contract_id
-            );
-            TransactionStatus::BadContractId
-        }
-    };
-
-    system.add_receipt(
-        command_index,
-        TransactionReceipt {
-            account: AccountIdWrapper(origin),
-            block_num: pos.blocknum,
-            contract_id,
-            status,
-        },
-    );
-
-    Ok(())
 }
 
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
@@ -1387,44 +1337,6 @@ fn handle_events(
             event_handler
                 .feed(block_number, &pe, storage)
                 .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
-            // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
-            if !dev_mode {
-                info!("handle_events: skipped for miners");
-                continue;
-            }
-            match pe {
-                phala::RawEvent::CommandPushed(who, contract_id, payload, num) => {
-                    info!(
-                        "push_command(contract_id: {}, payload: data[{}])",
-                        contract_id,
-                        payload.len()
-                    );
-                    let pos = TxRef {
-                        blocknum: block_number,
-                        index: *num,
-                    };
-                    let result = handle_execution(
-                        event_handler.system,
-                        state,
-                        &pos,
-                        who.clone(),
-                        *contract_id,
-                        payload,
-                        *num,
-                        ecdh_privkey,
-                    );
-                    if let Err(e) = result {
-                        error!(
-                            "handle_execution failed with {:?}, skipping bad command...",
-                            e
-                        );
-                    }
-                }
-                _ => {}
-            }
-        } else if let chain::Event::KittyStorage(pe) = &evt.event {
-            println!("pallet_kitties event: {:?}", pe);
-            state.contract6.handle_event(evt.event.clone());
         } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
         {
             info!("mq dispatching message: {:?}", message);
@@ -1619,15 +1531,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
-        SUBSTRATE_KITTIES => serde_json::to_value(
-            state.contract6.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (substrate_kitties::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
         SYSTEM => {
             let mut system_state = SYSTEM_STATE.lock().unwrap();
             serde_json::to_value(

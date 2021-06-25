@@ -4698,6 +4698,8 @@ dependencies = [
  "pallet-balances",
  "pallet-randomness-collective-flip",
  "parity-scale-codec",
+ "phala-pallets",
+ "phala-types",
  "serde 1.0.126",
  "sp-io",
  "sp-runtime",

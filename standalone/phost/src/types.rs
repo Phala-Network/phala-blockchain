@@ -101,16 +101,12 @@ pub struct Query {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ReqData {
-    PendingKittyTransfer { sequence: u64 },  // Kitties
     PendingLotteryEgress { sequence: u64 },  // Btc lottery
     GetWorkerEgress { start_sequence: u64 }, // System
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum QueryRespData {
-    PendingKittyTransfer {
-        transfer_queue_b64: String,
-    },
     PendingLotteryEgress {
         lottery_queue_b64: String,
     },
@@ -126,18 +122,6 @@ pub struct QueryReq {
 }
 impl Resp for QueryReq {
     type Resp = Payload;
-}
-
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct KittyTransfer {
-    pub dest: [u8; 32],
-    pub kitty_id: Vec<u8>,
-    pub sequence: u64,
-}
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct KittyTransferData {
-    pub data: KittyTransfer,
-    pub signature: Vec<u8>,
 }
 
 // API: init_runtime

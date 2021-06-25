@@ -1,22 +1,19 @@
-use core::marker::PhantomData;
-
-use super::{pallet_phala, pallet_mq};
-use phala_types::messaging::{self, Message, BindTopic, Lottery};
+use super::pallet_mq;
 use phala_pallets::phala_legacy::OnMessageReceived;
+use phala_types::messaging::{self, BindTopic, Lottery, Message};
 
 type BalanceTransfer = messaging::BalanceTransfer<super::AccountId, super::Balance>;
+type KittyTransfer = messaging::KittyTransfer<super::AccountId>;
 
-pub struct MessageRouteConfig<T>(PhantomData<T>);
+pub struct MessageRouteConfig;
 
-impl<T> pallet_mq::QueueNotifyConfig for MessageRouteConfig<T> where
-    T: pallet_phala::Config,
-{
+impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
     /// Handles an incoming message
     fn on_message_received(message: &Message) {
-
         let result = match &message.destination.path()[..] {
             Lottery::TOPIC => super::BridgeTransfer::on_message_received(message),
             BalanceTransfer::TOPIC => super::Phala::on_message_received(message),
+            KittyTransfer::TOPIC => super::KittyStorage::on_message_received(message),
             _ => Ok(()),
         };
 

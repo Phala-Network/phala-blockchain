@@ -187,7 +187,7 @@ impl contracts::NativeContract for Balances {
         origin: MessageOrigin,
         event: Self::Event,
     ) {
-        if origin != phala::Module::<chain::Runtime>::message_origin() {
+        if origin != chain::Phala::message_origin() {
             error!("Received event from unexpected origin: {:?}", origin);
             return;
         }

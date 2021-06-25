@@ -1074,7 +1074,7 @@ impl pallet_registry::Config for Runtime {
 }
 impl pallet_mq::Config for Runtime {
 	type Event = Event;
-    type QueueNotifyConfig = msg_routing::MessageRouteConfig<Self>;
+    type QueueNotifyConfig = msg_routing::MessageRouteConfig;
 }
 
 construct_runtime!(

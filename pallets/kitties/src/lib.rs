@@ -7,9 +7,10 @@ use frame_support::{
 };
 use frame_system::{self as system, ensure_signed};
 use pallet_balances as balances;
-use secp256k1;
-use sp_runtime::traits::{AccountIdConversion, Hash, Zero};
+use sp_runtime::{DispatchResult, traits::{AccountIdConversion, Hash, Zero}};
 use sp_std::prelude::*;
+use phala_pallets::{pallet_mq::{self, MessageOriginInfo}, phala_legacy::OnMessageReceived};
+use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, Message, MessageOrigin};
 
 mod hashing;
 
@@ -22,34 +23,13 @@ pub struct Kitty<Hash, Balance> {
 	gen: u64,
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq)]
-pub struct KittyTransfer<AccountId> {
-	dest: AccountId,
-	kitty_id: Vec<u8>,
-	sequence: u64,
-}
-#[derive(Debug, Clone, Encode, Decode)]
-pub struct KittyTransferData<AccountId> {
-	data: KittyTransfer<AccountId>,
-	signature: Vec<u8>,
-}
-
 pub trait SignedDataType<T> {
 	fn raw_data(&self) -> Vec<u8>;
 	fn signature(&self) -> T;
 }
 
-impl<AccountId: Encode> SignedDataType<Vec<u8>> for KittyTransferData<AccountId> {
-	fn raw_data(&self) -> Vec<u8> {
-		Encode::encode(&self.data)
-	}
 
-	fn signature(&self) -> Vec<u8> {
-		self.signature.clone()
-	}
-}
-
-pub trait Config: balances::Config {
+pub trait Config: balances::Config + pallet_mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as system::Config>::Event>;
 
 	/// Something that provides randomness in the runtime.
@@ -62,9 +42,7 @@ decl_event!(
 		<T as system::Config>::AccountId,
 		<T as system::Config>::Hash
 	{
-		Created(AccountId, Hash),
 		Transferred(AccountId, AccountId, Hash),
-		TransferToChain(AccountId, Hash, u64),
 		NewLottery(u32, u32),
 		Open(u32, Hash, Hash),
 	}
@@ -157,42 +135,11 @@ decl_module! {
 
 			<Nonce>::mutate(|n| *n += 1);
 
-			Self::deposit_event(RawEvent::Created(sender, random_hash));
+			Self::push_message(KittyEvent::Created(sender, random_hash));
 
 			Ok(())
 		}
-		#[weight = 0]
-		fn transfer(_origin, to: T::AccountId, kitty_id: T::Hash) -> Result {
-			let sender = Self::account_id();
 
-			let _owner = Self::owner_of(kitty_id).ok_or("No owner for this kitty")?;
-			let owned_kitty_count_from = Self::owned_kitties_count(&sender);
-			let owned_kitty_count_to = Self::owned_kitties_count(&to);
-			let new_owned_kitty_count_to = owned_kitty_count_to.checked_add(1)
-				.ok_or("Transfer causes overflow of 'to' kitty balance")?;
-
-			let new_owned_kitty_count_from = owned_kitty_count_from.checked_sub(1)
-				.ok_or("Transfer causes underflow of 'from' kitty balance")?;
-
-			let kitty_index = <OwnedKittiesIndex<T>>::get(kitty_id);
-			if kitty_index != new_owned_kitty_count_from {
-				let last_kitty_id = <OwnedKittiesArray<T>>::get((sender.clone(), new_owned_kitty_count_from));
-				<OwnedKittiesArray<T>>::insert((sender.clone(), kitty_index), last_kitty_id);
-				<OwnedKittiesIndex<T>>::insert(last_kitty_id, kitty_index);
-			}
-			<KittyOwner<T>>::insert(&kitty_id, &to);
-			<OwnedKittiesIndex<T>>::insert(kitty_id, owned_kitty_count_to);
-
-			<OwnedKittiesArray<T>>::remove((sender.clone(), new_owned_kitty_count_from));
-			<OwnedKittiesArray<T>>::insert((to.clone(), owned_kitty_count_to), kitty_id);
-
-			<OwnedKittiesCount<T>>::insert(&sender, new_owned_kitty_count_from);
-			<OwnedKittiesCount<T>>::insert(&to, new_owned_kitty_count_to);
-
-			Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
-
-			Ok(())
-		}
 		#[weight = 0]
 		pub fn create_kitties(origin) -> Result {
 			ensure_signed(origin.clone())?;
@@ -202,30 +149,6 @@ decl_module! {
 			}
 			Ok(())
 		}
-
-		#[weight = 0]
-		pub fn transfer_to_chain(origin, data: Vec<u8>) -> Result {
-			const CONTRACT_ID: u32 = 6;
-			let transfer_data: KittyTransferData<<T as system::Config>::AccountId> = Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Check sequence
-			let sequence = IngressSequence::get(CONTRACT_ID);
-			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::BadMessageSequence);
-			// Contract key
-			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
-			let pubkey = ContractKey::get(CONTRACT_ID);
-
-			let new_owner = &transfer_data.data.dest;
-			let new_owner_kitty_id = &transfer_data.data.kitty_id;
-			// Validate TEE signature
-			Self::verify_signature(&pubkey, &transfer_data)?;
-			// Announce the successful execution
-			let kitty_id: T::Hash = Decode::decode(&mut &new_owner_kitty_id[..]).map_err(|_| Error::<T>::InvalidKitty)?;
-			Self::transfer(origin, new_owner.clone(), kitty_id.clone())?;
-			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-
-			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest, kitty_id, sequence + 1));
-			Ok(())
-		}
 	}
 }
 impl<T: Config> Module<T> {
@@ -233,30 +156,63 @@ impl<T: Config> Module<T> {
 		PALLET_ID.into_account()
 	}
 
-	pub fn verify_signature(
-		serialized_pk: &Vec<u8>,
-		data: &impl SignedDataType<Vec<u8>>,
-	) -> Result {
-		let pub_key = Self::try_parse_ecdsa_key(serialized_pk)?;
-		let signature = secp256k1::Signature::parse_slice(&data.signature())
-			.map_err(|_| Error::<T>::InvalidSignature)?;
-		let msg_hash = hashing::blake2_256(&data.raw_data());
-		let mut buffer = [0u8; 32];
-		buffer.copy_from_slice(&msg_hash);
-		let message = secp256k1::Message::parse(&buffer);
-		let verified = secp256k1::verify(&message, &signature, &pub_key);
-		ensure!(verified, Error::<T>::FailedToVerify);
+	fn transfer(to: T::AccountId, kitty_id: T::Hash) -> Result {
+		let sender = Self::account_id();
+
+		let _owner = Self::owner_of(kitty_id).ok_or("No owner for this kitty")?;
+		let owned_kitty_count_from = Self::owned_kitties_count(&sender);
+		let owned_kitty_count_to = Self::owned_kitties_count(&to);
+		let new_owned_kitty_count_to = owned_kitty_count_to.checked_add(1)
+			.ok_or("Transfer causes overflow of 'to' kitty balance")?;
+
+		let new_owned_kitty_count_from = owned_kitty_count_from.checked_sub(1)
+			.ok_or("Transfer causes underflow of 'from' kitty balance")?;
+
+		let kitty_index = <OwnedKittiesIndex<T>>::get(kitty_id);
+		if kitty_index != new_owned_kitty_count_from {
+			let last_kitty_id = <OwnedKittiesArray<T>>::get((sender.clone(), new_owned_kitty_count_from));
+			<OwnedKittiesArray<T>>::insert((sender.clone(), kitty_index), last_kitty_id);
+			<OwnedKittiesIndex<T>>::insert(last_kitty_id, kitty_index);
+		}
+		<KittyOwner<T>>::insert(&kitty_id, &to);
+		<OwnedKittiesIndex<T>>::insert(kitty_id, owned_kitty_count_to);
+
+		<OwnedKittiesArray<T>>::remove((sender.clone(), new_owned_kitty_count_from));
+		<OwnedKittiesArray<T>>::insert((to.clone(), owned_kitty_count_to), kitty_id);
+
+		<OwnedKittiesCount<T>>::insert(&sender, new_owned_kitty_count_from);
+		<OwnedKittiesCount<T>>::insert(&to, new_owned_kitty_count_to);
+
+		Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
+
 		Ok(())
 	}
 
-	fn try_parse_ecdsa_key(
-		serialized_pk: &Vec<u8>,
-	) -> frame_support::dispatch::result::Result<secp256k1::PublicKey, Error<T>> {
-		let mut pk = [0u8; 33];
-		if serialized_pk.len() != 33 {
-			return Err(Error::<T>::InvalidPubKey);
-		}
-		pk.copy_from_slice(&serialized_pk);
-		secp256k1::PublicKey::parse_compressed(&pk).map_err(|_| Error::<T>::InvalidPubKey)
+	fn push_message(message: impl Encode + BindTopic) {
+		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), message)
 	}
+}
+
+impl<T: Config> OnMessageReceived for Module<T> {
+	fn on_message_received(message: &Message) -> DispatchResult {
+		const CONTRACT_ID: u32 = 6;
+
+		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
+			return Err(Error::<T>::InvalidContract)?;
+		}
+
+		let data: KittyTransfer<T::AccountId> =
+			message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+
+		let new_owner = &data.dest;
+		let new_owner_kitty_id = &data.kitty_id;
+		// Announce the successful execution
+		let kitty_id: T::Hash = Decode::decode(&mut &new_owner_kitty_id[..]).map_err(|_| Error::<T>::InvalidKitty)?;
+		Self::transfer(new_owner.clone(), kitty_id.clone())?;
+		Ok(())
+	}
+}
+
+impl<T: Config> MessageOriginInfo for Module<T> {
+	type Config = T;
 }

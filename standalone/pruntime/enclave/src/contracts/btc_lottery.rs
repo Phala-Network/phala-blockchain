@@ -429,7 +429,7 @@ impl contracts::NativeContract for BtcLottery {
     }
 
     fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryEvent) {
-        if origin != bridge_transfer::Module::<chain::Runtime>::message_origin() {
+        if origin != chain::BridgeTransfer::message_origin() {
             error!("Received trasfer event from invalid origin: {:?}", origin);
             return;
         }
