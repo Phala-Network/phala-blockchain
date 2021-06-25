@@ -42,7 +42,11 @@ use diem_types::{
 };
 type SparseMerkleProof = diem_types::proof::SparseMerkleProof<AccountStateBlob>;
 use parity_scale_codec::{Decode, Encode};
+use phala_types::messaging::{DiemCommand as Command, MessageOrigin, PushCommand};
 use rand::{rngs::OsRng, Rng, SeedableRng};
+
+use super::NativeContext;
+
 const GAS_UNIT_PRICE: u64 = 0;
 const MAX_GAS_AMOUNT: u64 = 1_000_000;
 const TX_EXPIRATION: i64 = 180;
@@ -95,37 +99,6 @@ impl fmt::Display for Error {
             Error::Other(e) => write!(f, "{}", e),
         }
     }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum Command {
-    /// Sets the whitelisted accounts, in bcs encoded base64
-    AccountInfo {
-        account_info_b64: String,
-    },
-    /// Verifies a transactions
-    VerifyTransaction {
-        account_address: String,
-        transaction_with_proof_b64: String,
-    },
-    /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
-    /// once.
-    SetTrustedState {
-        trusted_state_b64: String,
-        chain_id: u8,
-    },
-    VerifyEpochProof {
-        ledger_info_with_signatures_b64: String,
-        epoch_change_proof_b64: String,
-    },
-
-    NewAccount {
-        seq_number: u64,
-    },
-    TransferXUS {
-        to: String,
-        amount: u64,
-    },
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -541,18 +514,28 @@ fn auth_key_prefix(auth_key: Vec<u8>) -> Vec<u8> {
     auth_key[0..16].to_vec()
 }
 
-impl contracts::LegacyContract<Command, Request, Response> for Diem {
+impl contracts::NativeContract for Diem {
+    type Cmd = Command;
+    type Event = ();
+    type QReq = Request;
+    type QResp = Response;
+
     fn id(&self) -> contracts::ContractId {
         contracts::DIEM
     }
 
     fn handle_command(
         &mut self,
-        origin: &chain::AccountId,
-        _txref: &TxRef,
-        cmd: Command,
+        _context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: PushCommand<Self::Cmd>,
     ) -> TransactionStatus {
-        match cmd {
+        let origin = match origin {
+            MessageOrigin::AccountId(acc) => acc,
+            _ => return TransactionStatus::BadOrigin,
+        };
+
+        match cmd.command {
             Command::AccountInfo { account_info_b64 } => {
                 info!("command account_info_b64:{:?}", account_info_b64);
                 if let Ok(account_data) = base64::decode(&account_info_b64) {
@@ -736,7 +719,7 @@ impl contracts::LegacyContract<Command, Request, Response> for Diem {
                 }
             }
             Command::NewAccount { seq_number } => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
                 info!("NewAccount {:}, seq_number:{:}", o.to_string(), seq_number);
 
                 let alice =
@@ -811,7 +794,7 @@ impl contracts::LegacyContract<Command, Request, Response> for Diem {
                 TransactionStatus::Ok
             }
             Command::TransferXUS { to, amount } => {
-                let o = AccountIdWrapper(origin.clone());
+                let o = AccountIdWrapper::from(origin);
                 info!(
                     "TransferXUS from: {:}, to: {:}, amount: {:}",
                     o.to_string(),
@@ -986,8 +969,6 @@ impl contracts::LegacyContract<Command, Request, Response> for Diem {
             Ok(resp) => resp,
         }
     }
-
-    fn handle_event(&mut self, _ce: chain::Event) {}
 }
 
 /// Parses a TrustedState from a bcs encoded LedgerInfoWithSignature in base64
