@@ -34,6 +34,9 @@ pub fn wait_for(child: &mut Child, secs: usize) -> Option<ExitStatus> {
 				if i > 5 {
 					eprintln!("Child process took {} seconds to exit gracefully", i);
 				}
+				if !status.success() {
+					eprintln!("Child process exit with error: {:?}", status);
+				}
 				return Some(status)
 			},
 			None => thread::sleep(Duration::from_secs(1)),
