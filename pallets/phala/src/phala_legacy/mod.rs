@@ -236,8 +236,6 @@ decl_event!(
 		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
-		// Chain events
-		CommandPushed(AccountId, u32, Vec<u8>, u64),
 		/// [stash, identity_key, machine_id]
 		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
 		/// [stash, machine_id]
@@ -360,16 +358,6 @@ decl_module! {
 				ForceNextRound::put(false);
 				Self::handle_round_ends(now, &round);
 			}
-		}
-
-		// Messaging
-		#[weight = T::WeightInfo::push_command()]
-		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
-			let who = ensure_signed(origin)?;
-			let num = Self::command_number().unwrap_or(0);
-			CommandNumber::put(num + 1);
-			Self::deposit_event(RawEvent::CommandPushed(who, contract_id, payload, num));
-			Ok(())
 		}
 
 		// Registry
