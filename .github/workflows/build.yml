@@ -32,4 +32,4 @@ jobs:
         name: binaries
         path: target/release/phala-node
     - name: Tests
-      run: cargo test --verbose
+      run: cargo test --verbose --workspace  --exclude node-executor --exclude phala-node
