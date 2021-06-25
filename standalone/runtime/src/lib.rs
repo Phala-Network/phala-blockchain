@@ -96,9 +96,11 @@ use sp_runtime::generic::Era;
 
 pub use pallet_kitties;
 pub use phala_pallets::{
-    pallet_phala,
-    pallet_mq,
-    pallet_registry,
+	pallet_phala,
+	pallet_mq,
+	pallet_registry,
+	pallet_mining,
+	pallet_stakepool,
 };
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
@@ -552,7 +554,7 @@ parameter_types! {
 		.get(DispatchClass::Normal)
 		.max_extrinsic.expect("Normal extrinsics have a weight limit configured; qed")
 		.saturating_sub(BlockExecutionWeight::get());
-    // Solution can occupy 90% of normal block size
+	// Solution can occupy 90% of normal block size
 	pub MinerMaxLength: u32 = Perbill::from_rational(9u32, 10) *
 		*RuntimeBlockLength::get()
 		.max
@@ -1051,8 +1053,8 @@ impl pallet_mining_staking::Config for Runtime {
 }
 
 parameter_types! {
-    pub const BridgeChainId: u8 = 1;
-    pub const ProposalLifetime: BlockNumber = 50;
+	pub const BridgeChainId: u8 = 1;
+	pub const ProposalLifetime: BlockNumber = 50;
 }
 
 impl pallet_bridge::Config for Runtime {
@@ -1064,9 +1066,9 @@ impl pallet_bridge::Config for Runtime {
 }
 
 impl pallet_bridge_transfer::Config for Runtime {
-    type Event = Event;
-    type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
-    type Currency = Balances;
+	type Event = Event;
+	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
+	type Currency = Balances;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1074,7 +1076,15 @@ impl pallet_registry::Config for Runtime {
 }
 impl pallet_mq::Config for Runtime {
 	type Event = Event;
-    type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+}
+impl pallet_mining::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
+impl pallet_stakepool::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
 }
 
 construct_runtime!(
@@ -1122,9 +1132,11 @@ construct_runtime!(
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Config, Storage},
-        // Phala new pallets
-        PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
-        PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
+		// Phala new pallets
+		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
+		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
+		PhalaMining: pallet_mining::{Pallet, Call, Event},
+		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event, Storage},
 	}
 );
 
