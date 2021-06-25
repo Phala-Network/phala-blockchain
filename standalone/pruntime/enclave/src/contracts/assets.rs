@@ -1,23 +1,21 @@
-use anyhow::Result;
-use log::info;
-use phala_mq::MessageOrigin;
-use std::collections::{BTreeMap};
-use serde::{Serialize, Deserialize};
 use crate::std::string::String;
 use crate::std::vec::Vec;
+use anyhow::Result;
 use core::{fmt, str};
+use log::info;
+use phala_mq::MessageOrigin;
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
-use crate::contracts;
-use crate::types::TxRef;
-use crate::contracts::{AccountIdWrapper};
 use super::{NativeContext, TransactionStatus};
+use crate::contracts;
+use crate::contracts::AccountIdWrapper;
+use crate::types::TxRef;
 use phala_types::messaging::{AssetCommand, AssetId, PushCommand};
 
 type Command = AssetCommand<chain::AccountId, chain::Balance>;
 
-
 extern crate runtime as chain;
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AssetMetadata {
@@ -25,7 +23,7 @@ pub struct AssetMetadata {
     #[serde(with = "super::serde_balance")]
     total_supply: u128,
     symbol: String,
-    id: u32
+    id: u32,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -71,46 +69,51 @@ impl fmt::Display for Error {
 pub enum Request {
     Balance {
         id: AssetId,
-        account: AccountIdWrapper
+        account: AccountIdWrapper,
     },
     TotalSupply {
-        id: AssetId
+        id: AssetId,
     },
     Metadata,
     History {
-        account: AccountIdWrapper
+        account: AccountIdWrapper,
     },
     ListAssets {
-        available_only :bool
+        available_only: bool,
     },
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Response {
     Balance {
         #[serde(with = "super::serde_balance")]
-        balance: chain::Balance
+        balance: chain::Balance,
     },
     TotalSupply {
         #[serde(with = "super::serde_balance")]
-        total_issuance: chain::Balance
+        total_issuance: chain::Balance,
     },
     Metadata {
-        metadata: Vec<AssetMetadata>
+        metadata: Vec<AssetMetadata>,
     },
     History {
-        history: Vec<AssetsTx>
+        history: Vec<AssetsTx>,
     },
     ListAssets {
-        assets: Vec<AssetMetadataBalance>
+        assets: Vec<AssetMetadataBalance>,
     },
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error)
+    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
 }
 
 impl Assets {
-    pub fn new() -> Self{
-        let assets = BTreeMap::<u32, BTreeMap::<AccountIdWrapper, chain::Balance>>::new();
+    pub fn new() -> Self {
+        let assets = BTreeMap::<u32, BTreeMap<AccountIdWrapper, chain::Balance>>::new();
         let metadata = BTreeMap::<u32, AssetMetadata>::new();
-        Assets { next_id: 0, assets, metadata, history: Default::default() }
+        Assets {
+            next_id: 0,
+            assets,
+            metadata,
+            history: Default::default(),
+        }
     }
 }
 
@@ -120,27 +123,31 @@ impl contracts::NativeContract for Assets {
     type QReq = Request;
     type QResp = Response;
 
-
-    fn id(&self) -> contracts::ContractId { contracts::ASSETS }
-
+    fn id(&self) -> contracts::ContractId {
+        contracts::ASSETS
+    }
 
     fn handle_command(
-            &mut self,
-            context: &NativeContext,
-            origin: MessageOrigin,
-            cmd: PushCommand<Self::Cmd>,
-        ) -> TransactionStatus {
+        &mut self,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: PushCommand<Self::Cmd>,
+    ) -> TransactionStatus {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
             _ => return TransactionStatus::BadOrigin,
         };
-        
+
         match cmd.command {
-            Command::Issue {symbol, total} => {
+            Command::Issue { symbol, total } => {
                 let o = AccountIdWrapper::from(origin);
                 info!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
-                if let None = self.metadata.iter().find(|(_, metadatum)| metadatum.symbol == symbol) {
+                if let None = self
+                    .metadata
+                    .iter()
+                    .find(|(_, metadatum)| metadatum.symbol == symbol)
+                {
                     let mut accounts = BTreeMap::<AccountIdWrapper, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
@@ -149,7 +156,7 @@ impl contracts::NativeContract for Assets {
                         owner: o.clone(),
                         total_supply: total,
                         symbol,
-                        id
+                        id,
                     };
 
                     self.metadata.insert(id, metadatum);
@@ -160,8 +167,8 @@ impl contracts::NativeContract for Assets {
                 } else {
                     TransactionStatus::SymbolExist
                 }
-            },
-            Command::Destroy {id} => {
+            }
+            Command::Destroy { id } => {
                 let o = AccountIdWrapper::from(origin);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
@@ -176,15 +183,20 @@ impl contracts::NativeContract for Assets {
                 } else {
                     TransactionStatus::AssetIdNotFound
                 }
-            },
-            Command::Transfer {id, dest, value} => {
+            }
+            Command::Transfer { id, dest, value } => {
                 let o = AccountIdWrapper::from(origin);
                 let dest = AccountIdWrapper(dest);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
                     let accounts = self.assets.get_mut(&metadatum.id).unwrap();
 
-                    info!("Transfer: [{}] -> [{}]: {}", o.to_string(), dest.to_string(), value);
+                    info!(
+                        "Transfer: [{}] -> [{}]: {}",
+                        o.to_string(),
+                        dest.to_string(),
+                        value
+                    );
                     if let Some(src_amount) = accounts.get_mut(&o) {
                         if *src_amount >= value {
                             let src0 = *src_amount;
@@ -210,7 +222,7 @@ impl contracts::NativeContract for Assets {
                                 asset_id: id,
                                 from: o.clone(),
                                 to: dest.clone(),
-                                amount: value
+                                amount: value,
                             };
                             if is_tracked(&o) {
                                 let slot = self.history.entry(o).or_default();
@@ -253,25 +265,36 @@ impl contracts::NativeContract for Assets {
                         }
                         Ok(Response::Balance { balance })
                     } else {
-                        Err(anyhow::Error::msg(Error::Other(String::from("Asset not found"))))
+                        Err(anyhow::Error::msg(Error::Other(String::from(
+                            "Asset not found",
+                        ))))
                     }
-                },
+                }
                 Request::TotalSupply { id } => {
                     if let Some(metadatum) = self.metadata.get(&id) {
-                        Ok(Response::TotalSupply { total_issuance: metadatum.total_supply })
+                        Ok(Response::TotalSupply {
+                            total_issuance: metadatum.total_supply,
+                        })
                     } else {
-                        Err(anyhow::Error::msg(Error::Other(String::from("Asset not found"))))
+                        Err(anyhow::Error::msg(Error::Other(String::from(
+                            "Asset not found",
+                        ))))
                     }
-                },
-                Request::Metadata => {
-                    Ok(Response::Metadata { metadata: self.metadata.values().cloned().collect() })
-                },
+                }
+                Request::Metadata => Ok(Response::Metadata {
+                    metadata: self.metadata.values().cloned().collect(),
+                }),
                 Request::History { account } => {
-                    let tx_list = self.history.get(&account).cloned().unwrap_or(Default::default());
+                    let tx_list = self
+                        .history
+                        .get(&account)
+                        .cloned()
+                        .unwrap_or(Default::default());
                     Ok(Response::History { history: tx_list })
-                },
+                }
                 Request::ListAssets { available_only } => {
-                    let raw_origin = origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
+                    let raw_origin =
+                        origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
                     let o = AccountIdWrapper(raw_origin.clone());
                     // TODO: simplify the two way logic here?
                     let assets = if available_only {
@@ -282,10 +305,7 @@ impl contracts::NativeContract for Assets {
                             })
                             .map(|(id, balance)| {
                                 let metadata = self.metadata.get(&id).unwrap().clone();
-                                AssetMetadataBalance {
-                                    metadata,
-                                    balance
-                                }
+                                AssetMetadataBalance { metadata, balance }
                             })
                             .collect()
                     } else {
@@ -294,20 +314,17 @@ impl contracts::NativeContract for Assets {
                             .map(|(id, balances)| {
                                 let metadata = self.metadata.get(&id).unwrap().clone();
                                 let balance = *balances.get(&o).unwrap_or(&0);
-                                AssetMetadataBalance {
-                                    metadata,
-                                    balance
-                                }
+                                AssetMetadataBalance { metadata, balance }
                             })
                             .collect()
                     };
-                    Ok(Response::ListAssets {assets})
+                    Ok(Response::ListAssets { assets })
                 }
             }
         };
         match inner() {
             Err(error) => Response::Error(error),
-            Ok(resp) => resp
+            Ok(resp) => resp,
         }
     }
 }
