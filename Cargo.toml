@@ -18,6 +18,7 @@ members = [
 	"standalone/phost",
 	"crates/trie-storage",
 	"crates/phala-mq",
+	"crates/crypto",
 	"pallets/phala",
 	"pallets/mining_staking",
 	"pallets/bridge",
