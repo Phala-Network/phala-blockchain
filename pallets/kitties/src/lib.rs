@@ -61,6 +61,7 @@ decl_error! {
 		InvalidContract,
 		InvalidOwner,
 		InvalidKitty,
+		NotAllowed,
 	}
 }
 
@@ -198,7 +199,7 @@ impl<T: Config> OnMessageReceived for Module<T> {
 		const CONTRACT_ID: u32 = 6;
 
 		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
-			return Err(Error::<T>::InvalidContract)?;
+			return Err(Error::<T>::NotAllowed)?;
 		}
 
 		let data: KittyTransfer<T::AccountId> =

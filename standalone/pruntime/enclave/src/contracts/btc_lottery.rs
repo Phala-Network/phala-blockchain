@@ -1,6 +1,5 @@
 use crate::chain;
 use crate::contracts::{self, AccountIdWrapper};
-use crate::types::TxRef;
 use crate::TransactionStatus;
 
 use crate::std::{
@@ -16,8 +15,8 @@ use crate::std::{
 use anyhow::Result;
 use lazy_static;
 use log::error;
-use parity_scale_codec::{Decode, Encode};
-use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin, bind_topic};
+use parity_scale_codec::Encode;
+use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};

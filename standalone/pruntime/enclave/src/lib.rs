@@ -37,7 +37,7 @@ use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
@@ -55,7 +55,7 @@ use pink::InkModule;
 
 use enclave_api::actions::*;
 use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
-use phala_pallets::{pallet_mq, pallet_phala as phala};
+use phala_pallets::pallet_mq;
 use phala_types::{
     pruntime::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
@@ -75,17 +75,14 @@ mod types;
 mod utils;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-use contracts::{
-    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, DATA_PLAZA, DIEM,
-    SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
-};
+use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use std::collections::VecDeque;
-use system::{CommandIndex, TransactionReceipt, TransactionStatus};
+use system::TransactionStatus;
 use trie_storage::TrieStorage;
-use types::{Error, TxRef};
+use types::Error;
 
 type HeaderToSync =
     GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
@@ -253,7 +250,7 @@ lazy_static! {
             runtime_state: Default::default(),
         })
     };
-    static ref SYSTEM_STATE: SgxMutex<system::System> = { SgxMutex::new(system::System::new()) };
+    static ref SYSTEM_STATE: SgxMutex<Option<system::System>> = Default::default();
 }
 
 fn ias_spid() -> sgx_spid_t {
@@ -906,7 +903,6 @@ fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
-    // TODO: Guard only initialize once
     let mut local_state = LOCAL_STATE.lock().unwrap();
     if local_state.initialized {
         return Err(json!({"message": "Already initialized"}));
@@ -927,6 +923,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         init_secret_keys(&mut local_state, Some((ecdsa_key, ecdh_key)))
             .map_err(|_| error_msg("failed to update secret key"))?;
     }
+
     if !input.skip_ra && local_state.dev_mode {
         return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
     }
@@ -1024,13 +1021,19 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .identity_key
         .clone()
         .expect("Unexpected ecdsa key error in init_runtime");
-    // Re-init some contracts because they require the identity key
-    let mut system_state = SYSTEM_STATE.lock().unwrap();
-    system_state.set_id(&id_pair);
-    system_state.set_machine_id(local_state.machine_id.to_vec());
 
     let send_mq = MessageSendQueue::default();
     let mut recv_mq = MessageDispatcher::default();
+
+    // Re-init some contracts because they require the identity key
+    let mut system_state = SYSTEM_STATE.lock().unwrap();
+    *system_state = Some(system::System::new(
+        local_state.machine_id.to_vec(),
+        &id_pair,
+        &send_mq,
+        &mut recv_mq,
+    ));
+    drop(system_state);
 
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
         Default::default();
@@ -1228,7 +1231,8 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         }
     }
 
-    let ecdh_privkey = ecdh::clone_key(
+    // TODO.kevin: enable e2e encryption mq for contracts
+    let _ecdh_privkey = ecdh::clone_key(
         local_state
             .ecdh_private_key
             .as_ref()
@@ -1294,8 +1298,6 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             block.block_header.number,
             events,
             &local_state.runtime_state,
-            &ecdh_privkey,
-            local_state.dev_mode,
         )?;
 
         last_block = block.block_header.number;
@@ -1317,8 +1319,6 @@ fn handle_events(
     block_number: chain::BlockNumber,
     events: Vec<u8>,
     storage: &Storage,
-    ecdh_privkey: &EcdhKey,
-    dev_mode: bool,
 ) -> Result<(), Value> {
     let ref mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
@@ -1326,31 +1326,32 @@ fn handle_events(
     let mut events: &[u8] = events.as_ref();
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
         .map_err(|_| error_msg("Decode events error"))?;
+
     let system = &mut SYSTEM_STATE.lock().unwrap();
-    let mut event_handler = system.feed_event();
+    let system = system
+        .as_mut()
+        .ok_or_else(|| error_msg("Runtime not initialized"))?;
 
     state.recv_mq.reset_local_index();
 
     for evt in events {
-        if let chain::Event::Phala(pe) = &evt.event {
-            // Dispatch to system contract anyway
-            event_handler
-                .feed(block_number, &pe, storage)
-                .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
-        } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
-        {
+        if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
             info!("mq dispatching message: {:?}", message);
             state.recv_mq.dispatch(message);
         }
     }
 
-    // TODO.kevin: Refactor the contract and mq to some kind of multi-threaded or async model.
-    //      So that we can avoid to call the process_events manually.
+    if let Err(e) = system.process_events(block_number, storage) {
+        error!("System process events failed: {:?}", e);
+        return Err(error_msg("System process events failed"));
+    }
+
     let mut env = ExecuteEnv {
         block_number,
-        system: event_handler.system,
+        system,
         storage,
     };
+
     for contract in state.contracts.values_mut() {
         contract.process_events(&mut env);
     }
@@ -1376,11 +1377,6 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let dev_mode = local_state.dev_mode;
     drop(local_state);
 
-    let system_state = SYSTEM_STATE.lock().unwrap();
-    let sys_seq_start = system_state.egress.sequence;
-    let sys_len = system_state.egress.queue.len();
-    drop(system_state);
-
     let runtime_state = STATE.lock().unwrap();
     let pending_messages = match runtime_state.as_ref() {
         None => 0,
@@ -1397,10 +1393,6 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "state_root": state_root,
         "machine_id": machine_id,
         "dev_mode": dev_mode,
-        "system_egress": {
-            "sequence": sys_seq_start,
-            "len": sys_len,
-        },
         "pending_messages": pending_messages,
     }))
 }
@@ -1527,12 +1519,13 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
         None => None,
     };
     // Dispatch
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
         SYSTEM => {
-            let mut system_state = SYSTEM_STATE.lock().unwrap();
+            let mut guard = SYSTEM_STATE.lock().unwrap();
+            let system_state = guard
+                .as_mut()
+                .ok_or_else(|| error_msg("Runtime not initialized"))?;
             serde_json::to_value(
                 system_state.handle_query(
                     ref_origin,
@@ -1544,6 +1537,8 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             .unwrap()
         }
         _ => {
+            let mut state = STATE.lock().unwrap();
+            let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
             let contract = state
                 .contracts
                 .get_mut(&opaque_query.contract_id)

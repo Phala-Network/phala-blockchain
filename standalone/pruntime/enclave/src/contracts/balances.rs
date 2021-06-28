@@ -8,7 +8,6 @@ use phala_mq::MessageOrigin;
 use serde::{Deserialize, Serialize};
 
 use phala_pallets::pallet_mq::MessageOriginInfo as _;
-use phala_pallets::pallet_phala as phala;
 
 use crate::contracts;
 use crate::contracts::{AccountIdWrapper, NativeContext};

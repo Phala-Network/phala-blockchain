@@ -1,7 +1,6 @@
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use phala_types::messaging::{MessageOrigin, SignedMessage};
-use std::cmp;
-use codec::{Encode, Decode};
+use codec::Decode;
 use core::marker::PhantomData;
 use log::{error, info};
 
@@ -10,7 +9,7 @@ use crate::chain_client::fetch_mq_ingress_seq;
 use super::{
     update_signer_nonce,
     error::Error,
-    types::{ReqData, QueryRespData, GetEgressMessagesReq},
+    types::GetEgressMessagesReq,
     runtimes,
     XtClient, PrClient, SrSigner
 };
@@ -34,51 +33,6 @@ impl<'a> MsgSync<'a> {
             client, pr, signer,
             nonce_updated: false,
         }
-    }
-
-    /// Syncs the worker egress messages when available
-    pub async fn maybe_sync_worker_egress(&mut self, sequence: &mut u64) -> Result<()> {
-        // Check pending messages in worker egress queue
-        let query_resp = self.pr.query(
-            0, ReqData::GetWorkerEgress { start_sequence: *sequence }).await?;
-        let msg_data = match query_resp {
-            QueryRespData::GetWorkerEgress { length, encoded_egress_b64 } => {
-                info!("maybe_sync_worker_egress: got {} messages", length);
-                base64::decode(&encoded_egress_b64)
-                    .map_err(|_| Error::FailedToDecode)?
-            }
-            _ => return Err(anyhow!(Error::FailedToDecode))
-        };
-        let msg_queue: Vec<phala_types::SignedWorkerMessage> = Decode::decode(&mut &msg_data[..])
-            .map_err(|_| Error::FailedToDecode)?;
-        // No pending message. We are done.
-        if msg_queue.is_empty() {
-            return Ok(());
-        }
-        // Send messages
-        self.maybe_update_signer_nonce().await?;
-        let mut next_seq = *sequence;
-        for msg in &msg_queue {
-            let msg_seq = msg.data.sequence;
-            if msg_seq < *sequence {    // This seq is 0-based
-                info!("Worker msg {} has been submitted. Skipping...", msg_seq);
-                continue;
-            }
-            // STATUS: claim_tx_sent = match msg.data.payload { WorkerMessagePayload::Heartbeat { block_num, ... } => block_num }
-            next_seq = cmp::max(next_seq, msg_seq + 1);
-            let ret = self.client.submit(runtimes::phala::SyncWorkerMessageCall {
-                _runtime: PhantomData,
-                msg: msg.encode(),
-            }, self.signer).await;
-            if let Err(err) = ret {
-                error!("Failed to submit tx: {:?}", err);
-                // TODO: Should we fail early?
-                // STATUS: worth reporting error!
-            }
-            self.signer.increment_nonce();
-        }
-        *sequence = next_seq;
-        Ok(())
     }
 
     pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {

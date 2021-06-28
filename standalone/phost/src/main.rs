@@ -452,20 +452,6 @@ async fn get_stash_account(client: &XtClient, controller: AccountId) -> Result<A
         .map_err(Into::into)
 }
 
-async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::kitties::IngressSequenceStore::new(6), None)
-        .await
-        .or(Ok(0))
-}
-
-async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None)
-        .await
-        .map_err(Into::into)
-}
-
 async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
     client
         .fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None)
@@ -692,7 +678,6 @@ async fn bridge(args: Args) -> Result<()> {
 
     // Don't just sync message if we want to wait for some block
     let mut defer_block = wait_block_until.is_some();
-    let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None,
@@ -790,7 +775,6 @@ async fn bridge(args: Args) -> Result<()> {
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
-                msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
                 msg_sync.maybe_sync_mq_egress().await?;
             }
         }

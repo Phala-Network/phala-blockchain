@@ -9,14 +9,11 @@ use crate::system::TransactionReceipt;
 use crate::Storage;
 
 use super::TransactionStatus;
-use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply, TxRef};
+use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{
-    BindTopic, EcdsaMessageChannel as MessageChannel, MessageDispatcher, MessageOrigin,
-    TypedReceiveError, TypedReceiver,
-};
+use phala_mq::{BindTopic, EcdsaMessageChannel as MessageChannel, MessageOrigin};
 use phala_types::messaging::PushCommand;
 
 use serde::{
@@ -44,26 +41,6 @@ pub const WEB3_ANALYTICS: ContractId = 4;
 pub const DIEM: ContractId = 5;
 pub const SUBSTRATE_KITTIES: ContractId = 6;
 pub const BTC_LOTTERY: ContractId = 7;
-
-pub trait LegacyContract<Cmd, QReq, QResp>
-where
-    Cmd: Serialize + DeserializeOwned + Debug,
-    QReq: Serialize + DeserializeOwned + Debug,
-    QResp: Serialize + DeserializeOwned + Debug,
-{
-    fn id(&self) -> ContractId;
-    fn handle_command(
-        &mut self,
-        _origin: &chain::AccountId,
-        _txref: &TxRef,
-        _cmd: Cmd,
-    ) -> TransactionStatus {
-        TransactionStatus::Ok
-    }
-
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: QReq) -> QResp;
-    fn handle_event(&mut self, _re: runtime::Event) {}
-}
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     use core::convert::TryFrom;
@@ -264,7 +241,11 @@ mod support {
             _event: Self::Event,
         ) {
         }
-        fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp;
+        fn handle_query(
+            &mut self,
+            origin: Option<&chain::AccountId>,
+            req: Self::QReq,
+        ) -> Self::QResp;
     }
 
     pub struct NativeCompatContract<

@@ -10,7 +10,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::types::TxRef;
 use crate::TransactionStatus;
 
 //diem type

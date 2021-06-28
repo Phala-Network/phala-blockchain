@@ -11,7 +11,6 @@ use phala_mq::MessageOrigin;
 use serde::{Deserialize, Serialize};
 
 use crate::contracts;
-use crate::types::TxRef;
 use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
 
 use super::woothee;

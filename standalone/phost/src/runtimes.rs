@@ -153,7 +153,7 @@ pub mod phala {
     };
     use core::marker::PhantomData;
 
-    use phala_types::{BlockRewardInfo, PayoutReason};
+    use phala_types::{messaging::BlockRewardInfo, PayoutReason};
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);
