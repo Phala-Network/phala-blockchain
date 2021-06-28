@@ -356,22 +356,17 @@ mod support {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
                         Ok(Some((_, cmd, origin))) => {
-                            // TODO.kevin: allow all kind of origin to send commands to contract?
-                            if let MessageOrigin::AccountId(id) = origin.clone() {
-                                let cmd_number = cmd.number;
-                                let status = self.contract.handle_command(&context, origin, cmd);
-                                env.system.add_receipt(
-                                    cmd_number,
-                                    TransactionReceipt {
-                                        account: id.into(),
-                                        block_num: env.block_number,
-                                        contract_id: self.id(),
-                                        status,
-                                    },
-                                );
-                            } else {
-                                error!("Received command from invalid origin: {:?}", origin);
-                            }
+                            let cmd_number = cmd.number;
+                            let status = self.contract.handle_command(&context, origin.clone(), cmd);
+                            env.system.add_receipt(
+                                cmd_number,
+                                TransactionReceipt {
+                                    account: origin,
+                                    block_num: env.block_number,
+                                    contract_id: self.id(),
+                                    status,
+                                },
+                            );
                         }
                         Ok(None) => {}
                         Err(e) => {

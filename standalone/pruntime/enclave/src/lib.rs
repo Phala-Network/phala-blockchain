@@ -193,7 +193,7 @@ struct TestContract {
     txs: Vec<Vec<u8>>,
 }
 
-fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
+fn se_to_b64<S, V: Encode>(value: &V, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -202,13 +202,13 @@ where
     String::serialize(&s, serializer)
 }
 
-fn de_from_b64<'de, D>(deserializer: D) -> Result<ChainLightValidation, D::Error>
+fn de_from_b64<'de, D, V: Decode>(deserializer: D) -> Result<V, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     let data = base64::decode(&s).map_err(de::Error::custom)?;
-    ChainLightValidation::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
+    V::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
 }
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(

@@ -64,7 +64,8 @@ pub enum TransactionStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionReceipt {
-    pub account: AccountIdWrapper,
+    #[serde(serialize_with = "crate::se_to_b64", deserialize_with = "crate::de_from_b64")]
+    pub account: MessageOrigin,
     pub block_num: chain::BlockNumber,
     pub contract_id: u32,
     pub status: TransactionStatus,
@@ -131,7 +132,8 @@ impl System {
                     Some(receipt) => {
                         let origin =
                             accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
-                        if receipt.account == AccountIdWrapper(origin.clone()) {
+                        let origin: [u8; 32] = *origin.as_ref();
+                        if receipt.account == MessageOrigin::AccountId(origin.into()) {
                             Ok(Response::QueryReceipt {
                                 receipt: receipt.clone(),
                             })
