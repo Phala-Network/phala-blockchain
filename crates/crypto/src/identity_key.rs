@@ -1,3 +1,4 @@
+use alloc::vec::Vec;
 use sp_core::{crypto::Pair, ecdsa};
 
 pub struct IdentityKey(ecdsa::Pair);
@@ -25,12 +26,20 @@ impl IdentityKey {
         self.0.seed()
     }
 
+    fn public(&self) -> ecdsa::Public {
+        self.0.public()
+    }
+
     fn sign(&self, message: &[u8]) -> ecdsa::Signature {
         self.0.sign(message)
     }
 
     fn verify(sig: &ecdsa::Signature, message: &[u8], pubkey: &ecdsa::Public) -> bool {
         ecdsa::Pair::verify(sig, message, pubkey)
+    }
+
+    fn to_raw_vec(&self) -> Vec<u8> {
+        self.0.to_raw_vec()
     }
 }
 
@@ -43,8 +52,8 @@ mod test {
         let (key1, seed1) = IdentityKey::generate();
         let key2 = IdentityKey::from_seed(&seed1);
 
-        assert_eq!(key1.0.public(), key2.0.public());
-        assert_eq!(key1.0.seed(), key2.0.seed());
+        assert_eq!(key1.public(), key2.public());
+        assert_eq!(key1.seed(), key2.seed());
     }
 
     #[test]
@@ -53,6 +62,6 @@ mod test {
         let message = [233u8; 32];
 
         let sig = key.sign(&message);
-        assert!(IdentityKey::verify(&sig, &message, &key.0.public()))
+        assert!(IdentityKey::verify(&sig, &message, &key.public()))
     }
 }
