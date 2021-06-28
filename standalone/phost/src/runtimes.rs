@@ -166,30 +166,6 @@ pub mod phala {
         #![event_type(PayoutReason)]
     }
 
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct PushCommandCall<T: Phala> {
-        pub _runtime: PhantomData<T>,
-        pub contract_id: u32,
-        pub payload: Vec<u8>,
-    }
-
-    /// The call to transfer_to_tee
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct TransferToTeeCall<T: Phala> {
-        /// The amount will transfer to tee account
-        #[codec(compact)]
-        pub amount: <T as Balances>::Balance,
-    }
-
-    /// The call to transfer_to_chain
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct TransferToChainCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The transfer transaction data, SCALE encoded
-        pub data: Vec<u8>,
-    }
-
     /// The call to register_worker
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct RegisterWorkerCall<T: Phala> {
@@ -203,13 +179,6 @@ pub mod phala {
         pub signature: Vec<u8>,
         /// The signing cert
         pub raw_signing_cert: Vec<u8>,
-    }
-
-    /// The call to reset_worker
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct ResetWorkerCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
     }
 
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
@@ -227,14 +196,6 @@ pub mod phala {
             }
         }
     }
-    /// The call to transfer_to_chain
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct HeartbeatCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The heartbeat data, SCALE encoded
-        pub data: Vec<u8>,
-    }
 
     /// Storage: Stash
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
@@ -250,61 +211,6 @@ pub mod phala {
                 account_id,
             }
         }
-    }
-
-    /// Storage: WorkerIngress
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct WorkerIngressStore<T: Phala> {
-        #[store(returns = u64)]
-        pub _runtime: PhantomData<T>,
-        pub account_id: T::AccountId,
-    }
-    impl<T: Phala> WorkerIngressStore<T> {
-        pub fn new(account_id: T::AccountId) -> Self {
-            Self {
-                _runtime: Default::default(),
-                account_id,
-            }
-        }
-    }
-
-    /// Storage: OnlineWorkers
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, Default)]
-    pub struct OnlineWorkers<T: Phala> {
-        #[store(returns = u32)]
-        pub _runtime: PhantomData<T>,
-    }
-    /// Storage: ComputeWorkers
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, Default)]
-    pub struct ComputeWorkers<T: Phala> {
-        #[store(returns = u32)]
-        pub _runtime: PhantomData<T>,
-    }
-
-    /// Storage: WorkerState
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct WorkerStateStore<T: Phala> {
-        #[store(returns = phala_types::WorkerInfo<T::BlockNumber>)]
-        pub _runtime: PhantomData<T>,
-        pub account_id: T::AccountId,
-    }
-
-    /// The call to sync_worker_message
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct SyncWorkerMessageCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The raw message, SCALE encoded
-        pub msg: Vec<u8>,
-    }
-
-    /// The call to sync_lottery_message
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct SyncLotteryMessageCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The raw message, SCALE encoded
-        pub msg: Vec<u8>,
     }
 }
 
@@ -367,44 +273,6 @@ pub mod mining_staking {
         #[store(returns = <T as Balances>::Balance)]
         pub _runtime: PhantomData<T>,
         pub to: T::AccountId,
-    }
-}
-
-pub mod kitties {
-    use super::PhalaNodeRuntime;
-    use codec::Encode;
-    use subxt::{module, Call, Store, system::System, balances::Balances};
-    use core::marker::PhantomData;
-
-    /// The subset of the `pallet_phala::Trait` that a client must implement.
-    #[module]
-    pub trait KittyStorage: System + Balances {
-    }
-
-    impl KittyStorage for PhalaNodeRuntime {}
-    /// The call to transfer_to_chain
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct TransferToChainCall<T: KittyStorage> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The transfer transaction data, SCALA encoded
-        pub data: Vec<u8>,
-    }
-
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct IngressSequenceStore<T: KittyStorage> {
-        #[store(returns = u64)]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-        pub contract_id: u32,
-    }
-    impl<T: KittyStorage> IngressSequenceStore<T> {
-        pub fn new(contract_id: u32) -> Self {
-            Self {
-                _runtime: Default::default(),
-                contract_id,
-            }
-        }
     }
 }
 

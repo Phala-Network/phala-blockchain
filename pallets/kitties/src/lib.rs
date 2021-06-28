@@ -23,12 +23,6 @@ pub struct Kitty<Hash, Balance> {
 	gen: u64,
 }
 
-pub trait SignedDataType<T> {
-	fn raw_data(&self) -> Vec<u8>;
-	fn signature(&self) -> T;
-}
-
-
 pub trait Config: balances::Config + pallet_mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as system::Config>::Event>;
 

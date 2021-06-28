@@ -78,12 +78,6 @@ struct Args {
     ra: bool,
 
     #[structopt(
-        long,
-        help = "Remove unsent out-dated transactions (e.g clain_reward), this will help to reduce unnecessary fee, but will got slash on main-net."
-    )]
-    reset_egress: bool,
-
-    #[structopt(
         default_value = "ws://localhost:9944",
         long,
         help = "Substrate rpc websocket endpoint"
@@ -546,25 +540,6 @@ async fn register_worker(
     Ok(())
 }
 
-/// Returns the block where the ResetWorker call is included
-async fn reset_worker(client: &XtClient, signer: &mut SrSigner) -> Result<Hash> {
-    let call = runtimes::phala::ResetWorkerCall {
-        _runtime: PhantomData,
-    };
-    update_signer_nonce(client, signer).await?;
-    let ret = client.watch(call, signer).await;
-    match ret {
-        Ok(r) => {
-            signer.increment_nonce();
-            Ok(r.block)
-        }
-        Err(err) => {
-            error!("FailedToCallResetWorker: {:?}", err);
-            Err(anyhow!(Error::FailedToCallResetWorker))
-        }
-    }
-}
-
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<()> {
@@ -603,12 +578,6 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    // We will not sync message until the inclusion block after we call `ResetWorker`
-    let wait_block_until = if args.reset_egress {
-        Some(reset_worker(&client, &mut signer).await?)
-    } else {
-        None
-    };
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
@@ -677,7 +646,6 @@ async fn bridge(args: Args) -> Result<()> {
     }
 
     // Don't just sync message if we want to wait for some block
-    let mut defer_block = wait_block_until.is_some();
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None,
@@ -731,14 +699,6 @@ async fn bridge(args: Args) -> Result<()> {
                     block.block.block.header.number
                 );
             }
-            if let Some(hash) = wait_block_until {
-                if block.block.block.header.hash() == hash {
-                    debug!(
-                        "Hit the deferred block; will start message passing from the next block"
-                    );
-                    defer_block = false;
-                }
-            }
             sync_state.blocks.push(block.clone());
         }
 
@@ -759,7 +719,7 @@ async fn bridge(args: Args) -> Result<()> {
             batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
-        if !defer_block && synced_blocks == 0 {
+        if synced_blocks == 0 {
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
