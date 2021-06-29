@@ -76,85 +76,12 @@ pub struct GetInfoResp {
     pub public_key: String,
     pub ecdh_public_key: String,
     pub machine_id: Vec<u8>,
-    pub system_egress: EgressInfo,
 }
-#[derive(Serialize, Deserialize, Debug)]
-pub struct EgressInfo {
-    sequence: u64,
-    len: u64,
-}
+
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Payload {
-    Plain(String),
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Query {
-    pub contract_id: u32,
-    pub nonce: u32,
-    pub request: ReqData,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum ReqData {
-    PendingChainTransfer { sequence: u64 },  // Balances
-    PendingKittyTransfer { sequence: u64 },  // Kitties
-    PendingLotteryEgress { sequence: u64 },  // Btc lottery
-    GetWorkerEgress { start_sequence: u64 }, // System
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub enum QueryRespData {
-    PendingChainTransfer {
-        transfer_queue_b64: String,
-    },
-    PendingKittyTransfer {
-        transfer_queue_b64: String,
-    },
-    PendingLotteryEgress {
-        lottery_queue_b64: String,
-    },
-    GetWorkerEgress {
-        length: usize,
-        encoded_egress_b64: String,
-    },
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct QueryReq {
-    pub query_payload: String,
-}
-impl Resp for QueryReq {
-    type Resp = Payload;
-}
-
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct Transfer {
-    pub dest: [u8; 32],
-    pub amount: u128,
-    pub sequence: u64,
-}
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct TransferData {
-    pub data: Transfer,
-    pub signature: Vec<u8>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct KittyTransfer {
-    pub dest: [u8; 32],
-    pub kitty_id: Vec<u8>,
-    pub sequence: u64,
-}
-#[derive(Serialize, Deserialize, Debug, Encode, Decode)]
-pub struct KittyTransferData {
-    pub data: KittyTransfer,
-    pub signature: Vec<u8>,
-}
 
 // API: init_runtime
 

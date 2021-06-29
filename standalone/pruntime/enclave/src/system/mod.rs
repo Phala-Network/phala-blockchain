@@ -5,24 +5,28 @@ use log::info;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
-use parity_scale_codec::{Decode, Encode, Error as DecodeError, FullCodec};
+use chain::pallet_mq::MessageOriginInfo;
+use parity_scale_codec::{Decode, Error as DecodeError, FullCodec};
+use phala_mq::{
+    EcdsaMessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, TypedReceiveError,
+    TypedReceiver,
+};
 use phala_types::{
-    pruntime::StorageKV, BlockRewardInfo, SignedWorkerMessage, WorkerMessagePayload,
+    messaging::{BlockRewardInfo, SystemEvent, WorkerReportEvent},
+    pruntime::StorageKV,
     WorkerStateEnum,
 };
 use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
 
-use phala_pallets::pallet_phala as phala;
-
 use crate::contracts::AccountIdWrapper;
 use crate::light_validation::utils::storage_prefix;
-use crate::msg_channel::MsgChannel;
 use crate::OnlineWorkerSnapshot;
 
 mod comp_election;
 
 pub type CommandIndex = u64;
-type PhalaEvent = phala::RawEvent<sp_runtime::AccountId32, u128>;
+
+type Event = SystemEvent<chain::AccountId>;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
@@ -60,44 +64,53 @@ pub enum TransactionStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionReceipt {
-    pub account: AccountIdWrapper,
+    #[serde(serialize_with = "crate::se_to_b64", deserialize_with = "crate::de_from_b64")]
+    pub account: MessageOrigin,
     pub block_num: chain::BlockNumber,
     pub contract_id: u32,
     pub status: TransactionStatus,
 }
 
-#[derive(Default)]
 pub struct System {
     // Keys and identity
-    pub id_key: Option<ecdsa::Pair>,
-    pub id_pubkey: Vec<u8>,
-    pub hashed_id: U256,
-    pub machine_id: Vec<u8>,
+    id_pubkey: Vec<u8>,
+    hashed_id: U256,
+    machine_id: Vec<u8>,
     // Computation task electino
-    pub comp_elected: bool,
+    comp_elected: bool,
     // Transaction
-    pub receipts: BTreeMap<CommandIndex, TransactionReceipt>,
+    receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
-    pub egress: MsgChannel,
+    egress: EcdsaMessageChannel,
+    ingress: TypedReceiver<Event>,
+    // Registered received
+    active: bool,
 }
 
 impl System {
-    pub fn new() -> Self {
-        Default::default()
-    }
-
-    pub fn set_id(&mut self, pair: &ecdsa::Pair) {
+    pub fn new(
+        machine_id: Vec<u8>,
+        pair: &ecdsa::Pair,
+        send_mq: &MessageSendQueue,
+        recv_mq: &mut MessageDispatcher,
+    ) -> Self {
         let pubkey = ecdsa::Public::from(pair.clone());
         let raw_pubkey: &[u8] = pubkey.as_ref();
         let pkh = blake2_256(raw_pubkey);
-        self.id_key = Some(pair.clone());
-        self.id_pubkey = raw_pubkey.to_vec();
-        self.hashed_id = pkh.into();
-        info!("System::set_id: hashed identity key: {:?}", self.hashed_id);
-    }
-
-    pub fn set_machine_id(&mut self, machine_id: Vec<u8>) {
-        self.machine_id = machine_id;
+        let id_pubkey = raw_pubkey.to_vec();
+        let hashed_id: U256 = pkh.into();
+        info!("System::set_id: hashed identity key: {:?}", hashed_id);
+        let sender = MessageOrigin::Worker(pubkey);
+        System {
+            id_pubkey,
+            hashed_id,
+            machine_id,
+            comp_elected: false,
+            receipts: Default::default(),
+            egress: send_mq.channel(sender, pair.clone()),
+            ingress: recv_mq.subscribe_bound(),
+            active: false,
+        }
     }
 
     pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
@@ -119,7 +132,8 @@ impl System {
                     Some(receipt) => {
                         let origin =
                             accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
-                        if receipt.account == AccountIdWrapper(origin.clone()) {
+                        let origin: [u8; 32] = *origin.as_ref();
+                        if receipt.account == MessageOrigin::AccountId(origin.into()) {
                             Ok(Response::QueryReceipt {
                                 receipt: receipt.clone(),
                             })
@@ -131,20 +145,6 @@ impl System {
                         "Transaction hash not found",
                     )))),
                 },
-                Request::GetWorkerEgress { start_sequence } => {
-                    let pending_msgs: Vec<SignedWorkerMessage> = self
-                        .egress
-                        .queue
-                        .iter()
-                        .filter(|msg| msg.data.sequence >= start_sequence)
-                        .cloned()
-                        .collect();
-                    Ok(Response::GetWorkerEgress {
-                        length: pending_msgs.len(),
-                        encoded_egress_b64: base64::encode(&pending_msgs.encode()),
-                    })
-                } // If we add more unhandled queries:
-                  //   _ => Err(Error::Other("Unknown command".to_string()))
             }
         };
         match inner() {
@@ -153,7 +153,7 @@ impl System {
         }
     }
 
-    pub fn feed_event(&mut self) -> EventHandler {
+    fn feed_event(&mut self) -> EventHandler {
         EventHandler {
             system: self,
             seed: None,
@@ -162,15 +162,46 @@ impl System {
         }
     }
 
-    fn handle_reward_seed(
+    pub fn process_events(
         &mut self,
-        blocknum: chain::BlockNumber,
-        reward_info: &BlockRewardInfo,
-    ) -> Result<()> {
+        block_number: chain::BlockNumber,
+        storage: &crate::Storage,
+    ) -> anyhow::Result<()> {
+        let mut event_handler = self.feed_event();
+        loop {
+            match event_handler.system.ingress.try_next() {
+                Ok(Some((_, event, sender))) => {
+                    if sender != chain::Phala::message_origin() {
+                        error!("Invalid SystemEvent origin: {:?}", sender);
+                        continue;
+                    }
+                    event_handler.feed(block_number, &event, storage)?;
+                }
+                Ok(None) => break,
+                Err(e) => match e {
+                    TypedReceiveError::CodecError(e) => {
+                        error!("Decode system event failed: {:?}", e);
+                        continue;
+                    }
+                    TypedReceiveError::SenderGone => {
+                        return Err(anyhow::anyhow!("System message channel broken"));
+                    }
+                },
+            }
+        }
+        Ok(())
+    }
+
+    fn handle_reward_seed(&mut self, blocknum: chain::BlockNumber, reward_info: &BlockRewardInfo) {
         info!(
-            "System::handle_reward_seed({}, {:?})",
-            blocknum, reward_info
+            "System::handle_reward_seed({}, {:?}), active={}",
+            blocknum, reward_info, self.active
         );
+
+        if !self.active {
+            return;
+        }
+
         let x = self.hashed_id ^ reward_info.seed;
         let online_hit = x <= reward_info.online_target;
         let compute_hit = self.comp_elected && x <= reward_info.compute_target;
@@ -181,18 +212,13 @@ impl System {
                 "System::handle_reward_seed: x={}, online={}, compute={}, elected={}",
                 x, reward_info.online_target, reward_info.compute_target, self.comp_elected,
             );
-            self.egress.push(
-                WorkerMessagePayload::Heartbeat {
-                    block_num: blocknum as u32,
-                    claim_online: online_hit,
-                    claim_compute: compute_hit,
-                },
-                self.id_key
-                    .as_ref()
-                    .expect("Id key not set in System contract"),
-            );
+            self.egress.send(&WorkerReportEvent::Heartbeat {
+                machine_id: self.machine_id.clone(),
+                block_num: blocknum as u32,
+                claim_online: online_hit,
+                claim_compute: compute_hit,
+            });
         }
-        Ok(())
     }
 
     fn handle_new_round(
@@ -223,43 +249,33 @@ impl<'a> EventHandler<'a> {
     pub fn feed(
         &mut self,
         block_number: chain::BlockNumber,
-        event: &PhalaEvent,
+        event: &Event,
         storage: &crate::Storage,
     ) -> Result<()> {
         match event {
-            // Reset the egress queue once we detected myself is re-registered
-            phala::RawEvent::WorkerRegistered(_stash, pubkey, _machine_id) => {
+            Event::WorkerRegistered(_stash, pubkey, _machine_id) => {
                 if pubkey == &self.system.id_pubkey {
-                    info!("System::handle_event: Reset MsgChannel due to WorkerRegistered");
-                    self.system.egress = Default::default();
+                    info!("System::handle_event: WorkerRegistered");
+                    self.system.active = true;
                 }
             }
-            phala::RawEvent::WorkerReset(_stash, machine_id) => {
+            Event::WorkerUnregistered(_stash, machine_id) => {
                 // Not perfect because we only have machine_id but not pubkey here.
-                if machine_id == &self.system.machine_id {
-                    info!("System::handle_event: Reset MsgChannel due to WorkerReset");
-                    self.system.egress = Default::default();
+                if &self.system.machine_id == machine_id {
+                    info!("System::handle_event: WorkerUnregistered");
+                    self.system.active = false;
                 }
             }
-            // Handle other events
-            phala::RawEvent::WorkerMessageReceived(_stash, pubkey, seq) => {
-                // Advance the egress queue messages
-                if pubkey == &self.system.id_pubkey {
-                    info!("System::handle_event: Message confirmed (seq={})", seq);
-                    self.system.egress.received(*seq);
-                }
-            }
-            phala::RawEvent::RewardSeed(reward_info) => {
+            Event::RewardSeed(reward_info) => {
                 self.seed = Some(reward_info.seed);
-                self.system.handle_reward_seed(block_number, &reward_info)?;
+                self.system.handle_reward_seed(block_number, &reward_info);
             }
-            phala::RawEvent::NewMiningRound(round) => {
+            Event::NewMiningRound(round) => {
                 info!("System::handle_event: new mining round ({})", round);
                 // Save the snapshot for later use
                 self.snapshot = snapshot_online_worker(storage)?;
                 self.new_round = true;
             }
-            _ => (),
         };
         Ok(())
     }
@@ -400,7 +416,6 @@ impl fmt::Display for Error {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Request {
     QueryReceipt { command_index: CommandIndex },
-    GetWorkerEgress { start_sequence: u64 },
 }
 
 #[derive(Serialize, Deserialize, Debug)]

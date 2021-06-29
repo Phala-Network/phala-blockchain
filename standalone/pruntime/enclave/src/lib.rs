@@ -37,7 +37,7 @@ use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use frame_system::EventRecord;
 use itertools::Itertools;
@@ -53,10 +53,9 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-use crate::contracts::Contract as _;
 use enclave_api::actions::*;
 use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
-use phala_pallets::{pallet_mq, pallet_phala as phala};
+use phala_pallets::pallet_mq;
 use phala_types::{
     pruntime::{
         BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
@@ -76,17 +75,14 @@ mod types;
 mod utils;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-use contracts::{
-    AccountIdWrapper, ContractId, ExecuteEnv, LegacyContract, ASSETS, BALANCES, BTC_LOTTERY,
-    DATA_PLAZA, DIEM, SUBSTRATE_KITTIES, SYSTEM, WEB3_ANALYTICS,
-};
+use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use std::collections::VecDeque;
-use system::{CommandIndex, TransactionReceipt, TransactionStatus};
+use system::TransactionStatus;
 use trie_storage::TrieStorage;
-use types::{Error, TxRef};
+use types::Error;
 
 type HeaderToSync =
     GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
@@ -169,12 +165,6 @@ type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
 type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
-    contract1: contracts::data_plaza::DataPlaza,
-    contract2: contracts::balances::Balances,
-    contract3: contracts::assets::Assets,
-    contract4: contracts::web3analytics::Web3Analytics,
-    contract5: contracts::diem::Diem,
-    contract6: contracts::substrate_kitties::SubstrateKitties,
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
     light_client: ChainLightValidation,
     main_bridge: u64,
@@ -203,7 +193,7 @@ struct TestContract {
     txs: Vec<Vec<u8>>,
 }
 
-fn se_to_b64<S>(value: &ChainLightValidation, serializer: S) -> Result<S::Ok, S::Error>
+fn se_to_b64<S, V: Encode>(value: &V, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: Serializer,
 {
@@ -212,13 +202,13 @@ where
     String::serialize(&s, serializer)
 }
 
-fn de_from_b64<'de, D>(deserializer: D) -> Result<ChainLightValidation, D::Error>
+fn de_from_b64<'de, D, V: Decode>(deserializer: D) -> Result<V, D::Error>
 where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
     let data = base64::decode(&s).map_err(de::Error::custom)?;
-    ChainLightValidation::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
+    V::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
 }
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(
@@ -260,7 +250,7 @@ lazy_static! {
             runtime_state: Default::default(),
         })
     };
-    static ref SYSTEM_STATE: SgxMutex<system::System> = { SgxMutex::new(system::System::new()) };
+    static ref SYSTEM_STATE: SgxMutex<Option<system::System>> = Default::default();
 }
 
 fn ias_spid() -> sgx_spid_t {
@@ -680,8 +670,6 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET_INFO => get_info(payload),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
-                ACTION_GET => get(payload),
-                ACTION_SET => set(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
                 ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
@@ -915,7 +903,6 @@ fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
-    // TODO: Guard only initialize once
     let mut local_state = LOCAL_STATE.lock().unwrap();
     if local_state.initialized {
         return Err(json!({"message": "Already initialized"}));
@@ -936,6 +923,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         init_secret_keys(&mut local_state, Some((ecdsa_key, ecdh_key)))
             .map_err(|_| error_msg("failed to update secret key"))?;
     }
+
     if !input.skip_ra && local_state.dev_mode {
         return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
     }
@@ -1033,13 +1021,19 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .identity_key
         .clone()
         .expect("Unexpected ecdsa key error in init_runtime");
-    // Re-init some contracts because they require the identity key
-    let mut system_state = SYSTEM_STATE.lock().unwrap();
-    system_state.set_id(&id_pair);
-    system_state.set_machine_id(local_state.machine_id.to_vec());
 
     let send_mq = MessageSendQueue::default();
     let mut recv_mq = MessageDispatcher::default();
+
+    // Re-init some contracts because they require the identity key
+    let mut system_state = SYSTEM_STATE.lock().unwrap();
+    *system_state = Some(system::System::new(
+        local_state.machine_id.to_vec(),
+        &id_pair,
+        &send_mq,
+        &mut recv_mq,
+    ));
+    drop(system_state);
 
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
         Default::default();
@@ -1047,31 +1041,46 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     if local_state.dev_mode {
         // Install contracts when running in dev_mode.
 
-        let contract7 = {
-            let contract = contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()));
+        macro_rules! install_contract {
+            ($id: expr, $inner: expr) => {{
+                let ecdh_privkey = ecdh::clone_key(&ecdh_privkey);
+                let sender = MessageOrigin::native_contract($id);
+                let mq = send_mq.channel(sender, id_pair.clone());
+                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let wrapped = Box::new(contracts::NativeCompatContract::new(
+                    $inner,
+                    mq,
+                    cmd_mq,
+                    evt_mq,
+                    KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+                ));
+                other_contracts.insert($id, wrapped);
+            }};
+        }
 
-            let sender = MessageOrigin::native_contract(contracts::BTC_LOTTERY);
-            let mq = send_mq.channel(sender, id_pair.clone());
-            let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-            let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-            Box::new(contracts::NativeCompatContract::new(
-                contract,
-                mq,
-                cmd_mq,
-                evt_mq,
-                KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
-            ))
-        };
-        other_contracts.insert(contract7.id(), contract7);
+        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
+        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        install_contract!(
+            contracts::SUBSTRATE_KITTIES,
+            contracts::substrate_kitties::SubstrateKitties::new()
+        );
+        install_contract!(
+            contracts::BTC_LOTTERY,
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+        );
+        install_contract!(
+            contracts::WEB3_ANALYTICS,
+            contracts::web3analytics::Web3Analytics::new()
+        );
+        install_contract!(
+            contracts::DATA_PLAZA,
+            contracts::data_plaza::DataPlaza::new()
+        );
     }
 
     *state = Some(RuntimeState {
-        contract1: contracts::data_plaza::DataPlaza::new(),
-        contract2: contracts::balances::Balances::new(Some(id_pair.clone())),
-        contract3: contracts::assets::Assets::new(),
-        contract4: contracts::web3analytics::Web3Analytics::new(),
-        contract5: contracts::diem::Diem::new(),
-        contract6: contracts::substrate_kitties::SubstrateKitties::new(Some(id_pair.clone())),
         contracts: other_contracts,
         light_client,
         main_bridge,
@@ -1106,78 +1115,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     local_state.block_hashes.clear();
     local_state.initialized = true;
     Ok(serde_json::to_value(resp).unwrap())
-}
-
-fn handle_execution(
-    system: &mut system::System,
-    state: &mut RuntimeState,
-    pos: &TxRef,
-    origin: chain::AccountId,
-    contract_id: ContractId,
-    payload: &Vec<u8>,
-    command_index: CommandIndex,
-    ecdh_privkey: &EcdhKey,
-) -> Result<()> {
-    let payload: types::Payload = serde_json::from_slice(payload.as_slice())
-        .map_err(|e| anyhow!("Failed to decode payload: {}", e))?;
-    let inner_data = match payload {
-        types::Payload::Plain(data) => data.into_bytes(),
-        types::Payload::Cipher(cipher) => {
-            cryptography::decrypt(&cipher, ecdh_privkey)
-                .context("Decrypt failed")?
-                .msg
-        }
-    };
-
-    let inner_data_string = String::from_utf8_lossy(&inner_data);
-    info!("handle_execution: incominng cmd: {}", inner_data_string);
-
-    info!("handle_execution: about to call handle_command");
-    let status = match contract_id {
-        DATA_PLAZA => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract1.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        BALANCES => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract2.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        ASSETS => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract3.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        WEB3_ANALYTICS => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract4.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        DIEM => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract5.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        SUBSTRATE_KITTIES => match serde_json::from_slice(inner_data.as_slice()) {
-            Ok(cmd) => state.contract6.handle_command(&origin, pos, cmd),
-            _ => TransactionStatus::BadCommand,
-        },
-        _ => {
-            warn!(
-                "handle_execution: Skipped unknown contract: {}",
-                contract_id
-            );
-            TransactionStatus::BadContractId
-        }
-    };
-
-    system.add_receipt(
-        command_index,
-        TransactionReceipt {
-            account: AccountIdWrapper(origin),
-            block_num: pos.blocknum,
-            contract_id,
-            status,
-        },
-    );
-
-    Ok(())
 }
 
 fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
@@ -1294,7 +1231,8 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         }
     }
 
-    let ecdh_privkey = ecdh::clone_key(
+    // TODO.kevin: enable e2e encryption mq for contracts
+    let _ecdh_privkey = ecdh::clone_key(
         local_state
             .ecdh_private_key
             .as_ref()
@@ -1360,8 +1298,6 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
             block.block_header.number,
             events,
             &local_state.runtime_state,
-            &ecdh_privkey,
-            local_state.dev_mode,
         )?;
 
         last_block = block.block_header.number;
@@ -1383,8 +1319,6 @@ fn handle_events(
     block_number: chain::BlockNumber,
     events: Vec<u8>,
     storage: &Storage,
-    ecdh_privkey: &EcdhKey,
-    dev_mode: bool,
 ) -> Result<(), Value> {
     let ref mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
@@ -1392,71 +1326,32 @@ fn handle_events(
     let mut events: &[u8] = events.as_ref();
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
         .map_err(|_| error_msg("Decode events error"))?;
+
     let system = &mut SYSTEM_STATE.lock().unwrap();
-    let mut event_handler = system.feed_event();
+    let system = system
+        .as_mut()
+        .ok_or_else(|| error_msg("Runtime not initialized"))?;
 
     state.recv_mq.reset_local_index();
 
     for evt in events {
-        if let chain::Event::Phala(pe) = &evt.event {
-            // Dispatch to system contract anyway
-            event_handler
-                .feed(block_number, &pe, storage)
-                .map_err(|e| error_msg(format!("Event error {:?}", e).as_str()))?;
-            // Otherwise we only dispatch the events for dev_mode pRuntime (not miners)
-            if !dev_mode {
-                info!("handle_events: skipped for miners");
-                continue;
-            }
-            match pe {
-                phala::RawEvent::CommandPushed(who, contract_id, payload, num) => {
-                    info!(
-                        "push_command(contract_id: {}, payload: data[{}])",
-                        contract_id,
-                        payload.len()
-                    );
-                    let pos = TxRef {
-                        blocknum: block_number,
-                        index: *num,
-                    };
-                    let result = handle_execution(
-                        event_handler.system,
-                        state,
-                        &pos,
-                        who.clone(),
-                        *contract_id,
-                        payload,
-                        *num,
-                        ecdh_privkey,
-                    );
-                    if let Err(e) = result {
-                        error!(
-                            "handle_execution failed with {:?}, skipping bad command...",
-                            e
-                        );
-                    }
-                }
-                _ => {
-                    state.contract2.handle_event(evt.event.clone());
-                }
-            }
-        } else if let chain::Event::KittyStorage(pe) = &evt.event {
-            println!("pallet_kitties event: {:?}", pe);
-            state.contract6.handle_event(evt.event.clone());
-        } else if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event
-        {
+        if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
             info!("mq dispatching message: {:?}", message);
             state.recv_mq.dispatch(message);
         }
     }
 
-    // TODO.kevin: Refactor the contract and mq to some kind of multi-threaded or async model.
-    //      So that we can avoid to call the process_events manually.
+    if let Err(e) = system.process_events(block_number, storage) {
+        error!("System process events failed: {:?}", e);
+        return Err(error_msg("System process events failed"));
+    }
+
     let mut env = ExecuteEnv {
         block_number,
-        system: event_handler.system,
+        system,
         storage,
     };
+
     for contract in state.contracts.values_mut() {
         contract.process_events(&mut env);
     }
@@ -1482,11 +1377,6 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let dev_mode = local_state.dev_mode;
     drop(local_state);
 
-    let system_state = SYSTEM_STATE.lock().unwrap();
-    let sys_seq_start = system_state.egress.sequence;
-    let sys_len = system_state.egress.queue.len();
-    drop(system_state);
-
     let runtime_state = STATE.lock().unwrap();
     let pending_messages = match runtime_state.as_ref() {
         None => 0,
@@ -1503,10 +1393,6 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "state_root": state_root,
         "machine_id": machine_id,
         "dev_mode": dev_mode,
-        "system_egress": {
-            "sequence": sys_seq_start,
-            "len": sys_len,
-        },
         "pending_messages": pending_messages,
     }))
 }
@@ -1633,66 +1519,13 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
         None => None,
     };
     // Dispatch
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     let ref_origin = accid_origin.as_ref();
     let res = match opaque_query.contract_id {
-        DATA_PLAZA => serde_json::to_value(
-            state.contract1.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (data_plaza::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        BALANCES => serde_json::to_value(
-            state.contract2.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (balances::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        ASSETS => serde_json::to_value(
-            state.contract3.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (assets::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        WEB3_ANALYTICS => serde_json::to_value(
-            state.contract4.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (w3a::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        DIEM => serde_json::to_value(
-            state.contract5.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (diem::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
-        SUBSTRATE_KITTIES => serde_json::to_value(
-            state.contract6.handle_query(
-                ref_origin,
-                types::deopaque_query(opaque_query)
-                    .map_err(|_| error_msg("Malformed request (substrate_kitties::Request)"))?
-                    .request,
-            ),
-        )
-        .unwrap(),
         SYSTEM => {
-            let mut system_state = SYSTEM_STATE.lock().unwrap();
+            let mut guard = SYSTEM_STATE.lock().unwrap();
+            let system_state = guard
+                .as_mut()
+                .ok_or_else(|| error_msg("Runtime not initialized"))?;
             serde_json::to_value(
                 system_state.handle_query(
                     ref_origin,
@@ -1704,6 +1537,8 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
             .unwrap()
         }
         _ => {
+            let mut state = STATE.lock().unwrap();
+            let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
             let contract = state
                 .contracts
                 .get_mut(&opaque_query.contract_id)
@@ -1729,39 +1564,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
     let res_value = serde_json::to_value(res_payload).unwrap();
     Ok(res_value)
-}
-
-fn get(input: &Map<String, Value>) -> Result<Value, Value> {
-    let state = STATE.lock().unwrap();
-    let state = state.as_ref().ok_or(error_msg("Runtime not initialized"))?;
-    let path = input.get("path").unwrap().as_str().unwrap();
-
-    let data = match state.contract1.get(&path.to_string()) {
-        Some(d) => d,
-        None => return Err(error_msg("Data doesn't exist")),
-    };
-
-    let data_b64 = base64::encode(data);
-
-    Ok(json!({
-        "path": path.to_string(),
-        "value": data_b64
-    }))
-}
-
-fn set(input: &Map<String, Value>) -> Result<Value, Value> {
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-    let path = input.get("path").unwrap().as_str().unwrap();
-    let data_b64 = input.get("data").unwrap().as_str().unwrap();
-
-    let data = base64::decode(data_b64).map_err(|_| error_msg("Failed to decode base64 data"))?;
-    state.contract1.set(path.to_string(), data);
-
-    Ok(json!({
-        "path": path.to_string(),
-        "data": data_b64.to_string()
-    }))
 }
 
 fn test(param: TestReq) -> Result<Value, Value> {

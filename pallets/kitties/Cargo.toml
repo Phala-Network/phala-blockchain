@@ -25,6 +25,8 @@ libsecp256k1 = { version = "0.3.2", default-features = false }
 blake2-rfc = { version = "0.2.18", default-features = false }
 
 pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
+phala-pallets = { path = "../phala", default-features = false }
+phala-types = { path = "../../common/types", default-features = false }
 
 [features]
 default = ["std"]

@@ -4,37 +4,21 @@ extern crate alloc;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
-use sp_core::U256;
-
-#[cfg(feature = "enable_serde")]
-use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "pruntime")]
 pub mod pruntime;
 
 // Messages: Phase Wallet
 
-#[derive(Encode, Decode)]
-pub struct Transfer<AccountId, Balance> {
-    pub dest: AccountId,
-    pub amount: Balance,
-    pub sequence: u64,
-}
-
-#[derive(Encode, Decode)]
-pub struct TransferData<AccountId, Balance> {
-    pub data: Transfer<AccountId, Balance>,
-    pub signature: Vec<u8>,
-}
-
 pub mod messaging {
-    use alloc::vec::Vec;
     use alloc::string::String;
+    use alloc::vec::Vec;
     use codec::{Decode, Encode};
     use core::fmt::Debug;
+    use sp_core::U256;
 
-    pub use phala_mq::types::*;
     pub use phala_mq::bind_topic;
+    pub use phala_mq::types::*;
 
     #[derive(Encode, Decode, Debug)]
     pub struct PushCommand<Cmd> {
@@ -46,8 +30,10 @@ pub mod messaging {
         const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
     }
 
+    // TODO.kevin:
+    //    We should create a crate for each contract just like developing apps.
+    //    Then the following types should be put in their own crates.
     // Messages: Lottery
-
 
     bind_topic!(Lottery, b"^phala/BridgeTransfer");
     #[derive(Encode, Decode, Clone, Debug)]
@@ -76,67 +62,135 @@ pub mod messaging {
     }
 
     pub type Txid = [u8; 32];
-}
 
-// Messages: System
+    // Messages for Balances
 
-#[derive(Encode, Decode, Clone, Debug)]
-#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-pub enum WorkerMessagePayload {
-    Heartbeat {
-        block_num: u32,
-        claim_online: bool,
-        claim_compute: bool,
-    },
-}
-
-#[derive(Encode, Decode, Clone, Debug)]
-#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-pub struct WorkerMessage {
-    pub payload: WorkerMessagePayload,
-    pub sequence: u64,
-}
-
-#[derive(Encode, Decode, Clone, Debug)]
-#[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
-pub struct SignedWorkerMessage {
-    pub data: WorkerMessage,
-    pub signature: Vec<u8>,
-}
-
-// Message support trait
-
-pub trait SignedDataType<T> {
-    fn raw_data(&self) -> Vec<u8>;
-    fn signature(&self) -> T;
-}
-
-impl<AccountId: Encode, Balance: Encode> SignedDataType<Vec<u8>>
-    for TransferData<AccountId, Balance>
-{
-    fn raw_data(&self) -> Vec<u8> {
-        Encode::encode(&self.data)
+    bind_topic!(BalanceEvent<AccountId, Balance>, b"phala/balances/event");
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BalanceEvent<AccountId, Balance> {
+        TransferToTee(AccountId, Balance),
     }
-    fn signature(&self) -> Vec<u8> {
-        self.signature.clone()
-    }
-}
 
-impl SignedDataType<Vec<u8>> for SignedWorkerMessage {
-    fn raw_data(&self) -> Vec<u8> {
-        Encode::encode(&self.data)
+    bind_topic!(BalanceCommand<AccountId, Balance>, b"phala/balances/command");
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BalanceCommand<AccountId, Balance> {
+        Transfer { dest: AccountId, value: Balance },
+        TransferToChain { dest: AccountId, value: Balance },
     }
-    fn signature(&self) -> Vec<u8> {
-        self.signature.clone()
-    }
-}
 
-impl SignedDataType<Vec<u8>> for messaging::SignedMessage {
-    fn raw_data(&self) -> Vec<u8> {
-        self.data_be_signed()
+    bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
+    #[derive(Encode, Decode)]
+    pub struct BalanceTransfer<AccountId, Balance> {
+        pub dest: AccountId,
+        pub amount: Balance,
     }
-    fn signature(&self) -> Vec<u8> {
-        self.signature.clone()
+
+    // Messages for Assets
+
+    bind_topic!(AssetCommand<AccountId, Balance>, b"phala/assets/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum AssetCommand<AccountId, Balance> {
+        Issue {
+            symbol: String,
+            total: Balance,
+        },
+        Destroy {
+            id: AssetId,
+        },
+        Transfer {
+            id: AssetId,
+            dest: AccountId,
+            value: Balance,
+        },
+    }
+
+    pub type AssetId = u32;
+
+    // Messages for Web3Analytics
+
+    bind_topic!(Web3AnalyticsCommand, b"phala/web3analytics/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum Web3AnalyticsCommand {
+        SetConfiguration { skip_stat: bool },
+    }
+
+    // Messages for diem
+
+    bind_topic!(DiemCommand, b"phala/diem/command");
+    #[derive(Encode, Decode, Debug)]
+    pub enum DiemCommand {
+        /// Sets the whitelisted accounts, in bcs encoded base64
+        AccountInfo {
+            account_info_b64: String,
+        },
+        /// Verifies a transactions
+        VerifyTransaction {
+            account_address: String,
+            transaction_with_proof_b64: String,
+        },
+        /// Sets the trusted state. The owner can only initialize the bridge with the genesis state
+        /// once.
+        SetTrustedState {
+            trusted_state_b64: String,
+            chain_id: u8,
+        },
+        VerifyEpochProof {
+            ledger_info_with_signatures_b64: String,
+            epoch_change_proof_b64: String,
+        },
+
+        NewAccount {
+            seq_number: u64,
+        },
+        TransferXUS {
+            to: String,
+            amount: u64,
+        },
+    }
+
+    // Messages for Kitties
+
+    bind_topic!(KittyEvent<AccountId, Hash>, b"phala/kitties/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum KittyEvent<AccountId, Hash> {
+        Created(AccountId, Hash),
+    }
+
+    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/trasfer");
+    #[derive(Debug, Clone, Encode, Decode, PartialEq)]
+    pub struct KittyTransfer<AccountId> {
+        pub dest: AccountId,
+        pub kitty_id: Vec<u8>,
+    }
+
+    // Messages: System
+    bind_topic!(SystemEvent<AccountId>, b"phala/system/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum SystemEvent<AccountId> {
+        /// [stash, identity_key, machine_id]
+        WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
+        /// [stash, machine_id]
+        WorkerUnregistered(AccountId, Vec<u8>),
+        NewMiningRound(u32),
+        RewardSeed(BlockRewardInfo),
+    }
+
+    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+    pub struct BlockRewardInfo {
+        pub seed: U256,
+        pub online_target: U256,
+        pub compute_target: U256,
+    }
+
+    bind_topic!(WorkerReportEvent, b"^phala/system/report");
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub enum WorkerReportEvent {
+        Heartbeat {
+            machine_id: Vec<u8>,
+            block_num: u32,
+            claim_online: bool,
+            claim_compute: bool,
+        },
     }
 }
 
@@ -202,13 +256,6 @@ pub struct PRuntimeInfo {
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub features: Vec<u32>,
-}
-
-#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
-pub struct BlockRewardInfo {
-    pub seed: U256,
-    pub online_target: U256,
-    pub compute_target: U256,
 }
 
 #[derive(Encode, Decode, Debug, Default)]

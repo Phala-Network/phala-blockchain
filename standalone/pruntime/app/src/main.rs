@@ -357,8 +357,6 @@ delegate_rpc!("/load_states", load_states, actions::ACTION_LOAD_STATES);
 delegate_rpc!("/sync_header", sync_header, actions::ACTION_SYNC_HEADER);
 delegate_rpc!("/query", query, actions::ACTION_QUERY);
 delegate_rpc!("/dispatch_block", dispatch_block, actions::ACTION_DISPATCH_BLOCK);
-delegate_rpc!("/set", set, actions::ACTION_SET);
-delegate_rpc!("/get", get, actions::ACTION_GET);
 // TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
 delegate_rpc!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
 delegate_rpc!("/test_ink", test_ink, actions::ACTION_TEST_INK);
@@ -392,7 +390,7 @@ fn rocket() -> rocket::Rocket {
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
-            set, get, get_runtime_info, get_egress_messages, test_ink]);
+            get_runtime_info, get_egress_messages, test_ink]);
 
     if *ENABLE_KICK_API {
         info!("ENABLE `kick` API");

@@ -7,14 +7,6 @@ use structopt::StructOpt;
 #[derive(Debug, StructOpt)]
 #[structopt(name = "Phala Debug Utility CLI")]
 enum Cli {
-    DecodeWorkerMessage {
-        #[structopt(short)]
-        hex_data: String,
-    },
-    DecodeWorkerMessageQueue {
-        #[structopt(short)]
-        b64_data: String,
-    },
     DecodePruntimeInfo {
         #[structopt(short)]
         hex_data: String,
@@ -57,18 +49,6 @@ enum Cli {
 fn main() {
     let cli = Cli::from_args();
     match cli {
-        Cli::DecodeWorkerMessage { hex_data } => {
-            let data = decode_hex(&hex_data);
-            let msg: phala_types::SignedWorkerMessage =
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
-            println!("Decoded: {:?}", msg);
-        }
-        Cli::DecodeWorkerMessageQueue { b64_data } => {
-            let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
-            let msg: Vec<phala_types::SignedWorkerMessage> =
-                Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
-            println!("Decoded: {:?}", msg);
-        }
         Cli::DecodePruntimeInfo {
             hex_data,
             print_field,

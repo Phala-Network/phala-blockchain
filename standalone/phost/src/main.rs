@@ -78,12 +78,6 @@ struct Args {
     ra: bool,
 
     #[structopt(
-        long,
-        help = "Remove unsent out-dated transactions (e.g clain_reward), this will help to reduce unnecessary fee, but will got slash on main-net."
-    )]
-    reset_egress: bool,
-
-    #[structopt(
         default_value = "ws://localhost:9944",
         long,
         help = "Substrate rpc websocket endpoint"
@@ -452,27 +446,6 @@ async fn get_stash_account(client: &XtClient, controller: AccountId) -> Result<A
         .map_err(Into::into)
 }
 
-async fn get_balances_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::IngressSequenceStore::new(2), None)
-        .await
-        .or(Ok(0))
-}
-
-async fn _get_kitties_ingress_seq(client: &XtClient) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::kitties::IngressSequenceStore::new(6), None)
-        .await
-        .or(Ok(0))
-}
-
-async fn get_worker_ingress(client: &XtClient, stash: AccountId) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala::WorkerIngressStore::new(stash), None)
-        .await
-        .map_err(Into::into)
-}
-
 async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
     client
         .fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None)
@@ -567,25 +540,6 @@ async fn register_worker(
     Ok(())
 }
 
-/// Returns the block where the ResetWorker call is included
-async fn reset_worker(client: &XtClient, signer: &mut SrSigner) -> Result<Hash> {
-    let call = runtimes::phala::ResetWorkerCall {
-        _runtime: PhantomData,
-    };
-    update_signer_nonce(client, signer).await?;
-    let ret = client.watch(call, signer).await;
-    match ret {
-        Ok(r) => {
-            signer.increment_nonce();
-            Ok(r.block)
-        }
-        Err(err) => {
-            error!("FailedToCallResetWorker: {:?}", err);
-            Err(anyhow!(Error::FailedToCallResetWorker))
-        }
-    }
-}
-
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn bridge(args: Args) -> Result<()> {
@@ -624,12 +578,6 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    // We will not sync message until the inclusion block after we call `ResetWorker`
-    let wait_block_until = if args.reset_egress {
-        Some(reset_worker(&client, &mut signer).await?)
-    } else {
-        None
-    };
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
@@ -698,9 +646,6 @@ async fn bridge(args: Args) -> Result<()> {
     }
 
     // Don't just sync message if we want to wait for some block
-    let mut defer_block = wait_block_until.is_some();
-    let mut balance_seq = get_balances_ingress_seq(&client).await?;
-    let mut system_seq = get_worker_ingress(&client, stash).await?;
     let mut sync_state = BlockSyncState {
         blocks: Vec::new(),
         authory_set_state: None,
@@ -754,14 +699,6 @@ async fn bridge(args: Args) -> Result<()> {
                     block.block.block.header.number
                 );
             }
-            if let Some(hash) = wait_block_until {
-                if block.block.block.header.hash() == hash {
-                    debug!(
-                        "Hit the deferred block; will start message passing from the next block"
-                    );
-                    defer_block = false;
-                }
-            }
             sync_state.blocks.push(block.clone());
         }
 
@@ -782,7 +719,7 @@ async fn bridge(args: Args) -> Result<()> {
             batch_sync_block(&client, &pr, &mut sync_state, args.sync_blocks).await?;
 
         // check if pRuntime has already reached the chain tip.
-        if !defer_block && synced_blocks == 0 {
+        if synced_blocks == 0 {
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -798,10 +735,6 @@ async fn bridge(args: Args) -> Result<()> {
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
                 let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
-                msg_sync.maybe_sync_worker_egress(&mut system_seq).await?;
-                msg_sync
-                    .maybe_sync_balances_egress(&mut balance_seq)
-                    .await?;
                 msg_sync.maybe_sync_mq_egress().await?;
             }
         }

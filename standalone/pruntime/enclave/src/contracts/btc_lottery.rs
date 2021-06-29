@@ -1,6 +1,5 @@
 use crate::chain;
 use crate::contracts::{self, AccountIdWrapper};
-use crate::types::TxRef;
 use crate::TransactionStatus;
 
 use crate::std::{
@@ -16,8 +15,8 @@ use crate::std::{
 use anyhow::Result;
 use lazy_static;
 use log::error;
-use parity_scale_codec::{Decode, Encode};
-use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin, bind_topic};
+use parity_scale_codec::Encode;
+use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
@@ -34,7 +33,7 @@ use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTx
 use bitcoin_hashes::Hash as _;
 
 use chain::pallet_bridge_transfer::LotteryEvent;
-use phala_types::messaging::{Lottery, LotteryCommand as Command, Txid};
+use phala_types::messaging::{Lottery, LotteryCommand as Command, PushCommand, Txid};
 
 use super::NativeContext;
 
@@ -320,13 +319,14 @@ impl contracts::NativeContract for BtcLottery {
         &mut self,
         _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: Command,
+        cmd: PushCommand<Command>,
     ) -> TransactionStatus {
         let origin: chain::AccountId = match origin {
             MessageOrigin::AccountId(id) => (*id.inner()).into(),
             _ => return TransactionStatus::BadOrigin,
         };
-        match cmd {
+
+        match cmd.command {
             Command::SubmitUtxo {
                 round_id,
                 address,
@@ -361,7 +361,7 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_query(&self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
         match req {
             Request::GetAllRounds => Response::GetAllRounds {
                 round_id: self.round_id,
@@ -428,17 +428,17 @@ impl contracts::NativeContract for BtcLottery {
     }
 
     fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryEvent) {
-        if origin != bridge_transfer::Module::<chain::Runtime>::message_origin() {
+        if origin != chain::BridgeTransfer::message_origin() {
             error!("Received trasfer event from invalid origin: {:?}", origin);
             return;
         }
         info!("Received trasfer event from {:?}", origin);
         match ce {
             LotteryEvent::NewRound(round_id, total_count, winner_count) => {
-                Self::new_round(self, context.mq, round_id, total_count, winner_count)
+                Self::new_round(self, context.mq(), round_id, total_count, winner_count)
             }
             LotteryEvent::OpenBox(round_id, token_id, btc_address) => {
-                Self::open_lottery(self, context.mq, round_id, token_id, btc_address)
+                Self::open_lottery(self, context.mq(), round_id, token_id, btc_address)
             }
         }
     }

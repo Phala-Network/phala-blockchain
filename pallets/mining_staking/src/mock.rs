@@ -28,6 +28,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Phala: phala_pallets::pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>},
+		PhalaMq: phala_pallets::pallet_mq::{Pallet, Event},
 		MiningStaking: mining_staking::{Pallet, Call, Storage, Event<T>},
 	}
 );
@@ -109,8 +110,6 @@ impl phala_pallets::pallet_phala::Config for Test {
 	type WeightInfo = ();
 	type OnRoundEnd = ();
 
-	type OnLotteryMessage = ();
-
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
 	type RoundInterval = RoundInterval;
@@ -123,6 +122,11 @@ impl phala_pallets::pallet_phala::Config for Test {
 	type ComputeRewardPercentage = ComputeRewardPercentage;
 	type OfflineOffenseSlash = OfflineOffenseSlash;
 	type OfflineReportReward = OfflineReportReward;
+}
+
+impl phala_pallets::pallet_mq::Config for Test {
+    type Event = Event;
+    type QueueNotifyConfig = ();
 }
 
 impl mining_staking::Config for Test {

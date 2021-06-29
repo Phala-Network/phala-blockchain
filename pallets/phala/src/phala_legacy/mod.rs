@@ -1,4 +1,5 @@
 extern crate alloc;
+use codec::Encode;
 use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
@@ -7,6 +8,7 @@ use sp_std::{cmp, vec};
 use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
 use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
+use crate::mq::{self, MessageOriginInfo};
 use alloc::{borrow::ToOwned, vec::Vec};
 use codec::Decode;
 use frame_support::{
@@ -21,6 +23,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, One, Zero},
 	Permill, SaturatedConversion,
 };
+use types::messaging::WorkerReportEvent;
 
 #[macro_use]
 mod benchmarking;
@@ -32,9 +35,12 @@ pub mod weights;
 // types
 extern crate phala_types as types;
 use types::{
-	messaging::Message, BlockRewardInfo, MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason,
-	RoundInfo, RoundStats, Score, SignedDataType, SignedWorkerMessage, StashInfo, StashWorkerStats,
-	TransferData, WorkerInfo, WorkerMessagePayload, WorkerStateEnum,
+	messaging::{
+		BalanceEvent, BalanceTransfer, BindTopic, BlockRewardInfo, Message, MessageOrigin,
+		SystemEvent,
+	},
+	MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score,
+	StashInfo, StashWorkerStats, WorkerInfo, WorkerStateEnum,
 };
 
 // constants
@@ -70,7 +76,7 @@ pub trait OnMessageReceived {
 impl OnMessageReceived for () {}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
-pub trait Config: frame_system::Config {
+pub trait Config: frame_system::Config + mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 	type TEECurrency: Currency<Self::AccountId>;
@@ -78,7 +84,6 @@ pub trait Config: frame_system::Config {
 	type Treasury: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	type WeightInfo: WeightInfo;
 	type OnRoundEnd: OnRoundEnd;
-	type OnLotteryMessage: OnMessageReceived;
 
 	// Parameters
 	type MaxHeartbeatPerWorkerPerHour: Get<u32>; // 2 tx
@@ -234,25 +239,12 @@ decl_event!(
 		AccountId = <T as frame_system::Config>::AccountId,
 		Balance = BalanceOf<T>,
 	{
-		// Chain events
-		CommandPushed(AccountId, u32, Vec<u8>, u64),
-		TransferToTee(AccountId, Balance),
-		TransferToChain(AccountId, Balance, u64),
-		/// [stash, identity_key, machine_id]
-		WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
-		/// [stash, machine_id]
-		WorkerUnregistered(AccountId, Vec<u8>),
-		Heartbeat(AccountId, u32),
-		Offline(AccountId),
 		/// Some worker got slashed. [stash, payout_addr, lost_amount, reporter, win_amount]
 		Slash(AccountId, AccountId, Balance, AccountId, Balance),
 		_GotCredits(AccountId, u32, u32), // [DEPRECATED] [account, updated, delta]
 		WorkerStateUpdated(AccountId),
 		WhitelistAdded(Vec<u8>),
 		WhitelistRemoved(Vec<u8>),
-		RewardSeed(BlockRewardInfo),
-		/// [stash, identity_key, seq]
-		WorkerMessageReceived(AccountId, Vec<u8>, u64),
 		/// [round, stash]
 		MinerStarted(u32, AccountId),
 		/// [round, stash]
@@ -262,9 +254,6 @@ decl_event!(
 		_Payout(AccountId, Balance, Balance), // [DEPRECATED] dest, reward, treasury
 		/// [stash, dest]
 		PayoutMissed(AccountId, AccountId),
-		/// A worker is reset due to renew registration or slash, causing the reset of the worker
-		/// ingress sequence. [stash, machine_id]
-		WorkerReset(AccountId, Vec<u8>),
 		/// [dest, reward, treasury, reason]
 		PayoutReward(AccountId, Balance, Balance, PayoutReason),
 		/// A lottery contract message was received. [sequence]
@@ -339,6 +328,8 @@ decl_error! {
 		ReportedWorkerNotMining,
 		/// The report has an invalid proof
 		InvalidProof,
+		/// Access not allow due to permission issue
+		NotAllowed,
 	}
 }
 
@@ -360,16 +351,6 @@ decl_module! {
 				ForceNextRound::put(false);
 				Self::handle_round_ends(now, &round);
 			}
-		}
-
-		// Messaging
-		#[weight = T::WeightInfo::push_command()]
-		pub fn push_command(origin, contract_id: u32, payload: Vec<u8>) -> dispatch::DispatchResult {
-			let who = ensure_signed(origin)?;
-			let num = Self::command_number().unwrap_or(0);
-			CommandNumber::put(num + 1);
-			Self::deposit_event(RawEvent::CommandPushed(who, contract_id, payload, num));
-			Ok(())
 		}
 
 		// Registry
@@ -514,20 +495,6 @@ decl_module! {
 				.map_err(Into::into)
 		}
 
-		#[weight = 0]
-		pub fn reset_worker(origin) -> dispatch::DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(Stash::<T>::contains_key(&who), Error::<T>::NotController);
-			let stash = Stash::<T>::get(&who);
-			let worker_info = WorkerState::<T>::get(&stash);
-			let machine_id = worker_info.machine_id;
-
-			Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
-
-			WorkerIngress::<T>::insert(stash, 0);
-			Ok(())
-		}
-
 		#[weight = T::WeightInfo::force_register_worker()]
 		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
@@ -586,80 +553,9 @@ decl_module! {
 			let who = ensure_signed(origin)?;
 			T::TEECurrency::transfer(&who, &Self::account_id(), amount, AllowDeath)
 				.map_err(|_| Error::<T>::CannotDeposit)?;
-			Self::deposit_event(RawEvent::TransferToTee(who, amount));
+			Self::push_message(BalanceEvent::TransferToTee(who, amount));
 			Ok(())
 		}
-
-		#[weight = T::WeightInfo::transfer_to_chain()]
-		fn transfer_to_chain(origin, data: Vec<u8>) -> dispatch::DispatchResult {
-			// This is a specialized Contract-to-Chain message passing where the confidential
-			// contract is always Balances (id = 2)
-			// Anyone can call this method. As long as the message meets all the requirements
-			// (signature, sequence id, etc), it's considered as a valid message.
-			const CONTRACT_ID: u32 = 2;
-			ensure_signed(origin)?;
-			let transfer_data: TransferData<<T as frame_system::Config>::AccountId, BalanceOf<T>>
-				= Decode::decode(&mut &data[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Check sequence
-			let sequence = IngressSequence::get(CONTRACT_ID);
-			ensure!(transfer_data.data.sequence == sequence + 1, Error::<T>::BadMessageSequence);
-			// Contract key
-			ensure!(ContractKey::contains_key(CONTRACT_ID), Error::<T>::InvalidContract);
-			let pubkey = ContractKey::get(CONTRACT_ID);
-			// Validate TEE signature
-			Self::verify_signature(&pubkey, &transfer_data)?;
-			// Release funds
-			T::TEECurrency::transfer(
-				&Self::account_id(), &transfer_data.data.dest, transfer_data.data.amount,
-				AllowDeath)
-				.map_err(|_| Error::<T>::CannotWithdraw)?;
-			// Announce the successful execution
-			IngressSequence::insert(CONTRACT_ID, sequence + 1);
-			Self::deposit_event(RawEvent::TransferToChain(transfer_data.data.dest, transfer_data.data.amount, sequence + 1));
-			Ok(())
-		}
-
-		// Messaging
-
-		#[weight = T::WeightInfo::sync_worker_message()]
-		fn sync_worker_message(origin, msg: Vec<u8>) -> dispatch::DispatchResult {
-			// TODO: allow anyone to relay the message
-			let who = ensure_signed(origin)?;
-			let signed: SignedWorkerMessage = Decode::decode(&mut &msg[..]).map_err(|_| Error::<T>::InvalidInput)?;
-			// Worker queue sequence
-			ensure!(Stash::<T>::contains_key(&who), Error::<T>::ControllerNotFound);
-			let stash = Stash::<T>::get(&who);
-			let expected_seq = WorkerIngress::<T>::get(&stash);
-			ensure!(signed.data.sequence == expected_seq, Error::<T>::BadMessageSequence);
-			// Validate signature
-			let worker_info = WorkerState::<T>::get(&stash);
-			if worker_info.state == WorkerStateEnum::<_>::Empty {
-				return Err(Error::<T>::InvalidState.into());
-			}
-			Self::verify_signature(&worker_info.pubkey, &signed)?;
-			// Dispatch message
-			match signed.data.payload {
-				WorkerMessagePayload::Heartbeat { block_num, claim_online, claim_compute } => {
-					let stash_info = StashState::<T>::get(&stash);
-					let id_pubkey = &worker_info.pubkey;
-					let score = match worker_info.score {
-						Some(score) => score.overall_score,
-						None => 0
-					};
-					Self::add_heartbeat(&stash, block_num.into());
-					Self::handle_claim_reward(
-						&stash, &stash_info.payout_prefs.target, claim_online, claim_compute,
-						score, block_num.into());
-					Self::deposit_event(RawEvent::Heartbeat(stash.clone(), block_num));
-					Self::deposit_event(RawEvent::WorkerMessageReceived(
-						stash.clone(), id_pubkey.clone(), expected_seq));
-				}
-			}
-			// Advance ingress sequence
-			WorkerIngress::<T>::insert(&stash, expected_seq + 1);
-			Ok(())
-		}
-
 
 		// Violence
 		#[weight = 0]
@@ -803,25 +699,6 @@ impl<T: Config> Module<T> {
 	pub fn is_controller(controller: T::AccountId) -> bool {
 		Stash::<T>::contains_key(&controller)
 	}
-	pub fn verify_signature(
-		serialized_pk: &Vec<u8>,
-		data: &impl SignedDataType<Vec<u8>>,
-	) -> dispatch::DispatchResult {
-		ensure!(serialized_pk.len() == 33, Error::<T>::InvalidPubKey);
-		let pubkey = sp_core::ecdsa::Public::try_from(serialized_pk.as_slice())
-			.map_err(|_| Error::<T>::InvalidPubKey)?;
-		let raw_sig = data.signature();
-		ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureBadLen);
-		let sig = sp_core::ecdsa::Signature::try_from(raw_sig.as_slice())
-			.map_err(|_| Error::<T>::InvalidSignature)?;
-		let data = data.raw_data();
-
-		ensure!(
-			sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey),
-			Error::<T>::FailedToVerify
-		);
-		Ok(())
-	}
 
 	fn stop_mining_internal(stash: &T::AccountId) -> dispatch::DispatchResult {
 		let mut worker_info = WorkerState::<T>::get(&stash);
@@ -851,7 +728,8 @@ impl<T: Config> Module<T> {
 		Self::kick_worker(stash, stats_delta);
 		WorkerState::<T>::remove(stash);
 		MachineOwner::<T>::remove(machine_id);
-		Self::deposit_event(RawEvent::WorkerUnregistered(
+
+		Self::push_message(SystemEvent::WorkerUnregistered(
 			stash.clone(),
 			machine_id.clone(),
 		));
@@ -918,7 +796,6 @@ impl<T: Config> Module<T> {
 		// New WorkerInfo
 		let new_info = if renew_only {
 			// Just renewed
-			Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
 			WorkerInfo {
 				machine_id: machine_id.clone(), // should not change, but we set it anyway
 				pubkey: pubkey.clone(),         // could change if the worker forgot the identity
@@ -930,11 +807,6 @@ impl<T: Config> Module<T> {
 			}
 		} else {
 			// Link a new worker
-			Self::deposit_event(RawEvent::WorkerRegistered(
-				stash.clone(),
-				pubkey.clone(),
-				machine_id.clone(),
-			));
 			WorkerInfo {
 				machine_id: machine_id.clone(),
 				pubkey: pubkey.clone(),
@@ -949,6 +821,11 @@ impl<T: Config> Module<T> {
 		MachineOwner::<T>::insert(machine_id, stash);
 		PendingExitingDelta::put(delta);
 		WorkerIngress::<T>::insert(stash, 0);
+		Self::push_message(SystemEvent::WorkerRegistered(
+			stash.clone(),
+			pubkey.clone(),
+			machine_id.clone(),
+		));
 		Ok(())
 	}
 
@@ -989,7 +866,12 @@ impl<T: Config> Module<T> {
 	) -> dispatch::DispatchResult {
 		// We have to kick the worker by force to avoid double slash
 		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
-		Self::deposit_event(RawEvent::WorkerReset(stash.clone(), machine_id.clone()));
+
+		// TODO.kevin: need to distinguish between Unregistered and Offline?
+		Self::push_message(SystemEvent::WorkerUnregistered(
+			stash.clone(),
+			machine_id.clone(),
+		));
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
@@ -1221,7 +1103,7 @@ impl<T: Config> Module<T> {
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
-		Self::deposit_event(RawEvent::RewardSeed(seed_info));
+		Self::push_message(SystemEvent::<T::AccountId>::RewardSeed(seed_info));
 	}
 
 	fn handle_claim_reward(
@@ -1418,6 +1300,72 @@ impl<T: Config> Module<T> {
 		Fire2::<T>::mutate(dest, |x| *x -= to_sub);
 		AccumulatedFire2::<T>::mutate(|x| *x -= to_sub);
 		to_sub
+	}
+
+	fn push_message(message: impl Encode + BindTopic) {
+		mq::Pallet::<T>::push_bound_message(Self::message_origin(), message)
+	}
+}
+
+impl<T: Config> MessageOriginInfo for Module<T> {
+	type Config = T;
+}
+
+impl<T: Config> Module<T> {
+	pub fn on_transfer_message_received(message: &Message) -> DispatchResult {
+		const CONTRACT_ID: u32 = 2;
+
+		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
+			return Err(Error::<T>::NotAllowed)?;
+		}
+
+		let data: BalanceTransfer<T::AccountId, BalanceOf<T>> =
+			message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+
+		// Release funds
+		T::TEECurrency::transfer(&Self::account_id(), &data.dest, data.amount, AllowDeath)
+			.map_err(|_| Error::<T>::CannotWithdraw)?;
+		Ok(())
+	}
+
+	pub fn on_worker_message_received(message: &Message) -> DispatchResult {
+		let _worker = match &message.sender {
+			MessageOrigin::Worker(worker) => worker,
+			_ => return Err(Error::<T>::NotAllowed.into()),
+		};
+
+		let event: WorkerReportEvent = message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+
+		match event {
+			WorkerReportEvent::Heartbeat {
+				machine_id,
+				block_num,
+				claim_online,
+				claim_compute,
+			} => {
+				let stash = MachineOwner::<T>::get(&machine_id);
+				let stash_info = StashState::<T>::get(&stash);
+				let worker_info = WorkerState::<T>::get(&stash);
+				if worker_info.state == WorkerStateEnum::<_>::Empty {
+					return Err(Error::<T>::InvalidState.into());
+				}
+				let score = match worker_info.score {
+					Some(score) => score.overall_score,
+					None => 0,
+				};
+				// TODO.kevin: where to kick the offline workers?
+				Self::add_heartbeat(&stash, block_num.into());
+				Self::handle_claim_reward(
+					&stash,
+					&stash_info.payout_prefs.target,
+					claim_online,
+					claim_compute,
+					score,
+					block_num.into(),
+				);
+			}
+		}
+		Ok(())
 	}
 }
 

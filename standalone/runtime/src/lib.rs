@@ -1026,7 +1026,6 @@ impl pallet_phala::Config for Runtime {
 	type UnixTime = Timestamp;
 	type Treasury = Treasury;
 	type OnRoundEnd = MiningStaking;
-	type OnLotteryMessage = BridgeTransfer;
 	type WeightInfo = pallet_phala::weights::SubstrateWeight<Runtime>;
 
 	// Parameters
@@ -1077,7 +1076,7 @@ impl pallet_registry::Config for Runtime {
 }
 impl pallet_mq::Config for Runtime {
 	type Event = Event;
-	type QueueNotifyConfig = msg_routing::MessageRouteConfig<Self>;
+	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
 }
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
