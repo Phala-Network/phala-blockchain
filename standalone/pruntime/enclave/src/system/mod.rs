@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 
 use chain::pallet_mq::MessageOriginInfo;
+use enclave_api::blocks::StorageKV;
 use parity_scale_codec::{Decode, Error as DecodeError, FullCodec};
 use phala_mq::{
     EcdsaMessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, TypedReceiveError,
@@ -13,12 +14,10 @@ use phala_mq::{
 };
 use phala_types::{
     messaging::{BlockRewardInfo, SystemEvent, WorkerReportEvent},
-    pruntime::StorageKV,
     WorkerStateEnum,
 };
 use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
 
-use crate::contracts::AccountIdWrapper;
 use crate::light_validation::utils::storage_prefix;
 use crate::OnlineWorkerSnapshot;
 
@@ -64,7 +63,10 @@ pub enum TransactionStatus {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TransactionReceipt {
-    #[serde(serialize_with = "crate::se_to_b64", deserialize_with = "crate::de_from_b64")]
+    #[serde(
+        serialize_with = "crate::se_to_b64",
+        deserialize_with = "crate::de_from_b64"
+    )]
     pub account: MessageOrigin,
     pub block_num: chain::BlockNumber,
     pub contract_id: u32,

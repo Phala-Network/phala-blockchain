@@ -56,13 +56,8 @@ use pink::InkModule;
 use enclave_api::actions::*;
 use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{
-    pruntime::{
-        BlockHeaderWithEvents as GenericBlockHeaderWithEvents, HeaderToSync as GenericHeaderToSync,
-        StorageKV,
-    },
-    PRuntimeInfo, WorkerInfo,
-};
+use phala_types::{PRuntimeInfo, WorkerInfo};
+use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
 
 mod cert;
 mod contracts;
@@ -83,13 +78,6 @@ use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
 use types::Error;
-
-type HeaderToSync =
-    GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
-type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
-    chain::BlockNumber,
-    <chain::Runtime as frame_system::Config>::Hashing,
->;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 type Storage = TrieStorage<RuntimeHasher>;

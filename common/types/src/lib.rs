@@ -5,9 +5,6 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
 
-#[cfg(feature = "pruntime")]
-pub mod pruntime;
-
 // Messages: Phase Wallet
 
 pub mod messaging {

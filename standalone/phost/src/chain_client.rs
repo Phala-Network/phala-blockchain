@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use sp_core::{storage::StorageKey};
-use phala_types::{messaging::MessageOrigin, pruntime::{StorageProof}};
+use phala_types::{messaging::MessageOrigin};
+use enclave_api::blocks::StorageProof;
 use super::runtimes;
 
 use super::XtClient;
