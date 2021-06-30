@@ -7,4 +7,6 @@ edition = "2018"
 
 [dependencies]
 sp-core = { path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
-rand = "0.7.3"  # rand = { version = "0.7.3", default-features = false, features = ["alloc", "getrandom"] }
+
+[dev-dependencies]
+rand = "0.7.3"
