@@ -180,6 +180,9 @@ pub mod pallet {
 							features: pruntime_info.features,
 						});
 						// TODO(kevin): Send msg to Worker: StartInitialBenchmark
+						//
+						// Alternatively, we can also ask the worker to watch a kvdb entry in this
+						// pallet (i.e. Worker[pubkey].initial_score == None)
 					}
 				}
 			});
