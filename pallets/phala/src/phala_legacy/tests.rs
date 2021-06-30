@@ -159,6 +159,7 @@ fn test_register_worker() {
 			ISV_SVN.to_vec()
 		));
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
+		// TODO(jasl): fix runtime info
 		assert_ok!(Phala::register_worker(
 			Origin::signed(1),
 			ENCODED_RUNTIME_INFO.to_vec(),
@@ -215,6 +216,7 @@ fn test_whitelist_works() {
 
 		// TODO: Handle RA report replay attack
 		assert_ok!(Phala::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		// TODO(jasl): fix runtime info
 		assert_ok!(Phala::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()));
 		let machine_id = &Phala::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);

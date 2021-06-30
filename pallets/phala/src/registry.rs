@@ -12,12 +12,16 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*};
+	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::UnixTime};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
 	use sp_std::vec;
+	use codec::Encode;
+	use sp_runtime::SaturatedConversion;
+
+	use crate::attestation::{validate_ias_report, Error as AttestationError};
 
 	use phala_types::{
 		messaging::{MessageOrigin, SignedMessage},
@@ -27,6 +31,8 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		type UnixTime: UnixTime;
 	}
 
 	#[pallet::pallet]
@@ -60,6 +66,16 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknwonContract,
+		// IAS related
+		InvalidIASSigningCert,
+		InvalidReport,
+		InvalidQuoteStatus,
+		BadIASReport,
+		OutdatedIASReport,
+		UnknownQuoteBodyFormat,
+		// Report validation
+		InvalidRuntimeInfoHash,
+		InvalidRuntimeInfo,
 	}
 
 	#[pallet::call]
@@ -69,16 +85,18 @@ pub mod pallet {
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
+			ecdh_pubkey: WorkerPublicKey,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let worker_info = WorkerInfo {
 				pubkey: pubkey.clone(),
+				ecdh_pubkey,
 				runtime_version: 0,
 				last_updated: 0,
 				confidence_level: 128u8,
 				intial_score: None,
 				benchmark_start_ts: None,
-				legacy_scores: vec![1, 4],
+				features: vec![1, 4],
 			};
 			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
 			Ok(())
@@ -115,7 +133,60 @@ pub mod pallet {
 			pruntime_info: PRuntimeInfo,
 			attestation: Attestation,
 		) -> DispatchResult {
-			panic!("unimpleneted");
+			ensure_signed(origin)?;
+			// Validate RA report
+			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+			let fields = match attestation {
+				Attestation::SgxIas {
+					ra_report,
+					signature,
+					raw_signing_cert,
+				} => validate_ias_report(
+					&ra_report,
+					&signature,
+					&raw_signing_cert,
+					now,
+				)
+				.map_err(Into::<Error<T>>::into)?
+			};
+			// Validate fields
+
+			// TODO(h4x): Add back mrenclave whitelist check
+			// let whitelist = MREnclaveWhitelist::get();
+			// let t_mrenclave = Self::extend_mrenclave(&fields.mr_enclave, &fields.mr_signer, &fields.isv_prod_id, &fields.isv_svn);
+			// ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
+
+			// Validate pruntime_info
+			let runtime_info_hash = sp_core::blake2_256(&Encode::encode(&pruntime_info));
+			let commit = &fields.report_data[..32];
+			ensure!(runtime_info_hash.to_vec() == commit, Error::<T>::InvalidRuntimeInfoHash);
+			let runtime_version = pruntime_info.version;
+			let machine_id = pruntime_info.machine_id.to_vec();
+			// Update the registry
+			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
+				match v {
+					Some(worker_info) => {
+						// Case 1 - Only refresh the RA report; no need to redo benchmark
+						worker_info.last_updated = now;
+					}
+					None => {
+						// Case 2 - New worker register
+						*v = Some(WorkerInfo {
+							pubkey: pruntime_info.pubkey,
+							ecdh_pubkey: Default::default(),	// TODO(shelvenzhou): add ecdh key
+							runtime_version: pruntime_info.version,
+							last_updated: now,
+							confidence_level: fields.confidence_level,
+							intial_score: None,
+							benchmark_start_ts: Some(now),
+							features: pruntime_info.features,
+						});
+						// TODO(kevin): Send msg to Worker: StartInitialBenchmark
+					}
+				}
+			});
+
+			Ok(())
 		}
 
 		/// Unbinds a worker from a miner
@@ -123,8 +194,6 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn miner_unbind(
 			origin: OriginFor<T>,
-			pruntime_info: PRuntimeInfo,
-			attestation: Attestation,
 		) -> DispatchResult {
 			panic!("unimpleneted");
 		}
@@ -162,11 +231,25 @@ pub mod pallet {
 		}
 	}
 
+	// TODO(keivin): Handle messages
+	//
+	// match message {
+	// 	RegistryMessage::EndBench { iterations } => {
+	// 		WorkerInfo::<T>::mutate(|info| {
+	// 			let now = now();
+	// 			let socre = calculate_score(iterations, info.benchmark_start_ts, now);
+	// 			info.intial_score = Some(score);
+	// 		})
+	// 	}
+	// }
+
+
 	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 	pub enum Attestation {
 		SgxIas {
 			ra_report: Vec<u8>,
 			signature: Vec<u8>,
+			raw_signing_cert: Vec<u8>,
 		},
 	}
 
@@ -174,14 +257,28 @@ pub mod pallet {
 	pub struct WorkerInfo {
 		// identity
 		pubkey: WorkerPublicKey,
+		ecdh_pubkey: WorkerPublicKey,
 		// system
 		runtime_version: u32,
 		last_updated: u64,
 		// platform
 		confidence_level: u8,
 		// scoring
-		intial_score: Option<u32>,
 		benchmark_start_ts: Option<u64>,
-		legacy_scores: Vec<u8>,
+		intial_score: Option<u32>,
+		features: Vec<u32>,
+	}
+
+	impl<T: Config> From<AttestationError> for Error<T> {
+		fn from(err: AttestationError) -> Self {
+			match err {
+				AttestationError::InvalidIASSigningCert => Self::InvalidIASSigningCert,
+				AttestationError::InvalidReport => Self::InvalidReport,
+				AttestationError::InvalidQuoteStatus => Self::InvalidQuoteStatus,
+				AttestationError::BadIASReport => Self::BadIASReport,
+				AttestationError::OutdatedIASReport => Self::OutdatedIASReport,
+				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
+			}
+		}
 	}
 }

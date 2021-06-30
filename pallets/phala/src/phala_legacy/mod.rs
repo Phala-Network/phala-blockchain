@@ -1,7 +1,6 @@
 extern crate alloc;
 use codec::Encode;
 use sp_core::U256;
-use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 use sp_std::{cmp, vec};
 
@@ -17,7 +16,6 @@ use frame_support::{
 		Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness,
 		UnixTime,
 	},
-	PalletId,
 };
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Zero},
@@ -30,7 +28,6 @@ use super::attestation::Error as AttestationError;
 mod benchmarking;
 
 // modules
-mod hashing;
 pub mod weights;
 
 // types
@@ -442,8 +439,8 @@ decl_module! {
 			let t_mrenclave = Self::extend_mrenclave(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn);
 			ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 			// Validate report data
-			let runtime_info_hash = hashing::blake2_512(&encoded_runtime_info);
-			ensure!(runtime_info_hash.to_vec() == report_data, Error::<T>::InvalidRuntimeInfoHash);
+			let runtime_info_hash = sp_core::blake2_256(&encoded_runtime_info);
+			ensure!(runtime_info_hash.to_vec() == &report_data[..32], Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let runtime_version = runtime_info.version;
 			let machine_id = runtime_info.machine_id.to_vec();
