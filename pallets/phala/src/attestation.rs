@@ -21,16 +21,16 @@ pub struct IasFields {
 }
 
 pub fn validate_ias_report(
-	report: &Vec<u8>, signature: &Vec<u8>, raw_signing_cert: &Vec<u8>, now: u64
+	report: &Vec<u8>,
+	signature: &Vec<u8>,
+	raw_signing_cert: &Vec<u8>,
+	now: u64,
 ) -> Result<IasFields, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(&raw_signing_cert[..]);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
-	let verify_result = sig_cert.verify_signature(
-		&webpki::RSA_PKCS1_2048_8192_SHA256,
-		&report,
-		&signature
-	);
+	let verify_result =
+		sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, &report, &signature);
 	verify_result.or(Err(Error::InvalidIASSigningCert))?;
 	// Validate certificate
 	let chain: Vec<&[u8]> = Vec::new();
@@ -39,21 +39,28 @@ pub fn validate_ias_report(
 		SUPPORTED_SIG_ALGS,
 		&IAS_SERVER_ROOTS,
 		&chain,
-		time_now
+		time_now,
 	);
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
 	// Validate related fields
-	let parsed_report: serde_json::Value = serde_json::from_slice(&report)
-		.or(Err(Error::InvalidReport))?;
+	let parsed_report: serde_json::Value =
+		serde_json::from_slice(&report).or(Err(Error::InvalidReport))?;
 	// Validate time
-	let raw_report_timestamp = parsed_report["timestamp"].as_str().unwrap_or("UNKNOWN").to_owned() + "Z";
+	let raw_report_timestamp = parsed_report["timestamp"]
+		.as_str()
+		.unwrap_or("UNKNOWN")
+		.to_owned()
+		+ "Z";
 	let report_timestamp = chrono::DateTime::parse_from_rfc3339(&raw_report_timestamp)
-		.or(Err(Error::BadIASReport))?.timestamp();
+		.or(Err(Error::BadIASReport))?
+		.timestamp();
 	if (now as i64 - report_timestamp) >= 7200 {
 		return Err(Error::OutdatedIASReport);
 	}
 	// Filter valid `isvEnclaveQuoteStatus`
-	let quote_status = &parsed_report["isvEnclaveQuoteStatus"].as_str().unwrap_or("UNKNOWN");
+	let quote_status = &parsed_report["isvEnclaveQuoteStatus"]
+		.as_str()
+		.unwrap_or("UNKNOWN");
 	let mut confidence_level: u8 = 128;
 	if IAS_QUOTE_STATUS_LEVEL_1.contains(quote_status) {
 		confidence_level = 1;
@@ -79,12 +86,12 @@ pub fn validate_ias_report(
 		}
 	}
 	// Extract quote fields
-	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"].as_str()
+	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
+		.as_str()
 		.ok_or(Error::UnknownQuoteBodyFormat)?;
-	let quote_body = base64::decode(&raw_quote_body)
-		.or(Err(Error::UnknownQuoteBodyFormat))?;
+	let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
 	// Check the following fields
-	Ok(IasFields{
+	Ok(IasFields {
 		mr_enclave: (&quote_body[112..144]).try_into().unwrap(),
 		mr_signer: (&quote_body[176..208]).try_into().unwrap(),
 		isv_prod_id: (&quote_body[304..306]).try_into().unwrap(),

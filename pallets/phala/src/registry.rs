@@ -12,14 +12,14 @@ pub use self::pallet::*;
 
 #[frame_support::pallet]
 pub mod pallet {
+	use codec::Encode;
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::UnixTime};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
+	use sp_runtime::SaturatedConversion;
 	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
 	use sp_std::vec;
-	use codec::Encode;
-	use sp_runtime::SaturatedConversion;
 
 	use crate::attestation::{validate_ias_report, Error as AttestationError};
 
@@ -141,13 +141,8 @@ pub mod pallet {
 					ra_report,
 					signature,
 					raw_signing_cert,
-				} => validate_ias_report(
-					&ra_report,
-					&signature,
-					&raw_signing_cert,
-					now,
-				)
-				.map_err(Into::<Error<T>>::into)?
+				} => validate_ias_report(&ra_report, &signature, &raw_signing_cert, now)
+					.map_err(Into::<Error<T>>::into)?,
 			};
 			// Validate fields
 
@@ -159,7 +154,10 @@ pub mod pallet {
 			// Validate pruntime_info
 			let runtime_info_hash = sp_core::blake2_256(&Encode::encode(&pruntime_info));
 			let commit = &fields.report_data[..32];
-			ensure!(runtime_info_hash.to_vec() == commit, Error::<T>::InvalidRuntimeInfoHash);
+			ensure!(
+				runtime_info_hash.to_vec() == commit,
+				Error::<T>::InvalidRuntimeInfoHash
+			);
 			let runtime_version = pruntime_info.version;
 			let machine_id = pruntime_info.machine_id.to_vec();
 			// Update the registry
@@ -173,7 +171,7 @@ pub mod pallet {
 						// Case 2 - New worker register
 						*v = Some(WorkerInfo {
 							pubkey: pruntime_info.pubkey,
-							ecdh_pubkey: Default::default(),	// TODO(shelvenzhou): add ecdh key
+							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							confidence_level: fields.confidence_level,
@@ -192,9 +190,7 @@ pub mod pallet {
 		/// Unbinds a worker from a miner
 		/// (called by a miner)
 		#[pallet::weight(0)]
-		pub fn miner_unbind(
-			origin: OriginFor<T>,
-		) -> DispatchResult {
+		pub fn miner_unbind(origin: OriginFor<T>) -> DispatchResult {
 			panic!("unimpleneted");
 		}
 	}
@@ -214,10 +210,7 @@ pub mod pallet {
 			Self::verify_signature(pubkey, message)
 		}
 
-		fn verify_signature(
-			pubkey: &WorkerPublicKey,
-			message: &SignedMessage
-		) -> DispatchResult {
+		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
 			let raw_sig = &message.signature;
 			ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::ecdsa::Signature::try_from(raw_sig.as_slice())
@@ -242,7 +235,6 @@ pub mod pallet {
 	// 		})
 	// 	}
 	// }
-
 
 	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 	pub enum Attestation {

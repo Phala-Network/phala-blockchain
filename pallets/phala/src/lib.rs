@@ -16,8 +16,8 @@
 //! The `mq` pallet has a basic implementation and it's supposed to work. The `registry` pallet
 //! only has very basic API for testing.
 
-pub mod constants;
 pub(crate) mod attestation;
+pub mod constants;
 
 pub mod mining;
 pub mod mq;

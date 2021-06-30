@@ -17,8 +17,11 @@ use super::{
 	types::{messaging::BlockRewardInfo, RoundStats, WorkerStateEnum},
 	RawEvent,
 };
-use phala_types::{PayoutReason, messaging::{Message, MessageOrigin, BalanceTransfer, Topic}};
 use crate::phala_legacy::OnMessageReceived;
+use phala_types::{
+	messaging::{BalanceTransfer, Message, MessageOrigin, Topic},
+	PayoutReason,
+};
 
 fn events() -> Vec<Event> {
 	let evt = System::events()
@@ -215,12 +218,30 @@ fn test_whitelist_works() {
 		assert_ok!(Phala::set_stash(Origin::signed(2), 2));
 
 		// TODO: Handle RA report replay attack
-		assert_ok!(Phala::add_mrenclave(Origin::root(), MR_ENCLAVE.to_vec(), MR_SIGNER.to_vec(), ISV_PROD_ID.to_vec(), ISV_SVN.to_vec()));
+		assert_ok!(Phala::add_mrenclave(
+			Origin::root(),
+			MR_ENCLAVE.to_vec(),
+			MR_SIGNER.to_vec(),
+			ISV_PROD_ID.to_vec(),
+			ISV_SVN.to_vec()
+		));
 		// TODO(jasl): fix runtime info
-		assert_ok!(Phala::register_worker(Origin::signed(1), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(Phala::register_worker(
+			Origin::signed(1),
+			ENCODED_RUNTIME_INFO.to_vec(),
+			ias_report_sample(),
+			sig.clone(),
+			sig_cert_dec.clone()
+		));
 		let machine_id = &Phala::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);
-		assert_ok!(Phala::register_worker(Origin::signed(2), ENCODED_RUNTIME_INFO.to_vec(), ias_report_sample(), sig.clone(), sig_cert_dec.clone()));
+		assert_ok!(Phala::register_worker(
+			Origin::signed(2),
+			ENCODED_RUNTIME_INFO.to_vec(),
+			ias_report_sample(),
+			sig.clone(),
+			sig_cert_dec.clone()
+		));
 		let machine_id2 = &Phala::worker_state(2).machine_id;
 		assert_eq!(true, machine_id2.len() > 0);
 		let machine_id1 = &Phala::worker_state(1).machine_id;
@@ -262,7 +283,6 @@ fn test_remove_mrenclave_works() {
 		);
 	});
 }
-
 
 #[test]
 fn test_force_register_worker() {
@@ -354,10 +374,7 @@ fn test_randomness() {
 		Phala::on_finalize(1);
 		System::finalize();
 
-		assert_matches!(
-			events().as_slice(),
-			[Event::PhalaMq(_)]
-		);
+		assert_matches!(events().as_slice(), [Event::PhalaMq(_)]);
 	});
 }
 
@@ -613,14 +630,17 @@ fn test_mining_lifecycle_force_reregister() {
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(1);
 		System::finalize();
-		assert_matches!(events().as_slice(), [
-			Event::PhalaMq(_), // WorkerRegistered
-			Event::Phala(RawEvent::WorkerStateUpdated(1)),
-			Event::PhalaMq(_), // RewardSeed
-			Event::Phala(RawEvent::MinerStarted(1, 1)),
-			Event::Phala(RawEvent::WorkerStateUpdated(1)),
-			Event::Phala(RawEvent::NewMiningRound(1))
-		]);
+		assert_matches!(
+			events().as_slice(),
+			[
+				Event::PhalaMq(_), // WorkerRegistered
+				Event::Phala(RawEvent::WorkerStateUpdated(1)),
+				Event::PhalaMq(_), // RewardSeed
+				Event::Phala(RawEvent::MinerStarted(1, 1)),
+				Event::Phala(RawEvent::WorkerStateUpdated(1)),
+				Event::Phala(RawEvent::NewMiningRound(1))
+			]
+		);
 		assert_matches!(
 			Phala::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)
@@ -641,13 +661,16 @@ fn test_mining_lifecycle_force_reregister() {
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(2);
 		System::finalize();
-		assert_matches!(events().as_slice(), [
-			Event::Phala(RawEvent::MinerStopped(1, 1)),
-			Event::PhalaMq(_), // WorkerUnregistered
-			Event::PhalaMq(_), // WorkerRegistered
-			Event::PhalaMq(_), // RewardSeed
-			Event::Phala(RawEvent::NewMiningRound(2))
-		]);
+		assert_matches!(
+			events().as_slice(),
+			[
+				Event::Phala(RawEvent::MinerStopped(1, 1)),
+				Event::PhalaMq(_), // WorkerUnregistered
+				Event::PhalaMq(_), // WorkerRegistered
+				Event::PhalaMq(_), // RewardSeed
+				Event::Phala(RawEvent::NewMiningRound(2))
+			]
+		);
 		// WorkerState for stash1 is gone
 		assert_eq!(Phala::worker_state(1).state, WorkerStateEnum::Empty);
 		// Stash2 now have one worker registered
@@ -678,14 +701,17 @@ fn test_mining_lifecycle_renew() {
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(1);
 		System::finalize();
-		assert_matches!(events().as_slice(), [
-			Event::PhalaMq(_), // WorkerRegistered
-			Event::Phala(RawEvent::WorkerStateUpdated(1)),
-			Event::PhalaMq(_), // RewardSeed
-			Event::Phala(RawEvent::MinerStarted(1, 1)),
-			Event::Phala(RawEvent::WorkerStateUpdated(1)),
-			Event::Phala(RawEvent::NewMiningRound(1))
-		]);
+		assert_matches!(
+			events().as_slice(),
+			[
+				Event::PhalaMq(_), // WorkerRegistered
+				Event::Phala(RawEvent::WorkerStateUpdated(1)),
+				Event::PhalaMq(_), // RewardSeed
+				Event::Phala(RawEvent::MinerStarted(1, 1)),
+				Event::Phala(RawEvent::WorkerStateUpdated(1)),
+				Event::Phala(RawEvent::NewMiningRound(1))
+			]
+		);
 		assert_matches!(
 			Phala::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)
@@ -705,11 +731,14 @@ fn test_mining_lifecycle_renew() {
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(2);
 		System::finalize();
-		assert_matches!(events().as_slice(), [
-			Event::PhalaMq(_), // Unregistered
-			Event::PhalaMq(_), // RewardSeed
-			Event::Phala(RawEvent::NewMiningRound(2))
-		]);
+		assert_matches!(
+			events().as_slice(),
+			[
+				Event::PhalaMq(_), // Unregistered
+				Event::PhalaMq(_), // RewardSeed
+				Event::Phala(RawEvent::NewMiningRound(2))
+			]
+		);
 		assert_matches!(
 			Phala::worker_state(1).state,
 			WorkerStateEnum::<BlockNumber>::Mining(_)

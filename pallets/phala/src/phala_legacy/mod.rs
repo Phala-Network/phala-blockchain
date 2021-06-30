@@ -7,6 +7,7 @@ use sp_std::{cmp, vec};
 use frame_support::{decl_error, decl_event, decl_module, decl_storage, dispatch, ensure};
 use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
+use super::attestation::Error as AttestationError;
 use crate::mq::{self, MessageOriginInfo};
 use alloc::{borrow::ToOwned, vec::Vec};
 use codec::Decode;
@@ -22,7 +23,6 @@ use sp_runtime::{
 	Permill, SaturatedConversion,
 };
 use types::messaging::WorkerReportEvent;
-use super::attestation::Error as AttestationError;
 
 #[macro_use]
 mod benchmarking;
