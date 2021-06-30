@@ -15,11 +15,14 @@ sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", de
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
 trie-storage = { path = "../../../crates/trie-storage", default-features = false }
+serde = { version = "1", optional = true, features = ["derive"] }
+base64 = { version = "0.13" }
 
 [features]
 default = ["std"]
 
 std = [
+    "serde",
     "trie-storage/serde",
 ]
 

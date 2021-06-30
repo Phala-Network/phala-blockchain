@@ -20,6 +20,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate enclave_api;
+extern crate parity_scale_codec;
 
 #[cfg(test)]
 mod tests;
@@ -39,20 +40,17 @@ use sgx_urts::SgxEnclave;
 
 use std::fs;
 use std::path;
-use std::net::SocketAddr;
 use std::str;
-use std::io::Read;
-use std::sync::{Arc, RwLock};
+use std::sync::RwLock;
 use std::env;
 
 use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
-use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, Cors, CorsOptions};
+use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 
 use contract_input::ContractInput;
-use contract_output::ContractOutput;
-use attestation::Attestation;
 use enclave_api::actions;
+
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_STATE_FILE: &'static str = "enclave.token";
@@ -304,46 +302,51 @@ fn init_enclave() -> SgxResult<SgxEnclave> {
                        &mut misc_attr)
 }
 
+macro_rules! do_ecall_handle {
+    ($num: expr, $content: expr) => {{
+        let eid = crate::get_eid();
+
+        let mut return_output_buf = vec![0; crate::ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
+        let mut output_len : usize = 0;
+        let output_slice = &mut return_output_buf;
+        let output_ptr = output_slice.as_mut_ptr();
+        let output_len_ptr = &mut output_len as *mut usize;
+
+        let mut retval = crate::sgx_status_t::SGX_SUCCESS;
+        let result = unsafe {
+            crate::ecall_handle(
+                eid, &mut retval,
+                $num,
+                $content.as_ptr(), $content.len(),
+                output_ptr, output_len_ptr, crate::ENCLAVE_OUTPUT_BUF_MAX_LEN
+            )
+        };
+
+        match result {
+            crate::sgx_status_t::SGX_SUCCESS => {
+                let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+                let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
+                json!(output_value)
+            },
+            _ => {
+                error!("[-] ECALL Enclave Failed {}!", result.as_str());
+                json!({
+                    "status": "error",
+                    "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
+                })
+            }
+        }
+    }};
+}
+
 macro_rules! delegate_rpc {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
         fn $name(contract_input: Json<ContractInput>) -> JsonValue {
             debug!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
 
-            let eid = get_eid();
-
             let input_string = serde_json::to_string(&*contract_input).unwrap();
-
-            let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
-            let mut output_len : usize = 0;
-            let output_slice = &mut return_output_buf;
-            let output_ptr = output_slice.as_mut_ptr();
-            let output_len_ptr = &mut output_len as *mut usize;
-
-            let mut retval = sgx_status_t::SGX_SUCCESS;
-            let result = unsafe {
-                ecall_handle(
-                    eid, &mut retval,
-                    $num,
-                    input_string.as_ptr(), input_string.len(),
-                    output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
-                )
-            };
-
-            match result {
-                sgx_status_t::SGX_SUCCESS => {
-                    let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
-                    let output_value: serde_json::value::Value = serde_json::from_slice(output_slice).unwrap();
-                    json!(output_value)
-                },
-                _ => {
-                    error!("[-] ECALL Enclave Failed {}!", result.as_str());
-                    json!({
-                        "status": "error",
-                        "payload": format!("[-] ECALL Enclave Failed {}!", result.as_str())
-                    })
-                }
-            }
+            do_ecall_handle!($num, input_string)
         }
     };
 }
@@ -360,6 +363,7 @@ delegate_rpc!("/dispatch_block", dispatch_block, actions::ACTION_DISPATCH_BLOCK)
 // TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
 delegate_rpc!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
 delegate_rpc!("/test_ink", test_ink, actions::ACTION_TEST_INK);
+
 
 #[post("/kick")]
 fn kick() {
@@ -390,7 +394,10 @@ fn rocket() -> rocket::Rocket {
             test, init_runtime, get_info,
             dump_states, load_states,
             sync_header, dispatch_block, query,
-            get_runtime_info, get_egress_messages, test_ink]);
+            get_runtime_info, get_egress_messages, test_ink,
+            bin_api::sync_header_bin,
+            bin_api::dispatch_block_bin,
+            ]);
 
     if *ENABLE_KICK_API {
         info!("ENABLE `kick` API");
@@ -447,4 +454,55 @@ fn main() {
     destroy_enclave();
 
     std::process::exit(0);
+}
+
+mod bin_api {
+    // This is a TEMPORARY solution for the performance issue that the js relayer encountered.
+
+    use parity_scale_codec::Decode;
+    use std::io::Read;
+
+    use enclave_api::{
+        actions,
+        blocks::{self, compat},
+    };
+    use rocket::data::Data;
+    use rocket_contrib::json::JsonValue;
+
+    fn scale_read<T: Decode>(data: Data) -> Option<T> {
+        let mut stream = data.open();
+        let mut data = Vec::new();
+        stream.read_to_end(&mut data).ok()?;
+        Decode::decode(&mut &data[..]).ok()
+    }
+
+    macro_rules! relay_to {
+        ($num: expr, $data: ident: $t: ident) => {{
+            let req: blocks::$t = match scale_read($data) {
+                None => {
+                    error!("[-] Real HTTP payload failed!");
+                    return json!({
+                        "status": "error",
+                        "payload": "Read HTTP payload failed",
+                    });
+                }
+                Some(req) => req,
+            };
+
+            let serde_req: compat::$t = req.into();
+            let contract_input = compat::ContractInput::new(serde_req);
+            let input_string = serde_json::to_string(&contract_input).unwrap();
+            do_ecall_handle!($num, input_string)
+        }};
+    }
+
+    #[post("/bin_api/sync_header", data = "<data>")]
+    pub fn sync_header_bin(data: Data) -> JsonValue {
+        relay_to!(actions::ACTION_SYNC_HEADER, data: SyncHeaderReq)
+    }
+
+    #[post("/bin_api/dispatch_block", data = "<data>")]
+    pub fn dispatch_block_bin(data: Data) -> JsonValue {
+        relay_to!(actions::ACTION_DISPATCH_BLOCK, data: DispatchBlockReq)
+    }
 }
