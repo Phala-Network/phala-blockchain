@@ -224,7 +224,7 @@ pub mod pallet {
 		}
 	}
 
-	// TODO(keivin): Handle messages
+	// TODO(kevin): Handle messages
 	//
 	// match message {
 	// 	RegistryMessage::EndBench { iterations } => {
