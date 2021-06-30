@@ -1350,6 +1350,7 @@ name = "debug-cli"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
+ "enclave-api",
  "hex",
  "parity-scale-codec",
  "phala-types",
@@ -1511,6 +1512,22 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+
+[[package]]
+name = "enclave-api"
+version = "0.1.0"
+dependencies = [
+ "base64 0.13.0",
+ "frame-system",
+ "parity-scale-codec",
+ "phala-node-runtime",
+ "serde 1.0.126",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-runtime",
+ "trie-storage",
+]
 
 [[package]]
 name = "enum-as-inner"
@@ -5617,6 +5634,7 @@ dependencies = [
  "async-trait",
  "base64 0.11.0",
  "bytes 0.5.6",
+ "enclave-api",
  "env_logger 0.8.4",
  "frame-system",
  "futures 0.3.15",
