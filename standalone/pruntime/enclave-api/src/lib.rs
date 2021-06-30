@@ -83,13 +83,13 @@ pub mod blocks {
 
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncHeaderReq {
-        pub headers_b64: Vec<HeaderToSync>,
-        pub authority_set_change_b64: Option<AuthoritySetChange>,
+        pub headers: Vec<HeaderToSync>,
+        pub authority_set_change: Option<AuthoritySetChange>,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct DispatchBlockReq {
-        pub blocks_b64: Vec<BlockHeaderWithEvents>,
+        pub blocks: Vec<BlockHeaderWithEvents>,
     }
 
     #[cfg(feature = "serde")]
@@ -108,12 +108,12 @@ pub mod blocks {
         impl From<super::SyncHeaderReq> for SyncHeaderReq {
             fn from(v: super::SyncHeaderReq) -> Self {
                 let headers_b64: Vec<_> = v
-                    .headers_b64
+                    .headers
                     .into_iter()
                     .map(|x| base64::encode(x.encode()))
                     .collect();
                 let authority_set_change_b64 = v
-                    .authority_set_change_b64
+                    .authority_set_change
                     .map(|x| base64::encode(x.encode()));
                 Self {
                     headers_b64,
@@ -130,7 +130,7 @@ pub mod blocks {
         impl From<super::DispatchBlockReq> for DispatchBlockReq {
             fn from(v: super::DispatchBlockReq) -> Self {
                 let blocks_b64: Vec<_> = v
-                    .blocks_b64
+                    .blocks
                     .into_iter()
                     .map(|x| base64::encode(x.encode()))
                     .collect();
