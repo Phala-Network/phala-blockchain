@@ -7,7 +7,7 @@ name = "EnclaveApp"
 version = "0.0.1"
 dependencies = [
  "anyhow 1.0.41",
- "base64 0.13.0",
+ "base64 0.13.0 (git+https://github.com/mesalock-linux/rust-base64-sgx)",
  "bcs",
  "bit-vec",
  "bitcoin",
@@ -234,6 +234,12 @@ name = "base64"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b41b7ea54a0c9d92199de89e20e58d49f02f8e699814ef3fdf266f6f748d15c7"
+
+[[package]]
+name = "base64"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
 name = "base64"
@@ -763,6 +769,17 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "enclave-api"
 version = "0.1.0"
+dependencies = [
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "frame-system",
+ "parity-scale-codec 2.1.3",
+ "phala-node-runtime",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-runtime",
+ "trie-storage",
+]
 
 [[package]]
 name = "enumflags2"
@@ -2713,7 +2730,7 @@ name = "rustls"
 version = "0.19.0"
 source = "git+https://github.com/mesalock-linux/rustls?branch=mesalock_sgx#95b5e79dc24b02f3ce424437eb9698509d0baf58"
 dependencies = [
- "base64 0.13.0",
+ "base64 0.13.0 (git+https://github.com/mesalock-linux/rust-base64-sgx)",
  "log 0.4.14 (git+https://github.com/mesalock-linux/log-sgx)",
  "ring 0.16.19",
  "sct",

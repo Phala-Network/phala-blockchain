@@ -40,3 +40,4 @@ sp-keyring = { version = "3.0.0", package = "sp-keyring", path = "../../substrat
 phala-types = { path = "../../common/types" }
 trie-storage = { path = "../../crates/trie-storage" }
 rpc-ext = { path = "../../standalone/rpc-ext" }
+enclave-api = { path = "../../standalone/pruntime/enclave-api" }

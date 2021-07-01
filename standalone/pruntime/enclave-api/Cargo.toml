@@ -6,3 +6,27 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+
+chain = { path = "../../runtime", default-features = false, package = "phala-node-runtime" }
+sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa", default-features = false }
+parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+frame-system = { package = "frame-system", path = "../../../substrate/frame/system", default-features = false }
+sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
+sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
+sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
+trie-storage = { path = "../../../crates/trie-storage", default-features = false }
+serde = { version = "1", optional = true, features = ["derive"] }
+base64 = { version = "0.13" }
+
+[features]
+default = ["std"]
+
+std = [
+    "serde",
+    "trie-storage/serde",
+]
+
+sgx = [
+    "trie-storage/sgx",
+    "chain/native-nostd",
+]

@@ -1,5 +1,5 @@
-use serde_json::{Map, Value, Error};
-use attestation::Attestation;
+use serde_json::{Map, Value};
+use crate::attestation::Attestation;
 
 #[derive(Serialize, Deserialize)]
 pub struct ContractOutput {

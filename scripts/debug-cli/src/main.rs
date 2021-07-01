@@ -82,10 +82,9 @@ fn main() {
             println!("Hash: 0x{}", hex::encode(&hash));
         }
         Cli::DecodeBhwe { b64_data } => {
-            use sp_runtime::traits::BlakeTwo256;
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
-                phala_types::pruntime::BlockHeaderWithEvents::<u32, BlakeTwo256>::decode(
+                enclave_api::blocks::BlockHeaderWithEvents::decode(
                     &mut data.as_slice(),
                 );
 

@@ -1,4 +1,4 @@
-use serde_json::{Map, Value, Error};
+use serde_json::{Map, Value};
 
 #[derive(Serialize, Deserialize)]
 pub struct ContractInput {

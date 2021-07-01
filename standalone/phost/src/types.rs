@@ -1,10 +1,12 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use codec::{Decode, Encode};
-use sp_finality_grandpa::{AuthorityList, SetId};
+use sp_finality_grandpa::AuthorityList;
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
-use phala_types::pruntime::{self, StorageProof};
+pub(crate) use enclave_api::blocks::{
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, StorageProof,
+};
 use trie_storage::ser::StorageChanges;
 
 use std::vec::Vec;
@@ -15,14 +17,10 @@ use crate::runtimes::PhalaNodeRuntime;
 pub type Runtime = PhalaNodeRuntime;
 pub type Header = <Runtime as subxt::system::System>::Header;
 pub type Hash = <Runtime as subxt::system::System>::Hash;
-pub type Hashing = <Runtime as subxt::system::System>::Hashing;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
 pub type AccountId = <Runtime as subxt::system::System>::AccountId;
-
-pub type HeaderToSync = pruntime::HeaderToSync<BlockNumber, Hashing>;
-pub type BlockHeaderWithEvents = pruntime::BlockHeaderWithEvents<BlockNumber, Hashing>;
 
 // pRuntime APIs
 
@@ -81,7 +79,6 @@ pub struct GetInfoResp {
 impl Resp for GetInfoReq {
     type Resp = GetInfoResp;
 }
-
 
 // API: init_runtime
 
@@ -146,17 +143,6 @@ impl Resp for SyncHeaderReq {
 pub struct BlockWithEvents {
     pub block: OpaqueSignedBlock,
     pub storage_changes: StorageChanges,
-}
-
-#[derive(Encode, Decode, Clone, PartialEq, Debug)]
-pub struct AuthoritySet {
-    pub authority_set: AuthorityList,
-    pub set_id: SetId,
-}
-#[derive(Encode, Decode, Clone, PartialEq)]
-pub struct AuthoritySetChange {
-    pub authority_set: AuthoritySet,
-    pub authority_proof: StorageProof,
 }
 
 // API: dispatch_block

@@ -23,10 +23,11 @@ mod types;
 use crate::error::Error;
 use crate::types::{
     AccountId, AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber,
-    BlockWithEvents, DispatchBlockReq, DispatchBlockResp, GenesisInfo, GetInfoReq,
-    GetRuntimeInfoReq, Hash, Header, HeaderToSync, InitRespAttestation, InitRuntimeReq,
-    InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime, SyncHeaderReq, SyncHeaderResp,
+    BlockWithEvents, DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header,
+    HeaderToSync, InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq,
+    OpaqueSignedBlock, Runtime, SyncHeaderReq, SyncHeaderResp,
 };
+use enclave_api::blocks;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
@@ -247,20 +248,12 @@ async fn req_sync_header(
     Ok(resp)
 }
 
-async fn req_dispatch_block<T>(pr: &PrClient, blocks: &T) -> Result<DispatchBlockResp>
-where
-    T: std::ops::Deref<Target = [BlockHeaderWithEvents]>,
-{
-    let blocks_b64 = blocks
-        .iter()
-        .map(|block| {
-            let raw_block = Encode::encode(&block);
-            base64::encode(&raw_block)
-        })
-        .collect();
-
-    let req = DispatchBlockReq { blocks_b64 };
-    let resp = pr.req_decode("dispatch_block", req).await?;
+async fn req_dispatch_block(
+    pr: &PrClient,
+    blocks: Vec<BlockHeaderWithEvents>,
+) -> Result<DispatchBlockResp> {
+    let req = blocks::DispatchBlockReq { blocks };
+    let resp = pr.bin_req_decode("bin_api/dispatch_block", req).await?;
     Ok(resp)
 }
 
@@ -289,7 +282,7 @@ async fn sync_events_only(
         })
         .collect();
     for chunk in blocks.chunks(batch_window) {
-        let r = req_dispatch_block(pr, &chunk.to_vec()).await?;
+        let r = req_dispatch_block(pr, chunk.to_vec()).await?;
         debug!("  ..dispatch_block: {:?}", r);
     }
     Ok(())
@@ -422,11 +415,12 @@ async fn batch_sync_block(
                         storage_changes: bwe.storage_changes,
                     })
                     .collect();
-                let r = req_dispatch_block(pr, &dispatch_batch).await?;
+                let blocks_count = dispatch_batch.len();
+                let r = req_dispatch_block(pr, dispatch_batch).await?;
                 debug!("  ..dispatch_block: {:?}", r);
 
                 // Update sync state
-                synced_blocks += dispatch_batch.len();
+                synced_blocks += blocks_count;
             }
         }
         sync_state.authory_set_state = Some(match set_id_change_at {
