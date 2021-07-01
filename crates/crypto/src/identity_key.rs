@@ -2,33 +2,34 @@ use alloc::vec::Vec;
 use sp_core::crypto::{Pair, SecretStringError};
 use sp_core::ecdsa;
 
+/// secp256k1 key pair
 pub struct IdentityKey(ecdsa::Pair);
 
 pub type Seed = [u8; 32];
 
 impl IdentityKey {
-    fn from_seed(seed: &Seed) -> Result<Self, SecretStringError> {
+    pub fn from_seed(seed: &Seed) -> Result<Self, SecretStringError> {
         let pair = ecdsa::Pair::from_seed_slice(seed)?;
         Ok(IdentityKey(pair))
     }
 
-    fn seed(&self) -> Seed {
+    pub fn seed(&self) -> Seed {
         self.0.seed()
     }
 
-    fn public(&self) -> ecdsa::Public {
+    pub fn public(&self) -> ecdsa::Public {
         self.0.public()
     }
 
-    fn sign(&self, message: &[u8]) -> ecdsa::Signature {
+    pub fn sign(&self, message: &[u8]) -> ecdsa::Signature {
         self.0.sign(message)
     }
 
-    fn verify(sig: &ecdsa::Signature, message: &[u8], pubkey: &ecdsa::Public) -> bool {
+    pub fn verify(sig: &ecdsa::Signature, message: &[u8], pubkey: &ecdsa::Public) -> bool {
         ecdsa::Pair::verify(sig, message, pubkey)
     }
 
-    fn to_raw_vec(&self) -> Vec<u8> {
+    pub fn to_raw_vec(&self) -> Vec<u8> {
         self.0.to_raw_vec()
     }
 }
