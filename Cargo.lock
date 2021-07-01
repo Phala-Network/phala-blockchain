@@ -1227,6 +1227,7 @@ name = "crypto"
 version = "0.1.0"
 dependencies = [
  "rand 0.7.3",
+ "ring 0.16.20",
  "sp-core",
 ]
 
