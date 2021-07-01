@@ -1073,6 +1073,7 @@ impl pallet_bridge_transfer::Config for Runtime {
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
+	type UnixTime = Timestamp;
 }
 impl pallet_mq::Config for Runtime {
 	type Event = Event;

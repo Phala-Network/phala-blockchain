@@ -152,10 +152,10 @@ pub mod pallet {
 			// ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 
 			// Validate pruntime_info
-			let runtime_info_hash = sp_core::blake2_256(&Encode::encode(&pruntime_info));
+			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
 			let commit = &fields.report_data[..32];
 			ensure!(
-				runtime_info_hash.to_vec() == commit,
+				&runtime_info_hash == commit,
 				Error::<T>::InvalidRuntimeInfoHash
 			);
 			let runtime_version = pruntime_info.version;

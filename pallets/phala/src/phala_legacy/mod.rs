@@ -439,8 +439,8 @@ decl_module! {
 			let t_mrenclave = Self::extend_mrenclave(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn);
 			ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 			// Validate report data
-			let runtime_info_hash = sp_core::blake2_256(&encoded_runtime_info);
-			ensure!(runtime_info_hash.to_vec() == &report_data[..32], Error::<T>::InvalidRuntimeInfoHash);
+			let runtime_info_hash = crate::hashing::blake2_256(&encoded_runtime_info);
+			ensure!(&runtime_info_hash == &report_data[..32], Error::<T>::InvalidRuntimeInfoHash);
 			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let runtime_version = runtime_info.version;
 			let machine_id = runtime_info.machine_id.to_vec();
@@ -1342,7 +1342,7 @@ fn u256_target(m: u64, n: u64) -> U256 {
 }
 
 fn check_pubkey_hit_target(raw_pubkey: &[u8], reward_info: &BlockRewardInfo) -> bool {
-	let pkh = sp_io::hashing::blake2_256(raw_pubkey);
+	let pkh = crate::hashing::blake2_256(raw_pubkey);
 	let id: U256 = pkh.into();
 	let x = id ^ reward_info.seed;
 	x <= reward_info.online_target

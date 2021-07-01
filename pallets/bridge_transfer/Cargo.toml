@@ -30,6 +30,7 @@ hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
 pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
+pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp" }
 
 [features]
 default = ["std"]

@@ -1,6 +1,10 @@
 use crate::constants::*;
 
-use sp_std::convert::{TryFrom, TryInto};
+use sp_std::{
+	convert::{TryFrom, TryInto},
+	vec::Vec,
+	borrow::ToOwned,
+};
 
 pub enum Error {
 	InvalidIASSigningCert,
