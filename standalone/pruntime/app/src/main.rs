@@ -465,6 +465,7 @@ fn main() {
     let mut v = vec![];
     for i in 0..bench_cores {
         let child = thread::spawn(move || {
+            set_thread_idle_policy();
             let result = unsafe {
                 ecall_bench_run(eid, &mut retval, i)
             };
@@ -484,6 +485,18 @@ fn main() {
     destroy_enclave();
 
     std::process::exit(0);
+}
+
+fn set_thread_idle_policy() {
+    let param = libc::sched_param {
+        sched_priority: 0,
+    };
+    unsafe {
+        let rv = libc::sched_setscheduler(0, libc::SCHED_IDLE, &param);
+        if rv != 0 {
+            error!("Failed to set thread schedule prolicy to IDLE");
+        }
+    }
 }
 
 mod bin_api {
