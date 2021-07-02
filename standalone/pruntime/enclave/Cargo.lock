@@ -2312,6 +2312,7 @@ dependencies = [
  "phala-types",
  "primitive-types",
  "serde_json 1.0.64",
+ "sp-application-crypto",
  "sp-core",
  "sp-io",
  "sp-runtime",

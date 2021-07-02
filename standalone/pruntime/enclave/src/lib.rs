@@ -952,12 +952,23 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         }
     }
 
+    let operator = match input.operator_hex {
+        Some(h) => {
+            let raw_address = hex::decode(h)
+                .map_err(|_| error_msg("Error decoding operator_hex"))?;
+            Some(chain::AccountId::new(raw_address.try_into()
+                .map_err(|_| error_msg("Bad operator_hex"))?))
+        },
+        None => None
+    };
+
     // Build PRuntimeInfo
-    let runtime_info = PRuntimeInfo {
+    let runtime_info = PRuntimeInfo::<chain::AccountId> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
         features: vec![cpu_core_num, cpu_feature_level],
+        operator,
     };
     let encoded_runtime_info = runtime_info.encode();
     let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);

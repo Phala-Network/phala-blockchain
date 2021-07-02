@@ -441,7 +441,7 @@ decl_module! {
 			// Validate report data
 			let runtime_info_hash = crate::hashing::blake2_256(&encoded_runtime_info);
 			ensure!(&runtime_info_hash == &report_data[..32], Error::<T>::InvalidRuntimeInfoHash);
-			let runtime_info = PRuntimeInfo::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
+			let runtime_info = PRuntimeInfo::<T::AccountId>::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
 			let runtime_version = runtime_info.version;
 			let machine_id = runtime_info.machine_id.to_vec();
 			let pubkey = runtime_info.pubkey.as_ref().to_vec();

@@ -130,7 +130,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn register_worker(
 			origin: OriginFor<T>,
-			pruntime_info: PRuntimeInfo,
+			pruntime_info: PRuntimeInfo<T::AccountId>,
 			attestation: Attestation,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -191,9 +191,11 @@ pub mod pallet {
 		}
 
 		/// Unbinds a worker from a miner
-		/// (called by a miner)
+		///
+		/// Requirements:
+		//  1. `origin` is the `worker`'s operator
 		#[pallet::weight(0)]
-		pub fn miner_unbind(origin: OriginFor<T>) -> DispatchResult {
+		pub fn unbind(origin: OriginFor<T>, worker: WorkerPublicKey) -> DispatchResult {
 			panic!("unimpleneted");
 		}
 	}
