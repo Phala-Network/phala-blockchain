@@ -3,7 +3,7 @@
 use codec::{Decode, Encode};
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
 use frame_support::{
-	decl_error, decl_module, decl_storage, decl_event, dispatch::DispatchResult, ensure, fail,
+	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
@@ -12,7 +12,7 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
-use phala_pallets::{pallet_phala, pallet_mq};
+use phala_pallets::{pallet_mq, pallet_phala};
 
 #[cfg(test)]
 mod mock;
@@ -82,18 +82,18 @@ decl_module! {
 		type Error = Error<T>;
 		//
 		// Initiation calls. These start a bridge transfer.
-        //
-        
-        fn deposit_event() = default;
+		//
 
-        /// Change extra bridge transfer fee that user should pay
+		fn deposit_event() = default;
+
+		/// Change extra bridge transfer fee that user should pay
 		#[weight = 195_000_000]
 		pub fn sudo_change_fee(origin, amount: BalanceOf<T>, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_root(origin)?;
 			BridgeFee::<T>::insert(dest_id, amount);
 			Self::deposit_event(RawEvent::FeeUpdated(dest_id, amount));
 			Ok(())
-        }
+		}
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]

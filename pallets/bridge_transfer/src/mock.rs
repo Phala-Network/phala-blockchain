@@ -13,9 +13,9 @@ use sp_runtime::{
 };
 
 use crate::{self as bride_transfer, Config};
-use phala_pallets::{pallet_mq as mq, pallet_registry as reg};
 pub use pallet_balances as balances;
 use pallet_bridge as bridge;
+use phala_pallets::{pallet_mq as mq, pallet_registry as reg};
 
 pub(crate) type Balance = u128;
 pub(crate) type BlockNumber = u64;
