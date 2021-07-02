@@ -1,9 +1,9 @@
 #![cfg(test)]
 
 use super::mock::{
-	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge, Call,
-	Event, BridgeTransfer, Origin, ProposalLifetime, Test,
-	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
+	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
+	BridgeTransfer, Call, Event, Origin, ProposalLifetime, Test, ENDOWED_BALANCE, RELAYER_A,
+	RELAYER_B, RELAYER_C,
 };
 use super::*;
 use frame_support::dispatch::DispatchError;
@@ -31,16 +31,13 @@ fn lottery_output() {
 		let dest_chain = 0;
 		let resource_id = BridgeTransfer::bridge_lotteryid();
 		let lottery: Lottery = Lottery::BtcAddresses {
-            address_set: vec![b"123456".to_vec()].to_vec()
-        };
+			address_set: vec![b"123456".to_vec()].to_vec(),
+		};
 
 		assert_ok!(Bridge::set_threshold(Origin::root(), TEST_THRESHOLD,));
 
 		assert_ok!(Bridge::whitelist_chain(Origin::root(), dest_chain.clone()));
-		assert_ok!(BridgeTransfer::lottery_output(
-			&lottery,
-			dest_chain,
-		));
+		assert_ok!(BridgeTransfer::lottery_output(&lottery, dest_chain,));
 
 		expect_event(bridge::RawEvent::GenericTransfer(
 			dest_chain,
@@ -89,7 +86,11 @@ fn execute_lottery_handler_bad_origin() {
 		));
 		// Don't allow any signed origin except from bridge addr
 		assert_noop!(
-			BridgeTransfer::lottery_handler(Origin::signed(RELAYER_A), payload.clone(), resource_id),
+			BridgeTransfer::lottery_handler(
+				Origin::signed(RELAYER_A),
+				payload.clone(),
+				resource_id
+			),
 			DispatchError::BadOrigin
 		);
 		// Don't allow root calls

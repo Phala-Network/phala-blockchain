@@ -3,7 +3,7 @@
 use codec::{Decode, Encode};
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
 use frame_support::{
-	decl_error, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
+	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
 use frame_system::{self as system, ensure_root, ensure_signed};
 use pallet_bridge as bridge;
@@ -12,7 +12,7 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
-use phala_pallets::{pallet_phala, pallet_mq};
+use phala_pallets::{pallet_mq, pallet_phala};
 
 #[cfg(test)]
 mod mock;
@@ -24,7 +24,6 @@ type ResourceId = bridge::ResourceId;
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-
 phala_types::messaging::bind_topic!(LotteryEvent, b"phala/lottery/event");
 #[derive(Decode, Encode, Debug, PartialEq, Eq, Clone)]
 pub enum LotteryEvent {
@@ -35,7 +34,7 @@ pub enum LotteryEvent {
 }
 
 pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
-	type Event: Into<<Self as frame_system::Config>::Event>;
+	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// Specifies the origin check provided by the bridge for calls that can only be called by the bridge pallet
 	type BridgeOrigin: EnsureOrigin<Self::Origin, Success = Self::AccountId>;
@@ -48,6 +47,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
 		BridgeTokenId get(fn bridge_tokenid): ResourceId;
 		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
+		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::ChainId => BalanceOf<T>;
 	}
 
 	add_extra_genesis {
@@ -60,6 +60,14 @@ decl_storage! {
 	}
 }
 
+decl_event! {
+	pub enum Event<T>
+	where
+		Balance = BalanceOf<T>,
+	{
+		FeeUpdated(bridge::ChainId, Balance),
+	}
+}
 
 decl_error! {
 	pub enum Error for Module<T: Config>{
@@ -76,6 +84,17 @@ decl_module! {
 		// Initiation calls. These start a bridge transfer.
 		//
 
+		fn deposit_event() = default;
+
+		/// Change extra bridge transfer fee that user should pay
+		#[weight = 195_000_000]
+		pub fn sudo_change_fee(origin, amount: BalanceOf<T>, dest_id: bridge::ChainId) -> DispatchResult {
+			ensure_root(origin)?;
+			BridgeFee::<T>::insert(dest_id, amount);
+			Self::deposit_event(RawEvent::FeeUpdated(dest_id, amount));
+			Ok(())
+		}
+
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
 		pub fn force_lottery_output(origin, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
@@ -91,7 +110,7 @@ decl_module! {
 			let source = ensure_signed(origin)?;
 			ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 			let bridge_id = <bridge::Module<T>>::account_id();
-			T::Currency::transfer(&source, &bridge_id, amount.into(), AllowDeath)?;
+			T::Currency::transfer(&source, &bridge_id, (amount + Self::bridge_fee(dest_id)).into(), AllowDeath)?;
 
 			let resource_id = Self::bridge_tokenid();
 
