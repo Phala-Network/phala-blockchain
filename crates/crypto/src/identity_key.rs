@@ -1,11 +1,10 @@
+use crate::{Seed, SEED_SIZE};
 use alloc::vec::Vec;
 use sp_core::crypto::{Pair, SecretStringError};
 use sp_core::ecdsa;
 
 /// secp256k1 key pair
 pub struct IdentityKey(ecdsa::Pair);
-
-pub type Seed = [u8; 32];
 
 impl IdentityKey {
     pub fn from_seed(seed: &Seed) -> Result<Self, SecretStringError> {
@@ -41,7 +40,7 @@ mod test {
     fn generate_identity_key() -> (IdentityKey, Seed) {
         use rand::RngCore;
         let mut rng = rand::thread_rng();
-        let mut seed: Seed = [0u8; 32];
+        let mut seed: Seed = [0u8; SEED_SIZE];
 
         rng.fill_bytes(&mut seed);
 
