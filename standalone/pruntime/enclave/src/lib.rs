@@ -960,7 +960,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         features: vec![cpu_core_num, cpu_feature_level],
     };
     let encoded_runtime_info = runtime_info.encode();
-    let runtime_info_hash = sp_core::hashing::blake2_512(&encoded_runtime_info);
+    let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
 
     info!("Encoded runtime info");
     info!("{:?}", hex::encode(&encoded_runtime_info));
