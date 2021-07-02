@@ -32,7 +32,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
-		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage},
+		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage, Event<T>},
 		PhalaMq: mq::{Pallet, Call, Event, Storage},
 		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
 	}
