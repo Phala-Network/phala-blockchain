@@ -1057,9 +1057,33 @@ parameter_types! {
 	pub const ProposalLifetime: BlockNumber = 50;
 }
 
+parameter_types! {
+    pub const BridgeCommitteeMotionDuration: BlockNumber = 5 * DAYS;
+    pub const BridgeCommitteeMaxProposals: u32 = 10;
+    pub const BridgeCommitteeMaxMembers: u32 = 100;
+}
+
+type BridgeCommitteeInstance = pallet_collective::Instance3;
+impl pallet_collective::Config<BridgeCommitteeInstance> for Runtime {
+    type Origin = Origin;
+    type Proposal = Call;
+    type Event = Event;
+    type MotionDuration = BridgeCommitteeMotionDuration;
+    type MaxProposals = BridgeCommitteeMaxProposals;
+    type MaxMembers = BridgeCommitteeMaxMembers;
+    type DefaultVote = pallet_collective::PrimeDefaultVote;
+    type WeightInfo = ();
+}
+
+type EnsureRootOrTwoThirdsBridgeCommittee = EnsureOneOf<
+	AccountId,
+	EnsureRoot<AccountId>,
+	pallet_collective::EnsureProportionMoreThan<_2, _3, AccountId, BridgeCommitteeInstance>,
+>;
+
 impl pallet_bridge::Config for Runtime {
 	type Event = Event;
-	type AdminOrigin = EnsureRoot<AccountId>;
+	type BridgeCommitteeOrigin = EnsureRootOrTwoThirdsBridgeCommittee;
 	type Proposal = Call;
 	type ChainId = BridgeChainId;
 	type ProposalLifetime = ProposalLifetime;
@@ -1133,6 +1157,7 @@ construct_runtime!(
 		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
+        BridgeCommittee: pallet_collective::<Instance3>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>},
 		// Phala new pallets
 		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
 		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},

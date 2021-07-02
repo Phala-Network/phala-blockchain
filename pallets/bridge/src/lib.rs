@@ -104,7 +104,7 @@ impl<AccountId, BlockNumber: Default> Default for ProposalVotes<AccountId, Block
 pub trait Config: system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	/// Origin used to administer the pallet
-	type AdminOrigin: EnsureOrigin<Self::Origin>;
+	type BridgeCommitteeOrigin: EnsureOrigin<Self::Origin>;
 	/// Proposed dispatchable call
 	type Proposal: Parameter + Dispatchable<Origin = Self::Origin> + EncodeLike + GetDispatchInfo;
 	/// The identifier for this chain.
@@ -342,7 +342,7 @@ impl<T: Config> Module<T> {
 	// *** Utility methods ***
 
 	pub fn ensure_admin(o: T::Origin) -> DispatchResult {
-		T::AdminOrigin::try_origin(o)
+		T::BridgeCommitteeOrigin::try_origin(o)
 			.map(|_| ())
 			.or_else(ensure_root)?;
 		Ok(())
