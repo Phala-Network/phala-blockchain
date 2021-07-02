@@ -253,7 +253,7 @@ pub struct PRuntimeInfo<AccountId> {
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub features: Vec<u32>,
-	pub operator: Option<AccountId>,
+    pub operator: Option<AccountId>,
 }
 
 #[derive(Encode, Decode, Debug, Default)]
