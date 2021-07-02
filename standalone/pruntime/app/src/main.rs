@@ -94,6 +94,11 @@ extern {
     fn ecall_init(
         eid: sgx_enclave_id_t, retval: *mut sgx_status_t
     ) -> sgx_status_t;
+
+    fn ecall_bench_run(
+        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        index: u32,
+    ) -> sgx_status_t;
 }
 
 const IAS_SPID_STR: &str = env!("IAS_SPID");
@@ -430,7 +435,7 @@ fn main() {
 
     let enclave = match init_enclave() {
         Ok(r) => {
-            info!("[+] Init Enclave Successful {}!", r.geteid());
+            info!("[+] Init Enclave Successful, pid={}!", r.geteid());
             r
         },
         Err(x) => {
@@ -450,22 +455,22 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    let mut core_num: u8 = 6;
-    let args: Vec<_> = env::args().collect();
-    if args.len() > 1 {
-        let arg1 = &args[1];
-        core_num = arg1.parse::<u8>().unwrap();;
-    }
-    println!("core number: {}", core_num);
+    let mut bench_cores: u32 = num_cpus::get() as _;
+    info!("Bench cores: {}", bench_cores);
 
     let rocket = thread::spawn(move || {
         rocket().launch();
     });
 
     let mut v = vec![];
-    for i in 0..core_num - 1 {
+    for i in 0..bench_cores {
         let child = thread::spawn(move || {
-            test_thread(i+1);
+            let result = unsafe {
+                ecall_bench_run(eid, &mut retval, i)
+            };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("Init bench thread {} failed", i);
+            }
         });
         v.push(child);
     }

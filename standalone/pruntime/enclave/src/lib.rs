@@ -4,6 +4,7 @@
 #![warn(unused_extern_crates)]
 #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
+#![feature(bench_black_box)]
 
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
@@ -50,7 +51,6 @@ use sp_core::{crypto::Pair, ecdsa, H256 as Hash};
 
 use http_req::request::{Method, Request};
 use std::time::Duration;
-use std::time::SystemTime;
 
 use pink::InkModule;
 
@@ -69,6 +69,7 @@ mod rpc_types;
 mod system;
 mod types;
 mod utils;
+mod benchmark;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -662,7 +663,6 @@ pub extern "C" fn ecall_handle(
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
                 ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
-                ACTION_TEST_THREAD => test_thread(payload),
                 _ => unknown(),
             }
         }
@@ -872,6 +872,12 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
         Err(e) if e.is::<sgx_status_t>() => e.downcast::<sgx_status_t>().unwrap(),
         _ => sgx_status_t::SGX_SUCCESS,
     }
+}
+
+#[no_mangle]
+pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
+    info!("[{}] Benchmark thread started", index);
+    benchmark::run()
 }
 
 // --------------------------------
@@ -1454,56 +1460,6 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
             let result = InkModule::call(contract_key, tx);
             info!(">>> Code called with result {:?}", result.unwrap());
         }
-    }
-
-    Ok(json!({}))
-}
-
-const INTERVAL: u64 = 30;
-const MAX_NUM: u128 = 65536*1024;
-
-fn is_prime(num: u128) -> bool {
-    let tmp = num - 1;
-    for i in tmp..=2 {
-        if num % i == 0 {
-            return false;
-        }
-    }
-
-    true
-}
-
-fn check_prime() {
-    for i in 2..MAX_NUM {
-        let _ = is_prime(i);
-    }
-}
-
-fn test_thread(input: &Map<String, Value>) -> Result<Value, Value> {
-    let index = input.get("index").unwrap().as_i64().unwrap();
-
-    println!("=======Begin Thread {:?} Test=======", index);
-
-    loop {
-        let mut counter: u64 = 0;
-
-        let now = SystemTime::now();
-
-        let mut timeout = false;
-
-        while !timeout {
-            check_prime();
-
-            counter += 1;
-
-            if let Ok(elapsed) = now.elapsed() {
-                if elapsed.as_secs() >= INTERVAL {
-                    timeout = true;
-                }
-            }
-        }
-
-        println!("the counter of thread[{:}] is {:} in {:} secs", index, counter, INTERVAL);
     }
 
     Ok(json!({}))
