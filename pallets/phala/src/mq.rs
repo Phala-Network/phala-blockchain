@@ -156,7 +156,7 @@ pub mod pallet {
 	}
 
 	pub trait MessageOriginInfo: Sized + 'static {
-		type Config: frame_system::Config;
+		type Config: Config;
 
 		fn message_origin() -> MessageOrigin {
 			let name =
@@ -165,6 +165,10 @@ pub mod pallet {
 				>()
 				.expect("Pallet should have a name");
 			MessageOrigin::Pallet(name.as_bytes().to_vec())
+		}
+
+		fn push_message(payload: impl Encode + BindTopic) {
+			Pallet::<Self::Config>::push_bound_message(Self::message_origin(), payload);
 		}
 	}
 }

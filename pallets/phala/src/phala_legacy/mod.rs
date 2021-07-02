@@ -684,10 +684,11 @@ impl<T: Config> Module<T> {
 		WorkerState::<T>::remove(stash);
 		MachineOwner::<T>::remove(machine_id);
 
-		Self::push_message(SystemEvent::WorkerUnregistered(
-			stash.clone(),
-			machine_id.clone(),
-		));
+		// TODO.kevin:
+		// Self::push_message(SystemEvent::WorkerUnregistered(
+		// 	stash.clone(),
+		// 	machine_id.clone(),
+		// ));
 	}
 
 	/// Kicks a worker if it's online. Only do this to force offline a worker.
@@ -776,11 +777,12 @@ impl<T: Config> Module<T> {
 		MachineOwner::<T>::insert(machine_id, stash);
 		PendingExitingDelta::put(delta);
 		WorkerIngress::<T>::insert(stash, 0);
-		Self::push_message(SystemEvent::WorkerRegistered(
-			stash.clone(),
-			pubkey.clone(),
-			machine_id.clone(),
-		));
+		// TODO.kevin
+		// Self::push_message(SystemEvent::WorkerRegistered(
+		// 	stash.clone(),
+		// 	pubkey.clone(),
+		// 	machine_id.clone(),
+		// ));
 		Ok(())
 	}
 
@@ -822,11 +824,11 @@ impl<T: Config> Module<T> {
 		// We have to kick the worker by force to avoid double slash
 		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
 
-		// TODO.kevin: need to distinguish between Unregistered and Offline?
-		Self::push_message(SystemEvent::WorkerUnregistered(
-			stash.clone(),
-			machine_id.clone(),
-		));
+		// TODO.kevin:
+		// Self::push_message(SystemEvent::WorkerUnregistered(
+		// 	stash.clone(),
+		// 	machine_id.clone(),
+		// ));
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
@@ -1058,7 +1060,7 @@ impl<T: Config> Module<T> {
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
-		Self::push_message(SystemEvent::<T::AccountId>::RewardSeed(seed_info));
+		Self::push_message(SystemEvent::RewardSeed(seed_info));
 	}
 
 	fn handle_claim_reward(

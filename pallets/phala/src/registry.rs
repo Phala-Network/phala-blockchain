@@ -22,11 +22,18 @@ pub mod pallet {
 	use sp_std::vec;
 
 	use crate::attestation::{validate_ias_report, Error as AttestationError};
+	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
-		messaging::{MessageOrigin, SignedMessage},
+		messaging::{bind_topic, Message, MessageOrigin, SignedMessage, SystemEvent},
 		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
+
+	bind_topic!(RegistryEvent, b"^phala/registry/event");
+	#[derive(Encode, Decode, Clone, Debug)]
+	pub enum RegistryEvent {
+		BenchReport { start_time: u64, iterations: u64 },
+	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -76,10 +83,16 @@ pub mod pallet {
 		// Report validation
 		InvalidRuntimeInfoHash,
 		InvalidRuntimeInfo,
+		InvalidInput,
+		InvalidBenchReport,
+		WorkerNotFound,
 	}
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		T: crate::mq::Config,
+	{
 		/// Force register a worker with the given pubkey with sudo permission
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_register_worker(
@@ -95,10 +108,14 @@ pub mod pallet {
 				last_updated: 0,
 				confidence_level: 128u8,
 				intial_score: None,
-				benchmark_start_ts: None,
+				session_id: 1,
 				features: vec![1, 4],
 			};
 			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
+			Self::push_message(SystemEvent::WorkerAttached {
+				pubkey,
+				session_id: 1,
+			});
 			Ok(())
 		}
 
@@ -166,23 +183,34 @@ pub mod pallet {
 					Some(worker_info) => {
 						// Case 1 - Only refresh the RA report; no need to redo benchmark
 						worker_info.last_updated = now;
+						worker_info.session_id += 1;
+						Self::push_message(SystemEvent::WorkerAttached {
+							pubkey: pruntime_info.pubkey.clone(),
+							session_id: worker_info.session_id,
+						});
 					}
 					None => {
 						// Case 2 - New worker register
+						let session_id = 1;
 						*v = Some(WorkerInfo {
-							pubkey: pruntime_info.pubkey,
+							pubkey: pruntime_info.pubkey.clone(),
 							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							confidence_level: fields.confidence_level,
 							intial_score: None,
-							benchmark_start_ts: Some(now),
+							session_id,
 							features: pruntime_info.features,
 						});
-						// TODO(kevin): Send msg to Worker: StartInitialBenchmark
-						//
-						// Alternatively, we can also ask the worker to watch a kvdb entry in this
-						// pallet (i.e. Worker[pubkey].initial_score == None)
+						Self::push_message(SystemEvent::WorkerAttached {
+							pubkey: pruntime_info.pubkey.clone(),
+							session_id,
+						});
+						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+						Self::push_message(SystemEvent::BenchStart {
+							pubkey: pruntime_info.pubkey,
+							start_time: now,
+						});
 					}
 				}
 			});
@@ -227,19 +255,42 @@ pub mod pallet {
 			);
 			Ok(())
 		}
+
+		pub fn on_message_received(message: &Message) -> DispatchResult {
+			let worker_pubkey = match &message.sender {
+				MessageOrigin::Worker(key) => key,
+				_ => return Err(Error::<T>::InvalidSender.into()),
+			};
+
+			let message: RegistryEvent =
+				message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+
+			match message {
+				RegistryEvent::BenchReport {
+					start_time,
+					iterations,
+				} => {
+					let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+					if now <= start_time {
+						// Oops, should not happen
+						return Err(Error::<T>::InvalidBenchReport.into());
+					}
+					let score = iterations / (now - start_time);
+
+					Worker::<T>::mutate(worker_pubkey, |val| {
+						if let Some(val) = val {
+							val.intial_score = Some(score as u32);
+						}
+					})
+				}
+			}
+			Ok(())
+		}
 	}
 
-	// TODO(kevin): Handle messages
-	//
-	// match message {
-	// 	RegistryMessage::EndBench { iterations } => {
-	// 		WorkerInfo::<T>::mutate(|info| {
-	// 			let now = now();
-	// 			let socre = calculate_score(iterations, info.benchmark_start_ts, now);
-	// 			info.intial_score = Some(score);
-	// 		})
-	// 	}
-	// }
+	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
+		type Config = T;
+	}
 
 	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 	pub enum Attestation {
@@ -261,7 +312,7 @@ pub mod pallet {
 		// platform
 		confidence_level: u8,
 		// scoring
-		benchmark_start_ts: Option<u64>,
+		session_id: u64,
 		intial_score: Option<u32>,
 		features: Vec<u32>,
 	}

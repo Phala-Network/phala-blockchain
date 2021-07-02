@@ -14,6 +14,7 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::U256;
 
+    use super::WorkerPublicKey;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -161,13 +162,20 @@ pub mod messaging {
     }
 
     // Messages: System
-    bind_topic!(SystemEvent<AccountId>, b"phala/system/event");
+    bind_topic!(SystemEvent, b"phala/system/event");
     #[derive(Encode, Decode, Debug)]
-    pub enum SystemEvent<AccountId> {
-        /// [stash, identity_key, machine_id]
-        WorkerRegistered(AccountId, Vec<u8>, Vec<u8>),
-        /// [stash, machine_id]
-        WorkerUnregistered(AccountId, Vec<u8>),
+    pub enum SystemEvent {
+        WorkerAttached {
+            pubkey: WorkerPublicKey,
+            session_id: u64,
+        },
+        WorkerDettached { // TODO.kevin: use it
+            pubkey: WorkerPublicKey,
+        },
+        BenchStart {
+            pubkey: WorkerPublicKey,
+            start_time: u64,
+        },
         NewMiningRound(u32),
         RewardSeed(BlockRewardInfo),
     }
