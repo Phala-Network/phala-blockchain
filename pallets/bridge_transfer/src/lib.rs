@@ -33,7 +33,7 @@ pub enum LotteryEvent {
 	OpenBox(u32, u32, Vec<u8>),
 }
 
-pub trait Config: system::Config + bridge::Config {
+pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
 	/// Specifies the origin check provided by the bridge for calls that can only be called by the bridge pallet
