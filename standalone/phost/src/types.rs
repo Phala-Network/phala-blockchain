@@ -88,6 +88,7 @@ pub struct InitRuntimeReq {
     pub bridge_genesis_info_b64: String,
     pub debug_set_key: Option<String>,
     pub genesis_state_b64: String,
+    pub operator_hex: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
