@@ -22,6 +22,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate enclave_api;
+extern crate structopt;
 extern crate parity_scale_codec;
 
 #[cfg(test)]
@@ -49,9 +50,17 @@ use std::env;
 use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
+use structopt::StructOpt;
 
 use contract_input::ContractInput;
 use enclave_api::actions;
+
+
+#[derive(StructOpt, Debug)]
+struct Args {
+    #[structopt(short, long)]
+    cores: Option<u32>
+}
 
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -425,6 +434,8 @@ fn rocket() -> rocket::Rocket {
 }
 
 fn main() {
+    let args = Args::from_args();
+
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
 
@@ -455,7 +466,7 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    let mut bench_cores: u32 = num_cpus::get() as _;
+    let mut bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
     let rocket = thread::spawn(move || {
