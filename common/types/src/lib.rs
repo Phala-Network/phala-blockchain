@@ -248,11 +248,12 @@ pub type WorkerPublicKey = sp_core::ecdsa::Public;
 pub type ContractPublicKey = sp_core::ecdsa::Public;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
-pub struct PRuntimeInfo {
+pub struct PRuntimeInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub features: Vec<u32>,
+    pub operator: Option<AccountId>,
 }
 
 #[derive(Encode, Decode, Debug, Default)]

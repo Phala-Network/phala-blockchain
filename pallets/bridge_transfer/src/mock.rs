@@ -35,6 +35,7 @@ frame_support::construct_runtime!(
 		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage, Event<T>},
 		PhalaMq: mq::{Pallet, Call, Event, Storage},
 		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
+		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 	}
 );
 
@@ -44,6 +45,7 @@ parameter_types! {
 	pub const MaximumBlockLength: u32 = 2 * 1024;
 	pub const AvailableBlockRatio: Perbill = Perbill::one();
 	pub const MaxLocks: u32 = 100;
+	pub const MinimumPeriod: u64 = 1;
 }
 
 impl frame_system::Config for Test {
@@ -118,6 +120,14 @@ impl mq::Config for Test {
 
 impl reg::Config for Test {
 	type Event = Event;
+	type UnixTime = Timestamp;
+}
+
+impl pallet_timestamp::Config for Test {
+	type Moment = u64;
+	type OnTimestampSet = ();
+	type MinimumPeriod = MinimumPeriod;
+	type WeightInfo = ();
 }
 
 pub const RELAYER_A: u64 = 0x2;

@@ -159,7 +159,10 @@ pub mod pallet {
 		type Config: frame_system::Config;
 
 		fn message_origin() -> MessageOrigin {
-			let name = <<Self as MessageOriginInfo>::Config as frame_system::Config>::PalletInfo::name::<Self>()
+			let name =
+				<<Self as MessageOriginInfo>::Config as frame_system::Config>::PalletInfo::name::<
+					Self,
+				>()
 				.expect("Pallet should have a name");
 			MessageOrigin::Pallet(name.as_bytes().to_vec())
 		}

@@ -54,7 +54,7 @@ fn main() {
             print_field,
         } => {
             let data = decode_hex(&hex_data);
-            let msg: phala_types::PRuntimeInfo =
+            let msg: phala_types::PRuntimeInfo<sp_runtime::AccountId32> =
                 Decode::decode(&mut data.as_slice()).expect("Failed to decode message");
             match print_field {
                 Some(f) if f == "machine_id" => println!("{}", hex::encode(&msg.machine_id)),

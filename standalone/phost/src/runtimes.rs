@@ -166,6 +166,8 @@ pub mod phala {
         #![event_type(PayoutReason)]
     }
 
+    // TODO(kevin): migrate to `registry::register_worker`
+
     /// The call to register_worker
     #[derive(Clone, Debug, PartialEq, Call, Encode)]
     pub struct RegisterWorkerCall<T: Phala> {

@@ -5,8 +5,7 @@
 use super::*;
 
 use crate::types::{
-	RoundStats, SignedWorkerMessage, WorkerMessage, WorkerMessagePayload,
-	WorkerStateEnum,
+	RoundStats, SignedWorkerMessage, WorkerMessage, WorkerMessagePayload, WorkerStateEnum,
 };
 use crate::Pallet as PhalaPallet;
 use codec::Encode;

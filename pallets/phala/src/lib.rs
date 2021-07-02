@@ -16,6 +16,9 @@
 //! The `mq` pallet has a basic implementation and it's supposed to work. The `registry` pallet
 //! only has very basic API for testing.
 
+pub(crate) mod attestation;
+pub mod constants;
+
 pub mod mining;
 pub mod mq;
 pub mod phala_legacy;
@@ -28,3 +31,9 @@ pub use mq as pallet_mq;
 pub use phala_legacy as pallet_phala;
 pub use registry as pallet_registry;
 pub use stakepool as pallet_stakepool;
+
+#[cfg(feature = "native")]
+use sp_core::hashing;
+
+#[cfg(not(feature = "native"))]
+use sp_io::hashing;

@@ -101,8 +101,8 @@ parameter_types! {
 }
 
 impl crate::mq::Config for Test {
-    type Event = Event;
-    type QueueNotifyConfig = ();
+	type Event = Event;
+	type QueueNotifyConfig = ();
 }
 
 impl phala::Config for Test {

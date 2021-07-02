@@ -500,6 +500,8 @@ async fn init_runtime(
                 bridge_genesis_info_b64: info_b64,
                 debug_set_key,
                 genesis_state_b64,
+                // TODO(kevin): pass a operator to pRuntime
+                operator_hex: None,
             },
         )
         .await?;
