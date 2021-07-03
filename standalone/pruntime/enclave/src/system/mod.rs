@@ -218,6 +218,7 @@ impl System {
                     start_time: time,
                     iterations: benchmark::iteration_counter(),
                 };
+                info!("Reporting benchmark: {:?}", report);
                 self.egress.send(&report);
                 self.bench_state = None;
             }

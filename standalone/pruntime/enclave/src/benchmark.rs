@@ -4,15 +4,15 @@ use core::sync::atomic::{AtomicU64, Ordering};
 // TODO.kevin: block_box will do best-effort to prevent compiler optimizations, but not guaranteed.
 use core::hint::black_box;
 
-const UNIT: usize = 200;
-const MAX_NUM: u128 = 65536*1024;
+const UNIT: usize = 1;
+const MAX_NUM: u128 = 65536*128;
 
 static ITERATION_COUNTER: AtomicU64 =  AtomicU64::new(0);
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
     for i in tmp..=2 {
-        if num % i == 0 {
+        if num % black_box(i) == 0 {
             return false;
         }
     }
@@ -35,7 +35,9 @@ pub fn run() -> ! {
             let _ = black_box(count_prime(black_box(MAX_NUM)));
         }
         let count = ITERATION_COUNTER.fetch_add(1, Ordering::Relaxed);
-        debug!("Benchmark counnter increased to {}", count);
+        if count % 100 == 0 {
+            debug!("Benchmark counnter increased to {}", count);
+        }
     }
 }
 
