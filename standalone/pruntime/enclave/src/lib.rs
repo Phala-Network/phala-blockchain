@@ -55,7 +55,7 @@ use std::time::Duration;
 use pink::InkModule;
 
 use enclave_api::actions::*;
-use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::{PRuntimeInfo, WorkerInfo};
 use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
@@ -1343,7 +1343,31 @@ fn handle_events(
 
     for evt in events {
         if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
-            info!("mq dispatching message: {:?}", message);
+            use phala_types::messaging::SystemEvent;
+            macro_rules! log_message {
+                ($msg: expr, $t: ident) => {{
+                    let event: Result<$t, _> = parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                    match event {
+                        Ok(event) => {
+                            info!("mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                                $msg.sender,
+                                $msg.destination,
+                                event);
+                        }
+                        Err(_) => {
+                            info!("mq dispatching message (decode failed): {:?}", $msg);
+                        }
+                    }
+                }}
+            }
+            match &message.destination.path()[..] {
+                SystemEvent::TOPIC => {
+                    log_message!(message, SystemEvent);
+                }
+                _ => {
+                    info!("mq dispatching message: {:?}", message);
+                }
+            }
             state.recv_mq.dispatch(message);
         }
     }
