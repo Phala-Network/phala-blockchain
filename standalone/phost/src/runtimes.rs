@@ -182,22 +182,6 @@ pub mod phala {
             }
         }
     }
-
-    /// Storage: Stash
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct StashStore<T: Phala> {
-        #[store(returns = T::AccountId)]
-        pub _runtime: PhantomData<T>,
-        pub account_id: T::AccountId,
-    }
-    impl<T: Phala> StashStore<T> {
-        pub fn new(account_id: T::AccountId) -> Self {
-            Self {
-                _runtime: Default::default(),
-                account_id,
-            }
-        }
-    }
 }
 
 pub mod phala_registry {

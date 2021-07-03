@@ -23,7 +23,7 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    AccountId, AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber,
     BlockWithEvents, DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header,
     HeaderToSync, InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq,
     OpaqueSignedBlock, Runtime, SyncHeaderReq, SyncHeaderResp,
@@ -440,13 +440,6 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_stash_account(client: &XtClient, controller: AccountId) -> Result<AccountId> {
-    client
-        .fetch_or_default(&runtimes::phala::StashStore::new(controller), None)
-        .await
-        .map_err(Into::into)
-}
-
 async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
     client
         .fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None)
@@ -569,16 +562,6 @@ async fn bridge(args: Args) -> Result<()> {
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer: SrSigner = subxt::PairSigner::new(pair);
-
-    // Check controller stash setup and fail early
-    let controller = signer.account_id().clone();
-    let stash = get_stash_account(&client, controller.clone()).await?;
-    if (!args.no_init && args.ra) || !args.no_write_back {
-        if stash == Default::default() {
-            panic!("Controller not registered; qed");
-        }
-    }
-
     let nc = NotifyClient::new(&args.notify_endpoint);
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
