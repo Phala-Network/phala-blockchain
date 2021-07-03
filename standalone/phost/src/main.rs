@@ -117,6 +117,12 @@ struct Args {
         help = "The batch size to sync blocks to pRuntime."
     )]
     sync_blocks: usize,
+
+    #[structopt(
+        long = "operator",
+        help = "The operator account to set the miner for the worker."
+    )]
+    operator: Option<String>,
 }
 
 struct BlockSyncState {
@@ -463,6 +469,7 @@ async fn init_runtime(
     skip_ra: bool,
     use_dev_key: bool,
     inject_key: &str,
+    operator_hex: Option<String>,
 ) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(&client, Some(0)).await?.block;
     let hash = client
@@ -500,8 +507,7 @@ async fn init_runtime(
                 bridge_genesis_info_b64: info_b64,
                 debug_set_key,
                 genesis_state_b64,
-                // TODO(kevin): pass a operator to pRuntime
-                operator_hex: None,
+                operator_hex,
             },
         )
         .await?;
@@ -582,7 +588,15 @@ async fn bridge(args: Args) -> Result<()> {
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
             runtime_info = Some(
-                init_runtime(&client, &pr, !args.ra, args.use_dev_key, &args.inject_key).await?,
+                init_runtime(
+                    &client,
+                    &pr,
+                    !args.ra,
+                    args.use_dev_key,
+                    &args.inject_key,
+                    args.operator.clone(),
+                )
+                .await?,
             );
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = true
