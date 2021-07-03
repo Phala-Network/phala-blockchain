@@ -5647,6 +5647,7 @@ dependencies = [
  "pallet-grandpa",
  "pallet-indices",
  "parity-scale-codec",
+ "phala-pallets",
  "phala-types",
  "rand 0.7.3",
  "rpc-ext",

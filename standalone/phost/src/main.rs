@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
+use phala_pallets::registry::Attestation;
 use std::cmp;
 use std::time::Duration;
 use structopt::StructOpt;
@@ -525,12 +526,14 @@ async fn register_worker(
     let raw_signing_cert =
         base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD)
             .expect("Failed to decode certificate");
-    let call = runtimes::phala::RegisterWorkerCall {
+    let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
         encoded_runtime_info: encoded_runtime_info,
-        report: attestation.payload.report.as_bytes().to_vec(),
-        signature,
-        raw_signing_cert,
+        attestation: Attestation::SgxIas {
+            ra_report: attestation.payload.report.as_bytes().to_vec(),
+            signature: signature,
+            raw_signing_cert: raw_signing_cert,
+        }
     };
     update_signer_nonce(client, signer).await?;
     let ret = client.watch(call, signer).await;
