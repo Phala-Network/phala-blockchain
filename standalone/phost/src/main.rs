@@ -521,7 +521,7 @@ async fn register_worker(
             .expect("Failed to decode certificate");
     let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
-        encoded_runtime_info: encoded_runtime_info,
+        pruntime_info: Decode::decode(&mut &encoded_runtime_info[..]).map_err(|_| anyhow!("Decode pruntime info failed"))?,
         attestation: Attestation::SgxIas {
             ra_report: attestation.payload.report.as_bytes().to_vec(),
             signature: signature,

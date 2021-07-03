@@ -186,6 +186,7 @@ pub mod phala {
 
 pub mod phala_registry {
     use codec::Encode;
+    use phala_types::PRuntimeInfo;
     use core::marker::PhantomData;
     use phala_pallets::registry::Attestation;
     use subxt::{module, system::System, Call};
@@ -199,8 +200,8 @@ pub mod phala_registry {
     pub struct RegisterWorkerCall<T: PhalaRegistry> {
         /// Runtime marker
         pub _runtime: PhantomData<T>,
-        /// The encoded runtime info
-        pub encoded_runtime_info: Vec<u8>,
+        /// The runtime info
+        pub pruntime_info: PRuntimeInfo<T::AccountId>,
         /// The enclave attestation
         pub attestation: Attestation,
     }
