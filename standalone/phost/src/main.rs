@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use phala_pallets::registry::Attestation;
 use std::cmp;
+use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use tokio::time::delay_for;
@@ -574,6 +575,14 @@ async fn bridge(args: Args) -> Result<()> {
         let mut runtime_info: Option<InitRuntimeResp> = None;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
+            let operator_hex = match args.operator {
+                None => None,
+                Some(operator) => {
+                    let parsed_operator = sp_core::crypto::AccountId32::from_str(&operator)
+                        .map_err(|e| anyhow!("Failed to parse operator address: {}", e))?;
+                    Some(hex::encode(&parsed_operator))
+                }
+            };
             runtime_info = Some(
                 init_runtime(
                     &client,
@@ -581,7 +590,7 @@ async fn bridge(args: Args) -> Result<()> {
                     !args.ra,
                     args.use_dev_key,
                     &args.inject_key,
-                    args.operator.clone(),
+                    operator_hex,
                 )
                 .await?,
             );
