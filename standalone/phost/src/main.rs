@@ -1,6 +1,8 @@
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
+use phala_pallets::registry::Attestation;
 use std::cmp;
+use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
 use tokio::time::delay_for;
@@ -22,10 +24,10 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    AccountId, AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber,
-    BlockWithEvents, DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header,
-    HeaderToSync, InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq,
-    OpaqueSignedBlock, Runtime, SyncHeaderReq, SyncHeaderResp,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber, BlockWithEvents,
+    DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
+    InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime,
+    SyncHeaderReq, SyncHeaderResp,
 };
 use enclave_api::blocks;
 
@@ -117,6 +119,12 @@ struct Args {
         help = "The batch size to sync blocks to pRuntime."
     )]
     sync_blocks: usize,
+
+    #[structopt(
+        long = "operator",
+        help = "The operator account to set the miner for the worker."
+    )]
+    operator: Option<String>,
 }
 
 struct BlockSyncState {
@@ -433,13 +441,6 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_stash_account(client: &XtClient, controller: AccountId) -> Result<AccountId> {
-    client
-        .fetch_or_default(&runtimes::phala::StashStore::new(controller), None)
-        .await
-        .map_err(Into::into)
-}
-
 async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
     client
         .fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None)
@@ -463,6 +464,7 @@ async fn init_runtime(
     skip_ra: bool,
     use_dev_key: bool,
     inject_key: &str,
+    operator_hex: Option<String>,
 ) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(&client, Some(0)).await?.block;
     let hash = client
@@ -500,8 +502,7 @@ async fn init_runtime(
                 bridge_genesis_info_b64: info_b64,
                 debug_set_key,
                 genesis_state_b64,
-                // TODO(kevin): pass a operator to pRuntime
-                operator_hex: None,
+                operator_hex,
             },
         )
         .await?;
@@ -519,12 +520,15 @@ async fn register_worker(
     let raw_signing_cert =
         base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD)
             .expect("Failed to decode certificate");
-    let call = runtimes::phala::RegisterWorkerCall {
+    let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
-        encoded_runtime_info: encoded_runtime_info,
-        report: attestation.payload.report.as_bytes().to_vec(),
-        signature,
-        raw_signing_cert,
+        pruntime_info: Decode::decode(&mut &encoded_runtime_info[..])
+            .map_err(|_| anyhow!("Decode pruntime info failed"))?,
+        attestation: Attestation::SgxIas {
+            ra_report: attestation.payload.report.as_bytes().to_vec(),
+            signature: signature,
+            raw_signing_cert: raw_signing_cert,
+        },
     };
     update_signer_nonce(client, signer).await?;
     let ret = client.watch(call, signer).await;
@@ -560,16 +564,6 @@ async fn bridge(args: Args) -> Result<()> {
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer: SrSigner = subxt::PairSigner::new(pair);
-
-    // Check controller stash setup and fail early
-    let controller = signer.account_id().clone();
-    let stash = get_stash_account(&client, controller.clone()).await?;
-    if (!args.no_init && args.ra) || !args.no_write_back {
-        if stash == Default::default() {
-            panic!("Controller not registered; qed");
-        }
-    }
-
     let nc = NotifyClient::new(&args.notify_endpoint);
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
@@ -581,8 +575,24 @@ async fn bridge(args: Args) -> Result<()> {
         let mut runtime_info: Option<InitRuntimeResp> = None;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
+            let operator_hex = match args.operator {
+                None => None,
+                Some(operator) => {
+                    let parsed_operator = sp_core::crypto::AccountId32::from_str(&operator)
+                        .map_err(|e| anyhow!("Failed to parse operator address: {}", e))?;
+                    Some(hex::encode(&parsed_operator))
+                }
+            };
             runtime_info = Some(
-                init_runtime(&client, &pr, !args.ra, args.use_dev_key, &args.inject_key).await?,
+                init_runtime(
+                    &client,
+                    &pr,
+                    !args.ra,
+                    args.use_dev_key,
+                    &args.inject_key,
+                    operator_hex,
+                )
+                .await?,
             );
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = true

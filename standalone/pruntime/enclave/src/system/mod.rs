@@ -1,12 +1,14 @@
-use crate::std::prelude::v1::*;
+use crate::{benchmark, std::prelude::v1::*};
 use anyhow::Result;
 use core::fmt;
 use log::info;
 use serde::{Deserialize, Serialize};
+use sp_application_crypto::Public;
 use std::collections::{BTreeMap, HashSet};
 
 use chain::pallet_mq::MessageOriginInfo;
 use enclave_api::blocks::StorageKV;
+use chain::pallet_registry::RegistryEvent;
 use parity_scale_codec::{Decode, Error as DecodeError, FullCodec};
 use phala_mq::{
     EcdsaMessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, TypedReceiveError,
@@ -14,7 +16,7 @@ use phala_mq::{
 };
 use phala_types::{
     messaging::{BlockRewardInfo, SystemEvent, WorkerReportEvent},
-    WorkerStateEnum,
+    WorkerPublicKey, WorkerStateEnum,
 };
 use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
 
@@ -25,7 +27,7 @@ mod comp_election;
 
 pub type CommandIndex = u64;
 
-type Event = SystemEvent<chain::AccountId>;
+type Event = SystemEvent;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum TransactionStatus {
@@ -73,9 +75,27 @@ pub struct TransactionReceipt {
     pub status: TransactionStatus,
 }
 
+#[derive(Debug)]
+struct BenchState {
+    block: chain::BlockNumber,
+    time: u64,
+}
+
+#[derive(Debug)]
+enum AttachState {
+    Detached,
+    Attached { session_id: u64 },
+}
+
+impl AttachState {
+    fn is_attached(&self) -> bool {
+        matches!(self, Self::Attached { .. })
+    }
+}
+
 pub struct System {
     // Keys and identity
-    id_pubkey: Vec<u8>,
+    pubkey: WorkerPublicKey,
     hashed_id: U256,
     machine_id: Vec<u8>,
     // Computation task electino
@@ -85,8 +105,8 @@ pub struct System {
     // Messageing
     egress: EcdsaMessageChannel,
     ingress: TypedReceiver<Event>,
-    // Registered received
-    active: bool,
+    attach_state: AttachState,
+    bench_state: Option<BenchState>,
 }
 
 impl System {
@@ -99,19 +119,19 @@ impl System {
         let pubkey = ecdsa::Public::from(pair.clone());
         let raw_pubkey: &[u8] = pubkey.as_ref();
         let pkh = blake2_256(raw_pubkey);
-        let id_pubkey = raw_pubkey.to_vec();
         let hashed_id: U256 = pkh.into();
         info!("System::set_id: hashed identity key: {:?}", hashed_id);
-        let sender = MessageOrigin::Worker(pubkey);
+        let sender = MessageOrigin::Worker(pubkey.clone());
         System {
-            id_pubkey,
+            pubkey,
             hashed_id,
             machine_id,
             comp_elected: false,
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
-            active: false,
+            attach_state: AttachState::Detached,
+            bench_state: None,
         }
     }
 
@@ -173,8 +193,8 @@ impl System {
         loop {
             match event_handler.system.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {
-                    if sender != chain::Phala::message_origin() {
-                        error!("Invalid SystemEvent origin: {:?}", sender);
+                    if !sender.is_pallet() {
+                        error!("Invalid SystemEvent sender: {:?}", sender);
                         continue;
                     }
                     event_handler.feed(block_number, &event, storage)?;
@@ -191,16 +211,28 @@ impl System {
                 },
             }
         }
+        drop(event_handler);
+        if let Some(BenchState { block, time }) = self.bench_state {
+            if block_number - block >= 5 {
+                let report = RegistryEvent::BenchReport {
+                    start_time: time,
+                    iterations: benchmark::iteration_counter(),
+                };
+                info!("Reporting benchmark: {:?}", report);
+                self.egress.send(&report);
+                self.bench_state = None;
+            }
+        }
         Ok(())
     }
 
     fn handle_reward_seed(&mut self, blocknum: chain::BlockNumber, reward_info: &BlockRewardInfo) {
         info!(
-            "System::handle_reward_seed({}, {:?}), active={}",
-            blocknum, reward_info, self.active
+            "System::handle_reward_seed({}, {:?}), state={:?}",
+            blocknum, reward_info, self.attach_state
         );
 
-        if !self.active {
+        if !self.attach_state.is_attached() {
             return;
         }
 
@@ -255,17 +287,27 @@ impl<'a> EventHandler<'a> {
         storage: &crate::Storage,
     ) -> Result<()> {
         match event {
-            Event::WorkerRegistered(_stash, pubkey, _machine_id) => {
-                if pubkey == &self.system.id_pubkey {
-                    info!("System::handle_event: WorkerRegistered");
-                    self.system.active = true;
+            Event::BenchStart { pubkey, start_time } => {
+                if pubkey == &self.system.pubkey {
+                    self.system.bench_state = Some(BenchState {
+                        block: block_number,
+                        time: *start_time,
+                    });
+                    crate::benchmark::reset_iteration_counter();
                 }
             }
-            Event::WorkerUnregistered(_stash, machine_id) => {
-                // Not perfect because we only have machine_id but not pubkey here.
-                if &self.system.machine_id == machine_id {
-                    info!("System::handle_event: WorkerUnregistered");
-                    self.system.active = false;
+            Event::WorkerAttached { pubkey, session_id } => {
+                if pubkey == &self.system.pubkey {
+                    info!("System::handle_event: WorkerAttached");
+                    self.system.attach_state = AttachState::Attached {
+                        session_id: *session_id,
+                    };
+                }
+            }
+            Event::WorkerDettached { pubkey } => {
+                if pubkey == &self.system.pubkey {
+                    info!("System::handle_event: WorkerDettached");
+                    self.system.attach_state = AttachState::Detached;
                 }
             }
             Event::RewardSeed(reward_info) => {

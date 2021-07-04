@@ -44,12 +44,6 @@ use types::{
 // constants
 pub use super::constants::*;
 
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
 pub use weights::WeightInfo;
 
 type BalanceOf<T> =
@@ -415,49 +409,6 @@ decl_module! {
 			Ok(())
 		}
 
-		/// Register a worker node with a valid Remote Attestation report
-		#[weight = T::WeightInfo::register_worker()]
-		pub fn register_worker(origin, encoded_runtime_info: Vec<u8>, report: Vec<u8>, signature: Vec<u8>, raw_signing_cert: Vec<u8>) -> dispatch::DispatchResult {
-			let who = ensure_signed(origin)?;
-			ensure!(Stash::<T>::contains_key(&who), Error::<T>::NotController);
-			let stash = Stash::<T>::get(&who);
-
-			use super::attestation::{validate_ias_report, IasFields};
-
-			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			let IasFields {
-				mr_enclave,
-				mr_signer,
-				isv_prod_id,
-				isv_svn,
-				report_data,
-				confidence_level
-			} = validate_ias_report(&report, &signature, &raw_signing_cert, now)
-				.map_err(Into::<Error<T>>::into)?;
-
-			let whitelist = MREnclaveWhitelist::get();
-			let t_mrenclave = Self::extend_mrenclave(&mr_enclave, &mr_signer, &isv_prod_id, &isv_svn);
-			ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
-			// Validate report data
-			let runtime_info_hash = crate::hashing::blake2_256(&encoded_runtime_info);
-			ensure!(&runtime_info_hash == &report_data[..32], Error::<T>::InvalidRuntimeInfoHash);
-			let runtime_info = PRuntimeInfo::<T::AccountId>::decode(&mut &encoded_runtime_info[..]).map_err(|_| Error::<T>::InvalidRuntimeInfo)?;
-			let runtime_version = runtime_info.version;
-			let machine_id = runtime_info.machine_id.to_vec();
-			let pubkey = runtime_info.pubkey.as_ref().to_vec();
-
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &runtime_info.features, confidence_level, runtime_version)
-				.map_err(Into::into)
-		}
-
-		#[weight = T::WeightInfo::force_register_worker()]
-		fn force_register_worker(origin, stash: T::AccountId, machine_id: Vec<u8>, pubkey: Vec<u8>) -> dispatch::DispatchResult {
-			ensure_root(origin)?;
-			ensure!(StashState::<T>::contains_key(&stash), Error::<T>::StashNotFound);
-			Self::register_worker_internal(&stash, &machine_id, &pubkey, &vec![1, 4], 0, 0)?;
-			Ok(())
-		}
-
 		#[weight = T::WeightInfo::force_set_contract_key()]
 		fn force_set_contract_key(origin, id: u32, pubkey: Vec<u8>) -> dispatch::DispatchResult {
 			ensure_root(origin)?;
@@ -674,22 +625,6 @@ impl<T: Config> Module<T> {
 		Ok(())
 	}
 
-	/// Unlinks a worker from a stash account. Only call when they are linked.
-	fn unlink_worker(
-		stash: &T::AccountId,
-		machine_id: &Vec<u8>,
-		stats_delta: &mut MinerStatsDelta,
-	) {
-		Self::kick_worker(stash, stats_delta);
-		WorkerState::<T>::remove(stash);
-		MachineOwner::<T>::remove(machine_id);
-
-		Self::push_message(SystemEvent::WorkerUnregistered(
-			stash.clone(),
-			machine_id.clone(),
-		));
-	}
-
 	/// Kicks a worker if it's online. Only do this to force offline a worker.
 	fn kick_worker(stash: &T::AccountId, stats_delta: &mut MinerStatsDelta) -> bool {
 		WorkerIngress::<T>::remove(stash);
@@ -715,73 +650,6 @@ impl<T: Config> Module<T> {
 			_ => (),
 		};
 		false
-	}
-
-	fn register_worker_internal(
-		stash: &T::AccountId,
-		machine_id: &Vec<u8>,
-		pubkey: &Vec<u8>,
-		worker_features: &Vec<u32>,
-		confidence_level: u8,
-		runtime_version: u32,
-	) -> Result<(), Error<T>> {
-		let mut delta = PendingExitingDelta::get();
-		let info = WorkerState::<T>::get(stash);
-		let machine_owner = MachineOwner::<T>::get(machine_id);
-		let renew_only = &info.machine_id == machine_id && !machine_id.is_empty();
-		// Unlink existing machine and stash
-		if !renew_only {
-			// Worker linked to another stash
-			if machine_owner != Default::default() && &machine_owner != stash {
-				Self::unlink_worker(&machine_owner, machine_id, &mut delta);
-			}
-			// Stash linked to another worker
-			if info.state != WorkerStateEnum::<T::BlockNumber>::Empty && !info.machine_id.is_empty()
-			{
-				Self::unlink_worker(stash, &info.machine_id, &mut delta);
-			}
-		}
-		// Updated WorkerInfo fields
-		let last_updated = T::UnixTime::now().as_millis().saturated_into::<u64>();
-		let score = Some(Score {
-			overall_score: calc_overall_score(worker_features)
-				.map_err(|()| Error::<T>::InvalidInput)?,
-			features: worker_features.clone(),
-		});
-		// New WorkerInfo
-		let new_info = if renew_only {
-			// Just renewed
-			WorkerInfo {
-				machine_id: machine_id.clone(), // should not change, but we set it anyway
-				pubkey: pubkey.clone(),         // could change if the worker forgot the identity
-				last_updated,
-				score,            // could change if we do profiling
-				confidence_level, // could change on redo RA
-				runtime_version,  // could change on redo RA
-				..info            // keep .state
-			}
-		} else {
-			// Link a new worker
-			WorkerInfo {
-				machine_id: machine_id.clone(),
-				pubkey: pubkey.clone(),
-				last_updated,
-				state: WorkerStateEnum::Free,
-				score,
-				confidence_level,
-				runtime_version,
-			}
-		};
-		WorkerState::<T>::insert(stash, new_info);
-		MachineOwner::<T>::insert(machine_id, stash);
-		PendingExitingDelta::put(delta);
-		WorkerIngress::<T>::insert(stash, 0);
-		Self::push_message(SystemEvent::WorkerRegistered(
-			stash.clone(),
-			pubkey.clone(),
-			machine_id.clone(),
-		));
-		Ok(())
 	}
 
 	fn clear_dirty() {
@@ -822,11 +690,11 @@ impl<T: Config> Module<T> {
 		// We have to kick the worker by force to avoid double slash
 		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
 
-		// TODO.kevin: need to distinguish between Unregistered and Offline?
-		Self::push_message(SystemEvent::WorkerUnregistered(
-			stash.clone(),
-			machine_id.clone(),
-		));
+		// TODO.kevin:
+		// Self::push_message(SystemEvent::WorkerUnregistered(
+		// 	stash.clone(),
+		// 	machine_id.clone(),
+		// ));
 
 		// Assume ensure!(StashState::<T>::contains_key(&stash));
 		let payout = StashState::<T>::get(&stash).payout_prefs.target;
@@ -1058,7 +926,7 @@ impl<T: Config> Module<T> {
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
-		Self::push_message(SystemEvent::<T::AccountId>::RewardSeed(seed_info));
+		Self::push_message(SystemEvent::RewardSeed(seed_info));
 	}
 
 	fn handle_claim_reward(

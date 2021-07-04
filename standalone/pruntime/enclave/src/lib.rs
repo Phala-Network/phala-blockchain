@@ -4,6 +4,7 @@
 #![warn(unused_extern_crates)]
 #![cfg_attr(not(target_env = "sgx"), no_std)]
 #![cfg_attr(target_env = "sgx", feature(rustc_private))]
+#![feature(bench_black_box)]
 
 #[cfg(not(target_env = "sgx"))]
 #[macro_use]
@@ -54,7 +55,7 @@ use std::time::Duration;
 use pink::InkModule;
 
 use enclave_api::actions::*;
-use phala_mq::{MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::{PRuntimeInfo, WorkerInfo};
 use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
@@ -68,6 +69,7 @@ mod rpc_types;
 mod system;
 mod types;
 mod utils;
+mod benchmark;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -863,11 +865,19 @@ fn init_secret_keys(
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
+    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
         Err(e) if e.is::<sgx_status_t>() => e.downcast::<sgx_status_t>().unwrap(),
         _ => sgx_status_t::SGX_SUCCESS,
     }
+}
+
+#[no_mangle]
+pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
+    info!("[{}] Benchmark thread started", index);
+    benchmark::run()
 }
 
 // --------------------------------
@@ -895,8 +905,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     if local_state.initialized {
         return Err(json!({"message": "Already initialized"}));
     }
-
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     // load identity
     if let Some(key) = input.debug_set_key {
@@ -1335,7 +1343,31 @@ fn handle_events(
 
     for evt in events {
         if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
-            info!("mq dispatching message: {:?}", message);
+            use phala_types::messaging::SystemEvent;
+            macro_rules! log_message {
+                ($msg: expr, $t: ident) => {{
+                    let event: Result<$t, _> = parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                    match event {
+                        Ok(event) => {
+                            info!("mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                                $msg.sender,
+                                $msg.destination,
+                                event);
+                        }
+                        Err(_) => {
+                            info!("mq dispatching message (decode failed): {:?}", $msg);
+                        }
+                    }
+                }}
+            }
+            match &message.destination.path()[..] {
+                SystemEvent::TOPIC => {
+                    log_message!(message, SystemEvent);
+                }
+                _ => {
+                    info!("mq dispatching message: {:?}", message);
+                }
+            }
             state.recv_mq.dispatch(message);
         }
     }

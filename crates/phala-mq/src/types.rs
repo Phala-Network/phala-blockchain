@@ -44,6 +44,11 @@ impl MessageOrigin {
             _ => false,
         }
     }
+
+    /// Returns if the origin is from a Pallet
+    pub fn is_pallet(&self) -> bool {
+        matches!(self, Self::Pallet(_))
+    }
 }
 
 /// The topic in the message queue, indicating a group of destination message receivers.

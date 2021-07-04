@@ -1,6 +1,7 @@
 use super::pallet_mq;
 use phala_pallets::phala_legacy::OnMessageReceived;
 use phala_types::messaging::{self, BindTopic, Lottery, Message, WorkerReportEvent};
+use super::pallet_registry::RegistryEvent;
 
 type BalanceTransfer = messaging::BalanceTransfer<super::AccountId, super::Balance>;
 type KittyTransfer = messaging::KittyTransfer<super::AccountId>;
@@ -15,6 +16,7 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
             BalanceTransfer::TOPIC => super::Phala::on_transfer_message_received(message),
             KittyTransfer::TOPIC => super::KittyStorage::on_message_received(message),
             WorkerReportEvent::TOPIC => super::Phala::on_worker_message_received(message),
+            RegistryEvent::TOPIC => super::PhalaRegistry::on_message_received(message),
             _ => Ok(()),
         };
 

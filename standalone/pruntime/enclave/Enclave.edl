@@ -22,6 +22,8 @@ enclave {
 
         public sgx_status_t ecall_init();
 
+        public sgx_status_t ecall_bench_run(uint32_t index);
+
         public sgx_status_t ecall_set_state(
             [in, size = input_len] uint8_t *input_ptr, size_t input_len
         );

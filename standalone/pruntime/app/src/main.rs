@@ -1,5 +1,7 @@
 #![feature(decl_macro)]
 
+use std::thread;
+
 extern crate env_logger;
 extern crate sgx_types;
 extern crate sgx_urts;
@@ -20,6 +22,7 @@ extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
 extern crate enclave_api;
+extern crate structopt;
 extern crate parity_scale_codec;
 
 #[cfg(test)]
@@ -47,9 +50,19 @@ use std::env;
 use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
+use structopt::StructOpt;
 
 use contract_input::ContractInput;
 use enclave_api::actions;
+
+
+#[derive(StructOpt, Debug)]
+#[structopt(name = "pruntime", about = "The Phala TEE worker app.")]
+struct Args {
+    /// Number of CPU cores to be used for mining.
+    #[structopt(short, long)]
+    cores: Option<u32>
+}
 
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -91,6 +104,11 @@ extern {
 
     fn ecall_init(
         eid: sgx_enclave_id_t, retval: *mut sgx_status_t
+    ) -> sgx_status_t;
+
+    fn ecall_bench_run(
+        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        index: u32,
     ) -> sgx_status_t;
 }
 
@@ -418,6 +436,8 @@ fn rocket() -> rocket::Rocket {
 }
 
 fn main() {
+    let args = Args::from_args();
+
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
 
@@ -428,7 +448,7 @@ fn main() {
 
     let enclave = match init_enclave() {
         Ok(r) => {
-            info!("[+] Init Enclave Successful {}!", r.geteid());
+            info!("[+] Init Enclave Successful, pid={}!", r.geteid());
             r
         },
         Err(x) => {
@@ -448,12 +468,48 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    rocket().launch();
+    let mut bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
+    info!("Bench cores: {}", bench_cores);
+
+    let rocket = thread::spawn(move || {
+        rocket().launch();
+    });
+
+    let mut v = vec![];
+    for i in 0..bench_cores {
+        let child = thread::spawn(move || {
+            set_thread_idle_policy();
+            let result = unsafe {
+                ecall_bench_run(eid, &mut retval, i)
+            };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("Init bench thread {} failed", i);
+            }
+        });
+        v.push(child);
+    }
+
+    rocket.join();
+    for child in v {
+        child.join();
+    }
 
     info!("Quit signal received, destroying enclave...");
     destroy_enclave();
 
     std::process::exit(0);
+}
+
+fn set_thread_idle_policy() {
+    let param = libc::sched_param {
+        sched_priority: 0,
+    };
+    unsafe {
+        let rv = libc::sched_setscheduler(0, libc::SCHED_IDLE, &param);
+        if rv != 0 {
+            error!("Failed to set thread schedule prolicy to IDLE");
+        }
+    }
 }
 
 mod bin_api {

@@ -20,7 +20,6 @@ pub type Hash = <Runtime as subxt::system::System>::Hash;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
-pub type AccountId = <Runtime as subxt::system::System>::AccountId;
 
 // pRuntime APIs
 

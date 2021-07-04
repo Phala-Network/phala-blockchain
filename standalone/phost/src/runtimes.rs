@@ -147,7 +147,7 @@ pub mod grandpa {
 pub mod phala {
     use codec::{Encode, Decode};
     use subxt::{
-        module, Call, Store,
+        module, Store,
         system::System,
         balances::Balances
     };
@@ -157,6 +157,7 @@ pub mod phala {
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);
+
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumAddress([u8; 20]);
 
@@ -164,23 +165,6 @@ pub mod phala {
     pub trait Phala: System + Balances {
         #![event_type(BlockRewardInfo)]
         #![event_type(PayoutReason)]
-    }
-
-    // TODO(kevin): migrate to `registry::register_worker`
-
-    /// The call to register_worker
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
-    pub struct RegisterWorkerCall<T: Phala> {
-        /// Runtime marker
-        pub _runtime: PhantomData<T>,
-        /// The encoded runtime info
-        pub encoded_runtime_info: Vec<u8>,
-        /// The report
-        pub report: Vec<u8>,
-        /// The signature
-        pub signature: Vec<u8>,
-        /// The signing cert
-        pub raw_signing_cert: Vec<u8>,
     }
 
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
@@ -198,21 +182,28 @@ pub mod phala {
             }
         }
     }
+}
 
-    /// Storage: Stash
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct StashStore<T: Phala> {
-        #[store(returns = T::AccountId)]
+pub mod phala_registry {
+    use codec::Encode;
+    use phala_types::PRuntimeInfo;
+    use core::marker::PhantomData;
+    use phala_pallets::registry::Attestation;
+    use subxt::{module, system::System, Call};
+
+    #[module]
+    pub trait PhalaRegistry: System {}
+    impl PhalaRegistry for super::PhalaNodeRuntime {}
+
+    /// The call to register_worker
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct RegisterWorkerCall<T: PhalaRegistry> {
+        /// Runtime marker
         pub _runtime: PhantomData<T>,
-        pub account_id: T::AccountId,
-    }
-    impl<T: Phala> StashStore<T> {
-        pub fn new(account_id: T::AccountId) -> Self {
-            Self {
-                _runtime: Default::default(),
-                account_id,
-            }
-        }
+        /// The runtime info
+        pub pruntime_info: PRuntimeInfo<T::AccountId>,
+        /// The enclave attestation
+        pub attestation: Attestation,
     }
 }
 

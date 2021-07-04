@@ -38,6 +38,7 @@ balances = { version = "3.0.0", package = "pallet-balances", path = "../../subst
 sp-keyring = { version = "3.0.0", package = "sp-keyring", path = "../../substrate/primitives/keyring" }
 
 phala-types = { path = "../../common/types" }
+phala-pallets = { path = "../../pallets/phala" }
 trie-storage = { path = "../../crates/trie-storage" }
 rpc-ext = { path = "../../standalone/rpc-ext" }
 enclave-api = { path = "../../standalone/pruntime/enclave-api" }
