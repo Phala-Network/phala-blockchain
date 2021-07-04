@@ -1,3 +1,5 @@
+use crate::std;
+
 use core::sync::atomic::{AtomicU64, Ordering};
 use log::debug;
 
@@ -8,6 +10,7 @@ const UNIT: usize = 1;
 const MAX_NUM: u128 = 65536 * 128;
 
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
+static COUNT_SINCE: AtomicU64 = AtomicU64::new(0);
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
@@ -37,7 +40,11 @@ pub fn run() -> ! {
         }
         let count = ITERATION_COUNTER.fetch_add(1, Ordering::Relaxed);
         if count % 100 == 0 {
-            debug!("Benchmark counnter increased to {}", count);
+            debug!(
+                "Benchmark counnter increased to {}, est score={}",
+                count,
+                est_score()
+            );
         }
     }
 }
@@ -47,5 +54,28 @@ pub fn iteration_counter() -> u64 {
 }
 
 pub fn reset_iteration_counter() {
-    ITERATION_COUNTER.store(0, Ordering::Relaxed)
+    ITERATION_COUNTER.store(0, Ordering::Relaxed);
+    if debugging() {
+        COUNT_SINCE.store(now(), Ordering::Relaxed);
+    }
+}
+
+fn est_score() -> u64 {
+    let since = COUNT_SINCE.load(Ordering::Relaxed);
+    let now = now();
+    if now <= since {
+        return 0;
+    }
+    ITERATION_COUNTER.load(Ordering::Relaxed) / (now - since)
+}
+
+fn debugging() -> bool {
+    log::STATIC_MAX_LEVEL >= log::Level::Debug && log::max_level() >= log::Level::Debug
+}
+
+fn now() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .expect("Get time failed")
+        .as_secs()
 }
