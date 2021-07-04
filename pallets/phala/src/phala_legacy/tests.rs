@@ -18,10 +18,7 @@ use super::{
 	RawEvent,
 };
 use crate::phala_legacy::OnMessageReceived;
-use phala_types::{
-	messaging::{BalanceTransfer, Message, MessageOrigin, Topic},
-	PayoutReason,
-};
+use phala_types::{PayoutReason, WorkerPublicKey, messaging::{BalanceTransfer, Message, MessageOrigin, Topic}};
 
 fn events() -> Vec<Event> {
 	let evt = System::events()
@@ -163,19 +160,16 @@ fn test_register_worker() {
 		));
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
 		// TODO(jasl): fix runtime info
-		assert_ok!(Phala::register_worker(
+		// TODO: we need to re-design the tests.
+		assert_ok!(PhalaRegistry::register_worker(
 			Origin::signed(1),
-			ENCODED_RUNTIME_INFO.to_vec(),
-			ias_report_sample(),
-			sig.clone(),
-			sig_cert_dec.clone()
+			todo!(),
+			todo!(),
 		));
-		assert_ok!(Phala::register_worker(
+		assert_ok!(PhalaRegistry::register_worker(
 			Origin::signed(1),
-			ENCODED_RUNTIME_INFO.to_vec(),
-			ias_report_sample(),
-			sig.clone(),
-			sig_cert_dec.clone()
+			todo!(),
+			todo!(),
 		));
 	});
 
@@ -192,12 +186,10 @@ fn test_register_worker() {
 		));
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
 		assert_err!(
-			Phala::register_worker(
+			PhalaRegistry::register_worker(
 				Origin::signed(1),
-				ENCODED_RUNTIME_INFO.to_vec(),
-				ias_report_sample(),
-				sig.clone(),
-				sig_cert_dec.clone()
+				todo!(),
+				todo!(),
 			),
 			Error::<Test>::OutdatedIASReport
 		);
@@ -226,21 +218,17 @@ fn test_whitelist_works() {
 			ISV_SVN.to_vec()
 		));
 		// TODO(jasl): fix runtime info
-		assert_ok!(Phala::register_worker(
+		assert_ok!(PhalaRegistry::register_worker(
 			Origin::signed(1),
-			ENCODED_RUNTIME_INFO.to_vec(),
-			ias_report_sample(),
-			sig.clone(),
-			sig_cert_dec.clone()
+			todo!(),
+			todo!(),
 		));
 		let machine_id = &Phala::worker_state(1).machine_id;
 		assert_eq!(true, machine_id.len() > 0);
-		assert_ok!(Phala::register_worker(
+		assert_ok!(PhalaRegistry::register_worker(
 			Origin::signed(2),
-			ENCODED_RUNTIME_INFO.to_vec(),
-			ias_report_sample(),
-			sig.clone(),
-			sig_cert_dec.clone()
+			todo!(),
+			todo!(),
 		));
 		let machine_id2 = &Phala::worker_state(2).machine_id;
 		assert_eq!(true, machine_id2.len() > 0);
@@ -287,15 +275,19 @@ fn test_remove_mrenclave_works() {
 #[test]
 fn test_force_register_worker() {
 	new_test_ext().execute_with(|| {
+		let dummy_pubkey = WorkerPublicKey::from_raw([0u8; 33]);
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			vec![0],
-			vec![1]
+			dummy_pubkey.clone(),
+			dummy_pubkey.clone()
 		));
 		assert_noop!(
-			Phala::force_register_worker(Origin::signed(1), 1, vec![0], vec![1]),
+			PhalaRegistry::force_register_worker(
+				Origin::signed(1),
+				dummy_pubkey.clone(),
+				dummy_pubkey.clone()
+			),
 			BadOrigin
 		);
 	});
@@ -619,11 +611,10 @@ fn test_mining_lifecycle_force_reregister() {
 		// Block 1: register a worker at stash1 and start mining
 		System::set_block_number(1);
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			machine_id.clone(),
-			pubkey.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_ok!(Phala::start_mining_intention(Origin::signed(1)));
 		assert_eq!(Phala::worker_state(1).state, WorkerStateEnum::MiningPending);
@@ -652,11 +643,10 @@ fn test_mining_lifecycle_force_reregister() {
 		// Block 2: force reregister to stash2
 		System::set_block_number(2);
 		assert_ok!(Phala::set_stash(Origin::signed(2), 2));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			2,
-			machine_id.clone(),
-			pubkey.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(2);
@@ -690,11 +680,10 @@ fn test_mining_lifecycle_renew() {
 		// Block 1: register a worker at stash1 and start mining
 		System::set_block_number(1);
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			machine_id.clone(),
-			pubkey.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_ok!(Phala::start_mining_intention(Origin::signed(1)));
 		assert_eq!(Phala::worker_state(1).state, WorkerStateEnum::MiningPending);
@@ -722,11 +711,10 @@ fn test_mining_lifecycle_renew() {
 
 		// Block 2: force reregister to stash2
 		System::set_block_number(2);
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			machine_id.clone(),
-			pubkey.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
 		Phala::on_finalize(2);
@@ -764,11 +752,10 @@ fn test_bug_119() {
 		println!("---- block 1");
 		assert_ok!(Phala::set_stash(Origin::signed(1), 1));
 		assert_ok!(Phala::set_stash(Origin::signed(2), 2));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			machine_id1.clone(),
-			pubkey1.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_ok!(Phala::start_mining_intention(Origin::signed(1)));
 		assert_ok!(Phala::force_next_round(RawOrigin::Root.into()));
@@ -781,11 +768,10 @@ fn test_bug_119() {
 		System::set_block_number(2);
 		println!("---- block 2");
 		assert_matches!(Phala::worker_state(1).state, WorkerStateEnum::Mining(_));
-		assert_ok!(Phala::force_register_worker(
+		assert_ok!(PhalaRegistry::force_register_worker(
 			RawOrigin::Root.into(),
-			1,
-			machine_id2.clone(),
-			pubkey2.clone()
+			todo!(),
+			todo!(),
 		));
 		assert_eq!(Phala::machine_owner(machine_id2.clone()), 1);
 		assert_eq!(
@@ -981,11 +967,10 @@ fn setup_test_worker(stash: u64) {
 	let mut pubkey = [0; 33].to_vec();
 	pubkey[32] = stash as u8;
 	assert_ok!(Phala::set_stash(Origin::signed(stash), stash));
-	assert_ok!(Phala::force_register_worker(
+	assert_ok!(PhalaRegistry::force_register_worker(
 		RawOrigin::Root.into(),
-		stash,
-		machine_id.clone(),
-		pubkey.clone()
+		todo!(),
+		todo!(),
 	));
 }
 

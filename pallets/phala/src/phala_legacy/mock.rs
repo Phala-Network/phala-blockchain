@@ -1,6 +1,8 @@
 // Creating mock runtime here
 
 use crate::phala_legacy as phala;
+use crate::pallet_mq as mq;
+use crate::registry;
 use frame_support::parameter_types;
 use frame_support_test::TestRandomness;
 use frame_system as system;
@@ -28,7 +30,8 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Phala: phala::{Pallet, Call, Config<T>, Storage, Event<T>},
-		PhalaMq: super::mq::{Pallet, Event},
+		PhalaMq: mq::{Pallet, Event},
+		PhalaRegistry: registry::{Pallet, Event},
 	}
 );
 
@@ -100,9 +103,14 @@ parameter_types! {
 	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
-impl crate::mq::Config for Test {
+impl mq::Config for Test {
 	type Event = Event;
 	type QueueNotifyConfig = ();
+}
+
+impl registry::Config for Test {
+	type Event = Event;
+	type UnixTime = Timestamp;
 }
 
 impl phala::Config for Test {
