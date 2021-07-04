@@ -23,10 +23,10 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber,
-    BlockWithEvents, DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header,
-    HeaderToSync, InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq,
-    OpaqueSignedBlock, Runtime, SyncHeaderReq, SyncHeaderResp,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber, BlockWithEvents,
+    DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
+    InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime,
+    SyncHeaderReq, SyncHeaderResp,
 };
 use enclave_api::blocks;
 
@@ -521,12 +521,13 @@ async fn register_worker(
             .expect("Failed to decode certificate");
     let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
-        pruntime_info: Decode::decode(&mut &encoded_runtime_info[..]).map_err(|_| anyhow!("Decode pruntime info failed"))?,
+        pruntime_info: Decode::decode(&mut &encoded_runtime_info[..])
+            .map_err(|_| anyhow!("Decode pruntime info failed"))?,
         attestation: Attestation::SgxIas {
             ra_report: attestation.payload.report.as_bytes().to_vec(),
             signature: signature,
             raw_signing_cert: raw_signing_cert,
-        }
+        },
     };
     update_signer_nonce(client, signer).await?;
     let ret = client.watch(call, signer).await;

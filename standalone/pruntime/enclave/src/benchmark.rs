@@ -1,13 +1,13 @@
-use log::debug;
 use core::sync::atomic::{AtomicU64, Ordering};
+use log::debug;
 
 // TODO.kevin: block_box will do best-effort to prevent compiler optimizations, but not guaranteed.
 use core::hint::black_box;
 
 const UNIT: usize = 1;
-const MAX_NUM: u128 = 65536*128;
+const MAX_NUM: u128 = 65536 * 128;
 
-static ITERATION_COUNTER: AtomicU64 =  AtomicU64::new(0);
+static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
