@@ -181,7 +181,7 @@ pub mod pallet {
 			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
 				match v {
 					Some(worker_info) => {
-						// Case 1 - Only refresh the RA report; no need to redo benchmark
+						// Case 1 - Refresh the RA report and redo benchmark
 						worker_info.last_updated = now;
 						worker_info.session_id += 1;
 						Self::push_message(SystemEvent::WorkerAttached {
