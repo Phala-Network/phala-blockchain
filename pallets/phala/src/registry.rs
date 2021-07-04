@@ -188,6 +188,11 @@ pub mod pallet {
 							pubkey: pruntime_info.pubkey.clone(),
 							session_id: worker_info.session_id,
 						});
+						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+						Self::push_message(SystemEvent::BenchStart {
+							pubkey: pruntime_info.pubkey,
+							start_time: now,
+						});
 					}
 					None => {
 						// Case 2 - New worker register
