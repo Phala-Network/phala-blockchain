@@ -275,11 +275,14 @@ pub mod pallet {
 						// Oops, should not happen
 						return Err(Error::<T>::InvalidBenchReport.into());
 					}
+
+					const MAX_SCORE: u32 = 6000;
 					let score = iterations / (now - start_time);
+					let score = MAX_SCORE.min(score as u32);
 
 					Worker::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
-							val.intial_score = Some(score as u32);
+							val.intial_score = Some(score);
 						}
 					})
 				}
