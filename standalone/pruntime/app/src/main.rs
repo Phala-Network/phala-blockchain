@@ -57,7 +57,9 @@ use enclave_api::actions;
 
 
 #[derive(StructOpt, Debug)]
+#[structopt(name = "pruntime", about = "The Phala TEE worker app.")]
 struct Args {
+    /// Number of CPU cores to be used for mining.
     #[structopt(short, long)]
     cores: Option<u32>
 }
