@@ -29,6 +29,7 @@ fn count_prime(max: u128) -> usize {
     count
 }
 
+// TODO.kevin: Support pausing.
 pub fn run() -> ! {
     loop {
         for _ in 0..UNIT {
