@@ -298,7 +298,7 @@ impl<'a> EventHandler<'a> {
             }
             Event::WorkerAttached { pubkey, session_id } => {
                 if pubkey == &self.system.pubkey {
-                    info!("System::handle_event: WorkerRegistered");
+                    info!("System::handle_event: WorkerAttached");
                     self.system.attach_state = AttachState::Attached {
                         session_id: *session_id,
                     };
@@ -306,7 +306,7 @@ impl<'a> EventHandler<'a> {
             }
             Event::WorkerDettached { pubkey } => {
                 if pubkey == &self.system.pubkey {
-                    info!("System::handle_event: WorkerUnregistered");
+                    info!("System::handle_event: WorkerDettached");
                     self.system.attach_state = AttachState::Detached;
                 }
             }
