@@ -44,12 +44,6 @@ use types::{
 // constants
 pub use super::constants::*;
 
-#[cfg(test)]
-mod mock;
-
-#[cfg(test)]
-mod tests;
-
 pub use weights::WeightInfo;
 
 type BalanceOf<T> =
