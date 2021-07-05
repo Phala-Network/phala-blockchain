@@ -878,8 +878,11 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
-    info!("[{}] Benchmark thread started", index);
-    benchmark::run()
+    if !benchmark::puasing() {
+        info!("[{}] Benchmark thread started", index);
+        benchmark::run();
+    }
+    sgx_status_t::SGX_SUCCESS
 }
 
 // --------------------------------

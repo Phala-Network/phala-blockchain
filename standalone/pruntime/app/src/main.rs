@@ -479,11 +479,14 @@ fn main() {
     for i in 0..bench_cores {
         let child = thread::spawn(move || {
             set_thread_idle_policy();
-            let result = unsafe {
-                ecall_bench_run(eid, &mut retval, i)
-            };
-            if result != sgx_status_t::SGX_SUCCESS {
-                panic!("Init bench thread {} failed", i);
+            loop {
+                let result = unsafe {
+                    ecall_bench_run(eid, &mut retval, i)
+                };
+                if result != sgx_status_t::SGX_SUCCESS {
+                    panic!("Run benchmark {} failed", i);
+                }
+                std::thread::sleep(std::time::Duration::from_millis(200));
             }
         });
         v.push(child);

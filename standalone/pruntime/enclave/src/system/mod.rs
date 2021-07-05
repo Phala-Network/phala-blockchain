@@ -213,7 +213,9 @@ impl System {
         }
         drop(event_handler);
         if let Some(BenchState { block, time }) = self.bench_state {
-            if block_number - block >= 5 {
+            const BENCH_DURATION: u32 = 8;
+            if block_number - block >= BENCH_DURATION {
+                benchmark::puase();
                 let report = RegistryEvent::BenchReport {
                     start_time: time,
                     iterations: benchmark::iteration_counter(),
@@ -293,7 +295,8 @@ impl<'a> EventHandler<'a> {
                         block: block_number,
                         time: *start_time,
                     });
-                    crate::benchmark::reset_iteration_counter();
+                    benchmark::reset_iteration_counter();
+                    benchmark::resume();
                 }
             }
             Event::WorkerAttached { pubkey, session_id } => {

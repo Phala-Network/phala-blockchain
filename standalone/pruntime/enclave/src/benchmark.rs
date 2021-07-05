@@ -1,6 +1,6 @@
 use crate::std;
 
-use core::sync::atomic::{AtomicU64, Ordering};
+use core::sync::atomic::{AtomicU64, AtomicBool, Ordering};
 use log::debug;
 
 // TODO.kevin: block_box will do best-effort to prevent compiler optimizations, but not guaranteed.
@@ -11,6 +11,7 @@ const MAX_NUM: u128 = 65536 * 128;
 
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 static COUNT_SINCE: AtomicU64 = AtomicU64::new(0);
+static PAUSED: AtomicBool = AtomicBool::new(false);
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
@@ -32,8 +33,7 @@ fn count_prime(max: u128) -> usize {
     count
 }
 
-// TODO.kevin: Support pausing.
-pub fn run() -> ! {
+pub fn run() {
     loop {
         for _ in 0..UNIT {
             let _ = black_box(count_prime(black_box(MAX_NUM)));
@@ -45,6 +45,9 @@ pub fn run() -> ! {
                 count,
                 est_score()
             );
+        }
+        if PAUSED.load(Ordering::Relaxed) {
+            return;
         }
     }
 }
@@ -58,6 +61,18 @@ pub fn reset_iteration_counter() {
     if debugging() {
         COUNT_SINCE.store(now(), Ordering::Relaxed);
     }
+}
+
+pub fn puase() {
+    PAUSED.store(true, Ordering::Relaxed)
+}
+
+pub fn resume() {
+    PAUSED.store(false, Ordering::Relaxed)
+}
+
+pub fn puasing() -> bool {
+    PAUSED.load(Ordering::Relaxed)
 }
 
 fn est_score() -> u64 {
