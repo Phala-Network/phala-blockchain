@@ -1057,12 +1057,6 @@ parameter_types! {
 	pub const ProposalLifetime: BlockNumber = 50;
 }
 
-parameter_types! {
-    pub const BridgeCommitteeMotionDuration: BlockNumber = 5 * DAYS;
-    pub const BridgeCommitteeMaxProposals: u32 = 10;
-    pub const BridgeCommitteeMaxMembers: u32 = 100;
-}
-
 impl pallet_bridge::Config for Runtime {
 	type Event = Event;
 	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
