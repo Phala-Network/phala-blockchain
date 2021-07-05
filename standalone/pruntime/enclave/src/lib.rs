@@ -867,6 +867,8 @@ fn init_secret_keys(
 pub extern "C" fn ecall_init() -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
+    benchmark::reset_iteration_counter();
+
     let mut local_state = LOCAL_STATE.lock().unwrap();
     match init_secret_keys(&mut local_state, None) {
         Err(e) if e.is::<sgx_status_t>() => e.downcast::<sgx_status_t>().unwrap(),
@@ -876,8 +878,11 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
 
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
-    info!("[{}] Benchmark thread started", index);
-    benchmark::run()
+    if !benchmark::puasing() {
+        info!("[{}] Benchmark thread started", index);
+        benchmark::run();
+    }
+    sgx_status_t::SGX_SUCCESS
 }
 
 // --------------------------------
