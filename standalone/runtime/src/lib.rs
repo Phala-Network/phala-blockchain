@@ -1059,7 +1059,7 @@ parameter_types! {
 
 impl pallet_bridge::Config for Runtime {
 	type Event = Event;
-	type AdminOrigin = EnsureRoot<AccountId>;
+	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
 	type Proposal = Call;
 	type ChainId = BridgeChainId;
 	type ProposalLifetime = ProposalLifetime;

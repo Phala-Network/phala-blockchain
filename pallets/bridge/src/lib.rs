@@ -104,7 +104,7 @@ impl<AccountId, BlockNumber: Default> Default for ProposalVotes<AccountId, Block
 pub trait Config: system::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 	/// Origin used to administer the pallet
-	type AdminOrigin: EnsureOrigin<Self::Origin>;
+	type BridgeCommitteeOrigin: EnsureOrigin<Self::Origin>;
 	/// Proposed dispatchable call
 	type Proposal: Parameter + Dispatchable<Origin = Self::Origin> + EncodeLike + GetDispatchInfo;
 	/// The identifier for this chain.
@@ -226,7 +226,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn set_threshold(origin, threshold: u32) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::set_relayer_threshold(threshold)
 		}
 
@@ -237,7 +237,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn set_resource(origin, id: ResourceId, method: Vec<u8>) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::register_resource(id, method)
 		}
 
@@ -251,7 +251,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn remove_resource(origin, id: ResourceId) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::unregister_resource(id)
 		}
 
@@ -262,7 +262,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn whitelist_chain(origin, id: ChainId) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::whitelist(id)
 		}
 
@@ -273,7 +273,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn add_relayer(origin, v: T::AccountId) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::register_relayer(v)
 		}
 
@@ -284,7 +284,7 @@ decl_module! {
 		/// # </weight>
 		#[weight = 195_000_000]
 		pub fn remove_relayer(origin, v: T::AccountId) -> DispatchResult {
-			Self::ensure_admin(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			Self::unregister_relayer(v)
 		}
 
@@ -340,13 +340,6 @@ decl_module! {
 
 impl<T: Config> Module<T> {
 	// *** Utility methods ***
-
-	pub fn ensure_admin(o: T::Origin) -> DispatchResult {
-		T::AdminOrigin::try_origin(o)
-			.map(|_| ())
-			.or_else(ensure_root)?;
-		Ok(())
-	}
 
 	/// Checks if who is a relayer
 	pub fn is_relayer(who: &T::AccountId) -> bool {
