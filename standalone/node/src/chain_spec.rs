@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-    TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
+	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
