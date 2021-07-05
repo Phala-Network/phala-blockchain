@@ -94,7 +94,7 @@ parameter_types! {
 
 impl Config for Test {
 	type Event = Event;
-	type AdminOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BridgeCommitteeOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type Proposal = Call;
 	type ChainId = TestChainId;
 	type ProposalLifetime = ProposalLifetime;
