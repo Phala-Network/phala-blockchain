@@ -47,7 +47,7 @@ decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
 		BridgeTokenId get(fn bridge_tokenid): ResourceId;
 		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
-		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::ChainId => BalanceOf<T>;
+		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::ChainId => (BalanceOf<T>, u32);
 	}
 
 	add_extra_genesis {
@@ -65,7 +65,8 @@ decl_event! {
 	where
 		Balance = BalanceOf<T>,
 	{
-		FeeUpdated(bridge::ChainId, Balance),
+		/// [chainId, min_fee, fee_scale]
+		FeeUpdated(bridge::ChainId, Balance, u32),
 	}
 }
 
@@ -74,6 +75,8 @@ decl_error! {
 		InvalidTransfer,
 		InvalidCommand,
 		InvalidPayload,
+		InvalidFeeOption,
+		FeeOptionsMissiing,
 	}
 }
 
@@ -88,10 +91,11 @@ decl_module! {
 
 		/// Change extra bridge transfer fee that user should pay
 		#[weight = 195_000_000]
-		pub fn sudo_change_fee(origin, amount: BalanceOf<T>, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn sudo_change_fee(origin, min_fee: BalanceOf<T>, fee_scale: u32, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_root(origin)?;
-			BridgeFee::<T>::insert(dest_id, amount);
-			Self::deposit_event(RawEvent::FeeUpdated(dest_id, amount));
+			ensure!(fee_scale <= 1000u32.into(), Error::<T>::InvalidFeeOption);
+			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
+			Self::deposit_event(RawEvent::FeeUpdated(dest_id, min_fee, fee_scale));
 			Ok(())
 		}
 
@@ -110,7 +114,15 @@ decl_module! {
 			let source = ensure_signed(origin)?;
 			ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 			let bridge_id = <bridge::Module<T>>::account_id();
-			T::Currency::transfer(&source, &bridge_id, (amount + Self::bridge_fee(dest_id)).into(), AllowDeath)?;
+			ensure!(BridgeFee::<T>::contains_key(&dest_id), Error::<T>::FeeOptionsMissiing);
+			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
+			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
+			let fee = if fee_estimated > min_fee {
+				fee_estimated
+			} else {
+				min_fee
+			};
+			T::Currency::transfer(&source, &bridge_id, (amount + fee).into(), AllowDeath)?;
 
 			let resource_id = Self::bridge_tokenid();
 
