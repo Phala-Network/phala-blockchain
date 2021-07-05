@@ -116,7 +116,7 @@ decl_module! {
 			let bridge_id = <bridge::Module<T>>::account_id();
 			ensure!(BridgeFee::<T>::contains_key(&dest_id), Error::<T>::FeeOptionsMissiing);
 			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
-			let fee_estimated = amount*fee_scale.into()/1000u32.into();
+			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
 			let fee = if fee_estimated > min_fee {
 				fee_estimated
 			} else {
