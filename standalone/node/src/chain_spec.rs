@@ -26,7 +26,6 @@ use node_runtime::{
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
     TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
-    BridgeCommitteeConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -339,13 +338,6 @@ pub fn testnet_genesis(
 			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
 			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
         },
-        bridge_committee: BridgeCommitteeConfig{
-			members: endowed_accounts.iter()
-						.take((num_endowed_accounts + 1) / 2)
-						.cloned()
-						.collect(),
-			phantom: Default::default(),
-		},
 	}
 }
 
