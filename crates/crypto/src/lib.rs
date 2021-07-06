@@ -6,9 +6,5 @@ extern crate alloc;
 #[macro_use]
 extern crate std;
 
-pub mod ecdh_key;
-pub mod identity_key;
-pub mod master_key;
-
-pub const SEED_SIZE: usize = 32;
-pub type Seed = [u8; SEED_SIZE];
+pub mod ecdh;
+pub mod secp256k1;
