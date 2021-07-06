@@ -46,6 +46,10 @@ pub mod pallet {
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
+	/// Gatekeeper pubkey list
+	#[pallet::storage]
+	pub type Gatekeeper<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
+
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
 	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo>;
@@ -61,7 +65,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
-		SomeEvent,
+		GatekeeperAdded(WorkerPublicKey),
 	}
 
 	#[pallet::error]
@@ -140,6 +144,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			TopicKey::<T>::insert(topic, pubkey);
+			Ok(())
+		}
+
+		/// Register a gatekeeper.
+		///
+		/// Must be called by the Root origin.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn register_gatekeeper(
+			origin: OriginFor<T>,
+			gatekeeper: WorkerPublicKey,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let mut gatekeepers = Gatekeeper::<T>::get();
+			if !gatekeepers.contains(&gatekeeper) {
+				gatekeepers.push(gatekeeper.clone());
+				Gatekeeper::<T>::put(gatekeepers);
+				Self::deposit_event(Event::GatekeeperAdded(gatekeeper));
+			}
 			Ok(())
 		}
 
@@ -309,6 +331,7 @@ pub mod pallet {
 		},
 	}
 
+	// TODO.shelven: handle the WorkerInfo in phala_types
 	#[derive(Encode, Decode, Default, Debug, Clone)]
 	pub struct WorkerInfo {
 		// identity
