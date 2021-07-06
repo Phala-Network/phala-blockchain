@@ -92,14 +92,14 @@ pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridg
 native-nostd-hasher = { version = "3.0.0", path = "../../native-nostd-hasher", optional = true }
 
 [build-dependencies]
-substrate-wasm-builder = { version = "4.0.0", path = "../../substrate/utils/wasm-builder" }
+substrate-wasm-builder = { version = "4.0.0", path = "../../substrate/utils/wasm-builder", optional = true }
 
 [dev-dependencies]
 sp-io = { version = "3.0.0", path = "../../substrate/primitives/io" }
 
 [features]
 default = ["std", "include-wasm"]
-include-wasm = []
+include-wasm = ["substrate-wasm-builder"]
 native-nostd = ["native-nostd-hasher"]
 with-tracing = [ "frame-executive/with-tracing" ]
 std = [
