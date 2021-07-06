@@ -1,3 +1,4 @@
+use crate::{ecdh::EcdhKey, KeyError};
 use alloc::{vec, vec::Vec};
 use ring::hkdf;
 use sp_core::{ecdsa, Pair};
@@ -6,10 +7,6 @@ pub type Signature = ecdsa::Signature;
 
 const SEED_SIZE: usize = 32;
 type Seed = [u8; SEED_SIZE];
-
-pub enum KeyError {
-    SecretStringError(sp_core::crypto::SecretStringError),
-}
 
 pub trait Signing {
     fn sign_data(&self, data: &[u8]) -> Signature;
@@ -34,7 +31,9 @@ const KDF_SALT: [u8; 32] = [
 ];
 
 pub trait KDF {
-    fn derive_key(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError>;
+    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError>;
+
+    fn derive_ecdh_key(&self) -> Result<EcdhKey, KeyError>;
 }
 
 /// Generic newtype wrapper that lets us implement traits for externally-defined
@@ -59,7 +58,7 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
 }
 
 impl KDF for ecdsa::Pair {
-    fn derive_key(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError> {
+    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError> {
         let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &KDF_SALT);
         let prk = salt.extract(&self.seed());
         let okm = prk
@@ -70,6 +69,10 @@ impl KDF for ecdsa::Pair {
         okm.fill(seed.as_mut()).expect("failed to fill output buff");
 
         ecdsa::Pair::from_seed_slice(&seed).map_err(|err| KeyError::SecretStringError(err))
+    }
+
+    fn derive_ecdh_key(&self) -> Result<EcdhKey, KeyError> {
+        EcdhKey::create(&self.seed())
     }
 }
 
@@ -94,5 +97,18 @@ mod test {
 
         let sig = key.sign_data(&data);
         assert!(key.verify_data(&sig, &data))
+    }
+
+    #[test]
+    fn key_derivation() {
+        let secp256k1_key = generate_key();
+        // this should not panic
+        secp256k1_key
+            .derive_secp256k1_pair(&[&[255], &[255, 255], &[255, 255, 255]])
+            .unwrap();
+
+        let ecdh_key = secp256k1_key.derive_ecdh_key().unwrap();
+        // this should not panic
+        ecdh_key.public();
     }
 }

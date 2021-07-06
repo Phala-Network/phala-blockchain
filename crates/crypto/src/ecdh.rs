@@ -1,9 +1,9 @@
+use crate::KeyError;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use core::mem;
 use ring::agreement::{EphemeralPrivateKey, PublicKey, UnparsedPublicKey};
 use ring::rand::SystemRandom;
-use sp_core::crypto::SecretStringError;
 
 /// secp256r1 key pair
 pub struct EcdhKey(EphemeralPrivateKey);
@@ -21,10 +21,10 @@ impl EcdhKey {
     }
 
     // A hack to create arbitrary private key
-    pub fn create(key: &PrivateKey) -> Result<EcdhKey, SecretStringError> {
+    pub fn create(key: &PrivateKey) -> Result<EcdhKey, KeyError> {
         let len = mem::size_of::<EphemeralPrivateKey>();
         if len != 64 {
-            return Err(SecretStringError::InvalidSeedLength);
+            return Err(KeyError::InvalidSeedLength);
         }
 
         let base_key = EcdhKey::generate();
