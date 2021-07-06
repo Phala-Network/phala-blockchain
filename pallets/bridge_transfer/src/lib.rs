@@ -1,5 +1,6 @@
 // Ensure we're `no_std` when compiling for Wasm.
 #![cfg_attr(not(feature = "std"), no_std)]
+
 use codec::{Decode, Encode};
 use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
 use frame_support::{

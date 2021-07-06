@@ -34,7 +34,7 @@ use frame_support::{
 	},
 	traits::{
 		Currency, Imbalance, KeyOwnerProofSystem, OnUnbalanced, LockIdentifier,
-		U128CurrencyToVote, MaxEncodedLen,
+		U128CurrencyToVote,
 	},
 };
 use frame_system::{
@@ -42,7 +42,7 @@ use frame_system::{
 	limits::{BlockWeights, BlockLength}
 };
 use frame_support::{traits::InstanceFilter, PalletId};
-use codec::{Encode, Decode};
+use codec::{Encode, Decode, MaxEncodedLen};
 use sp_core::{
 	crypto::KeyTypeId,
 	u32_trait::{_1, _2, _3, _4, _5},
@@ -73,6 +73,7 @@ pub use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment, Currency
 use pallet_session::{historical as pallet_session_historical};
 use sp_inherents::{InherentData, CheckInherentsResult};
 use static_assertions::const_assert;
+use pallet_election_provider_multi_phase::FallbackStrategy;
 
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
@@ -541,9 +542,14 @@ parameter_types! {
 	pub const SignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
 
-	// fallback: no need to do on-chain phragmen initially.
-	pub const Fallback: pallet_election_provider_multi_phase::FallbackStrategy =
-		pallet_election_provider_multi_phase::FallbackStrategy::Nothing;
+	// signed config
+	pub const SignedMaxSubmissions: u32 = 10;
+	pub const SignedRewardBase: Balance = 1 * DOLLARS;
+	pub const SignedDepositBase: Balance = 1 * DOLLARS;
+	pub const SignedDepositByte: Balance = 1 * CENTS;
+
+	// fallback: no on-chain fallback.
+	pub const Fallback: FallbackStrategy = FallbackStrategy::Nothing;
 
 	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(1u32, 10_000);
 
@@ -572,6 +578,14 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerMaxWeight = MinerMaxWeight;
 	type MinerMaxLength = MinerMaxLength;
 	type MinerTxPriority = MultiPhaseUnsignedPriority;
+	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedRewardBase = SignedRewardBase;
+	type SignedDepositBase = SignedDepositBase;
+	type SignedDepositByte = SignedDepositByte;
+	type SignedDepositWeight = ();
+	type SignedMaxWeight = MinerMaxWeight;
+	type SlashHandler = (); // burn slashes
+	type RewardHandler = (); // nothing to do upon rewards
 	type DataProvider = Staking;
 	type OnChainAccuracy = Perbill;
 	type CompactSolution = NposCompactSolution24;
@@ -1224,8 +1238,9 @@ impl_runtime_apis! {
 		fn validate_transaction(
 			source: TransactionSource,
 			tx: <Block as BlockT>::Extrinsic,
+			block_hash: <Block as BlockT>::Hash,
 		) -> TransactionValidity {
-			Executive::validate_transaction(source, tx)
+			Executive::validate_transaction(source, tx, block_hash)
 		}
 	}
 
@@ -1424,6 +1439,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_treasury, Treasury);
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
+			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 			add_benchmark!(params, batches, pallet_phala, Phala);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }

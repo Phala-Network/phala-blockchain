@@ -13,7 +13,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.2", default-features = false, features = ["derive", "max-encoded-len"] }
 static_assertions = "1.1.0"
 hex-literal = { version = "0.3.1", optional = true }
 log = { version = "0.4.14", default-features = false }
@@ -36,7 +36,6 @@ sp-session = { version = "3.0.0", default-features = false, path = "../../substr
 sp-transaction-pool = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/transaction-pool" }
 sp-version = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/version" }
 sp-npos-elections = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/npos-elections" }
-max-encoded-len = { version = "3.0.0", default-features = false, path = "../../substrate/max-encoded-len", features = ["derive"] }
 
 # frame dependencies
 frame-executive = { version = "3.0.0", default-features = false, path = "../../substrate/frame/executive" }
@@ -101,7 +100,7 @@ sp-io = { version = "3.0.0", path = "../../substrate/primitives/io" }
 default = ["std", "include-wasm"]
 include-wasm = ["substrate-wasm-builder"]
 native-nostd = ["native-nostd-hasher"]
-with-tracing = [ "frame-executive/with-tracing" ]
+with-tracing = ["frame-executive/with-tracing"]
 std = [
 	"sp-authority-discovery/std",
 	"pallet-authority-discovery/std",
@@ -159,7 +158,6 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-	"max-encoded-len/std",
 	"pallet-kitties/std",
 	"phala-pallets/std",
 	"pallet-bridge/std",

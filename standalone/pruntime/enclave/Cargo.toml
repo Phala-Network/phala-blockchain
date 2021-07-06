@@ -99,6 +99,11 @@ default = [
   "runtime/native-nostd"
 ]
 
+[patch.crates-io]
+rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", default-features = false }
+rand_core = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", default-features = false }
+getrandom = { path = "../../../getrandom-sgx" }
+
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 sgx_alloc = { path = "../../../teaclave-sgx-sdk/sgx_alloc" }
 sgx_backtrace = { path = "../../../teaclave-sgx-sdk/sgx_backtrace" }

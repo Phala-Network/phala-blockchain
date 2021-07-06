@@ -7,8 +7,8 @@ edition = "2018"
 
 [dependencies]
 derive_more = { version = "0.99", default-features = false, features = ["display"] }
-parity-scale-codec = { version = "2", default-features = false, features = ["derive"] }
-primitive-types = { version = "0.9", default-features = false, features = ["codec", "byteorder"] }
+parity-scale-codec = { version = "2.1", default-features = false, features = ["derive"] }
+primitive-types = { version = "0.10", default-features = false, features = ["codec", "byteorder"] }
 sp-core = { path = "../../substrate/primitives/core", default-features = false}
 
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"], optional = true }
