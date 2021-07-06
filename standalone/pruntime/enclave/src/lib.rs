@@ -1377,7 +1377,7 @@ fn handle_events(
         }
     }
 
-    if let Err(e) = system.process_events(block_number, storage) {
+    if let Err(e) = system.process_events(block_number) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }

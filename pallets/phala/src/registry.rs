@@ -25,7 +25,7 @@ pub mod pallet {
 	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
-		messaging::{bind_topic, Message, MessageOrigin, SignedMessage, SystemEvent},
+		messaging::{bind_topic, Message, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent},
 		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
@@ -112,14 +112,13 @@ pub mod pallet {
 				last_updated: 0,
 				confidence_level: 128u8,
 				intial_score: None,
-				session_id: 1,
 				features: vec![1, 4],
 			};
 			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
-			Self::push_message(SystemEvent::WorkerAttached {
+			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
-				session_id: 1,
-			});
+				WorkerEvent::Registered,
+			));
 			Ok(())
 		}
 
@@ -205,20 +204,18 @@ pub mod pallet {
 					Some(worker_info) => {
 						// Case 1 - Refresh the RA report and redo benchmark
 						worker_info.last_updated = now;
-						worker_info.session_id += 1;
-						Self::push_message(SystemEvent::WorkerAttached {
-							pubkey: pruntime_info.pubkey.clone(),
-							session_id: worker_info.session_id,
-						});
+						Self::push_message(SystemEvent::new_worker_event(
+							pruntime_info.pubkey.clone(),
+							WorkerEvent::Registered,
+						));
 						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-						Self::push_message(SystemEvent::BenchStart {
-							pubkey: pruntime_info.pubkey,
-							start_time: now,
-						});
+						Self::push_message(SystemEvent::new_worker_event(
+							pruntime_info.pubkey.clone(),
+							WorkerEvent::BenchStart { start_time: now },
+						));
 					}
 					None => {
 						// Case 2 - New worker register
-						let session_id = 1;
 						*v = Some(WorkerInfo {
 							pubkey: pruntime_info.pubkey.clone(),
 							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
@@ -226,18 +223,17 @@ pub mod pallet {
 							last_updated: now,
 							confidence_level: fields.confidence_level,
 							intial_score: None,
-							session_id,
 							features: pruntime_info.features,
 						});
-						Self::push_message(SystemEvent::WorkerAttached {
-							pubkey: pruntime_info.pubkey.clone(),
-							session_id,
-						});
+						Self::push_message(SystemEvent::new_worker_event(
+							pruntime_info.pubkey.clone(),
+							WorkerEvent::Registered,
+						));
 						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-						Self::push_message(SystemEvent::BenchStart {
-							pubkey: pruntime_info.pubkey,
-							start_time: now,
-						});
+						Self::push_message(SystemEvent::new_worker_event(
+							pruntime_info.pubkey.clone(),
+							WorkerEvent::BenchStart { start_time: now },
+						));
 					}
 				}
 			});
@@ -343,7 +339,6 @@ pub mod pallet {
 		// platform
 		confidence_level: u8,
 		// scoring
-		session_id: u64,
 		intial_score: Option<u32>,
 		features: Vec<u32>,
 	}

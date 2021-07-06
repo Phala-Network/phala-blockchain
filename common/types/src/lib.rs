@@ -162,22 +162,33 @@ pub mod messaging {
     }
 
     // Messages: System
+    #[derive(Encode, Decode, Debug)]
+    pub struct WorkerEventWithKey {
+        pub pubkey: WorkerPublicKey,
+        pub event: WorkerEvent,
+    }
+
+    #[derive(Encode, Decode, Debug)]
+    pub enum WorkerEvent {
+        Registered,
+        BenchStart { start_time: u64 },
+        MiningStart { start_time: u64 },
+        MiningStop,
+        MiningEnterUnresponsive,
+        MiningExitUnresponsive,
+    }
+
     bind_topic!(SystemEvent, b"phala/system/event");
     #[derive(Encode, Decode, Debug)]
     pub enum SystemEvent {
-        WorkerAttached {
-            pubkey: WorkerPublicKey,
-            session_id: u64,
-        },
-        WorkerDettached { // TODO.kevin: use it
-            pubkey: WorkerPublicKey,
-        },
-        BenchStart {
-            pubkey: WorkerPublicKey,
-            start_time: u64,
-        },
-        NewMiningRound(u32),
+        WorkerEvent(WorkerEventWithKey),
         RewardSeed(BlockRewardInfo),
+    }
+
+    impl SystemEvent {
+        pub fn new_worker_event(pubkey: WorkerPublicKey, event: WorkerEvent) -> SystemEvent {
+            SystemEvent::WorkerEvent(WorkerEventWithKey { pubkey, event })
+        }
     }
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
