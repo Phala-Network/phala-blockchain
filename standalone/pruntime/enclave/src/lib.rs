@@ -1605,3 +1605,30 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 fn test(param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
 }
+
+mod identity {
+    use super::*;
+    type WorkerPublicKey = sp_core::ecdsa::Public;
+
+    fn is_gatekeeper() -> bool {
+        let mut local_state = LOCAL_STATE.lock().unwrap();
+
+        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
+        let gatekeepers = local_state
+            .runtime_state
+            .get(&key)
+            .map(|v| {
+                Vec::<WorkerPublicKey>::decode(&mut &v[..])
+                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
+            })
+            .unwrap_or(Vec::new());
+
+        gatekeepers.contains(
+            &local_state
+                .identity_key
+                .as_ref()
+                .expect("Identity key must be initialized; qed.")
+                .public(),
+        )
+    }
+}
