@@ -913,16 +913,6 @@ impl<T: Config> Module<T> {
 					)
 				}
 			},
-			compute_target: {
-				if round_stats.compute_workers == 0 {
-					U256::zero()
-				} else {
-					u256_target(
-						round_stats.frac_target_compute_reward as u64,
-						(round_stats.compute_workers as u64) * (PERCENTAGE_BASE as u64),
-					)
-				}
-			},
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
@@ -1148,48 +1138,6 @@ impl<T: Config> Module<T> {
 		// Release funds
 		T::TEECurrency::transfer(&Self::account_id(), &data.dest, data.amount, AllowDeath)
 			.map_err(|_| Error::<T>::CannotWithdraw)?;
-		Ok(())
-	}
-
-	pub fn on_worker_message_received(message: &Message) -> DispatchResult {
-		let _worker = match &message.sender {
-			MessageOrigin::Worker(worker) => worker,
-			_ => return Err(Error::<T>::NotAllowed.into()),
-		};
-
-		let event: MiningReportEvent = message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
-
-		match event {
-			MiningReportEvent::Heartbeat {
-				block_num,
-				mining_start_time,
-				iterations,
-				claim_online,
-				claim_compute,
-			} => {
-				let machine_id: Vec<u8> = todo!();
-				let stash = MachineOwner::<T>::get(&machine_id);
-				let stash_info = StashState::<T>::get(&stash);
-				let worker_info = WorkerState::<T>::get(&stash);
-				if worker_info.state == WorkerStateEnum::<_>::Empty {
-					return Err(Error::<T>::InvalidState.into());
-				}
-				let score = match worker_info.score {
-					Some(score) => score.overall_score,
-					None => 0,
-				};
-				// TODO.kevin: where to kick the offline workers?
-				Self::add_heartbeat(&stash, block_num.into());
-				Self::handle_claim_reward(
-					&stash,
-					&stash_info.payout_prefs.target,
-					claim_online,
-					claim_compute,
-					score,
-					block_num.into(),
-				);
-			}
-		}
 		Ok(())
 	}
 }

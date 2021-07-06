@@ -119,8 +119,6 @@ pub mod pallet {
 					block_num,
 					mining_start_time,
 					iterations,
-					claim_online,
-					claim_compute,
 				} => {
 					todo!("TODO(wenfeng):");
 				}

@@ -195,7 +195,6 @@ pub mod messaging {
     pub struct BlockRewardInfo {
         pub seed: U256,
         pub online_target: U256,
-        pub compute_target: U256,
     }
 
     bind_topic!(MiningReportEvent, b"^phala/mining/report");
@@ -208,8 +207,6 @@ pub mod messaging {
             mining_start_time: u64,
             /// Benchmark iterations since mining_start_time.
             iterations: u64,
-            claim_online: bool,
-            claim_compute: bool,
         },
     }
 }

@@ -11,7 +11,7 @@ use phala_mq::{
     TypedReceiver,
 };
 use phala_types::{
-    messaging::{BlockRewardInfo, SystemEvent, WorkerEvent, MiningReportEvent},
+    messaging::{BlockRewardInfo, MiningReportEvent, SystemEvent, WorkerEvent},
     WorkerPublicKey,
 };
 use sp_core::{ecdsa, hashing::blake2_256, U256};
@@ -219,8 +219,8 @@ impl System {
                     return Ok(());
                 }
 
-                use WorkerEvent::*;
                 use MiningState::*;
+                use WorkerEvent::*;
                 info!("System::handle_event: {:?}", evt.event);
                 match evt.event {
                     Registered => {
@@ -308,20 +308,17 @@ impl System {
 
         let x = self.hashed_id ^ reward_info.seed;
         let online_hit = x <= reward_info.online_target;
-        let compute_hit = x <= reward_info.compute_target;
 
         // Push queue when necessary
-        if online_hit || compute_hit {
+        if online_hit {
             info!(
-                "System::handle_reward_seed: x={}, online={}, compute={}",
-                x, reward_info.online_target, reward_info.compute_target,
+                "System::handle_reward_seed: x={}, online={}",
+                x, reward_info.online_target,
             );
             self.egress.send(&MiningReportEvent::Heartbeat {
                 block_num: blocknum as u32,
                 mining_start_time: mining_state.start_time,
                 iterations: benchmark::iteration_counter() - mining_state.start_iter,
-                claim_online: online_hit,
-                claim_compute: compute_hit,
             });
         }
     }
