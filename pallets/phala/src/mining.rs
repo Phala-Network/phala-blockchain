@@ -4,9 +4,11 @@ pub use self::pallet::*;
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::Currency};
 	use frame_system::pallet_prelude::*;
+	use phala_types::messaging::{BlockRewardInfo, SystemEvent, Message, MessageOrigin, MiningReportEvent};
+	use crate::mq::{self, MessageOriginInfo};
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
+	pub trait Config: frame_system::Config + mq::Config {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 
 		type Currency: Currency<Self::AccountId>;
@@ -29,7 +31,8 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		Meh,
+		BadSender,
+		InvalidMessage,
 	}
 
 	type BalanceOf<T> =
@@ -81,5 +84,53 @@ pub mod pallet {
 		pub fn cleanup(origin: OriginFor<T>) -> DispatchResult {
 			panic!("unimplemented")
 		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+		fn on_finalize(_n: T::BlockNumber) {
+			Self::handle_block_reward();
+		}
+	}
+
+	// TODO(wenfeng):
+	// - push_message(SystemEvent::RewardSeed) regularly.
+	// - push_message(SystemEvent(WorkerEvent::MiningStart)) when start mining.
+	// - push_message(SystemEvent(WorkerEvent::MiningStop)) when entering CoolingDown state.
+	// - push_message(SystemEvent(WorkerEvent::MiningEnterUnresponsive)) when entering MiningUnresponsive state.
+	// - push_message(SystemEvent(WorkerEvent::MiningExitUnresponsive)) when recovered to MiningIdle from MiningUnresponsive state.
+	// - Properly handle heartbeat message.
+	impl<T: Config> Pallet<T>
+	{
+		fn handle_block_reward() {
+			let seed_info: BlockRewardInfo = todo!("TODO(wenfeng):");
+			Self::push_message(SystemEvent::RewardSeed(seed_info));
+		}
+
+		pub fn on_message_received(message: &Message) -> DispatchResult {
+			let worker_pubkey = match &message.sender {
+				MessageOrigin::Worker(worker) => worker,
+				_ => return Err(Error::<T>::BadSender.into()),
+			};
+
+			let event: MiningReportEvent = message.decode_payload().ok_or(Error::<T>::InvalidMessage)?;
+			match event {
+				MiningReportEvent::Heartbeat {
+					block_num,
+					mining_start_time,
+					iterations,
+					claim_online,
+					claim_compute,
+				} => {
+					todo!("TODO(wenfeng):");
+				}
+			}
+			Ok(())
+		}
+	}
+
+	impl<T: Config> MessageOriginInfo for Pallet<T>
+	{
+		type Config = T;
 	}
 }

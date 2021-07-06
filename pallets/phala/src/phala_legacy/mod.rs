@@ -22,7 +22,7 @@ use sp_runtime::{
 	traits::{AccountIdConversion, One, Zero},
 	Permill, SaturatedConversion,
 };
-use types::messaging::WorkerReportEvent;
+use types::messaging::MiningReportEvent;
 
 #[macro_use]
 mod benchmarking;
@@ -1157,15 +1157,17 @@ impl<T: Config> Module<T> {
 			_ => return Err(Error::<T>::NotAllowed.into()),
 		};
 
-		let event: WorkerReportEvent = message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+		let event: MiningReportEvent = message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
 
 		match event {
-			WorkerReportEvent::Heartbeat {
-				machine_id,
+			MiningReportEvent::Heartbeat {
 				block_num,
+				mining_start_time,
+				iterations,
 				claim_online,
 				claim_compute,
 			} => {
+				let machine_id: Vec<u8> = todo!();
 				let stash = MachineOwner::<T>::get(&machine_id);
 				let stash_info = StashState::<T>::get(&stash);
 				let worker_info = WorkerState::<T>::get(&stash);

@@ -198,12 +198,16 @@ pub mod messaging {
         pub compute_target: U256,
     }
 
-    bind_topic!(WorkerReportEvent, b"^phala/system/report");
+    bind_topic!(MiningReportEvent, b"^phala/mining/report");
     #[derive(Encode, Decode, Clone, Debug)]
-    pub enum WorkerReportEvent {
+    pub enum MiningReportEvent {
         Heartbeat {
-            machine_id: Vec<u8>,
+            /// The block number that this message been sent at
             block_num: u32,
+            /// Mining start timestamp, extracted from WorkerEvent::MiningStart.
+            mining_start_time: u64,
+            /// Benchmark iterations since mining_start_time.
+            iterations: u64,
             claim_online: bool,
             claim_compute: bool,
         },
