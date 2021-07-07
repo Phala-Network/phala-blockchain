@@ -1610,7 +1610,7 @@ mod identity {
     use super::*;
     type WorkerPublicKey = sp_core::ecdsa::Public;
 
-    fn is_gatekeeper() -> bool {
+    pub fn is_gatekeeper() -> bool {
         let mut local_state = LOCAL_STATE.lock().unwrap();
 
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
