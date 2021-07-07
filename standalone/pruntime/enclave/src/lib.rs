@@ -55,11 +55,12 @@ use std::time::Duration;
 use pink::InkModule;
 
 use enclave_api::actions::*;
+use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::{PRuntimeInfo, WorkerInfo};
-use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
 
+mod benchmark;
 mod cert;
 mod contracts;
 mod cryptography;
@@ -69,7 +70,6 @@ mod rpc_types;
 mod system;
 mod types;
 mod utils;
-mod benchmark;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -967,12 +967,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     let operator = match input.operator_hex {
         Some(h) => {
-            let raw_address = hex::decode(h)
-                .map_err(|_| error_msg("Error decoding operator_hex"))?;
-            Some(chain::AccountId::new(raw_address.try_into()
-                .map_err(|_| error_msg("Bad operator_hex"))?))
-        },
-        None => None
+            let raw_address =
+                hex::decode(h).map_err(|_| error_msg("Error decoding operator_hex"))?;
+            Some(chain::AccountId::new(
+                raw_address
+                    .try_into()
+                    .map_err(|_| error_msg("Bad operator_hex"))?,
+            ))
+        }
+        None => None,
     };
 
     // Build PRuntimeInfo
@@ -1039,11 +1042,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     // Re-init some contracts because they require the identity key
     let mut system_state = SYSTEM_STATE.lock().unwrap();
-    *system_state = Some(system::System::new(
-        &id_pair,
-        &send_mq,
-        &mut recv_mq,
-    ));
+    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
     drop(system_state);
 
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
@@ -1350,19 +1349,20 @@ fn handle_events(
             use phala_types::messaging::SystemEvent;
             macro_rules! log_message {
                 ($msg: expr, $t: ident) => {{
-                    let event: Result<$t, _> = parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                    let event: Result<$t, _> =
+                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
                     match event {
                         Ok(event) => {
-                            info!("mq dispatching message: sender={:?} dest={:?} payload={:?}",
-                                $msg.sender,
-                                $msg.destination,
-                                event);
+                            info!(
+                                "mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                                $msg.sender, $msg.destination, event
+                            );
                         }
                         Err(_) => {
                             info!("mq dispatching message (decode failed): {:?}", $msg);
                         }
                     }
-                }}
+                }};
             }
             match &message.destination.path()[..] {
                 SystemEvent::TOPIC => {
