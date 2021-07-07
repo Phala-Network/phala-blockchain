@@ -1376,6 +1376,11 @@ fn handle_events(
         }
     }
 
+    let mut state = scopeguard::guard(state, |state| {
+        let n_unhandled = state.recv_mq.clear();
+        warn!("There are {} unhandled messages droped", n_unhandled);
+    });
+
     if let Err(e) = system.process_messages(block_number) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
@@ -1390,8 +1395,6 @@ fn handle_events(
     for contract in state.contracts.values_mut() {
         contract.process_messages(&mut env);
     }
-
-    // TODO.kevin: clear unhandled messages
 
     Ok(())
 }

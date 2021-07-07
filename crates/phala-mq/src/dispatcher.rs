@@ -71,6 +71,17 @@ impl MessageDispatcher {
     pub fn reset_local_index(&mut self) {
         self.local_index = 0;
     }
+
+    /// Drop all unhandled messages.
+    pub fn clear(&mut self) -> usize {
+        let mut count = 0;
+        let sn = self.local_index;
+        self.local_index += 1;
+        for subscriber in self.subscribers.values_mut().flatten() {
+            count += subscriber.clear();
+        }
+        count
+    }
 }
 
 #[derive(Display, Debug)]

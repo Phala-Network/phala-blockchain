@@ -44,6 +44,11 @@ impl<T> Sender<T> {
             Ok(())
         }
     }
+
+    pub fn clear(&self) -> usize {
+        let mut ch = self.0.lock();
+        ch.deque.drain(..).count()
+    }
 }
 
 impl<T> Clone for Sender<T> {
