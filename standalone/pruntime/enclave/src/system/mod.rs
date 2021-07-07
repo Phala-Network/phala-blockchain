@@ -100,6 +100,8 @@ pub struct System {
     registered: bool,
     bench_state: Option<BenchState>,
     mining_state: Option<MiningInfo>,
+
+    gatekeepr_state: gk::GateKeeperState,
 }
 
 impl System {
@@ -123,6 +125,7 @@ impl System {
             registered: false,
             bench_state: None,
             mining_state: None,
+            gatekeepr_state: gk::GateKeeperState::new(recv_mq),
         }
     }
 
@@ -169,7 +172,7 @@ impl System {
     pub fn process_messages(
         &mut self,
         block_number: chain::BlockNumber,
-        _storage: &Storage,
+        storage: &Storage,
     ) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
@@ -209,6 +212,10 @@ impl System {
                 self.bench_state = None;
                 self.pause_bench_if_needed();
             }
+        }
+
+        if crate::identity::is_gatekeeper(&self.pubkey, storage) {
+            self.gatekeepr_state.process_messages(block_number, storage, &self.egress);
         }
         Ok(())
     }
@@ -383,5 +390,72 @@ pub mod serde_anyhow {
     {
         let s = String::deserialize(deserializer)?;
         Ok(Error::msg(s))
+    }
+}
+
+mod gk {
+    use crate::light_validation::utils::storage_prefix;
+
+    use super::*;
+
+    // Example GateKeeperState
+    pub(super) struct GateKeeperState {
+        // TODO: Define message channels here on demond.
+        sample_event0: TypedReceiver<MiningReportEvent>,
+        sample_event1: TypedReceiver<MiningReportEvent>,
+    }
+
+    impl GateKeeperState {
+        pub fn new(recv_mq: &mut MessageDispatcher) -> Self {
+            Self {
+                sample_event0: recv_mq.subscribe_bound(),
+                sample_event1: recv_mq.subscribe_bound(),
+            }
+        }
+
+        pub fn process_messages(
+            &mut self,
+            block_number: chain::BlockNumber,
+            storage: &Storage,
+            egress: &EcdsaMessageChannel,
+        ) {
+            // Reach here once per block to process mq messages.
+            loop {
+                let ok = phala_mq::select! {
+                    event0 = self.sample_event0 => match event0 {
+                        Ok(Some((_, msg, origin))) => {
+                            match msg {
+                                MiningReportEvent::Heartbeat {
+                                    block_num,
+                                    mining_start_time,
+                                    iterations,
+                                } => {
+                                    // TODO: process the heartbeat messages here.
+
+                                    // If some storage value is needed, fetch it from storage:
+                                    let workers_key = storage_prefix("Phala", "OnlineWorkers");
+                                    let _workers = storage.get(workers_key);
+
+                                    // Send message out with mq.
+                                    let message: MiningReportEvent = todo!(); // MiningReportEvent for example
+                                    egress.send(&message);
+                                }
+                            }
+                        }
+                        Ok(None) => {
+                            // No more message in this channel.
+                        }
+                        Err(e) => {
+                            error!("Read message failed: {:?}", e);
+                        }
+                    },
+                    event1 = self.sample_event1 => todo!(),
+                };
+                if ok.is_none() {
+                    // All messages processed
+                    break;
+                }
+            }
+        }
     }
 }
