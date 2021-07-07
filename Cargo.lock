@@ -5558,6 +5558,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "substrate-fixed",
  "untrusted",
  "webpki 0.22.0",
 ]
@@ -8824,6 +8825,15 @@ name = "substrate-build-script-utils"
 version = "3.0.0"
 dependencies = [
  "platforms",
+]
+
+[[package]]
+name = "substrate-fixed"
+version = "0.5.6"
+source = "git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1#b33d186888c60f38adafcfc0ec3a21aab263aef1"
+dependencies = [
+ "parity-scale-codec",
+ "typenum",
 ]
 
 [[package]]
