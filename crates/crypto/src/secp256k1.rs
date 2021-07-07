@@ -58,14 +58,17 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
 }
 
 impl KDF for ecdsa::Pair {
+    // TODO.shelven: allow to specify the salt from pruntime (instead of hard code)
     fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError> {
         let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &KDF_SALT);
         let prk = salt.extract(&self.seed());
+        // TODO.shelven: figure out when this could fail
         let okm = prk
             .expand(info, My(SEED_SIZE))
             .expect("failed in hkdf expand");
 
         let mut seed: Seed = [0_u8; SEED_SIZE];
+        // TODO.shelven: figure out when this could fail
         okm.fill(seed.as_mut()).expect("failed to fill output buff");
 
         ecdsa::Pair::from_seed_slice(&seed).map_err(|err| KeyError::SecretStringError(err))
