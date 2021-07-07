@@ -1,0 +1,11 @@
+[package]
+name = "crypto"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+sp-core = { path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
+ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
+
+[dev-dependencies]
+rand = "0.7.3"
