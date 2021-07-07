@@ -55,10 +55,10 @@ use std::time::Duration;
 use pink::InkModule;
 
 use enclave_api::actions::*;
-use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
+use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync};
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{PRuntimeInfo, WorkerInfo};
+use phala_types::PRuntimeInfo;
 
 mod benchmark;
 mod cert;
@@ -83,12 +83,6 @@ use types::Error;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 type Storage = TrieStorage<RuntimeHasher>;
-
-pub struct OnlineWorkerSnapshot {
-    pub worker_state_kv: Vec<StorageKV<WorkerInfo<chain::BlockNumber>>>,
-    pub stake_received_kv: Vec<StorageKV<chain::Balance>>,
-    pub compute_workers: u32,
-}
 
 extern "C" {
     pub fn ocall_load_ias_spid(
