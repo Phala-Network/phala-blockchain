@@ -64,7 +64,7 @@ dependencies = [
  "sp-runtime",
  "sp-runtime-interface",
  "sp-trie",
- "substrate-fixed",
+ "substrate-fixed 0.5.6 (git+https://github.com/encointer/substrate-fixed)",
  "transaction-builder",
  "trie-storage",
  "webpki 0.21.4",
@@ -2198,6 +2198,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "substrate-fixed 0.5.6 (git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1)",
  "untrusted",
  "webpki 0.22.0",
 ]
@@ -3323,6 +3324,15 @@ name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
+
+[[package]]
+name = "substrate-fixed"
+version = "0.5.6"
+source = "git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1#b33d186888c60f38adafcfc0ec3a21aab263aef1"
+dependencies = [
+ "parity-scale-codec 2.2.0",
+ "typenum",
+]
 
 [[package]]
 name = "substrate-fixed"

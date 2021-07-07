@@ -1096,6 +1096,7 @@ impl pallet_mq::Config for Runtime {
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type Randomness = RandomnessCollectiveFlip;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;

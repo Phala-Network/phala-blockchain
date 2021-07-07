@@ -7,6 +7,8 @@
 //! - `phala_legacy`: The legacy `pallet-phala`; will be retired gradually
 //! - `mq`: The message queue to connect components in the network
 //! - `registry`: Manages the public key of offchain components (i.e. workers and contracts)
+//! - `mining`: Manages mining lifecycle, reward and slashes
+//! - `stakepool`: Pool for collaboratively mining staking
 //!
 //! # Status
 //!
