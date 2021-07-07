@@ -1,4 +1,4 @@
-use crate::{benchmark, std::prelude::v1::*};
+use crate::{benchmark, std::prelude::v1::*, Storage};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -166,7 +166,11 @@ impl System {
         }
     }
 
-    pub fn process_messages(&mut self, block_number: chain::BlockNumber) -> anyhow::Result<()> {
+    pub fn process_messages(
+        &mut self,
+        block_number: chain::BlockNumber,
+        _storage: &Storage,
+    ) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {

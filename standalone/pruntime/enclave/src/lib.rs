@@ -1381,7 +1381,7 @@ fn handle_events(
         warn!("There are {} unhandled messages droped", n_unhandled);
     });
 
-    if let Err(e) = system.process_messages(block_number) {
+    if let Err(e) = system.process_messages(block_number, storage) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
