@@ -1610,12 +1610,9 @@ mod identity {
     use super::*;
     type WorkerPublicKey = sp_core::ecdsa::Public;
 
-    pub fn is_gatekeeper() -> bool {
-        let mut local_state = LOCAL_STATE.lock().unwrap();
-
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, runtime_state: &Storage) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = local_state
-            .runtime_state
+        let gatekeepers = runtime_state
             .get(&key)
             .map(|v| {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
@@ -1623,12 +1620,6 @@ mod identity {
             })
             .unwrap_or(Vec::new());
 
-        gatekeepers.contains(
-            &local_state
-                .identity_key
-                .as_ref()
-                .expect("Identity key must be initialized; qed.")
-                .public(),
-        )
+        gatekeepers.contains(pubkey)
     }
 }
