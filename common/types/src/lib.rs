@@ -197,7 +197,7 @@ pub mod messaging {
         pub online_target: U256,
     }
 
-    bind_topic!(MiningReportEvent, b"^phala/mining/report");
+    bind_topic!(MiningReportEvent, b"phala/mining/report");
     #[derive(Encode, Decode, Clone, Debug)]
     pub enum MiningReportEvent {
         Heartbeat {
