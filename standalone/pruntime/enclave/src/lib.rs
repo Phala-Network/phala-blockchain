@@ -1040,7 +1040,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     // Re-init some contracts because they require the identity key
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     *system_state = Some(system::System::new(
-        local_state.machine_id.to_vec(),
         &id_pair,
         &send_mq,
         &mut recv_mq,

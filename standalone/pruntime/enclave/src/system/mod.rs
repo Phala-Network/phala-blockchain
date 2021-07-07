@@ -91,7 +91,6 @@ pub struct System {
     // Keys and identity
     pubkey: WorkerPublicKey,
     hashed_id: U256,
-    machine_id: Vec<u8>,
     // Transaction
     receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
@@ -105,7 +104,6 @@ pub struct System {
 
 impl System {
     pub fn new(
-        machine_id: Vec<u8>,
         pair: &ecdsa::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
@@ -119,7 +117,6 @@ impl System {
         System {
             pubkey,
             hashed_id,
-            machine_id,
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
