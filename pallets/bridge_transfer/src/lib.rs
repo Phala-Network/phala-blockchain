@@ -94,7 +94,7 @@ decl_module! {
 		#[weight = 195_000_000]
 		pub fn sudo_change_fee(origin, min_fee: BalanceOf<T>, fee_scale: u32, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(fee_scale <= 1000u32.into(), Error::<T>::InvalidFeeOption);
+			ensure!(fee_scale <= 1000u32, Error::<T>::InvalidFeeOption);
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
 			Self::deposit_event(RawEvent::FeeUpdated(dest_id, min_fee, fee_scale));
 			Ok(())
