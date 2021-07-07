@@ -169,7 +169,7 @@ impl System {
         }
     }
 
-    pub fn process_events(&mut self, block_number: chain::BlockNumber) -> anyhow::Result<()> {
+    pub fn process_messages(&mut self, block_number: chain::BlockNumber) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {

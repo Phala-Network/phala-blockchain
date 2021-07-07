@@ -1377,7 +1377,7 @@ fn handle_events(
         }
     }
 
-    if let Err(e) = system.process_events(block_number) {
+    if let Err(e) = system.process_messages(block_number) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
@@ -1389,8 +1389,11 @@ fn handle_events(
     };
 
     for contract in state.contracts.values_mut() {
-        contract.process_events(&mut env);
+        contract.process_messages(&mut env);
     }
+
+    // TODO.kevin: clear unhandled messages
+
     Ok(())
 }
 

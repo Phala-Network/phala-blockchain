@@ -216,7 +216,7 @@ mod support {
             origin: Option<&chain::AccountId>,
             req: OpaqueQuery,
         ) -> Result<OpaqueReply, OpaqueError>;
-        fn process_events(&mut self, env: &mut ExecuteEnv);
+        fn process_messages(&mut self, env: &mut ExecuteEnv);
     }
 
     pub trait NativeContract {
@@ -342,7 +342,7 @@ mod support {
             .map_err(|_| error_msg("serde_json serilize failed"))
         }
 
-        fn process_events(&mut self, env: &mut ExecuteEnv) {
+        fn process_messages(&mut self, env: &mut ExecuteEnv) {
             let storage = env.storage;
             let key_map =
                 |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
