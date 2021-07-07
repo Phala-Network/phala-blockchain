@@ -101,7 +101,7 @@ pub struct System {
     bench_state: Option<BenchState>,
     mining_state: Option<MiningInfo>,
 
-    gatekeepr_state: gk::GateKeeperState,
+    gatekeeper_state: gk::GatekeeperState,
 }
 
 impl System {
@@ -125,7 +125,7 @@ impl System {
             registered: false,
             bench_state: None,
             mining_state: None,
-            gatekeepr_state: gk::GateKeeperState::new(recv_mq),
+            gatekeeper_state: gk::GatekeeperState::new(recv_mq),
         }
     }
 
@@ -215,7 +215,7 @@ impl System {
         }
 
         if crate::identity::is_gatekeeper(&self.pubkey, storage) {
-            self.gatekeepr_state.process_messages(block_number, storage, &self.egress);
+            self.gatekeeper_state.process_messages(block_number, storage, &self.egress);
         }
         Ok(())
     }
@@ -398,14 +398,14 @@ mod gk {
 
     use super::*;
 
-    // Example GateKeeperState
-    pub(super) struct GateKeeperState {
+    // Example GatekeeperState
+    pub(super) struct GatekeeperState {
         // TODO: Define message channels here on demond.
         sample_event0: TypedReceiver<MiningReportEvent>,
         sample_event1: TypedReceiver<MiningReportEvent>,
     }
 
-    impl GateKeeperState {
+    impl GatekeeperState {
         pub fn new(recv_mq: &mut MessageDispatcher) -> Self {
             Self {
                 sample_event0: recv_mq.subscribe_bound(),
