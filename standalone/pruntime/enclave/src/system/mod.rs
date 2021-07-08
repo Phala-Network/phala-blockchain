@@ -87,20 +87,229 @@ struct MiningInfo {
     start_iter: u64,
 }
 
-pub struct System {
+struct WorkerState {
     // Keys and identity
     pubkey: WorkerPublicKey,
     hashed_id: U256,
+    registered: bool,
+    bench_state: Option<BenchState>,
+    mining_state: Option<MiningInfo>,
+}
+
+impl WorkerState {
+    pub fn new(pubkey: WorkerPublicKey) -> Self {
+        let raw_pubkey: &[u8] = pubkey.as_ref();
+        let pkh = blake2_256(raw_pubkey);
+        let hashed_id: U256 = pkh.into();
+        Self {
+            pubkey,
+            hashed_id,
+            registered: false,
+            bench_state: None,
+            mining_state: None,
+        }
+    }
+
+    pub fn process_event(
+        &mut self,
+        block_number: chain::BlockNumber,
+        event: &Event,
+        callback: &impl WorkerStateMachineCallback,
+        log_on: bool,
+    ) {
+        match event {
+            Event::WorkerEvent(evt) => {
+                if evt.pubkey != self.pubkey {
+                    return;
+                }
+
+                use MiningState::*;
+                use WorkerEvent::*;
+                if log_on {
+                    info!("System::handle_event: {:?}", evt.event);
+                }
+                match evt.event {
+                    Registered => {
+                        self.registered = true;
+                    }
+                    BenchStart { start_time } => {
+                        self.bench_state = Some(BenchState {
+                            start_block: block_number,
+                            start_time: start_time,
+                            start_iter: callback.bench_iterations(),
+                        });
+                        callback.bench_resume();
+                    }
+                    MiningStart { start_time } => {
+                        self.mining_state = Some(MiningInfo {
+                            state: Mining,
+                            start_time: start_time,
+                            start_iter: callback.bench_iterations(),
+                        });
+                        callback.bench_resume();
+                    }
+                    MiningStop => {
+                        self.mining_state = None;
+                        if self.need_pause() {
+                            callback.bench_pause();
+                        }
+                    }
+                    MiningEnterUnresponsive => {
+                        if let Some(info) = &mut self.mining_state {
+                            if let Mining = info.state {
+                                info.state = EnteringPause;
+                                return;
+                            }
+                        }
+                        if log_on {
+                            error!(
+                                "Unexpected event received: {:?}, mining_state= {:?}",
+                                evt.event, self.mining_state
+                            );
+                        }
+                    }
+                    MiningExitUnresponsive => {
+                        if let Some(info) = &mut self.mining_state {
+                            if let Paused | EnteringPause = info.state {
+                                info.state = Mining;
+                                return;
+                            }
+                        }
+                        if log_on {
+                            error!(
+                                "Unexpected event received: {:?}, mining_state= {:?}",
+                                evt.event, self.mining_state
+                            );
+                        }
+                    }
+                }
+            }
+            Event::RewardSeed(reward_info) => {
+                self.handle_reward_seed(block_number, &reward_info, callback, true);
+            }
+        };
+    }
+
+    fn handle_reward_seed(
+        &mut self,
+        blocknum: chain::BlockNumber,
+        reward_info: &BlockRewardInfo,
+        callback: &impl WorkerStateMachineCallback,
+        log_on: bool,
+    ) {
+        if log_on {
+            info!(
+                "System::handle_reward_seed({}, {:?}), registered={:?}, mining_state={:?}",
+                blocknum, reward_info, self.registered, self.mining_state
+            );
+        }
+
+        if !self.registered {
+            return;
+        }
+
+        let mining_state = if let Some(state) = &mut self.mining_state {
+            state
+        } else {
+            return;
+        };
+
+        if matches!(mining_state.state, MiningState::Paused) {
+            return;
+        }
+
+        // Miner state swiched to Unresponsitive, we report one more heartbeat.
+        if matches!(mining_state.state, MiningState::EnteringPause) {
+            mining_state.state = MiningState::Paused;
+        }
+
+        let x = self.hashed_id ^ reward_info.seed;
+        let online_hit = x <= reward_info.online_target;
+
+        // Push queue when necessary
+        if online_hit {
+            callback.heartbeat(
+                blocknum as u32,
+                mining_state.start_time,
+                callback.bench_iterations() - mining_state.start_iter,
+            );
+        }
+    }
+
+    fn need_pause(&self) -> bool {
+        self.bench_state.is_none() && self.mining_state.is_none()
+    }
+
+    fn on_block_processed(
+        &mut self,
+        block_number: chain::BlockNumber,
+        callback: &impl WorkerStateMachineCallback,
+    ) {
+        if let Some(BenchState {
+            start_block,
+            start_time,
+            start_iter,
+        }) = self.bench_state
+        {
+            const BENCH_DURATION: u32 = 8;
+            if block_number - start_block >= BENCH_DURATION {
+                self.bench_state = None;
+                callback.bench_report(start_time, callback.bench_iterations() - start_iter);
+                if self.need_pause() {
+                    callback.bench_pause();
+                }
+            }
+        }
+    }
+}
+
+trait WorkerStateMachineCallback {
+    fn bench_iterations(&self) -> u64;
+    fn bench_resume(&self);
+    fn bench_pause(&self);
+    fn bench_report(&self, start_time: u64, iterations: u64);
+    fn heartbeat(&self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64);
+}
+
+struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
+
+impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
+    fn bench_iterations(&self) -> u64 {
+        benchmark::iteration_counter()
+    }
+    fn bench_resume(&self) {
+        benchmark::resume();
+    }
+    fn bench_pause(&self) {
+        benchmark::pause();
+    }
+    fn bench_report(&self, start_time: u64, iterations: u64) {
+        let report = RegistryEvent::BenchReport {
+            start_time,
+            iterations,
+        };
+        info!("Reporting benchmark: {:?}", report);
+        self.0.send(&report);
+    }
+    fn heartbeat(&self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64) {
+        let event = MiningReportEvent::Heartbeat {
+            block_num,
+            mining_start_time,
+            iterations,
+        };
+        info!("System: sending {:?}", event);
+        self.0.send(&event);
+    }
+}
+
+pub struct System {
     // Transaction
     receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
     egress: EcdsaMessageChannel,
     ingress: TypedReceiver<Event>,
 
-    registered: bool,
-    bench_state: Option<BenchState>,
-    mining_state: Option<MiningInfo>,
-
+    worker_state: WorkerState,
     gatekeeper_state: gk::GatekeeperState,
 }
 
@@ -111,20 +320,12 @@ impl System {
         recv_mq: &mut MessageDispatcher,
     ) -> Self {
         let pubkey = ecdsa::Public::from(pair.clone());
-        let raw_pubkey: &[u8] = pubkey.as_ref();
-        let pkh = blake2_256(raw_pubkey);
-        let hashed_id: U256 = pkh.into();
-        info!("System::set_id: hashed identity key: {:?}", hashed_id);
         let sender = MessageOrigin::Worker(pubkey.clone());
         System {
-            pubkey,
-            hashed_id,
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
-            registered: false,
-            bench_state: None,
-            mining_state: None,
+            worker_state: WorkerState::new(pubkey.clone()),
             gatekeeper_state: gk::GatekeeperState::new(recv_mq),
         }
     }
@@ -195,146 +396,19 @@ impl System {
                 },
             }
         }
-        if let Some(BenchState {
-            start_block,
-            start_time,
-            start_iter,
-        }) = self.bench_state
-        {
-            const BENCH_DURATION: u32 = 8;
-            if block_number - start_block >= BENCH_DURATION {
-                let report = RegistryEvent::BenchReport {
-                    start_time,
-                    iterations: benchmark::iteration_counter() - start_iter,
-                };
-                info!("Reporting benchmark: {:?}", report);
-                self.egress.send(&report);
-                self.bench_state = None;
-                self.pause_bench_if_needed();
-            }
-        }
-
-        if crate::identity::is_gatekeeper(&self.pubkey, storage) {
-            self.gatekeeper_state.process_messages(block_number, storage, &self.egress);
+        self.worker_state
+            .on_block_processed(block_number, &WorkerSMDelegate(&self.egress));
+        if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
+            self.gatekeeper_state
+                .process_messages(block_number, storage, &self.egress);
         }
         Ok(())
     }
 
     fn process_event(&mut self, block_number: chain::BlockNumber, event: &Event) -> Result<()> {
-        match event {
-            Event::WorkerEvent(evt) => {
-                if evt.pubkey != self.pubkey {
-                    return Ok(());
-                }
-
-                use MiningState::*;
-                use WorkerEvent::*;
-                info!("System::handle_event: {:?}", evt.event);
-                match evt.event {
-                    Registered => {
-                        self.registered = true;
-                    }
-                    BenchStart { start_time } => {
-                        self.bench_state = Some(BenchState {
-                            start_block: block_number,
-                            start_time: start_time,
-                            start_iter: benchmark::iteration_counter(),
-                        });
-                        benchmark::resume();
-                    }
-                    MiningStart { start_time } => {
-                        self.mining_state = Some(MiningInfo {
-                            state: Mining,
-                            start_time: start_time,
-                            start_iter: benchmark::iteration_counter(),
-                        });
-                        benchmark::resume();
-                    }
-                    MiningStop => {
-                        self.mining_state = None;
-                        self.pause_bench_if_needed();
-                    }
-                    MiningEnterUnresponsive => {
-                        if let Some(info) = &mut self.mining_state {
-                            if let Mining = info.state {
-                                info.state = EnteringPause;
-                                return Ok(());
-                            }
-                        }
-                        error!(
-                            "Unexpected event received: {:?}, mining_state= {:?}",
-                            evt.event, self.mining_state
-                        );
-                    }
-                    MiningExitUnresponsive => {
-                        if let Some(info) = &mut self.mining_state {
-                            if let Paused | EnteringPause = info.state {
-                                info.state = Mining;
-                                return Ok(());
-                            }
-                        }
-                        error!(
-                            "Unexpected event received: {:?}, mining_state= {:?}",
-                            evt.event, self.mining_state
-                        );
-                    }
-                }
-            }
-            Event::RewardSeed(reward_info) => {
-                self.handle_reward_seed(block_number, &reward_info);
-            }
-        };
+        self.worker_state
+            .process_event(block_number, event, &WorkerSMDelegate(&self.egress), true);
         Ok(())
-    }
-
-    fn handle_reward_seed(&mut self, blocknum: chain::BlockNumber, reward_info: &BlockRewardInfo) {
-        info!(
-            "System::handle_reward_seed({}, {:?}), registered={:?}, mining_state={:?}",
-            blocknum, reward_info, self.registered, self.mining_state
-        );
-
-        // Response heartbeat
-
-        if !self.registered {
-            return;
-        }
-
-        let mining_state = if let Some(state) = &mut self.mining_state {
-            state
-        } else {
-            return;
-        };
-
-        if matches!(mining_state.state, MiningState::Paused) {
-            return;
-        }
-
-        // Miner state swiched to Unresponsitive, we report one more heartbeat.
-        if matches!(mining_state.state, MiningState::EnteringPause) {
-            mining_state.state = MiningState::Paused;
-        }
-
-        let x = self.hashed_id ^ reward_info.seed;
-        let online_hit = x <= reward_info.online_target;
-
-        // Push queue when necessary
-        if online_hit {
-            info!(
-                "System::handle_reward_seed: x={}, online={}",
-                x, reward_info.online_target,
-            );
-            self.egress.send(&MiningReportEvent::Heartbeat {
-                block_num: blocknum as u32,
-                mining_start_time: mining_state.start_time,
-                iterations: benchmark::iteration_counter() - mining_state.start_iter,
-            });
-        }
-    }
-
-    fn pause_bench_if_needed(&self) {
-        if self.bench_state.is_none() && self.mining_state.is_none() {
-            benchmark::pause()
-        }
     }
 }
 
