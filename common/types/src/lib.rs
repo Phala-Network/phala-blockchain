@@ -207,7 +207,32 @@ pub mod messaging {
             mining_start_time: u64,
             /// Benchmark iterations since mining_start_time.
             iterations: u64,
-        },
+        }
+    }
+
+    bind_topic!(MiningInfoUpdateEvent, b"^phala/mining/update");
+    #[derive(Encode, Decode, Clone, Debug, Default)]
+    pub struct MiningInfoUpdateEvent {
+        // Workers that do not responce the heartbeat challenge in time. Each delay only report once.
+        pub offline: Vec<WorkerPublicKey>,
+
+        // V update and payout info
+        pub settle: Vec<SettleInfo>
+
+        // NOTE: Take care of the is_empty method when adding fields
+    }
+
+    impl MiningInfoUpdateEvent {
+        pub fn is_empty(&self) -> bool {
+            self.offline.is_empty() && self.settle.is_empty()
+        }
+    }
+
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct SettleInfo {
+        pub pubkey: WorkerPublicKey,
+        pub v: u64,
+        pub payout: u64,
     }
 }
 

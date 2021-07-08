@@ -22,6 +22,8 @@ pub enum MessageOrigin {
     AccountId(H256),
     /// A remote location (parachain, etc.)
     MultiLocation(Vec<u8>),
+    /// All gatekeepers share the same origin
+    Gatekeeper,
 }
 
 impl Hash for MessageOrigin {

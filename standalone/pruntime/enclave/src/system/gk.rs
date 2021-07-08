@@ -1,18 +1,21 @@
 use super::{Storage, TypedReceiver, WorkerState};
 use phala_mq::{EcdsaMessageChannel, MessageDispatcher};
 use phala_types::{
-    messaging::{MessageOrigin, MiningReportEvent, SystemEvent, WorkerEvent, WorkerEventWithKey},
+    messaging::{
+        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SystemEvent, WorkerEvent,
+        WorkerEventWithKey,
+    },
     WorkerPublicKey,
 };
 
 use crate::std::collections::{BTreeMap, VecDeque};
 
-// TODO.kevin: tune the value
-const HEARTBEAT_TOLERANCE_WINDOW: u32 = 6;
+const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
 
 struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
+    offline: bool,
 }
 
 impl WorkerInfo {
@@ -20,46 +23,49 @@ impl WorkerInfo {
         Self {
             state: WorkerState::new(pubkey),
             waiting_heartbeats: Default::default(),
+            offline: false,
         }
     }
 }
 
 pub(super) struct Gatekeeper {
+    egress: EcdsaMessageChannel, // TODO: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
 }
 
 impl Gatekeeper {
-    pub fn new(recv_mq: &mut MessageDispatcher) -> Self {
+    pub fn new(recv_mq: &mut MessageDispatcher, egress: EcdsaMessageChannel) -> Self {
         Self {
+            egress,
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
         }
     }
 
-    pub fn process_messages(
-        &mut self,
-        block_number: chain::BlockNumber,
-        storage: &Storage,
-        egress: &EcdsaMessageChannel,
-    ) {
-        GKMessageProcesser {
+    pub fn process_messages(&mut self, block_number: chain::BlockNumber, _storage: &Storage) {
+        let mut processor = GKMessageProcesser {
             state: self,
             block_number,
-            storage,
-            egress,
+            report: Default::default(),
+        };
+
+        processor.process();
+
+        let report = processor.report;
+
+        if !report.is_empty() {
+            self.egress.send(&report);
         }
-        .process()
     }
 }
 
 struct GKMessageProcesser<'a> {
     state: &'a mut Gatekeeper,
     block_number: chain::BlockNumber,
-    storage: &'a Storage,
-    egress: &'a EcdsaMessageChannel,
+    report: MiningInfoUpdateEvent,
 }
 
 impl GKMessageProcesser<'_> {
@@ -99,10 +105,16 @@ impl GKMessageProcesser<'_> {
             worker_info
                 .state
                 .on_block_processed(self.block_number, &mut tracker);
+
+            // On report once for each late heart. 
+            if worker_info.offline {
+                continue;
+            }
+
             if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if self.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
-                    // Waiting for heartbeat timed out.
-                    // TODO: report to pallet-mining.
+                    self.report.offline.push(worker_info.state.pubkey.clone());
+                    worker_info.offline = true;
                 }
             }
         }
@@ -138,8 +150,9 @@ impl GKMessageProcesser<'_> {
 
                 // The oldest one comfirmed.
                 let _ = worker_info.waiting_heartbeats.pop_front();
+                worker_info.offline = false;
 
-                // TODO: update V promise and interact with pallet-mining.
+                // TODO: update the V promise and report to pallet-mining.
             }
         }
     }
