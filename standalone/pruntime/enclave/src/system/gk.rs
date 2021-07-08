@@ -106,7 +106,7 @@ impl GKMessageProcesser<'_> {
                 .state
                 .on_block_processed(self.block_number, &mut tracker);
 
-            // On report once for each late heart. 
+            // Only report once for each late heartbeat. 
             if worker_info.offline {
                 continue;
             }
@@ -136,15 +136,16 @@ impl GKMessageProcesser<'_> {
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
                     None => {
-                        error!("Unknown worker sent a {:?}", event);
+                        error!("Unknown worker {} sent a {:?}", hex::encode(worker_pubkey), event);
                         return;
                     }
                 };
 
                 if Some(&block_num) != worker_info.waiting_heartbeats.get(0) {
                     error!("Fatal error: Unexpected heartbeat {:?}", event);
-                    error!("Waiting heartbeats {:?}", worker_info.waiting_heartbeats);
-                    // The state has been poisoned. Make no sence to keep move on.
+                    error!("Sent from worker {}", hex::encode(worker_pubkey));
+                    error!("Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
+                    // The state has been poisoned. Make no sence to keep moving on.
                     panic!("GK or Worker state poisoned");
                 }
 
