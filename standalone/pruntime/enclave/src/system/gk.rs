@@ -24,14 +24,13 @@ impl WorkerInfo {
     }
 }
 
-// Example GatekeeperState
-pub(super) struct GatekeeperState {
+pub(super) struct Gatekeeper {
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
 }
 
-impl GatekeeperState {
+impl Gatekeeper {
     pub fn new(recv_mq: &mut MessageDispatcher) -> Self {
         Self {
             mining_events: recv_mq.subscribe_bound(),
@@ -57,7 +56,7 @@ impl GatekeeperState {
 }
 
 struct GKMessageProcesser<'a> {
-    state: &'a mut GatekeeperState,
+    state: &'a mut Gatekeeper,
     block_number: chain::BlockNumber,
     storage: &'a Storage,
     egress: &'a EcdsaMessageChannel,

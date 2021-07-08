@@ -316,7 +316,7 @@ pub struct System {
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper_state: gk::GatekeeperState,
+    gatekeeper_state: gk::Gatekeeper,
 }
 
 impl System {
@@ -332,7 +332,7 @@ impl System {
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper_state: gk::GatekeeperState::new(recv_mq),
+            gatekeeper_state: gk::Gatekeeper::new(recv_mq),
         }
     }
 
