@@ -187,7 +187,6 @@ pub mod pallet {
 				&runtime_info_hash == commit,
 				Error::<T>::InvalidRuntimeInfoHash
 			);
-			let machine_id = pruntime_info.machine_id.to_vec();
 			// Update the registry
 			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
 				match v {

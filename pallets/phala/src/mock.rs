@@ -10,7 +10,6 @@ use sp_runtime::{
 };
 
 pub(crate) type Balance = u128;
-pub(crate) type BlockNumber = u64;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -36,6 +35,7 @@ parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
+	pub const ExpectedBlockTimeSec: u32 = 12;
 }
 impl system::Config for Test {
 	type BaseCallFilter = ();
@@ -98,6 +98,7 @@ impl registry::Config for Test {
 
 impl mining::Config for Test {
 	type Event = Event;
+	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
 }

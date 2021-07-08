@@ -21,6 +21,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config + mq::Config {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type ExpectedBlockTimeSec: Get<u32>;
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -125,7 +126,7 @@ pub mod pallet {
 			let online_miners = OnlineMiners::<T>::get().unwrap_or(0);
 			let num_tx =
 				ExpectedHeartbeatCount::<T>::get().unwrap_or(DEFAULT_EXPECTED_HEARTBEAT_COUNT);
-			let online_target = pow_target(num_tx, online_miners);
+			let online_target = pow_target(num_tx, online_miners, T::ExpectedBlockTimeSec::get());
 			let seed_info = HeartbeatChallenge {
 				seed,
 				online_target,
@@ -154,7 +155,7 @@ pub mod pallet {
 		}
 	}
 
-	fn pow_target(num_tx: u32, num_workers: u32) -> U256 {
+	fn pow_target(num_tx: u32, num_workers: u32, secs_per_block: u32) -> U256 {
 		use substrate_fixed::types::U32F32;
 		if num_workers == 0 {
 			return U256::zero();
@@ -163,7 +164,7 @@ pub mod pallet {
 		let num_tx = U32F32::from_num(num_tx);
 		// Limit tx per block for a single miner
 		//     t <= max_tx_per_hour * N/T (max_tx_per_hour = 2)
-		let max_tx = num_workers * U32F32::from_num(2) / U32F32::from_num(3600 / 12);
+		let max_tx = num_workers * U32F32::from_num(2) / U32F32::from_num(3600 / secs_per_block);
 		let target_tx = cmp::min(num_tx, max_tx);
 		// Convert to U256 target
 		//     target = MAX * tx / num_workers
@@ -186,10 +187,10 @@ pub mod pallet {
 		#[test]
 		fn test_pow_target() {
 			// No target
-			assert_eq!(pow_target(20, 0), U256::zero());
+			assert_eq!(pow_target(20, 0, 12), U256::zero());
 			// Capped target (py3: ``)
 			assert_eq!(
-				pow_target(20, 20),
+				pow_target(20, 20, 12),
 				U256::from_dec_str(
 					"771946525395830978497002573683960742805751636319313395421818009383503547160"
 				)
@@ -197,7 +198,7 @@ pub mod pallet {
 			);
 			// Not capped target (py3: `int(((1 << 256) - 1) * 20 / 200_000)`)
 			assert_eq!(
-				pow_target(20, 200_000),
+				pow_target(20, 200_000, 12),
 				U256::from_dec_str(
 					"11574228623567775471528085581038571683760509746329738253007553123311417715"
 				)
@@ -208,7 +209,6 @@ pub mod pallet {
 		#[test]
 		fn test_heartbeat_challenge() {
 			new_test_ext().execute_with(|| {
-				use assert_matches::assert_matches;
 				use phala_types::messaging::{SystemEvent, Topic};
 
 				set_block_1();
@@ -224,7 +224,7 @@ pub mod pallet {
 				assert_eq!(message.destination, Topic::new("phala/system/event"));
 				// Check the oubound message parameters
 				let target = match message.decode_payload::<SystemEvent>() {
-					Some(SystemEvent::RewardSeed(r)) => r.online_target,
+					Some(SystemEvent::HeartbeatChallenge(r)) => r.online_target,
 					_ => panic!("Wrong outbound message"),
 				};
 				assert_eq!(target, U256::from_dec_str(

@@ -1085,6 +1085,10 @@ impl pallet_bridge_transfer::Config for Runtime {
 	type Currency = Balances;
 }
 
+parameter_types! {
+	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
+}
+
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
 	type UnixTime = Timestamp;
@@ -1095,6 +1099,7 @@ impl pallet_mq::Config for Runtime {
 }
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
+	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
 }
