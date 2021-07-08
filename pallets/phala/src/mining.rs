@@ -1,5 +1,6 @@
 pub use self::pallet::*;
 
+#[allow(unused_variables)] // TODO(wfwang)
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
@@ -170,10 +171,66 @@ pub mod pallet {
 			.checked_shl(24)
 			.expect("No overflow; qed.")
 			.to_num();
-		U256::MAX / (1u32 << 24) * frac
+		(U256::MAX >> 24) * frac
 	}
 
 	impl<T: Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
+	}
+
+	#[cfg(test)]
+	mod test {
+		use super::*;
+		use crate::mock::{events, new_test_ext, set_block_1, Event as TestEvent, Test};
+
+		#[test]
+		fn test_pow_target() {
+			// No target
+			assert_eq!(pow_target(20, 0), U256::zero());
+			// Capped target (py3: ``)
+			assert_eq!(
+				pow_target(20, 20),
+				U256::from_dec_str(
+					"771946525395830978497002573683960742805751636319313395421818009383503547160"
+				)
+				.unwrap()
+			);
+			// Not capped target (py3: `int(((1 << 256) - 1) * 20 / 200_000)`)
+			assert_eq!(
+				pow_target(20, 200_000),
+				U256::from_dec_str(
+					"11574228623567775471528085581038571683760509746329738253007553123311417715"
+				)
+				.unwrap()
+			);
+		}
+
+		#[test]
+		fn test_heartbeat_challenge() {
+			new_test_ext().execute_with(|| {
+				use assert_matches::assert_matches;
+				use phala_types::messaging::{SystemEvent, Topic};
+
+				set_block_1();
+				OnlineMiners::<Test>::put(20);
+				Pallet::<Test>::heartbeat_challenge();
+				// Extract messages
+				let ev = events();
+				let message = match ev.as_slice() {
+					[TestEvent::PhalaMq(mq::Event::OutboundMessage(m))] => m,
+					_ => panic!("Wrong message events"),
+				};
+				// Check the event target
+				assert_eq!(message.destination, Topic::new("phala/system/event"));
+				// Check the oubound message parameters
+				let target = match message.decode_payload::<SystemEvent>() {
+					Some(SystemEvent::RewardSeed(r)) => r.online_target,
+					_ => panic!("Wrong outbound message"),
+				};
+				assert_eq!(target, U256::from_dec_str(
+					"771946525395830978497002573683960742805751636319313395421818009383503547160"
+				).unwrap());
+			});
+		}
 	}
 }

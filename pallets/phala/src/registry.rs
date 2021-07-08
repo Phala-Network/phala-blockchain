@@ -1,15 +1,6 @@
 /// Public key registry for workers and contracts.
 pub use self::pallet::*;
 
-// #[cfg(test)]
-// mod mock;
-
-// #[cfg(test)]
-// mod tests;
-
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::Encode;
@@ -196,7 +187,6 @@ pub mod pallet {
 				&runtime_info_hash == commit,
 				Error::<T>::InvalidRuntimeInfoHash
 			);
-			let runtime_version = pruntime_info.version;
 			let machine_id = pruntime_info.machine_id.to_vec();
 			// Update the registry
 			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
@@ -245,6 +235,7 @@ pub mod pallet {
 		///
 		/// Requirements:
 		//  1. `origin` is the `worker`'s operator
+		#[allow(unused_variables)]
 		#[pallet::weight(0)]
 		pub fn unbind(origin: OriginFor<T>, worker: WorkerPublicKey) -> DispatchResult {
 			panic!("unimpleneted");

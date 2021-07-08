@@ -39,3 +39,6 @@ use sp_core::hashing;
 
 #[cfg(not(feature = "native"))]
 use sp_io::hashing;
+
+#[cfg(test)]
+mod mock;

@@ -9,20 +9,15 @@ use frame_system::{ensure_root, ensure_signed, Pallet as System};
 
 use super::attestation::Error as AttestationError;
 use crate::mq::{self, MessageOriginInfo};
-use alloc::{borrow::ToOwned, vec::Vec};
-use codec::Decode;
+use alloc::vec::Vec;
 use frame_support::{
 	dispatch::DispatchResult,
-	traits::{
-		Currency, ExistenceRequirement::AllowDeath, Get, Imbalance, OnUnbalanced, Randomness,
-		UnixTime,
-	},
+	traits::{Currency, ExistenceRequirement::AllowDeath, Get, OnUnbalanced, Randomness, UnixTime},
 };
 use sp_runtime::{
 	traits::{AccountIdConversion, One, Zero},
 	Permill, SaturatedConversion,
 };
-use types::messaging::MiningReportEvent;
 
 #[macro_use]
 mod benchmarking;
@@ -37,8 +32,8 @@ use types::{
 		BalanceEvent, BalanceTransfer, BindTopic, BlockRewardInfo, Message, MessageOrigin,
 		SystemEvent,
 	},
-	MinerStatsDelta, PRuntimeInfo, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score,
-	StashInfo, StashWorkerStats, WorkerInfo, WorkerStateEnum,
+	MinerStatsDelta, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score, StashInfo,
+	StashWorkerStats, WorkerInfo, WorkerStateEnum,
 };
 
 // constants
@@ -665,14 +660,6 @@ impl<T: Config> Module<T> {
 		}
 	}
 
-	fn add_heartbeat(account: &T::AccountId, block_num: T::BlockNumber) {
-		// TODO: remove?
-		let heartbeats = Heartbeats::<T>::get(account);
-		Heartbeats::<T>::insert(account, heartbeats + 1);
-		// Record the worker activity to avoid slash of honest worker
-		LastWorkerActivity::<T>::insert(account, block_num);
-	}
-
 	fn clear_heartbeats() {
 		// TODO: remove?
 		Heartbeats::<T>::remove_all(None);
@@ -685,7 +672,7 @@ impl<T: Config> Module<T> {
 	fn slash_offline(
 		stash: &T::AccountId,
 		reporter: &T::AccountId,
-		machine_id: &Vec<u8>,
+		_machine_id: &Vec<u8>,
 	) -> dispatch::DispatchResult {
 		// We have to kick the worker by force to avoid double slash
 		PendingExitingDelta::mutate(|stats_delta| Self::kick_worker(stash, stats_delta));
@@ -919,75 +906,6 @@ impl<T: Config> Module<T> {
 		Self::push_message(SystemEvent::RewardSeed(seed_info));
 	}
 
-	fn handle_claim_reward(
-		stash: &T::AccountId,
-		payout_target: &T::AccountId,
-		claim_online: bool,
-		claim_compute: bool,
-		score: u32,
-		claiming_block: T::BlockNumber,
-	) {
-		// Check is mining
-		let worker_info = WorkerState::<T>::get(stash);
-		if let WorkerStateEnum::Mining(_) = worker_info.state {
-			// Confirmed too late. Just skip.
-			let now = System::<T>::block_number();
-			let reward_window = RewardWindow::<T>::get();
-			if claiming_block + reward_window < now {
-				Self::deposit_event(RawEvent::PayoutMissed(stash.clone(), payout_target.clone()));
-				return;
-			}
-			if claim_online || claim_compute {
-				let round_stats = Self::round_stats_at(claiming_block);
-				if round_stats.online_workers == 0 {
-					panic!("No online worker but the miner is claiming the rewards; qed");
-				}
-				let round_reward = Self::round_mining_reward_at(claiming_block);
-				// Adjusted online worker reward
-				if claim_online {
-					let online = Self::pretax_online_reward(
-						round_reward,
-						score,
-						round_stats.total_power,
-						round_stats.frac_target_online_reward,
-						round_stats.online_workers,
-					);
-					let coin_reward =
-						Self::payout(online, payout_target, PayoutReason::OnlineReward);
-					let prev = RoundWorkerStats::<T>::get(&stash);
-					let worker_state = StashWorkerStats {
-						slash: prev.slash,
-						compute_received: prev.compute_received,
-						online_received: prev.online_received + coin_reward,
-					};
-					RoundWorkerStats::<T>::insert(&stash, worker_state);
-				}
-				// Adjusted compute worker reward
-				if claim_compute {
-					let compute = Self::pretax_compute_reward(
-						round_reward,
-						round_stats.frac_target_compute_reward,
-						round_stats.compute_workers,
-					);
-					let coin_reward =
-						Self::payout(compute, payout_target, PayoutReason::ComputeReward);
-					let prev = RoundWorkerStats::<T>::get(&stash);
-					let worker_state = StashWorkerStats {
-						slash: prev.slash,
-						compute_received: prev.compute_received + coin_reward,
-						online_received: prev.online_received,
-					};
-					RoundWorkerStats::<T>::insert(&stash, worker_state);
-
-					// TODO: remove after PoC-3
-					WorkerComputeReward::<T>::mutate(stash, |x| *x += 1);
-					PayoutComputeReward::<T>::mutate(payout_target, |x| *x += 1);
-				}
-			}
-			// TODO: do we need to check xor threshold?
-		}
-	}
-
 	/// Calculates the clipped target transaction number for this round
 	fn clipped_target_number(num_target: u32, num_workers: u32) -> u32 {
 		// Miner tx per block: t <= max_tx_per_hour * N/T
@@ -1000,107 +918,6 @@ impl<T: Config> Module<T> {
 				/ (round_blocks as u64)) as u32,
 		);
 		upper_clipped
-	}
-
-	/// Calculates the total mining reward for this round
-	fn round_mining_reward_at(_blocknum: T::BlockNumber) -> BalanceOf<T> {
-		let initial_reward: BalanceOf<T> = T::InitialReward::get()
-			/ BalanceOf::<T>::from(
-				(T::DecayInterval::get() / T::RoundInterval::get()).saturated_into::<u32>(),
-			);
-		// BalanceOf::<T>::from();
-		let round_reward = initial_reward;
-		// TODO: consider the halvings
-		//
-		// let n = (blocknum / T::DecayInterval::get()) as u32;
-		// let decay_reward = decay_reward * DecayFactor.pow(n)
-		round_reward
-	}
-
-	/// Gets the RoundStats information at the given blocknum, not earlier than the last round.
-	fn round_stats_at(block: T::BlockNumber) -> RoundStats {
-		let current_round = Round::<T>::get();
-		let round = if block < current_round.start_block {
-			current_round.round - 1
-		} else {
-			current_round.round
-		};
-		RoundStatsHistory::get(round)
-	}
-
-	/// Calculates the adjusted online reward for a specific miner
-	fn pretax_online_reward(
-		round_reward: BalanceOf<T>,
-		score: u32,
-		total_power: u32,
-		frac_target_online_reward: u32,
-		workers: u32,
-	) -> BalanceOf<T> {
-		Self::pretax_reward(
-			round_reward,
-			score,
-			total_power,
-			frac_target_online_reward,
-			T::OnlineRewardPercentage::get(),
-			workers,
-		)
-	}
-
-	/// Calculates the adjust computation reward (every miner has same reward now)
-	fn pretax_compute_reward(
-		round_reward: BalanceOf<T>,
-		frac_target_compute_reward: u32,
-		compute_workers: u32,
-	) -> BalanceOf<T> {
-		Self::pretax_reward(
-			round_reward,
-			// Since all compute worker has the equal reward, we set the propotion reward of a
-			// worker to `1 / compute_workers`
-			1,
-			compute_workers,
-			frac_target_compute_reward,
-			T::ComputeRewardPercentage::get(),
-			compute_workers,
-		)
-	}
-
-	fn pretax_reward(
-		round_reward: BalanceOf<T>,
-		weight: u32,
-		total_weight: u32,
-		frac_target_reward: u32,
-		reward_percentage: Permill,
-		workers: u32,
-	) -> BalanceOf<T> {
-		let round_blocks = T::RoundInterval::get().saturated_into::<u64>();
-		// The target reward for this miner
-		let target =
-			round_reward * BalanceOf::<T>::from(weight) / BalanceOf::<T>::from(total_weight);
-		// Adjust based on the mathematical expectation
-		let adjusted: BalanceOf<T> = target
-			* ((workers as u64) * (PERCENTAGE_BASE as u64)).saturated_into()
-			/ ((round_blocks as u64) * (frac_target_reward as u64)).saturated_into();
-		let reward = reward_percentage * adjusted;
-		reward
-	}
-
-	/// Actually pays out the reward
-	fn payout(value: BalanceOf<T>, target: &T::AccountId, reason: PayoutReason) -> BalanceOf<T> {
-		// Retion the reward and the treasury deposit
-		let coins = T::TEECurrency::issue(value);
-		let (coin_reward, coin_treasury) =
-			coins.ration(T::RewardRation::get(), T::TreasuryRation::get());
-		// Payout!
-		// TODO: in real => T::TEECurrency::resolve_creating(payout_target, coin_reward);
-		Self::deposit_event(RawEvent::PayoutReward(
-			target.clone(),
-			coin_reward.peek(),
-			coin_treasury.peek(),
-			reason,
-		));
-		Self::add_fire(&target, coin_reward.peek());
-		T::Treasury::on_unbalanced(coin_treasury);
-		coin_reward.peek()
 	}
 
 	fn add_fire(dest: &T::AccountId, amount: BalanceOf<T>) {
@@ -1140,15 +957,6 @@ impl<T: Config> Module<T> {
 			.map_err(|_| Error::<T>::CannotWithdraw)?;
 		Ok(())
 	}
-}
-
-fn calc_overall_score(features: &Vec<u32>) -> Result<u32, ()> {
-	if features.len() != 2 {
-		return Err(());
-	}
-	let core = features[0];
-	let feature_level = features[1];
-	Ok(core * (feature_level * 10 + 60))
 }
 
 fn u256_target(m: u64, n: u64) -> U256 {

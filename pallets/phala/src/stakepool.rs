@@ -1,6 +1,7 @@
 pub use self::pallet::*;
 pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
+#[allow(unused_variables)] // TODO(wfwang)
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::Currency};
