@@ -1420,6 +1420,8 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     drop(runtime_state);
 
+    let score = benchmark::score();
+
     Ok(json!({
         "initialized": initialized,
         "public_key": pubkey,
@@ -1430,6 +1432,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "machine_id": machine_id,
         "dev_mode": dev_mode,
         "pending_messages": pending_messages,
+        "score": score,
     }))
 }
 
