@@ -1,6 +1,11 @@
-use super::*;
+use super::{Storage, TypedReceiver, WorkerState};
+use phala_mq::{EcdsaMessageChannel, MessageDispatcher};
+use phala_types::{
+    messaging::{MessageOrigin, MiningReportEvent, SystemEvent, WorkerEvent, WorkerEventWithKey},
+    WorkerPublicKey,
+};
 
-use crate::std::collections::VecDeque;
+use crate::std::collections::{BTreeMap, VecDeque};
 
 struct WorkerInfo {
     state: WorkerState,
@@ -138,6 +143,20 @@ impl GKMessageProcesser<'_> {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return;
         }
+
+        // Create the worker info on it's first time registered
+        if let SystemEvent::WorkerEvent(WorkerEventWithKey {
+            pubkey,
+            event: WorkerEvent::Registered,
+        }) = &event
+        {
+            let _ = self
+                .state
+                .workers
+                .entry(pubkey.clone())
+                .or_insert(WorkerInfo::new(pubkey.clone()));
+        }
+
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker {
