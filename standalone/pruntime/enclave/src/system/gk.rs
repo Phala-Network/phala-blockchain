@@ -7,6 +7,9 @@ use phala_types::{
 
 use crate::std::collections::{BTreeMap, VecDeque};
 
+// TODO.kevin: tune the value
+const HEARTBEAT_TOLERANCE_WINDOW: u32 = 6;
+
 struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
@@ -97,9 +100,13 @@ impl GKMessageProcesser<'_> {
             worker_info
                 .state
                 .on_block_processed(self.block_number, &mut tracker);
+            if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
+                if self.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
+                    // Waiting for heartbeat timed out.
+                    // TODO: report to pallet-mining.
+                }
+            }
         }
-
-        // TODO: check offline workers
     }
 
     fn process_mining_report(&mut self, origin: MessageOrigin, event: MiningReportEvent) {

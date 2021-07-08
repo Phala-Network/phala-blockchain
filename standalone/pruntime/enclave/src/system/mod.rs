@@ -250,6 +250,7 @@ impl WorkerState {
             start_iter,
         }) = self.bench_state
         {
+            // TODO.kevin: tune the value
             const BENCH_DURATION: u32 = 8;
             if block_number - start_block >= BENCH_DURATION {
                 self.bench_state = None;
