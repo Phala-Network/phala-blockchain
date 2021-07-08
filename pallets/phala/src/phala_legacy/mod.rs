@@ -29,7 +29,7 @@ pub mod weights;
 extern crate phala_types as types;
 use types::{
 	messaging::{
-		BalanceEvent, BalanceTransfer, BindTopic, BlockRewardInfo, Message, MessageOrigin,
+		BalanceEvent, BalanceTransfer, BindTopic, HeartbeatChallenge, Message, MessageOrigin,
 		SystemEvent,
 	},
 	MinerStatsDelta, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score, StashInfo,
@@ -150,7 +150,7 @@ decl_storage! {
 			map hasher(twox_64_concat) u32 => RoundStats;
 
 		// Probabilistic rewarding
-		BlockRewardSeeds: map hasher(twox_64_concat) T::BlockNumber => BlockRewardInfo;
+		BlockRewardSeeds: map hasher(twox_64_concat) T::BlockNumber => HeartbeatChallenge;
 		/// The last block where a worker has on-chain activity, updated by `sync_worker_message`
 		LastWorkerActivity: map hasher(twox_64_concat) T::AccountId => T::BlockNumber;
 
@@ -888,7 +888,7 @@ impl<T: Config> Module<T> {
 		let seed_hash = T::Randomness::random(RANDOMNESS_SUBJECT).0;
 		let seed: U256 = AsRef::<[u8]>::as_ref(&seed_hash).into();
 		let round_stats = RoundStatsHistory::get(round.round);
-		let seed_info = BlockRewardInfo {
+		let seed_info = HeartbeatChallenge {
 			seed,
 			online_target: {
 				if round_stats.online_workers == 0 {
@@ -903,7 +903,7 @@ impl<T: Config> Module<T> {
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
-		Self::push_message(SystemEvent::RewardSeed(seed_info));
+		Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 	}
 
 	/// Calculates the clipped target transaction number for this round
@@ -967,7 +967,7 @@ fn u256_target(m: u64, n: u64) -> U256 {
 	U256::MAX / n * m
 }
 
-fn check_pubkey_hit_target(raw_pubkey: &[u8], reward_info: &BlockRewardInfo) -> bool {
+fn check_pubkey_hit_target(raw_pubkey: &[u8], reward_info: &HeartbeatChallenge) -> bool {
 	let pkh = crate::hashing::blake2_256(raw_pubkey);
 	let id: U256 = pkh.into();
 	let x = id ^ reward_info.seed;

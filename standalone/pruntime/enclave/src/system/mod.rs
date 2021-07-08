@@ -11,7 +11,7 @@ use phala_mq::{
     TypedReceiver,
 };
 use phala_types::{
-    messaging::{BlockRewardInfo, MiningReportEvent, SystemEvent, WorkerEvent},
+    messaging::{HeartbeatChallenge, MiningReportEvent, SystemEvent, WorkerEvent},
     WorkerPublicKey,
 };
 use sp_core::{ecdsa, hashing::blake2_256, U256};
@@ -184,23 +184,23 @@ impl WorkerState {
                     }
                 }
             }
-            Event::RewardSeed(reward_info) => {
-                self.handle_reward_seed(block_number, &reward_info, callback, true);
+            Event::HeartbeatChallenge(seed_info) => {
+                self.handle_heartbeat_challenge(block_number, &seed_info, callback, true);
             }
         };
     }
 
-    fn handle_reward_seed(
+    fn handle_heartbeat_challenge(
         &mut self,
         blocknum: chain::BlockNumber,
-        reward_info: &BlockRewardInfo,
+        seed_info: &HeartbeatChallenge,
         callback: &impl WorkerStateMachineCallback,
         log_on: bool,
     ) {
         if log_on {
             info!(
-                "System::handle_reward_seed({}, {:?}), registered={:?}, mining_state={:?}",
-                blocknum, reward_info, self.registered, self.mining_state
+                "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
+                blocknum, seed_info, self.registered, self.mining_state
             );
         }
 
@@ -223,16 +223,13 @@ impl WorkerState {
             mining_state.state = MiningState::Paused;
         }
 
-        let x = self.hashed_id ^ reward_info.seed;
-        let online_hit = x <= reward_info.online_target;
+        let x = self.hashed_id ^ seed_info.seed;
+        let online_hit = x <= seed_info.online_target;
 
         // Push queue when necessary
         if online_hit {
-            callback.heartbeat(
-                blocknum as u32,
-                mining_state.start_time,
-                callback.bench_iterations() - mining_state.start_iter,
-            );
+            let iterations = callback.bench_iterations() - mining_state.start_iter;
+            callback.heartbeat(blocknum as u32, mining_state.start_time, iterations);
         }
     }
 

@@ -153,7 +153,7 @@ pub mod phala {
     };
     use core::marker::PhantomData;
 
-    use phala_types::{messaging::BlockRewardInfo, PayoutReason};
+    use phala_types::{messaging::HeartbeatChallenge, PayoutReason};
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);
@@ -163,7 +163,6 @@ pub mod phala {
 
     #[module]
     pub trait Phala: System + Balances {
-        #![event_type(BlockRewardInfo)]
         #![event_type(PayoutReason)]
     }
 

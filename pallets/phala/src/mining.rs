@@ -11,7 +11,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::messaging::{
-		BlockRewardInfo, Message, MessageOrigin, MiningReportEvent, SystemEvent,
+		HeartbeatChallenge, Message, MessageOrigin, MiningReportEvent, SystemEvent,
 	};
 	use sp_core::U256;
 	use sp_std::cmp;
@@ -126,11 +126,11 @@ pub mod pallet {
 			let num_tx =
 				ExpectedHeartbeatCount::<T>::get().unwrap_or(DEFAULT_EXPECTED_HEARTBEAT_COUNT);
 			let online_target = pow_target(num_tx, online_miners);
-			let seed_info = BlockRewardInfo {
+			let seed_info = HeartbeatChallenge {
 				seed,
 				online_target,
 			};
-			Self::push_message(SystemEvent::RewardSeed(seed_info));
+			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 		}
 
 		pub fn on_message_received(message: &Message) -> DispatchResult {

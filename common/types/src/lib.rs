@@ -182,7 +182,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Debug)]
     pub enum SystemEvent {
         WorkerEvent(WorkerEventWithKey),
-        RewardSeed(BlockRewardInfo),
+        HeartbeatChallenge(HeartbeatChallenge),
     }
 
     impl SystemEvent {
@@ -192,7 +192,7 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
-    pub struct BlockRewardInfo {
+    pub struct HeartbeatChallenge {
         pub seed: U256,
         pub online_target: U256,
     }
