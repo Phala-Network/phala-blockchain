@@ -114,7 +114,7 @@ impl WorkerState {
         &mut self,
         block_number: chain::BlockNumber,
         event: &Event,
-        callback: &impl WorkerStateMachineCallback,
+        callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
     ) {
         match event {
@@ -194,7 +194,7 @@ impl WorkerState {
         &mut self,
         blocknum: chain::BlockNumber,
         seed_info: &HeartbeatChallenge,
-        callback: &impl WorkerStateMachineCallback,
+        callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
     ) {
         if log_on {
@@ -240,7 +240,7 @@ impl WorkerState {
     fn on_block_processed(
         &mut self,
         block_number: chain::BlockNumber,
-        callback: &impl WorkerStateMachineCallback,
+        callback: &mut impl WorkerStateMachineCallback,
     ) {
         if let Some(BenchState {
             start_block,
@@ -251,7 +251,8 @@ impl WorkerState {
             const BENCH_DURATION: u32 = 8;
             if block_number - start_block >= BENCH_DURATION {
                 self.bench_state = None;
-                callback.bench_report(start_time, callback.bench_iterations() - start_iter);
+                let iterations = callback.bench_iterations() - start_iter;
+                callback.bench_report(start_time, iterations);
                 if self.need_pause() {
                     callback.bench_pause();
                 }
@@ -262,10 +263,10 @@ impl WorkerState {
 
 trait WorkerStateMachineCallback {
     fn bench_iterations(&self) -> u64;
-    fn bench_resume(&self);
-    fn bench_pause(&self);
-    fn bench_report(&self, start_time: u64, iterations: u64);
-    fn heartbeat(&self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64);
+    fn bench_resume(&mut self);
+    fn bench_pause(&mut self);
+    fn bench_report(&mut self, start_time: u64, iterations: u64);
+    fn heartbeat(&mut self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64);
 }
 
 struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
@@ -274,13 +275,13 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
         benchmark::iteration_counter()
     }
-    fn bench_resume(&self) {
+    fn bench_resume(&mut self) {
         benchmark::resume();
     }
-    fn bench_pause(&self) {
+    fn bench_pause(&mut self) {
         benchmark::pause();
     }
-    fn bench_report(&self, start_time: u64, iterations: u64) {
+    fn bench_report(&mut self, start_time: u64, iterations: u64) {
         let report = RegistryEvent::BenchReport {
             start_time,
             iterations,
@@ -288,7 +289,12 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
         info!("Reporting benchmark: {:?}", report);
         self.0.send(&report);
     }
-    fn heartbeat(&self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64) {
+    fn heartbeat(
+        &mut self,
+        block_num: chain::BlockNumber,
+        mining_start_time: u64,
+        iterations: u64,
+    ) {
         let event = MiningReportEvent::Heartbeat {
             block_num,
             mining_start_time,
@@ -394,7 +400,7 @@ impl System {
             }
         }
         self.worker_state
-            .on_block_processed(block_number, &WorkerSMDelegate(&self.egress));
+            .on_block_processed(block_number, &mut WorkerSMDelegate(&self.egress));
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
             self.gatekeeper_state
                 .process_messages(block_number, storage, &self.egress);
@@ -403,8 +409,12 @@ impl System {
     }
 
     fn process_event(&mut self, block_number: chain::BlockNumber, event: &Event) -> Result<()> {
-        self.worker_state
-            .process_event(block_number, event, &WorkerSMDelegate(&self.egress), true);
+        self.worker_state.process_event(
+            block_number,
+            event,
+            &mut WorkerSMDelegate(&self.egress),
+            true,
+        );
         Ok(())
     }
 }
@@ -466,19 +476,20 @@ pub mod serde_anyhow {
 
 mod gk {
     use crate::light_validation::utils::storage_prefix;
+    use crate::std::collections::VecDeque;
 
     use super::*;
 
     struct WorkerInfo {
         state: WorkerState,
-        waiting_for_heartbeat: Option<chain::BlockNumber>,
+        waiting_heartbeats: VecDeque<chain::BlockNumber>,
     }
 
     impl WorkerInfo {
         fn new(pubkey: WorkerPublicKey) -> Self {
             Self {
                 state: WorkerState::new(pubkey),
-                waiting_for_heartbeat: None,
+                waiting_heartbeats: Default::default(),
             }
         }
     }
@@ -505,40 +516,140 @@ mod gk {
             storage: &Storage,
             egress: &EcdsaMessageChannel,
         ) {
-            // Reach here once per block to process mq messages.
+            GKMessageProcesser {
+                state: self,
+                block_number,
+                storage,
+                egress,
+            }
+            .process()
+        }
+    }
+
+    struct GKMessageProcesser<'a> {
+        state: &'a mut GatekeeperState,
+        block_number: chain::BlockNumber,
+        storage: &'a Storage,
+        egress: &'a EcdsaMessageChannel,
+    }
+
+    impl GKMessageProcesser<'_> {
+        fn process(&mut self) {
             loop {
                 let ok = phala_mq::select! {
-                    message = self.mining_events => match message {
+                    message = self.state.mining_events => match message {
                         Ok((_, event, origin)) => {
-                            match event {
-                                MiningReportEvent::Heartbeat {
-                                    block_num,
-                                    mining_start_time,
-                                    iterations,
-                                } => {
-                                    // TODO: process the heartbeat messages here.
-
-                                    // If some storage value is needed, fetch it from storage:
-                                    let workers_key = storage_prefix("Phala", "OnlineWorkers");
-                                    let _workers = storage.get(workers_key);
-
-                                    // Send message out with mq.
-                                    let message: MiningReportEvent = todo!(); // MiningReportEvent for example
-                                    egress.send(&message);
-                                }
-                            }
+                            self.process_mining_report(origin, event);
                         }
                         Err(e) => {
                             error!("Read message failed: {:?}", e);
                         }
                     },
-                    message = self.system_events => todo!(),
+                    message = self.state.system_events => match message {
+                        Ok((_, event, origin)) => {
+                            self.process_system_event(origin, event);
+                        }
+                        Err(e) => {
+                            error!("Read message failed: {:?}", e);
+                        }
+                    },
                 };
                 if ok.is_none() {
                     // All messages processed
                     break;
                 }
             }
+            self.block_post_process();
+        }
+
+        fn block_post_process(&mut self) {
+            for worker_info in self.state.workers.values_mut() {
+                let mut tracker = WorkerSMTracker {
+                    waiting_heartbeats: &mut worker_info.waiting_heartbeats,
+                };
+                worker_info
+                    .state
+                    .on_block_processed(self.block_number, &mut tracker);
+            }
+
+            // TODO: check offline workers
+        }
+
+        fn process_mining_report(&mut self, origin: MessageOrigin, event: MiningReportEvent) {
+            let worker_pubkey = if let MessageOrigin::Worker(pubkey) = origin {
+                pubkey
+            } else {
+                error!("Invalid origin {:?} sent a {:?}", origin, event);
+                return;
+            };
+            match event {
+                MiningReportEvent::Heartbeat {
+                    block_num,
+                    mining_start_time,
+                    iterations,
+                } => {
+                    let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
+                        Some(info) => info,
+                        None => {
+                            error!("Unknown worker sent a {:?}", event);
+                            return;
+                        }
+                    };
+
+                    if Some(&block_num) != worker_info.waiting_heartbeats.get(0) {
+                        error!("Fatal error: Unexpected heartbeat {:?}", event);
+                        error!("Waiting heartbeats {:?}", worker_info.waiting_heartbeats);
+                        // The state has been poisoned. Make no sence to keep move on.
+                        panic!("GK or Worker state poisoned");
+                    }
+
+                    // The oldest one comfirmed.
+                    let _ = worker_info.waiting_heartbeats.pop_front();
+
+                    // TODO: update V promise and interact with pallet-mining.
+                }
+            }
+        }
+
+        fn process_system_event(&mut self, origin: MessageOrigin, event: SystemEvent) {
+            if !origin.is_pallet() {
+                error!("Invalid origin {:?} sent a {:?}", origin, event);
+                return;
+            }
+            for worker_info in self.state.workers.values_mut() {
+                // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
+                let mut tracker = WorkerSMTracker {
+                    waiting_heartbeats: &mut worker_info.waiting_heartbeats,
+                };
+                worker_info
+                    .state
+                    .process_event(self.block_number, &event, &mut tracker, false);
+            }
+        }
+    }
+
+    struct WorkerSMTracker<'a> {
+        waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>,
+    }
+
+    impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
+        fn bench_iterations(&self) -> u64 {
+            0
+        }
+
+        fn bench_resume(&mut self) {}
+
+        fn bench_pause(&mut self) {}
+
+        fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
+
+        fn heartbeat(
+            &mut self,
+            block_num: runtime::BlockNumber,
+            _mining_start_time: u64,
+            _iterations: u64,
+        ) {
+            self.waiting_heartbeats.push_back(block_num);
         }
     }
 }
