@@ -85,6 +85,7 @@ fn est_score(since: u64, start: u64) -> u64 {
     if now <= since {
         return 0;
     }
+    // Normalize to 6s (standard block time)
     (ITERATION_COUNTER.load(Ordering::Relaxed) - start) * 6 / (now - since)
 }
 
