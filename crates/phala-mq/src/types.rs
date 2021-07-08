@@ -175,6 +175,21 @@ impl Message {
     pub fn decode_payload<T: Decode>(&self) -> Option<T> {
         Decode::decode(&mut &self.payload[..]).ok()
     }
+
+    pub fn decode<T: Decode>(&self) -> Option<DecodedMessage<T>> {
+        let payload = Decode::decode(&mut &self.payload[..]).ok()?;
+        Some(DecodedMessage {
+            sender: self.sender.clone(),
+            destination: self.destination.clone(),
+            payload
+        })
+    }
+}
+
+pub struct DecodedMessage<T> {
+    pub sender: SenderId,
+    pub destination: Topic,
+    pub payload: T,
 }
 
 #[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]

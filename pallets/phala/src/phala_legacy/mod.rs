@@ -29,7 +29,7 @@ pub mod weights;
 extern crate phala_types as types;
 use types::{
 	messaging::{
-		BalanceEvent, BalanceTransfer, BindTopic, HeartbeatChallenge, Message, MessageOrigin,
+		BalanceEvent, BalanceTransfer, BindTopic, HeartbeatChallenge, DecodedMessage, MessageOrigin,
 		SystemEvent,
 	},
 	MinerStatsDelta, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score, StashInfo,
@@ -53,13 +53,6 @@ pub trait OnRoundEnd {
 	fn on_round_end(_round: u32) {}
 }
 impl OnRoundEnd for () {}
-
-pub trait OnMessageReceived {
-	fn on_message_received(_message: &Message) -> DispatchResult {
-		Ok(())
-	}
-}
-impl OnMessageReceived for () {}
 
 /// Configure the pallet by specifying the parameters and types on which it depends.
 pub trait Config: frame_system::Config + mq::Config {
@@ -942,15 +935,14 @@ impl<T: Config> MessageOriginInfo for Module<T> {
 }
 
 impl<T: Config> Module<T> {
-	pub fn on_transfer_message_received(message: &Message) -> DispatchResult {
+	pub fn on_transfer_message_received(message: DecodedMessage<BalanceTransfer<T::AccountId, BalanceOf<T>>>) -> DispatchResult {
 		const CONTRACT_ID: u32 = 2;
 
 		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
 			return Err(Error::<T>::NotAllowed)?;
 		}
 
-		let data: BalanceTransfer<T::AccountId, BalanceOf<T>> =
-			message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+		let data = message.payload;
 
 		// Release funds
 		T::TEECurrency::transfer(&Self::account_id(), &data.dest, data.amount, AllowDeath)

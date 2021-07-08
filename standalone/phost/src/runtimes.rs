@@ -153,7 +153,7 @@ pub mod phala {
     };
     use core::marker::PhantomData;
 
-    use phala_types::{messaging::HeartbeatChallenge, PayoutReason};
+    use phala_types::PayoutReason;
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);

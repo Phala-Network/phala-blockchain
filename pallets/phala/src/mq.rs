@@ -108,7 +108,9 @@ pub mod pallet {
 		/// Push a validated message to the queue
 		pub fn dispatch_message(message: Message) {
 			// Notify subcribers
-			T::QueueNotifyConfig::on_message_received(&message);
+			if let Err(err) =  T::QueueNotifyConfig::on_message_received(&message) {
+				// TODO: what todo here?
+			}
 			// Notify the off-chain components
 			if T::QueueNotifyConfig::should_push_event(&message) {
 				Self::deposit_event(Event::OutboundMessage(message));
@@ -128,7 +130,9 @@ pub mod pallet {
 			message.destination.is_offchain()
 		}
 		/// Handles an incoming message
-		fn on_message_received(_message: &Message) {}
+		fn on_message_received(_message: &Message) -> DispatchResult {
+			Ok(())
+		}
 	}
 	impl QueueNotifyConfig for () {}
 

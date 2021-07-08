@@ -11,7 +11,8 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::messaging::{
-		HeartbeatChallenge, Message, MessageOrigin, MiningReportEvent, SystemEvent,
+		DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent,
+		MiningReportEvent, SystemEvent,
 	};
 	use sp_core::U256;
 	use sp_std::cmp;
@@ -134,14 +135,14 @@ pub mod pallet {
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 		}
 
-		pub fn on_message_received(message: &Message) -> DispatchResult {
+		pub fn on_message_received(message: DecodedMessage<MiningReportEvent>) -> DispatchResult {
 			let worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(worker) => worker,
 				_ => return Err(Error::<T>::BadSender.into()),
 			};
 
-			let event: MiningReportEvent =
-				message.decode_payload().ok_or(Error::<T>::InvalidMessage)?;
+			let event = message.payload;
+
 			match event {
 				MiningReportEvent::Heartbeat {
 					block_num,
@@ -151,6 +152,17 @@ pub mod pallet {
 					todo!("TODO(wenfeng):");
 				}
 			}
+			Ok(())
+		}
+
+		pub fn on_gk_message_received(
+			message: DecodedMessage<MiningInfoUpdateEvent>,
+		) -> DispatchResult {
+			if !matches!(message.sender, MessageOrigin::Gatekeeper) {
+				return Err(Error::<T>::BadSender.into());
+			}
+			let _event = message.payload;
+			todo!("TODO(wenfeng):");
 			Ok(())
 		}
 	}

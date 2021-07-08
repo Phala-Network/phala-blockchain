@@ -16,7 +16,7 @@ pub mod pallet {
 	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
-		messaging::{bind_topic, Message, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent},
+		messaging::{bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent},
 		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
@@ -272,16 +272,13 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_message_received(message: &Message) -> DispatchResult {
+		pub fn on_message_received(message: DecodedMessage<RegistryEvent>) -> DispatchResult {
 			let worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(key) => key,
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 
-			let message: RegistryEvent =
-				message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
-
-			match message {
+			match message.payload {
 				RegistryEvent::BenchReport {
 					start_time,
 					iterations,
