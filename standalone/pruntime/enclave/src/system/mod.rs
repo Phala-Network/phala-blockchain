@@ -512,7 +512,7 @@ mod gk {
             loop {
                 let ok = phala_mq::select! {
                     message = self.mining_events => match message {
-                        Ok(Some((_, event, origin))) => {
+                        Ok((_, event, origin)) => {
                             match event {
                                 MiningReportEvent::Heartbeat {
                                     block_num,
@@ -530,9 +530,6 @@ mod gk {
                                     egress.send(&message);
                                 }
                             }
-                        }
-                        Ok(None) => {
-                            // No more message in this channel.
                         }
                         Err(e) => {
                             error!("Read message failed: {:?}", e);

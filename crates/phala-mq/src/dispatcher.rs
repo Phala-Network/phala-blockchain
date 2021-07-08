@@ -156,8 +156,11 @@ macro_rules! select {
         if min.is_some() {
             $({
                 if min_ind == ind {
-                    let $bind = $mq.try_next();
-                    rv = Some($block)
+                    let msg = $mq.try_next().transpose();
+                    rv = match msg {
+                        Some($bind) => Some($block),
+                        None => None
+                    };
                 }
                 ind += 1;
             })+

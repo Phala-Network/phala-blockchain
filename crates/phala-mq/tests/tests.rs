@@ -160,10 +160,10 @@ fn test_select_order() {
     loop {
         let ok = phala_mq::select! {
             msg = sub0 => {
-                payloads.push(msg.unwrap().unwrap().0);
+                payloads.push(msg.unwrap().0);
             },
             msg = sub1 => {
-                payloads.push(msg.unwrap().unwrap().0);
+                payloads.push(msg.unwrap().0);
             },
         };
         if ok.is_none() {

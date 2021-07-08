@@ -355,7 +355,7 @@ mod support {
             loop {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
-                        Ok(Some((_, cmd, origin))) => {
+                        Ok((_, cmd, origin)) => {
                             let cmd_number = cmd.number;
                             let status = self.contract.handle_command(&context, origin.clone(), cmd);
                             env.system.add_receipt(
@@ -368,16 +368,14 @@ mod support {
                                 },
                             );
                         }
-                        Ok(None) => {}
                         Err(e) => {
                             error!("Read command failed: {:?}", e);
                         }
                     },
                     next_event = self.event_rcv_mq => match next_event {
-                        Ok(Some((_, event, origin))) => {
+                        Ok((_, event, origin)) => {
                             self.contract.handle_event(&context, origin, event);
                         }
-                        Ok(None) => {}
                         Err(e) => {
                             error!("Read event failed: {:?}", e);
                         },
