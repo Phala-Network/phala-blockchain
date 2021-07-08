@@ -43,7 +43,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo>;
+	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -94,6 +94,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
 			ecdh_pubkey: WorkerPublicKey,
+			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let worker_info = WorkerInfo {
@@ -101,6 +102,7 @@ pub mod pallet {
 				ecdh_pubkey,
 				runtime_version: 0,
 				last_updated: 0,
+				operator,
 				confidence_level: 128u8,
 				intial_score: None,
 				features: vec![1, 4],
@@ -210,6 +212,7 @@ pub mod pallet {
 							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
 							runtime_version: pruntime_info.version,
 							last_updated: now,
+							operator: pruntime_info.operator,
 							confidence_level: fields.confidence_level,
 							intial_score: None,
 							features: pruntime_info.features,
@@ -319,13 +322,14 @@ pub mod pallet {
 
 	// TODO.shelven: handle the WorkerInfo in phala_types
 	#[derive(Encode, Decode, Default, Debug, Clone)]
-	pub struct WorkerInfo {
+	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,
 		ecdh_pubkey: WorkerPublicKey,
 		// system
 		runtime_version: u32,
 		last_updated: u64,
+		operator: Option<AccountId>,
 		// platform
 		confidence_level: u8,
 		// scoring
