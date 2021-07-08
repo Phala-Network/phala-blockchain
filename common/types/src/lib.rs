@@ -231,8 +231,8 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SettleInfo {
         pub pubkey: WorkerPublicKey,
-        pub v: u64,
-        pub payout: u64,
+        pub v: u32,
+        pub payout: u32,
     }
 }
 

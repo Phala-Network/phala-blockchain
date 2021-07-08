@@ -2,8 +2,8 @@ use super::{Storage, TypedReceiver, WorkerState};
 use phala_mq::{EcdsaMessageChannel, MessageDispatcher};
 use phala_types::{
     messaging::{
-        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SystemEvent, WorkerEvent,
-        WorkerEventWithKey,
+        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
+        WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
@@ -16,6 +16,7 @@ struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
     offline: bool,
+    v: u32,
 }
 
 impl WorkerInfo {
@@ -24,12 +25,13 @@ impl WorkerInfo {
             state: WorkerState::new(pubkey),
             waiting_heartbeats: Default::default(),
             offline: false,
+            v: 0, // TODO.kevin: initialize it according to the benchmark
         }
     }
 }
 
 pub(super) struct Gatekeeper {
-    egress: EcdsaMessageChannel, // TODO: syncing the egress state while migrating.
+    egress: EcdsaMessageChannel, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
@@ -106,7 +108,7 @@ impl GKMessageProcesser<'_> {
                 .state
                 .on_block_processed(self.block_number, &mut tracker);
 
-            // Only report once for each late heartbeat. 
+            // Only report once for each late heartbeat.
             if worker_info.offline {
                 continue;
             }
@@ -130,13 +132,17 @@ impl GKMessageProcesser<'_> {
         match event {
             MiningReportEvent::Heartbeat {
                 block_num,
-                mining_start_time,
-                iterations,
+                mining_start_time: _,
+                iterations: _,
             } => {
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
                     None => {
-                        error!("Unknown worker {} sent a {:?}", hex::encode(worker_pubkey), event);
+                        error!(
+                            "Unknown worker {} sent a {:?}",
+                            hex::encode(worker_pubkey),
+                            event
+                        );
                         return;
                     }
                 };
@@ -153,7 +159,14 @@ impl GKMessageProcesser<'_> {
                 let _ = worker_info.waiting_heartbeats.pop_front();
                 worker_info.offline = false;
 
-                // TODO: update the V promise and report to pallet-mining.
+                // TODO.kevin: Calculate the V according to the tokenomic design.
+                worker_info.v += 1;
+
+                self.report.settle.push(SettleInfo {
+                    pubkey: worker_info.state.pubkey.clone(),
+                    v: worker_info.v,
+                    payout: 0,
+                })
             }
         }
     }
