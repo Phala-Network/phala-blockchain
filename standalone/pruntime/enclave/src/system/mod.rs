@@ -472,18 +472,33 @@ mod gk {
 
     use super::*;
 
+    struct WorkerInfo {
+        state: WorkerState,
+        waiting_for_heartbeat: Option<chain::BlockNumber>,
+    }
+
+    impl WorkerInfo {
+        fn new(pubkey: WorkerPublicKey) -> Self {
+            Self {
+                state: WorkerState::new(pubkey),
+                waiting_for_heartbeat: None,
+            }
+        }
+    }
+
     // Example GatekeeperState
     pub(super) struct GatekeeperState {
-        // TODO: Define message channels here on demond.
-        sample_event0: TypedReceiver<MiningReportEvent>,
-        sample_event1: TypedReceiver<MiningReportEvent>,
+        mining_events: TypedReceiver<MiningReportEvent>,
+        system_events: TypedReceiver<SystemEvent>,
+        workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     }
 
     impl GatekeeperState {
         pub fn new(recv_mq: &mut MessageDispatcher) -> Self {
             Self {
-                sample_event0: recv_mq.subscribe_bound(),
-                sample_event1: recv_mq.subscribe_bound(),
+                mining_events: recv_mq.subscribe_bound(),
+                system_events: recv_mq.subscribe_bound(),
+                workers: Default::default(),
             }
         }
 
@@ -496,9 +511,9 @@ mod gk {
             // Reach here once per block to process mq messages.
             loop {
                 let ok = phala_mq::select! {
-                    event0 = self.sample_event0 => match event0 {
-                        Ok(Some((_, msg, origin))) => {
-                            match msg {
+                    message = self.mining_events => match message {
+                        Ok(Some((_, event, origin))) => {
+                            match event {
                                 MiningReportEvent::Heartbeat {
                                     block_num,
                                     mining_start_time,
@@ -523,7 +538,7 @@ mod gk {
                             error!("Read message failed: {:?}", e);
                         }
                     },
-                    event1 = self.sample_event1 => todo!(),
+                    message = self.system_events => todo!(),
                 };
                 if ok.is_none() {
                     // All messages processed
