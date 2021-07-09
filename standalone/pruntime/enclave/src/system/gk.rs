@@ -16,7 +16,7 @@ struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
     offline: bool,
-    v: u32,
+    v: u64,
 }
 
 impl WorkerInfo {
@@ -103,6 +103,7 @@ impl GKMessageProcesser<'_> {
         for worker_info in self.state.workers.values_mut() {
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
+                v: &mut worker_info.v,
             };
             worker_info
                 .state
@@ -194,6 +195,7 @@ impl GKMessageProcesser<'_> {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
+                v: &mut worker_info.v,
             };
             worker_info
                 .state
@@ -204,19 +206,10 @@ impl GKMessageProcesser<'_> {
 
 struct WorkerSMTracker<'a> {
     waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>,
+    v: &'a mut u64,
 }
 
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
-    fn bench_iterations(&self) -> u64 {
-        0
-    }
-
-    fn bench_resume(&mut self) {}
-
-    fn bench_pause(&mut self) {}
-
-    fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
-
     fn heartbeat(
         &mut self,
         block_num: runtime::BlockNumber,
@@ -224,5 +217,9 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _iterations: u64,
     ) {
         self.waiting_heartbeats.push_back(block_num);
+    }
+
+    fn init_v(&mut self, init_v: u64) {
+        *self.v = init_v;
     }
 }

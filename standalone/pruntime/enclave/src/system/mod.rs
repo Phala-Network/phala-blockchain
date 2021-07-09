@@ -142,7 +142,10 @@ impl WorkerState {
                         });
                         callback.bench_resume();
                     }
-                    MiningStart { start_time } => {
+                    MiningStart {
+                        start_time,
+                        init_v: _,
+                    } => {
                         self.mining_state = Some(MiningInfo {
                             state: Mining,
                             start_time: start_time,
@@ -265,11 +268,20 @@ impl WorkerState {
 }
 
 trait WorkerStateMachineCallback {
-    fn bench_iterations(&self) -> u64;
-    fn bench_resume(&mut self);
-    fn bench_pause(&mut self);
-    fn bench_report(&mut self, start_time: u64, iterations: u64);
-    fn heartbeat(&mut self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64);
+    fn bench_iterations(&self) -> u64 {
+        0
+    }
+    fn bench_resume(&mut self) {}
+    fn bench_pause(&mut self) {}
+    fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
+    fn heartbeat(
+        &mut self,
+        _block_num: chain::BlockNumber,
+        _mining_start_time: u64,
+        _iterations: u64,
+    ) {
+    }
+    fn init_v(&mut self, _init_v: u64) {}
 }
 
 struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
@@ -408,8 +420,7 @@ impl System {
             .on_block_processed(block_number, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
-            self.gatekeeper
-                .process_messages(block_number, storage);
+            self.gatekeeper.process_messages(block_number, storage);
         }
         Ok(())
     }
