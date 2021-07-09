@@ -1,19 +1,20 @@
+require('dotenv').config();
 const { assert } = require('chai');
 const path = require('path');
 const portfinder = require('portfinder');
+const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
+
 const types = require('@phala/typedefs').latest;
 
 const { Process, TempDir } = require('../pm');
-const { PRuntime } = require('../pruntime');
+const { PRuntimeApi } = require('../pruntime');
 const { checkUntil } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/phost');
-const pathPRuntime = path.resolve('../pruntime/bin/app');
-
-const EPS = 1e-8;
+const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -24,36 +25,69 @@ describe('A full stack', function () {
 	let processPRuntime;
 
 	let api, keyring, alice, root;
-	const pruntime = new PRuntime();
+	let pruntime;
 	const tmpDir = new TempDir();
 	const tmpPath = tmpDir.dir;
 
 	before(async () => {
+		// Check binary files
+		[pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
+		// Node cli
 		const wsPort = await portfinder.getPortPromise({port: 9944});
 		const teePort = await portfinder.getPortPromise({port: 8000, stopPort: 9900});
-		processNode = new Process(pathNode, [
-			'--dev', '--base-path=' + path.resolve(tmpPath, 'phala-node'), `--ws-port=${wsPort}`]);
-		processRelayer = new Process(pathRelayer, [
-			'--dev', `--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-			`--pruntime-endpoint=http://localhost:${teePort}`]);
-		processPRuntime = new Process(pathPRuntime, [], {
-			cwd: path.dirname(pathPRuntime),
-			env: {
-				...process.env,
-				ROCKET_PORT: teePort.toString(),
+		processNode = new Process([
+			pathNode, [
+				'--dev',
+				'--base-path=' + path.resolve(tmpPath, 'phala-node'),
+				`--ws-port=${wsPort}`,
+				'--rpc-methods=Unsafe'
+			]
+		], { logPath: tmpPath + '/node.log' });
+		processRelayer = new Process([
+			pathRelayer, [
+				'--dev',
+				`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
+				`--pruntime-endpoint=http://localhost:${teePort}`
+			]
+		], { logPath: tmpPath + '/relayer.log' });
+		processPRuntime = new Process([
+			pathPRuntime, [
+				'--cores=0',	// Disable benchmark
+			], {
+				cwd: path.dirname(pathPRuntime),
+				env: {
+					...process.env,
+					ROCKET_PORT: teePort.toString(),
+				}
 			}
-		});
-		// launch nodes
+		], { logPath: tmpPath + '/pruntime.log' });
+		// processRelayer.debug = true;
+		// processPRuntime.debug = true;
+		// Launch nodes
 		await Promise.all([
 			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/),
 			processPRuntime.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/),
 		]);
 		await processRelayer.startAndWaitForOutput(/runtime_info:Some\(InitRuntimeResp/);
-		// create polkadot api and keyring
+		// Create polkadot api and keyring
 		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types });
 		await cryptoWaitReady();
 		keyring = new Keyring({ type: 'sr25519' });
 		root = alice = keyring.addFromUri('//Alice');
+		// Create pRuntime API
+		pruntime = new PRuntimeApi(`http://localhost:${teePort}`);
+	});
+
+	after(async function () {
+		if (api) await api.disconnect();
+		await Promise.all([
+			processNode.kill(),
+			processPRuntime.kill(),
+			processRelayer.kill(),
+		]);
+		if (process.env.KEEP_TEST_FILES != '1') {
+			tmpDir.cleanup();
+		}
 	});
 
 	it('should be up and running', async function () {
@@ -64,7 +98,6 @@ describe('A full stack', function () {
 
 	describe('PhalaNode', () => {
 		it('should have Alice registered', async function () {
-
 		});
 	})
 
@@ -199,17 +232,6 @@ describe('A full stack', function () {
 			assert.isTrue(miningStatus.startBlock.isNone);
 		});
 	})
-
-
-	after(async function () {
-		await api.disconnect();
-		await Promise.all([
-			processNode.kill(),
-			processPRuntime.kill(),
-			processRelayer.kill(),
-		]);
-		tmpDir.cleanup();
-	});
 
 });
 

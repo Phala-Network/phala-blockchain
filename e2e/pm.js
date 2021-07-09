@@ -13,8 +13,8 @@ function once(fn) {
 }
 
 class Process {
-	constructor(..._args) {
-		this.args = _args;
+	constructor(args, {logPath}) {
+		this.args = args;
 		this.process = null;
 		this.promiseStopped = null;
 		this.exitCode = null;
@@ -22,8 +22,13 @@ class Process {
 		this.stopped = false;
 		// Debug outputs
 		this.debug = false;
+		this.logFile = null;
 		const comp = this.args[0].split('/');
 		this.program = comp[comp.length - 1];
+
+		try {
+			this.logFile = fs.createWriteStream(logPath);
+		} catch {}
 	}
 	maybeLogOutputLine(data) {
 		if (this.debug) {
@@ -38,6 +43,10 @@ class Process {
 	async startAndWaitForOutput(pattern) {
 		const process = spawn(...this.args);
 		this.process = process;
+		if (this.logFile) {
+			process.stdout.pipe(this.logFile);
+			process.stderr.pipe(this.logFile);
+		}
 		await new Promise((resolve, reject) => {
 			process.stdout.on('data', (data) => {
 				this.maybeLogOutputLine(data);
