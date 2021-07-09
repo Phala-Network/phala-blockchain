@@ -1223,15 +1223,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
-name = "crypto"
-version = "0.1.0"
-dependencies = [
- "rand 0.7.3",
- "ring 0.16.20",
- "sp-core",
-]
-
-[[package]]
 name = "crypto-mac"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5351,6 +5342,15 @@ checksum = "467d164a6de56270bd7c4d070df81d07beace25012d5103ced4e9ff08d6afdb7"
 dependencies = [
  "fixedbitset",
  "indexmap",
+]
+
+[[package]]
+name = "phala-crypto"
+version = "0.1.0"
+dependencies = [
+ "rand 0.7.3",
+ "ring 0.16.20",
+ "sp-core",
 ]
 
 [[package]]
