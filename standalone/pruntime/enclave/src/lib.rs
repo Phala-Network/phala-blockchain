@@ -80,6 +80,7 @@ use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
 use types::Error;
+use types::BlockInfo;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 type Storage = TrieStorage<RuntimeHasher>;
@@ -1375,15 +1376,21 @@ fn handle_events(
         warn!("There are {} unhandled messages dropped", n_unhandled);
     });
 
-    if let Err(e) = system.process_messages(block_number, storage) {
+    let now = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
+    let block = BlockInfo {
+        block_number,
+        now,
+        storage,
+    };
+
+    if let Err(e) = system.process_messages(&block, storage) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
 
     let mut env = ExecuteEnv {
-        block_number,
+        block: &block,
         system,
-        storage,
     };
 
     for contract in state.contracts.values_mut() {
@@ -1391,6 +1398,13 @@ fn handle_events(
     }
 
     Ok(())
+}
+
+fn block_timestamp_ms(storage: &Storage) -> Option<u64> {
+    let key = storage_prefix("Timestamp", "Now");
+    let value = storage.get(key)?;
+    let now: chain::Moment = Decode::decode(&mut &value[..]).ok()?;
+    Some(now)
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

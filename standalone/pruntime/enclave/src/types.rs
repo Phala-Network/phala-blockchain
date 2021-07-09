@@ -10,6 +10,12 @@ extern crate runtime as chain;
 
 // supportive
 
+pub struct BlockInfo<'a> {
+    pub block_number: chain::BlockNumber,
+    pub now: u64,
+    pub storage: &'a crate::Storage,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct TxRef {
     pub blocknum: chain::BlockNumber,

@@ -190,15 +190,15 @@ impl<'de> Visitor<'de> for AcidVisitor {
 pub use support::*;
 mod support {
     use super::*;
+    use crate::types::BlockInfo;
 
     pub struct ExecuteEnv<'a> {
-        pub block_number: chain::BlockNumber,
+        pub block: &'a BlockInfo<'a>,
         pub system: &'a mut System,
-        pub storage: &'a Storage,
     }
 
     pub struct NativeContext<'a> {
-        pub block_number: chain::BlockNumber,
+        pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
         osp_mq: OspMq<'a>,
     }
@@ -343,12 +343,12 @@ mod support {
         }
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {
-            let storage = env.storage;
+            let storage = env.block.storage;
             let key_map =
                 |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
             let osp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
-                block_number: env.block_number,
+                block: env.block,
                 mq: &self.send_mq,
                 osp_mq,
             };
@@ -362,7 +362,7 @@ mod support {
                                 cmd_number,
                                 TransactionReceipt {
                                     account: origin,
-                                    block_num: env.block_number,
+                                    block_num: env.block.block_number,
                                     contract_id: self.id(),
                                     status,
                                 },

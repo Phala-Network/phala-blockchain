@@ -8,7 +8,7 @@ use phala_types::{
     WorkerPublicKey,
 };
 
-use crate::std::collections::{BTreeMap, VecDeque};
+use crate::{std::collections::{BTreeMap, VecDeque}, types::BlockInfo};
 
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
 
@@ -47,10 +47,10 @@ impl Gatekeeper {
         }
     }
 
-    pub fn process_messages(&mut self, block_number: chain::BlockNumber, _storage: &Storage) {
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
         let mut processor = GKMessageProcesser {
             state: self,
-            block_number,
+            block,
             report: Default::default(),
         };
 
@@ -66,7 +66,7 @@ impl Gatekeeper {
 
 struct GKMessageProcesser<'a> {
     state: &'a mut Gatekeeper,
-    block_number: chain::BlockNumber,
+    block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent,
 }
 
@@ -107,7 +107,7 @@ impl GKMessageProcesser<'_> {
             };
             worker_info
                 .state
-                .on_block_processed(self.block_number, &mut tracker);
+                .on_block_processed(self.block, &mut tracker);
 
             // Only report once for each late heartbeat.
             if worker_info.offline {
@@ -115,7 +115,7 @@ impl GKMessageProcesser<'_> {
             }
 
             if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                if self.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
+                if self.block.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
                     self.report.offline.push(worker_info.state.pubkey.clone());
                     worker_info.offline = true;
                 }
@@ -199,7 +199,7 @@ impl GKMessageProcesser<'_> {
             };
             worker_info
                 .state
-                .process_event(self.block_number, &event, &mut tracker, false);
+                .process_event(self.block, &event, &mut tracker, false);
         }
     }
 }

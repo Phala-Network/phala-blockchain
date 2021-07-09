@@ -1,6 +1,6 @@
 mod gk;
 
-use crate::{benchmark, std::prelude::v1::*, Storage};
+use crate::{Storage, benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -114,7 +114,7 @@ impl WorkerState {
 
     pub fn process_event(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo<'_>,
         event: &Event,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -136,7 +136,7 @@ impl WorkerState {
                     }
                     BenchStart { start_time } => {
                         self.bench_state = Some(BenchState {
-                            start_block: block_number,
+                            start_block: block.block_number,
                             start_time: start_time,
                             start_iter: callback.bench_iterations(),
                         });
@@ -190,7 +190,7 @@ impl WorkerState {
                 }
             }
             Event::HeartbeatChallenge(seed_info) => {
-                self.handle_heartbeat_challenge(block_number, &seed_info, callback, true);
+                self.handle_heartbeat_challenge(block.block_number, &seed_info, callback, true);
             }
         };
     }
@@ -244,7 +244,7 @@ impl WorkerState {
 
     fn on_block_processed(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo<'_>,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
         if let Some(BenchState {
@@ -255,7 +255,7 @@ impl WorkerState {
         {
             // TODO.kevin: tune the value
             const BENCH_DURATION: u32 = 8;
-            if block_number - start_block >= BENCH_DURATION {
+            if block.block_number - start_block >= BENCH_DURATION {
                 self.bench_state = None;
                 let iterations = callback.bench_iterations() - start_iter;
                 callback.bench_report(start_time, iterations);
@@ -392,7 +392,7 @@ impl System {
 
     pub fn process_messages(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo<'_>,
         storage: &Storage,
     ) -> anyhow::Result<()> {
         loop {
@@ -402,7 +402,7 @@ impl System {
                         error!("Invalid SystemEvent sender: {:?}", sender);
                         continue;
                     }
-                    self.process_event(block_number, &event)?;
+                    self.process_event(block, &event)?;
                 }
                 Ok(None) => break,
                 Err(e) => match e {
@@ -417,17 +417,17 @@ impl System {
             }
         }
         self.worker_state
-            .on_block_processed(block_number, &mut WorkerSMDelegate(&self.egress));
+            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
-            self.gatekeeper.process_messages(block_number, storage);
+            self.gatekeeper.process_messages(block, storage);
         }
         Ok(())
     }
 
-    fn process_event(&mut self, block_number: chain::BlockNumber, event: &Event) -> Result<()> {
+    fn process_event(&mut self, block: &BlockInfo<'_>, event: &Event) -> Result<()> {
         self.worker_state.process_event(
-            block_number,
+            block,
             event,
             &mut WorkerSMDelegate(&self.egress),
             true,
