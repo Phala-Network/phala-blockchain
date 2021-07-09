@@ -6,6 +6,7 @@ use hyper::{Body, Method, Request};
 use log::info;
 use bytes::buf::BufExt as _;
 use sp_runtime::DeserializeOwned;
+use anyhow::Context;
 
 use crate::types::{RuntimeReq, Resp, SignedResp};
 
@@ -37,7 +38,9 @@ impl PRuntimeClient {
         info!("Response: {}", res.status());
 
         let body = hyper::body::aggregate(res.into_body()).await?;
-        let signed_resp: SignedResp = serde_json::from_reader(body.reader())?;
+        let opaque_value: serde_json::Value = serde_json::from_reader(body.reader())?;
+        let signed_resp: SignedResp = serde_json::from_value(opaque_value.clone())
+            .with_context(|| format!("Cannot convert json to SignedResp ({})", opaque_value))?;
 
         // TODO: validate the response from pRuntime
 
