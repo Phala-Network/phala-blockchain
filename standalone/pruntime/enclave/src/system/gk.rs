@@ -51,7 +51,7 @@ impl Gatekeeper {
         let mut processor = GKMessageProcesser {
             state: self,
             block,
-            report: Default::default(),
+            report: MiningInfoUpdateEvent::new(block.now),
         };
 
         processor.process();

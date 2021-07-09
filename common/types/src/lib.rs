@@ -226,8 +226,11 @@ pub mod messaging {
     }
 
     bind_topic!(MiningInfoUpdateEvent, b"^phala/mining/update");
-    #[derive(Encode, Decode, Clone, Debug, Default)]
+    #[derive(Encode, Decode, Clone, Debug)]
     pub struct MiningInfoUpdateEvent {
+        /// The timestamp of the block emiting this message.
+        pub timestamp_ms: u64,
+
         /// Workers that do not responce the heartbeat challenge in time. Each delay only report once.
         pub offline: Vec<WorkerPublicKey>,
 
@@ -238,6 +241,14 @@ pub mod messaging {
     }
 
     impl MiningInfoUpdateEvent {
+        pub fn new(timestamp_ms: u64) -> Self {
+            Self {
+                timestamp_ms,
+                offline: Default::default(),
+                settle: Default::default(),
+            }
+        }
+
         pub fn is_empty(&self) -> bool {
             self.offline.is_empty() && self.settle.is_empty()
         }
