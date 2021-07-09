@@ -199,10 +199,9 @@ pub mod pallet {
 							pruntime_info.pubkey.clone(),
 							WorkerEvent::Registered,
 						));
-						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart { start_time: now },
+							WorkerEvent::BenchStart,
 						));
 					}
 					None => {
@@ -221,10 +220,9 @@ pub mod pallet {
 							pruntime_info.pubkey.clone(),
 							WorkerEvent::Registered,
 						));
-						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart { start_time: now },
+							WorkerEvent::BenchStart,
 						));
 					}
 				}

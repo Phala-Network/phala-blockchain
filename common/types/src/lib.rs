@@ -175,10 +175,10 @@ pub mod messaging {
         Registered,
         /// pallet-registry --> worker
         ///  When a worker register succeed, the chain request the worker to benchmark.
-        BenchStart { start_time: u64 },
+        BenchStart,
         /// pallet-mining --> worker
         ///  When a miner start to mine, push this message to the worker to start the benchmark task.
-        MiningStart { start_time: u64, init_v: u32 },
+        MiningStart { init_v: u32 },
         /// pallet-mining --> worker
         ///  When a miner entered CoolingDown state, push this message to the worker, so that it can stop the
         ///  benchmark task.

@@ -134,21 +134,20 @@ impl WorkerState {
                     Registered => {
                         self.registered = true;
                     }
-                    BenchStart { start_time } => {
+                    BenchStart => {
                         self.bench_state = Some(BenchState {
                             start_block: block.block_number,
-                            start_time: start_time,
+                            start_time: block.now,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();
                     }
                     MiningStart {
-                        start_time,
                         init_v: _,
                     } => {
                         self.mining_state = Some(MiningInfo {
                             state: Mining,
-                            start_time: start_time,
+                            start_time: block.now,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();
