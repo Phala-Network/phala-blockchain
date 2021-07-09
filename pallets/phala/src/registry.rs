@@ -254,6 +254,10 @@ pub mod pallet {
 					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknwonContract)?;
 					&pubkey_copy
 				}
+				MessageOrigin::Gatekeeper => {
+					// !!!!!!! TODO.kevin: get GK master_pubkey
+					return Ok(());
+				}
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
 			Self::verify_signature(pubkey, message)
