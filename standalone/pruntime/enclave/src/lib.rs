@@ -1372,7 +1372,7 @@ fn handle_events(
 
     let mut state = scopeguard::guard(state, |state| {
         let n_unhandled = state.recv_mq.clear();
-        warn!("There are {} unhandled messages droped", n_unhandled);
+        warn!("There are {} unhandled messages dropped", n_unhandled);
     });
 
     if let Err(e) = system.process_messages(block_number, storage) {
