@@ -171,8 +171,8 @@ impl GKMessageProcesser<'_> {
         match event {
             MiningReportEvent::Heartbeat {
                 block_num,
-                mining_start_time: _,
-                iterations: _,
+                mining_start_time,
+                iterations,
             } => {
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
                     Some(info) => info,
@@ -198,8 +198,11 @@ impl GKMessageProcesser<'_> {
                 let _ = worker_info.waiting_heartbeats.pop_front();
                 worker_info.heartbeat_flag = true;
 
+                let dt = (self.block.now_ms - mining_start_time) as f64 / 1000.0;
+                worker_info.tokenomic.p_instant = iterations as f64 / dt;
+
                 if !worker_info.unresponsive {
-                    // Idle, successful heartbeat
+                    // Idle, successful heartbeat, report to pallet
                     let (v, payout) = tokenomic::update_v_heartbeat(
                         &worker_info.tokenomic,
                         &self.tokenomic_params,
@@ -208,6 +211,8 @@ impl GKMessageProcesser<'_> {
                     );
 
                     worker_info.tokenomic.v = v;
+                    worker_info.tokenomic.v_last = v;
+                    worker_info.tokenomic.v_update_at = self.block.now_ms;
 
                     self.report.settle.push(SettleInfo {
                         pubkey: worker_info.state.pubkey.clone(),
@@ -228,14 +233,14 @@ impl GKMessageProcesser<'_> {
         // Create the worker info on it's first time registered
         if let SystemEvent::WorkerEvent(WorkerEventWithKey {
             pubkey,
-            event: WorkerEvent::Registered,
+            event: WorkerEvent::Registered(info),
         }) = &event
         {
-            let _ = self
-                .state
-                .workers
-                .entry(pubkey.clone())
-                .or_insert(WorkerInfo::new(pubkey.clone()));
+            let mut worker = WorkerInfo::new(pubkey.clone());
+            worker.tokenomic.confidence_level = info.confidence_level;
+
+            let _ = self.state.workers.entry(pubkey.clone()).or_insert(worker);
+            return;
         }
 
         for worker_info in self.state.workers.values_mut() {
@@ -246,6 +251,32 @@ impl GKMessageProcesser<'_> {
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, false);
+        }
+
+        match &event {
+            SystemEvent::WorkerEvent(e) => {
+                if let Some(worker) = self.state.workers.get_mut(&e.pubkey) {
+                    match &e.event {
+                        WorkerEvent::Registered(_) => {},
+                        WorkerEvent::BenchStart => {},
+                        WorkerEvent::BenchScore(score) => {
+                            worker.tokenomic.p_bench = (*score) as f64;
+                        },
+                        WorkerEvent::MiningStart { init_v } => {
+                            let v = (*init_v) as f64;
+                            worker.tokenomic.v = v;
+                            worker.tokenomic.v_last = v;
+                            worker.tokenomic.v_update_at = self.block.now_ms;
+                        },
+                        WorkerEvent::MiningStop => {
+                            // TODO.kevin: report v?
+                        },
+                        WorkerEvent::MiningEnterUnresponsive => {},
+                        WorkerEvent::MiningExitUnresponsive => {},
+                    }
+                }
+            }
+            SystemEvent::HeartbeatChallenge(_) => {}
         }
     }
 }
@@ -275,7 +306,7 @@ mod tokenomic {
         pub v_update_at: u64,
         pub p_bench: f64,
         pub p_instant: f64,
-        pub confidence_level: usize,
+        pub confidence_level: u8,
     }
 
     pub struct Params {
@@ -328,8 +359,9 @@ mod tokenomic {
     }
 
     pub fn calc_share(state: &TokenomicInfo) -> f64 {
-        (state.v.powf(2.0)
-            + (2.0 * state.p_instant * CONF_SCORE[state.confidence_level - 1]).powf(2.0))
-        .sqrt()
+        let conf_score = *CONF_SCORE
+            .get(state.confidence_level as usize - 1)
+            .unwrap_or(&0.7);
+        (state.v.powf(2.0) + (2.0 * state.p_instant * conf_score).powf(2.0)).sqrt()
     }
 }

@@ -169,16 +169,24 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Debug)]
+    pub struct WorkerInfo {
+        pub confidence_level: u8
+    }
+
+    #[derive(Encode, Decode, Debug)]
     pub enum WorkerEvent {
         /// pallet-registry --> worker
         ///  Indicate a worker register succeeded.
-        Registered,
+        Registered(WorkerInfo),
         /// pallet-registry --> worker
         ///  When a worker register succeed, the chain request the worker to benchmark.
         BenchStart,
+        /// pallet-registry --> worker
+        ///  The init bench score caculated by pallet.
+        BenchScore(u32),
         /// pallet-mining --> worker
         ///  When a miner start to mine, push this message to the worker to start the benchmark task.
-        MiningStart { init_v: u32 },
+        MiningStart { init_v: u64 },
         /// pallet-mining --> worker
         ///  When a miner entered CoolingDown state, push this message to the worker, so that it can stop the
         ///  benchmark task.

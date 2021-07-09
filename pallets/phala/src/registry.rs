@@ -16,7 +16,10 @@ pub mod pallet {
 	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
-		messaging::{bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent},
+		messaging::{
+			self, bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent,
+			WorkerEvent,
+		},
 		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
@@ -43,7 +46,8 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
+	pub type Worker<T: Config> =
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -110,7 +114,9 @@ pub mod pallet {
 			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
-				WorkerEvent::Registered,
+				WorkerEvent::Registered(messaging::WorkerInfo {
+					confidence_level: worker_info.confidence_level,
+				}),
 			));
 			Ok(())
 		}
@@ -197,7 +203,9 @@ pub mod pallet {
 						worker_info.last_updated = now;
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
-							WorkerEvent::Registered,
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: fields.confidence_level,
+							}),
 						));
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
@@ -218,7 +226,9 @@ pub mod pallet {
 						});
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
-							WorkerEvent::Registered,
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: fields.confidence_level,
+							}),
 						));
 						Self::push_message(SystemEvent::new_worker_event(
 							pruntime_info.pubkey.clone(),
@@ -243,7 +253,10 @@ pub mod pallet {
 	}
 
 	// TODO.kevin: Move it to mq
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		T: crate::mq::Config,
+	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
 			let pubkey_copy: ContractPublicKey;
 			let pubkey = match &message.message.sender {
@@ -285,21 +298,26 @@ pub mod pallet {
 					start_time,
 					iterations,
 				} => {
-					let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+					let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 					if now <= start_time {
 						// Oops, should not happen
 						return Err(Error::<T>::InvalidBenchReport.into());
 					}
 
 					const MAX_SCORE: u32 = 6000;
-					let score = iterations / (now - start_time);
+					let score = iterations / (now - start_time) / 1000;
 					let score = MAX_SCORE.min(score as u32);
 
 					Worker::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.intial_score = Some(score);
 						}
-					})
+					});
+
+					Self::push_message(SystemEvent::new_worker_event(
+						worker_pubkey.clone(),
+						WorkerEvent::BenchScore(score),
+					));
 				}
 			}
 			Ok(())

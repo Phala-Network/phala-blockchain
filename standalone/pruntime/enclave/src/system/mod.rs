@@ -1,6 +1,6 @@
 mod gk;
 
-use crate::{Storage, benchmark, std::prelude::v1::*, types::BlockInfo};
+use crate::{benchmark, std::prelude::v1::*, types::BlockInfo, Storage};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -131,7 +131,7 @@ impl WorkerState {
                     info!("System::handle_event: {:?}", evt.event);
                 }
                 match evt.event {
-                    Registered => {
+                    Registered(_) => {
                         self.registered = true;
                     }
                     BenchStart => {
@@ -142,9 +142,8 @@ impl WorkerState {
                         });
                         callback.bench_resume();
                     }
-                    MiningStart {
-                        init_v: _,
-                    } => {
+                    BenchScore(_) => {}
+                    MiningStart { init_v: _ } => {
                         self.mining_state = Some(MiningInfo {
                             state: Mining,
                             start_time: block.now_ms,
@@ -425,12 +424,8 @@ impl System {
     }
 
     fn process_event(&mut self, block: &BlockInfo<'_>, event: &Event) -> Result<()> {
-        self.worker_state.process_event(
-            block,
-            event,
-            &mut WorkerSMDelegate(&self.egress),
-            true,
-        );
+        self.worker_state
+            .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
     }
 }
