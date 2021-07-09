@@ -1376,10 +1376,10 @@ fn handle_events(
         warn!("There are {} unhandled messages dropped", n_unhandled);
     });
 
-    let now = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
+    let now_ms = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
     let block = BlockInfo {
         block_number,
-        now,
+        now_ms,
         storage,
     };
 

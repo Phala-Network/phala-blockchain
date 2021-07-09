@@ -137,7 +137,7 @@ impl WorkerState {
                     BenchStart => {
                         self.bench_state = Some(BenchState {
                             start_block: block.block_number,
-                            start_time: block.now,
+                            start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();
@@ -147,7 +147,7 @@ impl WorkerState {
                     } => {
                         self.mining_state = Some(MiningInfo {
                             state: Mining,
-                            start_time: block.now,
+                            start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();

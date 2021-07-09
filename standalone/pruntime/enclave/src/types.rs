@@ -12,7 +12,7 @@ extern crate runtime as chain;
 
 pub struct BlockInfo<'a> {
     pub block_number: chain::BlockNumber,
-    pub now: u64,
+    pub now_ms: u64,
     pub storage: &'a crate::Storage,
 }
 

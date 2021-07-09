@@ -8,15 +8,22 @@ use phala_types::{
     WorkerPublicKey,
 };
 
-use crate::{std::collections::{BTreeMap, VecDeque}, types::BlockInfo};
+use crate::{
+    std::collections::{BTreeMap, VecDeque},
+    types::BlockInfo,
+};
+
+use tokenomic::TokenomicInfo;
 
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
+const F2U_RATE: f64 = 1000000f64;
 
 struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
-    offline: bool,
-    v: u64,
+    unresponsive: bool,
+    tokenomic: TokenomicInfo,
+    heartbeat_flag: bool,
 }
 
 impl WorkerInfo {
@@ -24,8 +31,9 @@ impl WorkerInfo {
         Self {
             state: WorkerState::new(pubkey),
             waiting_heartbeats: Default::default(),
-            offline: false,
-            v: 0, // TODO.kevin: initialize it according to the benchmark
+            unresponsive: false,
+            tokenomic: Default::default(),
+            heartbeat_flag: false,
         }
     }
 }
@@ -48,10 +56,18 @@ impl Gatekeeper {
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
+        let sum_share = self
+            .workers
+            .values()
+            .map(|info| tokenomic::calc_share(&info.tokenomic))
+            .sum();
+
         let mut processor = GKMessageProcesser {
             state: self,
             block,
-            report: MiningInfoUpdateEvent::new(block.now),
+            report: MiningInfoUpdateEvent::new(block.now_ms),
+            tokenomic_params: tokenomic::test_params(), // TODO.kevin: replace with real params
+            sum_share,
         };
 
         processor.process();
@@ -68,10 +84,13 @@ struct GKMessageProcesser<'a> {
     state: &'a mut Gatekeeper,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent,
+    tokenomic_params: tokenomic::Params,
+    sum_share: f64,
 }
 
 impl GKMessageProcesser<'_> {
     fn process(&mut self) {
+        self.prepare();
         loop {
             let ok = phala_mq::select! {
                 message = self.state.mining_events => match message {
@@ -99,26 +118,45 @@ impl GKMessageProcesser<'_> {
         self.block_post_process();
     }
 
+    fn prepare(&mut self) {
+        for worker in self.state.workers.values_mut() {
+            worker.heartbeat_flag = false;
+        }
+    }
+
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-                v: &mut worker_info.v,
             };
             worker_info
                 .state
                 .on_block_processed(self.block, &mut tracker);
 
-            // Only report once for each late heartbeat.
-            if worker_info.offline {
-                continue;
+            if worker_info.unresponsive {
+                if worker_info.heartbeat_flag {
+                    // Unresponsive, successful heartbeat
+                    worker_info.unresponsive = false;
+                }
+            } else {
+                if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
+                    if self.block.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
+                        self.report.offline.push(worker_info.state.pubkey.clone());
+                        worker_info.unresponsive = true;
+                    }
+                }
             }
 
-            if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                if self.block.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
-                    self.report.offline.push(worker_info.state.pubkey.clone());
-                    worker_info.offline = true;
-                }
+            let params = &self.tokenomic_params;
+            if worker_info.unresponsive {
+                // Idle, heartbeat failed or
+                // Unresponsive, no event
+                let v = tokenomic::update_v_slash(&worker_info.tokenomic, &params);
+                worker_info.tokenomic.v = v;
+            } else if !worker_info.heartbeat_flag {
+                // Idle, no event
+                let v = tokenomic::update_v_idle(&worker_info.tokenomic, &params);
+                worker_info.tokenomic.v = v;
             }
         }
     }
@@ -158,16 +196,25 @@ impl GKMessageProcesser<'_> {
 
                 // The oldest one comfirmed.
                 let _ = worker_info.waiting_heartbeats.pop_front();
-                worker_info.offline = false;
+                worker_info.heartbeat_flag = true;
 
-                // TODO.kevin: Calculate the V according to the tokenomic design.
-                worker_info.v += 1;
+                if !worker_info.unresponsive {
+                    // Idle, successful heartbeat
+                    let (v, payout) = tokenomic::update_v_heartbeat(
+                        &worker_info.tokenomic,
+                        &self.tokenomic_params,
+                        self.sum_share,
+                        self.block.now_ms,
+                    );
 
-                self.report.settle.push(SettleInfo {
-                    pubkey: worker_info.state.pubkey.clone(),
-                    v: worker_info.v,
-                    payout: 0,
-                })
+                    worker_info.tokenomic.v = v;
+
+                    self.report.settle.push(SettleInfo {
+                        pubkey: worker_info.state.pubkey.clone(),
+                        v: (v * F2U_RATE) as _,
+                        payout: (payout * F2U_RATE) as _,
+                    })
+                }
             }
         }
     }
@@ -195,7 +242,6 @@ impl GKMessageProcesser<'_> {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-                v: &mut worker_info.v,
             };
             worker_info
                 .state
@@ -206,7 +252,6 @@ impl GKMessageProcesser<'_> {
 
 struct WorkerSMTracker<'a> {
     waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>,
-    v: &'a mut u64,
 }
 
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
@@ -218,8 +263,73 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
     ) {
         self.waiting_heartbeats.push_back(block_num);
     }
+}
 
-    fn init_v(&mut self, init_v: u64) {
-        *self.v = init_v;
+mod tokenomic {
+    const CONF_SCORE: [f64; 5] = [1.0, 1.0, 1.0, 0.8, 0.7];
+
+    #[derive(Default, Clone, Copy)]
+    pub struct TokenomicInfo {
+        pub v: f64,
+        pub v_last: f64,
+        pub v_update_at: u64,
+        pub p_bench: f64,
+        pub p_instant: f64,
+        pub confidence_level: usize,
+    }
+
+    pub struct Params {
+        pha_rate: f64,
+        rho: f64,
+        slash_rate: f64,
+        budget_per_sec: f64,
+    }
+
+    pub fn test_params() -> Params {
+        Params {
+            pha_rate: 1.0,
+            rho: 1.00020,
+            slash_rate: 0.0001,
+            budget_per_sec: 10.0,
+        }
+    }
+
+    pub fn update_v_idle(state: &TokenomicInfo, params: &Params) -> f64 {
+        let cost_idle = (0.0287 * state.p_bench + 15.0) / params.pha_rate / 365.0;
+        let perf_multiplier = if state.p_bench == 0.0 {
+            0.0
+        } else {
+            state.p_instant / state.p_bench
+        };
+        // So the less the init bench score the more Earnings?
+        perf_multiplier * (params.rho * state.v + cost_idle)
+    }
+
+    pub fn update_v_heartbeat(
+        state: &TokenomicInfo,
+        params: &Params,
+        sum_share: f64,
+        now_ms: u64,
+    ) -> (f64, f64) {
+        if sum_share == 0.0 {
+            return (state.v, 0.0);
+        }
+        let dt = (now_ms - state.v_update_at) as f64 / 1000.0;
+        let dv = state.v - state.v_last;
+        let budget = params.budget_per_sec * dt;
+        let share = calc_share(state);
+        let w = dv.min(share / sum_share * budget);
+        let v = state.v - w;
+        (v, w)
+    }
+
+    pub fn update_v_slash(state: &TokenomicInfo, params: &Params) -> f64 {
+        state.v - (state.v * params.slash_rate)
+    }
+
+    pub fn calc_share(state: &TokenomicInfo) -> f64 {
+        (state.v.powf(2.0)
+            + (2.0 * state.p_instant * CONF_SCORE[state.confidence_level - 1]).powf(2.0))
+        .sqrt()
     }
 }
