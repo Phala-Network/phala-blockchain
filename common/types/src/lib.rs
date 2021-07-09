@@ -170,11 +170,26 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug)]
     pub enum WorkerEvent {
+        /// pallet-registry --> worker
+        ///  Indicate a worker register succeeded.
         Registered,
+        /// pallet-registry --> worker
+        ///  When a worker register succeed, the chain request the worker to benchmark.
         BenchStart { start_time: u64 },
-        MiningStart { start_time: u64 },
+        /// pallet-mining --> worker
+        ///  When a miner start to mine, push this message to the worker to start the benchmark task.
+        MiningStart { start_time: u64, init_v: u32 },
+        /// pallet-mining --> worker
+        ///  When a miner entered CoolingDown state, push this message to the worker, so that it can stop the
+        ///  benchmark task.
         MiningStop,
+        /// pallet-mining --> worker
+        ///  When a miner entered Unresponsive state, push this message to the worker to suppress the subsequent
+        ///  heartbeat responses.
         MiningEnterUnresponsive,
+        /// pallet-mining --> worker
+        ///  When a miner recovered to MiningIdle state from Unresponsive, push this message to the worker to
+        ///  resume the subsequent heartbeat responses.
         MiningExitUnresponsive,
     }
 
@@ -213,10 +228,10 @@ pub mod messaging {
     bind_topic!(MiningInfoUpdateEvent, b"^phala/mining/update");
     #[derive(Encode, Decode, Clone, Debug, Default)]
     pub struct MiningInfoUpdateEvent {
-        // Workers that do not responce the heartbeat challenge in time. Each delay only report once.
+        /// Workers that do not responce the heartbeat challenge in time. Each delay only report once.
         pub offline: Vec<WorkerPublicKey>,
 
-        // V update and payout info
+        /// V update and payout info
         pub settle: Vec<SettleInfo>
 
         // NOTE: Take care of the is_empty method when adding fields
