@@ -198,26 +198,23 @@ pub mod pallet {
 				Error::<T>::InvalidRuntimeInfoHash
 			);
 			// Update the registry
-			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
+			let pubkey = pruntime_info.pubkey.clone();
+			Worker::<T>::mutate(pubkey.clone(), |v| {
 				match v {
 					Some(worker_info) => {
 						// Case 1 - Refresh the RA report and redo benchmark
 						worker_info.last_updated = now;
 						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
+							pubkey.clone(),
 							WorkerEvent::Registered(messaging::WorkerInfo {
 								confidence_level: fields.confidence_level,
 							}),
-						));
-						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart,
 						));
 					}
 					None => {
 						// Case 2 - New worker register
 						*v = Some(WorkerInfo {
-							pubkey: pruntime_info.pubkey.clone(),
+							pubkey: pubkey.clone(),
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
 							last_updated: now,
@@ -227,19 +224,19 @@ pub mod pallet {
 							features: pruntime_info.features,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
+							pubkey.clone(),
 							WorkerEvent::Registered(messaging::WorkerInfo {
 								confidence_level: fields.confidence_level,
 							}),
 						));
-						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart,
-						));
 					}
 				}
 			});
-
+			// Trigger benchmark anyway
+			Self::push_message(SystemEvent::new_worker_event(
+				pubkey,
+				WorkerEvent::BenchStart,
+			));
 			Ok(())
 		}
 
@@ -373,6 +370,10 @@ pub mod pallet {
 					WorkerEvent::Registered(messaging::WorkerInfo {
 						confidence_level: 128u8,
 					}),
+				));
+				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
+					pubkey.clone(),
+					WorkerEvent::BenchStart,
 				));
 			}
 			Gatekeeper::<T>::put(self.gatekeepers.clone());

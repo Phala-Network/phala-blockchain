@@ -79,8 +79,8 @@ use rpc_types::*;
 use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
-use types::Error;
 use types::BlockInfo;
+use types::Error;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 type Storage = TrieStorage<RuntimeHasher>;
@@ -1436,8 +1436,16 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     drop(runtime_state);
 
+    let registered = {
+        match SYSTEM_STATE.lock().unwrap().as_ref() {
+            Some(system) => system.is_registered(),
+            None => false,
+        }
+    };
+
     Ok(json!({
         "initialized": initialized,
+        "registered": registered,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
         "headernum": headernum,

@@ -109,6 +109,14 @@ describe('A full stack', function () {
 			}, 1000), 'not initialized in time');
 		});
 
+		it('is registered', async function () {
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime.getInfo();
+				return info.registered;
+			}, 3*6000), 'not registered in time');
+		});
+
 		it('can sync block', async function() {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime.getInfo();

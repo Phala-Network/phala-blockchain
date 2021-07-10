@@ -438,6 +438,10 @@ impl System {
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
     }
+
+    pub fn is_registered(&self) -> bool {
+        self.worker_state.registered
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

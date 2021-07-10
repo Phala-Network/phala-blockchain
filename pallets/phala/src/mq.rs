@@ -133,7 +133,7 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_initialize(now: BlockNumberFor<T>) -> Weight {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			// Send out queued message from the previous block
 			if let Some(msgs) = QueuedOutboundMessage::<T>::take() {
 				for message in msgs.into_iter() {
