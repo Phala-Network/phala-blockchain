@@ -933,8 +933,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
-    let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
-    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
+    let ecdh_raw_pk: &[u8] = local_state.ecdh_public_key.as_ref().unwrap().as_ref();
+    let ecdh_hex_pk = hex::encode(ecdh_raw_pk);
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
     let ecdh_privkey = ecdh::clone_key(
         local_state
@@ -978,6 +978,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
+        ecdh_pubkey: ecdh_raw_pk
+            .try_into()
+            .expect("Ecdh key length must be correct; qed."),
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -1058,7 +1061,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
                     mq,
                     cmd_mq,
                     evt_mq,
-                    KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+                    KeyPair::new(ecdh_privkey, ecdh_raw_pk.to_vec()),
                 ));
                 other_contracts.insert($id, wrapped);
             }};

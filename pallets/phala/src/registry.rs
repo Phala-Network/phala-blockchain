@@ -218,7 +218,7 @@ pub mod pallet {
 						// Case 2 - New worker register
 						*v = Some(WorkerInfo {
 							pubkey: pruntime_info.pubkey.clone(),
-							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
+							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							operator: pruntime_info.operator,

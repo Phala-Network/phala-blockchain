@@ -351,6 +351,7 @@ pub struct PRuntimeInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
+	pub ecdh_pubkey: EcdhP256PublicKey,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
 }
