@@ -188,14 +188,14 @@ impl WorkerState {
                 }
             }
             Event::HeartbeatChallenge(seed_info) => {
-                self.handle_heartbeat_challenge(block.block_number, &seed_info, callback, true);
+                self.handle_heartbeat_challenge(block, &seed_info, callback, true);
             }
         };
     }
 
     fn handle_heartbeat_challenge(
         &mut self,
-        blocknum: chain::BlockNumber,
+        block: &BlockInfo,
         seed_info: &HeartbeatChallenge,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -203,7 +203,7 @@ impl WorkerState {
         if log_on {
             info!(
                 "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
-                blocknum, seed_info, self.registered, self.mining_state
+                block.block_number, seed_info, self.registered, self.mining_state
             );
         }
 
@@ -232,7 +232,7 @@ impl WorkerState {
         // Push queue when necessary
         if online_hit {
             let iterations = callback.bench_iterations() - mining_state.start_iter;
-            callback.heartbeat(blocknum as u32, mining_state.start_time, iterations);
+            callback.heartbeat(block.block_number, block.now_ms, mining_state.start_time, iterations);
         }
     }
 
@@ -275,6 +275,7 @@ trait WorkerStateMachineCallback {
     fn heartbeat(
         &mut self,
         _block_num: chain::BlockNumber,
+        _block_time: u64,
         _mining_start_time: u64,
         _iterations: u64,
     ) {
@@ -304,13 +305,14 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
     fn heartbeat(
         &mut self,
-        block_num: chain::BlockNumber,
-        mining_start_time: u64,
+        challenge_block: chain::BlockNumber,
+        challenge_time: u64,
+        _mining_start_time: u64,
         iterations: u64,
     ) {
         let event = MiningReportEvent::Heartbeat {
-            block_num,
-            mining_start_time,
+            challenge_block,
+            challenge_time,
             iterations,
         };
         info!("System: sending {:?}", event);

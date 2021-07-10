@@ -224,10 +224,10 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug)]
     pub enum MiningReportEvent {
         Heartbeat {
-            /// The block number that this message been sent at
-            block_num: u32,
-            /// Mining start timestamp, extracted from WorkerEvent::MiningStart.
-            mining_start_time: u64,
+            /// The challenge block number. 
+            challenge_block: u32,
+            /// The challenge block timestamp.
+            challenge_time: u64,
             /// Benchmark iterations since mining_start_time.
             iterations: u64,
         }

@@ -305,7 +305,8 @@ pub mod pallet {
 					}
 
 					const MAX_SCORE: u32 = 6000;
-					let score = iterations / (now - start_time) / 1000;
+					let score = iterations / ((now - start_time) / 1000);
+					let score = score * 6; // iterations per 6s
 					let score = MAX_SCORE.min(score as u32);
 
 					Worker::<T>::mutate(worker_pubkey, |val| {

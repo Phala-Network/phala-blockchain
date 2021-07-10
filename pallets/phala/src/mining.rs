@@ -145,8 +145,8 @@ pub mod pallet {
 
 			match event {
 				MiningReportEvent::Heartbeat {
-					block_num,
-					mining_start_time,
+					challenge_block,
+					challenge_time,
 					iterations,
 				} => {
 					todo!("TODO(wenfeng):");

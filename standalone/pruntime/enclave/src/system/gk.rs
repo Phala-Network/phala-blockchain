@@ -170,8 +170,8 @@ impl GKMessageProcesser<'_> {
         };
         match event {
             MiningReportEvent::Heartbeat {
-                block_num,
-                mining_start_time,
+                challenge_block,
+                challenge_time,
                 iterations,
             } => {
                 let worker_info = match self.state.workers.get_mut(&worker_pubkey) {
@@ -186,7 +186,7 @@ impl GKMessageProcesser<'_> {
                     }
                 };
 
-                if Some(&block_num) != worker_info.waiting_heartbeats.get(0) {
+                if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
                     error!("Fatal error: Unexpected heartbeat {:?}", event);
                     error!("Sent from worker {}", hex::encode(worker_pubkey));
                     error!("Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
@@ -198,8 +198,13 @@ impl GKMessageProcesser<'_> {
                 let _ = worker_info.waiting_heartbeats.pop_front();
                 worker_info.heartbeat_flag = true;
 
-                let dt = (self.block.now_ms - mining_start_time) as f64 / 1000.0;
-                worker_info.tokenomic.p_instant = iterations as f64 / dt;
+                let tokenomic = &mut worker_info.tokenomic;
+                let dt = (self.block.now_ms - tokenomic.challenge_time_last) as f64 / 1000.0;
+                let p = (iterations - tokenomic.iteration_last) as f64 / dt * 6.0; // 6s iterations
+                tokenomic.p_instant = p.min(tokenomic.p_bench * 120.0 / 100.0);
+
+                tokenomic.challenge_time_last = challenge_time;
+                tokenomic.iteration_last = iterations;
 
                 if !worker_info.unresponsive {
                     // Idle, successful heartbeat, report to pallet
@@ -257,22 +262,39 @@ impl GKMessageProcesser<'_> {
             SystemEvent::WorkerEvent(e) => {
                 if let Some(worker) = self.state.workers.get_mut(&e.pubkey) {
                     match &e.event {
-                        WorkerEvent::Registered(_) => {},
-                        WorkerEvent::BenchStart => {},
+                        WorkerEvent::Registered(_) => {}
+                        WorkerEvent::BenchStart => {}
                         WorkerEvent::BenchScore(score) => {
                             worker.tokenomic.p_bench = (*score) as f64;
-                        },
+                        }
                         WorkerEvent::MiningStart { init_v } => {
                             let v = (*init_v) as f64;
-                            worker.tokenomic.v = v;
-                            worker.tokenomic.v_last = v;
-                            worker.tokenomic.v_update_at = self.block.now_ms;
-                        },
+                            let prev = worker.tokenomic;
+                            worker.waiting_heartbeats.clear();
+                            worker.unresponsive = false;
+                            worker.tokenomic = TokenomicInfo {
+                                v,
+                                v_last: v,
+                                v_update_at: self.block.now_ms,
+                                iteration_last: 0,
+                                challenge_time_last: self.block.now_ms,
+                                p_bench: prev.p_bench,
+                                p_instant: prev.p_bench,
+                                confidence_level: prev.confidence_level,
+                            };
+                        }
                         WorkerEvent::MiningStop => {
-                            // TODO.kevin: report v?
-                        },
-                        WorkerEvent::MiningEnterUnresponsive => {},
-                        WorkerEvent::MiningExitUnresponsive => {},
+                            // TODO.kevin: report the final V?
+                            // No, we may need to report a Stop event in worker.
+                            // Then GK report the final V to pallet, when observed the Stop event from worker.
+                            // The pallet wait for the final V report in CoolingDown state.
+                            // Pallet  ---------(Stop)--------> Worker
+                            // Worker  ----(Rest Heartbeats)--> *
+                            // Worker  --------(Stopped)------> *
+                            // GK      --------(Final V)------> Pallet
+                        }
+                        WorkerEvent::MiningEnterUnresponsive => {}
+                        WorkerEvent::MiningExitUnresponsive => {}
                     }
                 }
             }
@@ -288,11 +310,12 @@ struct WorkerSMTracker<'a> {
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
     fn heartbeat(
         &mut self,
-        block_num: runtime::BlockNumber,
+        challenge_block: runtime::BlockNumber,
+        _challenge_time: u64,
         _mining_start_time: u64,
         _iterations: u64,
     ) {
-        self.waiting_heartbeats.push_back(block_num);
+        self.waiting_heartbeats.push_back(challenge_block);
     }
 }
 
@@ -304,6 +327,8 @@ mod tokenomic {
         pub v: f64,
         pub v_last: f64,
         pub v_update_at: u64,
+        pub iteration_last: u64,
+        pub challenge_time_last: u64,
         pub p_bench: f64,
         pub p_instant: f64,
         pub confidence_level: u8,
@@ -314,14 +339,16 @@ mod tokenomic {
         rho: f64,
         slash_rate: f64,
         budget_per_sec: f64,
+        v_max: f64,
     }
 
     pub fn test_params() -> Params {
         Params {
             pha_rate: 1.0,
             rho: 1.00020,
-            slash_rate: 0.0001,
+            slash_rate: 0.001,
             budget_per_sec: 10.0,
+            v_max: 30000.0,
         }
     }
 
@@ -332,8 +359,8 @@ mod tokenomic {
         } else {
             state.p_instant / state.p_bench
         };
-        // So the less the init bench score the more Earnings?
-        perf_multiplier * (params.rho * state.v + cost_idle)
+        let v = state.v + perf_multiplier * ((params.rho - 1.0) * state.v + cost_idle);
+        v.min(params.v_max)
     }
 
     pub fn update_v_heartbeat(
@@ -349,7 +376,7 @@ mod tokenomic {
         let dv = state.v - state.v_last;
         let budget = params.budget_per_sec * dt;
         let share = calc_share(state);
-        let w = dv.min(share / sum_share * budget);
+        let w = dv.max(0.0).min(share / sum_share * budget);
         let v = state.v - w;
         (v, w)
     }
