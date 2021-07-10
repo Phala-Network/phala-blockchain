@@ -410,6 +410,8 @@ impl System {
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
             self.gatekeeper
                 .process_messages(block_number, storage);
+
+            self.gatekeeper.vrf(block_number);
         }
         Ok(())
     }

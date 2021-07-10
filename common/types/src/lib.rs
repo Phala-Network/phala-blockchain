@@ -234,6 +234,16 @@ pub mod messaging {
         pub v: u32,
         pub payout: u32,
     }
+
+    pub type RandomNumber = [u8; 32];
+
+    bind_topic!(RandomNumberEvent, b"phala/gatekeeper/random");
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct RandomNumberEvent {
+        pub block_number: u32,
+        pub random_number: RandomNumber,
+        pub last_random_number: RandomNumber,
+    }
 }
 
 // Types used in storage

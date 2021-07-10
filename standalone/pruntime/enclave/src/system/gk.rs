@@ -1,16 +1,24 @@
 use super::{Storage, TypedReceiver, WorkerState};
+use phala_crypto::secp256k1::Signing;
 use phala_mq::{EcdsaMessageChannel, MessageDispatcher};
 use phala_types::{
     messaging::{
-        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
-        WorkerEvent, WorkerEventWithKey,
+        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent,
+        SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
+use sp_core::{ecdsa, hashing};
 
 use crate::std::collections::{BTreeMap, VecDeque};
+use crate::std::vec::Vec;
 
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
+
+/// Block interval to generate pseudo-random on chain
+const VRF_INTERVAL: u32 = 5;
+/// Blake2 256-bit hash as pseudo-random
+pub type PesudoRandomNumber = [u8; 32];
 
 struct WorkerInfo {
     state: WorkerState,
@@ -35,6 +43,11 @@ pub(super) struct Gatekeeper {
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
+    // Master key
+    master_key: Option<ecdsa::Pair>,
+    // Randomness
+    random_events: TypedReceiver<RandomNumberEvent>,
+    last_random_number: RandomNumber,
 }
 
 impl Gatekeeper {
@@ -44,6 +57,9 @@ impl Gatekeeper {
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
+            master_key: None,
+            random_events: recv_mq.subscribe_bound(),
+            last_random_number: [0_u8; 32],
         }
     }
 
@@ -60,6 +76,25 @@ impl Gatekeeper {
 
         if !report.is_empty() {
             self.egress.send(&report);
+        }
+    }
+
+    pub fn vrf(&mut self, block_number: chain::BlockNumber) {
+        if block_number % VRF_INTERVAL != 1 {
+            return;
+        }
+
+        if let Some(master_key) = &self.master_key {
+            let mut buf: Vec<u8> = self.last_random_number.to_vec();
+            buf.extend(block_number.to_be_bytes().iter().copied());
+
+            let sig = master_key.sign_data(buf.as_ref());
+            let pesudo_random: PesudoRandomNumber = hashing::blake2_256(&sig.0);
+            self.egress.send(&RandomNumberEvent {
+                block_number: block_number,
+                random_number: pesudo_random,
+                last_random_number: self.last_random_number,
+            })
         }
     }
 }
