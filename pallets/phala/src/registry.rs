@@ -157,6 +157,21 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Unregister a gatekeeper, must be called by gatekeeper himself
+		///
+		/// Requirements:
+		//  1. `sig` is the valid signature of specific unregister message
+		#[allow(unused_variables)]
+		#[pallet::weight(0)]
+		pub fn unregister_gatekeeper(
+			origin: OriginFor<T>,
+			gatekeeper: WorkerPublicKey,
+			sig: [u8; 65],
+		) -> DispatchResult {
+			// TODO.shelven
+			panic!("unimpleneted");
+		}
+
 		/// (called by anyone on behalf of a worker)
 		#[pallet::weight(0)]
 		pub fn register_worker(
