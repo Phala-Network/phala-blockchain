@@ -170,7 +170,7 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Debug)]
     pub struct WorkerInfo {
-        pub confidence_level: u8
+        pub confidence_level: u8,
     }
 
     #[derive(Encode, Decode, Debug)]
@@ -224,13 +224,13 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug)]
     pub enum MiningReportEvent {
         Heartbeat {
-            /// The challenge block number. 
+            /// The challenge block number.
             challenge_block: u32,
             /// The challenge block timestamp.
             challenge_time: u64,
             /// Benchmark iterations since mining_start_time.
             iterations: u64,
-        }
+        },
     }
 
     bind_topic!(MiningInfoUpdateEvent, b"^phala/mining/update");
