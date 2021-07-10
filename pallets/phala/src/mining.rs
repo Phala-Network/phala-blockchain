@@ -115,7 +115,7 @@ pub mod pallet {
 		/// [miner]
 		MiningCleanup(T::AccountId),
 		/// [miner, worker]
-		MinerBinded(T::AccountId, WorkerPublicKey),
+		MinerBounded(T::AccountId, WorkerPublicKey),
 		/// [miner]
 		MinerEnterUnresponsive(T::AccountId),
 		/// [miner]
@@ -132,7 +132,7 @@ pub mod pallet {
 		InvalidMessage,
 		WorkerNotRegistered,
 		GatekeeperNotRegistered,
-		UnbindedMiner,
+		UnboundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
 		CollingdownNotPassed,
@@ -166,11 +166,11 @@ pub mod pallet {
 			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
 			ensure!(
 				worker_info.operator.unwrap() == miner.clone(),
-				Error::<T>::UnbindedMiner
+				Error::<T>::UnboundedMiner
 			);
 			MinerBinding::<T>::insert(&miner, &pubkey);
 			WorkerBinding::<T>::insert(&pubkey, &miner);
-			Self::deposit_event(Event::<T>::MinerBinded(miner, pubkey));
+			Self::deposit_event(Event::<T>::MinerBounded(miner, pubkey));
 			Ok(())
 		}
 
