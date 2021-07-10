@@ -1155,7 +1155,7 @@ construct_runtime!(
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
 		// Phala new pallets
 		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
-		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
+		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
 		PhalaMining: pallet_mining::{Pallet, Call, Event<T>},
 		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event, Storage},
 	}

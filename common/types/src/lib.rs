@@ -4,6 +4,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
+use core::convert::{TryFrom, TryInto};
 
 // Messages: Phase Wallet
 
@@ -329,6 +330,21 @@ pub struct Score {
 type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
 pub type ContractPublicKey = sp_core::ecdsa::Public;
+#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+pub struct EcdhP256PublicKey([u8; 65]);
+
+impl Default for EcdhP256PublicKey {
+	fn default() -> Self {
+		EcdhP256PublicKey([0; 65])
+	}
+}
+impl TryFrom<&[u8]> for EcdhP256PublicKey {
+	type Error = ();
+	fn try_from(raw: &[u8]) -> Result<Self, ()> {
+		let raw: [u8; 65] = raw.try_into().map_err(|_| ())?;
+		Ok(EcdhP256PublicKey(raw))
+	}
+}
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct PRuntimeInfo<AccountId> {

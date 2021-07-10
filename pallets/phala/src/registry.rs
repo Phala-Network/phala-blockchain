@@ -8,9 +8,11 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_runtime::SaturatedConversion;
-	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
-	use sp_std::vec;
+	use sp_std::{
+		convert::{TryFrom, TryInto},
+		vec,
+	};
 
 	use crate::attestation::{validate_ias_report, Error as AttestationError};
 	use crate::mq::MessageOriginInfo;
@@ -20,7 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent,
 			WorkerEvent,
 		},
-		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
+		ContractPublicKey, EcdhP256PublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -97,7 +99,7 @@ pub mod pallet {
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
-			ecdh_pubkey: WorkerPublicKey,
+			ecdh_pubkey: EcdhP256PublicKey,
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -325,6 +327,58 @@ pub mod pallet {
 		}
 	}
 
+	// Genesis config build
+
+	/// Genesis config to add some genesis worker or gatekeeper for testing purpose.
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		/// [(identity, ecdh, operator)]
+		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
+		/// [identity]
+		pub gatekeepers: Vec<WorkerPublicKey>,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			Self {
+				workers: Default::default(),
+				gatekeepers: Default::default(),
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T>
+	where
+		T: crate::mq::Config,
+	{
+		fn build(&self) {
+			for (pubkey, ecdh_pubkey, operator) in &self.workers {
+				Worker::<T>::insert(
+					&pubkey,
+					&WorkerInfo {
+						pubkey: pubkey.clone(),
+						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
+						runtime_version: 0,
+						last_updated: 0,
+						operator: operator.clone(),
+						confidence_level: 128u8,
+						intial_score: None,
+						features: vec![1, 4],
+					},
+				);
+				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
+					pubkey.clone(),
+					WorkerEvent::Registered(messaging::WorkerInfo {
+						confidence_level: 128u8,
+					}),
+				));
+			}
+			Gatekeeper::<T>::put(self.gatekeepers.clone());
+		}
+	}
+
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
 	}
@@ -343,7 +397,7 @@ pub mod pallet {
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,
-		ecdh_pubkey: WorkerPublicKey,
+		ecdh_pubkey: EcdhP256PublicKey,
 		// system
 		runtime_version: u32,
 		last_updated: u64,

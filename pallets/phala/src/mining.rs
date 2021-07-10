@@ -323,6 +323,19 @@ pub mod pallet {
 			Self::deposit_event(Event::<T>::MiningCleanup(miner));
 			Ok(())
 		}
+
+		/// Triggers a force heartbeat request to all workers by sending a MAX pow target
+		///
+		/// Only for integration test.
+		#[pallet::weight(1)]
+		pub fn force_heartbeat(origin: OriginFor<T>) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::push_message(SystemEvent::HeartbeatChallenge(HeartbeatChallenge {
+				seed: U256::zero(),
+				online_target: U256::MAX,
+			}));
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
