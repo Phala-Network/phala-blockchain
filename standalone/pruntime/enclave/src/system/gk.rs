@@ -268,7 +268,7 @@ impl GKMessageProcesser<'_> {
                             worker.tokenomic.p_bench = (*score) as f64;
                         }
                         WorkerEvent::MiningStart { init_v } => {
-                            let v = (*init_v) as f64;
+                            let v = (*init_v) as f64 / F2U_RATE;
                             let prev = worker.tokenomic;
                             // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.
                             // worker.waiting_heartbeats.clear();
