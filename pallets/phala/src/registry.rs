@@ -347,11 +347,11 @@ pub mod pallet {
 		// system
 		runtime_version: u32,
 		last_updated: u64,
-		operator: Option<AccountId>,
+		pub operator: Option<AccountId>,
 		// platform
 		confidence_level: u8,
 		// scoring
-		intial_score: Option<u32>,
+		pub intial_score: Option<u32>,
 		features: Vec<u32>,
 	}
 

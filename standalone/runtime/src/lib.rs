@@ -1156,7 +1156,7 @@ construct_runtime!(
 		// Phala new pallets
 		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
 		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
-		PhalaMining: pallet_mining::{Pallet, Call, Event},
+		PhalaMining: pallet_mining::{Pallet, Call, Event<T>},
 		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event, Storage},
 	}
 );
