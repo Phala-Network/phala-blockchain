@@ -238,14 +238,11 @@ impl GKMessageProcesser<'_> {
         // Create the worker info on it's first time registered
         if let SystemEvent::WorkerEvent(WorkerEventWithKey {
             pubkey,
-            event: WorkerEvent::Registered(info),
+            event: WorkerEvent::Registered(_),
         }) = &event
         {
-            let mut worker = WorkerInfo::new(pubkey.clone());
-            worker.tokenomic.confidence_level = info.confidence_level;
-
+            let worker = WorkerInfo::new(pubkey.clone());
             let _ = self.state.workers.entry(pubkey.clone()).or_insert(worker);
-            return;
         }
 
         for worker_info in self.state.workers.values_mut() {
@@ -258,11 +255,14 @@ impl GKMessageProcesser<'_> {
                 .process_event(self.block, &event, &mut tracker, false);
         }
 
+        // TODO.kevin: Avoid unnecessary loop for WorkerEvents.
         match &event {
             SystemEvent::WorkerEvent(e) => {
                 if let Some(worker) = self.state.workers.get_mut(&e.pubkey) {
                     match &e.event {
-                        WorkerEvent::Registered(_) => {}
+                        WorkerEvent::Registered(info) => {
+                            worker.tokenomic.confidence_level = info.confidence_level;
+                        }
                         WorkerEvent::BenchStart => {}
                         WorkerEvent::BenchScore(score) => {
                             worker.tokenomic.p_bench = (*score) as f64;
