@@ -17,8 +17,19 @@ const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
 
 /// Block interval to generate pseudo-random on chain
 const VRF_INTERVAL: u32 = 5;
-/// Blake2 256-bit hash as pseudo-random
-pub type PesudoRandomNumber = [u8; 32];
+
+// pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
+fn next_random_number(
+    master_key: &ecdsa::Pair,
+    block_number: chain::BlockNumber,
+    last_random_number: RandomNumber,
+) -> RandomNumber {
+    let mut buf: Vec<u8> = last_random_number.to_vec();
+    buf.extend(block_number.to_be_bytes().iter().copied());
+
+    let sig = master_key.sign_data(buf.as_ref());
+    hashing::blake2_256(&sig.0)
+}
 
 struct WorkerInfo {
     state: WorkerState,
@@ -48,6 +59,7 @@ pub(super) struct Gatekeeper {
     // Randomness
     random_events: TypedReceiver<RandomNumberEvent>,
     last_random_number: RandomNumber,
+    last_random_block: chain::BlockNumber,
 }
 
 impl Gatekeeper {
@@ -60,6 +72,7 @@ impl Gatekeeper {
             master_key: None,
             random_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
+            last_random_block: 0,
         }
     }
 
@@ -84,15 +97,19 @@ impl Gatekeeper {
             return;
         }
 
-        if let Some(master_key) = &self.master_key {
-            let mut buf: Vec<u8> = self.last_random_number.to_vec();
-            buf.extend(block_number.to_be_bytes().iter().copied());
+        if block_number - self.last_random_block != VRF_INTERVAL {
+            // wait for random number syncing
+            return;
+        }
 
-            let sig = master_key.sign_data(buf.as_ref());
-            let pesudo_random: PesudoRandomNumber = hashing::blake2_256(&sig.0);
+        if let Some(master_key) = &self.master_key {
             self.egress.send(&RandomNumberEvent {
                 block_number: block_number,
-                random_number: pesudo_random,
+                random_number: next_random_number(
+                    master_key,
+                    block_number,
+                    self.last_random_number,
+                ),
                 last_random_number: self.last_random_number,
             })
         }
@@ -120,6 +137,14 @@ impl GKMessageProcesser<'_> {
                 message = self.state.system_events => match message {
                     Ok((_, event, origin)) => {
                         self.process_system_event(origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+                message = self.state.random_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_random_number_event(origin, event);
                     }
                     Err(e) => {
                         error!("Read message failed: {:?}", e);
@@ -233,6 +258,21 @@ impl GKMessageProcesser<'_> {
             worker_info
                 .state
                 .process_event(self.block_number, &event, &mut tracker, false);
+        }
+    }
+
+    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
+        if let Some(master_key) = &self.state.master_key {
+            // instead of checking the origin, we directly verify the random to avoid access storage
+            if next_random_number(master_key, event.block_number, event.last_random_number)
+                != event.random_number
+            {
+                error!("Fatal error: Unexpected random number {:?}", event);
+            }
+            if event.block_number > self.state.last_random_block {
+                self.state.last_random_block = event.block_number;
+                self.state.last_random_number = event.random_number;
+            }
         }
     }
 }
