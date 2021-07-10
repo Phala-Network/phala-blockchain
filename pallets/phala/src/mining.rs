@@ -133,8 +133,10 @@ pub mod pallet {
 		WorkerNotRegistered,
 		GatekeeperNotRegistered,
 		UnboundedMiner,
+		DuplicatedBoundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
+		MinerIsBusy,
 		CollingdownNotPassed,
 	}
 
@@ -168,6 +170,11 @@ pub mod pallet {
 				worker_info.operator.unwrap() == miner.clone(),
 				Error::<T>::UnboundedMiner
 			);
+			ensure!(
+				!MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::DuplicatedBoundedMiner
+			);
+
 			MinerBinding::<T>::insert(&miner, &pubkey);
 			WorkerBinding::<T>::insert(&pubkey, &miner);
 			Self::deposit_event(Event::<T>::MinerBounded(miner, pubkey));
@@ -241,7 +248,7 @@ pub mod pallet {
 					});
 				}
 			} else {
-				ensure!(false, Error::<T>::BenchmarkMissing);
+				return Err(Error::<T>::BenchmarkMissing.into());
 			}
 
 			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
@@ -263,6 +270,11 @@ pub mod pallet {
 			ensure!(
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
+			);
+			let mut miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFounded)?;
+			ensure!(
+				miner_info.state != MinerState::Ready,
+				Error::<T>::MinerIsBusy
 			);
 
 			let now = <T as registry::Config>::UnixTime::now()
@@ -368,7 +380,7 @@ pub mod pallet {
 			}
 
 			let event = message.payload;
-			if (!event.is_empty()) {
+			if !event.is_empty() {
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
 					.saturated_into::<u64>();
@@ -405,9 +417,9 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 			if (now - start_time) > Self::collingdown_expire() {
-				return true;
+				true
 			} else {
-				return false;
+				false
 			}
 		}
 	}
