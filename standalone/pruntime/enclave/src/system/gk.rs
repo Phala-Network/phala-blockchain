@@ -196,13 +196,13 @@ impl GKMessageProcesser<'_> {
 
                 // The oldest one comfirmed.
                 let _ = worker_info.waiting_heartbeats.pop_front();
+
+                // TODO.kevin: ignore heartbeats from previous mining sessions.
+
                 worker_info.heartbeat_flag = true;
 
                 let tokenomic = &mut worker_info.tokenomic;
-                let dt = (self.block.now_ms - tokenomic.challenge_time_last) as f64 / 1000.0;
-                let p = (iterations - tokenomic.iteration_last) as f64 / dt * 6.0; // 6s iterations
-                tokenomic.p_instant = p.min(tokenomic.p_bench * 120.0 / 100.0);
-
+                tokenomic.p_instant = tokenomic::calc_p_instant(tokenomic, self.block.now_ms, iterations);
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
@@ -270,7 +270,8 @@ impl GKMessageProcesser<'_> {
                         WorkerEvent::MiningStart { init_v } => {
                             let v = (*init_v) as f64;
                             let prev = worker.tokenomic;
-                            worker.waiting_heartbeats.clear();
+                            // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.
+                            // worker.waiting_heartbeats.clear();
                             worker.unresponsive = false;
                             worker.tokenomic = TokenomicInfo {
                                 v,
@@ -390,5 +391,11 @@ mod tokenomic {
             .get(state.confidence_level as usize - 1)
             .unwrap_or(&0.7);
         (state.v.powf(2.0) + (2.0 * state.p_instant * conf_score).powf(2.0)).sqrt()
+    }
+
+    pub fn calc_p_instant(state: &TokenomicInfo, now: u64, iterations: u64) -> f64 {
+        let dt = (now - state.challenge_time_last) as f64 / 1000.0;
+        let p = (iterations - state.iteration_last) as f64 / dt * 6.0; // 6s iterations
+        p.min(state.p_bench * 120.0 / 100.0)
     }
 }
