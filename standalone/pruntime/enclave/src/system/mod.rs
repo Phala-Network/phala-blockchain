@@ -250,6 +250,7 @@ impl WorkerState {
     fn on_block_processed(
         &mut self,
         block: &BlockInfo<'_>,
+        storage: &Storage,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
         if let Some(BenchState {
@@ -258,9 +259,8 @@ impl WorkerState {
             start_iter,
         }) = self.bench_state
         {
-            // TODO.kevin: tune the value
-            const BENCH_DURATION: u32 = 8;
-            if block.block_number - start_block >= BENCH_DURATION {
+            let bench_duration = chain_benchmark_duration(storage);
+            if block.block_number - start_block >= bench_duration {
                 self.bench_state = None;
                 let iterations = callback.bench_iterations() - start_iter;
                 callback.bench_report(start_time, iterations);
@@ -270,6 +270,17 @@ impl WorkerState {
             }
         }
     }
+}
+
+fn chain_benchmark_duration(storage: &Storage) -> chain::BlockNumber {
+    use parity_scale_codec::Decode;
+    let key = crate::storage_prefix("PhalaRegistry", "BenchmarkDuration");
+    storage.get(&key)
+        .map(|v| {
+            chain::BlockNumber::decode(&mut &v[..])
+                .expect("BenchmarkDuration must exist; qed.")
+        })
+        .expect("BenchmarkDuration must exist; qed.")
 }
 
 trait WorkerStateMachineCallback {
@@ -425,7 +436,7 @@ impl System {
             }
         }
         self.worker_state
-            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
+            .on_block_processed(block, storage, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
             self.gatekeeper.process_messages(block, storage);

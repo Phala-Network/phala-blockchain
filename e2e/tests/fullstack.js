@@ -132,7 +132,7 @@ describe('A full stack', function () {
 			}, 4*6000), 'not registered in time');
 		});
 
-		it('finishes the benchark', async function () {
+		it('finishes the benchmark', async function () {
 			if (skipSlowTest()) {
 				this.skip();
 			}

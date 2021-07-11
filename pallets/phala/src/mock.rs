@@ -27,7 +27,7 @@ frame_support::construct_runtime!(
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Event},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
-		PhalaMining: mining::{Pallet, Event},
+		PhalaMining: mining::{Pallet, Event<T>},
 	}
 );
 
@@ -115,6 +115,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	crate::registry::GenesisConfig::<Test> {
 		workers: vec![(zero_pubkey.clone(), zero_ecdh_pubkey, None)],
 		gatekeepers: vec![(zero_pubkey.clone())],
+		benchmark_duration: 0u64,
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();

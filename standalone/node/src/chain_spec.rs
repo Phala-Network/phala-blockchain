@@ -255,7 +255,8 @@ pub fn testnet_genesis(
 			workers: vec![
 				(dev_ecdsa_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
-			gatekeepers: vec![dev_ecdsa_pubkey]
+			gatekeepers: vec![dev_ecdsa_pubkey],
+			benchmark_duration: 1,
 		},
 		false => Default::default()
 	};

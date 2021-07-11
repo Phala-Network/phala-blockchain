@@ -55,7 +55,7 @@ impl Gatekeeper {
         }
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>, storage: &Storage) {
         let sum_share = self
             .workers
             .values()
@@ -68,6 +68,7 @@ impl Gatekeeper {
             report: MiningInfoUpdateEvent::new(block.now_ms),
             tokenomic_params: tokenomic::test_params(), // TODO.kevin: replace with real params
             sum_share,
+            storage,
         };
 
         processor.process();
@@ -86,6 +87,7 @@ struct GKMessageProcesser<'a> {
     report: MiningInfoUpdateEvent,
     tokenomic_params: tokenomic::Params,
     sum_share: f64,
+    storage: &'a Storage,
 }
 
 impl GKMessageProcesser<'_> {
@@ -131,7 +133,7 @@ impl GKMessageProcesser<'_> {
             };
             worker_info
                 .state
-                .on_block_processed(self.block, &mut tracker);
+                .on_block_processed(self.block, self.storage, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
                 // Mining already stopped, do nothing.

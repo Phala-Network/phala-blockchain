@@ -59,6 +59,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
 
+	#[pallet::storage]
+	pub type BenchmarkDuration<T: Config> = StorageValue<_, T::BlockNumber>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
@@ -334,14 +337,17 @@ pub mod pallet {
 		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
 		/// [identity]
 		pub gatekeepers: Vec<WorkerPublicKey>,
+		pub benchmark_duration: T::BlockNumber,
 	}
 
 	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
+			use std::convert::From;
 			Self {
 				workers: Default::default(),
 				gatekeepers: Default::default(),
+				benchmark_duration: T::BlockNumber::from(8u32),
 			}
 		}
 	}
@@ -376,6 +382,7 @@ pub mod pallet {
 					pubkey.clone(),
 					WorkerEvent::BenchStart,
 				));
+				BenchmarkDuration::<T>::put(self.benchmark_duration);
 			}
 			Gatekeeper::<T>::put(self.gatekeepers.clone());
 		}
