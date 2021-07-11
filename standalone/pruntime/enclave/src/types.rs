@@ -11,8 +11,11 @@ extern crate runtime as chain;
 // supportive
 
 pub struct BlockInfo<'a> {
+    /// The block number.
     pub block_number: chain::BlockNumber,
+    /// The timestamp of this block.
     pub now_ms: u64,
+    /// The storage snapshot after this block executed.
     pub storage: &'a crate::Storage,
 }
 

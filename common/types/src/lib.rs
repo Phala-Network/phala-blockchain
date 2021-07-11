@@ -181,7 +181,8 @@ pub mod messaging {
         Registered(WorkerInfo),
         /// pallet-registry --> worker
         ///  When a worker register succeed, the chain request the worker to benchmark.
-        BenchStart,
+        ///   duration: Number of blocks the benchmark to keep on.
+        BenchStart { duration: u32 },
         /// pallet-registry --> worker
         ///  The init bench score caculated by pallet.
         BenchScore(u32),

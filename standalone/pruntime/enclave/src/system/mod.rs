@@ -73,6 +73,7 @@ struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
     start_iter: u64,
+    duration: u32,
 }
 
 #[derive(Debug)]
@@ -135,11 +136,12 @@ impl WorkerState {
                     Registered(_) => {
                         self.registered = true;
                     }
-                    BenchStart => {
+                    BenchStart { duration } => {
                         self.bench_state = Some(BenchState {
                             start_block: block.block_number,
                             start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
+                            duration,
                         });
                         callback.bench_resume();
                     }
@@ -250,17 +252,16 @@ impl WorkerState {
     fn on_block_processed(
         &mut self,
         block: &BlockInfo<'_>,
-        storage: &Storage,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
         if let Some(BenchState {
             start_block,
             start_time,
             start_iter,
+            duration,
         }) = self.bench_state
         {
-            let bench_duration = chain_benchmark_duration(storage);
-            if block.block_number - start_block >= bench_duration {
+            if block.block_number - start_block >= duration {
                 self.bench_state = None;
                 let iterations = callback.bench_iterations() - start_iter;
                 callback.bench_report(start_time, iterations);
@@ -436,7 +437,7 @@ impl System {
             }
         }
         self.worker_state
-            .on_block_processed(block, storage, &mut WorkerSMDelegate(&self.egress));
+            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
             self.gatekeeper.process_messages(block, storage);

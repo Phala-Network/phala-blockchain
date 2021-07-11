@@ -55,7 +55,7 @@ impl Gatekeeper {
         }
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo<'_>, storage: &Storage) {
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
         let sum_share = self
             .workers
             .values()
@@ -68,7 +68,6 @@ impl Gatekeeper {
             report: MiningInfoUpdateEvent::new(block.now_ms),
             tokenomic_params: tokenomic::test_params(), // TODO.kevin: replace with real params
             sum_share,
-            storage,
         };
 
         processor.process();
@@ -87,7 +86,6 @@ struct GKMessageProcesser<'a> {
     report: MiningInfoUpdateEvent,
     tokenomic_params: tokenomic::Params,
     sum_share: f64,
-    storage: &'a Storage,
 }
 
 impl GKMessageProcesser<'_> {
@@ -133,7 +131,7 @@ impl GKMessageProcesser<'_> {
             };
             worker_info
                 .state
-                .on_block_processed(self.block, self.storage, &mut tracker);
+                .on_block_processed(self.block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
                 // Mining already stopped, do nothing.
@@ -286,11 +284,14 @@ impl GKMessageProcesser<'_> {
                         WorkerEvent::Registered(info) => {
                             worker.tokenomic.confidence_level = info.confidence_level;
                         }
-                        WorkerEvent::BenchStart => {}
+                        WorkerEvent::BenchStart { .. } => {}
                         WorkerEvent::BenchScore(score) => {
                             worker.tokenomic.p_bench = (*score) as f64;
                         }
-                        WorkerEvent::MiningStart { session_id: _, init_v } => {
+                        WorkerEvent::MiningStart {
+                            session_id: _,
+                            init_v,
+                        } => {
                             let v = (*init_v) as f64 / F2U_RATE;
                             let prev = worker.tokenomic;
                             // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.

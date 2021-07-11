@@ -60,7 +60,7 @@ pub mod pallet {
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
 
 	#[pallet::storage]
-	pub type BenchmarkDuration<T: Config> = StorageValue<_, T::BlockNumber>;
+	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -236,9 +236,10 @@ pub mod pallet {
 				}
 			});
 			// Trigger benchmark anyway
+			let duration = BenchmarkDuration::<T>::get().unwrap_or_default();
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
-				WorkerEvent::BenchStart,
+				WorkerEvent::BenchStart { duration },
 			));
 			Ok(())
 		}
@@ -337,17 +338,16 @@ pub mod pallet {
 		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
 		/// [identity]
 		pub gatekeepers: Vec<WorkerPublicKey>,
-		pub benchmark_duration: T::BlockNumber,
+		pub benchmark_duration: u32,
 	}
 
 	#[cfg(feature = "std")]
 	impl<T: Config> Default for GenesisConfig<T> {
 		fn default() -> Self {
-			use std::convert::From;
 			Self {
 				workers: Default::default(),
 				gatekeepers: Default::default(),
-				benchmark_duration: T::BlockNumber::from(8u32),
+				benchmark_duration: 8u32,
 			}
 		}
 	}
@@ -380,7 +380,7 @@ pub mod pallet {
 				));
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					pubkey.clone(),
-					WorkerEvent::BenchStart,
+					WorkerEvent::BenchStart { duration: self.benchmark_duration },
 				));
 				BenchmarkDuration::<T>::put(self.benchmark_duration);
 			}
