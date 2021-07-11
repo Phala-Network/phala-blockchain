@@ -14,7 +14,7 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent,
-			MiningReportEvent, SystemEvent, WorkerEvent, WorkerEventWithKey,
+			MiningReportEvent, SystemEvent, WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -29,7 +29,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
 		Ready,
-		Idle,
+		MiningIdle,
 		Active,
 		Unresponsive,
 		Collingdown,
@@ -132,10 +132,11 @@ pub mod pallet {
 		InvalidMessage,
 		WorkerNotRegistered,
 		GatekeeperNotRegistered,
-		UnboundedMiner,
+		UnauthorizedMiner,
 		DuplicatedBoundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
+		MinerNotReady,
 		MinerIsBusy,
 		CollingdownNotPassed,
 	}
@@ -161,6 +162,10 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn bind(origin: OriginFor<T>, pubkey: WorkerPublicKey) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+
 			ensure!(
 				registry::Worker::<T>::contains_key(&pubkey),
 				Error::<T>::WorkerNotRegistered
@@ -168,7 +173,7 @@ pub mod pallet {
 			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
 			ensure!(
 				worker_info.operator.unwrap() == miner.clone(),
-				Error::<T>::UnboundedMiner
+				Error::<T>::UnauthorizedMiner
 			);
 			ensure!(
 				!MinerBinding::<T>::contains_key(&miner),
@@ -177,6 +182,23 @@ pub mod pallet {
 
 			MinerBinding::<T>::insert(&miner, &pubkey);
 			WorkerBinding::<T>::insert(&pubkey, &miner);
+
+			Miners::<T>::insert(
+				&miner,
+				MinerInfo {
+					state: MinerState::Ready,
+					ve: INITIAL_V,
+					v: INITIAL_V,
+					v_updated_at: now,
+					p_instant: 0u64,
+					benchmark: Benchmark {
+						iterations: 0u64,
+						mining_start_time: now,
+					},
+					cooling_down_start: 0u64,
+				},
+			);
+
 			Self::deposit_event(Event::<T>::MinerBounded(miner, pubkey));
 			Ok(())
 		}
@@ -206,47 +228,31 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn start_mining(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
+
 			ensure!(
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
 			);
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			ensure!(
+				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotReady
+			);
 
-			// TODO: check deposit balance
-
-			// TODO: check benchmark socre in registry
 			let worker_info =
 				registry::Worker::<T>::get(Self::miner_binding(&miner).unwrap()).unwrap();
 			ensure!(
 				worker_info.intial_score != None,
 				Error::<T>::BenchmarkMissing
 			);
+
+			// TODO: check deposit balance
+
 			if let Some(score) = worker_info.intial_score {
-				if !Miners::<T>::contains_key(&miner) {
-					Miners::<T>::insert(
-						&miner,
-						MinerInfo {
-							state: MinerState::Ready,
-							ve: INITIAL_V,
-							v: INITIAL_V,
-							v_updated_at: now,
-							p_instant: 0u64,
-							benchmark: Benchmark {
-								iterations: 0u64,
-								mining_start_time: now,
-							},
-							cooling_down_start: 0u64,
-						},
-					);
-				} else {
-					Miners::<T>::mutate(&miner, |info| {
-						if let Some(info) = info {
-							info.state = MinerState::Ready;
-						}
-					});
-				}
+				Miners::<T>::mutate(&miner, |info| {
+					if let Some(info) = info {
+						info.state = MinerState::MiningIdle;
+					}
+				});
 			} else {
 				return Err(Error::<T>::BenchmarkMissing.into());
 			}
@@ -363,7 +369,7 @@ pub mod pallet {
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.benchmark.iterations = iterations;
 						if miner_info.state == MinerState::Unresponsive {
-							miner_info.state = MinerState::Idle;
+							miner_info.state = MinerState::MiningIdle;
 							Miners::<T>::insert(&binding_miner, &miner_info);
 							Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
 						}
