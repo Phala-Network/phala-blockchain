@@ -14,7 +14,7 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent,
-			MiningReportEvent, SystemEvent, WorkerEvent,
+			SystemEvent, WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -282,9 +282,8 @@ pub mod pallet {
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
 			);
-			let mut miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 			ensure!(
-				miner_info.state != MinerState::Ready,
+				Self::miners(&miner).unwrap().state != MinerState::Ready,
 				Error::<T>::MinerIsBusy
 			);
 
