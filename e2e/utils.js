@@ -19,4 +19,8 @@ async function checkUntil(async_fn, timeout) {
 	}
 }
 
-module.exports = { sleep, checkUntil };
+function skipSlowTest() {
+	return process.env.SKIP_SLOW == '1';
+}
+
+module.exports = { sleep, checkUntil, skipSlowTest };

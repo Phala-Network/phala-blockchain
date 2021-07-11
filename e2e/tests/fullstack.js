@@ -6,11 +6,13 @@ const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
-const types = require('@phala/typedefs').latest;
+const {types, typeAlias} = require('./typeoverride');
+// TODO: fixit
+// const types = require('@phala/typedefs').latest;
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
-const { checkUntil } = require('../utils');
+const { checkUntil, skipSlowTest } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/phost');
@@ -61,8 +63,6 @@ describe('A full stack', function () {
 				}
 			}
 		], { logPath: tmpPath + '/pruntime.log' });
-		// processRelayer.debug = true;
-		// processPRuntime.debug = true;
 		// Launch nodes
 		await Promise.all([
 			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/),
@@ -70,9 +70,10 @@ describe('A full stack', function () {
 		]);
 		await processRelayer.startAndWaitForOutput(/runtime_info:Some\(InitRuntimeResp/);
 		// Create polkadot api and keyring
-		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types });
+		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types, typeAlias });
+
 		await cryptoWaitReady();
-		keyring = new Keyring({ type: 'sr25519' });
+		keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
 		root = alice = keyring.addFromUri('//Alice');
 		// Create pRuntime API
 		pruntime = new PRuntimeApi(`http://localhost:${teePort}`);
@@ -101,20 +102,16 @@ describe('A full stack', function () {
 		});
 	})
 
-	describe('PRuntime', () => {
+	let workerKey;
+	describe('pRuntime', () => {
 		it('is initialized', async function () {
+			let info;
 			assert.isTrue(await checkUntil(async () => {
-				const info = await pruntime.getInfo();
+				info = await pruntime.getInfo();
 				return info.initialized;
 			}, 1000), 'not initialized in time');
-		});
-
-		it('is registered', async function () {
-			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
-			assert.isTrue(await checkUntil(async () => {
-				const info = await pruntime.getInfo();
-				return info.registered;
-			}, 3*6000), 'not registered in time');
+			// A bit guly. Any better way?
+			workerKey = Uint8Array.from(Buffer.from(info.public_key, 'hex'));
 		});
 
 		it('can sync block', async function() {
@@ -123,9 +120,81 @@ describe('A full stack', function () {
 				return info.blocknum > 0;
 			}, 7000), 'stuck at block 0');
 		});
+
+		it('is registered', async function () {
+			if (skipSlowTest()) {
+				this.skip();
+			}
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime.getInfo();
+				return info.registered;
+			}, 4*6000), 'not registered in time');
+		});
+
+		it('finishes the benchark', async function () {
+			if (skipSlowTest()) {
+				this.skip();
+			}
+			assert.isTrue(await checkUntil(async () => {
+				const workerInfo = await api.query.phalaRegistry.worker(workerKey);
+				return workerInfo.unwrap().intialScore.isSome;
+			}, 3*6000), 'benchmark timeout');
+		});
 	});
 
-	describe('Miner workflow', () => {
+	describe('Solo mining workflow', () => {
+		let miner;
+		before(function () {
+			miner = keyring.addFromUri(mnemonicGenerate());
+		})
+
+		// worker registered
+
+		// 1. check bench finished [x]
+
+		// 2. bind miner
+		it('can bind the worker', async function () {
+			const workerInfo = await api.query.phalaRegistry.worker(workerKey);
+			const operator = workerInfo.unwrap().operator.unwrap();
+			assert.equal(operator.toHuman(), alice.address, 'bad operator');
+
+			await assertSuccess(api.tx.phalaMining.bind(workerKey), alice);
+
+			let actualWorker = await api.query.phalaMining.minerBinding(alice.address);
+			let actualMiner = await api.query.phalaMining.workerBinding(workerKey);
+
+			actualWorker = Uint8Array.from(actualWorker.unwrap());
+			actualMiner = actualMiner.unwrap();
+			assert.deepEqual(actualWorker, workerKey, 'wrong bounded worker');
+			assert.equal(actualMiner.toHuman(), alice.address, 'wrong bounded miner');
+
+			let minerInfo = await api.query.phalaMining.miners(alice.address);
+			assert.isTrue(minerInfo.isSome, 'miner entity should exist');
+
+			minerInfo = minerInfo.unwrap();
+			assert.isTrue(
+				minerInfo.state.isReady,
+				'miner bounded to worker must be in Ready state'
+			);
+		})
+
+		it('can deposite some stake')
+
+		it('can start mining', async function () {
+			await assertSuccess(api.tx.phalaMining.startMining(), alice);
+			let minerInfo = await api.query.phalaMining.miners(alice.address);
+			minerInfo = minerInfo.unwrap();
+			assert.isTrue(minerInfo.state.isIdle, 'miner state should be MiningIdle');
+		})
+
+		it('triggers a heartbeat and wait for payout')
+		it('goes to MiningUnresponsive state if offline')
+		it('can stop mining')
+		it('settles after the cooling down period')
+	})
+
+	describe.skip('Miner workflow', () => {
 
 		let stash, controller, reward;
 		before(function () {
