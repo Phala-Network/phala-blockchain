@@ -1,15 +1,21 @@
 pub use self::pallet::*;
-pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
-#[allow(unused_variables)] // TODO(wfwang)
+#[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::Currency};
+	use frame_support::{
+		dispatch::DispatchResult,
+		pallet_prelude::*,
+		traits::{Currency, EnsureOrigin},
+		PalletId,
+	};
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::WorkerPublicKey;
-	use sp_runtime::Permill;
+	use sp_runtime::{traits::AccountIdConversion, Permill};
 	use sp_std::vec::Vec;
+
+	const STAKEPOOL_PALLETID: PalletId = PalletId(*b"phala/sp");
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -181,6 +187,12 @@ pub mod pallet {
 		}
 	}
 
+	impl<T: Config> Pallet<T> {
+		pub fn account_id() -> T::AccountId {
+			STAKEPOOL_PALLETID.into_account()
+		}
+	}
+
 	#[derive(Encode, Decode, Debug, Clone)]
 	pub enum PoolState {
 		Ready,
@@ -200,5 +212,17 @@ pub mod pallet {
 		commission: Permill,
 		state: PoolState,
 		total_raised: Balance,
+	}
+
+	pub struct EnsurePool<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> EnsureOrigin<T::Origin> for EnsurePool<T> {
+		type Success = T::AccountId;
+		fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
+			let pool_id = STAKEPOOL_PALLETID.into_account();
+			o.into().and_then(|o| match o {
+				frame_system::RawOrigin::Signed(who) if who == pool_id => Ok(pool_id),
+				r => Err(T::Origin::from(r)),
+			})
+		}
 	}
 }

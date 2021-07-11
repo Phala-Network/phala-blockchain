@@ -1087,6 +1087,7 @@ impl pallet_bridge_transfer::Config for Runtime {
 
 parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
+	pub const MinMiningStaking: Balance = 1 * PHAS;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1102,6 +1103,8 @@ impl pallet_mining::Config for Runtime {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
+	type PoolOrigin = pallet_stakepool::EnsurePool<Runtime>;
+	type MinStaking = MinMiningStaking;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;

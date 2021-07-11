@@ -1,6 +1,6 @@
 pub use self::pallet::*;
 
-#[allow(unused_variables)] // TODO(wfwang)
+#[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
@@ -8,18 +8,21 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, Randomness, UnixTime},
+		traits::{Currency, EnsureOrigin, Randomness, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
 		messaging::{
-			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent,
-			SystemEvent, WorkerEvent,
+			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent, SystemEvent,
+			WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
 	use sp_core::U256;
-	use sp_runtime::SaturatedConversion;
+	use sp_runtime::{
+		traits::{Saturating, Zero},
+		SaturatedConversion,
+	};
 	use sp_std::cmp;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
@@ -63,6 +66,8 @@ pub mod pallet {
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
+		type PoolOrigin: EnsureOrigin<Self::Origin, Success = Self::AccountId>;
+		type MinStaking: Get<BalanceOf<Self>>;
 	}
 
 	#[pallet::pallet]
@@ -104,6 +109,16 @@ pub mod pallet {
 	#[pallet::getter(fn mining_sessionid)]
 	pub(super) type MiningSessionid<T> = StorageValue<_, u32, ValueQuery>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn deposit_balance)]
+	pub(super) type DepositBalance<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn reward_balance)]
+	pub(super) type RewardBalance<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -142,6 +157,7 @@ pub mod pallet {
 		MinerNotReady,
 		MinerIsBusy,
 		CollingdownNotPassed,
+		InsufficientStaking,
 	}
 
 	type BalanceOf<T> =
@@ -211,17 +227,56 @@ pub mod pallet {
 		/// Requires:
 		/// 1. Ther miner is in Ready state
 		#[pallet::weight(0)]
-		pub fn deposit(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
-			panic!("unimplemented")
+		pub fn deposit(
+			origin: OriginFor<T>,
+			miner: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			T::PoolOrigin::ensure_origin(origin)?;
+
+			ensure!(
+				MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::MinerNotFounded
+			);
+			ensure!(
+				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotReady
+			);
+
+			let already_reserved =
+				DepositBalance::<T>::get(&miner).unwrap_or(BalanceOf::<T>::zero());
+			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
+
+			Ok(())
 		}
 
-		/// Withdraw some tokan from the stake
+		/// Withdraw some token from the stake
 		///
 		/// Requires:
 		/// 1. Ther miner is in Ready state
 		#[pallet::weight(0)]
-		pub fn withdraw(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
-			panic!("unimplemented")
+		pub fn withdraw(
+			origin: OriginFor<T>,
+			miner: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			T::PoolOrigin::ensure_origin(origin)?;
+
+			ensure!(
+				MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::MinerNotFounded
+			);
+
+			// FIXME: should we allow withdraw before mining stopped?
+			ensure!(
+				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotReady
+			);
+
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
+			DepositBalance::<T>::insert(&miner, already_reserved.saturating_sub(amount));
+
+			Ok(())
 		}
 
 		/// Starts mining
@@ -248,7 +303,12 @@ pub mod pallet {
 				Error::<T>::BenchmarkMissing
 			);
 
-			// TODO: check deposit balance
+			let already_reserved =
+				DepositBalance::<T>::get(&miner).unwrap_or(BalanceOf::<T>::zero());
+			ensure!(
+				already_reserved >= T::MinStaking::get(),
+				Error::<T>::InsufficientStaking
+			);
 
 			if let Some(score) = worker_info.intial_score {
 				Miners::<T>::mutate(&miner, |info| {
@@ -265,7 +325,10 @@ pub mod pallet {
 			MiningSessionid::<T>::mutate(|id| *id = session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
 				binding_worker,
-				WorkerEvent::MiningStart { session_id: session_id, init_v: INITIAL_V },
+				WorkerEvent::MiningStart {
+					session_id: session_id,
+					init_v: INITIAL_V,
+				},
 			));
 			Self::deposit_event(Event::<T>::MiningStarted(miner));
 			Ok(())
@@ -320,6 +383,10 @@ pub mod pallet {
 			);
 			miner_info.state = MinerState::Ready;
 			Miners::<T>::insert(&miner, &miner_info);
+
+			// clear deposit balance
+			DepositBalance::<T>::insert(&miner, BalanceOf::<T>::zero());
+
 			Self::deposit_event(Event::<T>::MiningCleanup(miner));
 			Ok(())
 		}
@@ -406,7 +473,12 @@ pub mod pallet {
 						miner_info.v_updated_at = now;
 						Miners::<T>::insert(&binding_miner, &miner_info);
 
-						// TODO: update payout
+						let reward_reserved = RewardBalance::<T>::get(&binding_miner)
+							.unwrap_or(BalanceOf::<T>::zero());
+						RewardBalance::<T>::insert(
+							&binding_miner,
+							reward_reserved.saturating_add(info.payout.saturated_into()),
+						);
 					}
 				}
 			}
