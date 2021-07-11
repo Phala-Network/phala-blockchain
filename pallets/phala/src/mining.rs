@@ -328,9 +328,6 @@ pub mod pallet {
 		}
 	}
 
-	// TODO(wenfeng):
-	// - push_message(SystemEvent(WorkerEvent::MiningEnterUnresponsive)) when entering MiningUnresponsive state.
-	// - push_message(SystemEvent(WorkerEvent::MiningExitUnresponsive)) when recovered to MiningIdle from MiningUnresponsive state.
 	// - Properly handle heartbeat message.
 	impl<T: Config> Pallet<T> {
 		fn heartbeat_challenge() {
@@ -364,16 +361,7 @@ pub mod pallet {
 					challenge_time,
 					iterations,
 				} => {
-					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker_pubkey) {
-						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
-						miner_info.benchmark.iterations = iterations;
-						if miner_info.state == MinerState::Unresponsive {
-							miner_info.state = MinerState::MiningIdle;
-							Miners::<T>::insert(&binding_miner, &miner_info);
-							Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
-						}
-					}
+
 				}
 			}
 			Ok(())
@@ -392,7 +380,7 @@ pub mod pallet {
 					.as_secs()
 					.saturated_into::<u64>();
 
-				// worker offline, update binding miner state to unresponsive
+				// worker offline, update bounded miner state to unresponsive
 				for worker in event.offline {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker) {
 						let mut miner_info =
@@ -400,6 +388,17 @@ pub mod pallet {
 						miner_info.state = MinerState::Unresponsive;
 						Miners::<T>::insert(&binding_miner, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(binding_miner));
+					}
+				}
+
+				// worker recovered to online, update bounded miner state to idle
+				for worker in event.recovered_to_online {
+					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker) {
+						let mut miner_info =
+							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
+						miner_info.state = MinerState::MiningIdle;
+						Miners::<T>::insert(&binding_miner, &miner_info);
+						Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
 					}
 				}
 
