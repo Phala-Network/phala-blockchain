@@ -254,7 +254,7 @@ pub mod pallet {
 			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
 			Self::push_message(SystemEvent::new_worker_event(
 				binding_worker,
-				WorkerEvent::MiningStart { init_v: INITIAL_V },
+				WorkerEvent::MiningStart { session_id: 1, init_v: INITIAL_V }, // TOTO(wenfeng): Make a unique session_id
 			));
 			Self::deposit_event(Event::<T>::MiningStarted(miner));
 			Ok(())
@@ -353,6 +353,7 @@ pub mod pallet {
 
 			match event {
 				MiningReportEvent::Heartbeat {
+					session_id: _,
 					challenge_block,
 					challenge_time,
 					iterations,

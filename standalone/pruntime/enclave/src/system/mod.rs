@@ -84,6 +84,7 @@ enum MiningState {
 
 #[derive(Debug)]
 struct MiningInfo {
+    session_id: u32,
     state: MiningState,
     start_time: u64,
     start_iter: u64,
@@ -143,8 +144,9 @@ impl WorkerState {
                         callback.bench_resume();
                     }
                     BenchScore(_) => {}
-                    MiningStart { init_v: _ } => {
+                    MiningStart { session_id, init_v: _ } => {
                         self.mining_state = Some(MiningInfo {
+                            session_id,
                             state: Mining,
                             start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
@@ -232,7 +234,12 @@ impl WorkerState {
         // Push queue when necessary
         if online_hit {
             let iterations = callback.bench_iterations() - mining_state.start_iter;
-            callback.heartbeat(block.block_number, block.now_ms, mining_state.start_time, iterations);
+            callback.heartbeat(
+                mining_state.session_id,
+                block.block_number,
+                block.now_ms,
+                iterations,
+            );
         }
     }
 
@@ -274,9 +281,9 @@ trait WorkerStateMachineCallback {
     fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
     fn heartbeat(
         &mut self,
+        _session_id: u32,
         _block_num: chain::BlockNumber,
         _block_time: u64,
-        _mining_start_time: u64,
         _iterations: u64,
     ) {
     }
@@ -305,12 +312,13 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
     fn heartbeat(
         &mut self,
+        session_id: u32,
         challenge_block: chain::BlockNumber,
         challenge_time: u64,
-        _mining_start_time: u64,
         iterations: u64,
     ) {
         let event = MiningReportEvent::Heartbeat {
+            session_id,
             challenge_block,
             challenge_time,
             iterations,

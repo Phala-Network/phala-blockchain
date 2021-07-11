@@ -133,14 +133,21 @@ impl GKMessageProcesser<'_> {
                 .state
                 .on_block_processed(self.block, &mut tracker);
 
+            if worker_info.state.mining_state.is_none() {
+                // Mining already stopped, do nothing.
+                continue;
+            }
+
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
-                    // Unresponsive, successful heartbeat
+                    // case5: Unresponsive, successful heartbeat
                     worker_info.unresponsive = false;
+                    self.report.recovered_to_online.push(worker_info.state.pubkey.clone());
                 }
             } else {
                 if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                     if self.block.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
+                        // case3: Idle, heartbeat failed
                         self.report.offline.push(worker_info.state.pubkey.clone());
                         worker_info.unresponsive = true;
                     }
@@ -149,12 +156,13 @@ impl GKMessageProcesser<'_> {
 
             let params = &self.tokenomic_params;
             if worker_info.unresponsive {
+                // case3/case4:
                 // Idle, heartbeat failed or
                 // Unresponsive, no event
                 let v = tokenomic::update_v_slash(&worker_info.tokenomic, &params);
                 worker_info.tokenomic.v = v;
             } else if !worker_info.heartbeat_flag {
-                // Idle, no event
+                // case1: Idle, no event
                 let v = tokenomic::update_v_idle(&worker_info.tokenomic, &params);
                 worker_info.tokenomic.v = v;
             }
@@ -170,6 +178,7 @@ impl GKMessageProcesser<'_> {
         };
         match event {
             MiningReportEvent::Heartbeat {
+                session_id,
                 challenge_block,
                 challenge_time,
                 iterations,
@@ -197,7 +206,17 @@ impl GKMessageProcesser<'_> {
                 // The oldest one comfirmed.
                 let _ = worker_info.waiting_heartbeats.pop_front();
 
-                // TODO.kevin: ignore heartbeats from previous mining sessions.
+                let mining_state = if let Some(state) = &worker_info.state.mining_state {
+                    state
+                } else {
+                    // Mining already stopped, ignore the heartbeat.
+                    return;
+                };
+
+                if session_id != mining_state.session_id {
+                    // Heartbeat response to previous mining sessions, ignore it.
+                    return;
+                }
 
                 worker_info.heartbeat_flag = true;
 
@@ -206,8 +225,10 @@ impl GKMessageProcesser<'_> {
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
-                if !worker_info.unresponsive {
-                    // Idle, successful heartbeat, report to pallet
+                if worker_info.unresponsive {
+                    // case5: Unresponsive, successful heartbeat.
+                } else {
+                    // case2: Idle, successful heartbeat, report to pallet
                     let (v, payout) = tokenomic::update_v_heartbeat(
                         &worker_info.tokenomic,
                         &self.tokenomic_params,
@@ -220,7 +241,7 @@ impl GKMessageProcesser<'_> {
                     worker_info.tokenomic.v_update_at = self.block.now_ms;
 
                     self.report.settle.push(SettleInfo {
-                        pubkey: worker_info.state.pubkey.clone(),
+                        pubkey: worker_pubkey.clone(),
                         v: (v * F2U_RATE) as _,
                         payout: (payout * F2U_RATE) as _,
                     })
@@ -267,7 +288,7 @@ impl GKMessageProcesser<'_> {
                         WorkerEvent::BenchScore(score) => {
                             worker.tokenomic.p_bench = (*score) as f64;
                         }
-                        WorkerEvent::MiningStart { init_v } => {
+                        WorkerEvent::MiningStart { session_id: _, init_v } => {
                             let v = (*init_v) as f64 / F2U_RATE;
                             let prev = worker.tokenomic;
                             // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.
@@ -311,9 +332,9 @@ struct WorkerSMTracker<'a> {
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
     fn heartbeat(
         &mut self,
+        _session_id: u32,
         challenge_block: runtime::BlockNumber,
         _challenge_time: u64,
-        _mining_start_time: u64,
         _iterations: u64,
     ) {
         self.waiting_heartbeats.push_back(challenge_block);
