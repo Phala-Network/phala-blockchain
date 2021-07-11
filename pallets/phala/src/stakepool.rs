@@ -78,6 +78,7 @@ pub mod pallet {
 		UnauthorizedPoolOwner,
 		InvalidPayoutPerf,
 		PoolNotExist,
+		PoolIsBusy,
 	}
 
 	type BalanceOf<T> =
@@ -200,7 +201,7 @@ pub mod pallet {
 			// make sure pool status is not mining
 			ensure!(
 				pool_info.state != PoolState::Mining,
-				Error::<T>::UnauthorizedPoolOwner
+				Error::<T>::PoolIsBusy
 			);
 
 			if let Some(commission) = payout_commission {
