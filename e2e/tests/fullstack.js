@@ -97,7 +97,7 @@ describe('A full stack', function () {
 		assert.isFalse(processPRuntime.stopped);
 	});
 
-	describe('PhalaNode', () => {
+	describe.skip('PhalaNode', () => {
 		it('should have Alice registered', async function () {
 		});
 	})
