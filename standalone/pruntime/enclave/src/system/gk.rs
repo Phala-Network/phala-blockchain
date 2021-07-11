@@ -245,6 +245,7 @@ impl GKMessageProcesser<'_> {
             let _ = self.state.workers.entry(pubkey.clone()).or_insert(worker);
         }
 
+        // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker {
@@ -255,7 +256,6 @@ impl GKMessageProcesser<'_> {
                 .process_event(self.block, &event, &mut tracker, false);
         }
 
-        // TODO.kevin: Avoid unnecessary loop for WorkerEvents.
         match &event {
             SystemEvent::WorkerEvent(e) => {
                 if let Some(worker) = self.state.workers.get_mut(&e.pubkey) {
