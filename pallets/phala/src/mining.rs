@@ -23,7 +23,6 @@ pub mod pallet {
 	use sp_std::cmp;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
-	const DEFAULT_HEARTBEAT_WINDOW: u64 = 10;
 	const INITIAL_V: u64 = 1;
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -100,6 +99,10 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn collingdown_expire)]
 	pub(super) type CollingdownExpire<T> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn mining_sessionid)]
+	pub(super) type MiningSessionid<T> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -258,9 +261,11 @@ pub mod pallet {
 			}
 
 			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
+			let session_id = MiningSessionid::<T>::get();
+			MiningSessionid::<T>::mutate(|id| *id = session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
 				binding_worker,
-				WorkerEvent::MiningStart { session_id: 1, init_v: INITIAL_V }, // TOTO(wenfeng): Make a unique session_id
+				WorkerEvent::MiningStart { session_id: session_id, init_v: INITIAL_V },
 			));
 			Self::deposit_event(Event::<T>::MiningStarted(miner));
 			Ok(())
@@ -344,27 +349,6 @@ pub mod pallet {
 				online_target,
 			};
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
-		}
-
-		pub fn on_message_received(message: DecodedMessage<MiningReportEvent>) -> DispatchResult {
-			let worker_pubkey = match &message.sender {
-				MessageOrigin::Worker(worker) => worker,
-				_ => return Err(Error::<T>::BadSender.into()),
-			};
-
-			let event = message.payload;
-
-			match event {
-				MiningReportEvent::Heartbeat {
-					session_id: _,
-					challenge_block,
-					challenge_time,
-					iterations,
-				} => {
-
-				}
-			}
-			Ok(())
 		}
 
 		pub fn on_gk_message_received(
