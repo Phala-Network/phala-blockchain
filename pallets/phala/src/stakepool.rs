@@ -3,6 +3,8 @@ pub use self::pallet::*;
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
+	use crate::mining;
+	use crate::registry;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -12,14 +14,18 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::WorkerPublicKey;
-	use sp_runtime::{traits::AccountIdConversion, Permill};
+	use sp_runtime::{
+		traits::{AccountIdConversion, Saturating, Zero},
+		Permill,
+	};
+	use sp_std::vec;
 	use sp_std::vec::Vec;
 
 	const STAKEPOOL_PALLETID: PalletId = PalletId(*b"phala/sp");
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+	pub trait Config: frame_system::Config + registry::Config + mining::Config {
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		type Currency: Currency<Self::AccountId>;
 	}
@@ -30,19 +36,48 @@ pub mod pallet {
 
 	/// Mapping from pool id to PoolInfo
 	#[pallet::storage]
-	pub type Pool<T: Config> =
+	#[pallet::getter(fn mining_pools)]
+	pub(super) type MiningPools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>>>;
+
+	/// Mapping pool to it's UserStakeInfo
+	#[pallet::storage]
+	#[pallet::getter(fn staking_info)]
+	pub(super) type StakingInfo<T: Config> =
+		StorageMap<_, Twox64Concat, (u64, T::AccountId), UserStakeInfo<T::AccountId, BalanceOf<T>>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn pool_count)]
+	pub(super) type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event {
+	pub enum Event<T: Config> {
 		/// Meh. [n]
 		Meh(u32),
+		/// [owner, pid]
+		PoolCreated(T::AccountId, u64),
+		/// [pid, commission]
+		PoolCommissionSetted(u64, Permill),
+		/// [pid, worker]
+		PoolWorkerAdded(u64, WorkerPublicKey),
+		/// [pid, user, amount]
+		Deposit(u64, T::AccountId, BalanceOf<T>),
+		/// [pid, user, amount]
+		Withdraw(u64, T::AccountId, BalanceOf<T>),
+		/// [pid, user, amount]
+		WithdrawRewards(u64, T::AccountId, BalanceOf<T>),
 	}
 
 	#[pallet::error]
 	pub enum Error<T> {
 		Meh,
+		WorkerNotRegistered,
+		WorkerHasAdded,
+		UnauthorizedOperator,
+		UnauthorizedPoolOwner,
+		InvalidPayoutPerf,
+		PoolNotExist,
 	}
 
 	type BalanceOf<T> =
@@ -52,8 +87,77 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
-		pub fn create(origin: OriginFor<T>, id: u64) -> DispatchResult {
-			panic!("unimplemented")
+		pub fn create(origin: OriginFor<T>) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+
+			let pid = PoolCount::<T>::get();
+			PoolCount::<T>::mutate(|id| *id = pid + 1);
+			MiningPools::<T>::insert(
+				pid + 1,
+				PoolInfo {
+					pid: pid + 1,
+					owner: owner.clone(),
+					state: PoolState::default(),
+					payout_commission: None,
+					pool_acc: Zero::zero(),
+					total_staked: Zero::zero(),
+					extra_staked: Zero::zero(),
+					workers: vec![],
+				},
+			);
+			Self::deposit_event(Event::<T>::PoolCreated(owner, pid));
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn add_worker(
+			origin: OriginFor<T>,
+			pid: u64,
+			pubkey: WorkerPublicKey,
+		) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+
+			// make sure the worker has registered
+			ensure!(
+				registry::Worker::<T>::contains_key(&pubkey),
+				Error::<T>::WorkerNotRegistered
+			);
+			// check the wheather the owner was bounded as operator
+			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
+			ensure!(
+				worker_info.operator.unwrap() == owner.clone(),
+				Error::<T>::UnauthorizedOperator
+			);
+
+			// origin must be owner of pool
+			let mut pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			ensure!(
+				pool_info.owner == owner.clone(),
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			// make sure worker has not been not added
+			let mut workers = pool_info.workers;
+			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
+
+			// generate miner account
+			let miner: T::AccountId =
+				STAKEPOOL_PALLETID.into_sub_account((pid, owner, pubkey.clone()).encode());
+
+			// bind worker with minner
+			<mining::pallet::Pallet<T>>::bind(
+				frame_system::RawOrigin::Signed(Self::account_id()).into(),
+				miner.clone(),
+				pubkey.clone(),
+			)?;
+
+			// update worker vector
+			workers.push(pubkey.clone());
+			pool_info.workers = workers;
+			MiningPools::<T>::insert(&pid, &pool_info);
+			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
+
+			Ok(())
 		}
 
 		/// Destroies a stake pool
@@ -82,10 +186,33 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn set_payout_pref(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pid: u64,
 			payout_commission: Option<Permill>,
 		) -> DispatchResult {
-			panic!("unimplemented")
+			let owner = ensure_signed(origin)?;
+
+			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			// origin must be owner of pool
+			ensure!(
+				pool_info.owner == owner.clone(),
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			// make sure pool status is not mining
+			ensure!(
+				pool_info.state != PoolState::Mining,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+
+			if let Some(commission) = payout_commission {
+				MiningPools::<T>::mutate(&pid, |pool| {
+					if let Some(pool) = pool {
+						pool.payout_commission = Some(commission);
+					}
+				});
+				Self::deposit_event(Event::<T>::PoolCommissionSetted(pid, commission));
+			}
+
+			Ok(())
 		}
 
 		/// Change the payout perference of a stake pool
@@ -193,7 +320,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Debug, Clone)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum PoolState {
 		Ready,
 		Mining,
@@ -205,13 +332,25 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Debug, Default, Clone)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct PoolInfo<AccountId: Default, Balance> {
+		pid: u64,
 		owner: AccountId,
-		cap: Option<Balance>,
-		commission: Permill,
 		state: PoolState,
-		total_raised: Balance,
+		payout_commission: Option<Permill>,
+		pool_acc: Balance,
+		total_staked: Balance,
+		extra_staked: Balance,
+		workers: Vec<WorkerPublicKey>,
+	}
+
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	pub struct UserStakeInfo<AccountId: Default, Balance> {
+		has_deposited: bool,
+		user: AccountId,
+		amount: Balance,
+		available_rewards: Balance,
+		user_debt: Balance,
 	}
 
 	pub struct EnsurePool<T>(sp_std::marker::PhantomData<T>);

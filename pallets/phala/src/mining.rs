@@ -150,7 +150,6 @@ pub mod pallet {
 		InvalidMessage,
 		WorkerNotRegistered,
 		GatekeeperNotRegistered,
-		UnauthorizedMiner,
 		DuplicatedBoundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
@@ -179,8 +178,13 @@ pub mod pallet {
 		/// Requires:
 		/// 1. Ther worker is alerady registered
 		#[pallet::weight(0)]
-		pub fn bind(origin: OriginFor<T>, pubkey: WorkerPublicKey) -> DispatchResult {
-			let miner = ensure_signed(origin)?;
+		pub fn bind(
+			origin: OriginFor<T>,
+			miner: T::AccountId,
+			pubkey: WorkerPublicKey,
+		) -> DispatchResult {
+			T::PoolOrigin::ensure_origin(origin)?;
+
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
@@ -189,11 +193,7 @@ pub mod pallet {
 				registry::Worker::<T>::contains_key(&pubkey),
 				Error::<T>::WorkerNotRegistered
 			);
-			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
-			ensure!(
-				worker_info.operator.unwrap() == miner.clone(),
-				Error::<T>::UnauthorizedMiner
-			);
+
 			ensure!(
 				!MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::DuplicatedBoundedMiner
