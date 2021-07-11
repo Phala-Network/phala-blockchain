@@ -311,6 +311,7 @@ pub mod pallet {
 					Worker::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.intial_score = Some(score);
+							val.last_updated = now;
 						}
 					});
 
