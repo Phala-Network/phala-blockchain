@@ -34,6 +34,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type OffchainIngress<T> = StorageMap<_, Twox64Concat, MessageOrigin, u64>;
 
+	#[pallet::storage]
+	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
+
 	#[pallet::event]
 	// #[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -108,7 +111,7 @@ pub mod pallet {
 		/// Push a validated message to the queue
 		pub fn dispatch_message(message: Message) {
 			// Notify subcribers
-			if let Err(err) =  T::QueueNotifyConfig::on_message_received(&message) {
+			if let Err(_err) = T::QueueNotifyConfig::on_message_received(&message) {
 				// TODO: what todo here?
 			}
 			// Notify the off-chain components
@@ -120,6 +123,24 @@ pub mod pallet {
 		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
 			let message = Message::new(sender, M::TOPIC, payload.encode());
 			Self::dispatch_message(message);
+		}
+
+		pub fn queue_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+			let message = Message::new(sender, M::TOPIC, payload.encode());
+			QueuedOutboundMessage::<T>::append(message);
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+			// Send out queued message from the previous block
+			if let Some(msgs) = QueuedOutboundMessage::<T>::take() {
+				for message in msgs.into_iter() {
+					Self::dispatch_message(message);
+				}
+			}
+			0
 		}
 	}
 
@@ -173,6 +194,11 @@ pub mod pallet {
 
 		fn push_message(payload: impl Encode + BindTopic) {
 			Pallet::<Self::Config>::push_bound_message(Self::message_origin(), payload);
+		}
+
+		/// Enqueues a message to push in the beginning of the next block
+		fn queue_message(payload: impl Encode + BindTopic) {
+			Pallet::<Self::Config>::queue_bound_message(Self::message_origin(), payload);
 		}
 	}
 }

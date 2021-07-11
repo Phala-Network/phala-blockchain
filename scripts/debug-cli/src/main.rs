@@ -1,4 +1,5 @@
 use codec::{Decode, Encode};
+use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
 
@@ -44,6 +45,9 @@ enum Cli {
         p0: u32,
         p1: u64,
     },
+    EcdhKey {
+        privkey: String,
+    },
 }
 
 fn main() {
@@ -83,10 +87,7 @@ fn main() {
         }
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
-            let snapshot =
-                enclave_api::blocks::BlockHeaderWithEvents::decode(
-                    &mut data.as_slice(),
-                );
+            let snapshot = enclave_api::blocks::BlockHeaderWithEvents::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
         }
@@ -109,17 +110,23 @@ fn main() {
                 _ => {}
             }
         }
-        Cli::EncodeLotterySetAdmin { admin , number } => {
-            use phala_types::messaging::{LotteryCommand, BindTopic, PushCommand};
+        Cli::EncodeLotterySetAdmin { admin, number } => {
+            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
             println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
             let payload = PushCommand {
                 command: LotteryCommand::SetAdmin { new_admin: admin },
-                number
+                number,
             };
             println!("payload: 0x{}", hex::encode(payload.encode()));
         }
-        Cli::EncodeLotteryUtxo { round, address, txid, p0, p1 } => {
-            use phala_types::messaging::{LotteryCommand, BindTopic, PushCommand};
+        Cli::EncodeLotteryUtxo {
+            round,
+            address,
+            txid,
+            p0,
+            p1,
+        } => {
+            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
             println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
             let mut txid_buf: [u8; 32] = Default::default();
             hex::decode_to_slice(txid, &mut txid_buf).unwrap();
@@ -132,6 +139,15 @@ fn main() {
                 number: 1,
             };
             println!("payload: 0x{}", hex::encode(payload.encode()));
+        }
+        Cli::EcdhKey { privkey } => {
+            use crypto::ecdh;
+
+            let privkey = hex::decode(privkey).expect("Failed to decode hex key");
+            let privkey: ecdh::PrivateKey = privkey.try_into().expect("Invalid key length");
+            let pair = ecdh::EcdhKey::create(&privkey).expect("Failed to crate key pair");
+            let pubkey = pair.public();
+            println!("Pubkey: {:?}", pubkey);
         }
     }
 }

@@ -284,11 +284,14 @@ impl GKMessageProcesser<'_> {
                         WorkerEvent::Registered(info) => {
                             worker.tokenomic.confidence_level = info.confidence_level;
                         }
-                        WorkerEvent::BenchStart => {}
+                        WorkerEvent::BenchStart { .. } => {}
                         WorkerEvent::BenchScore(score) => {
                             worker.tokenomic.p_bench = (*score) as f64;
                         }
-                        WorkerEvent::MiningStart { session_id: _, init_v } => {
+                        WorkerEvent::MiningStart {
+                            session_id: _,
+                            init_v,
+                        } => {
                             let v = (*init_v) as f64 / F2U_RATE;
                             let prev = worker.tokenomic;
                             // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.

@@ -73,6 +73,7 @@ struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
     start_iter: u64,
+    duration: u32,
 }
 
 #[derive(Debug)]
@@ -135,11 +136,12 @@ impl WorkerState {
                     Registered(_) => {
                         self.registered = true;
                     }
-                    BenchStart => {
+                    BenchStart { duration } => {
                         self.bench_state = Some(BenchState {
                             start_block: block.block_number,
                             start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
+                            duration,
                         });
                         callback.bench_resume();
                     }
@@ -256,11 +258,10 @@ impl WorkerState {
             start_block,
             start_time,
             start_iter,
+            duration,
         }) = self.bench_state
         {
-            // TODO.kevin: tune the value
-            const BENCH_DURATION: u32 = 8;
-            if block.block_number - start_block >= BENCH_DURATION {
+            if block.block_number - start_block >= duration {
                 self.bench_state = None;
                 let iterations = callback.bench_iterations() - start_iter;
                 callback.bench_report(start_time, iterations);
@@ -270,6 +271,17 @@ impl WorkerState {
             }
         }
     }
+}
+
+fn chain_benchmark_duration(storage: &Storage) -> chain::BlockNumber {
+    use parity_scale_codec::Decode;
+    let key = crate::storage_prefix("PhalaRegistry", "BenchmarkDuration");
+    storage.get(&key)
+        .map(|v| {
+            chain::BlockNumber::decode(&mut &v[..])
+                .expect("BenchmarkDuration must exist; qed.")
+        })
+        .expect("BenchmarkDuration must exist; qed.")
 }
 
 trait WorkerStateMachineCallback {
@@ -437,6 +449,10 @@ impl System {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
+    }
+
+    pub fn is_registered(&self) -> bool {
+        self.worker_state.registered
     }
 }
 

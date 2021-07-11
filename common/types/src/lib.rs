@@ -4,6 +4,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
+use core::convert::{TryFrom, TryInto};
 
 // Messages: Phase Wallet
 
@@ -180,7 +181,8 @@ pub mod messaging {
         Registered(WorkerInfo),
         /// pallet-registry --> worker
         ///  When a worker register succeed, the chain request the worker to benchmark.
-        BenchStart,
+        ///   duration: Number of blocks the benchmark to keep on.
+        BenchStart { duration: u32 },
         /// pallet-registry --> worker
         ///  The init bench score caculated by pallet.
         BenchScore(u32),
@@ -329,12 +331,28 @@ pub struct Score {
 type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
 pub type ContractPublicKey = sp_core::ecdsa::Public;
+#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
+pub struct EcdhP256PublicKey([u8; 65]);
+
+impl Default for EcdhP256PublicKey {
+	fn default() -> Self {
+		EcdhP256PublicKey([0; 65])
+	}
+}
+impl TryFrom<&[u8]> for EcdhP256PublicKey {
+	type Error = ();
+	fn try_from(raw: &[u8]) -> Result<Self, ()> {
+		let raw: [u8; 65] = raw.try_into().map_err(|_| ())?;
+		Ok(EcdhP256PublicKey(raw))
+	}
+}
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct PRuntimeInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
+    pub ecdh_pubkey: EcdhP256PublicKey,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
 }

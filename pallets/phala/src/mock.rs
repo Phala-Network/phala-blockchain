@@ -1,6 +1,6 @@
 use crate::{mining, mq, registry};
 
-use frame_support::parameter_types;
+use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use sp_core::H256;
@@ -26,8 +26,8 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Event},
-		PhalaRegistry: registry::{Pallet, Event},
-		PhalaMining: mining::{Pallet, Event},
+		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
+		PhalaMining: mining::{Pallet, Event<T>},
 	}
 );
 
@@ -106,16 +106,19 @@ impl mining::Config for Test {
 // This function basically just builds a genesis storage key/value store according to
 // our desired mockup.
 pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = system::GenesisConfig::default()
+	let mut t = system::GenesisConfig::default()
 		.build_storage::<Test>()
 		.unwrap();
-	// Inject genesis storage:
-	// super::GenesisConfig::<Test> {
-	// 	stakers: Default::default(),
-	// 	contract_keys: Default::default(),
-	// }
-	// .assimilate_storage(&mut t)
-	// .unwrap();
+	// Inject genesis storage
+	let zero_pubkey = sp_core::ecdsa::Public::from_raw([0u8; 33]);
+	let zero_ecdh_pubkey = Vec::from(&[0u8; 65][..]);
+	crate::registry::GenesisConfig::<Test> {
+		workers: vec![(zero_pubkey.clone(), zero_ecdh_pubkey, None)],
+		gatekeepers: vec![(zero_pubkey.clone())],
+		benchmark_duration: 0u32,
+	}
+	.assimilate_storage(&mut t)
+	.unwrap();
 	sp_io::TestExternalities::new(t)
 }
 
