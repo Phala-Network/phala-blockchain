@@ -1351,10 +1351,10 @@ name = "debug-cli"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
- "crypto",
  "enclave-api",
  "hex",
  "parity-scale-codec",
+ "phala-crypto",
  "phala-types",
  "sp-runtime",
  "structopt",
