@@ -2136,7 +2136,9 @@ checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 name = "phala-crypto"
 version = "0.1.0"
 dependencies = [
+ "curve25519-dalek 2.1.2",
  "ring 0.16.20",
+ "schnorrkel",
  "sp-core",
 ]
 

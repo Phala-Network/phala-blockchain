@@ -145,7 +145,7 @@ fn main() {
 
             let privkey = hex::decode(privkey).expect("Failed to decode hex key");
             let privkey: ecdh::EcdhPrivateKey = privkey.try_into().expect("Invalid key length");
-            let pair = ecdh::EcdhKey::create(&privkey).expect("Failed to crate key pair");
+            let pair = ecdh::EcdhKey::from_secret(&privkey).expect("Failed to crate key pair");
             let pubkey = pair.public();
             println!("Pubkey: {:?}", pubkey);
         }

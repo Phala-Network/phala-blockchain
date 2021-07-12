@@ -5349,8 +5349,10 @@ dependencies = [
 name = "phala-crypto"
 version = "0.1.0"
 dependencies = [
+ "curve25519-dalek 2.1.2",
  "rand 0.7.3",
  "ring 0.16.20",
+ "schnorrkel",
  "sp-core",
 ]
 

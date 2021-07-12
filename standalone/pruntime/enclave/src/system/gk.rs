@@ -464,25 +464,24 @@ where
                     .identity_key
                     .derive_ecdh_key()
                     .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey);
-                let iv = aead::generate_iv();
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey)
+                    .expect("should never failed with valid ecdh key");
+                let iv = crate::cryptography::aead::generate_iv();
                 let mut data = master_key.clone().to_raw_vec();
                 aead::encrypt(&iv, &secret, &mut data);
 
                 self.state
                     .egress
-                    .push_message(EgressMessage::DispatchMasterKey(
-                        DispatchMasterKeyEvent {
-                            dest: event.pubkey,
-                            ecdh_pubkey: my_ecdh_key
-                                .public()
-                                .as_ref()
-                                .try_into()
-                                .expect("ecdh pubkey with incorrect length"),
-                            encrypted_master_key: data,
-                            iv: iv,
-                        },
-                    ));
+                    .push_message(EgressMessage::DispatchMasterKey(DispatchMasterKeyEvent {
+                        dest: event.pubkey,
+                        ecdh_pubkey: my_ecdh_key
+                            .public()
+                            .as_ref()
+                            .try_into()
+                            .expect("ecdh pubkey with incorrect length"),
+                        encrypted_master_key: data,
+                        iv: iv,
+                    }));
             }
         }
     }
@@ -517,7 +516,8 @@ where
                     .identity_key
                     .derive_ecdh_key()
                     .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey);
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey)
+                    .expect("should never failed with valid ecdh key");
                 let mut seed: Vec<u8> = Vec::new();
                 aead::decrypt(&event.iv, &secret, &mut seed);
 
