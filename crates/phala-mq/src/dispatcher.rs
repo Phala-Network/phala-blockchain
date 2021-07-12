@@ -75,8 +75,6 @@ impl MessageDispatcher {
     /// Drop all unhandled messages.
     pub fn clear(&mut self) -> usize {
         let mut count = 0;
-        let sn = self.local_index;
-        self.local_index += 1;
         for subscriber in self.subscribers.values_mut().flatten() {
             count += subscriber.clear();
         }
