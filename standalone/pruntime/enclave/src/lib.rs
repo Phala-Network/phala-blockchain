@@ -793,7 +793,7 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
 fn new_ecdsa_key() -> Result<ecdsa::Pair> {
     use rand::RngCore;
     let mut rng = rand::thread_rng();
-    let mut seed = [0u8; 32];
+    let mut seed = [0_u8; 32];
     rng.fill_bytes(&mut seed);
     ecdsa::Pair::from_seed_slice(&seed)
         .map_err(|_| anyhow!("Failed to generate a random ecdsa key"))

@@ -19,8 +19,8 @@ pallet-randomness-collective-flip = { version = "3.0.0", default-features = fals
 sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
 sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
-sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
+sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core", features = ["full_crypto"] }
+sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto", features = ["full_crypto"] }
 frame-benchmarking = { version = "3.1.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
 log = { version = "0.4.14", default-features = false }
 

@@ -2217,6 +2217,7 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec 2.2.0",
+ "phala-crypto",
  "phala-mq",
  "serde 1.0.126",
  "sp-core",

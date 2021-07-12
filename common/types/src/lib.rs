@@ -14,7 +14,7 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::U256;
 
-    use super::WorkerPublicKey;
+    use super::{WorkerEcdhPublicKey, WorkerPublicKey};
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -154,7 +154,7 @@ pub mod messaging {
         Created(AccountId, Hash),
     }
 
-    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/trasfer");
+    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/transfer");
     #[derive(Debug, Clone, Encode, Decode, PartialEq)]
     pub struct KittyTransfer<AccountId> {
         pub dest: AccountId,
@@ -235,6 +235,25 @@ pub mod messaging {
         pub payout: u32,
     }
 
+    // Messages: Gatekeeper
+    // TODO.shelven: place them under a universial GatekeeperEvent
+    bind_topic!(NewGatekeeperEvent, b"phala/gatekeeper/new");
+    #[derive(Encode, Decode, Debug)]
+    pub struct NewGatekeeperEvent {
+        pub pubkey: WorkerPublicKey,
+        pub ecdh_pubkey: WorkerEcdhPublicKey,
+        pub gatekeeper_count: u32,
+    }
+
+    bind_topic!(DispatchMasterKeyEvent, b"phala/gatekeeper/masterkey");
+    #[derive(Encode, Decode, Debug)]
+    pub struct DispatchMasterKeyEvent {
+        pub dest: WorkerPublicKey,
+        pub ecdh_pubkey: WorkerEcdhPublicKey,
+        pub encrypted_master_key: Vec<u8>,
+        pub iv: phala_crypto::aead::IV,
+    }
+
     pub type RandomNumber = [u8; 32];
 
     bind_topic!(RandomNumberEvent, b"phala/gatekeeper/random");
@@ -300,6 +319,8 @@ pub struct Score {
 
 type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
+// This is only true for ECDH_P256
+pub type WorkerEcdhPublicKey = [u8; 65];
 pub type ContractPublicKey = sp_core::ecdsa::Public;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]

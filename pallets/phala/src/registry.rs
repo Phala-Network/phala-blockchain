@@ -16,8 +16,11 @@ pub mod pallet {
 	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
-		messaging::{bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent},
-		ContractPublicKey, PRuntimeInfo, WorkerPublicKey,
+		messaging::{
+			bind_topic, DecodedMessage, MessageOrigin, NewGatekeeperEvent, SignedMessage,
+			SystemEvent, WorkerEvent,
+		},
+		ContractPublicKey, PRuntimeInfo, WorkerPublicKey, WorkerEcdhPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -43,7 +46,8 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type Worker<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
+	pub type Worker<T: Config> =
+		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -146,13 +150,19 @@ pub mod pallet {
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
+			ecdh_pubkey: WorkerEcdhPublicKey,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
 			if !gatekeepers.contains(&gatekeeper) {
 				gatekeepers.push(gatekeeper.clone());
+				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
-				Self::deposit_event(Event::GatekeeperAdded(gatekeeper));
+				Self::push_message(NewGatekeeperEvent {
+					pubkey: gatekeeper,
+					ecdh_pubkey: ecdh_pubkey,
+					gatekeeper_count: gatekeeper_count,
+				});
 			}
 			Ok(())
 		}

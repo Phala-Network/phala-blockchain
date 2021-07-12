@@ -334,7 +334,7 @@ impl System {
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper: gk::Gatekeeper::new(recv_mq, gk_egress),
+            gatekeeper: gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress),
         }
     }
 
@@ -408,8 +408,7 @@ impl System {
             .on_block_processed(block_number, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
-            self.gatekeeper
-                .process_messages(block_number, storage);
+            self.gatekeeper.process_messages(block_number, storage);
 
             self.gatekeeper.vrf(block_number);
         }
