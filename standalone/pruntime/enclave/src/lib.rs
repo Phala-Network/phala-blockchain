@@ -79,6 +79,7 @@ use rpc_types::*;
 use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
+use types::BlockInfo;
 use types::Error;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
@@ -870,6 +871,14 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     }
 }
 
+#[cfg(feature = "tests")]
+#[no_mangle]
+pub extern "C" fn ecall_run_tests() -> sgx_status_t {
+    run_all_tests();
+    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
+    sgx_status_t::SGX_SUCCESS
+}
+
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
     if !benchmark::puasing() {
@@ -932,8 +941,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
-    let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
-    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
+    let ecdh_raw_pk: &[u8] = local_state.ecdh_public_key.as_ref().unwrap().as_ref();
+    let ecdh_hex_pk = hex::encode(ecdh_raw_pk);
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
     let ecdh_privkey = ecdh::clone_key(
         local_state
@@ -977,6 +986,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
+        ecdh_pubkey: ecdh_raw_pk
+            .try_into()
+            .expect("Ecdh key length must be correct; qed."),
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -1057,7 +1069,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
                     mq,
                     cmd_mq,
                     evt_mq,
-                    KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+                    KeyPair::new(ecdh_privkey, ecdh_raw_pk.to_vec()),
                 ));
                 other_contracts.insert($id, wrapped);
             }};
@@ -1372,18 +1384,24 @@ fn handle_events(
 
     let mut state = scopeguard::guard(state, |state| {
         let n_unhandled = state.recv_mq.clear();
-        warn!("There are {} unhandled messages droped", n_unhandled);
+        warn!("There are {} unhandled messages dropped", n_unhandled);
     });
 
-    if let Err(e) = system.process_messages(block_number, storage) {
+    let now_ms = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
+    let block = BlockInfo {
+        block_number,
+        now_ms,
+        storage,
+    };
+
+    if let Err(e) = system.process_messages(&block, storage) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
 
     let mut env = ExecuteEnv {
-        block_number,
+        block: &block,
         system,
-        storage,
     };
 
     for contract in state.contracts.values_mut() {
@@ -1391,6 +1409,13 @@ fn handle_events(
     }
 
     Ok(())
+}
+
+fn block_timestamp_ms(storage: &Storage) -> Option<u64> {
+    let key = storage_prefix("Timestamp", "Now");
+    let value = storage.get(key)?;
+    let now: chain::Moment = Decode::decode(&mut &value[..]).ok()?;
+    Some(now)
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1419,8 +1444,17 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     drop(runtime_state);
 
+    let registered = {
+        match SYSTEM_STATE.lock().unwrap().as_ref() {
+            Some(system) => system.is_registered(),
+            None => false,
+        }
+    };
+    let score = benchmark::score();
+
     Ok(json!({
         "initialized": initialized,
+        "registered": registered,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
         "headernum": headernum,
@@ -1429,6 +1463,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "machine_id": machine_id,
         "dev_mode": dev_mode,
         "pending_messages": pending_messages,
+        "score": score,
     }))
 }
 
@@ -1621,4 +1656,9 @@ mod identity {
 
         gatekeepers.contains(pubkey)
     }
+}
+
+#[cfg(feature = "tests")]
+fn run_all_tests() {
+    system::run_all_tests();
 }

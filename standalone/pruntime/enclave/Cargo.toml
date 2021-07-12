@@ -81,7 +81,8 @@ sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substr
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
 
-fixed = { git = "https://github.com/encointer/substrate-fixed", package = "substrate-fixed", default-features = false }
+fixed = "1.9.0"
+fixed-sqrt = "0.2.4"
 
 # for diem
 bcs = { path = "../../../diem/vendor/bcs", version = "0.1.2" }
@@ -101,6 +102,7 @@ default = [
   "sp-io/disable_allocator",
   "runtime/native-nostd"
 ]
+tests = []
 
 [patch.crates-io]
 rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", default-features = false }

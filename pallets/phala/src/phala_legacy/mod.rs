@@ -29,8 +29,7 @@ pub mod weights;
 extern crate phala_types as types;
 use types::{
 	messaging::{
-		BalanceEvent, BalanceTransfer, BindTopic, HeartbeatChallenge, DecodedMessage, MessageOrigin,
-		SystemEvent,
+		BalanceEvent, BalanceTransfer, BindTopic, DecodedMessage, HeartbeatChallenge, MessageOrigin,
 	},
 	MinerStatsDelta, PayoutPrefs, PayoutReason, RoundInfo, RoundStats, Score, StashInfo,
 	StashWorkerStats, WorkerInfo, WorkerStateEnum,
@@ -896,7 +895,6 @@ impl<T: Config> Module<T> {
 		};
 		// Save
 		BlockRewardSeeds::<T>::insert(now, &seed_info);
-		Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 	}
 
 	/// Calculates the clipped target transaction number for this round
@@ -935,7 +933,9 @@ impl<T: Config> MessageOriginInfo for Module<T> {
 }
 
 impl<T: Config> Module<T> {
-	pub fn on_transfer_message_received(message: DecodedMessage<BalanceTransfer<T::AccountId, BalanceOf<T>>>) -> DispatchResult {
+	pub fn on_transfer_message_received(
+		message: DecodedMessage<BalanceTransfer<T::AccountId, BalanceOf<T>>>,
+	) -> DispatchResult {
 		const CONTRACT_ID: u32 = 2;
 
 		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {

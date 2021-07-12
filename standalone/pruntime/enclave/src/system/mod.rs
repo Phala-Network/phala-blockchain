@@ -1,6 +1,6 @@
 mod gk;
 
-use crate::{benchmark, std::prelude::v1::*, Storage};
+use crate::{benchmark, std::prelude::v1::*, types::BlockInfo, Storage};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -73,6 +73,7 @@ struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
     start_iter: u64,
+    duration: u32,
 }
 
 #[derive(Debug)]
@@ -84,6 +85,7 @@ enum MiningState {
 
 #[derive(Debug)]
 struct MiningInfo {
+    session_id: u32,
     state: MiningState,
     start_time: u64,
     start_iter: u64,
@@ -114,7 +116,7 @@ impl WorkerState {
 
     pub fn process_event(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo,
         event: &Event,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -131,21 +133,24 @@ impl WorkerState {
                     info!("System::handle_event: {:?}", evt.event);
                 }
                 match evt.event {
-                    Registered => {
+                    Registered(_) => {
                         self.registered = true;
                     }
-                    BenchStart { start_time } => {
+                    BenchStart { duration } => {
                         self.bench_state = Some(BenchState {
-                            start_block: block_number,
-                            start_time: start_time,
+                            start_block: block.block_number,
+                            start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
+                            duration,
                         });
                         callback.bench_resume();
                     }
-                    MiningStart { start_time } => {
+                    BenchScore(_) => {}
+                    MiningStart { session_id, init_v: _ } => {
                         self.mining_state = Some(MiningInfo {
+                            session_id,
                             state: Mining,
-                            start_time: start_time,
+                            start_time: block.now_ms,
                             start_iter: callback.bench_iterations(),
                         });
                         callback.bench_resume();
@@ -187,14 +192,14 @@ impl WorkerState {
                 }
             }
             Event::HeartbeatChallenge(seed_info) => {
-                self.handle_heartbeat_challenge(block_number, &seed_info, callback, true);
+                self.handle_heartbeat_challenge(block, &seed_info, callback, true);
             }
         };
     }
 
     fn handle_heartbeat_challenge(
         &mut self,
-        blocknum: chain::BlockNumber,
+        block: &BlockInfo,
         seed_info: &HeartbeatChallenge,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -202,7 +207,7 @@ impl WorkerState {
         if log_on {
             info!(
                 "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
-                blocknum, seed_info, self.registered, self.mining_state
+                block.block_number, seed_info, self.registered, self.mining_state
             );
         }
 
@@ -231,7 +236,12 @@ impl WorkerState {
         // Push queue when necessary
         if online_hit {
             let iterations = callback.bench_iterations() - mining_state.start_iter;
-            callback.heartbeat(blocknum as u32, mining_state.start_time, iterations);
+            callback.heartbeat(
+                mining_state.session_id,
+                block.block_number,
+                block.now_ms,
+                iterations,
+            );
         }
     }
 
@@ -241,18 +251,18 @@ impl WorkerState {
 
     fn on_block_processed(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
+        // Handle registering benchmark report
         if let Some(BenchState {
             start_block,
             start_time,
             start_iter,
+            duration,
         }) = self.bench_state
         {
-            // TODO.kevin: tune the value
-            const BENCH_DURATION: u32 = 8;
-            if block_number - start_block >= BENCH_DURATION {
+            if block.block_number - start_block >= duration {
                 self.bench_state = None;
                 let iterations = callback.bench_iterations() - start_iter;
                 callback.bench_report(start_time, iterations);
@@ -265,11 +275,20 @@ impl WorkerState {
 }
 
 trait WorkerStateMachineCallback {
-    fn bench_iterations(&self) -> u64;
-    fn bench_resume(&mut self);
-    fn bench_pause(&mut self);
-    fn bench_report(&mut self, start_time: u64, iterations: u64);
-    fn heartbeat(&mut self, block_num: chain::BlockNumber, mining_start_time: u64, iterations: u64);
+    fn bench_iterations(&self) -> u64 {
+        0
+    }
+    fn bench_resume(&mut self) {}
+    fn bench_pause(&mut self) {}
+    fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
+    fn heartbeat(
+        &mut self,
+        _session_id: u32,
+        _block_num: chain::BlockNumber,
+        _block_time: u64,
+        _iterations: u64,
+    ) {
+    }
 }
 
 struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
@@ -294,13 +313,15 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
     fn heartbeat(
         &mut self,
-        block_num: chain::BlockNumber,
-        mining_start_time: u64,
+        session_id: u32,
+        challenge_block: chain::BlockNumber,
+        challenge_time: u64,
         iterations: u64,
     ) {
         let event = MiningReportEvent::Heartbeat {
-            block_num,
-            mining_start_time,
+            session_id,
+            challenge_block,
+            challenge_time,
             iterations,
         };
         info!("System: sending {:?}", event);
@@ -316,7 +337,7 @@ pub struct System {
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper,
+    gatekeeper: gk::Gatekeeper<EcdsaMessageChannel>,
 }
 
 impl System {
@@ -380,7 +401,7 @@ impl System {
 
     pub fn process_messages(
         &mut self,
-        block_number: chain::BlockNumber,
+        block: &BlockInfo,
         storage: &Storage,
     ) -> anyhow::Result<()> {
         loop {
@@ -390,7 +411,7 @@ impl System {
                         error!("Invalid SystemEvent sender: {:?}", sender);
                         continue;
                     }
-                    self.process_event(block_number, &event)?;
+                    self.process_event(block, &event)?;
                 }
                 Ok(None) => break,
                 Err(e) => match e {
@@ -405,24 +426,24 @@ impl System {
             }
         }
         self.worker_state
-            .on_block_processed(block_number, &mut WorkerSMDelegate(&self.egress));
+            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
-            self.gatekeeper.process_messages(block_number, storage);
+            self.gatekeeper.process_messages(block);
 
-            self.gatekeeper.vrf(block_number);
+            self.gatekeeper.vrf(block.block_number);
         }
         Ok(())
     }
 
-    fn process_event(&mut self, block_number: chain::BlockNumber, event: &Event) -> Result<()> {
-        self.worker_state.process_event(
-            block_number,
-            event,
-            &mut WorkerSMDelegate(&self.egress),
-            true,
-        );
+    fn process_event(&mut self, block: &BlockInfo, event: &Event) -> Result<()> {
+        self.worker_state
+            .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
+    }
+
+    pub fn is_registered(&self) -> bool {
+        self.worker_state.registered
     }
 }
 
@@ -479,4 +500,9 @@ pub mod serde_anyhow {
         let s = String::deserialize(deserializer)?;
         Ok(Error::msg(s))
     }
+}
+
+#[cfg(feature = "tests")]
+pub fn run_all_tests() {
+    gk::tests::run_all_tests();
 }

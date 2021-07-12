@@ -82,6 +82,8 @@ impl Runtime for PhalaNodeRuntime {
         register_default_type_sizes(event_type_registry);
         event_type_registry
             .register_type_size::<phala_types::messaging::Message>("PhalaMq::Message");
+        event_type_registry
+            .register_type_size::<u8>("bridge::ChainId");
     }
 }
 
@@ -152,8 +154,7 @@ pub mod phala {
         balances::Balances
     };
     use core::marker::PhantomData;
-
-    use phala_types::PayoutReason;
+    use phala_types::{PayoutReason, WorkerPublicKey};
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);
@@ -161,9 +162,11 @@ pub mod phala {
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumAddress([u8; 20]);
 
+
     #[module]
     pub trait Phala: System + Balances {
         #![event_type(PayoutReason)]
+        #![event_type(WorkerPublicKey)]
     }
 
     #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]

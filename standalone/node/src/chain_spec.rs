@@ -26,6 +26,7 @@ use node_runtime::{
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
 	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
+	PhalaRegistryConfig,
 };
 use node_runtime::Block;
 use node_runtime::constants::currency::*;
@@ -217,7 +218,7 @@ pub fn testnet_genesis(
 	)>,
 	root_key: AccountId,
 	endowed_accounts: Option<Vec<AccountId>>,
-	_enable_println: bool,
+	dev: bool,
 ) -> GenesisConfig {
 	let mut endowed_accounts: Vec<AccountId> = endowed_accounts.unwrap_or_else(|| {
 		vec![
@@ -245,7 +246,20 @@ pub fn testnet_genesis(
 	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
 	const STASH: Balance = ENDOWMENT / 1000;
 	// The pubkey of "0x1"
-	let dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+	let raw_dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
+	let dev_ecdsa_pubkey = sp_core::ecdsa::Public::from_full(raw_dev_ecdsa_pubkey.as_slice()).unwrap();
+	let dev_ecdh_pubkey = hex!["046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"].to_vec();
+
+	let phala_registry = match dev {
+		true => PhalaRegistryConfig {
+			workers: vec![
+				(dev_ecdsa_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
+			],
+			gatekeepers: vec![dev_ecdsa_pubkey],
+			benchmark_duration: 1,
+		},
+		false => Default::default()
+	};
 
 	GenesisConfig {
 		system: SystemConfig {
@@ -272,14 +286,14 @@ pub fn testnet_genesis(
 		},
 		phala: PhalaConfig {
 			stakers: initial_authorities.iter().map(|x| {
-				(x.0.clone(), x.1.clone(), dev_ecdsa_pubkey.clone())
+				(x.0.clone(), x.1.clone(), raw_dev_ecdsa_pubkey.clone())
 			}).collect(),
 			// Now we have 4 contracts but reserver 10 for convenience
-			contract_keys: std::iter::repeat(dev_ecdsa_pubkey.clone()).take(10).collect(),
+			contract_keys: std::iter::repeat(raw_dev_ecdsa_pubkey.clone()).take(10).collect(),
 		},
 		kitty_storage: KittyStorageConfig {
 			// Now we have 4 contracts but reserver 10 for convenience
-			contract_keys: std::iter::repeat(dev_ecdsa_pubkey).take(10).collect(),
+			contract_keys: std::iter::repeat(raw_dev_ecdsa_pubkey).take(10).collect(),
 		},
 		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
@@ -338,6 +352,7 @@ pub fn testnet_genesis(
 			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
 			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
 		},
+		phala_registry,
 	}
 }
 

@@ -214,7 +214,7 @@ impl contracts::NativeContract for Assets {
                             info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
                             let txref = TxRef {
-                                blocknum: context.block_number,
+                                blocknum: context.block.block_number,
                                 index: cmd.number,
                             };
                             let tx = AssetsTx {

@@ -8,19 +8,21 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_runtime::SaturatedConversion;
-	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
-	use sp_std::vec;
+	use sp_std::{
+		convert::{TryFrom, TryInto},
+		vec,
+	};
 
 	use crate::attestation::{validate_ias_report, Error as AttestationError};
 	use crate::mq::MessageOriginInfo;
 
 	use phala_types::{
 		messaging::{
-			bind_topic, DecodedMessage, MessageOrigin, NewGatekeeperEvent, SignedMessage,
+			self, bind_topic, DecodedMessage, MessageOrigin, NewGatekeeperEvent, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, PRuntimeInfo, WorkerPublicKey, WorkerEcdhPublicKey,
+		ContractPublicKey, EcdhP256PublicKey,PRuntimeInfo, WorkerPublicKey, WorkerEcdhPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -56,6 +58,9 @@ pub mod pallet {
 	/// Pubkey for secret topics.
 	#[pallet::storage]
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
+
+	#[pallet::storage]
+	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -97,7 +102,7 @@ pub mod pallet {
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
-			ecdh_pubkey: WorkerPublicKey,
+			ecdh_pubkey: EcdhP256PublicKey,
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -114,7 +119,9 @@ pub mod pallet {
 			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
-				WorkerEvent::Registered,
+				WorkerEvent::Registered(messaging::WorkerInfo {
+					confidence_level: worker_info.confidence_level,
+				}),
 			));
 			Ok(())
 		}
@@ -215,26 +222,24 @@ pub mod pallet {
 				Error::<T>::InvalidRuntimeInfoHash
 			);
 			// Update the registry
-			Worker::<T>::mutate(pruntime_info.pubkey.clone(), |v| {
+			let pubkey = pruntime_info.pubkey.clone();
+			Worker::<T>::mutate(pubkey.clone(), |v| {
 				match v {
 					Some(worker_info) => {
 						// Case 1 - Refresh the RA report and redo benchmark
 						worker_info.last_updated = now;
 						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::Registered,
-						));
-						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart { start_time: now },
+							pubkey.clone(),
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: fields.confidence_level,
+							}),
 						));
 					}
 					None => {
 						// Case 2 - New worker register
 						*v = Some(WorkerInfo {
-							pubkey: pruntime_info.pubkey.clone(),
-							ecdh_pubkey: Default::default(), // TODO(shelvenzhou): add ecdh key
+							pubkey: pubkey.clone(),
+							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
 							last_updated: now,
 							operator: pruntime_info.operator,
@@ -243,18 +248,20 @@ pub mod pallet {
 							features: pruntime_info.features,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::Registered,
-						));
-						let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-						Self::push_message(SystemEvent::new_worker_event(
-							pruntime_info.pubkey.clone(),
-							WorkerEvent::BenchStart { start_time: now },
+							pubkey.clone(),
+							WorkerEvent::Registered(messaging::WorkerInfo {
+								confidence_level: fields.confidence_level,
+							}),
 						));
 					}
 				}
 			});
-
+			// Trigger benchmark anyway
+			let duration = BenchmarkDuration::<T>::get().unwrap_or_default();
+			Self::push_message(SystemEvent::new_worker_event(
+				pubkey,
+				WorkerEvent::BenchStart { duration },
+			));
 			Ok(())
 		}
 
@@ -270,7 +277,10 @@ pub mod pallet {
 	}
 
 	// TODO.kevin: Move it to mq
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		T: crate::mq::Config,
+	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
 			let pubkey_copy: ContractPublicKey;
 			let pubkey = match &message.message.sender {
@@ -278,6 +288,10 @@ pub mod pallet {
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknwonContract)?;
 					&pubkey_copy
+				}
+				MessageOrigin::Gatekeeper => {
+					// !!!!!!! TODO.kevin: get GK master_pubkey
+					return Ok(());
 				}
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
@@ -308,24 +322,90 @@ pub mod pallet {
 					start_time,
 					iterations,
 				} => {
-					let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
+					let now = T::UnixTime::now().as_millis().saturated_into::<u64>();
 					if now <= start_time {
 						// Oops, should not happen
 						return Err(Error::<T>::InvalidBenchReport.into());
 					}
 
 					const MAX_SCORE: u32 = 6000;
-					let score = iterations / (now - start_time);
+					let score = iterations / ((now - start_time) / 1000);
+					let score = score * 6; // iterations per 6s
 					let score = MAX_SCORE.min(score as u32);
 
 					Worker::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.intial_score = Some(score);
+							val.last_updated = now;
 						}
-					})
+					});
+
+					Self::push_message(SystemEvent::new_worker_event(
+						worker_pubkey.clone(),
+						WorkerEvent::BenchScore(score),
+					));
 				}
 			}
 			Ok(())
+		}
+	}
+
+	// Genesis config build
+
+	/// Genesis config to add some genesis worker or gatekeeper for testing purpose.
+	#[pallet::genesis_config]
+	pub struct GenesisConfig<T: Config> {
+		/// [(identity, ecdh, operator)]
+		pub workers: Vec<(WorkerPublicKey, Vec<u8>, Option<T::AccountId>)>,
+		/// [identity]
+		pub gatekeepers: Vec<WorkerPublicKey>,
+		pub benchmark_duration: u32,
+	}
+
+	#[cfg(feature = "std")]
+	impl<T: Config> Default for GenesisConfig<T> {
+		fn default() -> Self {
+			Self {
+				workers: Default::default(),
+				gatekeepers: Default::default(),
+				benchmark_duration: 8u32,
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig<T>
+	where
+		T: crate::mq::Config,
+	{
+		fn build(&self) {
+			for (pubkey, ecdh_pubkey, operator) in &self.workers {
+				Worker::<T>::insert(
+					&pubkey,
+					&WorkerInfo {
+						pubkey: pubkey.clone(),
+						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
+						runtime_version: 0,
+						last_updated: 0,
+						operator: operator.clone(),
+						confidence_level: 128u8,
+						intial_score: None,
+						features: vec![1, 4],
+					},
+				);
+				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
+					pubkey.clone(),
+					WorkerEvent::Registered(messaging::WorkerInfo {
+						confidence_level: 128u8,
+					}),
+				));
+				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
+					pubkey.clone(),
+					WorkerEvent::BenchStart { duration: self.benchmark_duration },
+				));
+				BenchmarkDuration::<T>::put(self.benchmark_duration);
+			}
+			Gatekeeper::<T>::put(self.gatekeepers.clone());
 		}
 	}
 
@@ -347,15 +427,15 @@ pub mod pallet {
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,
-		ecdh_pubkey: WorkerPublicKey,
+		ecdh_pubkey: EcdhP256PublicKey,
 		// system
 		runtime_version: u32,
 		last_updated: u64,
-		operator: Option<AccountId>,
+		pub operator: Option<AccountId>,
 		// platform
 		confidence_level: u8,
 		// scoring
-		intial_score: Option<u32>,
+		pub intial_score: Option<u32>,
 		features: Vec<u32>,
 	}
 
