@@ -58,7 +58,7 @@ impl Gatekeeper {
         let sum_share: FixedPoint = self
             .workers
             .values()
-            .map(|info| tokenomic::calc_share(&info.tokenomic))
+            .map(|info| info.tokenomic.share())
             .sum();
 
         let mut processor = GKMessageProcesser {
@@ -160,12 +160,10 @@ impl GKMessageProcesser<'_> {
                 // case3/case4:
                 // Idle, heartbeat failed or
                 // Unresponsive, no event
-                let v = tokenomic::update_v_slash(&worker_info.tokenomic, &params);
-                worker_info.tokenomic.v = v;
+                worker_info.tokenomic.update_v_slash(&params);
             } else if !worker_info.heartbeat_flag {
                 // case1: Idle, no event
-                let v = tokenomic::update_v_idle(&worker_info.tokenomic, &params);
-                worker_info.tokenomic.v = v;
+                worker_info.tokenomic.update_v_idle(&params);
             }
         }
     }
@@ -222,8 +220,7 @@ impl GKMessageProcesser<'_> {
                 worker_info.heartbeat_flag = true;
 
                 let tokenomic = &mut worker_info.tokenomic;
-                tokenomic.p_instant =
-                    tokenomic::calc_p_instant(tokenomic, self.block.now_ms, iterations);
+                tokenomic.update_p_instant(self.block.now_ms, iterations);
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
@@ -231,20 +228,15 @@ impl GKMessageProcesser<'_> {
                     // case5: Unresponsive, successful heartbeat.
                 } else {
                     // case2: Idle, successful heartbeat, report to pallet
-                    let (v, payout) = tokenomic::update_v_heartbeat(
-                        &worker_info.tokenomic,
+                    let payout = worker_info.tokenomic.update_v_heartbeat(
                         &self.tokenomic_params,
                         self.sum_share,
                         self.block.now_ms,
                     );
 
-                    worker_info.tokenomic.v = v;
-                    worker_info.tokenomic.v_last = v;
-                    worker_info.tokenomic.v_update_at = self.block.now_ms;
-
                     self.report.settle.push(SettleInfo {
                         pubkey: worker_pubkey.clone(),
-                        v: v.to_bits(),
+                        v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
                     })
                 }
@@ -399,46 +391,55 @@ mod tokenomic {
         }
     }
 
-    pub fn update_v_idle(state: &TokenomicInfo, params: &Params) -> FixedPoint {
-        let cost_idle = (params.alpha * state.p_bench + fp(15)) / params.pha_rate / fp(365);
-        let perf_multiplier = if state.p_bench == fp(0) {
-            fp(0)
-        } else {
-            state.p_instant / state.p_bench
-        };
-        let v = state.v + perf_multiplier * ((params.rho - fp(1)) * state.v + cost_idle);
-        v.min(params.v_max)
-    }
-
-    pub fn update_v_heartbeat(
-        state: &TokenomicInfo,
-        params: &Params,
-        sum_share: FixedPoint,
-        now_ms: u64,
-    ) -> (FixedPoint, FixedPoint) {
-        if sum_share == fp(0) {
-            return (state.v, fp(0));
+    impl TokenomicInfo {
+        /// case1: Idle, no event handling
+        pub fn update_v_idle(&mut self, params: &Params) {
+            let cost_idle = (params.alpha * self.p_bench + fp(15)) / params.pha_rate / fp(365);
+            let perf_multiplier = if self.p_bench == fp(0) {
+                fp(1)
+            } else {
+                self.p_instant / self.p_bench
+            };
+            let v = self.v + perf_multiplier * ((params.rho - fp(1)) * self.v + cost_idle);
+            self.v = v.min(params.v_max);
         }
-        let dt = fp(now_ms - state.v_update_at) / 1000;
-        let dv = state.v - state.v_last;
-        let budget = params.budget_per_sec * dt;
-        let share = calc_share(state);
-        let w = dv.max(fp(0)).min(share / sum_share * budget);
-        let v = state.v - w;
-        (v, w)
-    }
 
-    pub fn update_v_slash(state: &TokenomicInfo, params: &Params) -> FixedPoint {
-        state.v - (state.v * params.slash_rate)
-    }
+        /// case2: Idle, successful heartbeat handling
+        /// return payout
+        pub fn update_v_heartbeat(
+            &mut self,
+            params: &Params,
+            sum_share: FixedPoint,
+            now_ms: u64,
+        ) -> FixedPoint {
+            if sum_share == fp(0) {
+                return fp(0);
+            }
+            if self.v < self.v_last {
+                return fp(0);
+            }
+            let dt = fp(now_ms - self.v_update_at) / 1000;
+            let dv = self.v - self.v_last;
+            let budget = params.budget_per_sec * dt;
+            let w = dv.max(fp(0)).min(self.share() / sum_share * budget);
+            self.v = self.v - w;
+            self.v_last = self.v;
+            self.v_update_at = now_ms;
+            w
+        }
 
-    pub fn calc_share(state: &TokenomicInfo) -> FixedPoint {
-        (pow2(state.v) + pow2(fp(2) * state.p_instant * conf_score(state.confidence_level))).sqrt()
-    }
+        pub fn update_v_slash(&mut self, params: &Params) {
+            self.v -= self.v * params.slash_rate;
+        }
 
-    pub fn calc_p_instant(state: &TokenomicInfo, now: u64, iterations: u64) -> FixedPoint {
-        let dt = fp(now - state.challenge_time_last) / 1000;
-        let p = fp(iterations - state.iteration_last) / dt * 6; // 6s iterations
-        p.min(state.p_bench * fp(12) / fp(10))
+        pub fn share(&self) -> FixedPoint {
+            (pow2(self.v) + pow2(fp(2) * self.p_instant * conf_score(self.confidence_level))).sqrt()
+        }
+
+        pub fn update_p_instant(&mut self, now: u64, iterations: u64) {
+            let dt = fp(now - self.challenge_time_last) / 1000;
+            let p = fp(iterations - self.iteration_last) / dt * 6; // 6s iterations
+            self.p_instant = p.min(self.p_bench * fp(12) / fp(10));
+        }
     }
 }
