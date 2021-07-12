@@ -13,10 +13,9 @@ use crate::{
     types::BlockInfo,
 };
 
-use tokenomic::TokenomicInfo;
+use tokenomic::{FixedPoint, TokenomicInfo};
 
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
-const F2U_RATE: f64 = 1000000f64;
 
 struct WorkerInfo {
     state: WorkerState,
@@ -56,7 +55,7 @@ impl Gatekeeper {
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
-        let sum_share = self
+        let sum_share: FixedPoint = self
             .workers
             .values()
             .map(|info| tokenomic::calc_share(&info.tokenomic))
@@ -85,7 +84,7 @@ struct GKMessageProcesser<'a> {
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent,
     tokenomic_params: tokenomic::Params,
-    sum_share: f64,
+    sum_share: FixedPoint,
 }
 
 impl GKMessageProcesser<'_> {
@@ -142,7 +141,9 @@ impl GKMessageProcesser<'_> {
                 if worker_info.heartbeat_flag {
                     // case5: Unresponsive, successful heartbeat
                     worker_info.unresponsive = false;
-                    self.report.recovered_to_online.push(worker_info.state.pubkey.clone());
+                    self.report
+                        .recovered_to_online
+                        .push(worker_info.state.pubkey.clone());
                 }
             } else {
                 if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
@@ -221,7 +222,8 @@ impl GKMessageProcesser<'_> {
                 worker_info.heartbeat_flag = true;
 
                 let tokenomic = &mut worker_info.tokenomic;
-                tokenomic.p_instant = tokenomic::calc_p_instant(tokenomic, self.block.now_ms, iterations);
+                tokenomic.p_instant =
+                    tokenomic::calc_p_instant(tokenomic, self.block.now_ms, iterations);
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
@@ -242,8 +244,8 @@ impl GKMessageProcesser<'_> {
 
                     self.report.settle.push(SettleInfo {
                         pubkey: worker_pubkey.clone(),
-                        v: (v * F2U_RATE) as _,
-                        payout: (payout * F2U_RATE) as _,
+                        v: v.to_bits(),
+                        payout: payout.to_bits(),
                     })
                 }
             }
@@ -286,13 +288,13 @@ impl GKMessageProcesser<'_> {
                         }
                         WorkerEvent::BenchStart { .. } => {}
                         WorkerEvent::BenchScore(score) => {
-                            worker.tokenomic.p_bench = (*score) as f64;
+                            worker.tokenomic.p_bench = FixedPoint::from_num(*score);
                         }
                         WorkerEvent::MiningStart {
                             session_id: _,
                             init_v,
                         } => {
-                            let v = (*init_v) as f64 / F2U_RATE;
+                            let v = FixedPoint::from_bits(*init_v);
                             let prev = worker.tokenomic;
                             // NOTE.kevin: To track the heartbeats by global timeline, don't clear the waiting_heartbeats.
                             // worker.waiting_heartbeats.clear();
@@ -345,81 +347,98 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 }
 
 mod tokenomic {
-    const CONF_SCORE: [f64; 5] = [1.0, 1.0, 1.0, 0.8, 0.7];
+    pub use fixed::types::U116F12 as FixedPoint;
+    use fixed_sqrt::FixedSqrt as _;
+
+    fn fp(n: u64) -> FixedPoint {
+        FixedPoint::from_num(n)
+    }
+
+    fn pow2(v: FixedPoint) -> FixedPoint {
+        v * v
+    }
+
+    fn conf_score(level: u8) -> FixedPoint {
+        match level {
+            1 | 2 | 3 => fp(1),
+            4 => fp(8) / 10,
+            5 => fp(7) / 10,
+            _ => fp(0),
+        }
+    }
 
     #[derive(Default, Clone, Copy)]
     pub struct TokenomicInfo {
-        pub v: f64,
-        pub v_last: f64,
+        pub v: FixedPoint,
+        pub v_last: FixedPoint,
         pub v_update_at: u64,
         pub iteration_last: u64,
         pub challenge_time_last: u64,
-        pub p_bench: f64,
-        pub p_instant: f64,
+        pub p_bench: FixedPoint,
+        pub p_instant: FixedPoint,
         pub confidence_level: u8,
     }
 
     pub struct Params {
-        pha_rate: f64,
-        rho: f64,
-        slash_rate: f64,
-        budget_per_sec: f64,
-        v_max: f64,
+        pha_rate: FixedPoint,
+        rho: FixedPoint,
+        slash_rate: FixedPoint,
+        budget_per_sec: FixedPoint,
+        v_max: FixedPoint,
+        alpha: FixedPoint,
     }
 
     pub fn test_params() -> Params {
         Params {
-            pha_rate: 1.0,
-            rho: 1.00020,
-            slash_rate: 0.001,
-            budget_per_sec: 10.0,
-            v_max: 30000.0,
+            pha_rate: fp(1),
+            rho: fp(10002) / 10000,   // 1.00020
+            slash_rate: fp(1) / 1000, // 0.001
+            budget_per_sec: fp(10),
+            v_max: fp(30000),
+            alpha: fp(287) / 10000, // 0.0287
         }
     }
 
-    pub fn update_v_idle(state: &TokenomicInfo, params: &Params) -> f64 {
-        let cost_idle = (0.0287 * state.p_bench + 15.0) / params.pha_rate / 365.0;
-        let perf_multiplier = if state.p_bench == 0.0 {
-            0.0
+    pub fn update_v_idle(state: &TokenomicInfo, params: &Params) -> FixedPoint {
+        let cost_idle = (params.alpha * state.p_bench + fp(15)) / params.pha_rate / fp(365);
+        let perf_multiplier = if state.p_bench == fp(0) {
+            fp(0)
         } else {
             state.p_instant / state.p_bench
         };
-        let v = state.v + perf_multiplier * ((params.rho - 1.0) * state.v + cost_idle);
+        let v = state.v + perf_multiplier * ((params.rho - fp(1)) * state.v + cost_idle);
         v.min(params.v_max)
     }
 
     pub fn update_v_heartbeat(
         state: &TokenomicInfo,
         params: &Params,
-        sum_share: f64,
+        sum_share: FixedPoint,
         now_ms: u64,
-    ) -> (f64, f64) {
-        if sum_share == 0.0 {
-            return (state.v, 0.0);
+    ) -> (FixedPoint, FixedPoint) {
+        if sum_share == fp(0) {
+            return (state.v, fp(0));
         }
-        let dt = (now_ms - state.v_update_at) as f64 / 1000.0;
+        let dt = fp(now_ms - state.v_update_at) / 1000;
         let dv = state.v - state.v_last;
         let budget = params.budget_per_sec * dt;
         let share = calc_share(state);
-        let w = dv.max(0.0).min(share / sum_share * budget);
+        let w = dv.max(fp(0)).min(share / sum_share * budget);
         let v = state.v - w;
         (v, w)
     }
 
-    pub fn update_v_slash(state: &TokenomicInfo, params: &Params) -> f64 {
+    pub fn update_v_slash(state: &TokenomicInfo, params: &Params) -> FixedPoint {
         state.v - (state.v * params.slash_rate)
     }
 
-    pub fn calc_share(state: &TokenomicInfo) -> f64 {
-        let conf_score = *CONF_SCORE
-            .get(state.confidence_level as usize - 1)
-            .unwrap_or(&0.7);
-        (state.v.powf(2.0) + (2.0 * state.p_instant * conf_score).powf(2.0)).sqrt()
+    pub fn calc_share(state: &TokenomicInfo) -> FixedPoint {
+        (pow2(state.v) + pow2(fp(2) * state.p_instant * conf_score(state.confidence_level))).sqrt()
     }
 
-    pub fn calc_p_instant(state: &TokenomicInfo, now: u64, iterations: u64) -> f64 {
-        let dt = (now - state.challenge_time_last) as f64 / 1000.0;
-        let p = (iterations - state.iteration_last) as f64 / dt * 6.0; // 6s iterations
-        p.min(state.p_bench * 120.0 / 100.0)
+    pub fn calc_p_instant(state: &TokenomicInfo, now: u64, iterations: u64) -> FixedPoint {
+        let dt = fp(now - state.challenge_time_last) / 1000;
+        let p = fp(iterations - state.iteration_last) / dt * 6; // 6s iterations
+        p.min(state.p_bench * fp(12) / fp(10))
     }
 }

@@ -327,7 +327,7 @@ pub mod pallet {
 				binding_worker,
 				WorkerEvent::MiningStart {
 					session_id: session_id,
-					init_v: INITIAL_V,
+					init_v: INITIAL_V as _,
 				},
 			));
 			Self::deposit_event(Event::<T>::MiningStarted(miner));
@@ -469,7 +469,7 @@ pub mod pallet {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&info.pubkey) {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
-						miner_info.v = info.v;
+						miner_info.v = info.v as _; //TODO(wenfeng)
 						miner_info.v_updated_at = now;
 						Miners::<T>::insert(&binding_miner, &miner_info);
 
