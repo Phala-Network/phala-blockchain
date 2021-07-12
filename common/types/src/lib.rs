@@ -241,9 +241,11 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(MiningInfoUpdateEvent, b"^phala/mining/update");
+    bind_topic!(MiningInfoUpdateEvent<BlockNumber>, b"^phala/mining/update");
     #[derive(Encode, Decode, Clone, Debug)]
-    pub struct MiningInfoUpdateEvent {
+    pub struct MiningInfoUpdateEvent<BlockNumber> {
+        /// The block emiting this message.
+        pub block_number: BlockNumber,
         /// The timestamp of the block emiting this message.
         pub timestamp_ms: u64,
         /// Workers that do not responce the heartbeat challenge in time. Each delay only report once.
@@ -256,9 +258,10 @@ pub mod messaging {
         // NOTE: Take care of the is_empty method when adding fields
     }
 
-    impl MiningInfoUpdateEvent {
-        pub fn new(timestamp_ms: u64) -> Self {
+    impl<BlockNumber> MiningInfoUpdateEvent<BlockNumber> {
+        pub fn new(block_number: BlockNumber, timestamp_ms: u64) -> Self {
             Self {
+                block_number,
                 timestamp_ms,
                 offline: Default::default(),
                 recovered_to_online: Default::default(),

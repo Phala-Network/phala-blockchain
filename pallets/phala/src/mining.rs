@@ -431,7 +431,7 @@ pub mod pallet {
 		}
 
 		pub fn on_gk_message_received(
-			message: DecodedMessage<MiningInfoUpdateEvent>,
+			message: DecodedMessage<MiningInfoUpdateEvent<T::BlockNumber>>,
 		) -> DispatchResult {
 			if !matches!(message.sender, MessageOrigin::Gatekeeper) {
 				return Err(Error::<T>::BadSender.into());

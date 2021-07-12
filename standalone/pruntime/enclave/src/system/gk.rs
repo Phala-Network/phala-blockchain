@@ -67,7 +67,7 @@ where
         let mut processor = GKMessageProcesser {
             state: self,
             block,
-            report: MiningInfoUpdateEvent::new(block.now_ms),
+            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
             tokenomic_params: tokenomic::test_params(), // TODO.kevin: replace with real params
             sum_share,
         };
@@ -85,7 +85,7 @@ where
 struct GKMessageProcesser<'a, MsgChan> {
     state: &'a mut Gatekeeper<MsgChan>,
     block: &'a BlockInfo<'a>,
-    report: MiningInfoUpdateEvent,
+    report: MiningInfoUpdateEvent<chain::BlockNumber>,
     tokenomic_params: tokenomic::Params,
     sum_share: FixedPoint,
 }
