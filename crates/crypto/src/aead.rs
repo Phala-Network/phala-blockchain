@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
 use ring::aead::{LessSafeKey, UnboundKey};
-use ring::rand::SecureRandom;
+// use ring::rand::SecureRandom;
 
 // aes-256-gcm key
 pub struct AeadKey(LessSafeKey);
@@ -8,12 +8,12 @@ pub struct AeadKey(LessSafeKey);
 pub const IV_BYTES: usize = 12;
 pub type IV = [u8; IV_BYTES];
 
-pub fn generate_iv() -> IV {
-    let mut nonce_vec = [0_u8; IV_BYTES];
-    let rand = ring::rand::SystemRandom::new();
-    rand.fill(&mut nonce_vec).unwrap();
-    nonce_vec
-}
+// pub fn generate_iv() -> IV {
+//     let mut nonce_vec = [0_u8; IV_BYTES];
+//     let rand = ring::rand::SystemRandom::new();
+//     rand.fill(&mut nonce_vec).unwrap();
+//     nonce_vec
+// }
 
 fn load_key(raw: &[u8]) -> AeadKey {
     let unbound_key =
