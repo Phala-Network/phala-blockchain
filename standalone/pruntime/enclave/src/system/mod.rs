@@ -273,17 +273,6 @@ impl WorkerState {
     }
 }
 
-fn chain_benchmark_duration(storage: &Storage) -> chain::BlockNumber {
-    use parity_scale_codec::Decode;
-    let key = crate::storage_prefix("PhalaRegistry", "BenchmarkDuration");
-    storage.get(&key)
-        .map(|v| {
-            chain::BlockNumber::decode(&mut &v[..])
-                .expect("BenchmarkDuration must exist; qed.")
-        })
-        .expect("BenchmarkDuration must exist; qed.")
-}
-
 trait WorkerStateMachineCallback {
     fn bench_iterations(&self) -> u64 {
         0

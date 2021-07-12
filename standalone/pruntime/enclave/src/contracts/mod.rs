@@ -6,7 +6,6 @@ use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
 use crate::system::TransactionReceipt;
-use crate::Storage;
 
 use super::TransactionStatus;
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
