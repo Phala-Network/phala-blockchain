@@ -144,7 +144,11 @@ impl WorkerState {
                         });
                         callback.bench_resume();
                     }
-                    BenchScore(_) => {}
+                    BenchScore(score) => {
+                        if log_on {
+                            info!("My benchmark score is {}", score);
+                        }
+                    }
                     MiningStart { session_id, init_v: _ } => {
                         self.mining_state = Some(MiningInfo {
                             session_id,
