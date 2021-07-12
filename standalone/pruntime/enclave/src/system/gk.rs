@@ -16,6 +16,7 @@ use crate::{
 use msg_trait::{EgressMessage, MessageChannel};
 use tokenomic::{FixedPoint, TokenomicInfo};
 
+// TODO: Read from blockchain
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
 
 struct WorkerInfo {
