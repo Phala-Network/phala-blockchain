@@ -261,8 +261,11 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
             event: WorkerEvent::Registered(_),
         }) = &event
         {
-            let worker = WorkerInfo::new(pubkey.clone());
-            let _ = self.state.workers.entry(pubkey.clone()).or_insert(worker);
+            let _ = self
+                .state
+                .workers
+                .entry(pubkey.clone())
+                .or_insert_with(|| WorkerInfo::new(pubkey.clone()));
         }
 
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
