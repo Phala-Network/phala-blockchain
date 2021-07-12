@@ -289,7 +289,6 @@ trait WorkerStateMachineCallback {
         _iterations: u64,
     ) {
     }
-    fn init_v(&mut self, _init_v: u64) {}
 }
 
 struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
