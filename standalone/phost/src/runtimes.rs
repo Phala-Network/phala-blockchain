@@ -154,7 +154,7 @@ pub mod phala {
         balances::Balances
     };
     use core::marker::PhantomData;
-    use phala_types::{messaging::BlockRewardInfo, PayoutReason, WorkerPublicKey};
+    use phala_types::{PayoutReason, WorkerPublicKey};
 
     #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
     pub struct EthereumTxHash([u8; 32]);

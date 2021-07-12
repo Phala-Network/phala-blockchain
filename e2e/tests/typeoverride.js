@@ -143,10 +143,9 @@ const types = {
       "commission": "u32",
       "target": "AccountId"
     },
-    "BlockRewardInfo": {
+    "HeartbeatChallenge": {
       "seed": "U256",
       "onlineTarget": "U256",
-      "computeTarget": "U256"
     },
     "RoundInfo": {
       "round": "u32",
