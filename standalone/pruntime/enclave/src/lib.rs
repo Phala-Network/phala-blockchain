@@ -1450,6 +1450,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
             None => false,
         }
     };
+    let score = benchmark::score();
 
     Ok(json!({
         "initialized": initialized,
@@ -1462,6 +1463,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "machine_id": machine_id,
         "dev_mode": dev_mode,
         "pending_messages": pending_messages,
+        "score": score,
     }))
 }
 

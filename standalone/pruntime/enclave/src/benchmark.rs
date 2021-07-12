@@ -10,8 +10,8 @@ const UNIT: usize = 1;
 const MAX_NUM: u128 = 65536 * 128;
 
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
-static COUNT_SINCE: AtomicU64 = AtomicU64::new(0);
 static PAUSED: AtomicBool = AtomicBool::new(false);
+static SCORE: AtomicU64 = AtomicU64::new(0);
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;
@@ -34,17 +34,21 @@ fn count_prime(max: u128) -> usize {
 }
 
 pub fn run() {
+    let since = now();
+    let start = iteration_counter();
     loop {
         for _ in 0..UNIT {
             let _ = black_box(count_prime(black_box(MAX_NUM)));
         }
         let count = ITERATION_COUNTER.fetch_add(1, Ordering::Relaxed);
         if count % 100 == 0 {
+            let score = est_score(since, start);
             debug!(
                 "Benchmark counnter increased to {}, est score={}",
                 count,
-                est_score()
+                score,
             );
+            SCORE.store(score, Ordering::Relaxed);
         }
         if PAUSED.load(Ordering::Relaxed) {
             return;
@@ -58,9 +62,6 @@ pub fn iteration_counter() -> u64 {
 
 pub fn reset_iteration_counter() {
     ITERATION_COUNTER.store(0, Ordering::Relaxed);
-    if debugging() {
-        COUNT_SINCE.store(now(), Ordering::Relaxed);
-    }
 }
 
 pub fn pause() {
@@ -75,13 +76,17 @@ pub fn puasing() -> bool {
     PAUSED.load(Ordering::Relaxed)
 }
 
-fn est_score() -> u64 {
-    let since = COUNT_SINCE.load(Ordering::Relaxed);
+pub fn score() -> u64 {
+    SCORE.load(Ordering::Relaxed)
+}
+
+fn est_score(since: u64, start: u64) -> u64 {
     let now = now();
     if now <= since {
         return 0;
     }
-    ITERATION_COUNTER.load(Ordering::Relaxed) / (now - since)
+    // Normalize to 6s (standard block time)
+    (ITERATION_COUNTER.load(Ordering::Relaxed) - start) * 6 / (now - since)
 }
 
 fn debugging() -> bool {
