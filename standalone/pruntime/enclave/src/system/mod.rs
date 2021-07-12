@@ -254,6 +254,7 @@ impl WorkerState {
         block: &BlockInfo,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
+        // Handle registering benchmark report
         if let Some(BenchState {
             start_block,
             start_time,
