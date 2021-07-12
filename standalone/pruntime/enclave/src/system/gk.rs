@@ -370,7 +370,7 @@ mod tokenomic {
 
     fn conf_score(level: u8) -> FixedPoint {
         match level {
-            1 | 2 | 3 => fp(1),
+            1 | 2 | 3 | 128 => fp(1),
             4 => fp(8) / 10,
             5 => fp(7) / 10,
             _ => fp(0),
