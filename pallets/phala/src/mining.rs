@@ -27,16 +27,16 @@ pub mod pallet {
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
-	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
+	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 10;
 	const INITIAL_V: u64 = 1;
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
 		Ready,
 		MiningIdle,
-		Active,
-		Unresponsive,
-		Collingdown,
+		MiningActive,
+		MiningUnresponsive,
+		MiningCoolingDown,
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -93,7 +93,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn miners)]
-	pub(super) type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
+	pub(super) type Miner<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn miner_binding)]
@@ -111,12 +111,12 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerStat<BalanceOf<T>>>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn collingdown_expire)]
-	pub(super) type CollingdownExpire<T> = StorageValue<_, u64, ValueQuery>;
+	#[pallet::getter(fn coolingdown_expire)]
+	pub(super) type CoolingDownExpire<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn mining_sessionid)]
-	pub(super) type MiningSessionid<T> = StorageValue<_, u32, ValueQuery>;
+	pub(super) type MiningSessionId<T> = StorageValue<_, u32, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn deposit_balance)]
@@ -134,7 +134,7 @@ pub mod pallet {
 		/// Meh. [n]
 		Meh(u32),
 		/// [period]
-		CollingdownExpireChanged(u64),
+		CoplingDownExpireChanged(u64),
 		/// [miner]
 		MiningStarted(T::AccountId),
 		/// [miner]
@@ -162,9 +162,9 @@ pub mod pallet {
 		DuplicatedBoundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
-		MinerNotReady,
-		MinerIsBusy,
-		CollingdownNotPassed,
+		MinerNotInReadyState,
+		MinerNotMining,
+		CoolingDownNotPassed,
 		InsufficientStaking,
 	}
 
@@ -174,11 +174,11 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		#[pallet::weight(0)]
-		pub fn sudo_set_collingdownexpire(origin: OriginFor<T>, period: u64) -> DispatchResult {
+		pub fn sudo_set_coolingdownexpire(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
 
-			CollingdownExpire::<T>::mutate(|p| *p = period);
-			Self::deposit_event(Event::<T>::CollingdownExpireChanged(period));
+			CoolingDownExpire::<T>::mutate(|p| *p = period);
+			Self::deposit_event(Event::<T>::CoplingDownExpireChanged(period));
 			Ok(())
 		}
 
@@ -207,11 +207,15 @@ pub mod pallet {
 				!MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::DuplicatedBoundedMiner
 			);
+			ensure!(
+				!WorkerBinding::<T>::contains_key(&pubkey),
+				Error::<T>::DuplicatedBoundedMiner
+			);
 
 			MinerBinding::<T>::insert(&miner, &pubkey);
 			WorkerBinding::<T>::insert(&pubkey, &miner);
 
-			Miners::<T>::insert(
+			Miner::<T>::insert(
 				&miner,
 				MinerInfo {
 					state: MinerState::Ready,
@@ -248,12 +252,12 @@ pub mod pallet {
 				Error::<T>::MinerNotFounded
 			);
 			ensure!(
-				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotReady
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
 			);
 
 			let already_reserved =
-				DepositBalance::<T>::get(&miner).unwrap_or(BalanceOf::<T>::zero());
+				DepositBalance::<T>::get(&miner).unwrap_or_default();
 			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
 
 			Ok(())
@@ -275,11 +279,10 @@ pub mod pallet {
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
 			);
-
-			// FIXME: should we allow withdraw before mining stopped?
+			// mining should be stopped before withdraw
 			ensure!(
-				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotReady
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
 			);
 
 			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
@@ -295,45 +298,37 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn start_mining(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
+			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 
 			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			ensure!(
-				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotReady
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
 			);
 
 			let worker_info =
-				registry::Worker::<T>::get(Self::miner_binding(&miner).unwrap()).unwrap();
+				registry::Worker::<T>::get(&worker).expect("Bounded worker must exist; qed.");
 			ensure!(
 				worker_info.intial_score != None,
 				Error::<T>::BenchmarkMissing
 			);
 
 			let already_reserved =
-				DepositBalance::<T>::get(&miner).unwrap_or(BalanceOf::<T>::zero());
+				DepositBalance::<T>::get(&miner).unwrap_or_default();
 			ensure!(
 				already_reserved >= T::MinStaking::get(),
 				Error::<T>::InsufficientStaking
 			);
 
-			if let Some(score) = worker_info.intial_score {
-				Miners::<T>::mutate(&miner, |info| {
-					if let Some(info) = info {
-						info.state = MinerState::MiningIdle;
-					}
-				});
-			} else {
-				return Err(Error::<T>::BenchmarkMissing.into());
-			}
+			Miner::<T>::mutate(&miner, |info| {
+				if let Some(info) = info {
+					info.state = MinerState::MiningIdle;
+				}
+			});
 
-			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
-			let session_id = MiningSessionid::<T>::get();
-			MiningSessionid::<T>::put(session_id + 1);
+			let session_id = MiningSessionId::<T>::get();
+			MiningSessionId::<T>::put(session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
-				binding_worker,
+				worker,
 				WorkerEvent::MiningStart {
 					session_id: session_id,
 					init_v: INITIAL_V as _,
@@ -346,7 +341,7 @@ pub mod pallet {
 		/// Stops mining, enterying cooling down state
 		///
 		/// Requires:
-		/// 1. Ther miner is in Idle, Active, or Unresponsive state
+		/// 1. Ther miner is in Idle, MiningActive, or MiningUnresponsive state
 		#[pallet::weight(0)]
 		pub fn stop_mining(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
@@ -354,17 +349,18 @@ pub mod pallet {
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
 			);
+			let state = Self::miners(&miner).unwrap().state;
 			ensure!(
-				Self::miners(&miner).unwrap().state != MinerState::Ready,
-				Error::<T>::MinerIsBusy
+				state != MinerState::Ready || state  != MinerState::MiningCoolingDown,
+				Error::<T>::MinerNotMining
 			);
 
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
-			Miners::<T>::mutate(&miner, |info| {
+			Miner::<T>::mutate(&miner, |info| {
 				if let Some(info) = info {
-					info.state = MinerState::Collingdown;
+					info.state = MinerState::MiningCoolingDown;
 					info.cooling_down_start = now;
 				}
 			});
@@ -387,11 +383,12 @@ pub mod pallet {
 			let miner = ensure_signed(origin)?;
 			let mut miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 			ensure!(
-				Self::can_cleanup(miner_info.cooling_down_start),
-				Error::<T>::CollingdownNotPassed
+				Self::can_cleanup(&miner_info),
+				Error::<T>::CoolingDownNotPassed
 			);
 			miner_info.state = MinerState::Ready;
-			Miners::<T>::insert(&miner, &miner_info);
+			miner_info.cooling_down_start = 0u64;
+			Miner::<T>::insert(&miner, &miner_info);
 
 			// clear deposit balance
 			DepositBalance::<T>::insert(&miner, BalanceOf::<T>::zero());
@@ -457,8 +454,8 @@ pub mod pallet {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker) {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
-						miner_info.state = MinerState::Unresponsive;
-						Miners::<T>::insert(&binding_miner, &miner_info);
+						miner_info.state = MinerState::MiningUnresponsive;
+						Miner::<T>::insert(&binding_miner, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(binding_miner));
 					}
 				}
@@ -469,7 +466,7 @@ pub mod pallet {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.state = MinerState::MiningIdle;
-						Miners::<T>::insert(&binding_miner, &miner_info);
+						Miner::<T>::insert(&binding_miner, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
 					}
 				}
@@ -480,10 +477,10 @@ pub mod pallet {
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.v = info.v as _; //TODO(wenfeng)
 						miner_info.v_updated_at = now;
-						Miners::<T>::insert(&binding_miner, &miner_info);
+						Miner::<T>::insert(&binding_miner, &miner_info);
 
 						let reward_reserved = RewardBalance::<T>::get(&binding_miner)
-							.unwrap_or(BalanceOf::<T>::zero());
+							.unwrap_or_default();
 						RewardBalance::<T>::insert(
 							&binding_miner,
 							reward_reserved.saturating_add(info.payout.saturated_into()),
@@ -497,11 +494,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		fn can_cleanup(start_time: u64) -> bool {
+		fn can_cleanup(miner_info: &MinerInfo) -> bool {
+			if miner_info.state != MinerState::MiningCoolingDown {
+				return false
+			}
+
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
-			if (now - start_time) > Self::collingdown_expire() {
+			if (now - miner_info.cooling_down_start) > Self::coolingdown_expire() {
 				true
 			} else {
 				false
