@@ -871,6 +871,14 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     }
 }
 
+#[cfg(feature = "tests")]
+#[no_mangle]
+pub extern "C" fn ecall_run_tests() -> sgx_status_t {
+    run_all_tests();
+    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
+    sgx_status_t::SGX_SUCCESS
+}
+
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
     if !benchmark::puasing() {
@@ -1646,4 +1654,9 @@ mod identity {
 
         gatekeepers.contains(pubkey)
     }
+}
+
+#[cfg(feature = "tests")]
+fn run_all_tests() {
+    system::run_all_tests();
 }

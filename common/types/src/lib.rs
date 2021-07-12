@@ -242,7 +242,7 @@ pub mod messaging {
     }
 
     bind_topic!(MiningInfoUpdateEvent<BlockNumber>, b"^phala/mining/update");
-    #[derive(Encode, Decode, Clone, Debug)]
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct MiningInfoUpdateEvent<BlockNumber> {
         /// The block emiting this message.
         pub block_number: BlockNumber,
@@ -274,7 +274,7 @@ pub mod messaging {
         }
     }
 
-    #[derive(Encode, Decode, Clone, Debug)]
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct SettleInfo {
         pub pubkey: WorkerPublicKey,
         pub v: U116F12Bits,

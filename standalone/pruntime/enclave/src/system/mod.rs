@@ -429,7 +429,7 @@ impl System {
             .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
-            self.gatekeeper.process_messages(block, storage);
+            self.gatekeeper.process_messages(block);
         }
         Ok(())
     }
@@ -498,4 +498,9 @@ pub mod serde_anyhow {
         let s = String::deserialize(deserializer)?;
         Ok(Error::msg(s))
     }
+}
+
+#[cfg(feature = "tests")]
+pub fn run_all_tests() {
+    gk::tests::run_all_tests();
 }

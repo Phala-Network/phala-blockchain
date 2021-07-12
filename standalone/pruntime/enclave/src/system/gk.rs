@@ -1,5 +1,5 @@
-use super::{Storage, TypedReceiver, WorkerState};
-use phala_mq::{EcdsaMessageChannel, MessageDispatcher};
+use super::{TypedReceiver, WorkerState};
+use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
         MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
@@ -13,6 +13,7 @@ use crate::{
     types::BlockInfo,
 };
 
+use msg_trait::{EgressMessage, MessageChannel};
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
@@ -46,7 +47,7 @@ pub(super) struct Gatekeeper<MsgChan> {
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
-    MsgChan: msg_trait::MessageChannel,
+    MsgChan: MessageChannel,
 {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
         Self {
@@ -57,7 +58,7 @@ where
         }
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo<'_>, _storage: &Storage) {
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
         let sum_share: FixedPoint = self
             .workers
             .values()
@@ -77,7 +78,8 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress.push_message(&report);
+            self.egress
+                .push_message(EgressMessage::MiningInfoUpdate(report));
         }
     }
 }
@@ -345,7 +347,7 @@ mod tokenomic {
     pub use fixed::types::U116F12 as FixedPoint;
     use fixed_sqrt::FixedSqrt as _;
 
-    fn fp(n: u64) -> FixedPoint {
+    pub fn fp(n: u64) -> FixedPoint {
         FixedPoint::from_num(n)
     }
 
@@ -395,7 +397,7 @@ mod tokenomic {
     }
 
     impl TokenomicInfo {
-        /// case1: Idle, no event handling
+        /// case1: Idle, no event
         pub fn update_v_idle(&mut self, params: &Params) {
             let cost_idle = (params.alpha * self.p_bench + fp(15)) / params.pha_rate / fp(365);
             let perf_multiplier = if self.p_bench == fp(0) {
@@ -407,7 +409,7 @@ mod tokenomic {
             self.v = v.min(params.v_max);
         }
 
-        /// case2: Idle, successful heartbeat handling
+        /// case2: Idle, successful heartbeat
         /// return payout
         pub fn update_v_heartbeat(
             &mut self,
@@ -448,17 +450,651 @@ mod tokenomic {
 }
 
 mod msg_trait {
-    use core::fmt::Debug;
-    use parity_scale_codec::Encode;
-    use phala_mq::{types::BindTopic, MessageSigner};
+    use phala_mq::MessageSigner;
+
+    #[derive(PartialEq, Eq, Debug)]
+    pub enum EgressMessage {
+        MiningInfoUpdate(super::MiningInfoUpdateEvent<chain::BlockNumber>),
+    }
 
     pub trait MessageChannel {
-        fn push_message<M: Encode + BindTopic + Debug>(&self, message: &M);
+        fn push_message(&self, message: EgressMessage);
     }
 
     impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
-        fn push_message<M: Encode + BindTopic + Debug>(&self, message: &M) {
-            self.send(message)
+        fn push_message(&self, message: EgressMessage) {
+            match message {
+                EgressMessage::MiningInfoUpdate(message) => self.send(&message),
+            }
+        }
+    }
+}
+
+#[cfg(feature = "tests")]
+pub mod tests {
+    use super::Gatekeeper;
+
+    use super::msg_trait::{EgressMessage, MessageChannel};
+    use super::tokenomic::fp;
+    use super::BlockInfo;
+    use crate::std::cell::RefCell;
+    use crate::std::vec::Vec;
+    use parity_scale_codec::Encode;
+    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
+    use phala_types::{messaging as msg, WorkerPublicKey};
+
+    trait DispatcherExt {
+        fn dispatch_bound<M: Encode + BindTopic>(&mut self, sender: &MessageOrigin, msg: M);
+    }
+
+    impl DispatcherExt for MessageDispatcher {
+        fn dispatch_bound<M: Encode + BindTopic>(&mut self, sender: &MessageOrigin, msg: M) {
+            let _ = self.dispatch(mk_msg(sender, msg));
+        }
+    }
+
+    fn mk_msg<M: Encode + BindTopic>(sender: &MessageOrigin, msg: M) -> Message {
+        Message {
+            sender: sender.clone(),
+            destination: M::TOPIC.to_vec().into(),
+            payload: msg.encode(),
+        }
+    }
+
+    #[derive(Default)]
+    struct CollectChannel {
+        messages: RefCell<Vec<EgressMessage>>,
+    }
+
+    impl MessageChannel for CollectChannel {
+        fn push_message(&self, message: EgressMessage) {
+            self.messages.borrow_mut().push(message);
+        }
+    }
+
+    struct Roles {
+        mq: MessageDispatcher,
+        gk: Gatekeeper<CollectChannel>,
+        workers: [WorkerPublicKey; 2],
+    }
+
+    impl Roles {
+        fn test_roles() -> Roles {
+            let mut mq = MessageDispatcher::new();
+            let egress = CollectChannel::default();
+            let gk = Gatekeeper::new(&mut mq, egress);
+            Roles {
+                mq,
+                gk,
+                workers: [
+                    WorkerPublicKey::from_raw([0x01u8; 33]),
+                    WorkerPublicKey::from_raw([0x02u8; 33]),
+                ],
+            }
+        }
+
+        fn for_worker(&mut self, n: usize) -> ForWorker {
+            ForWorker {
+                mq: &mut self.mq,
+                pubkey: &self.workers[n],
+            }
+        }
+    }
+
+    struct ForWorker<'a> {
+        mq: &'a mut MessageDispatcher,
+        pubkey: &'a WorkerPublicKey,
+    }
+
+    impl ForWorker<'_> {
+        fn pallet_say(&mut self, event: msg::WorkerEvent) {
+            let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
+            let message = msg::SystemEvent::new_worker_event(self.pubkey.clone(), event);
+            self.mq.dispatch_bound(&sender, message);
+        }
+
+        fn say<M: Encode + BindTopic>(&mut self, message: M) {
+            let sender = MessageOrigin::Worker(self.pubkey.clone());
+            self.mq.dispatch_bound(&sender, message);
+        }
+
+        fn challenge(&mut self) {
+            use sp_core::U256;
+
+            let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
+            let pkh = sp_core::blake2_256(self.pubkey.as_ref());
+            let hashed_id: U256 = pkh.into();
+            let challenge = msg::HeartbeatChallenge {
+                seed: hashed_id,
+                online_target: U256::zero(),
+            };
+            let message = msg::SystemEvent::HeartbeatChallenge(challenge);
+            self.mq.dispatch_bound(&sender, message);
+        }
+
+        fn heartbeat(&mut self, session_id: u32, block: chain::BlockNumber, iterations: u64) {
+            let message = msg::MiningReportEvent::Heartbeat {
+                session_id,
+                challenge_block: block,
+                challenge_time: block_ts(block),
+                iterations,
+            };
+            self.say(message)
+        }
+    }
+
+    fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
+        // GK never use the storage ATM.
+        let storage = crate::Storage::default();
+        let block = BlockInfo {
+            block_number,
+            now_ms: block_ts(block_number),
+            storage: &storage,
+        };
+        call(&block);
+    }
+
+    fn block_ts(block_number: chain::BlockNumber) -> u64 {
+        block_number as u64 * 6000
+    }
+
+    pub fn run_all_tests() {
+        gk_should_be_able_to_observe_worker_states();
+        gk_should_not_miss_any_heartbeats_cross_session();
+        gk_should_reward_normal_workers_do_not_hit_the_seed_case1();
+        gk_should_report_payout_for_normal_heartbeats_case2();
+        gk_should_slash_and_report_offline_workers_case3();
+        gk_should_slash_offline_workers_sliently_case4();
+        gk_should_report_recovered_workers_case5();
+    }
+
+    fn gk_should_be_able_to_observe_worker_states() {
+        let mut r = Roles::test_roles();
+
+        with_block(1, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        assert_eq!(r.gk.workers.len(), 1);
+
+        let worker0 = r.gk.workers.get(&r.workers[0]).unwrap();
+        assert!(worker0.state.registered);
+
+        with_block(2, |block| {
+            let mut worker1 = r.for_worker(1);
+            worker1.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: 1,
+            });
+            r.gk.process_messages(block);
+        });
+
+        assert_eq!(
+            r.gk.workers.len(),
+            1,
+            "Unregistered worker should not start mining."
+        );
+    }
+
+    fn gk_should_not_miss_any_heartbeats_cross_session() {
+        let mut r = Roles::test_roles();
+
+        with_block(1, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        assert_eq!(r.gk.workers.len(), 1);
+
+        let worker0 = r.gk.workers.get(&r.workers[0]).unwrap();
+        assert!(worker0.state.registered);
+
+        with_block(2, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: 1,
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+
+        // Stop mining before the heartbeat response.
+        with_block(3, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStop);
+            r.gk.process_messages(block);
+        });
+
+        with_block(4, |block| {
+            r.gk.process_messages(block);
+        });
+
+        with_block(5, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 2,
+                init_v: 1,
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+
+        // Force enter unresponsive
+        with_block(100, |block| {
+            r.gk.process_messages(block);
+        });
+
+        assert_eq!(
+            r.gk.workers[&r.workers[0]].waiting_heartbeats.len(),
+            2,
+            "There should be 2 waiting HBs"
+        );
+
+        assert!(
+            r.gk.workers[&r.workers[0]].unresponsive,
+            "The worker should be unresponsive now"
+        );
+
+        with_block(101, |block| {
+            let mut worker = r.for_worker(0);
+            // Response the first challenge.
+            worker.heartbeat(1, 2, 10000000);
+            r.gk.process_messages(block);
+        });
+        assert_eq!(
+            r.gk.workers[&r.workers[0]].waiting_heartbeats.len(),
+            1,
+            "There should be only one waiting HBs"
+        );
+
+        assert!(
+            r.gk.workers[&r.workers[0]].unresponsive,
+            "The worker should still be unresponsive now"
+        );
+
+        with_block(102, |block| {
+            let mut worker = r.for_worker(0);
+            // Response the second challenge.
+            worker.heartbeat(2, 5, 10000000);
+            r.gk.process_messages(block);
+        });
+
+        assert!(
+            !r.gk.workers[&r.workers[0]].unresponsive,
+            "The worker should be mining idle now"
+        );
+    }
+
+    fn gk_should_reward_normal_workers_do_not_hit_the_seed_case1() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(1).to_bits(),
+            });
+            r.gk.process_messages(block);
+        });
+
+        block_number += 1;
+
+        // Normal Idle state, no event
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        r.gk.egress.messages.borrow_mut().clear();
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        assert!(
+            !r.gk.workers[&r.workers[0]].unresponsive,
+            "Worker should be online"
+        );
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            0,
+            "Should not report any event"
+        );
+        assert!(
+            v_snap < r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be rewarded"
+        );
+
+        // Once again.
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        r.gk.egress.messages.borrow_mut().clear();
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        assert!(
+            !r.gk.workers[&r.workers[0]].unresponsive,
+            "Worker should be online"
+        );
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            0,
+            "Should not report any event"
+        );
+        assert!(
+            v_snap < r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be rewarded"
+        );
+    }
+
+    fn gk_should_report_payout_for_normal_heartbeats_case2() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(1).to_bits(),
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+        let challenge_block = block_number;
+
+        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+
+        // About to timeout then A heartbeat received, report payout event.
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        r.gk.egress.messages.borrow_mut().clear();
+        with_block(block_number, |block| {
+            let mut worker = r.for_worker(0);
+            worker.heartbeat(1, challenge_block, 10000000);
+            r.gk.process_messages(block);
+        });
+
+        assert!(
+            !r.gk.workers[&r.workers[0]].unresponsive,
+            "Worker should be online"
+        );
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            1,
+            "Should report recover event"
+        );
+        assert!(
+            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be payed out"
+        );
+
+        {
+            let settle = [msg::SettleInfo {
+                pubkey: r.workers[0].clone(),
+                v: 4096,
+                payout: 168,
+            }]
+            .to_vec();
+
+            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
+                block_number,
+                timestamp_ms: block_ts(block_number),
+                offline: Vec::new(),
+                recovered_to_online: Vec::new(),
+                settle,
+            });
+            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
+            assert_eq!(
+                message, expected_message,
+                "Should report settle for normal heartbeats"
+            );
+        }
+    }
+
+    fn gk_should_slash_and_report_offline_workers_case3() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(1).to_bits(),
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+
+        // assert_eq!(r.gk.workers[&r.workers[0]].tokenomic.v, 1);
+        assert!(r.gk.workers[&r.workers[0]].state.mining_state.is_some());
+
+        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        // About to timeout
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        assert!(!r.gk.workers[&r.workers[0]].unresponsive);
+
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+
+        block_number += 1;
+        // Heartbeat timed out
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        assert!(r.gk.workers[&r.workers[0]].unresponsive);
+        assert_eq!(r.gk.egress.messages.borrow().len(), 1);
+        {
+            let offline = [r.workers[0].clone()].to_vec();
+            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
+                block_number,
+                timestamp_ms: block_ts(block_number),
+                offline,
+                recovered_to_online: Vec::new(),
+                settle: Vec::new(),
+            });
+            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
+            assert_eq!(message, expected_message, "Should report recover to online");
+        }
+        assert!(
+            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be slashed"
+        );
+
+        r.gk.egress.messages.borrow_mut().clear();
+
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            0,
+            "Should not report offline workers"
+        );
+        assert!(
+            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be slashed again"
+        );
+    }
+
+    fn gk_should_slash_offline_workers_sliently_case4() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(1).to_bits(),
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+
+        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        // About to timeout
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        block_number += 1;
+        // Heartbeat timed out
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        r.gk.egress.messages.borrow_mut().clear();
+
+        // Worker already offline, don't report again until one more heartbeat received.
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            0,
+            "Should not report offline workers"
+        );
+        assert!(
+            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be slashed"
+        );
+
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            0,
+            "Should not report offline workers"
+        );
+        assert!(
+            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should be slashed again"
+        );
+    }
+
+    fn gk_should_report_recovered_workers_case5() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(1).to_bits(),
+            });
+            worker0.challenge();
+            r.gk.process_messages(block);
+        });
+        let challenge_block = block_number;
+
+        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        // About to timeout
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        block_number += 1;
+        // Heartbeat timed out
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        r.gk.egress.messages.borrow_mut().clear();
+
+        // Worker offline, report recover event on the next heartbeat received.
+        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker = r.for_worker(0);
+            worker.heartbeat(1, challenge_block, 10000000);
+            r.gk.process_messages(block);
+        });
+        assert_eq!(
+            r.gk.egress.messages.borrow().len(),
+            1,
+            "Should report recover event"
+        );
+        assert_eq!(
+            v_snap, r.gk.workers[&r.workers[0]].tokenomic.v,
+            "Worker should not be slashed or rewarded"
+        );
+        {
+            let recovered_to_online = [r.workers[0].clone()].to_vec();
+            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
+                block_number,
+                timestamp_ms: block_ts(block_number),
+                offline: Vec::new(),
+                recovered_to_online,
+                settle: Vec::new(),
+            });
+            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
+            assert_eq!(message, expected_message);
         }
     }
 }

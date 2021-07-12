@@ -100,6 +100,7 @@ default = [
   "sp-io/disable_allocator",
   "runtime/native-nostd"
 ]
+tests = []
 
 [patch.crates-io]
 rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", default-features = false }
