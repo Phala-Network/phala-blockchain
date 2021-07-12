@@ -239,6 +239,7 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
                         self.block.now_ms,
                     );
 
+                    // NOTE: keep the reporting order (vs the one while mining stop).
                     self.report.settle.push(SettleInfo {
                         pubkey: worker_pubkey.clone(),
                         v: worker_info.tokenomic.v.to_bits(),
@@ -312,13 +313,21 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
                         }
                         WorkerEvent::MiningStop => {
                             // TODO.kevin: report the final V?
-                            // No, we may need to report a Stop event in worker.
+                            // We may need to report a Stop event in worker.
                             // Then GK report the final V to pallet, when observed the Stop event from worker.
                             // The pallet wait for the final V report in CoolingDown state.
                             // Pallet  ---------(Stop)--------> Worker
                             // Worker  ----(Rest Heartbeats)--> *
                             // Worker  --------(Stopped)------> *
                             // GK      --------(Final V)------> Pallet
+
+                            // Just report the final V ATM.
+                            // NOTE: keep the reporting order (vs the one while heartbeat).
+                            self.report.settle.push(SettleInfo {
+                                pubkey: worker.state.pubkey.clone(),
+                                v: worker.tokenomic.v.to_bits(),
+                                payout: 0,
+                            })
                         }
                         WorkerEvent::MiningEnterUnresponsive => {}
                         WorkerEvent::MiningExitUnresponsive => {}
