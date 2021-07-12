@@ -14,8 +14,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
 		messaging::{
-			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent, SystemEvent,
-			WorkerEvent, SettleInfo,
+			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent, SettleInfo,
+			SystemEvent, WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -66,9 +66,7 @@ pub mod pallet {
 	}
 
 	#[pallet::config]
-	pub trait Config:
-		frame_system::Config + mq::Config + registry::Config
-	{
+	pub trait Config: frame_system::Config + mq::Config + registry::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type ExpectedBlockTimeSec: Get<u32>;
 
@@ -256,8 +254,7 @@ pub mod pallet {
 				Error::<T>::MinerNotInReadyState
 			);
 
-			let already_reserved =
-				DepositBalance::<T>::get(&miner).unwrap_or_default();
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
 			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
 
 			Ok(())
@@ -312,8 +309,7 @@ pub mod pallet {
 				Error::<T>::BenchmarkMissing
 			);
 
-			let already_reserved =
-				DepositBalance::<T>::get(&miner).unwrap_or_default();
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
 			ensure!(
 				already_reserved >= T::MinStaking::get(),
 				Error::<T>::InsufficientStaking
@@ -351,7 +347,7 @@ pub mod pallet {
 			);
 			let state = Self::miners(&miner).unwrap().state;
 			ensure!(
-				state != MinerState::Ready || state  != MinerState::MiningCoolingDown,
+				state != MinerState::Ready || state != MinerState::MiningCoolingDown,
 				Error::<T>::MinerNotMining
 			);
 
@@ -479,8 +475,8 @@ pub mod pallet {
 						miner_info.v_updated_at = now;
 						Miner::<T>::insert(&binding_miner, &miner_info);
 
-						let reward_reserved = RewardBalance::<T>::get(&binding_miner)
-							.unwrap_or_default();
+						let reward_reserved =
+							RewardBalance::<T>::get(&binding_miner).unwrap_or_default();
 						RewardBalance::<T>::insert(
 							&binding_miner,
 							reward_reserved.saturating_add(info.payout.saturated_into()),
@@ -496,7 +492,7 @@ pub mod pallet {
 
 		fn can_cleanup(miner_info: &MinerInfo) -> bool {
 			if miner_info.state != MinerState::MiningCoolingDown {
-				return false
+				return false;
 			}
 
 			let now = <T as registry::Config>::UnixTime::now()
