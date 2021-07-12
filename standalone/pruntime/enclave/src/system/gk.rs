@@ -402,7 +402,7 @@ mod tokenomic {
         Params {
             pha_rate: fp(1),
             rho: fp(10002) / 10000,   // 1.00020
-            slash_rate: fp(1) / 1000, // 0.001
+            slash_rate: fp(1) / 1000, // TODO: hourly rate: 0.001, convert to per-block rate
             budget_per_sec: fp(10),
             v_max: fp(30000),
             alpha: fp(287) / 10000, // 0.0287
