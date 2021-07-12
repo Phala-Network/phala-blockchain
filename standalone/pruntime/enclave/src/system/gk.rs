@@ -356,7 +356,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 }
 
 mod tokenomic {
-    pub use fixed::types::U116F12 as FixedPoint;
+    pub use fixed::types::U64F64 as FixedPoint;
     use fixed_sqrt::FixedSqrt as _;
 
     pub fn fp(n: u64) -> FixedPoint {
