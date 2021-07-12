@@ -112,7 +112,7 @@ pub mod pallet {
 		pub fn dispatch_message(message: Message) {
 			// Notify subcribers
 			if let Err(_err) = T::QueueNotifyConfig::on_message_received(&message) {
-				// TODO: what todo here?
+				// TODO: Consider to emit a message as warning. We can't stop dispatching message in any situation.
 			}
 			// Notify the off-chain components
 			if T::QueueNotifyConfig::should_push_event(&message) {
