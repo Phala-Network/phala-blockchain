@@ -116,7 +116,7 @@ impl WorkerState {
 
     pub fn process_event(
         &mut self,
-        block: &BlockInfo<'_>,
+        block: &BlockInfo,
         event: &Event,
         callback: &mut impl WorkerStateMachineCallback,
         log_on: bool,
@@ -251,7 +251,7 @@ impl WorkerState {
 
     fn on_block_processed(
         &mut self,
-        block: &BlockInfo<'_>,
+        block: &BlockInfo,
         callback: &mut impl WorkerStateMachineCallback,
     ) {
         if let Some(BenchState {
@@ -401,7 +401,7 @@ impl System {
 
     pub fn process_messages(
         &mut self,
-        block: &BlockInfo<'_>,
+        block: &BlockInfo,
         storage: &Storage,
     ) -> anyhow::Result<()> {
         loop {
@@ -434,7 +434,7 @@ impl System {
         Ok(())
     }
 
-    fn process_event(&mut self, block: &BlockInfo<'_>, event: &Event) -> Result<()> {
+    fn process_event(&mut self, block: &BlockInfo, event: &Event) -> Result<()> {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
