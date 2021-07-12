@@ -435,11 +435,15 @@ mod tokenomic {
             if self.v < self.v_last {
                 return fp(0);
             }
-            let dt = fp(now_ms - self.v_update_at) / 1000;
+            if now_ms <= self.v_update_at {
+                // May receive more than one heartbeat for a single worker in a single block.
+                return fp(0);
+            }
             let dv = self.v - self.v_last;
+            let dt = fp(now_ms - self.v_update_at) / 1000;
             let budget = params.budget_per_sec * dt;
             let w = dv.max(fp(0)).min(self.share() / sum_share * budget);
-            self.v = self.v - w;
+            self.v -= w;
             self.v_last = self.v;
             self.v_update_at = now_ms;
             w
@@ -454,6 +458,9 @@ mod tokenomic {
         }
 
         pub fn update_p_instant(&mut self, now: u64, iterations: u64) {
+            if now <= self.challenge_time_last {
+                return;
+            }
             let dt = fp(now - self.challenge_time_last) / 1000;
             let p = fp(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp(12) / fp(10));
