@@ -79,7 +79,6 @@ struct BenchState {
 #[derive(Debug)]
 enum MiningState {
     Mining,
-    EnteringPause,
     Paused,
 }
 
@@ -164,7 +163,7 @@ impl WorkerState {
                     MiningEnterUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
                             if let Mining = info.state {
-                                info.state = EnteringPause;
+                                info.state = Paused;
                                 return;
                             }
                         }
@@ -177,7 +176,7 @@ impl WorkerState {
                     }
                     MiningExitUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
-                            if let Paused | EnteringPause = info.state {
+                            if let Paused = info.state {
                                 info.state = Mining;
                                 return;
                             }
@@ -223,11 +222,6 @@ impl WorkerState {
 
         if matches!(mining_state.state, MiningState::Paused) {
             return;
-        }
-
-        // Miner state swiched to Unresponsitive, we report one more heartbeat.
-        if matches!(mining_state.state, MiningState::EnteringPause) {
-            mining_state.state = MiningState::Paused;
         }
 
         let x = self.hashed_id ^ seed_info.seed;
