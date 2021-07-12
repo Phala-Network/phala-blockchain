@@ -5,6 +5,7 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use crate::stakepool;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -14,7 +15,7 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent, SystemEvent,
-			WorkerEvent,
+			WorkerEvent, SettleInfo,
 		},
 		WorkerPublicKey,
 	};
@@ -24,6 +25,7 @@ pub mod pallet {
 		SaturatedConversion,
 	};
 	use sp_std::cmp;
+	use sp_std::vec::Vec;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const INITIAL_V: u64 = 1;
@@ -54,13 +56,19 @@ pub mod pallet {
 		cooling_down_start: u64,
 	}
 
+	pub trait OnReward {
+		fn on_reward(settle: &Vec<SettleInfo>) {}
+	}
+
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WorkerStat<Balance> {
 		total_reward: Balance,
 	}
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + mq::Config + registry::Config {
+	pub trait Config:
+		frame_system::Config + mq::Config + registry::Config
+	{
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type ExpectedBlockTimeSec: Get<u32>;
 
@@ -68,6 +76,7 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type PoolOrigin: EnsureOrigin<Self::Origin, Success = Self::AccountId>;
 		type MinStaking: Get<BalanceOf<Self>>;
+		type OnReward: OnReward;
 	}
 
 	#[pallet::pallet]
@@ -465,7 +474,7 @@ pub mod pallet {
 					}
 				}
 
-				for info in event.settle {
+				for info in event.settle.clone() {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&info.pubkey) {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
@@ -481,6 +490,8 @@ pub mod pallet {
 						);
 					}
 				}
+
+				T::OnReward::on_reward(&event.settle);
 			}
 
 			Ok(())
