@@ -37,15 +37,18 @@ impl WorkerInfo {
     }
 }
 
-pub(super) struct Gatekeeper {
-    egress: EcdsaMessageChannel, // TODO.kevin: syncing the egress state while migrating.
+pub(super) struct Gatekeeper<MsgChan> {
+    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
 }
 
-impl Gatekeeper {
-    pub fn new(recv_mq: &mut MessageDispatcher, egress: EcdsaMessageChannel) -> Self {
+impl<MsgChan> Gatekeeper<MsgChan>
+where
+    MsgChan: msg_trait::MessageChannel,
+{
+    pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
         Self {
             egress,
             mining_events: recv_mq.subscribe_bound(),
@@ -74,20 +77,20 @@ impl Gatekeeper {
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress.send(&report);
+            self.egress.push_message(&report);
         }
     }
 }
 
-struct GKMessageProcesser<'a> {
-    state: &'a mut Gatekeeper,
+struct GKMessageProcesser<'a, MsgChan> {
+    state: &'a mut Gatekeeper<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent,
     tokenomic_params: tokenomic::Params,
     sum_share: FixedPoint,
 }
 
-impl GKMessageProcesser<'_> {
+impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
     fn process(&mut self) {
         self.prepare();
         loop {
@@ -440,6 +443,22 @@ mod tokenomic {
             let dt = fp(now - self.challenge_time_last) / 1000;
             let p = fp(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp(12) / fp(10));
+        }
+    }
+}
+
+mod msg_trait {
+    use core::fmt::Debug;
+    use parity_scale_codec::Encode;
+    use phala_mq::{types::BindTopic, MessageSigner};
+
+    pub trait MessageChannel {
+        fn push_message<M: Encode + BindTopic + Debug>(&self, message: &M);
+    }
+
+    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
+        fn push_message<M: Encode + BindTopic + Debug>(&self, message: &M) {
+            self.send(message)
         }
     }
 }

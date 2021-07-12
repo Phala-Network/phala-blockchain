@@ -337,7 +337,7 @@ pub struct System {
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper,
+    gatekeeper: gk::Gatekeeper<EcdsaMessageChannel>,
 }
 
 impl System {
