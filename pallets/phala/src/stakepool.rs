@@ -89,6 +89,7 @@ pub mod pallet {
 		PoolIsBusy,
 		LessthanMinDeposit,
 		InsufficientBalance,
+		StakeInfoNotFound,
 	}
 
 	type BalanceOf<T> =
@@ -233,24 +234,31 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn claim_reward(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pid: u64,
 			target: T::AccountId,
 		) -> DispatchResult {
-			panic!("unimplemented")
-		}
+			let who = ensure_signed(origin)?;
+			let info_key = (pid.clone(), who.clone());
+			let mut user_info =
+				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
+			let pool_info = Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)?;
 
-		/// Sets target miners
-		///
-		/// Requires:
-		/// 1. The pool exists
-		/// 2. The miners are bounded to the pool
-		#[pallet::weight(0)]
-		pub fn set_target_miners(
-			origin: OriginFor<T>,
-			pool_id: u64,
-			targets: Vec<WorkerPublicKey>,
-		) -> DispatchResult {
-			panic!("unimplemented")
+			// update pool
+			Self::update_pool(pid.clone());
+
+			// rewards belong to user
+			let rewards =
+				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt;
+
+			// send reward to user
+			<T as Config>::Currency::deposit_into_existing(&who.clone(), rewards.clone())?;
+
+			user_info.user_debt = user_info.amount * pool_info.pool_acc / 10u32.pow(6).into();
+			user_info.available_rewards = Zero::zero();
+			StakingInfo::<T>::insert(&info_key, &user_info);
+			Self::deposit_event(Event::<T>::WithdrawRewards(pid, who, rewards));
+
+			Ok(())
 		}
 
 		/// Deposits some funds to a pool
@@ -263,10 +271,6 @@ pub mod pallet {
 			let who = ensure_signed(origin)?;
 
 			ensure!(
-				MiningPools::<T>::contains_key(&pid),
-				Error::<T>::PoolNotExist
-			);
-			ensure!(
 				amount.clone() >= T::MinDeposit::get(),
 				Error::<T>::LessthanMinDeposit
 			);
@@ -275,10 +279,10 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
+			let mut pool_info = Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)?;
 			Self::update_pool(pid.clone());
 
 			let info_key = (pid.clone(), who.clone());
-			let mut pool_info = Self::mining_pools(&pid).unwrap();
 			if StakingInfo::<T>::contains_key(&info_key) {
 				let mut user_info = Self::staking_info(&info_key).unwrap();
 				let pending_rewards = user_info.amount * pool_info.pool_acc
@@ -391,6 +395,7 @@ pub mod pallet {
 
 		fn update_pool(pid: u64) {
 			let mut new_rewards;
+			// TODO: check payout block height
 			// let currentBlock = <frame_system::Pallet<T>>::block_number();
 			let mut pool_info = Self::mining_pools(&pid).unwrap();
 
@@ -421,7 +426,8 @@ pub mod pallet {
 			let pool_info = Self::mining_pools(&pid).unwrap();
 			let mut pool_new_rewards: BalanceOf<T> = Zero::zero();
 			for worker in pool_info.workers {
-				pool_new_rewards = pool_new_rewards.saturating_add(Self::new_rewards(&worker).unwrap());
+				pool_new_rewards =
+					pool_new_rewards.saturating_add(Self::new_rewards(&worker).unwrap());
 			}
 			return pool_new_rewards;
 		}
@@ -435,18 +441,18 @@ pub mod pallet {
 		}
 	}
 
-    impl<T: Config> mining::OnReward for Pallet<T> {
+	impl<T: Config> mining::OnReward for Pallet<T> {
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
 		/// would be clear once pool was updated
 		fn on_reward(settle: &Vec<SettleInfo>) {
 			for info in settle {
-                let mut balance = Self::new_rewards(&info.pubkey).unwrap();
-                balance = balance.saturating_add(info.payout.saturated_into());
+				let mut balance = Self::new_rewards(&info.pubkey).unwrap();
+				balance = balance.saturating_add(info.payout.saturated_into());
 				NewRewards::<T>::insert(&info.pubkey, &balance);
 			}
 		}
-    }
+	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum PoolState {
