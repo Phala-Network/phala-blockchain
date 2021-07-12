@@ -32,9 +32,8 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
         route_handlers! {
             PhalaRegistry::on_message_received,
             PhalaMining::on_gk_message_received,
-            Phala::on_transfer_message_received,
             BridgeTransfer::on_message_received,
-            KittyStorage::on_message_received,
+            // KittyStorage::on_message_received,
         };
         Ok(())
     }
