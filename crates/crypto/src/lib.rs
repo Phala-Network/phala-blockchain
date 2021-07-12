@@ -7,6 +7,7 @@ extern crate alloc;
 extern crate std;
 
 pub mod ecdh;
+pub mod aead;
 pub mod secp256k1;
 
 #[derive(Debug)]

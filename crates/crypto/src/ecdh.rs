@@ -2,16 +2,19 @@ use crate::KeyError;
 use alloc::vec::Vec;
 use core::convert::TryInto;
 use core::mem;
-use ring::agreement::{EphemeralPrivateKey, PublicKey, UnparsedPublicKey};
+use ring::agreement::{EphemeralPrivateKey, UnparsedPublicKey};
 use ring::rand::SystemRandom;
 
 /// secp256r1 key pair
 pub struct EcdhKey(EphemeralPrivateKey);
 
-pub type PrivateKey = [u8; 32];
+pub type EcdhPrivateKey = [u8; 32];
+pub type EcdhPublicKey = ring::agreement::PublicKey;
 
 impl EcdhKey {
-    // Generate an ECDH key pair (secp256r1)
+    /// Generate an ECDH key pair (secp256r1)
+    ///
+    /// WARNING: the generated key pair should never be used in real-world scenarios
     pub fn generate() -> EcdhKey {
         // This rng relies on operating system thus is not trusted
         let rng = SystemRandom::new();
@@ -21,7 +24,7 @@ impl EcdhKey {
     }
 
     // A hack to create arbitrary private key
-    pub fn create(key: &PrivateKey) -> Result<EcdhKey, KeyError> {
+    pub fn create(key: &EcdhPrivateKey) -> Result<EcdhKey, KeyError> {
         let len = mem::size_of::<EphemeralPrivateKey>();
         if len != 64 {
             return Err(KeyError::InvalidSeedLength);
@@ -44,13 +47,13 @@ impl EcdhKey {
         }
     }
 
-    pub fn public(&self) -> PublicKey {
+    pub fn public(&self) -> EcdhPublicKey {
         self.0
             .compute_public_key()
             .expect("public key generation failed")
     }
 
-    pub fn secret(&self) -> PrivateKey {
+    pub fn secret(&self) -> EcdhPrivateKey {
         let memlayout: [u8; 64] = unsafe { mem::transmute_copy(&self.0) };
         memlayout[8..40]
             .try_into()

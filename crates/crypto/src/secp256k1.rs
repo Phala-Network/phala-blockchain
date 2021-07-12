@@ -5,8 +5,8 @@ use sp_core::{ecdsa, Pair};
 
 pub type Signature = ecdsa::Signature;
 
-const SEED_SIZE: usize = 32;
-type Seed = [u8; SEED_SIZE];
+const SEED_BYTES: usize = 32;
+type Seed = [u8; SEED_BYTES];
 
 pub trait Signing {
     fn sign_data(&self, data: &[u8]) -> Signature;
@@ -51,7 +51,7 @@ impl hkdf::KeyType for My<usize> {
 
 impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
     fn from(okm: hkdf::Okm<My<usize>>) -> Self {
-        let mut r = vec![0u8; okm.len().0];
+        let mut r = vec![0_u8; okm.len().0];
         okm.fill(&mut r).unwrap();
         Self(r)
     }
@@ -64,10 +64,10 @@ impl KDF for ecdsa::Pair {
         let prk = salt.extract(&self.seed());
         // TODO.shelven: figure out when this could fail
         let okm = prk
-            .expand(info, My(SEED_SIZE))
+            .expand(info, My(SEED_BYTES))
             .expect("failed in hkdf expand");
 
-        let mut seed: Seed = [0_u8; SEED_SIZE];
+        let mut seed: Seed = [0_u8; SEED_BYTES];
         // TODO.shelven: figure out when this could fail
         okm.fill(seed.as_mut()).expect("failed to fill output buff");
 
@@ -86,7 +86,7 @@ mod test {
     fn generate_key() -> ecdsa::Pair {
         use rand::RngCore;
         let mut rng = rand::thread_rng();
-        let mut seed: Seed = [0u8; SEED_SIZE];
+        let mut seed: Seed = [0_u8; SEED_BYTES];
 
         rng.fill_bytes(&mut seed);
 
