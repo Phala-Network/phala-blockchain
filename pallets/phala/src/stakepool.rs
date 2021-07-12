@@ -139,7 +139,7 @@ pub mod pallet {
 			// check the wheather the owner was bounded as operator
 			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
 			ensure!(
-				worker_info.operator.unwrap() == owner.clone(),
+				worker_info.operator == Some(owner.clone()),
 				Error::<T>::UnauthorizedOperator
 			);
 

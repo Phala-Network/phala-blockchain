@@ -331,7 +331,7 @@ pub mod pallet {
 
 			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
 			let session_id = MiningSessionid::<T>::get();
-			MiningSessionid::<T>::mutate(|id| *id = session_id + 1);
+			MiningSessionid::<T>::put(session_id + 1);
 			Self::push_message(SystemEvent::new_worker_event(
 				binding_worker,
 				WorkerEvent::MiningStart {
