@@ -1,4 +1,4 @@
-use crate::KeyError;
+use crate::CryptoError;
 use alloc::vec::Vec;
 use curve25519_dalek::scalar::Scalar;
 use schnorrkel::keys::{ExpansionMode, Keypair, MiniSecretKey, PublicKey, SecretKey};
@@ -14,18 +14,18 @@ pub type EcdhPublicKey = PublicKey;
 type Seed = [u8; MINI_SECRET_KEY_LENGTH];
 
 impl EcdhKey {
-    pub fn create(seed: &Seed) -> Result<EcdhKey, KeyError> {
+    pub fn create(seed: &Seed) -> Result<EcdhKey, CryptoError> {
         Ok(EcdhKey(
             MiniSecretKey::from_bytes(seed)
-                .map_err(|_| KeyError::InvalidSeedLength)?
+                .map_err(|_| CryptoError::EcdhInvalidSecretKey)?
                 .expand_to_keypair(ExpansionMode::Ed25519),
         ))
     }
 
-    pub fn from_secret(sk: &EcdhPrivateKey) -> Result<EcdhKey, KeyError> {
+    pub fn from_secret(sk: &EcdhPrivateKey) -> Result<EcdhKey, CryptoError> {
         Ok(EcdhKey(
             SecretKey::from_bytes(sk.as_ref())
-                .map_err(|_| KeyError::InvalidSeedLength)?
+                .map_err(|_| CryptoError::EcdhInvalidSecretKey)?
                 .to_keypair(),
         ))
     }
@@ -40,11 +40,11 @@ impl EcdhKey {
 }
 
 // Derives a secret key for symmetric encryption without a KDF
-pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, KeyError> {
+pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, CryptoError> {
     let mut key: [u8; 32] = [0_u8; 32];
     key.copy_from_slice(&sk.secret()[0..32]);
     let key = Scalar::from_canonical_bytes(key).expect("This should never fail with correct seed");
-    let public = PublicKey::from_bytes(pk).map_err(|_| KeyError::InvalidSeedLength)?;
+    let public = PublicKey::from_bytes(pk).map_err(|_| CryptoError::EcdhInvalidPublicKey)?;
     Ok((&key * public.as_point()).compress().0.to_vec())
 }
 

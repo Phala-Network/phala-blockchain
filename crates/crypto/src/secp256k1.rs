@@ -1,4 +1,4 @@
-use crate::{ecdh::EcdhKey, KeyError};
+use crate::{ecdh::EcdhKey, CryptoError};
 use alloc::{vec, vec::Vec};
 use ring::hkdf;
 use sp_core::{ecdsa, Pair};
@@ -31,9 +31,9 @@ const KDF_SALT: [u8; 32] = [
 ];
 
 pub trait KDF {
-    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError>;
+    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, CryptoError>;
 
-    fn derive_ecdh_key(&self) -> Result<EcdhKey, KeyError>;
+    fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError>;
 }
 
 /// Generic newtype wrapper that lets us implement traits for externally-defined
@@ -59,22 +59,21 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
 
 impl KDF for ecdsa::Pair {
     // TODO.shelven: allow to specify the salt from pruntime (instead of hard code)
-    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, KeyError> {
+    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, CryptoError> {
         let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &KDF_SALT);
         let prk = salt.extract(&self.seed());
-        // TODO.shelven: figure out when this could fail
         let okm = prk
             .expand(info, My(SEED_BYTES))
-            .expect("failed in hkdf expand");
+            .map_err(|_| CryptoError::EcdsaHkdfExpandError)?;
 
         let mut seed: Seed = [0_u8; SEED_BYTES];
-        // TODO.shelven: figure out when this could fail
-        okm.fill(seed.as_mut()).expect("failed to fill output buff");
+        okm.fill(seed.as_mut())
+            .map_err(|_| CryptoError::EcdsaHkdfExpandError)?;
 
-        ecdsa::Pair::from_seed_slice(&seed).map_err(|err| KeyError::SecretStringError(err))
+        ecdsa::Pair::from_seed_slice(&seed).map_err(|err| CryptoError::EcdsaInvalidSeedLength(err))
     }
 
-    fn derive_ecdh_key(&self) -> Result<EcdhKey, KeyError> {
+    fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError> {
         EcdhKey::create(&self.seed())
     }
 }
