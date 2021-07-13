@@ -149,7 +149,7 @@ pub mod pallet {
 			// origin must be owner of pool
 			let mut pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
 			ensure!(
-				pool_info.owner == owner.clone(),
+				&pool_info.owner == &owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// make sure worker has not been not added
@@ -212,7 +212,7 @@ pub mod pallet {
 			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
 			// origin must be owner of pool
 			ensure!(
-				pool_info.owner == owner.clone(),
+				&pool_info.owner == &owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// make sure pool status is not mining
