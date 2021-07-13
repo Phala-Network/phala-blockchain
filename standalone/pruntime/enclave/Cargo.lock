@@ -2120,6 +2120,7 @@ dependencies = [
  "curve25519-dalek 2.1.2",
  "ring 0.16.20",
  "schnorrkel",
+ "sp-application-crypto",
  "sp-core",
 ]
 
@@ -2207,12 +2208,10 @@ name = "phala-pallets"
 version = "3.2.6"
 dependencies = [
  "base64 0.11.0",
- "blake2-rfc",
  "chrono 0.4.19",
  "frame-support",
  "frame-system",
  "hex 0.4.3",
- "itertools 0.8.2",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-balances",
  "pallet-randomness-collective-flip",
@@ -2235,7 +2234,6 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec 2.2.0",
- "phala-crypto",
  "phala-mq",
  "serde 1.0.126",
  "sp-core",

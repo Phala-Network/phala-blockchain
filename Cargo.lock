@@ -2802,15 +2802,6 @@ checksum = "68f2d64f2edebec4ce84ad108148e67e1064789bee435edc5b60ad398714a3a9"
 
 [[package]]
 name = "itertools"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "284f18f85651fe11e8a991b2adb42cb078325c996ed026d994719efcfca1d54b"
@@ -5332,6 +5323,7 @@ dependencies = [
  "rand 0.7.3",
  "ring 0.16.20",
  "schnorrkel",
+ "sp-application-crypto",
  "sp-core",
 ]
 
@@ -5515,7 +5507,6 @@ version = "3.2.6"
 dependencies = [
  "assert_matches",
  "base64 0.11.0",
- "blake2-rfc",
  "chrono",
  "frame-benchmarking",
  "frame-support",
@@ -5523,7 +5514,6 @@ dependencies = [
  "frame-system",
  "hex",
  "hex-literal",
- "itertools 0.8.2",
  "libsecp256k1",
  "log",
  "pallet-balances",
@@ -5549,7 +5539,6 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec",
- "phala-crypto",
  "phala-mq",
  "serde 1.0.126",
  "sp-core",

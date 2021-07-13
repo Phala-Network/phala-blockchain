@@ -19,8 +19,8 @@ pallet-randomness-collective-flip = { version = "3.0.0", default-features = fals
 sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
 sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core", features = ["full_crypto"] }
-sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto", features = ["full_crypto"] }
+sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core"}
+sp-application-crypto = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/application-crypto" }
 frame-benchmarking = { version = "3.1.0", default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
 log = { version = "0.4.14", default-features = false }
 
@@ -28,13 +28,11 @@ pallet-balances = { version = "3.0.0", default-features = false, path = "../../s
 
 phala-types = { default-features = false, path = "../../common/types" }
 chrono = { version = "0.4", default-features = false }
-itertools = { version = "0.8", default-features = false }
 untrusted = { version = "0.7" }
 base64 = { version = "0.11", default-features = false, features = ["alloc"] }
 hex = { version = "0.4", default-features = false }
 webpki = { path = "../../webpki", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0.41", default-features = false, features = ["alloc"] }
-blake2-rfc = { version = "0.2.18", default-features = false }
 substrate-fixed = { git = 'https://github.com/encointer/substrate-fixed.git', rev = "b33d186888c60f38adafcfc0ec3a21aab263aef1" }
 
 [dev-dependencies]
