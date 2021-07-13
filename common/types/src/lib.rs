@@ -15,7 +15,8 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::U256;
 
-    use super::{WorkerEcdhPublicKey, WorkerPublicKey};
+    use super::EcdhP256PublicKey;
+    use super::WorkerPublicKey;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -287,7 +288,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Debug)]
     pub struct NewGatekeeperEvent {
         pub pubkey: WorkerPublicKey,
-        pub ecdh_pubkey: WorkerEcdhPublicKey,
+        pub ecdh_pubkey: EcdhP256PublicKey,
         pub gatekeeper_count: u32,
     }
 
@@ -295,7 +296,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Debug, PartialEq, Eq)]
     pub struct DispatchMasterKeyEvent {
         pub dest: WorkerPublicKey,
-        pub ecdh_pubkey: WorkerEcdhPublicKey,
+        pub ecdh_pubkey: EcdhP256PublicKey,
         pub encrypted_master_key: Vec<u8>,
         pub iv: phala_crypto::aead::IV,
     }
@@ -365,11 +366,9 @@ pub struct Score {
 
 type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
-// This is only true for ECDH_P256
-pub type WorkerEcdhPublicKey = [u8; 65];
 pub type ContractPublicKey = sp_core::ecdsa::Public;
 #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-pub struct EcdhP256PublicKey([u8; 65]);
+pub struct EcdhP256PublicKey(pub [u8; 65]);
 
 impl Default for EcdhP256PublicKey {
 	fn default() -> Self {

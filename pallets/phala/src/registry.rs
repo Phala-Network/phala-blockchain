@@ -22,7 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, MessageOrigin, NewGatekeeperEvent, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhP256PublicKey,PRuntimeInfo, WorkerPublicKey, WorkerEcdhPublicKey,
+		ContractPublicKey, EcdhP256PublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -157,19 +157,23 @@ pub mod pallet {
 		pub fn register_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
-			ecdh_pubkey: WorkerEcdhPublicKey,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
 			if !gatekeepers.contains(&gatekeeper) {
-				gatekeepers.push(gatekeeper.clone());
-				let gatekeeper_count = gatekeepers.len() as u32;
-				Gatekeeper::<T>::put(gatekeepers);
-				Self::push_message(NewGatekeeperEvent {
-					pubkey: gatekeeper,
-					ecdh_pubkey: ecdh_pubkey,
-					gatekeeper_count: gatekeeper_count,
-				});
+				match Worker::<T>::try_get(&gatekeeper) {
+					Ok(worker_info) => {
+						gatekeepers.push(gatekeeper.clone());
+						let gatekeeper_count = gatekeepers.len() as u32;
+						Gatekeeper::<T>::put(gatekeepers);
+						Self::push_message(NewGatekeeperEvent {
+							pubkey: gatekeeper,
+							ecdh_pubkey: worker_info.ecdh_pubkey,
+							gatekeeper_count: gatekeeper_count,
+						});
+					}
+					_ => return Err(Error::<T>::WorkerNotFound.into()),
+				}
 			}
 			Ok(())
 		}
@@ -401,7 +405,9 @@ pub mod pallet {
 				));
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					pubkey.clone(),
-					WorkerEvent::BenchStart { duration: self.benchmark_duration },
+					WorkerEvent::BenchStart {
+						duration: self.benchmark_duration,
+					},
 				));
 				BenchmarkDuration::<T>::put(self.benchmark_duration);
 			}

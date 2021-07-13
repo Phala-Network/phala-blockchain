@@ -37,7 +37,7 @@ fn next_random_number(
 ) -> RandomNumber {
     let mut buf: Vec<u8> = last_random_number.to_vec();
     buf.extend(block_number.to_be_bytes().iter().copied());
-
+    // TODO.shelven: use a derived key instead of master_key
     let sig = master_key.sign_data(buf.as_ref());
     hashing::blake2_256(&sig.0)
 }
@@ -448,7 +448,7 @@ where
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }
-        let my_pubkey = ecdsa::Public::from(self.state.identity_key.clone());
+        let my_pubkey = self.state.identity_key.public();
         if my_pubkey == event.pubkey && event.gatekeeper_count == 1 {
             if self.state.master_key.is_none() {
                 // generate master key as the first gatekeeper
@@ -464,7 +464,7 @@ where
                     .identity_key
                     .derive_ecdh_key()
                     .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey)
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
                     .expect("should never failed with valid ecdh key");
                 let iv = crate::cryptography::aead::generate_iv();
                 let mut data = master_key.clone().to_raw_vec();
@@ -508,7 +508,7 @@ where
             panic!("GK state poisoned");
         }
 
-        let my_pubkey = ecdsa::Public::from(self.state.identity_key.clone());
+        let my_pubkey = self.state.identity_key.public();
         if my_pubkey == event.dest {
             if self.state.master_key.is_none() {
                 let my_ecdh_key = self
@@ -516,7 +516,7 @@ where
                     .identity_key
                     .derive_ecdh_key()
                     .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey)
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
                     .expect("should never failed with valid ecdh key");
                 let mut seed: Vec<u8> = Vec::new();
                 aead::decrypt(&event.iv, &secret, &mut seed);
