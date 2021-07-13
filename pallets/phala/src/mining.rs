@@ -72,7 +72,6 @@ pub mod pallet {
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-		type PoolOrigin: EnsureOrigin<Self::Origin, Success = Self::AccountId>;
 		type MinStaking: Get<BalanceOf<Self>>;
 		type OnReward: OnReward;
 	}
@@ -178,114 +177,6 @@ pub mod pallet {
 
 			CoolingDownExpire::<T>::mutate(|p| *p = period);
 			Self::deposit_event(Event::<T>::CoplingDownExpireChanged(period));
-			Ok(())
-		}
-
-		/// Binding miner with worker
-		///
-		/// Requires:
-		/// 1. Ther worker is alerady registered
-		#[pallet::weight(0)]
-		pub fn bind(
-			origin: OriginFor<T>,
-			miner: T::AccountId,
-			pubkey: WorkerPublicKey,
-		) -> DispatchResult {
-			T::PoolOrigin::ensure_origin(origin)?;
-
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-
-			ensure!(
-				registry::Worker::<T>::contains_key(&pubkey),
-				Error::<T>::WorkerNotRegistered
-			);
-
-			ensure!(
-				!MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::DuplicatedBoundedMiner
-			);
-			ensure!(
-				!WorkerBinding::<T>::contains_key(&pubkey),
-				Error::<T>::DuplicatedBoundedMiner
-			);
-
-			MinerBinding::<T>::insert(&miner, &pubkey);
-			WorkerBinding::<T>::insert(&pubkey, &miner);
-
-			Miner::<T>::insert(
-				&miner,
-				MinerInfo {
-					state: MinerState::Ready,
-					ve: 0u64,
-					v: 0u64,
-					v_updated_at: now,
-					p_instant: 0u64,
-					benchmark: Benchmark {
-						iterations: 0u64,
-						mining_start_time: now,
-					},
-					cooling_down_start: 0u64,
-				},
-			);
-
-			Self::deposit_event(Event::<T>::MinerBounded(miner, pubkey));
-			Ok(())
-		}
-
-		/// Desposits some tokan as stake
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		#[pallet::weight(0)]
-		pub fn deposit(
-			origin: OriginFor<T>,
-			miner: T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			T::PoolOrigin::ensure_origin(origin)?;
-
-			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			ensure!(
-				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotInReadyState
-			);
-
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
-
-			Ok(())
-		}
-
-		/// Withdraw some token from the stake
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		#[pallet::weight(0)]
-		pub fn withdraw(
-			origin: OriginFor<T>,
-			miner: T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			T::PoolOrigin::ensure_origin(origin)?;
-
-			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			// mining should be stopped before withdraw
-			ensure!(
-				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotInReadyState
-			);
-
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			DepositBalance::<T>::insert(&miner, already_reserved.saturating_sub(amount));
-
 			Ok(())
 		}
 
@@ -500,6 +391,102 @@ pub mod pallet {
 			} else {
 				false
 			}
+		}
+
+		/// Binding miner with worker
+		///
+		/// Requires:
+		/// 1. Ther worker is alerady registered
+		pub fn bind(
+			miner: T::AccountId,
+			pubkey: WorkerPublicKey,
+		) -> DispatchResult {
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+
+			ensure!(
+				registry::Worker::<T>::contains_key(&pubkey),
+				Error::<T>::WorkerNotRegistered
+			);
+
+			ensure!(
+				!MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::DuplicatedBoundedMiner
+			);
+			ensure!(
+				!WorkerBinding::<T>::contains_key(&pubkey),
+				Error::<T>::DuplicatedBoundedMiner
+			);
+
+			MinerBinding::<T>::insert(&miner, &pubkey);
+			WorkerBinding::<T>::insert(&pubkey, &miner);
+
+			Miner::<T>::insert(
+				&miner,
+				MinerInfo {
+					state: MinerState::Ready,
+					ve: 0u64,
+					v: 0u64,
+					v_updated_at: now,
+					p_instant: 0u64,
+					benchmark: Benchmark {
+						iterations: 0u64,
+						mining_start_time: now,
+					},
+					cooling_down_start: 0u64,
+				},
+			);
+
+			Self::deposit_event(Event::<T>::MinerBounded(miner, pubkey));
+			Ok(())
+		}
+
+		/// Desposits some tokan as stake
+		///
+		/// Requires:
+		/// 1. Ther miner is in Ready state
+		pub fn deposit(
+			miner: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			ensure!(
+				MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::MinerNotFounded
+			);
+			ensure!(
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
+			);
+
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
+			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
+
+			Ok(())
+		}
+
+		/// Withdraw some token from the stake
+		///
+		/// Requires:
+		/// 1. Ther miner is in Ready state
+		pub fn withdraw(
+			miner: T::AccountId,
+			amount: BalanceOf<T>,
+		) -> DispatchResult {
+			ensure!(
+				MinerBinding::<T>::contains_key(&miner),
+				Error::<T>::MinerNotFounded
+			);
+			// mining should be stopped before withdraw
+			ensure!(
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
+			);
+
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
+			DepositBalance::<T>::insert(&miner, already_reserved.saturating_sub(amount));
+
+			Ok(())
 		}
 	}
 

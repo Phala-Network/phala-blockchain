@@ -163,7 +163,6 @@ pub mod pallet {
 
 			// bind worker with minner
 			<mining::pallet::Pallet<T>>::bind(
-				frame_system::RawOrigin::Signed(Self::account_id()).into(),
 				miner.clone(),
 				pubkey.clone(),
 			)?;

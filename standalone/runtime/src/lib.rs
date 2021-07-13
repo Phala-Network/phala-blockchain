@@ -1104,7 +1104,6 @@ impl pallet_mining::Config for Runtime {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
-	type PoolOrigin = pallet_stakepool::EnsurePool<Runtime>;
 	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
 }
