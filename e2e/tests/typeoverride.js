@@ -97,6 +97,7 @@ const types = {
       "lastUpdated": "u64",
       "operator": "Option<AccountId>",
       "confidenceLevel": "u8",
+	  "sessionId": "u64",
       "intialScore": "Option<u32>",
       "features": "Vec<u32>"
     },
