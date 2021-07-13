@@ -354,7 +354,7 @@ impl System {
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper: gk::Gatekeeper::new(recv_mq, gk_egress),
+            gatekeeper: gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress),
         }
     }
 
@@ -429,6 +429,8 @@ impl System {
 
         if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
             self.gatekeeper.process_messages(block);
+
+            self.gatekeeper.vrf(block.block_number);
         }
         Ok(())
     }

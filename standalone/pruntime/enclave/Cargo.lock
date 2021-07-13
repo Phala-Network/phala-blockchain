@@ -36,6 +36,7 @@ dependencies = [
  "pallet-bridge-transfer",
  "pallet-kitties",
  "parity-scale-codec 2.2.0",
+ "phala-crypto",
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
@@ -2113,6 +2114,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "acbf547ad0c65e31259204bd90935776d1c693cec2f4ff7abb7a1bbbd40dfe58"
 
 [[package]]
+name = "phala-crypto"
+version = "0.1.0"
+dependencies = [
+ "curve25519-dalek 2.1.2",
+ "ring 0.16.20",
+ "schnorrkel",
+ "sp-core",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
@@ -2224,6 +2235,7 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec 2.2.0",
+ "phala-crypto",
  "phala-mq",
  "serde 1.0.126",
  "sp-core",

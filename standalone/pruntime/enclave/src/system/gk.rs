@@ -1,23 +1,47 @@
 use super::{TypedReceiver, WorkerState};
+use phala_crypto::{
+    aead, ecdh,
+    secp256k1::{Signing, KDF},
+};
 use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
-        WorkerEvent, WorkerEventWithKey,
+        DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
+        MiningReportEvent, NewGatekeeperEvent, RandomNumber, RandomNumberEvent, SettleInfo,
+        SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
+use sp_core::{ecdsa, hashing, Pair};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
     types::BlockInfo,
 };
 
+use crate::std::convert::TryInto;
+use crate::std::vec::Vec;
 use msg_trait::{EgressMessage, MessageChannel};
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 // TODO: Read from blockchain
 const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
+
+/// Block interval to generate pseudo-random on chain
+const VRF_INTERVAL: u32 = 5;
+
+// pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
+fn next_random_number(
+    master_key: &ecdsa::Pair,
+    block_number: chain::BlockNumber,
+    last_random_number: RandomNumber,
+) -> RandomNumber {
+    let mut buf: Vec<u8> = last_random_number.to_vec();
+    buf.extend(block_number.to_be_bytes().iter().copied());
+    // TODO.shelven: use a derived key instead of master_key
+    let sig = master_key.sign_data(buf.as_ref());
+    hashing::blake2_256(&sig.0)
+}
 
 struct WorkerInfo {
     state: WorkerState,
@@ -40,22 +64,37 @@ impl WorkerInfo {
 }
 
 pub(super) struct Gatekeeper<MsgChan> {
+    identity_key: ecdsa::Pair,
+    master_key: Option<ecdsa::Pair>,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
+    // Randomness
+    last_random_number: RandomNumber,
+    last_random_block: chain::BlockNumber,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
     MsgChan: MessageChannel,
 {
-    pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
+    pub fn new(
+        identity_key: ecdsa::Pair,
+        recv_mq: &mut MessageDispatcher,
+        egress: MsgChan,
+    ) -> Self {
         Self {
+            identity_key,
+            master_key: None,
             egress,
+            gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
+            last_random_number: [0_u8; 32],
+            last_random_block: 0,
         }
     }
 
@@ -83,6 +122,27 @@ where
                 .push_message(EgressMessage::MiningInfoUpdate(report));
         }
     }
+
+    pub fn vrf(&mut self, block_number: chain::BlockNumber) {
+        if block_number % VRF_INTERVAL != 1 {
+            return;
+        }
+
+        if block_number - self.last_random_block != VRF_INTERVAL {
+            // wait for random number syncing
+            return;
+        }
+
+        if let Some(master_key) = &self.master_key {
+            self.egress.push_message(EgressMessage::Gatekeeper(
+                GatekeeperEvent::new_random_number(
+                    block_number,
+                    next_random_number(master_key, block_number, self.last_random_number),
+                    self.last_random_number,
+                ),
+            ))
+        }
+    }
 }
 
 struct GKMessageProcesser<'a, MsgChan> {
@@ -93,7 +153,10 @@ struct GKMessageProcesser<'a, MsgChan> {
     sum_share: FixedPoint,
 }
 
-impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
+impl<MsgChan> GKMessageProcesser<'_, MsgChan>
+where
+    MsgChan: MessageChannel,
+{
     fn process(&mut self) {
         self.prepare();
         loop {
@@ -109,6 +172,14 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
                 message = self.state.system_events => match message {
                     Ok((_, event, origin)) => {
                         self.process_system_event(origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+                message = self.state.gatekeeper_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_event(origin, event);
                     }
                     Err(e) => {
                         error!("Read message failed: {:?}", e);
@@ -338,6 +409,131 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
             SystemEvent::HeartbeatChallenge(_) => {}
         }
     }
+
+    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        match event {
+            GatekeeperEvent::Registered(new_gatekeeper_event) => {
+                self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
+            }
+            GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
+                self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
+            }
+            GatekeeperEvent::NewRandomNumber(random_number_event) => {
+                self.process_random_number_event(origin, random_number_event)
+            }
+        }
+    }
+
+    /// Monitor the getakeeper registeration event to:
+    ///
+    /// 1. Generate the master key if this is the first gatekeeper;
+    /// 2. Dispatch the master key to newly-registered gatekeepers;
+    fn process_new_gatekeeper_event(&mut self, origin: MessageOrigin, event: NewGatekeeperEvent) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        // double check the new gatekeeper is valid
+        if !crate::identity::is_gatekeeper(&event.pubkey, self.block.storage) {
+            error!("Fatal error: Invalid gatekeeper registration {:?}", event);
+            panic!("GK state poisoned");
+        }
+        let my_pubkey = self.state.identity_key.public();
+        if my_pubkey == event.pubkey && event.gatekeeper_count == 1 {
+            if self.state.master_key.is_none() {
+                // generate master key as the first gatekeeper
+                self.state.master_key =
+                    Some(crate::new_ecdsa_key().expect(
+                        "key generation should never fail since we give seed of correct sieze",
+                    ))
+            }
+        } else if my_pubkey != event.pubkey {
+            if let Some(master_key) = &self.state.master_key {
+                let my_ecdh_key = self
+                    .state
+                    .identity_key
+                    .derive_ecdh_key()
+                    .expect("ecdh key derivation should never failed with valid identity key");
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                    .expect("should never failed with valid ecdh key");
+                let iv = crate::cryptography::aead::generate_iv();
+                let mut data = master_key.clone().to_raw_vec();
+                aead::encrypt(&iv, &secret, &mut data);
+
+                self.state.egress.push_message(EgressMessage::Gatekeeper(
+                    GatekeeperEvent::dispatch_master_key_event(
+                        event.pubkey,
+                        my_ecdh_key
+                            .public()
+                            .as_ref()
+                            .try_into()
+                            .expect("ecdh pubkey with incorrect length"),
+                        data,
+                        iv,
+                    ),
+                ));
+            }
+        }
+    }
+
+    /// Process encrypted master key from mq
+    fn process_dispatch_master_key_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: DispatchMasterKeyEvent,
+    ) {
+        let src_pubkey = if let MessageOrigin::Worker(pubkey) = origin {
+            pubkey
+        } else {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        };
+
+        // double check the event is from a valid gatekeeper
+        if !crate::identity::is_gatekeeper(&src_pubkey, self.block.storage) {
+            error!(
+                "Fatal error: Master key from invalid gatekeeper {:?}",
+                event
+            );
+            panic!("GK state poisoned");
+        }
+
+        let my_pubkey = self.state.identity_key.public();
+        if my_pubkey == event.dest {
+            if self.state.master_key.is_none() {
+                let my_ecdh_key = self
+                    .state
+                    .identity_key
+                    .derive_ecdh_key()
+                    .expect("ecdh key derivation should never failed with valid identity key");
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                    .expect("should never failed with valid ecdh key");
+                let mut seed: Vec<u8> = Vec::new();
+                aead::decrypt(&event.iv, &secret, &mut seed);
+
+                self.state.master_key =
+                    Some(ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed"));
+            }
+        }
+    }
+
+    /// Sync on-chain random number for next random generation
+    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
+        if let Some(master_key) = &self.state.master_key {
+            // instead of checking the origin, we directly verify the random to avoid access storage
+            if next_random_number(master_key, event.block_number, event.last_random_number)
+                != event.random_number
+            {
+                error!("Fatal error: Unexpected random number {:?}", event);
+                panic!("GK state poisoned");
+            }
+            if event.block_number > self.state.last_random_block {
+                self.state.last_random_block = event.block_number;
+                self.state.last_random_number = event.random_number;
+            }
+        }
+    }
 }
 
 struct WorkerSMTracker<'a> {
@@ -475,6 +671,7 @@ mod msg_trait {
     #[derive(PartialEq, Eq, Debug)]
     pub enum EgressMessage {
         MiningInfoUpdate(super::MiningInfoUpdateEvent<chain::BlockNumber>),
+        Gatekeeper(super::GatekeeperEvent),
     }
 
     pub trait MessageChannel {
@@ -485,6 +682,7 @@ mod msg_trait {
         fn push_message(&self, message: EgressMessage) {
             match message {
                 EgressMessage::MiningInfoUpdate(message) => self.send(&message),
+                EgressMessage::Gatekeeper(message) => self.send(&message),
             }
         }
     }

@@ -141,11 +141,11 @@ fn main() {
             println!("payload: 0x{}", hex::encode(payload.encode()));
         }
         Cli::EcdhKey { privkey } => {
-            use crypto::ecdh;
+            use phala_crypto::ecdh;
 
             let privkey = hex::decode(privkey).expect("Failed to decode hex key");
-            let privkey: ecdh::PrivateKey = privkey.try_into().expect("Invalid key length");
-            let pair = ecdh::EcdhKey::create(&privkey).expect("Failed to crate key pair");
+            let privkey: ecdh::EcdhPrivateKey = privkey.try_into().expect("Invalid key length");
+            let pair = ecdh::EcdhKey::from_secret(&privkey).expect("Failed to crate key pair");
             let pubkey = pair.public();
             println!("Pubkey: {:?}", pubkey);
         }

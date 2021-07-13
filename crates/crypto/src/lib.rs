@@ -7,10 +7,19 @@ extern crate alloc;
 extern crate std;
 
 pub mod ecdh;
+pub mod aead;
 pub mod secp256k1;
 
 #[derive(Debug)]
-pub enum KeyError {
-    InvalidSeedLength,
-    SecretStringError(sp_core::crypto::SecretStringError),
+pub enum CryptoError {
+    // Ecdsa errors
+    EcdsaInvalidSeedLength(sp_core::crypto::SecretStringError),
+    EcdsaHkdfExpandError,
+    // Ecdh errors
+    EcdhInvalidSecretKey,
+    EcdhInvalidPublicKey,
+    // Aead errors
+    AeadInvalidKey,
+    AeadEncryptError,
+    AeadDecryptError,
 }

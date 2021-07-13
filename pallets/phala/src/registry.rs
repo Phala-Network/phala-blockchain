@@ -19,8 +19,8 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, MessageOrigin, SignedMessage, SystemEvent,
-			WorkerEvent,
+			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
+			SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhP256PublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
@@ -161,11 +161,36 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
 			if !gatekeepers.contains(&gatekeeper) {
-				gatekeepers.push(gatekeeper.clone());
-				Gatekeeper::<T>::put(gatekeepers);
-				Self::deposit_event(Event::GatekeeperAdded(gatekeeper));
+				match Worker::<T>::try_get(&gatekeeper) {
+					Ok(worker_info) => {
+						gatekeepers.push(gatekeeper.clone());
+						let gatekeeper_count = gatekeepers.len() as u32;
+						Gatekeeper::<T>::put(gatekeepers);
+						Self::push_message(GatekeeperEvent::gatekeeper_registered(
+							gatekeeper,
+							worker_info.ecdh_pubkey,
+							gatekeeper_count,
+						));
+					}
+					_ => return Err(Error::<T>::WorkerNotFound.into()),
+				}
 			}
 			Ok(())
+		}
+
+		/// Unregister a gatekeeper, must be called by gatekeeper himself
+		///
+		/// Requirements:
+		//  1. `sig` is the valid signature of specific unregister message
+		#[allow(unused_variables)]
+		#[pallet::weight(0)]
+		pub fn unregister_gatekeeper(
+			origin: OriginFor<T>,
+			gatekeeper: WorkerPublicKey,
+			sig: [u8; 65],
+		) -> DispatchResult {
+			// TODO.shelven
+			panic!("unimpleneted");
 		}
 
 		/// (called by anyone on behalf of a worker)

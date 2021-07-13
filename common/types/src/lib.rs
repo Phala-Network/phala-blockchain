@@ -3,8 +3,8 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
-use core::fmt::Debug;
 use core::convert::{TryFrom, TryInto};
+use core::fmt::Debug;
 
 // Messages: Phase Wallet
 
@@ -15,6 +15,7 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::U256;
 
+    use super::EcdhP256PublicKey;
     use super::WorkerPublicKey;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
@@ -155,7 +156,7 @@ pub mod messaging {
         Created(AccountId, Hash),
     }
 
-    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/trasfer");
+    bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/transfer");
     #[derive(Debug, Clone, Encode, Decode, PartialEq)]
     pub struct KittyTransfer<AccountId> {
         pub dest: AccountId,
@@ -280,6 +281,85 @@ pub mod messaging {
         pub v: U64F64Bits,
         pub payout: U64F64Bits,
     }
+
+    // Messages: Gatekeeper
+    bind_topic!(GatekeeperEvent, b"phala/gatekeeper/event");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub enum GatekeeperEvent {
+        Registered(NewGatekeeperEvent),
+        DispatchMasterKey(DispatchMasterKeyEvent),
+        NewRandomNumber(RandomNumberEvent),
+    }
+
+    impl GatekeeperEvent {
+        pub fn gatekeeper_registered(
+            pubkey: WorkerPublicKey,
+            ecdh_pubkey: EcdhP256PublicKey,
+            gatekeeper_count: u32,
+        ) -> GatekeeperEvent {
+            GatekeeperEvent::Registered(NewGatekeeperEvent {
+                pubkey,
+                ecdh_pubkey,
+                gatekeeper_count,
+            })
+        }
+
+        pub fn dispatch_master_key_event(
+            dest: WorkerPublicKey,
+            ecdh_pubkey: EcdhP256PublicKey,
+            encrypted_master_key: Vec<u8>,
+            iv: phala_crypto::aead::IV,
+        ) -> GatekeeperEvent {
+            GatekeeperEvent::DispatchMasterKey(DispatchMasterKeyEvent {
+                dest,
+                ecdh_pubkey,
+                encrypted_master_key,
+                iv,
+            })
+        }
+
+        pub fn new_random_number(
+            block_number: u32,
+            random_number: RandomNumber,
+            last_random_number: RandomNumber,
+        ) -> GatekeeperEvent {
+            GatekeeperEvent::NewRandomNumber(RandomNumberEvent {
+                block_number,
+                random_number,
+                last_random_number,
+            })
+        }
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct NewGatekeeperEvent {
+        /// The public key of registered gatekeeper
+        pub pubkey: WorkerPublicKey,
+        /// The ecdh public key of registered gatekeeper
+        pub ecdh_pubkey: EcdhP256PublicKey,
+        /// The current number of gatekeepers
+        pub gatekeeper_count: u32,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct DispatchMasterKeyEvent {
+        /// The target to dispatch master key
+        pub dest: WorkerPublicKey,
+        /// The ecdh public key of master key source
+        pub ecdh_pubkey: EcdhP256PublicKey,
+        /// Master key encrypted with aead key
+        pub encrypted_master_key: Vec<u8>,
+        /// Aead IV
+        pub iv: phala_crypto::aead::IV,
+    }
+
+    pub type RandomNumber = [u8; 32];
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct RandomNumberEvent {
+        pub block_number: u32,
+        pub random_number: RandomNumber,
+        pub last_random_number: RandomNumber,
+    }
 }
 
 // Types used in storage
@@ -338,19 +418,20 @@ type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
 pub type ContractPublicKey = sp_core::ecdsa::Public;
 #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-pub struct EcdhP256PublicKey([u8; 65]);
+pub struct EcdhP256PublicKey(pub [u8; 65]);
 
 impl Default for EcdhP256PublicKey {
-	fn default() -> Self {
-		EcdhP256PublicKey([0; 65])
-	}
+    fn default() -> Self {
+        EcdhP256PublicKey([0; 65])
+    }
 }
+
 impl TryFrom<&[u8]> for EcdhP256PublicKey {
-	type Error = ();
-	fn try_from(raw: &[u8]) -> Result<Self, ()> {
-		let raw: [u8; 65] = raw.try_into().map_err(|_| ())?;
-		Ok(EcdhP256PublicKey(raw))
-	}
+    type Error = ();
+    fn try_from(raw: &[u8]) -> Result<Self, ()> {
+        let raw: [u8; 65] = raw.try_into().map_err(|_| ())?;
+        Ok(EcdhP256PublicKey(raw))
+    }
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]

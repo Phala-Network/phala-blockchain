@@ -1223,15 +1223,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
-name = "crypto"
-version = "0.1.0"
-dependencies = [
- "rand 0.7.3",
- "ring 0.16.20",
- "sp-core",
-]
-
-[[package]]
 name = "crypto-mac"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1360,10 +1351,10 @@ name = "debug-cli"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
- "crypto",
  "enclave-api",
  "hex",
  "parity-scale-codec",
+ "phala-crypto",
  "phala-types",
  "sp-runtime",
  "structopt",
@@ -5334,6 +5325,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-crypto"
+version = "0.1.0"
+dependencies = [
+ "curve25519-dalek 2.1.2",
+ "rand 0.7.3",
+ "ring 0.16.20",
+ "schnorrkel",
+ "sp-core",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
@@ -5547,6 +5549,7 @@ name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "parity-scale-codec",
+ "phala-crypto",
  "phala-mq",
  "serde 1.0.126",
  "sp-core",
