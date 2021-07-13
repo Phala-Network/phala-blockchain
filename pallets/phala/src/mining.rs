@@ -119,11 +119,6 @@ pub mod pallet {
 	pub(super) type DepositBalance<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
-	#[pallet::storage]
-	#[pallet::getter(fn reward_balance)]
-	pub(super) type RewardBalance<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
-
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -303,13 +298,6 @@ pub mod pallet {
 						miner_info.v = info.v as _; //TODO(wenfeng)
 						miner_info.v_updated_at = now;
 						Miner::<T>::insert(&binding_miner, &miner_info);
-
-						let reward_reserved =
-							RewardBalance::<T>::get(&binding_miner).unwrap_or_default();
-						RewardBalance::<T>::insert(
-							&binding_miner,
-							reward_reserved.saturating_add(info.payout.saturated_into()),
-						);
 					}
 				}
 
