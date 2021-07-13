@@ -93,6 +93,8 @@ pub mod pallet {
 		InsufficientBalance,
 		StakeInfoNotFound,
 		InsufficientStake,
+		StartMiningCallFailed,
+		MinerBindingCallFailed,
 	}
 
 	type BalanceOf<T> =
@@ -166,13 +168,18 @@ pub mod pallet {
 			let miner: T::AccountId = pool_sub_account(pid, &owner, &pubkey);
 
 			// bind worker with minner
-			<mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone())?;
-
-			// update worker vector
-			workers.push(pubkey.clone());
-			MiningPools::<T>::insert(&pid, &pool_info);
-			NewRewards::<T>::insert(&pubkey, BalanceOf::<T>::zero());
-			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
+			match <mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone()) {
+				Ok(()) => {
+					// update worker vector
+					workers.push(pubkey.clone());
+					MiningPools::<T>::insert(&pid, &pool_info);
+					NewRewards::<T>::insert(&pubkey, BalanceOf::<T>::zero());
+					Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
+				}
+				_ => {
+					return Err(Error::<T>::MinerBindingCallFailed.into());
+				}
+			}
 
 			Ok(())
 		}
@@ -360,9 +367,17 @@ pub mod pallet {
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
 			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
-			<mining::pallet::Pallet<T>>::start_mining(miner)?;
-			pool_info.locked_stake = pool_info.locked_stake.saturating_add(stake);
-			MiningPools::<T>::insert(&pid, &pool_info);
+			match <mining::pallet::Pallet<T>>::start_mining(miner.clone()) {
+				Ok(()) => {
+					pool_info.locked_stake = pool_info.locked_stake.saturating_add(stake);
+					MiningPools::<T>::insert(&pid, &pool_info);
+				}
+				_ => {
+					// rollback
+					<mining::pallet::Pallet<T>>::set_deposit(&miner, Zero::zero());
+					return Err(Error::<T>::StartMiningCallFailed.into());
+				}
+			}
 
 			Ok(())
 		}
