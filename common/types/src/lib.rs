@@ -291,6 +291,9 @@ pub mod messaging {
         NewRandomNumber(RandomNumberEvent),
     }
 
+    // Walkaround for heavy dep on phala-crypto
+    type AeadIV = [u8; 12];
+
     impl GatekeeperEvent {
         pub fn gatekeeper_registered(
             pubkey: WorkerPublicKey,
@@ -308,7 +311,7 @@ pub mod messaging {
             dest: WorkerPublicKey,
             ecdh_pubkey: EcdhP256PublicKey,
             encrypted_master_key: Vec<u8>,
-            iv: phala_crypto::aead::IV,
+            iv: AeadIV,
         ) -> GatekeeperEvent {
             GatekeeperEvent::DispatchMasterKey(DispatchMasterKeyEvent {
                 dest,
@@ -350,7 +353,7 @@ pub mod messaging {
         /// Master key encrypted with aead key
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
-        pub iv: phala_crypto::aead::IV,
+        pub iv: AeadIV,
     }
 
     pub type RandomNumber = [u8; 32];

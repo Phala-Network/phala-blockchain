@@ -5,9 +5,18 @@ edition = "2018"
 
 [dependencies]
 sp-core = { path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
+sp-application-crypto = { path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
+
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 curve25519-dalek = { version = "2.0", default-features = false }
 schnorrkel = { version = "0.9.1", default-features = false, features = ["preaudit_deprecated", "u64_backend"] }
 
 [dev-dependencies]
 rand = "0.7.3"
+
+[features]
+default = [ "full_crypto" ]
+full_crypto = [
+    "sp-core/full_crypto",
+    "sp-application-crypto/full_crypto",
+]

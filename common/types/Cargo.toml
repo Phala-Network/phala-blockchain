@@ -7,19 +7,18 @@ edition = "2018"
 [dependencies]
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["full"] }
-sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core", features = ["full_crypto"] }
+sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
 trie-storage = { path = "../../crates/trie-storage", default-features = false, optional = true  }
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
-phala-crypto = { path = "../../crates/crypto" }
 
 [features]
 default = ["std", "pruntime", "enable_serde"]
 std = [
 	"serde/std",
 	"codec/std",
-	"sp-core/full_crypto",
+	"full_crypto",
 	"sp-runtime/std",
 	"trie-storage/serde",
 ]
@@ -33,4 +32,8 @@ pruntime = [
 ]
 sgx = [
 	"trie-storage/sgx",
+    "full_crypto",
+]
+full_crypto = [
+    "sp-core/full_crypto",
 ]
