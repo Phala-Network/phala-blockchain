@@ -277,7 +277,7 @@ impl contracts::NativeContract for DataPlaza {
 
         let address_hex = hex::encode(origin);
         let txref = TxRef {
-            blocknum: context.block_number,
+            blocknum: context.block.block_number,
             index: cmd.number,
         };
 

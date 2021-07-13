@@ -1,29 +1,22 @@
-use crate::{benchmark, std::prelude::v1::*};
+mod gk;
+
+use crate::{benchmark, std::prelude::v1::*, types::BlockInfo, Storage};
 use anyhow::Result;
 use core::fmt;
 use log::info;
 use serde::{Deserialize, Serialize};
-use sp_application_crypto::Public;
-use std::collections::{BTreeMap, HashSet};
+use std::collections::BTreeMap;
 
-use chain::pallet_mq::MessageOriginInfo;
-use enclave_api::blocks::StorageKV;
 use chain::pallet_registry::RegistryEvent;
-use parity_scale_codec::{Decode, Error as DecodeError, FullCodec};
 use phala_mq::{
     EcdsaMessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, TypedReceiveError,
     TypedReceiver,
 };
 use phala_types::{
-    messaging::{BlockRewardInfo, SystemEvent, WorkerReportEvent},
-    WorkerPublicKey, WorkerStateEnum,
+    messaging::{HeartbeatChallenge, MiningReportEvent, SystemEvent, WorkerEvent},
+    WorkerPublicKey,
 };
-use sp_core::{ecdsa, hashing::blake2_256, storage::StorageKey, U256};
-
-use crate::light_validation::utils::storage_prefix;
-use crate::OnlineWorkerSnapshot;
-
-mod comp_election;
+use sp_core::{ecdsa, hashing::blake2_256, U256};
 
 pub type CommandIndex = u64;
 
@@ -77,61 +70,291 @@ pub struct TransactionReceipt {
 
 #[derive(Debug)]
 struct BenchState {
-    block: chain::BlockNumber,
-    time: u64,
+    start_block: chain::BlockNumber,
+    start_time: u64,
+    start_iter: u64,
+    duration: u32,
 }
 
 #[derive(Debug)]
-enum AttachState {
-    Detached,
-    Attached { session_id: u64 },
+enum MiningState {
+    Mining,
+    Paused,
 }
 
-impl AttachState {
-    fn is_attached(&self) -> bool {
-        matches!(self, Self::Attached { .. })
+#[derive(Debug)]
+struct MiningInfo {
+    session_id: u32,
+    state: MiningState,
+    start_time: u64,
+    start_iter: u64,
+}
+
+// Minimum worker state machine can be reused to replay in GK.
+// TODO: shrink size
+struct WorkerState {
+    pubkey: WorkerPublicKey,
+    hashed_id: U256,
+    registered: bool,
+    bench_state: Option<BenchState>,
+    mining_state: Option<MiningInfo>,
+}
+
+impl WorkerState {
+    pub fn new(pubkey: WorkerPublicKey) -> Self {
+        let raw_pubkey: &[u8] = pubkey.as_ref();
+        let pkh = blake2_256(raw_pubkey);
+        let hashed_id: U256 = pkh.into();
+        Self {
+            pubkey,
+            hashed_id,
+            registered: false,
+            bench_state: None,
+            mining_state: None,
+        }
+    }
+
+    pub fn process_event(
+        &mut self,
+        block: &BlockInfo,
+        event: &Event,
+        callback: &mut impl WorkerStateMachineCallback,
+        log_on: bool,
+    ) {
+        match event {
+            Event::WorkerEvent(evt) => {
+                if evt.pubkey != self.pubkey {
+                    return;
+                }
+
+                use MiningState::*;
+                use WorkerEvent::*;
+                if log_on {
+                    info!("System::handle_event: {:?}", evt.event);
+                }
+                match evt.event {
+                    Registered(_) => {
+                        self.registered = true;
+                    }
+                    BenchStart { duration } => {
+                        self.bench_state = Some(BenchState {
+                            start_block: block.block_number,
+                            start_time: block.now_ms,
+                            start_iter: callback.bench_iterations(),
+                            duration,
+                        });
+                        callback.bench_resume();
+                    }
+                    BenchScore(score) => {
+                        if log_on {
+                            info!("My benchmark score is {}", score);
+                        }
+                    }
+                    MiningStart { session_id, init_v: _ } => {
+                        self.mining_state = Some(MiningInfo {
+                            session_id,
+                            state: Mining,
+                            start_time: block.now_ms,
+                            start_iter: callback.bench_iterations(),
+                        });
+                        callback.bench_resume();
+                    }
+                    MiningStop => {
+                        self.mining_state = None;
+                        if self.need_pause() {
+                            callback.bench_pause();
+                        }
+                    }
+                    MiningEnterUnresponsive => {
+                        if let Some(info) = &mut self.mining_state {
+                            if let Mining = info.state {
+                                info.state = Paused;
+                                return;
+                            }
+                        }
+                        if log_on {
+                            error!(
+                                "Unexpected event received: {:?}, mining_state= {:?}",
+                                evt.event, self.mining_state
+                            );
+                        }
+                    }
+                    MiningExitUnresponsive => {
+                        if let Some(info) = &mut self.mining_state {
+                            if let Paused = info.state {
+                                info.state = Mining;
+                                return;
+                            }
+                        }
+                        if log_on {
+                            error!(
+                                "Unexpected event received: {:?}, mining_state= {:?}",
+                                evt.event, self.mining_state
+                            );
+                        }
+                    }
+                }
+            }
+            Event::HeartbeatChallenge(seed_info) => {
+                self.handle_heartbeat_challenge(block, &seed_info, callback, log_on);
+            }
+        };
+    }
+
+    fn handle_heartbeat_challenge(
+        &mut self,
+        block: &BlockInfo,
+        seed_info: &HeartbeatChallenge,
+        callback: &mut impl WorkerStateMachineCallback,
+        log_on: bool,
+    ) {
+        if log_on {
+            info!(
+                "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
+                block.block_number, seed_info, self.registered, self.mining_state
+            );
+        }
+
+        if !self.registered {
+            return;
+        }
+
+        let mining_state = if let Some(state) = &mut self.mining_state {
+            state
+        } else {
+            return;
+        };
+
+        if matches!(mining_state.state, MiningState::Paused) {
+            return;
+        }
+
+        let x = self.hashed_id ^ seed_info.seed;
+        let online_hit = x <= seed_info.online_target;
+
+        // Push queue when necessary
+        if online_hit {
+            let iterations = callback.bench_iterations() - mining_state.start_iter;
+            callback.heartbeat(
+                mining_state.session_id,
+                block.block_number,
+                block.now_ms,
+                iterations,
+            );
+        }
+    }
+
+    fn need_pause(&self) -> bool {
+        self.bench_state.is_none() && self.mining_state.is_none()
+    }
+
+    fn on_block_processed(
+        &mut self,
+        block: &BlockInfo,
+        callback: &mut impl WorkerStateMachineCallback,
+    ) {
+        // Handle registering benchmark report
+        if let Some(BenchState {
+            start_block,
+            start_time,
+            start_iter,
+            duration,
+        }) = self.bench_state
+        {
+            if block.block_number - start_block >= duration {
+                self.bench_state = None;
+                let iterations = callback.bench_iterations() - start_iter;
+                callback.bench_report(start_time, iterations);
+                if self.need_pause() {
+                    callback.bench_pause();
+                }
+            }
+        }
+    }
+}
+
+trait WorkerStateMachineCallback {
+    fn bench_iterations(&self) -> u64 {
+        0
+    }
+    fn bench_resume(&mut self) {}
+    fn bench_pause(&mut self) {}
+    fn bench_report(&mut self, _start_time: u64, _iterations: u64) {}
+    fn heartbeat(
+        &mut self,
+        _session_id: u32,
+        _block_num: chain::BlockNumber,
+        _block_time: u64,
+        _iterations: u64,
+    ) {
+    }
+}
+
+struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
+
+impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
+    fn bench_iterations(&self) -> u64 {
+        benchmark::iteration_counter()
+    }
+    fn bench_resume(&mut self) {
+        benchmark::resume();
+    }
+    fn bench_pause(&mut self) {
+        benchmark::pause();
+    }
+    fn bench_report(&mut self, start_time: u64, iterations: u64) {
+        let report = RegistryEvent::BenchReport {
+            start_time,
+            iterations,
+        };
+        info!("Reporting benchmark: {:?}", report);
+        self.0.send(&report);
+    }
+    fn heartbeat(
+        &mut self,
+        session_id: u32,
+        challenge_block: chain::BlockNumber,
+        challenge_time: u64,
+        iterations: u64,
+    ) {
+        let event = MiningReportEvent::Heartbeat {
+            session_id,
+            challenge_block,
+            challenge_time,
+            iterations,
+        };
+        info!("System: sending {:?}", event);
+        self.0.send(&event);
     }
 }
 
 pub struct System {
-    // Keys and identity
-    pubkey: WorkerPublicKey,
-    hashed_id: U256,
-    machine_id: Vec<u8>,
-    // Computation task electino
-    comp_elected: bool,
     // Transaction
     receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
     egress: EcdsaMessageChannel,
     ingress: TypedReceiver<Event>,
-    attach_state: AttachState,
-    bench_state: Option<BenchState>,
+
+    worker_state: WorkerState,
+    gatekeeper: gk::Gatekeeper<EcdsaMessageChannel>,
 }
 
 impl System {
     pub fn new(
-        machine_id: Vec<u8>,
         pair: &ecdsa::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
     ) -> Self {
         let pubkey = ecdsa::Public::from(pair.clone());
-        let raw_pubkey: &[u8] = pubkey.as_ref();
-        let pkh = blake2_256(raw_pubkey);
-        let hashed_id: U256 = pkh.into();
-        info!("System::set_id: hashed identity key: {:?}", hashed_id);
         let sender = MessageOrigin::Worker(pubkey.clone());
+        // TODO: create gk_egress dynamically with gk masterkey
+        let gk_egress = send_mq.channel(MessageOrigin::Gatekeeper, pair.clone());
         System {
-            pubkey,
-            hashed_id,
-            machine_id,
-            comp_elected: false,
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
-            attach_state: AttachState::Detached,
-            bench_state: None,
+            worker_state: WorkerState::new(pubkey.clone()),
+            gatekeeper: gk::Gatekeeper::new(recv_mq, gk_egress),
         }
     }
 
@@ -175,29 +398,19 @@ impl System {
         }
     }
 
-    fn feed_event(&mut self) -> EventHandler {
-        EventHandler {
-            system: self,
-            seed: None,
-            snapshot: None,
-            new_round: false,
-        }
-    }
-
-    pub fn process_events(
+    pub fn process_messages(
         &mut self,
-        block_number: chain::BlockNumber,
-        storage: &crate::Storage,
+        block: &BlockInfo,
+        storage: &Storage,
     ) -> anyhow::Result<()> {
-        let mut event_handler = self.feed_event();
         loop {
-            match event_handler.system.ingress.try_next() {
+            match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {
                     if !sender.is_pallet() {
                         error!("Invalid SystemEvent sender: {:?}", sender);
                         continue;
                     }
-                    event_handler.feed(block_number, &event, storage)?;
+                    self.process_event(block, &event)?;
                 }
                 Ok(None) => break,
                 Err(e) => match e {
@@ -211,235 +424,23 @@ impl System {
                 },
             }
         }
-        drop(event_handler);
-        if let Some(BenchState { block, time }) = self.bench_state {
-            const BENCH_DURATION: u32 = 8;
-            if block_number - block >= BENCH_DURATION {
-                benchmark::puase();
-                let report = RegistryEvent::BenchReport {
-                    start_time: time,
-                    iterations: benchmark::iteration_counter(),
-                };
-                info!("Reporting benchmark: {:?}", report);
-                self.egress.send(&report);
-                self.bench_state = None;
-            }
+        self.worker_state
+            .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
+
+        if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
+            self.gatekeeper.process_messages(block);
         }
         Ok(())
     }
 
-    fn handle_reward_seed(&mut self, blocknum: chain::BlockNumber, reward_info: &BlockRewardInfo) {
-        info!(
-            "System::handle_reward_seed({}, {:?}), state={:?}",
-            blocknum, reward_info, self.attach_state
-        );
-
-        if !self.attach_state.is_attached() {
-            return;
-        }
-
-        let x = self.hashed_id ^ reward_info.seed;
-        let online_hit = x <= reward_info.online_target;
-        let compute_hit = self.comp_elected && x <= reward_info.compute_target;
-
-        // Push queue when necessary
-        if online_hit || compute_hit {
-            info!(
-                "System::handle_reward_seed: x={}, online={}, compute={}, elected={}",
-                x, reward_info.online_target, reward_info.compute_target, self.comp_elected,
-            );
-            self.egress.send(&WorkerReportEvent::Heartbeat {
-                machine_id: self.machine_id.clone(),
-                block_num: blocknum as u32,
-                claim_online: online_hit,
-                claim_compute: compute_hit,
-            });
-        }
-    }
-
-    fn handle_new_round(
-        &mut self,
-        seed: U256,
-        worker_snapshot: Option<&super::OnlineWorkerSnapshot>,
-    ) -> Result<()> {
-        if let Some(worker_snapshot) = worker_snapshot {
-            info!("System::handle_new_round: new round");
-            self.comp_elected =
-                comp_election::elect(seed.low_u64(), &worker_snapshot, &self.machine_id);
-        } else {
-            info!("System::handle_new_round: no snapshot found; skipping this round");
-            self.comp_elected = false;
-        }
+    fn process_event(&mut self, block: &BlockInfo, event: &Event) -> Result<()> {
+        self.worker_state
+            .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
     }
-}
 
-pub struct EventHandler<'a> {
-    pub system: &'a mut System,
-    seed: Option<U256>,
-    new_round: bool,
-    snapshot: Option<super::OnlineWorkerSnapshot>,
-}
-
-impl<'a> EventHandler<'a> {
-    pub fn feed(
-        &mut self,
-        block_number: chain::BlockNumber,
-        event: &Event,
-        storage: &crate::Storage,
-    ) -> Result<()> {
-        match event {
-            Event::BenchStart { pubkey, start_time } => {
-                if pubkey == &self.system.pubkey {
-                    self.system.bench_state = Some(BenchState {
-                        block: block_number,
-                        time: *start_time,
-                    });
-                    benchmark::reset_iteration_counter();
-                    benchmark::resume();
-                }
-            }
-            Event::WorkerAttached { pubkey, session_id } => {
-                if pubkey == &self.system.pubkey {
-                    info!("System::handle_event: WorkerAttached");
-                    self.system.attach_state = AttachState::Attached {
-                        session_id: *session_id,
-                    };
-                }
-            }
-            Event::WorkerDettached { pubkey } => {
-                if pubkey == &self.system.pubkey {
-                    info!("System::handle_event: WorkerDettached");
-                    self.system.attach_state = AttachState::Detached;
-                }
-            }
-            Event::RewardSeed(reward_info) => {
-                self.seed = Some(reward_info.seed);
-                self.system.handle_reward_seed(block_number, &reward_info);
-            }
-            Event::NewMiningRound(round) => {
-                info!("System::handle_event: new mining round ({})", round);
-                // Save the snapshot for later use
-                self.snapshot = snapshot_online_worker(storage)?;
-                self.new_round = true;
-            }
-        };
-        Ok(())
-    }
-}
-
-fn snapshot_online_worker(trie: &crate::Storage) -> anyhow::Result<Option<OnlineWorkerSnapshot>> {
-    // Stats numbers
-    let online_workers_key = storage_prefix("Phala", "OnlineWorkers");
-    let compute_workers_key = storage_prefix("Phala", "ComputeWorkers");
-    let worker_state_key = storage_prefix("Phala", "WorkerState");
-    let stake_received_key = storage_prefix("MiningStaking", "StakeReceived");
-
-    fn decode<T: Decode>(mut data: &[u8]) -> Result<T, DecodeError> {
-        Decode::decode(&mut data)
-    }
-
-    let online_workers: u32 = match trie.get(&online_workers_key) {
-        Some(v) => decode(&v).map_err(|_| anyhow::anyhow!("Decode OnlineWorkers failed"))?,
-        None => 0,
-    };
-
-    let compute_workers: u32 = match trie.get(&compute_workers_key) {
-        Some(v) => decode(&v).map_err(|_| anyhow::anyhow!("Decode ComputeWorkers failed"))?,
-        None => 0,
-    };
-
-    if online_workers == 0 || compute_workers == 0 {
-        info!(
-            "OnlineWorker or ComputeWorkers is zero ({}, {}). Skipping worker snapshot.",
-            online_workers, compute_workers
-        );
-        return Ok(None);
-    }
-
-    info!("- Stats Online Workers: {}", online_workers);
-    info!("- Stats Compute Workers: {}", compute_workers);
-
-    // Online workers and stake received
-    // TODO.kevin: take attention to the memory usage.
-    let worker_data: Vec<(StorageKey, phala_types::WorkerInfo<chain::BlockNumber>)> = trie
-        .pairs(&worker_state_key)
-        .into_iter()
-        .try_fold(Vec::new(), |mut out, value| -> anyhow::Result<_> {
-            out.push((
-                StorageKey(value.0),
-                decode(&value.1).map_err(|_| anyhow::anyhow!("Decode worker data failed"))?,
-            ));
-            Ok(out)
-        })?;
-
-    let stake_received_data: Vec<(StorageKey, chain::Balance)> = trie
-        .pairs(&stake_received_key)
-        .into_iter()
-        .try_fold(Vec::new(), |mut out, value| -> anyhow::Result<_> {
-            out.push((
-                StorageKey(value.0),
-                decode(&value.1)
-                    .map_err(|_| anyhow::anyhow!("Decode stake_received_data failed"))?,
-            ));
-            Ok(out)
-        })?;
-
-    let online_worker_data: Vec<_> = worker_data
-        .into_iter()
-        .filter(|(_k, worker_info)| match worker_info.state {
-            WorkerStateEnum::<chain::BlockNumber>::Mining(_)
-            | WorkerStateEnum::<chain::BlockNumber>::MiningStopping => true,
-            _ => false,
-        })
-        .collect();
-
-    let stashes: HashSet<&[u8]> = online_worker_data
-        .iter()
-        .map(|(k, _v)| account_id_from_map_key(&k.0))
-        .collect();
-
-    let stake_received_data: Vec<_> = stake_received_data
-        .into_iter()
-        .filter(|(k, _v)| stashes.contains(account_id_from_map_key(&k.0)))
-        .collect();
-
-    debug!("- online_worker_data: vec[{}]", online_worker_data.len());
-    debug!("- stake_received_data: vec[{}]", stake_received_data.len());
-
-    // Snapshot fields
-    let worker_state_kv = storage_kv_from_data(online_worker_data);
-    let stake_received_kv = storage_kv_from_data(stake_received_data);
-
-    Ok(Some(crate::OnlineWorkerSnapshot {
-        worker_state_kv,
-        stake_received_kv,
-        compute_workers,
-    }))
-}
-
-fn storage_kv_from_data<T>(storage_data: Vec<(StorageKey, T)>) -> Vec<StorageKV<T>>
-where
-    T: FullCodec + Clone,
-{
-    storage_data
-        .into_iter()
-        .map(|(k, v)| crate::StorageKV(k.0, v))
-        .collect()
-}
-
-fn account_id_from_map_key(key: &[u8]) -> &[u8] {
-    // (twox128(module) + twox128(storage) + black2_128_concat(accountid))
-    &key[256 / 8..]
-}
-
-impl<'a> Drop for EventHandler<'a> {
-    fn drop(&mut self) {
-        if let (true, Some(seed)) = (self.new_round, self.seed) {
-            self.system
-                .handle_new_round(seed, self.snapshot.as_ref())
-                .expect("System EventHandler::drop() should never fail; qed.");
-        }
+    pub fn is_registered(&self) -> bool {
+        self.worker_state.registered
     }
 }
 
@@ -496,4 +497,9 @@ pub mod serde_anyhow {
         let s = String::deserialize(deserializer)?;
         Ok(Error::msg(s))
     }
+}
+
+#[cfg(feature = "tests")]
+pub fn run_all_tests() {
+    gk::tests::run_all_tests();
 }

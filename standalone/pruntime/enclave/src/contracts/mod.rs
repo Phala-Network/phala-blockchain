@@ -6,7 +6,6 @@ use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
 use crate::system::TransactionReceipt;
-use crate::Storage;
 
 use super::TransactionStatus;
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
@@ -190,15 +189,15 @@ impl<'de> Visitor<'de> for AcidVisitor {
 pub use support::*;
 mod support {
     use super::*;
+    use crate::types::BlockInfo;
 
     pub struct ExecuteEnv<'a> {
-        pub block_number: chain::BlockNumber,
+        pub block: &'a BlockInfo<'a>,
         pub system: &'a mut System,
-        pub storage: &'a Storage,
     }
 
     pub struct NativeContext<'a> {
-        pub block_number: chain::BlockNumber,
+        pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
         osp_mq: OspMq<'a>,
     }
@@ -216,7 +215,7 @@ mod support {
             origin: Option<&chain::AccountId>,
             req: OpaqueQuery,
         ) -> Result<OpaqueReply, OpaqueError>;
-        fn process_events(&mut self, env: &mut ExecuteEnv);
+        fn process_messages(&mut self, env: &mut ExecuteEnv);
     }
 
     pub trait NativeContract {
@@ -342,42 +341,40 @@ mod support {
             .map_err(|_| error_msg("serde_json serilize failed"))
         }
 
-        fn process_events(&mut self, env: &mut ExecuteEnv) {
-            let storage = env.storage;
+        fn process_messages(&mut self, env: &mut ExecuteEnv) {
+            let storage = env.block.storage;
             let key_map =
                 |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
             let osp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
-                block_number: env.block_number,
+                block: env.block,
                 mq: &self.send_mq,
                 osp_mq,
             };
             loop {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
-                        Ok(Some((_, cmd, origin))) => {
+                        Ok((_, cmd, origin)) => {
                             let cmd_number = cmd.number;
                             let status = self.contract.handle_command(&context, origin.clone(), cmd);
                             env.system.add_receipt(
                                 cmd_number,
                                 TransactionReceipt {
                                     account: origin,
-                                    block_num: env.block_number,
+                                    block_num: env.block.block_number,
                                     contract_id: self.id(),
                                     status,
                                 },
                             );
                         }
-                        Ok(None) => {}
                         Err(e) => {
                             error!("Read command failed: {:?}", e);
                         }
                     },
                     next_event = self.event_rcv_mq => match next_event {
-                        Ok(Some((_, event, origin))) => {
+                        Ok((_, event, origin)) => {
                             self.contract.handle_event(&context, origin, event);
                         }
-                        Ok(None) => {}
                         Err(e) => {
                             error!("Read event failed: {:?}", e);
                         },

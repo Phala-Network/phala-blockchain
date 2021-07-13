@@ -1360,6 +1360,7 @@ name = "debug-cli"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
+ "crypto",
  "enclave-api",
  "hex",
  "parity-scale-codec",
@@ -4656,10 +4657,8 @@ dependencies = [
 name = "pallet-kitties"
 version = "3.0.0"
 dependencies = [
- "blake2-rfc",
  "frame-support",
  "frame-system",
- "libsecp256k1",
  "pallet-balances",
  "pallet-randomness-collective-flip",
  "parity-scale-codec",
@@ -4692,25 +4691,6 @@ dependencies = [
  "frame-system",
  "log",
  "parity-scale-codec",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-mining-staking"
-version = "1.0.0"
-dependencies = [
- "frame-support",
- "frame-support-test",
- "frame-system",
- "itertools 0.8.2",
- "log",
- "pallet-balances",
- "pallet-timestamp",
- "parity-scale-codec",
- "phala-pallets",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -5484,7 +5464,6 @@ dependencies = [
  "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
- "pallet-mining-staking",
  "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",
@@ -5558,6 +5537,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "substrate-fixed",
  "untrusted",
  "webpki 0.22.0",
 ]
@@ -8824,6 +8804,15 @@ name = "substrate-build-script-utils"
 version = "3.0.0"
 dependencies = [
  "platforms",
+]
+
+[[package]]
+name = "substrate-fixed"
+version = "0.5.6"
+source = "git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1#b33d186888c60f38adafcfc0ec3a21aab263aef1"
+dependencies = [
+ "parity-scale-codec",
+ "typenum",
 ]
 
 [[package]]

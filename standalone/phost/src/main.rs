@@ -568,6 +568,7 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
+    let mut pending_register_info: Option<(InitRespAttestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
@@ -635,18 +636,15 @@ async fn bridge(args: Args) -> Result<()> {
         info!("runtime_info:{:?}", runtime_info);
         if let Some(runtime_info) = runtime_info {
             if let Some(attestation) = runtime_info.attestation {
-                register_worker(
-                    &client,
-                    runtime_info.encoded_runtime_info.clone(),
-                    &attestation,
-                    &mut signer,
-                )
-                .await?;
+                pending_register_info = Some((attestation, runtime_info.encoded_runtime_info));
             }
         }
     }
 
     if args.no_sync {
+        if let Some((attestation, encoded_runtime_info)) = pending_register_info {
+            register_worker(&client, encoded_runtime_info, &attestation, &mut signer).await?;
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -726,6 +724,10 @@ async fn bridge(args: Args) -> Result<()> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
+            if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
+                info!("Registering worker");
+                register_worker(&client, encoded_runtime_info, &attestation, &mut signer).await?;
+            }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {

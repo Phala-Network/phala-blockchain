@@ -20,9 +20,7 @@ members = [
 	"crates/phala-mq",
 	"crates/crypto",
 	"pallets/phala",
-	"pallets/mining_staking",
 	"pallets/bridge",
-	"pallets/mining_staking",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]

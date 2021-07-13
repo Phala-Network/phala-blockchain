@@ -154,12 +154,17 @@ pub mod phala {
         balances::Balances
     };
     use core::marker::PhantomData;
+    use phala_types::{PayoutReason, WorkerPublicKey};
 
-    use phala_types::{messaging::BlockRewardInfo, PayoutReason, WorkerPublicKey};
+    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+    pub struct EthereumTxHash([u8; 32]);
+
+    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
+    pub struct EthereumAddress([u8; 20]);
+
 
     #[module]
     pub trait Phala: System + Balances {
-        #![event_type(BlockRewardInfo)]
         #![event_type(PayoutReason)]
         #![event_type(WorkerPublicKey)]
     }

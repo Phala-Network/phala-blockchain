@@ -84,7 +84,6 @@ pallet-vesting = { version = "3.0.0", default-features = false, path = "../../su
 
 pallet-kitties = { default-features = false, path = "../../pallets/kitties", package = "pallet-kitties" }
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
-pallet-mining-staking = { default-features = false, path = "../../pallets/mining_staking", package = "pallet-mining-staking" }
 pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
 pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
 

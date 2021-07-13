@@ -1,27 +1,40 @@
 use super::pallet_mq;
-use phala_pallets::phala_legacy::OnMessageReceived;
-use phala_types::messaging::{self, BindTopic, Lottery, Message, WorkerReportEvent};
-use super::pallet_registry::RegistryEvent;
-
-type BalanceTransfer = messaging::BalanceTransfer<super::AccountId, super::Balance>;
-type KittyTransfer = messaging::KittyTransfer<super::AccountId>;
+use codec::Decode;
+use frame_support::dispatch::{DispatchError, DispatchResult};
+use phala_types::messaging::{BindTopic, DecodedMessage, Message};
 
 pub struct MessageRouteConfig;
 
+fn try_dispatch<Msg, Func>(func: Func, message: &Message) -> DispatchResult
+where
+    Msg: Decode + BindTopic,
+    Func: Fn(DecodedMessage<Msg>) -> DispatchResult,
+{
+    if message.destination.path() == Msg::TOPIC {
+        let msg: DecodedMessage<Msg> = message
+            .decode()
+            .ok_or(DispatchError::Other("MessageCodecError"))?;
+        return (func)(msg);
+    }
+    Ok(())
+}
+
 impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
     /// Handles an incoming message
-    fn on_message_received(message: &Message) {
-        let result = match &message.destination.path()[..] {
-            Lottery::TOPIC => super::BridgeTransfer::on_message_received(message),
-            BalanceTransfer::TOPIC => super::Phala::on_transfer_message_received(message),
-            KittyTransfer::TOPIC => super::KittyStorage::on_message_received(message),
-            WorkerReportEvent::TOPIC => super::Phala::on_worker_message_received(message),
-            RegistryEvent::TOPIC => super::PhalaRegistry::on_message_received(message),
-            _ => Ok(()),
-        };
-
-        if result.is_err() {
-            // TODO.kevin. What can we do here?
+    fn on_message_received(message: &Message) -> DispatchResult {
+        use super::*;
+        macro_rules! route_handlers {
+            ($($handler: path,)+) => {
+                $(try_dispatch($handler, message)?;)+
+            }
         }
+
+        route_handlers! {
+            PhalaRegistry::on_message_received,
+            PhalaMining::on_gk_message_received,
+            BridgeTransfer::on_message_received,
+            // KittyStorage::on_message_received,
+        };
+        Ok(())
     }
 }

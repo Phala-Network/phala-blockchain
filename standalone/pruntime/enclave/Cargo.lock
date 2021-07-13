@@ -20,6 +20,8 @@ dependencies = [
  "enclave-api",
  "env_logger",
  "finality-grandpa",
+ "fixed",
+ "fixed-sqrt",
  "frame-system",
  "hash-db",
  "hex 0.4.3",
@@ -44,6 +46,7 @@ dependencies = [
  "ring 0.16.19",
  "rust-crypto",
  "rustls",
+ "scopeguard",
  "serde 1.0.118",
  "serde_cbor",
  "serde_json 1.0.60",
@@ -63,7 +66,6 @@ dependencies = [
  "sp-runtime",
  "sp-runtime-interface",
  "sp-trie",
- "substrate-fixed",
  "transaction-builder",
  "trie-storage",
  "webpki 0.21.4",
@@ -213,6 +215,12 @@ name = "autocfg"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
+
+[[package]]
+name = "az"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "822d7d63e0c0260a050f6b1f0d316f5c79b9eab830aca526ed904e1011bd64ca"
 
 [[package]]
 name = "base64"
@@ -366,6 +374,12 @@ name = "byte-tools"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3b5ca7a04898ad4bcd41c90c5285445ff5b791899bb1b0abdd2a2aa791211d7"
+
+[[package]]
+name = "bytemuck"
+version = "1.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9966d2ab714d0f785dbac0a0396251a35280aeb42413281617d0209ab4898435"
 
 [[package]]
 name = "byteorder"
@@ -788,6 +802,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixed"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c97cabfe1ce0db024d64e9f688469e80a8e2b36cb792b09ba33e1ee8d21d00ae"
+dependencies = [
+ "az",
+ "bytemuck",
+ "half",
+ "typenum",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -795,6 +821,17 @@ checksum = "cfcf0ed7fe52a17a03854ec54a9f76d6d84508d1c0e66bc1793301c73fc8493c"
 dependencies = [
  "byteorder 1.4.3",
  "static_assertions",
+]
+
+[[package]]
+name = "fixed-sqrt"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73d44f350be1d321180dc53d14b3a03570607ae6b3d9d681607e554f95b284c8"
+dependencies = [
+ "fixed",
+ "integer-sqrt",
+ "typenum",
 ]
 
 [[package]]
@@ -1704,10 +1741,8 @@ dependencies = [
 name = "pallet-kitties"
 version = "3.0.0"
 dependencies = [
- "blake2-rfc",
  "frame-support",
  "frame-system",
- "libsecp256k1",
  "pallet-balances",
  "pallet-randomness-collective-flip",
  "parity-scale-codec 2.2.0",
@@ -1737,23 +1772,6 @@ dependencies = [
  "frame-system",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec 2.2.0",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-mining-staking"
-version = "1.0.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "itertools 0.8.2",
- "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "pallet-balances",
- "parity-scale-codec 2.2.0",
- "phala-pallets",
- "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -2135,7 +2153,6 @@ dependencies = [
  "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
- "pallet-mining-staking",
  "pallet-multisig",
  "pallet-offences",
  "pallet-proxy",
@@ -2197,6 +2214,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "substrate-fixed",
  "untrusted",
  "webpki 0.22.0",
 ]
@@ -2559,6 +2577,12 @@ dependencies = [
  "subtle 2.4.0",
  "zeroize",
 ]
+
+[[package]]
+name = "scopeguard"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
 
 [[package]]
 name = "sct"
@@ -3320,7 +3344,7 @@ checksum = "a2eb9349b6444b326872e140eb1cf5e7c522154d69e7a0ffb0fb81c06b37543f"
 [[package]]
 name = "substrate-fixed"
 version = "0.5.6"
-source = "git+https://github.com/encointer/substrate-fixed#b33d186888c60f38adafcfc0ec3a21aab263aef1"
+source = "git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1#b33d186888c60f38adafcfc0ec3a21aab263aef1"
 dependencies = [
  "parity-scale-codec 2.2.0",
  "typenum",

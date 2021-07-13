@@ -35,6 +35,7 @@ hex = { version = "0.4", default-features = false }
 webpki = { path = "../../webpki", default-features = false, features = ["alloc"] }
 serde_json = { version = "1.0.41", default-features = false, features = ["alloc"] }
 blake2-rfc = { version = "0.2.18", default-features = false }
+substrate-fixed = { git = 'https://github.com/encointer/substrate-fixed.git', rev = "b33d186888c60f38adafcfc0ec3a21aab263aef1" }
 
 [dev-dependencies]
 frame-support-test = { version = "3.0.0", path = "../../substrate/frame/support/test" }

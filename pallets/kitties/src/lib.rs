@@ -9,10 +9,8 @@ use frame_system::{self as system, ensure_signed};
 use pallet_balances as balances;
 use sp_runtime::{DispatchResult, traits::{AccountIdConversion, Hash, Zero}};
 use sp_std::prelude::*;
-use phala_pallets::{pallet_mq::{self, MessageOriginInfo}, phala_legacy::OnMessageReceived};
-use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, Message, MessageOrigin};
-
-mod hashing;
+use phala_pallets::pallet_mq::{self, MessageOriginInfo};
+use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, DecodedMessage, MessageOrigin};
 
 const PALLET_ID: PalletId = PalletId(*b"Kitty!!!");
 #[derive(Encode, Decode, Default, Debug, Clone, PartialEq)]
@@ -188,16 +186,15 @@ impl<T: Config> Module<T> {
 	}
 }
 
-impl<T: Config> OnMessageReceived for Module<T> {
-	fn on_message_received(message: &Message) -> DispatchResult {
+impl<T: Config> Module<T> {
+	pub fn on_message_received(message: DecodedMessage<KittyTransfer<T::AccountId>>) -> DispatchResult {
 		const CONTRACT_ID: u32 = 6;
 
 		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
 			return Err(Error::<T>::NotAllowed)?;
 		}
 
-		let data: KittyTransfer<T::AccountId> =
-			message.decode_payload().ok_or(Error::<T>::InvalidInput)?;
+		let data = message.payload;
 
 		let new_owner = &data.dest;
 		let new_owner_kitty_id = &data.kitty_id;

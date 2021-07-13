@@ -64,7 +64,7 @@ pub fn reset_iteration_counter() {
     ITERATION_COUNTER.store(0, Ordering::Relaxed);
 }
 
-pub fn puase() {
+pub fn pause() {
     PAUSED.store(true, Ordering::Relaxed)
 }
 

@@ -13,7 +13,7 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
-use phala_pallets::{pallet_mq, pallet_phala};
+use phala_pallets::pallet_mq;
 
 #[cfg(test)]
 mod mock;
@@ -94,7 +94,7 @@ decl_module! {
 		#[weight = 195_000_000]
 		pub fn sudo_change_fee(origin, min_fee: BalanceOf<T>, fee_scale: u32, dest_id: bridge::ChainId) -> DispatchResult {
 			ensure_root(origin)?;
-			ensure!(fee_scale <= 1000u32.into(), Error::<T>::InvalidFeeOption);
+			ensure!(fee_scale <= 1000u32, Error::<T>::InvalidFeeOption);
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
 			Self::deposit_event(RawEvent::FeeUpdated(dest_id, min_fee, fee_scale));
 			Ok(())
@@ -199,8 +199,7 @@ decl_module! {
 	}
 }
 
-use pallet_phala::OnMessageReceived;
-use phala_types::messaging::{BindTopic, Lottery, Message, MessageOrigin};
+use phala_types::messaging::{BindTopic, Lottery, DecodedMessage, MessageOrigin};
 
 impl<T: Config> Module<T> {
 	pub fn lottery_output(payload: &Lottery, dest_id: bridge::ChainId) -> DispatchResult {
@@ -226,10 +225,10 @@ impl<T: Config> pallet_mq::MessageOriginInfo for Module<T> {
 	type Config = T;
 }
 
-impl<T: Config> OnMessageReceived for Module<T> {
-	fn on_message_received(message: &Message) -> DispatchResult {
+impl<T: Config> Module<T> {
+	pub fn on_message_received(message: DecodedMessage<Lottery>) -> DispatchResult {
+		// TODO.kevin: check the sender?
 		// Dest chain 0 is EVM chain, and 1 is ourself
-		let output: Lottery = message.decode_payload().ok_or(Error::<T>::InvalidPayload)?;
-		Self::lottery_output(&output, 0)
+		Self::lottery_output(&message.payload, 0)
 	}
 }

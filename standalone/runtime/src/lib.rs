@@ -97,7 +97,6 @@ use sp_runtime::generic::Era;
 
 pub use pallet_kitties;
 pub use phala_pallets::{
-	pallet_phala,
 	pallet_mq,
 	pallet_registry,
 	pallet_mining,
@@ -1033,37 +1032,9 @@ parameter_types! {
 	pub const OfflineReportReward: Balance = 50 * DOLLARS;
 }
 
-impl pallet_phala::Config for Runtime {
-	type Event = Event;
-	type Randomness = RandomnessCollectiveFlip;
-	type TEECurrency = Balances;
-	type UnixTime = Timestamp;
-	type Treasury = Treasury;
-	type OnRoundEnd = MiningStaking;
-	type WeightInfo = pallet_phala::weights::SubstrateWeight<Runtime>;
-
-	// Parameters
-	type MaxHeartbeatPerWorkerPerHour = MaxHeartbeatPerWorkerPerHour;
-	type RoundInterval = RoundInterval;
-	type DecayInterval = DecayInterval;
-	type DecayFactor = DecayFactor;
-	type InitialReward = InitialReward;
-	type TreasuryRation = TreasuryRation;
-	type RewardRation = RewardRation;
-	type OnlineRewardPercentage = OnlineRewardPercentage;
-	type ComputeRewardPercentage = ComputeRewardPercentage;
-	type OfflineOffenseSlash = OfflineOffenseSlash;
-	type OfflineReportReward = OfflineReportReward;
-}
-
 impl pallet_kitties::Config for Runtime {
 	type Event = Event;
 	type Randomness = RandomnessCollectiveFlip;
-}
-
-impl pallet_mining_staking::Config for Runtime {
-	type Event = Event;
-	type Currency = Balances;
 }
 
 parameter_types! {
@@ -1085,6 +1056,12 @@ impl pallet_bridge_transfer::Config for Runtime {
 	type Currency = Balances;
 }
 
+parameter_types! {
+	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
+	pub const MinMiningStaking: Balance = 1 * PHAS;
+	pub const MinDeposit: Balance = 1 * CENTS;
+}
+
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
 	type UnixTime = Timestamp;
@@ -1095,11 +1072,16 @@ impl pallet_mq::Config for Runtime {
 }
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
+	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
+	type Randomness = RandomnessCollectiveFlip;
+	type MinStaking = MinMiningStaking;
+	type OnReward = PhalaStakePool;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type MinDeposit = MinDeposit;
 }
 
 construct_runtime!(
@@ -1118,7 +1100,6 @@ construct_runtime!(
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage},
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned},
 		KittyStorage: pallet_kitties::{Pallet, Call, Config, Storage, Event<T>},
-		Phala: pallet_phala::{Pallet, Call, Config<T>, Storage, Event<T>}, // Before Staking to ensure init sequence
 		Staking: pallet_staking::{Pallet, Call, Config<T>, Storage, Event<T>},
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>},
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>},
@@ -1144,14 +1125,13 @@ construct_runtime!(
 		Bounties: pallet_bounties::{Pallet, Call, Storage, Event<T>},
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>},
 		Lottery: pallet_lottery::{Pallet, Call, Storage, Event<T>},
-		MiningStaking: pallet_mining_staking::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
 		// Phala new pallets
 		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
-		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage},
-		PhalaMining: pallet_mining::{Pallet, Call, Event},
-		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event, Storage},
+		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
+		PhalaMining: pallet_mining::{Pallet, Call, Event<T>, Storage},
+		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event<T>, Storage},
 	}
 );
 
@@ -1440,7 +1420,6 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_utility, Utility);
 			add_benchmark!(params, batches, pallet_vesting, Vesting);
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-			add_benchmark!(params, batches, pallet_phala, Phala);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
 			Ok(batches)

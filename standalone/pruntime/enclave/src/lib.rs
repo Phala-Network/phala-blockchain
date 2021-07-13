@@ -55,11 +55,12 @@ use std::time::Duration;
 use pink::InkModule;
 
 use enclave_api::actions::*;
+use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync};
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{PRuntimeInfo, WorkerInfo};
-use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync, StorageKV};
+use phala_types::PRuntimeInfo;
 
+mod benchmark;
 mod cert;
 mod contracts;
 mod cryptography;
@@ -69,7 +70,6 @@ mod rpc_types;
 mod system;
 mod types;
 mod utils;
-mod benchmark;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -79,16 +79,11 @@ use rpc_types::*;
 use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
+use types::BlockInfo;
 use types::Error;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 type Storage = TrieStorage<RuntimeHasher>;
-
-pub struct OnlineWorkerSnapshot {
-    pub worker_state_kv: Vec<StorageKV<WorkerInfo<chain::BlockNumber>>>,
-    pub stake_received_kv: Vec<StorageKV<chain::Balance>>,
-    pub compute_workers: u32,
-}
 
 extern "C" {
     pub fn ocall_load_ias_spid(
@@ -876,6 +871,14 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
     }
 }
 
+#[cfg(feature = "tests")]
+#[no_mangle]
+pub extern "C" fn ecall_run_tests() -> sgx_status_t {
+    run_all_tests();
+    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
+    sgx_status_t::SGX_SUCCESS
+}
+
 #[no_mangle]
 pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
     if !benchmark::puasing() {
@@ -938,8 +941,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
     // load ECDH identity
-    let ecdh_pk = local_state.ecdh_public_key.as_ref().unwrap();
-    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
+    let ecdh_raw_pk: &[u8] = local_state.ecdh_public_key.as_ref().unwrap().as_ref();
+    let ecdh_hex_pk = hex::encode(ecdh_raw_pk);
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
     let ecdh_privkey = ecdh::clone_key(
         local_state
@@ -967,12 +970,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     let operator = match input.operator_hex {
         Some(h) => {
-            let raw_address = hex::decode(h)
-                .map_err(|_| error_msg("Error decoding operator_hex"))?;
-            Some(chain::AccountId::new(raw_address.try_into()
-                .map_err(|_| error_msg("Bad operator_hex"))?))
-        },
-        None => None
+            let raw_address =
+                hex::decode(h).map_err(|_| error_msg("Error decoding operator_hex"))?;
+            Some(chain::AccountId::new(
+                raw_address
+                    .try_into()
+                    .map_err(|_| error_msg("Bad operator_hex"))?,
+            ))
+        }
+        None => None,
     };
 
     // Build PRuntimeInfo
@@ -980,6 +986,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
+        ecdh_pubkey: ecdh_raw_pk
+            .try_into()
+            .expect("Ecdh key length must be correct; qed."),
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -1039,12 +1048,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
     // Re-init some contracts because they require the identity key
     let mut system_state = SYSTEM_STATE.lock().unwrap();
-    *system_state = Some(system::System::new(
-        local_state.machine_id.to_vec(),
-        &id_pair,
-        &send_mq,
-        &mut recv_mq,
-    ));
+    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
     drop(system_state);
 
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
@@ -1065,7 +1069,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
                     mq,
                     cmd_mq,
                     evt_mq,
-                    KeyPair::new(ecdh_privkey, ecdh_pk.as_ref().to_vec()),
+                    KeyPair::new(ecdh_privkey, ecdh_raw_pk.to_vec()),
                 ));
                 other_contracts.insert($id, wrapped);
             }};
@@ -1351,19 +1355,20 @@ fn handle_events(
             use phala_types::messaging::SystemEvent;
             macro_rules! log_message {
                 ($msg: expr, $t: ident) => {{
-                    let event: Result<$t, _> = parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                    let event: Result<$t, _> =
+                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
                     match event {
                         Ok(event) => {
-                            info!("mq dispatching message: sender={:?} dest={:?} payload={:?}",
-                                $msg.sender,
-                                $msg.destination,
-                                event);
+                            info!(
+                                "mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                                $msg.sender, $msg.destination, event
+                            );
                         }
                         Err(_) => {
                             info!("mq dispatching message (decode failed): {:?}", $msg);
                         }
                     }
-                }}
+                }};
             }
             match &message.destination.path()[..] {
                 SystemEvent::TOPIC => {
@@ -1377,21 +1382,40 @@ fn handle_events(
         }
     }
 
-    if let Err(e) = system.process_events(block_number, storage) {
+    let mut state = scopeguard::guard(state, |state| {
+        let n_unhandled = state.recv_mq.clear();
+        warn!("There are {} unhandled messages dropped", n_unhandled);
+    });
+
+    let now_ms = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
+    let block = BlockInfo {
+        block_number,
+        now_ms,
+        storage,
+    };
+
+    if let Err(e) = system.process_messages(&block, storage) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
 
     let mut env = ExecuteEnv {
-        block_number,
+        block: &block,
         system,
-        storage,
     };
 
     for contract in state.contracts.values_mut() {
-        contract.process_events(&mut env);
+        contract.process_messages(&mut env);
     }
+
     Ok(())
+}
+
+fn block_timestamp_ms(storage: &Storage) -> Option<u64> {
+    let key = storage_prefix("Timestamp", "Now");
+    let value = storage.get(key)?;
+    let now: chain::Moment = Decode::decode(&mut &value[..]).ok()?;
+    Some(now)
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1420,10 +1444,17 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     drop(runtime_state);
 
+    let registered = {
+        match SYSTEM_STATE.lock().unwrap().as_ref() {
+            Some(system) => system.is_registered(),
+            None => false,
+        }
+    };
     let score = benchmark::score();
 
     Ok(json!({
         "initialized": initialized,
+        "registered": registered,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
         "headernum": headernum,
@@ -1625,4 +1656,9 @@ mod identity {
 
         gatekeepers.contains(pubkey)
     }
+}
+
+#[cfg(feature = "tests")]
+fn run_all_tests() {
+    system::run_all_tests();
 }

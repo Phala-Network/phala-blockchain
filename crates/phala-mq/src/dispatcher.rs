@@ -71,6 +71,15 @@ impl MessageDispatcher {
     pub fn reset_local_index(&mut self) {
         self.local_index = 0;
     }
+
+    /// Drop all unhandled messages.
+    pub fn clear(&mut self) -> usize {
+        let mut count = 0;
+        for subscriber in self.subscribers.values_mut().flatten() {
+            count += subscriber.clear();
+        }
+        count
+    }
 }
 
 #[derive(Display, Debug)]
@@ -145,8 +154,11 @@ macro_rules! select {
         if min.is_some() {
             $({
                 if min_ind == ind {
-                    let $bind = $mq.try_next();
-                    rv = Some($block)
+                    let msg = $mq.try_next().transpose();
+                    rv = match msg {
+                        Some($bind) => Some($block),
+                        None => None
+                    };
                 }
                 ind += 1;
             })+
