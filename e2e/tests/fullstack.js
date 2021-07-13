@@ -154,7 +154,7 @@ describe('A full stack', function () {
 		// 1. check bench finished [x]
 
 		// 2. bind miner
-		it('can bind the worker', async function () {
+		it.skip('can bind the worker', async function () {
 			const workerInfo = await api.query.phalaRegistry.worker(workerKey);
 			const operator = workerInfo.unwrap().operator.unwrap();
 			assert.equal(operator.toHuman(), alice.address, 'bad operator');
@@ -181,10 +181,11 @@ describe('A full stack', function () {
 
 		it('can deposite some stake')
 
-		it('can start mining', async function () {
+		it.skip('can start mining', async function () {
 			await assertSuccess(api.tx.phalaMining.startMining(), alice);
 			let minerInfo = await api.query.phalaMining.miners(alice.address);
 			minerInfo = minerInfo.unwrap();
+			console.log(minerInfo.state.toHuman());
 			assert.isTrue(minerInfo.state.isIdle, 'miner state should be MiningIdle');
 		})
 
