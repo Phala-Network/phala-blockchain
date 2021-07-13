@@ -214,8 +214,9 @@ pub mod pallet {
 		///
 		/// Only for integration test.
 		#[pallet::weight(1)]
-		pub fn force_start_mining(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+		pub fn force_start_mining(origin: OriginFor<T>, miner: T::AccountId, stake: BalanceOf<T>) -> DispatchResult {
 			ensure_root(origin)?;
+			DepositBalance::<T>::insert(&miner, stake);
 			Self::start_mining(miner)?;
 			Ok(())
 		}
