@@ -90,8 +90,9 @@ struct MiningInfo {
     start_iter: u64,
 }
 
+// Minimum worker state machine can be reused to replay in GK.
+// TODO: shrink size
 struct WorkerState {
-    // Keys and identity
     pubkey: WorkerPublicKey,
     hashed_id: U256,
     registered: bool,
