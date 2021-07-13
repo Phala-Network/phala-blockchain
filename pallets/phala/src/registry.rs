@@ -19,7 +19,7 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, MessageOrigin, NewGatekeeperEvent, SignedMessage,
+			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhP256PublicKey, PRuntimeInfo, WorkerPublicKey,
@@ -166,11 +166,11 @@ pub mod pallet {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;
 						Gatekeeper::<T>::put(gatekeepers);
-						Self::push_message(NewGatekeeperEvent {
-							pubkey: gatekeeper,
-							ecdh_pubkey: worker_info.ecdh_pubkey,
-							gatekeeper_count: gatekeeper_count,
-						});
+						Self::push_message(GatekeeperEvent::gatekeeper_registered(
+							gatekeeper,
+							worker_info.ecdh_pubkey,
+							gatekeeper_count,
+						));
 					}
 					_ => return Err(Error::<T>::WorkerNotFound.into()),
 				}

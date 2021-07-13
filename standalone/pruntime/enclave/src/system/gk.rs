@@ -6,9 +6,9 @@ use phala_crypto::{
 use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
-        NewGatekeeperEvent, RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent,
-        WorkerEventWithKey,
+        DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
+        MiningReportEvent, NewGatekeeperEvent, RandomNumber, RandomNumberEvent, SettleInfo,
+        SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
@@ -64,16 +64,13 @@ impl WorkerInfo {
 
 pub(super) struct Gatekeeper<MsgChan> {
     identity_key: ecdsa::Pair,
+    master_key: Option<ecdsa::Pair>,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
-    // Master key
-    new_gatekeeper_events: TypedReceiver<NewGatekeeperEvent>,
-    dispatch_master_key_events: TypedReceiver<DispatchMasterKeyEvent>,
-    master_key: Option<ecdsa::Pair>,
     // Randomness
-    random_events: TypedReceiver<RandomNumberEvent>,
     last_random_number: RandomNumber,
     last_random_block: chain::BlockNumber,
 }
@@ -89,14 +86,12 @@ where
     ) -> Self {
         Self {
             identity_key,
+            master_key: None,
             egress,
+            gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
-            new_gatekeeper_events: recv_mq.subscribe_bound(),
-            dispatch_master_key_events: recv_mq.subscribe_bound(),
-            master_key: None,
-            random_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             last_random_block: 0,
         }
@@ -138,16 +133,13 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
-            self.egress
-                .push_message(EgressMessage::RandomNumber(RandomNumberEvent {
-                    block_number: block_number,
-                    random_number: next_random_number(
-                        master_key,
-                        block_number,
-                        self.last_random_number,
-                    ),
-                    last_random_number: self.last_random_number,
-                }))
+            self.egress.push_message(EgressMessage::Gatekeeper(
+                GatekeeperEvent::new_random_number(
+                    block_number,
+                    next_random_number(master_key, block_number, self.last_random_number),
+                    self.last_random_number,
+                ),
+            ))
         }
     }
 }
@@ -184,25 +176,9 @@ where
                         error!("Read message failed: {:?}", e);
                     }
                 },
-                message = self.state.new_gatekeeper_events => match message {
+                message = self.state.gatekeeper_events => match message {
                     Ok((_, event, origin)) => {
-                        self.process_new_gatekeeper_event(origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
-                },
-                message = self.state.dispatch_master_key_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_dispatch_master_key_event(origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
-                },
-                message = self.state.random_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_random_number_event(origin, event);
+                        self.process_gatekeeper_event(origin, event);
                     }
                     Err(e) => {
                         error!("Read message failed: {:?}", e);
@@ -433,6 +409,20 @@ where
         }
     }
 
+    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        match event {
+            GatekeeperEvent::Registered(new_gatekeeper_event) => {
+                self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
+            }
+            GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
+                self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
+            }
+            GatekeeperEvent::NewRandomNumber(random_number_event) => {
+                self.process_random_number_event(origin, random_number_event)
+            }
+        }
+    }
+
     /// Monitor the getakeeper registeration event to:
     ///
     /// 1. Generate the master key if this is the first gatekeeper;
@@ -470,18 +460,18 @@ where
                 let mut data = master_key.clone().to_raw_vec();
                 aead::encrypt(&iv, &secret, &mut data);
 
-                self.state
-                    .egress
-                    .push_message(EgressMessage::DispatchMasterKey(DispatchMasterKeyEvent {
-                        dest: event.pubkey,
-                        ecdh_pubkey: my_ecdh_key
+                self.state.egress.push_message(EgressMessage::Gatekeeper(
+                    GatekeeperEvent::dispatch_master_key_event(
+                        event.pubkey,
+                        my_ecdh_key
                             .public()
                             .as_ref()
                             .try_into()
                             .expect("ecdh pubkey with incorrect length"),
-                        encrypted_master_key: data,
-                        iv: iv,
-                    }));
+                        data,
+                        iv,
+                    ),
+                ));
             }
         }
     }
@@ -680,8 +670,7 @@ mod msg_trait {
     #[derive(PartialEq, Eq, Debug)]
     pub enum EgressMessage {
         MiningInfoUpdate(super::MiningInfoUpdateEvent<chain::BlockNumber>),
-        RandomNumber(super::RandomNumberEvent),
-        DispatchMasterKey(super::DispatchMasterKeyEvent),
+        Gatekeeper(super::GatekeeperEvent),
     }
 
     pub trait MessageChannel {
@@ -692,8 +681,7 @@ mod msg_trait {
         fn push_message(&self, message: EgressMessage) {
             match message {
                 EgressMessage::MiningInfoUpdate(message) => self.send(&message),
-                EgressMessage::RandomNumber(message) => self.send(&message),
-                EgressMessage::DispatchMasterKey(message) => self.send(&message),
+                EgressMessage::Gatekeeper(message) => self.send(&message),
             }
         }
     }
