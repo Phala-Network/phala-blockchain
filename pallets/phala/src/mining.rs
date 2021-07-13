@@ -179,84 +179,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Starts mining
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		#[pallet::weight(0)]
-		pub fn start_mining(origin: OriginFor<T>) -> DispatchResult {
-			let miner = ensure_signed(origin)?;
-			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
-
-			ensure!(
-				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotInReadyState
-			);
-
-			let worker_info =
-				registry::Worker::<T>::get(&worker).expect("Bounded worker must exist; qed.");
-			ensure!(
-				worker_info.intial_score != None,
-				Error::<T>::BenchmarkMissing
-			);
-
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			ensure!(
-				// TODO: dynamic compute MinStaking according to worker
-				already_reserved >= T::MinStaking::get(),
-				Error::<T>::InsufficientStaking
-			);
-
-			Miner::<T>::mutate(&miner, |info| {
-				if let Some(info) = info {
-					info.state = MinerState::MiningIdle;
-				}
-			});
-
-			let session_id = MiningSessionId::<T>::get();
-			MiningSessionId::<T>::put(session_id + 1);
-			Self::push_message(SystemEvent::new_worker_event(
-				worker,
-				WorkerEvent::MiningStart {
-					session_id: session_id,
-					init_v: INITIAL_V as _,
-				},
-			));
-			Self::deposit_event(Event::<T>::MiningStarted(miner));
-			Ok(())
-		}
-
-		/// Stops mining, enterying cooling down state
-		///
-		/// Requires:
-		/// 1. Ther miner is in Idle, MiningActive, or MiningUnresponsive state
-		#[pallet::weight(0)]
-		pub fn stop_mining(origin: OriginFor<T>) -> DispatchResult {
-			let miner = ensure_signed(origin)?;
-			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotBounded)?;
-			let mut miner_info = Miner::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
-
-			ensure!(
-				miner_info.state != MinerState::Ready
-					&& miner_info.state != MinerState::MiningCoolingDown,
-				Error::<T>::MinerNotMining
-			);
-
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-			miner_info.state = MinerState::MiningCoolingDown;
-			miner_info.cooling_down_start = now;
-			Miner::<T>::insert(&miner, &miner_info);
-
-			Self::push_message(SystemEvent::new_worker_event(
-				worker,
-				WorkerEvent::MiningStop,
-			));
-			Self::deposit_event(Event::<T>::MiningStoped(miner));
-			Ok(())
-		}
-
 		/// Turns the miner back to Ready state after cooling down
 		///
 		/// Requires:
@@ -290,6 +212,26 @@ pub mod pallet {
 				seed: U256::zero(),
 				online_target: U256::MAX,
 			}));
+			Ok(())
+		}
+
+		/// Start mining
+		///
+		/// Only for integration test.
+		#[pallet::weight(1)]
+		pub fn force_start_mining(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::start_mining(miner)?;
+			Ok(())
+		}
+
+		/// Stop mining
+		///
+		/// Only for integration test.
+		#[pallet::weight(1)]
+		pub fn force_stop_mining(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::stop_mining(miner)?;
 			Ok(())
 		}
 	}
@@ -476,6 +418,80 @@ pub mod pallet {
 			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
 			DepositBalance::<T>::insert(&miner, already_reserved.saturating_sub(amount));
 
+			Ok(())
+		}
+
+		/// Starts mining
+		///
+		/// Requires:
+		/// 1. Ther miner is in Ready state
+		pub fn start_mining(miner: T::AccountId) -> DispatchResult {
+			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
+
+			ensure!(
+				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
+				Error::<T>::MinerNotInReadyState
+			);
+
+			let worker_info =
+				registry::Worker::<T>::get(&worker).expect("Bounded worker must exist; qed.");
+			ensure!(
+				worker_info.intial_score != None,
+				Error::<T>::BenchmarkMissing
+			);
+
+			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
+			ensure!(
+				// TODO: dynamic compute MinStaking according to worker
+				already_reserved >= T::MinStaking::get(),
+				Error::<T>::InsufficientStaking
+			);
+
+			Miner::<T>::mutate(&miner, |info| {
+				if let Some(info) = info {
+					info.state = MinerState::MiningIdle;
+				}
+			});
+
+			let session_id = MiningSessionId::<T>::get();
+			MiningSessionId::<T>::put(session_id + 1);
+			Self::push_message(SystemEvent::new_worker_event(
+				worker,
+				WorkerEvent::MiningStart {
+					session_id: session_id,
+					init_v: INITIAL_V as _,
+				},
+			));
+			Self::deposit_event(Event::<T>::MiningStarted(miner));
+			Ok(())
+		}
+
+		/// Stops mining, enterying cooling down state
+		///
+		/// Requires:
+		/// 1. Ther miner is in Idle, MiningActive, or MiningUnresponsive state
+		pub fn stop_mining(miner: T::AccountId) -> DispatchResult {
+			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotBounded)?;
+			let mut miner_info = Miner::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
+
+			ensure!(
+				miner_info.state != MinerState::Ready
+					&& miner_info.state != MinerState::MiningCoolingDown,
+				Error::<T>::MinerNotMining
+			);
+
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+			miner_info.state = MinerState::MiningCoolingDown;
+			miner_info.cooling_down_start = now;
+			Miner::<T>::insert(&miner, &miner_info);
+
+			Self::push_message(SystemEvent::new_worker_event(
+				worker,
+				WorkerEvent::MiningStop,
+			));
+			Self::deposit_event(Event::<T>::MiningStoped(miner));
 			Ok(())
 		}
 	}
