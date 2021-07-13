@@ -396,6 +396,20 @@ pub mod pallet {
 			STAKEPOOL_PALLETID.into_account()
 		}
 
+		/// Query rewards of user in a specific pool
+		pub fn pending_rewards(pid: u64, who: T::AccountId) -> BalanceOf<T> {
+			let info_key = (pid.clone(), who.clone());
+			let user_info = Self::staking_info(&info_key).expect("Stake info doesn't exist; qed.");
+			let pool_info = Self::mining_pools(&pid).expect("Stake pool doesn't exist; qed.");
+
+			// rewards belong to user, including pending rewards and available_rewards
+			let rewards = user_info.available_rewards.saturating_add(
+				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt,
+			);
+
+			return rewards;
+		}
+
 		fn update_pool(pid: u64) {
 			let mut new_rewards;
 			// TODO: check payout block height
