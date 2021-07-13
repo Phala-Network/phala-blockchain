@@ -347,7 +347,7 @@ pub mod pallet {
 			);
 			let state = Self::miners(&miner).unwrap().state;
 			ensure!(
-				state != MinerState::Ready || state != MinerState::MiningCoolingDown,
+				state != MinerState::Ready && state != MinerState::MiningCoolingDown,
 				Error::<T>::MinerNotMining
 			);
 
