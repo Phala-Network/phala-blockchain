@@ -157,8 +157,9 @@ pub mod pallet {
 			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
-			let miner: T::AccountId = STAKEPOOL_PALLETID
-				.into_sub_account(&crate::hashing::blake2_256(&(pid, owner, pubkey.clone()).encode()));
+			let miner: T::AccountId = STAKEPOOL_PALLETID.into_sub_account(
+				&crate::hashing::blake2_256(&(pid, owner, pubkey.clone()).encode()),
+			);
 
 			// bind worker with minner
 			<mining::pallet::Pallet<T>>::bind(
@@ -247,9 +248,10 @@ pub mod pallet {
 			// update pool
 			Self::update_pool(pid.clone());
 
-			// rewards belong to user
-			let rewards =
-				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt;
+			// rewards belong to user, including pending rewards and available_rewards
+			let rewards = user_info.available_rewards.saturating_add(
+				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt,
+			);
 
 			// send reward to user
 			<T as Config>::Currency::deposit_into_existing(&who.clone(), rewards.clone())?;
