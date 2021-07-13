@@ -5,7 +5,6 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
-	use crate::stakepool;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,

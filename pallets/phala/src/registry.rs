@@ -380,7 +380,9 @@ pub mod pallet {
 				));
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
 					pubkey.clone(),
-					WorkerEvent::BenchStart { duration: self.benchmark_duration },
+					WorkerEvent::BenchStart {
+						duration: self.benchmark_duration,
+					},
 				));
 				BenchmarkDuration::<T>::put(self.benchmark_duration);
 			}

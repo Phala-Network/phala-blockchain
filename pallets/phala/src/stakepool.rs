@@ -15,8 +15,8 @@ pub mod pallet {
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
-		traits::{AccountIdConversion, Saturating, Zero},
-		Permill, SaturatedConversion,
+		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
+		SaturatedConversion,
 	};
 	use sp_std::vec;
 	use sp_std::vec::Vec;
@@ -155,12 +155,11 @@ pub mod pallet {
 			// make sure worker has not been not added
 			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
+			// TODO: limite the number of workers to avoid performance issue.
 			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
-			let miner: T::AccountId = STAKEPOOL_PALLETID.into_sub_account(
-				&crate::hashing::blake2_256(&(pid, owner, pubkey.clone()).encode()),
-			);
+			let miner: T::AccountId = pool_sub_account(pid, &owner, &pubkey);
 
 			// bind worker with minner
 			<mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone())?;
@@ -468,6 +467,17 @@ pub mod pallet {
 		}
 	}
 
+	fn pool_sub_account<T>(pid: u64, owner: &T, pubkey: &WorkerPublicKey) -> T
+	where
+		T: Encode + Decode + Default,
+	{
+		let hash = crate::hashing::blake2_256(&(pid, owner, pubkey).encode());
+		// stake pool miner
+		(b"spm/", hash)
+			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
+			.unwrap_or_default()
+	}
+
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum PoolState {
 		Ready,
@@ -511,6 +521,27 @@ pub mod pallet {
 				frame_system::RawOrigin::Signed(who) if who == pool_id => Ok(pool_id),
 				r => Err(T::Origin::from(r)),
 			})
+		}
+	}
+
+	#[cfg(test)]
+	mod test {
+		use hex_literal::hex;
+		use sp_runtime::AccountId32;
+
+		use super::*;
+
+		#[test]
+		fn test_pool_subaccount() {
+			let sub_account: AccountId32 = pool_sub_account(
+				1,
+				&AccountId32::new([0u8; 32]),
+				&WorkerPublicKey::from_raw([0u8; 33]),
+			);
+			let expected = AccountId32::new(hex!(
+				"73706d2fdb00176acb0c2a9274755274d3d9c002d79c753d633bae2a7316a7d4"
+			));
+			assert_eq!(sub_account, expected, "Incorrect sub account");
 		}
 	}
 }

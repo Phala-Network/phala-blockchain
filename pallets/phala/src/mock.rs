@@ -1,4 +1,4 @@
-use crate::{mining, mq, registry};
+use crate::{mining, mq, registry, stakepool};
 
 use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_support_test::TestRandomness;
@@ -28,6 +28,7 @@ frame_support::construct_runtime!(
 		PhalaMq: mq::{Pallet, Event},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>},
+		PhalaStakePool: stakepool::{Pallet, Event<T>},
 	}
 );
 
@@ -36,6 +37,8 @@ parameter_types! {
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
+	pub const MinMiningStaking: Balance = 1 * DOLLARS;
+	pub const MinDeposit: Balance = 1 * CENTS;
 }
 impl system::Config for Test {
 	type BaseCallFilter = ();
@@ -84,7 +87,8 @@ impl pallet_timestamp::Config for Test {
 
 // pub const HOURS: BlockNumber = 600;
 // pub const DAYS: BlockNumber = HOURS * 24;
-// pub const DOLLARS: Balance = 1_000_000_000_000;
+pub const DOLLARS: Balance = 1_000_000_000_000;
+pub const CENTS: Balance = DOLLARS / 100;
 
 impl mq::Config for Test {
 	type Event = Event;
@@ -101,6 +105,15 @@ impl mining::Config for Test {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
+	type PoolOrigin = stakepool::EnsurePool<Self>;
+	type MinStaking = MinMiningStaking;
+	type OnReward = PhalaStakePool;
+}
+
+impl stakepool::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
+	type MinDeposit = MinDeposit;
 }
 
 // This function basically just builds a genesis storage key/value store according to
