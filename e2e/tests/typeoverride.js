@@ -119,10 +119,10 @@ const types = {
 	"MinerState": {
 		"_enum": {
 			"Ready": null,
-			"Idle": null,
-			"Active": null,
-			"Unresponsive": null,
-			"Collingdown": null
+			"MiningIdle": null,
+			"MiningActive": null,
+			"MiningUnresponsive": null,
+			"MiningCollingDown": null
 		}
 	},
     "_deprecated_WorkerInfo": {
