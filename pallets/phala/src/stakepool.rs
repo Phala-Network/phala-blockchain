@@ -83,6 +83,7 @@ pub mod pallet {
 		WorkerNotRegistered,
 		BenchmarkMissing,
 		WorkerHasAdded,
+		WorkerHasnotAdded,
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
 		InvalidPayoutPerf,
@@ -91,13 +92,17 @@ pub mod pallet {
 		LessthanMinDeposit,
 		InsufficientBalance,
 		StakeInfoNotFound,
+		InsufficientStake,
 	}
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
+	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
 		pub fn create(origin: OriginFor<T>) -> DispatchResult {
@@ -115,8 +120,8 @@ pub mod pallet {
 					owner_reward: Zero::zero(),
 					pool_acc: Zero::zero(),
 					last_reward_block: T::BlockNumber::zero(),
-					total_staked: Zero::zero(),
-					extra_staked: Zero::zero(),
+					total_stake: Zero::zero(),
+					locked_stake: Zero::zero(),
 					workers: vec![],
 				},
 			);
@@ -318,44 +323,11 @@ pub mod pallet {
 				WithdrawReasons::all(),
 			);
 
-			pool_info.total_staked = pool_info.total_staked.saturating_add(amount.clone());
+			pool_info.total_stake = pool_info.total_stake.saturating_add(amount.clone());
 			MiningPools::<T>::insert(&pid, &pool_info);
 			Self::deposit_event(Event::<T>::Deposit(pid, who, amount));
 
 			Ok(())
-		}
-
-		// TODO(h4x): Should we allow cancellation of a withdraw plan?
-
-		/// Starts a withdraw plan
-		///
-		/// This action will create a withdraw plan (allocating a `withdraw_id`), and store the
-		/// start time of the withdraw. After the waiting time, it can be executed by calling
-		/// `execute_withdraw()`.
-		///
-		/// Requires:
-		/// 1. The sender is the owner of a certain contribution to the pool
-		/// 2. `amount` mustn't be larger than owner's deposit
-		#[pallet::weight(0)]
-		pub fn start_withdraw(
-			origin: OriginFor<T>,
-			pool_id: u64,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
-			panic!("unimplemented")
-		}
-
-		/// Executes a withdraw request
-		///
-		/// Requires:
-		/// 1. `withdraw_id` is valid and finished withdraw plan
-		#[pallet::weight(0)]
-		pub fn execute_withdraw(
-			origin: OriginFor<T>,
-			pool_id: u64,
-			withdraw_id: u32,
-		) -> DispatchResult {
-			panic!("unimplemented")
 		}
 
 		/// Starts a miner on behalf of the stake pool
@@ -366,24 +338,63 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn start_mining(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pid: u64,
 			worker: WorkerPublicKey,
 			stake: BalanceOf<T>,
 		) -> DispatchResult {
-			panic!("unimplemented")
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			// origin must be owner of pool
+			ensure!(
+				&pool_info.owner == &owner,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			// check free stake
+			ensure!(
+				&(pool_info.total_stake - pool_info.locked_stake) >= &stake,
+				Error::<T>::InsufficientStake
+			);
+			// check wheather we have add this worker
+			ensure!(
+				pool_info.workers.contains(&worker),
+				Error::<T>::WorkerHasnotAdded
+			);
+			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
+			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
+			<mining::pallet::Pallet<T>>::start_mining(miner)?;
+			pool_info.locked_stake = pool_info.locked_stake.saturating_add(stake);
+			MiningPools::<T>::insert(&pid, &pool_info);
+
+			Ok(())
 		}
 
 		/// Stops a miner on behalf of the stake pool
+		/// Note: this would let miner enter coollingdown if everything is good
 		///
 		/// Requires:
 		/// 1. There miner is bounded to the pool and is in a stoppable state
 		#[pallet::weight(0)]
 		pub fn stop_mining(
 			origin: OriginFor<T>,
-			pool_id: u64,
+			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			panic!("unimplemented")
+			let owner = ensure_signed(origin)?;
+			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			// origin must be owner of pool
+			ensure!(
+				&pool_info.owner == &owner,
+				Error::<T>::UnauthorizedPoolOwner
+			);
+			// check wheather we have add this worker
+			ensure!(
+				pool_info.workers.contains(&worker),
+				Error::<T>::WorkerHasnotAdded
+			);
+			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
+			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
+
+			Ok(())
 		}
 	}
 
@@ -430,7 +441,7 @@ pub mod pallet {
 					new_rewards * (1000 - pool_info.payout_commission).into() / 1000u32.into();
 				pool_info.pool_acc = pool_info
 					.pool_acc
-					.saturating_add(new_rewards * 10u32.pow(6).into() / pool_info.total_staked);
+					.saturating_add(new_rewards * 10u32.pow(6).into() / pool_info.total_stake);
 				MiningPools::<T>::insert(&pid, &pool_info);
 			}
 		}
@@ -499,8 +510,8 @@ pub mod pallet {
 		owner_reward: Balance,
 		pool_acc: Balance,
 		last_reward_block: BlockNumber,
-		total_staked: Balance,
-		extra_staked: Balance,
+		total_stake: Balance,
+		locked_stake: Balance,
 		workers: Vec<WorkerPublicKey>,
 	}
 
