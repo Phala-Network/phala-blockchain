@@ -8,7 +8,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, EnsureOrigin, Randomness, UnixTime},
+		traits::{Currency, Randomness, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
@@ -26,7 +26,7 @@ pub mod pallet {
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
-	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 10;
+	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const INITIAL_V: u64 = 1;
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
