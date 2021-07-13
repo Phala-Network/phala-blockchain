@@ -582,6 +582,8 @@ pub mod tests {
             use sp_core::U256;
 
             let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
+            // Use the same hash algrithm as the worker to produce the seed, so that only this worker will
+            // respond to the challenge
             let pkh = sp_core::blake2_256(self.pubkey.as_ref());
             let hashed_id: U256 = pkh.into();
             let challenge = msg::HeartbeatChallenge {
