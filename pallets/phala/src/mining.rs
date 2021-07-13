@@ -397,10 +397,7 @@ pub mod pallet {
 		///
 		/// Requires:
 		/// 1. Ther worker is alerady registered
-		pub fn bind(
-			miner: T::AccountId,
-			pubkey: WorkerPublicKey,
-		) -> DispatchResult {
+		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
@@ -446,10 +443,7 @@ pub mod pallet {
 		///
 		/// Requires:
 		/// 1. Ther miner is in Ready state
-		pub fn deposit(
-			miner: T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
+		pub fn deposit(miner: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			ensure!(
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
@@ -469,10 +463,7 @@ pub mod pallet {
 		///
 		/// Requires:
 		/// 1. Ther miner is in Ready state
-		pub fn withdraw(
-			miner: T::AccountId,
-			amount: BalanceOf<T>,
-		) -> DispatchResult {
+		pub fn withdraw(miner: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
 			ensure!(
 				MinerBinding::<T>::contains_key(&miner),
 				Error::<T>::MinerNotFounded
