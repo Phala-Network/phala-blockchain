@@ -196,7 +196,7 @@ impl WorkerState {
                 }
             }
             Event::HeartbeatChallenge(seed_info) => {
-                self.handle_heartbeat_challenge(block, &seed_info, callback, true);
+                self.handle_heartbeat_challenge(block, &seed_info, callback, log_on);
             }
         };
     }
