@@ -293,7 +293,7 @@ impl<MsgChan> GKMessageProcesser<'_, MsgChan> {
                             worker.tokenomic.p_bench = FixedPoint::from_num(*score);
                         }
                         WorkerEvent::MiningStart {
-                            session_id: _,
+                            session_id: _, // Aready recorded by the state machine.
                             init_v,
                         } => {
                             let v = FixedPoint::from_bits(*init_v);
