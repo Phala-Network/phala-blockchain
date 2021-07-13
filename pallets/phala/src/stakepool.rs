@@ -153,6 +153,7 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// make sure worker has not been not added
+			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
 			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
@@ -162,10 +163,7 @@ pub mod pallet {
 			);
 
 			// bind worker with minner
-			<mining::pallet::Pallet<T>>::bind(
-				miner.clone(),
-				pubkey.clone(),
-			)?;
+			<mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone())?;
 
 			// update worker vector
 			workers.push(pubkey.clone());
