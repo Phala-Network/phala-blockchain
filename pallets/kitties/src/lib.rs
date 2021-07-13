@@ -12,8 +12,6 @@ use sp_std::prelude::*;
 use phala_pallets::pallet_mq::{self, MessageOriginInfo};
 use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, DecodedMessage, MessageOrigin};
 
-mod hashing;
-
 const PALLET_ID: PalletId = PalletId(*b"Kitty!!!");
 #[derive(Encode, Decode, Default, Debug, Clone, PartialEq)]
 pub struct Kitty<Hash, Balance> {

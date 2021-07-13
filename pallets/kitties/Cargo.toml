@@ -21,8 +21,6 @@ sp-runtime = { version = "3.0.0", default-features = false, path = "../../substr
 sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
 sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
 pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
-libsecp256k1 = { version = "0.3.2", default-features = false }
-blake2-rfc = { version = "0.2.18", default-features = false }
 
 pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
 phala-pallets = { path = "../phala", default-features = false }

@@ -4657,10 +4657,8 @@ dependencies = [
 name = "pallet-kitties"
 version = "3.0.0"
 dependencies = [
- "blake2-rfc",
  "frame-support",
  "frame-system",
- "libsecp256k1",
  "pallet-balances",
  "pallet-randomness-collective-flip",
  "parity-scale-codec",
