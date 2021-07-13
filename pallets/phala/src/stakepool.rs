@@ -40,7 +40,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn mining_pools)]
 	pub(super) type MiningPools<T: Config> =
-		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>, T::BlockNumber>>;
+		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// Mapping pool to it's UserStakeInfo
 	#[pallet::storage]
@@ -119,7 +119,6 @@ pub mod pallet {
 					payout_commission: Zero::zero(),
 					owner_reward: Zero::zero(),
 					pool_acc: Zero::zero(),
-					last_reward_block: T::BlockNumber::zero(),
 					total_stake: Zero::zero(),
 					locked_stake: Zero::zero(),
 					workers: vec![],
@@ -423,12 +422,6 @@ pub mod pallet {
 			// let currentBlock = <frame_system::Pallet<T>>::block_number();
 			let mut pool_info = Self::mining_pools(&pid).unwrap();
 
-			// mining hasn't started, no rewards so far
-			// TODO: update last_reward_block in on_reward
-			if pool_info.last_reward_block == Zero::zero() {
-				return;
-			}
-
 			new_rewards = Self::calculate_reward(pid);
 			Self::reward_clear(&pool_info.workers);
 
@@ -502,14 +495,13 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct PoolInfo<AccountId: Default, Balance, BlockNumber> {
+	pub struct PoolInfo<AccountId: Default, Balance> {
 		pid: u64,
 		owner: AccountId,
 		state: PoolState,
 		payout_commission: u16,
 		owner_reward: Balance,
 		pool_acc: Balance,
-		last_reward_block: BlockNumber,
 		total_stake: Balance,
 		locked_stake: Balance,
 		workers: Vec<WorkerPublicKey>,
