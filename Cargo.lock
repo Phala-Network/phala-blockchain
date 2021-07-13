@@ -4699,25 +4699,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-mining-staking"
-version = "1.0.0"
-dependencies = [
- "frame-support",
- "frame-support-test",
- "frame-system",
- "itertools 0.8.2",
- "log",
- "pallet-balances",
- "pallet-timestamp",
- "parity-scale-codec",
- "phala-pallets",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-multisig"
 version = "3.0.0"
 dependencies = [
@@ -5485,7 +5466,6 @@ dependencies = [
  "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
- "pallet-mining-staking",
  "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",

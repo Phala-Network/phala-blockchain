@@ -13,7 +13,7 @@ use sp_core::U256;
 use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
-use phala_pallets::{pallet_mq, pallet_phala};
+use phala_pallets::pallet_mq;
 
 #[cfg(test)]
 mod mock;

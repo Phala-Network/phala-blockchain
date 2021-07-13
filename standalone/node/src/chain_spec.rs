@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, PhalaConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
+	TechnicalCommitteeConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
 	PhalaRegistryConfig,
 };
 use node_runtime::Block;
@@ -283,13 +283,6 @@ pub fn testnet_genesis(
 					x.5.clone(),
 				))
 			}).collect::<Vec<_>>(),
-		},
-		phala: PhalaConfig {
-			stakers: initial_authorities.iter().map(|x| {
-				(x.0.clone(), x.1.clone(), raw_dev_ecdsa_pubkey.clone())
-			}).collect(),
-			// Now we have 4 contracts but reserver 10 for convenience
-			contract_keys: std::iter::repeat(raw_dev_ecdsa_pubkey.clone()).take(10).collect(),
 		},
 		kitty_storage: KittyStorageConfig {
 			// Now we have 4 contracts but reserver 10 for convenience
