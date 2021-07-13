@@ -83,7 +83,7 @@ pub mod pallet {
 		WorkerNotRegistered,
 		BenchmarkMissing,
 		WorkerHasAdded,
-		WorkerHasnotAdded,
+		WorkerHasNotAdded,
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
 		InvalidPayoutPerf,
@@ -356,7 +356,7 @@ pub mod pallet {
 			// check wheather we have add this worker
 			ensure!(
 				pool_info.workers.contains(&worker),
-				Error::<T>::WorkerHasnotAdded
+				Error::<T>::WorkerHasNotAdded
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
 			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
@@ -368,7 +368,7 @@ pub mod pallet {
 		}
 
 		/// Stops a miner on behalf of the stake pool
-		/// Note: this would let miner enter coollingdown if everything is good
+		/// Note: this would let miner enter coolingdown if everything is good
 		///
 		/// Requires:
 		/// 1. There miner is bounded to the pool and is in a stoppable state
@@ -388,7 +388,7 @@ pub mod pallet {
 			// check wheather we have add this worker
 			ensure!(
 				pool_info.workers.contains(&worker),
-				Error::<T>::WorkerHasnotAdded
+				Error::<T>::WorkerHasNotAdded
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
