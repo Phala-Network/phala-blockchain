@@ -218,8 +218,8 @@ pub mod pallet {
 				&miner,
 				MinerInfo {
 					state: MinerState::Ready,
-					ve: INITIAL_V,
-					v: INITIAL_V,
+					ve: 0u64,
+					v: 0u64,
 					v_updated_at: now,
 					p_instant: 0u64,
 					benchmark: Benchmark {
@@ -312,6 +312,7 @@ pub mod pallet {
 
 			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
 			ensure!(
+				// TODO: dynamic compute MinStaking according to worker
 				already_reserved >= T::MinStaking::get(),
 				Error::<T>::InsufficientStaking
 			);
