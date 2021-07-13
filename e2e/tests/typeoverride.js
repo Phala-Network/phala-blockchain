@@ -46,7 +46,9 @@ const types = {
       "version": "u32",
       "machineId": "MachineId",
       "pubkey": "WorkerPublicKey",
-      "features": "Vec<u32>"
+	  "ecdhPubkey": "EcdhP256PublicKey",
+      "features": "Vec<u32>",
+	  "operator": "Option<AccountId>"
     },
     "PoolState": {
       "_enum": {
