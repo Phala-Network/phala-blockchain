@@ -81,6 +81,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		Meh,
 		WorkerNotRegistered,
+		BenchmarkMissing,
 		WorkerHasAdded,
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
@@ -103,7 +104,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 
 			let pid = PoolCount::<T>::get();
-			PoolCount::<T>::mutate(|id| *id = pid + 1);
+			PoolCount::<T>::put(pid + 1);
 			MiningPools::<T>::insert(
 				pid + 1,
 				PoolInfo {
@@ -131,14 +132,15 @@ pub mod pallet {
 			pubkey: WorkerPublicKey,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
+			let worker_info =
+				registry::Worker::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 
-			// make sure the worker has registered
+			// check the worker has finished the benchmark
 			ensure!(
-				registry::Worker::<T>::contains_key(&pubkey),
-				Error::<T>::WorkerNotRegistered
+				worker_info.intial_score != None,
+				Error::<T>::BenchmarkMissing
 			);
-			// check the wheather the owner was bounded as operator
-			let worker_info = registry::Worker::<T>::get(&pubkey).unwrap();
+			// check wheather the owner was bounded as operator
 			ensure!(
 				worker_info.operator == Some(owner.clone()),
 				Error::<T>::UnauthorizedOperator
@@ -151,12 +153,12 @@ pub mod pallet {
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// make sure worker has not been not added
-			let mut workers = pool_info.workers;
+			let workers = &mut pool_info.workers;
 			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
-			let miner: T::AccountId =
-				STAKEPOOL_PALLETID.into_sub_account((pid, owner, pubkey.clone()).encode());
+			let miner: T::AccountId = STAKEPOOL_PALLETID
+				.into_sub_account(&crate::hashing::blake2_256(&(pid, owner, pubkey.clone()).encode()));
 
 			// bind worker with minner
 			<mining::pallet::Pallet<T>>::bind(
@@ -167,7 +169,6 @@ pub mod pallet {
 
 			// update worker vector
 			workers.push(pubkey.clone());
-			pool_info.workers = workers;
 			MiningPools::<T>::insert(&pid, &pool_info);
 			NewRewards::<T>::insert(&pubkey, BalanceOf::<T>::zero());
 			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
@@ -206,7 +207,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
 
-			ensure!(payout_commission < 1000, Error::<T>::InvalidPayoutPerf);
+			ensure!(payout_commission <= 1000, Error::<T>::InvalidPayoutPerf);
 
 			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
 			// origin must be owner of pool
@@ -301,7 +302,7 @@ pub mod pallet {
 			} else {
 				// first time deposit to this pool
 				StakingInfo::<T>::insert(
-					&(pid.clone(), who.clone()),
+					&info_key,
 					UserStakeInfo {
 						user: who.clone(),
 						amount: amount.clone(),
