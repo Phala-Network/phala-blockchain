@@ -90,7 +90,7 @@ pub mod pallet {
 	pub type ExpectedHeartbeatCount<T> = StorageValue<_, u32>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn miners)]
+	#[pallet::getter(fn miner)]
 	pub(super) type Miner<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
 
 	#[pallet::storage]
@@ -160,6 +160,7 @@ pub mod pallet {
 		DuplicatedBoundedMiner,
 		BenchmarkMissing,
 		MinerNotFounded,
+		MinerNotBounded,
 		MinerNotInReadyState,
 		MinerNotMining,
 		CoolingDownNotPassed,
@@ -341,29 +342,24 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn stop_mining(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
+			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotBounded)?;
+			let mut miner_info = Miner::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
+
 			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			let state = Self::miners(&miner).unwrap().state;
-			ensure!(
-				state != MinerState::Ready && state != MinerState::MiningCoolingDown,
+				miner_info.state != MinerState::Ready
+					&& miner_info.state != MinerState::MiningCoolingDown,
 				Error::<T>::MinerNotMining
 			);
 
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
-			Miner::<T>::mutate(&miner, |info| {
-				if let Some(info) = info {
-					info.state = MinerState::MiningCoolingDown;
-					info.cooling_down_start = now;
-				}
-			});
+			miner_info.state = MinerState::MiningCoolingDown;
+			miner_info.cooling_down_start = now;
+			Miner::<T>::insert(&miner, &miner_info);
 
-			let binding_worker = MinerBinding::<T>::get(&miner).unwrap();
 			Self::push_message(SystemEvent::new_worker_event(
-				binding_worker,
+				worker,
 				WorkerEvent::MiningStop,
 			));
 			Self::deposit_event(Event::<T>::MiningStoped(miner));
@@ -377,7 +373,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn cleanup(origin: OriginFor<T>) -> DispatchResult {
 			let miner = ensure_signed(origin)?;
-			let mut miner_info = Self::miners(&miner).ok_or(Error::<T>::MinerNotFounded)?;
+			let mut miner_info = Miner::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 			ensure!(
 				Self::can_cleanup(&miner_info),
 				Error::<T>::CoolingDownNotPassed
@@ -449,7 +445,7 @@ pub mod pallet {
 				for worker in event.offline {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
+							Self::miner(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.state = MinerState::MiningUnresponsive;
 						Miner::<T>::insert(&binding_miner, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(binding_miner));
@@ -460,7 +456,7 @@ pub mod pallet {
 				for worker in event.recovered_to_online {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
+							Self::miner(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.state = MinerState::MiningIdle;
 						Miner::<T>::insert(&binding_miner, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
@@ -470,7 +466,7 @@ pub mod pallet {
 				for info in event.settle.clone() {
 					if let Some(binding_miner) = WorkerBinding::<T>::get(&info.pubkey) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
+							Self::miner(&binding_miner).ok_or(Error::<T>::MinerNotFounded)?;
 						miner_info.v = info.v as _; //TODO(wenfeng)
 						miner_info.v_updated_at = now;
 						Miner::<T>::insert(&binding_miner, &miner_info);
