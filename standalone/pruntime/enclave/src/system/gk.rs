@@ -66,6 +66,7 @@ impl WorkerInfo {
 pub(super) struct Gatekeeper<MsgChan> {
     identity_key: ecdsa::Pair,
     master_key: Option<ecdsa::Pair>,
+    registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -88,6 +89,7 @@ where
         Self {
             identity_key,
             master_key: None,
+            registered_on_chain: false,
             egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -95,6 +97,26 @@ where
             workers: Default::default(),
             last_random_number: [0_u8; 32],
             last_random_block: 0,
+        }
+    }
+
+    pub fn possess_master_key(&self) -> bool {
+        self.master_key.is_some()
+    }
+
+    pub fn registered_on_chain(&self) -> bool {
+        self.registered_on_chain
+    }
+
+    pub fn set_master_key(&mut self, master_key: ecdsa::Pair) {
+        if self.master_key.is_none() {
+            self.master_key = Some(master_key);
+        }
+    }
+
+    pub fn push_gatekeeper_message(&self, message: EgressMessage) {
+        if self.registered_on_chain() {
+            self.egress.push_message(message)
         }
     }
 
@@ -134,7 +156,7 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
-            self.egress.push_message(EgressMessage::Gatekeeper(
+            self.push_gatekeeper_message(EgressMessage::Gatekeeper(
                 GatekeeperEvent::new_random_number(
                     block_number,
                     next_random_number(master_key, block_number, self.last_random_number),
@@ -434,21 +456,24 @@ where
             return;
         }
 
-        // double check the new gatekeeper is valid
+        // double check the new gatekeeper is valid on chain
         if !crate::identity::is_gatekeeper(&event.pubkey, self.block.storage) {
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }
+
         let my_pubkey = self.state.identity_key.public();
-        if my_pubkey == event.pubkey && event.gatekeeper_count == 1 {
-            if self.state.master_key.is_none() {
-                // generate master key as the first gatekeeper
-                self.state.master_key =
-                    Some(crate::new_ecdsa_key().expect(
+        if my_pubkey == event.pubkey {
+            if event.gatekeeper_count == 1 {
+                if self.state.master_key.is_none() {
+                    // generate master key as the first gatekeeper
+                    self.state.master_key = Some(crate::new_ecdsa_key().expect(
                         "key generation should never fail since we give seed of correct sieze",
                     ))
+                }
             }
-        } else if my_pubkey != event.pubkey {
+            self.state.registered_on_chain = true;
+        } else {
             if let Some(master_key) = &self.state.master_key {
                 let my_ecdh_key = self
                     .state
@@ -461,18 +486,19 @@ where
                 let mut data = master_key.clone().to_raw_vec();
                 aead::encrypt(&iv, &secret, &mut data);
 
-                self.state.egress.push_message(EgressMessage::Gatekeeper(
-                    GatekeeperEvent::dispatch_master_key_event(
-                        event.pubkey,
-                        my_ecdh_key
-                            .public()
-                            .as_ref()
-                            .try_into()
-                            .expect("ecdh pubkey with incorrect length"),
-                        data,
-                        iv,
-                    ),
-                ));
+                self.state
+                    .push_gatekeeper_message(EgressMessage::Gatekeeper(
+                        GatekeeperEvent::dispatch_master_key_event(
+                            event.pubkey,
+                            my_ecdh_key
+                                .public()
+                                .as_ref()
+                                .try_into()
+                                .expect("ecdh pubkey with incorrect length"),
+                            data,
+                            iv,
+                        ),
+                    ));
             }
         }
     }
@@ -501,19 +527,23 @@ where
 
         let my_pubkey = self.state.identity_key.public();
         if my_pubkey == event.dest {
-            if self.state.master_key.is_none() {
-                let my_ecdh_key = self
-                    .state
-                    .identity_key
-                    .derive_ecdh_key()
-                    .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                    .expect("should never failed with valid ecdh key");
-                let mut seed: Vec<u8> = Vec::new();
-                aead::decrypt(&event.iv, &secret, &mut seed);
+            let my_ecdh_key = self
+                .state
+                .identity_key
+                .derive_ecdh_key()
+                .expect("ecdh key derivation should never failed with valid identity key");
+            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                .expect("should never failed with valid ecdh key");
+            let mut seed: Vec<u8> = Vec::new();
+            aead::decrypt(&event.iv, &secret, &mut seed);
+            let decrypted_master_key =
+                ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
 
-                self.state.master_key =
-                    Some(ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed"));
+            if let Some(master_key) = &self.state.master_key {
+                // TODO.shelven: remove this check after we enable master key rotation
+                assert!(master_key.seed() == decrypted_master_key.seed());
+            } else {
+                self.state.master_key = Some(decrypted_master_key);
             }
         }
     }

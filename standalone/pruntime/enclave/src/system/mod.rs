@@ -150,7 +150,10 @@ impl WorkerState {
                             info!("My benchmark score is {}", score);
                         }
                     }
-                    MiningStart { session_id, init_v: _ } => {
+                    MiningStart {
+                        session_id,
+                        init_v: _,
+                    } => {
                         self.mining_state = Some(MiningInfo {
                             session_id,
                             state: Mining,
@@ -358,6 +361,10 @@ impl System {
         }
     }
 
+    pub fn set_gatekeeper_master_key(&mut self, master_key: ecdsa::Pair) {
+        self.gatekeeper.set_master_key(master_key);
+    }
+
     pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
         self.receipts.insert(command_index, tr);
     }
@@ -398,11 +405,7 @@ impl System {
         }
     }
 
-    pub fn process_messages(
-        &mut self,
-        block: &BlockInfo,
-        storage: &Storage,
-    ) -> anyhow::Result<()> {
+    pub fn process_messages(&mut self, block: &BlockInfo, storage: &Storage) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {
@@ -427,7 +430,12 @@ impl System {
         self.worker_state
             .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
-        if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
+        // allow to process gatekeeper messages silently
+        // if pRuntime possesses master key but is not registered on chain
+        // TODO.shelven: this does not hold after we enable master key rotation
+        if self.gatekeeper.possess_master_key()
+            || crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage)
+        {
             self.gatekeeper.process_messages(block);
 
             self.gatekeeper.vrf(block.block_number);
