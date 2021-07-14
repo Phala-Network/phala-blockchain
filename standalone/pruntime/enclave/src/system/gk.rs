@@ -21,7 +21,7 @@ use crate::{
 
 use crate::std::convert::TryInto;
 use crate::std::vec::Vec;
-use msg_trait::{EgressMessage, MessageChannel};
+use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
@@ -117,8 +117,7 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress
-                .push_message(EgressMessage::MiningInfoUpdate(report));
+            self.egress.push_message(report);
         }
     }
 
@@ -133,12 +132,10 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
-            self.egress.push_message(EgressMessage::Gatekeeper(
-                GatekeeperEvent::new_random_number(
-                    block_number,
-                    next_random_number(master_key, block_number, self.last_random_number),
-                    self.last_random_number,
-                ),
+            self.egress.push_message(GatekeeperEvent::new_random_number(
+                block_number,
+                next_random_number(master_key, block_number, self.last_random_number),
+                self.last_random_number,
             ))
         }
     }
@@ -466,8 +463,9 @@ where
                 let mut data = master_key.clone().to_raw_vec();
                 aead::encrypt(&iv, &secret, &mut data);
 
-                self.state.egress.push_message(EgressMessage::Gatekeeper(
-                    GatekeeperEvent::dispatch_master_key_event(
+                self.state
+                    .egress
+                    .push_message(GatekeeperEvent::dispatch_master_key_event(
                         event.pubkey,
                         my_ecdh_key
                             .public()
@@ -476,8 +474,7 @@ where
                             .expect("ecdh pubkey with incorrect length"),
                         data,
                         iv,
-                    ),
-                ));
+                    ));
             }
         }
     }
@@ -688,40 +685,29 @@ mod tokenomic {
 }
 
 mod msg_trait {
-    use phala_mq::MessageSigner;
-
-    #[derive(PartialEq, Eq, Debug)]
-    pub enum EgressMessage {
-        MiningInfoUpdate(super::MiningInfoUpdateEvent<chain::BlockNumber>),
-        Gatekeeper(super::GatekeeperEvent),
-    }
+    use parity_scale_codec::Encode;
+    use phala_mq::{BindTopic, MessageSigner};
 
     pub trait MessageChannel {
-        fn push_message(&self, message: EgressMessage);
+        fn push_message<M: Encode + BindTopic>(&self, message: M);
     }
 
     impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
-        fn push_message(&self, message: EgressMessage) {
-            match message {
-                EgressMessage::MiningInfoUpdate(message) => self.send(&message),
-                EgressMessage::Gatekeeper(message) => self.send(&message),
-            }
+        fn push_message<M: Encode + BindTopic>(&self, message: M) {
+            self.send(&message);
         }
     }
 }
 
 #[cfg(feature = "tests")]
 pub mod tests {
-    use super::Gatekeeper;
-
-    use super::msg_trait::{EgressMessage, MessageChannel};
-    use super::tokenomic::fp;
-    use super::BlockInfo;
-    use crate::std::cell::RefCell;
-    use crate::std::vec::Vec;
-    use parity_scale_codec::Encode;
+    use super::{msg_trait::MessageChannel, tokenomic::fp, BlockInfo, Gatekeeper};
+    use crate::std::{cell::RefCell, vec::Vec};
+    use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
     use phala_types::{messaging as msg, WorkerPublicKey};
+
+    type MiningInfoUpdateEvent = super::MiningInfoUpdateEvent<chain::BlockNumber>;
 
     trait DispatcherExt {
         fn dispatch_bound<M: Encode + BindTopic>(&mut self, sender: &MessageOrigin, msg: M);
@@ -743,11 +729,43 @@ pub mod tests {
 
     #[derive(Default)]
     struct CollectChannel {
-        messages: RefCell<Vec<EgressMessage>>,
+        messages: RefCell<Vec<Message>>,
+    }
+
+    impl CollectChannel {
+        fn drain(&self) -> Vec<Message> {
+            self.messages.borrow_mut().drain(..).collect()
+        }
+
+        fn drain_decode<M: Decode + BindTopic>(&self) -> Vec<M> {
+            self.drain()
+                .into_iter()
+                .filter_map(|m| {
+                    if &m.destination.path()[..] == M::TOPIC {
+                        Decode::decode(&mut &m.payload[..]).ok()
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        }
+
+        fn drain_mining_info_update_event(&self) -> Vec<MiningInfoUpdateEvent> {
+            self.drain_decode()
+        }
+
+        fn clear(&self) {
+            self.messages.borrow_mut().clear();
+        }
     }
 
     impl MessageChannel for CollectChannel {
-        fn push_message(&self, message: EgressMessage) {
+        fn push_message<M: Encode + BindTopic>(&self, message: M) {
+            let message = Message {
+                sender: MessageOrigin::Gatekeeper,
+                destination: M::TOPIC.to_vec().into(),
+                payload: message.encode(),
+            };
             self.messages.borrow_mut().push(message);
         }
     }
@@ -760,9 +778,12 @@ pub mod tests {
 
     impl Roles {
         fn test_roles() -> Roles {
+            use sp_core::crypto::Pair;
+
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let gk = Gatekeeper::new(&mut mq, egress);
+            let key = sp_core::ecdsa::Pair::from_seed(&[1u8; 32]);
+            let gk = Gatekeeper::new(key, &mut mq, egress);
             Roles {
                 mq,
                 gk,
@@ -1003,7 +1024,7 @@ pub mod tests {
 
         // Normal Idle state, no event
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
@@ -1013,7 +1034,7 @@ pub mod tests {
             "Worker should be online"
         );
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
+            r.gk.egress.drain_mining_info_update_event().len(),
             0,
             "Should not report any event"
         );
@@ -1024,7 +1045,7 @@ pub mod tests {
 
         // Once again.
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
@@ -1034,7 +1055,7 @@ pub mod tests {
             "Worker should be online"
         );
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
+            r.gk.egress.drain_mining_info_update_event().len(),
             0,
             "Should not report any event"
         );
@@ -1074,7 +1095,7 @@ pub mod tests {
 
         // About to timeout then A heartbeat received, report payout event.
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
         with_block(block_number, |block| {
             let mut worker = r.for_worker(0);
             worker.heartbeat(1, challenge_block, 10000000);
@@ -1085,36 +1106,17 @@ pub mod tests {
             !r.gk.workers[&r.workers[0]].unresponsive,
             "Worker should be online"
         );
-        assert_eq!(
-            r.gk.egress.messages.borrow().len(),
-            1,
-            "Should report recover event"
-        );
         assert!(
             v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
             "Worker should be payed out"
         );
 
         {
-            let settle = [msg::SettleInfo {
-                pubkey: r.workers[0].clone(),
-                v: 4096,
-                payout: 168,
-            }]
-            .to_vec();
-
-            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
-                block_number,
-                timestamp_ms: block_ts(block_number),
-                offline: Vec::new(),
-                recovered_to_online: Vec::new(),
-                settle,
-            });
-            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
-            assert_eq!(
-                message, expected_message,
-                "Should report settle for normal heartbeats"
-            );
+            let messages = r.gk.egress.drain_mining_info_update_event();
+            assert_eq!(messages.len(), 1);
+            assert_eq!(messages[0].offline.len(), 0);
+            assert_eq!(messages[0].recovered_to_online.len(), 0);
+            assert_eq!(messages[0].settle.len(), 1);
         }
     }
 
@@ -1162,25 +1164,25 @@ pub mod tests {
         });
 
         assert!(r.gk.workers[&r.workers[0]].unresponsive);
-        assert_eq!(r.gk.egress.messages.borrow().len(), 1);
         {
             let offline = [r.workers[0].clone()].to_vec();
-            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
+            let expected_message = MiningInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
                 offline,
                 recovered_to_online: Vec::new(),
                 settle: Vec::new(),
-            });
-            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
-            assert_eq!(message, expected_message, "Should report recover to online");
+            };
+            let messages = r.gk.egress.drain_mining_info_update_event();
+            assert_eq!(messages.len(), 1);
+            assert_eq!(messages[0], expected_message);
         }
         assert!(
             v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
             "Worker should be slashed"
         );
 
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
 
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
         block_number += 1;
@@ -1188,7 +1190,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
+            r.gk.egress.drain_mining_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -1235,7 +1237,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
 
         // Worker already offline, don't report again until one more heartbeat received.
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
@@ -1244,7 +1246,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
+            r.gk.egress.drain_mining_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -1259,7 +1261,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
+            r.gk.egress.drain_mining_info_update_event().len(),
             0,
             "Should not report offline workers"
         );
@@ -1307,7 +1309,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        r.gk.egress.messages.borrow_mut().clear();
+        r.gk.egress.clear();
 
         // Worker offline, report recover event on the next heartbeat received.
         let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
@@ -1318,25 +1320,21 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            r.gk.egress.messages.borrow().len(),
-            1,
-            "Should report recover event"
-        );
-        assert_eq!(
             v_snap, r.gk.workers[&r.workers[0]].tokenomic.v,
             "Worker should not be slashed or rewarded"
         );
         {
             let recovered_to_online = [r.workers[0].clone()].to_vec();
-            let expected_message = EgressMessage::MiningInfoUpdate(super::MiningInfoUpdateEvent {
+            let expected_message = MiningInfoUpdateEvent {
                 block_number,
                 timestamp_ms: block_ts(block_number),
                 offline: Vec::new(),
                 recovered_to_online,
                 settle: Vec::new(),
-            });
-            let message = r.gk.egress.messages.borrow_mut().drain(..).nth(0).unwrap();
-            assert_eq!(message, expected_message);
+            };
+            let messages = r.gk.egress.drain_mining_info_update_event();
+            assert_eq!(messages.len(), 1, "Should report recover event");
+            assert_eq!(messages[0], expected_message);
         }
     }
 }
