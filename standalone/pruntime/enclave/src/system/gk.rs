@@ -800,6 +800,10 @@ pub mod tests {
                 pubkey: &self.workers[n],
             }
         }
+
+        fn get_worker(&self, n: usize) -> &super::WorkerInfo {
+            &self.gk.workers[&self.workers[n]]
+        }
     }
 
     struct ForWorker<'a> {
@@ -884,8 +888,7 @@ pub mod tests {
 
         assert_eq!(r.gk.workers.len(), 1);
 
-        let worker0 = r.gk.workers.get(&r.workers[0]).unwrap();
-        assert!(worker0.state.registered);
+        assert!(r.get_worker(0).state.registered);
 
         with_block(2, |block| {
             let mut worker1 = r.for_worker(1);
@@ -916,8 +919,7 @@ pub mod tests {
 
         assert_eq!(r.gk.workers.len(), 1);
 
-        let worker0 = r.gk.workers.get(&r.workers[0]).unwrap();
-        assert!(worker0.state.registered);
+        assert!(r.get_worker(0).state.registered);
 
         with_block(2, |block| {
             let mut worker0 = r.for_worker(0);
@@ -956,13 +958,13 @@ pub mod tests {
         });
 
         assert_eq!(
-            r.gk.workers[&r.workers[0]].waiting_heartbeats.len(),
+            r.get_worker(0).waiting_heartbeats.len(),
             2,
             "There should be 2 waiting HBs"
         );
 
         assert!(
-            r.gk.workers[&r.workers[0]].unresponsive,
+            r.get_worker(0).unresponsive,
             "The worker should be unresponsive now"
         );
 
@@ -973,13 +975,13 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            r.gk.workers[&r.workers[0]].waiting_heartbeats.len(),
+            r.get_worker(0).waiting_heartbeats.len(),
             1,
             "There should be only one waiting HBs"
         );
 
         assert!(
-            r.gk.workers[&r.workers[0]].unresponsive,
+            r.get_worker(0).unresponsive,
             "The worker should still be unresponsive now"
         );
 
@@ -991,7 +993,7 @@ pub mod tests {
         });
 
         assert!(
-            !r.gk.workers[&r.workers[0]].unresponsive,
+            !r.get_worker(0).unresponsive,
             "The worker should be mining idle now"
         );
     }
@@ -1023,14 +1025,14 @@ pub mod tests {
         block_number += 1;
 
         // Normal Idle state, no event
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         r.gk.egress.clear();
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
 
         assert!(
-            !r.gk.workers[&r.workers[0]].unresponsive,
+            !r.get_worker(0).unresponsive,
             "Worker should be online"
         );
         assert_eq!(
@@ -1039,19 +1041,19 @@ pub mod tests {
             "Should not report any event"
         );
         assert!(
-            v_snap < r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap < r.get_worker(0).tokenomic.v,
             "Worker should be rewarded"
         );
 
         // Once again.
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         r.gk.egress.clear();
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
 
         assert!(
-            !r.gk.workers[&r.workers[0]].unresponsive,
+            !r.get_worker(0).unresponsive,
             "Worker should be online"
         );
         assert_eq!(
@@ -1060,7 +1062,7 @@ pub mod tests {
             "Should not report any event"
         );
         assert!(
-            v_snap < r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap < r.get_worker(0).tokenomic.v,
             "Worker should be rewarded"
         );
     }
@@ -1091,10 +1093,10 @@ pub mod tests {
         });
         let challenge_block = block_number;
 
-        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        block_number += r.gk.tokenomic_params.heartbeat_window;
 
         // About to timeout then A heartbeat received, report payout event.
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         r.gk.egress.clear();
         with_block(block_number, |block| {
             let mut worker = r.for_worker(0);
@@ -1103,11 +1105,11 @@ pub mod tests {
         });
 
         assert!(
-            !r.gk.workers[&r.workers[0]].unresponsive,
+            !r.get_worker(0).unresponsive,
             "Worker should be online"
         );
         assert!(
-            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be payed out"
         );
 
@@ -1145,17 +1147,16 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        // assert_eq!(r.gk.workers[&r.workers[0]].tokenomic.v, 1);
-        assert!(r.gk.workers[&r.workers[0]].state.mining_state.is_some());
+        assert!(r.get_worker(0).state.mining_state.is_some());
 
-        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
-        assert!(!r.gk.workers[&r.workers[0]].unresponsive);
+        assert!(!r.get_worker(0).unresponsive);
 
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
 
         block_number += 1;
         // Heartbeat timed out
@@ -1163,7 +1164,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        assert!(r.gk.workers[&r.workers[0]].unresponsive);
+        assert!(r.get_worker(0).unresponsive);
         {
             let offline = [r.workers[0].clone()].to_vec();
             let expected_message = MiningInfoUpdateEvent {
@@ -1178,13 +1179,13 @@ pub mod tests {
             assert_eq!(messages[0], expected_message);
         }
         assert!(
-            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be slashed"
         );
 
         r.gk.egress.clear();
 
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.process_messages(block);
@@ -1195,7 +1196,7 @@ pub mod tests {
             "Should not report offline workers"
         );
         assert!(
-            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be slashed again"
         );
     }
@@ -1225,7 +1226,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
             r.gk.process_messages(block);
@@ -1240,7 +1241,7 @@ pub mod tests {
         r.gk.egress.clear();
 
         // Worker already offline, don't report again until one more heartbeat received.
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.process_messages(block);
@@ -1251,11 +1252,11 @@ pub mod tests {
             "Should not report offline workers"
         );
         assert!(
-            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be slashed"
         );
 
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.process_messages(block);
@@ -1266,7 +1267,7 @@ pub mod tests {
             "Should not report offline workers"
         );
         assert!(
-            v_snap > r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be slashed again"
         );
     }
@@ -1297,7 +1298,7 @@ pub mod tests {
         });
         let challenge_block = block_number;
 
-        block_number += super::HEARTBEAT_TOLERANCE_WINDOW;
+        block_number += r.gk.tokenomic_params.heartbeat_window;
         // About to timeout
         with_block(block_number, |block| {
             r.gk.process_messages(block);
@@ -1312,7 +1313,7 @@ pub mod tests {
         r.gk.egress.clear();
 
         // Worker offline, report recover event on the next heartbeat received.
-        let v_snap = r.gk.workers[&r.workers[0]].tokenomic.v;
+        let v_snap = r.get_worker(0).tokenomic.v;
         block_number += 1;
         with_block(block_number, |block| {
             let mut worker = r.for_worker(0);
@@ -1320,7 +1321,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            v_snap, r.gk.workers[&r.workers[0]].tokenomic.v,
+            v_snap, r.get_worker(0).tokenomic.v,
             "Worker should not be slashed or rewarded"
         );
         {
