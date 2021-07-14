@@ -60,6 +60,10 @@ pub mod pallet {
 		fn on_reward(settle: &Vec<SettleInfo>) {}
 	}
 
+	pub trait OnCleanup<Balance> {
+		fn on_cleanup(worker: WorkerPublicKey, deposit_balance: Balance) {}
+	}
+
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WorkerStat<Balance> {
 		total_reward: Balance,
@@ -74,6 +78,7 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type MinStaking: Get<BalanceOf<Self>>;
 		type OnReward: OnReward;
+		type OnCleanup: OnCleanup<BalanceOf<Self>>;
 	}
 
 	#[pallet::pallet]
@@ -180,12 +185,13 @@ pub mod pallet {
 		}
 
 		/// Turns the miner back to Ready state after cooling down
-		///
+		/// Note: anyone can trigger cleanup
 		/// Requires:
 		/// 1. Ther miner is in CoolingDown state and the cooling down period has passed
 		#[pallet::weight(0)]
-		pub fn cleanup(origin: OriginFor<T>) -> DispatchResult {
-			let miner = ensure_signed(origin)?;
+		pub fn cleanup(origin: OriginFor<T>, worker: WorkerPublicKey) -> DispatchResult {
+			ensure_signed(origin)?;
+			let miner = WorkerBinding::<T>::get(&worker).ok_or(Error::<T>::MinerNotBounded)?;
 			let mut miner_info = Miner::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 			ensure!(
 				Self::can_cleanup(&miner_info),
@@ -194,6 +200,10 @@ pub mod pallet {
 			miner_info.state = MinerState::Ready;
 			miner_info.cooling_down_start = 0u64;
 			Miner::<T>::insert(&miner, &miner_info);
+
+			// execute callback
+			let deposit_balance = DepositBalance::<T>::get(&miner).unwrap_or_default();
+			T::OnCleanup::on_cleanup(worker, deposit_balance);
 
 			// clear deposit balance
 			DepositBalance::<T>::insert(&miner, BalanceOf::<T>::zero());

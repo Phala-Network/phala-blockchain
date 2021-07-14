@@ -13,6 +13,7 @@ pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
+type BlockNumber = u64;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -39,6 +40,7 @@ parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = 12;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinDeposit: Balance = 1 * CENTS;
+	pub const MiningInsurancePeriod: u64 = 3 * DAYS;
 }
 impl system::Config for Test {
 	type BaseCallFilter = ();
@@ -85,8 +87,8 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-// pub const HOURS: BlockNumber = 600;
-// pub const DAYS: BlockNumber = HOURS * 24;
+pub const HOURS: BlockNumber = 600;
+pub const DAYS: BlockNumber = HOURS * 24;
 pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
 
@@ -107,12 +109,14 @@ impl mining::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
+	type OnCleanup = PhalaStakePool;
 }
 
 impl stakepool::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type MinDeposit = MinDeposit;
+	type InsurancePeriod = MiningInsurancePeriod;
 }
 
 // This function basically just builds a genesis storage key/value store according to
