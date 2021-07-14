@@ -27,7 +27,7 @@ frame_support::construct_runtime!(
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Event},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
-		PhalaMining: mining::{Pallet, Event<T>},
+		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
 	}
 );
@@ -131,6 +131,8 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
+	GenesisBuild::<Test>::assimilate_storage(&crate::mining::GenesisConfig::default(), &mut t)
+		.unwrap();
 	sp_io::TestExternalities::new(t)
 }
 

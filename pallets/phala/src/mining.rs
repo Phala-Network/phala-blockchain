@@ -13,8 +13,9 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
 		messaging::{
-			DecodedMessage, HeartbeatChallenge, MessageOrigin, MiningInfoUpdateEvent, SettleInfo,
-			SystemEvent, WorkerEvent,
+			DecodedMessage, GatekeeperEvent, HeartbeatChallenge, MessageOrigin,
+			MiningInfoUpdateEvent, SettleInfo, SystemEvent, TokenomicParameters as TokenomicParams,
+			WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -78,6 +79,10 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
+
+	/// Tokenomic parameters used by Gatekeepers to compute the V promote.
+	#[pallet::storage]
+	pub type TokenomicParameters<T> = StorageValue<_, TokenomicParams>;
 
 	/// Total online miners
 	#[pallet::storage]
@@ -490,6 +495,60 @@ pub mod pallet {
 
 		pub fn set_deposit(miner: &T::AccountId, amount: BalanceOf<T>) {
 			DepositBalance::<T>::insert(miner, amount);
+		}
+
+		#[allow(unused)]
+		fn update_tokenomic_parameters(params: TokenomicParams) {
+			TokenomicParameters::<T>::put(params.clone());
+			Self::push_message(GatekeeperEvent::UpdateTokenomic(params));
+		}
+	}
+
+	#[pallet::genesis_config]
+	pub struct GenesisConfig {
+		pub tokenomic_parameters: TokenomicParams,
+	}
+
+	#[cfg(feature = "std")]
+	impl Default for GenesisConfig {
+		fn default() -> Self {
+			use substrate_fixed::types::U64F64 as FixedPoint;
+
+			pub fn fp(n: u64) -> FixedPoint {
+				FixedPoint::from_num(n)
+			}
+
+			let pha_rate = fp(1);
+			let rho = fp(100000099985) / 100000000000; // hourly: 1.00020,  1.0002 ** (1/300)
+			let slash_rate = fp(1) / 1000 / 300; // hourly rate: 0.001, convert to per-block rate
+			let budget_per_sec = fp(1000);
+			let v_max = fp(30000);
+			let cost_k = fp(287) / 10000 / 300; // hourly: 0.0287
+			let cost_b = fp(15) / 300; // hourly : 15
+			let heartbeat_window = 10; // 10 blocks
+
+			Self {
+				tokenomic_parameters: TokenomicParams {
+					pha_rate: pha_rate.to_bits(),
+					rho: rho.to_bits(),
+					budget_per_sec: budget_per_sec.to_bits(),
+					v_max: v_max.to_bits(),
+					cost_k: cost_k.to_bits(),
+					cost_b: cost_b.to_bits(),
+					slash_rate: slash_rate.to_bits(),
+					heartbeat_window: 10,
+				},
+			}
+		}
+	}
+
+	#[pallet::genesis_build]
+	impl<T: Config> GenesisBuild<T> for GenesisConfig {
+		fn build(&self) {
+			TokenomicParameters::<T>::put(self.tokenomic_parameters.clone());
+			Pallet::<T>::queue_message(GatekeeperEvent::UpdateTokenomic(
+				self.tokenomic_parameters.clone(),
+			));
 		}
 	}
 
