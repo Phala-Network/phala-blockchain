@@ -441,13 +441,6 @@ async fn batch_sync_block(
     Ok(synced_blocks)
 }
 
-async fn get_machine_owner(client: &XtClient, machine_id: Vec<u8>) -> Result<[u8; 32]> {
-    client
-        .fetch_or_default(&runtimes::phala::MachineOwnerStore::new(machine_id), None)
-        .await
-        .or(Ok([0u8; 32]))
-}
-
 /// Updates the nonce from the blockchain (system.account)
 async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<()> {
     // TODO: try to fetch the pending txs from mempool for a more accurate nonce
@@ -610,14 +603,10 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
         } else {
             info!("pRuntime already initialized. Fetching runtime info...");
-            let machine_owner = get_machine_owner(&client, info.machine_id).await?;
-            if machine_owner == [0u8; 32] {
-                // Worker not registered
-                runtime_info = Some(
-                    pr.req_decode("get_runtime_info", GetRuntimeInfoReq {})
-                        .await?,
-                );
-            }
+            runtime_info = Some(
+                pr.req_decode("get_runtime_info", GetRuntimeInfoReq {})
+                    .await?,
+            );
 
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
