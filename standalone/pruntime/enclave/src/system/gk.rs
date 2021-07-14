@@ -24,9 +24,6 @@ use crate::std::vec::Vec;
 use msg_trait::{EgressMessage, MessageChannel};
 use tokenomic::{FixedPoint, TokenomicInfo};
 
-// TODO: Read from blockchain
-const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
-
 /// Block interval to generate pseudo-random on chain
 const VRF_INTERVAL: u32 = 5;
 
@@ -74,6 +71,8 @@ pub(super) struct Gatekeeper<MsgChan> {
     // Randomness
     last_random_number: RandomNumber,
     last_random_block: chain::BlockNumber,
+
+    tokenomic_params: tokenomic::Params,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -95,6 +94,7 @@ where
             workers: Default::default(),
             last_random_number: [0_u8; 32],
             last_random_block: 0,
+            tokenomic_params: tokenomic::test_params(),
         }
     }
 
@@ -109,7 +109,6 @@ where
             state: self,
             block,
             report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
-            tokenomic_params: tokenomic::test_params(), // TODO.kevin: replace with real params
             sum_share,
         };
 
@@ -149,7 +148,6 @@ struct GKMessageProcesser<'a, MsgChan> {
     state: &'a mut Gatekeeper<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
-    tokenomic_params: tokenomic::Params,
     sum_share: FixedPoint,
 }
 
@@ -224,7 +222,9 @@ where
                 }
             } else {
                 if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                    if self.block.block_number - hb_sent_at > HEARTBEAT_TOLERANCE_WINDOW {
+                    if self.block.block_number - hb_sent_at
+                        > self.state.tokenomic_params.heartbeat_window
+                    {
                         // case3: Idle, heartbeat failed
                         self.report.offline.push(worker_info.state.pubkey.clone());
                         worker_info.unresponsive = true;
@@ -232,7 +232,7 @@ where
                 }
             }
 
-            let params = &self.tokenomic_params;
+            let params = &self.state.tokenomic_params;
             if worker_info.unresponsive {
                 // case3/case4:
                 // Idle, heartbeat failed or
@@ -306,7 +306,7 @@ where
                 } else {
                     // case2: Idle, successful heartbeat, report to pallet
                     let payout = worker_info.tokenomic.update_v_heartbeat(
-                        &self.tokenomic_params,
+                        &self.state.tokenomic_params,
                         self.sum_share,
                         self.block.now_ms,
                     );
@@ -420,6 +420,11 @@ where
             }
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
+            }
+            GatekeeperEvent::UpdateTokenomic(params) => {
+                if origin.is_pallet() {
+                    self.state.tokenomic_params = params.into();
+                }
             }
         }
     }
@@ -554,6 +559,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 
 mod tokenomic {
     pub use fixed::types::U64F64 as FixedPoint;
+    use phala_types::messaging::TokenomicParameters;
     use fixed_sqrt::FixedSqrt as _;
 
     pub fn fp(n: u64) -> FixedPoint {
@@ -588,20 +594,36 @@ mod tokenomic {
     pub struct Params {
         pha_rate: FixedPoint,
         rho: FixedPoint,
-        slash_rate: FixedPoint,
+        slash_rate_per_block: FixedPoint,
         budget_per_sec: FixedPoint,
         v_max: FixedPoint,
         alpha: FixedPoint,
+        pub heartbeat_window: u32,
+    }
+
+    impl From<TokenomicParameters> for Params {
+        fn from(params: TokenomicParameters) -> Self {
+            Params {
+                pha_rate: FixedPoint::from_bits(params.pha_rate),
+                rho: FixedPoint::from_bits(params.rho),
+                slash_rate_per_block: FixedPoint::from_bits(params.slash_rate_per_block),
+                budget_per_sec: FixedPoint::from_bits(params.budget_per_sec),
+                v_max: FixedPoint::from_bits(params.v_max),
+                alpha: FixedPoint::from_bits(params.alpha),
+                heartbeat_window: params.heartbeat_window,
+            }
+        }
     }
 
     pub fn test_params() -> Params {
         Params {
             pha_rate: fp(1),
-            rho: fp(10002) / 10000,   // 1.00020
-            slash_rate: fp(1) / 1000, // TODO: hourly rate: 0.001, convert to per-block rate
-            budget_per_sec: fp(10),
+            rho: fp(10002) / 10000,                   // 1.00020
+            slash_rate_per_block: fp(1) / 1000 / 600, // hourly rate: 0.001, convert to per-block rate
+            budget_per_sec: fp(1000),
             v_max: fp(30000),
             alpha: fp(287) / 10000, // 0.0287
+            heartbeat_window: 10,   // 10 blocks
         }
     }
 
@@ -647,7 +669,7 @@ mod tokenomic {
         }
 
         pub fn update_v_slash(&mut self, params: &Params) {
-            self.v -= self.v * params.slash_rate;
+            self.v -= self.v * params.slash_rate_per_block;
         }
 
         pub fn share(&self) -> FixedPoint {
