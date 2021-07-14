@@ -122,7 +122,7 @@ pub mod pallet {
 					owner_reward: Zero::zero(),
 					pool_acc: Zero::zero(),
 					total_stake: Zero::zero(),
-					locked_stake: Zero::zero(),
+					free_stake: Zero::zero(),
 					workers: vec![],
 				},
 			);
@@ -330,6 +330,7 @@ pub mod pallet {
 			);
 
 			pool_info.total_stake = pool_info.total_stake.saturating_add(amount.clone());
+			pool_info.free_stake = pool_info.free_stake.saturating_add(amount.clone());
 			MiningPools::<T>::insert(&pid, &pool_info);
 			Self::deposit_event(Event::<T>::Deposit(pid, who, amount));
 
@@ -357,7 +358,7 @@ pub mod pallet {
 			);
 			// check free stake
 			ensure!(
-				&(pool_info.total_stake - pool_info.locked_stake) >= &stake,
+				&(pool_info.free_stake) >= &stake,
 				Error::<T>::InsufficientStake
 			);
 			// check wheather we have add this worker
@@ -369,7 +370,7 @@ pub mod pallet {
 			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
 			match <mining::pallet::Pallet<T>>::start_mining(miner.clone()) {
 				Ok(()) => {
-					pool_info.locked_stake = pool_info.locked_stake.saturating_add(stake);
+					pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
 					MiningPools::<T>::insert(&pid, &pool_info);
 				}
 				_ => {
@@ -518,7 +519,7 @@ pub mod pallet {
 		owner_reward: Balance,
 		pool_acc: Balance,
 		total_stake: Balance,
-		locked_stake: Balance,
+		free_stake: Balance,
 		workers: Vec<WorkerPublicKey>,
 	}
 
