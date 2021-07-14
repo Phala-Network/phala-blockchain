@@ -1,6 +1,6 @@
 use super::{TypedReceiver, WorkerState};
 use phala_crypto::{
-    aead, ecdh,
+    aead, ecdh, secp256k1,
     secp256k1::{Signing, KDF},
 };
 use phala_mq::MessageDispatcher;
@@ -20,6 +20,8 @@ use crate::{
 };
 
 use crate::std::convert::TryInto;
+use crate::std::io::{Read, Write};
+use crate::std::sgxfs::SgxFile;
 use crate::std::vec::Vec;
 use msg_trait::{EgressMessage, MessageChannel};
 use tokenomic::{FixedPoint, TokenomicInfo};
@@ -100,18 +102,91 @@ where
         }
     }
 
-    pub fn possess_master_key(&self) -> bool {
-        self.master_key.is_some()
-    }
-
     pub fn registered_on_chain(&self) -> bool {
         self.registered_on_chain
+    }
+
+    pub fn possess_master_key(&self) -> bool {
+        self.master_key.is_some()
     }
 
     pub fn set_master_key(&mut self, master_key: ecdsa::Pair) {
         if self.master_key.is_none() {
             self.master_key = Some(master_key);
         }
+    }
+
+    /// Seal master key seed with signature to ensure integrity
+    pub fn seal_master_key(&self, filepath: &str) {
+        if let Some(master_key) = &self.master_key {
+            let seed = master_key.seed();
+            let sig = self.identity_key.sign_data(&seed);
+
+            let mut buf = Vec::new();
+            buf.extend_from_slice(&seed);
+            buf.extend_from_slice(sig.as_ref());
+
+            match SgxFile::create(filepath) {
+                Ok(mut file) => match file.write_all(&buf) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Seal master key failed: {:?}", e);
+                    }
+                },
+                Err(e) => {
+                    error!("Create master key file failed: {:?}", e);
+                }
+            }
+        }
+    }
+
+    /// Unsead master key seed and verify signature
+    ///
+    /// This function could panic a lot.
+    pub fn unseal_master_key(&mut self, filepath: &str) {
+        let mut file = match SgxFile::open(filepath) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("Open master key file failed: {:?}", e);
+                return;
+            }
+        };
+
+        let mut seed = secp256k1::Seed::default();
+        let mut sig = [0_u8; secp256k1::SIGNATURE_BYTES];
+
+        let n = match file.read(seed.as_mut()) {
+            Ok(n) => n,
+            Err(e) => panic!("Read master key failed: {:?}", e),
+        };
+        if n < secp256k1::SEED_BYTES {
+            panic!(
+                "Unexpected sealed seed length {}, expected {}",
+                n,
+                secp256k1::SEED_BYTES
+            );
+        }
+
+        let n = match file.read(sig.as_mut()) {
+            Ok(n) => n,
+            Err(e) => panic!("Read master key sig failed: {:?}", e),
+        };
+        if n < secp256k1::SIGNATURE_BYTES {
+            panic!(
+                "Unexpected sealed seed sig length {}, expected {}",
+                n,
+                secp256k1::SIGNATURE_BYTES
+            );
+        }
+
+        if !self
+            .identity_key
+            .verify_data(&secp256k1::Signature::from_raw(sig), &seed)
+        {
+            panic!("Broken sealed master key");
+        }
+
+        self.set_master_key(ecdsa::Pair::from_seed(&seed));
     }
 
     pub fn push_gatekeeper_message(&self, message: EgressMessage) {
@@ -467,9 +542,9 @@ where
             if event.gatekeeper_count == 1 {
                 if self.state.master_key.is_none() {
                     // generate master key as the first gatekeeper
-                    self.state.master_key = Some(crate::new_ecdsa_key().expect(
+                    self.state.set_master_key(crate::new_ecdsa_key().expect(
                         "key generation should never fail since we give seed of correct sieze",
-                    ))
+                    ));
                 }
             }
             self.state.registered_on_chain = true;
@@ -484,21 +559,24 @@ where
                     .expect("should never failed with valid ecdh key");
                 let iv = crate::cryptography::aead::generate_iv();
                 let mut data = master_key.clone().to_raw_vec();
-                aead::encrypt(&iv, &secret, &mut data);
 
-                self.state
-                    .push_gatekeeper_message(EgressMessage::Gatekeeper(
-                        GatekeeperEvent::dispatch_master_key_event(
-                            event.pubkey,
-                            my_ecdh_key
-                                .public()
-                                .as_ref()
-                                .try_into()
-                                .expect("ecdh pubkey with incorrect length"),
-                            data,
-                            iv,
-                        ),
-                    ));
+                match aead::encrypt(&iv, &secret, &mut data) {
+                    Ok(_) => self
+                        .state
+                        .push_gatekeeper_message(EgressMessage::Gatekeeper(
+                            GatekeeperEvent::dispatch_master_key_event(
+                                event.pubkey,
+                                my_ecdh_key
+                                    .public()
+                                    .as_ref()
+                                    .try_into()
+                                    .expect("ecdh pubkey with incorrect length"),
+                                data,
+                                iv,
+                            ),
+                        )),
+                    Err(e) => error!("Failed to encrypt master key: {:?}", e),
+                }
             }
         }
     }
@@ -535,15 +613,22 @@ where
             let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
                 .expect("should never failed with valid ecdh key");
             let mut seed: Vec<u8> = Vec::new();
-            aead::decrypt(&event.iv, &secret, &mut seed);
-            let decrypted_master_key =
-                ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
 
-            if let Some(master_key) = &self.state.master_key {
-                // TODO.shelven: remove this check after we enable master key rotation
-                assert!(master_key.seed() == decrypted_master_key.seed());
-            } else {
-                self.state.master_key = Some(decrypted_master_key);
+            match aead::decrypt(&event.iv, &secret, &mut seed) {
+                Ok(seed) => {
+                    let decrypted_master_key =
+                        ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
+
+                    if let Some(master_key) = &self.state.master_key {
+                        // TODO.shelven: remove this check after we enable master key rotation
+                        assert!(master_key.seed() == decrypted_master_key.seed());
+                    } else {
+                        self.state.set_master_key(decrypted_master_key);
+                    }
+                }
+                Err(e) => {
+                    panic!("Failed to decrypt dispatched master key: {:?}", e);
+                }
             }
         }
     }

@@ -361,10 +361,6 @@ impl System {
         }
     }
 
-    pub fn set_gatekeeper_master_key(&mut self, master_key: ecdsa::Pair) {
-        self.gatekeeper.set_master_key(master_key);
-    }
-
     pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
         self.receipts.insert(command_index, tr);
     }
