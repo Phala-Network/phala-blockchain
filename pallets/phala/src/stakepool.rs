@@ -129,8 +129,7 @@ pub mod pallet {
 						{
 							// stop all worker all this pool
 							for worker in pool_info.workers {
-								let miner: T::AccountId =
-									pool_sub_account(pid, &pool_info.owner, &worker);
+								let miner: T::AccountId = pool_sub_account(pid, &worker);
 								<mining::pallet::Pallet<T>>::stop_mining(miner);
 							}
 						}
@@ -206,7 +205,7 @@ pub mod pallet {
 			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
-			let miner: T::AccountId = pool_sub_account(pid, &owner, &pubkey);
+			let miner: T::AccountId = pool_sub_account(pid, &pubkey);
 
 			// bind worker with minner
 			match <mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone()) {
@@ -454,7 +453,7 @@ pub mod pallet {
 				pool_info.workers.contains(&worker),
 				Error::<T>::WorkerHasNotAdded
 			);
-			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
+			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
 			match <mining::pallet::Pallet<T>>::start_mining(miner.clone()) {
 				Ok(()) => {
@@ -494,7 +493,7 @@ pub mod pallet {
 				pool_info.workers.contains(&worker),
 				Error::<T>::WorkerHasNotAdded
 			);
-			let miner: T::AccountId = pool_sub_account(pid, &owner, &worker);
+			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 
 			Ok(())
@@ -688,11 +687,11 @@ pub mod pallet {
 		}
 	}
 
-	fn pool_sub_account<T>(pid: u64, owner: &T, pubkey: &WorkerPublicKey) -> T
+	fn pool_sub_account<T>(pid: u64, pubkey: &WorkerPublicKey) -> T
 	where
 		T: Encode + Decode + Default,
 	{
-		let hash = crate::hashing::blake2_256(&(pid, owner, pubkey).encode());
+		let hash = crate::hashing::blake2_256(&(pid, pubkey).encode());
 		// stake pool miner
 		(b"spm/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
@@ -761,13 +760,10 @@ pub mod pallet {
 
 		#[test]
 		fn test_pool_subaccount() {
-			let sub_account: AccountId32 = pool_sub_account(
-				1,
-				&AccountId32::new([0u8; 32]),
-				&WorkerPublicKey::from_raw([0u8; 33]),
-			);
+			let sub_account: AccountId32 =
+				pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 33]));
 			let expected = AccountId32::new(hex!(
-				"73706d2fdb00176acb0c2a9274755274d3d9c002d79c753d633bae2a7316a7d4"
+				"73706d2f666bf107db95bd7b5b56e2c9b5a008f97361f20d10a7840cf2dfaaf5"
 			));
 			assert_eq!(sub_account, expected, "Incorrect sub account");
 		}
