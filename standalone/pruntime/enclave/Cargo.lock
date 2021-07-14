@@ -55,6 +55,7 @@ dependencies = [
  "sgx_rand",
  "sgx_rand_derive",
  "sgx_tcrypto",
+ "sgx_tprotected_fs",
  "sgx_trts",
  "sgx_tse",
  "sgx_tseal",

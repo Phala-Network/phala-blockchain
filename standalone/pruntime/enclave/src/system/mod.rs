@@ -352,12 +352,16 @@ impl System {
         let sender = MessageOrigin::Worker(pubkey.clone());
         // TODO: create gk_egress dynamically with gk masterkey
         let gk_egress = send_mq.channel(MessageOrigin::Gatekeeper, pair.clone());
+
+        let mut gatekeeper = gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress);
+        gatekeeper.try_unseal_master_key(gk::MASTER_KEY_FILEPATH);
+
         System {
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper: gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress),
+            gatekeeper: gatekeeper,
         }
     }
 

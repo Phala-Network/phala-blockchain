@@ -19,6 +19,7 @@ sgx_trts        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sg
 sgx_tseal       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_rand_derive = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_tprotected_fs = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [dependencies]
 chrono      = { git = "https://github.com/mesalock-linux/chrono-sgx" }

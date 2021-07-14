@@ -32,6 +32,9 @@ const HEARTBEAT_TOLERANCE_WINDOW: u32 = 10;
 /// Block interval to generate pseudo-random on chain
 const VRF_INTERVAL: u32 = 5;
 
+/// Master key filepath
+pub const MASTER_KEY_FILEPATH: &str = "master_key.seal";
+
 // pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
 fn next_random_number(
     master_key: &ecdsa::Pair,
@@ -113,6 +116,10 @@ where
     pub fn set_master_key(&mut self, master_key: ecdsa::Pair) {
         if self.master_key.is_none() {
             self.master_key = Some(master_key);
+            self.seal_master_key(MASTER_KEY_FILEPATH);
+        } else if let Some(my_master_key) = &self.master_key {
+            // TODO.shelven: remove this assertion after we enable master key rotation
+            assert!(my_master_key.seed() == master_key.seed());
         }
     }
 
@@ -143,7 +150,7 @@ where
     /// Unsead master key seed and verify signature
     ///
     /// This function could panic a lot.
-    pub fn unseal_master_key(&mut self, filepath: &str) {
+    pub fn try_unseal_master_key(&mut self, filepath: &str) {
         let mut file = match SgxFile::open(filepath) {
             Ok(file) => file,
             Err(e) => {
@@ -618,13 +625,7 @@ where
                 Ok(seed) => {
                     let decrypted_master_key =
                         ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
-
-                    if let Some(master_key) = &self.state.master_key {
-                        // TODO.shelven: remove this check after we enable master key rotation
-                        assert!(master_key.seed() == decrypted_master_key.seed());
-                    } else {
-                        self.state.set_master_key(decrypted_master_key);
-                    }
+                    self.state.set_master_key(decrypted_master_key);
                 }
                 Err(e) => {
                     panic!("Failed to decrypt dispatched master key: {:?}", e);
