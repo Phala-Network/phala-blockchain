@@ -14,8 +14,8 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, GatekeeperEvent, HeartbeatChallenge, MessageOrigin,
-			MiningInfoUpdateEvent, SettleInfo, SystemEvent,
-			TokenomicParameters as TokenomicParams, WorkerEvent,
+			MiningInfoUpdateEvent, SettleInfo, SystemEvent, TokenomicParameters as TokenomicParams,
+			WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -504,7 +504,6 @@ pub mod pallet {
 		}
 	}
 
-	/// Genesis config to add some genesis worker or gatekeeper for testing purpose.
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub tokenomic_parameters: TokenomicParams,
@@ -520,11 +519,12 @@ pub mod pallet {
 			}
 
 			let pha_rate = fp(1);
-			let rho = fp(10002) / 10000; // 1.00020
-			let slash_rate_per_block = fp(1) / 1000 / 600; // hourly rate: 0.001, convert to per-block rate
+			let rho = fp(100000099985) / 100000000000; // hourly: 1.00020,  1.0002 ** (1/300)
+			let slash_rate = fp(1) / 1000 / 300; // hourly rate: 0.001, convert to per-block rate
 			let budget_per_sec = fp(1000);
 			let v_max = fp(30000);
-			let alpha = fp(287) / 10000; // 0.0287
+			let cost_k = fp(287) / 10000 / 300; // hourly: 0.0287
+			let cost_b = fp(15) / 300; // hourly : 15
 			let heartbeat_window = 10; // 10 blocks
 
 			Self {
@@ -533,8 +533,9 @@ pub mod pallet {
 					rho: rho.to_bits(),
 					budget_per_sec: budget_per_sec.to_bits(),
 					v_max: v_max.to_bits(),
-					alpha: alpha.to_bits(),
-					slash_rate_per_block: slash_rate_per_block.to_bits(),
+					cost_k: cost_k.to_bits(),
+					cost_b: cost_b.to_bits(),
+					slash_rate: slash_rate.to_bits(),
 					heartbeat_window: 10,
 				},
 			}
