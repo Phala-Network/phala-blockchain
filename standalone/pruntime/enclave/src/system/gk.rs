@@ -556,14 +556,14 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 
 mod tokenomic {
     pub use fixed::types::U64F64 as FixedPoint;
-    use phala_types::messaging::TokenomicParameters;
     use fixed_sqrt::FixedSqrt as _;
+    use phala_types::messaging::TokenomicParameters;
 
     pub fn fp(n: u64) -> FixedPoint {
         FixedPoint::from_num(n)
     }
 
-    fn pow2(v: FixedPoint) -> FixedPoint {
+    fn square(v: FixedPoint) -> FixedPoint {
         v * v
     }
 
@@ -588,13 +588,15 @@ mod tokenomic {
         pub confidence_level: u8,
     }
 
+    #[derive(Debug)]
     pub struct Params {
         pha_rate: FixedPoint,
         rho: FixedPoint,
-        slash_rate_per_block: FixedPoint,
+        slash_rate: FixedPoint,
         budget_per_sec: FixedPoint,
         v_max: FixedPoint,
-        alpha: FixedPoint,
+        cost_k: FixedPoint,
+        cost_b: FixedPoint,
         pub heartbeat_window: u32,
     }
 
@@ -603,10 +605,11 @@ mod tokenomic {
             Params {
                 pha_rate: FixedPoint::from_bits(params.pha_rate),
                 rho: FixedPoint::from_bits(params.rho),
-                slash_rate_per_block: FixedPoint::from_bits(params.slash_rate_per_block),
+                slash_rate: FixedPoint::from_bits(params.slash_rate),
                 budget_per_sec: FixedPoint::from_bits(params.budget_per_sec),
                 v_max: FixedPoint::from_bits(params.v_max),
-                alpha: FixedPoint::from_bits(params.alpha),
+                cost_k: FixedPoint::from_bits(params.cost_k),
+                cost_b: FixedPoint::from_bits(params.cost_b),
                 heartbeat_window: params.heartbeat_window,
             }
         }
@@ -615,19 +618,21 @@ mod tokenomic {
     pub fn test_params() -> Params {
         Params {
             pha_rate: fp(1),
-            rho: fp(10002) / 10000,                   // 1.00020
-            slash_rate_per_block: fp(1) / 1000 / 600, // hourly rate: 0.001, convert to per-block rate
+            rho: fp(100000099985) / 100000000000, // hourly: 1.00020, 1.0002 ** (1/300)
+            slash_rate: fp(1) / 1000 / 300,       // hourly rate: 0.001, convert to per-block rate
             budget_per_sec: fp(1000),
             v_max: fp(30000),
-            alpha: fp(287) / 10000, // 0.0287
-            heartbeat_window: 10,   // 10 blocks
+            cost_k: fp(287) / 10000 / 300, // 0.0287
+            cost_b: fp(15) / 300,
+            heartbeat_window: 10, // 10 blocks
         }
     }
 
     impl TokenomicInfo {
         /// case1: Idle, no event
         pub fn update_v_idle(&mut self, params: &Params) {
-            let cost_idle = (params.alpha * self.p_bench + fp(15)) / params.pha_rate / fp(365);
+            let cost_idle =
+                (params.cost_k * self.p_bench + params.cost_b) / params.pha_rate / fp(365);
             let perf_multiplier = if self.p_bench == fp(0) {
                 fp(1)
             } else {
@@ -666,11 +671,11 @@ mod tokenomic {
         }
 
         pub fn update_v_slash(&mut self, params: &Params) {
-            self.v -= self.v * params.slash_rate_per_block;
+            self.v -= self.v * params.slash_rate;
         }
 
         pub fn share(&self) -> FixedPoint {
-            (pow2(self.v) + pow2(fp(2) * self.p_instant * conf_score(self.confidence_level))).sqrt()
+            (square(self.v) + square(fp(2) * self.p_instant * conf_score(self.confidence_level))).sqrt()
         }
 
         pub fn update_p_instant(&mut self, now: u64, iterations: u64) {
@@ -873,6 +878,7 @@ pub mod tests {
         gk_should_slash_and_report_offline_workers_case3();
         gk_should_slash_offline_workers_sliently_case4();
         gk_should_report_recovered_workers_case5();
+        show_v_computing();
     }
 
     fn gk_should_be_able_to_observe_worker_states() {
@@ -1031,10 +1037,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        assert!(
-            !r.get_worker(0).unresponsive,
-            "Worker should be online"
-        );
+        assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert_eq!(
             r.gk.egress.drain_mining_info_update_event().len(),
             0,
@@ -1052,10 +1055,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        assert!(
-            !r.get_worker(0).unresponsive,
-            "Worker should be online"
-        );
+        assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert_eq!(
             r.gk.egress.drain_mining_info_update_event().len(),
             0,
@@ -1104,10 +1104,7 @@ pub mod tests {
             r.gk.process_messages(block);
         });
 
-        assert!(
-            !r.get_worker(0).unresponsive,
-            "Worker should be online"
-        );
+        assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert!(
             v_snap > r.get_worker(0).tokenomic.v,
             "Worker should be payed out"
@@ -1321,7 +1318,8 @@ pub mod tests {
             r.gk.process_messages(block);
         });
         assert_eq!(
-            v_snap, r.get_worker(0).tokenomic.v,
+            v_snap,
+            r.get_worker(0).tokenomic.v,
             "Worker should not be slashed or rewarded"
         );
         {
@@ -1337,5 +1335,67 @@ pub mod tests {
             assert_eq!(messages.len(), 1, "Should report recover event");
             assert_eq!(messages[0], expected_message);
         }
+    }
+
+    fn show_v_computing() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp(3000).to_bits(),
+            });
+            r.gk.process_messages(block);
+        });
+
+        info!("init v = {}", r.get_worker(0).tokenomic.v);
+
+        // Reward
+        for _ in 0..3600 * 24 / 12 {
+            block_number += 1;
+            with_block(block_number, |block| {
+                r.gk.process_messages(block);
+            });
+        }
+        info!("mined v = {}", r.get_worker(0).tokenomic.v);
+
+        // Pay out
+        block_number += 1;
+        r.for_worker(0).challenge();
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+
+        r.for_worker(0).heartbeat(1, block_number, 100000);
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        info!("after payed out v = {}", r.get_worker(0).tokenomic.v);
+
+        // Slash
+        r.for_worker(0).challenge();
+
+        for _ in 0..3600 * 24 / 12 {
+            block_number += 1;
+            with_block(block_number, |block| {
+                r.gk.process_messages(block);
+            });
+        }
+        info!("slashed v = {}", r.get_worker(0).tokenomic.v);
     }
 }
