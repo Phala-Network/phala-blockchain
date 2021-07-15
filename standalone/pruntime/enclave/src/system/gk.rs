@@ -135,10 +135,14 @@ where
         self.master_key.is_some()
     }
 
-    pub fn set_master_key(&mut self, master_key: ecdsa::Pair) {
+    pub fn set_master_key(&mut self, master_key: ecdsa::Pair, need_restart: bool) {
         if self.master_key.is_none() {
             self.master_key = Some(master_key);
             self.seal_master_key(MASTER_KEY_FILEPATH);
+
+            if need_restart {
+                panic!("Received master key, please restart pRuntime and pHost");
+            }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation
             assert!(my_master_key.seed() == master_key.seed());
@@ -169,7 +173,7 @@ where
         }
     }
 
-    /// Unsead master key seed and verify signature
+    /// Unseal local master key seed and verify signature
     ///
     /// This function could panic a lot.
     pub fn try_unseal_master_key(&mut self, filepath: &str) {
@@ -215,7 +219,7 @@ where
             panic!("Broken sealed master key");
         }
 
-        self.set_master_key(ecdsa::Pair::from_seed(&seed));
+        self.set_master_key(ecdsa::Pair::from_seed(&seed), false);
     }
 
     pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
@@ -571,9 +575,13 @@ where
             if event.gatekeeper_count == 1 {
                 if self.state.master_key.is_none() {
                     // generate master key as the first gatekeeper
-                    self.state.set_master_key(crate::new_ecdsa_key().expect(
-                        "key generation should never fail since we give seed of correct sieze",
-                    ));
+                    // no need to restart
+                    self.state.set_master_key(
+                        crate::new_ecdsa_key().expect(
+                            "key generation should never fail since we give seed of correct sieze",
+                        ),
+                        false,
+                    );
                 }
             }
             self.state.resigister_on_chain();
@@ -645,7 +653,7 @@ where
                 Ok(seed) => {
                     let decrypted_master_key =
                         ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
-                    self.state.set_master_key(decrypted_master_key);
+                    self.state.set_master_key(decrypted_master_key, true);
                 }
                 Err(e) => {
                     panic!("Failed to decrypt dispatched master key: {:?}", e);
