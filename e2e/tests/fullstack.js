@@ -464,11 +464,17 @@ function newNode(wsPort, tmpPath, name='node') {
 }
 
 function newPRuntime(teePort, tmpPath, name='pruntime') {
+	const workDir = path.resolve(`${tmpPath}/${name}`);
+	fs.mkdirSync(workDir);
+	const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
+	filesToCopy.forEach(f =>
+		fs.symlinkSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
+	);
 	return new Process([
-		pathPRuntime, [
+		`${workDir}/app`, [
 			'--cores=0',	// Disable benchmark
 		], {
-			cwd: path.dirname(pathPRuntime),
+			cwd: workDir,
 			env: {
 				...process.env,
 				ROCKET_PORT: teePort.toString(),
