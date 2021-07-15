@@ -127,10 +127,11 @@ pub mod pallet {
 						if (now - info.start_time)
 							> T::InsurancePeriod::get().saturated_into::<u64>()
 						{
-							// stop all worker all this pool
+							// stop all worker in this pool
+							// TODO: only stop running workers?
 							for worker in pool_info.workers {
 								let miner: T::AccountId = pool_sub_account(pid, &worker);
-								<mining::pallet::Pallet<T>>::stop_mining(miner);
+								let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
 							}
 						}
 					}
@@ -192,9 +193,9 @@ pub mod pallet {
 			);
 
 			// origin must be owner of pool
-			let mut pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			ensure!(
-				&pool_info.owner == &owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// make sure worker has not been not added
@@ -257,10 +258,10 @@ pub mod pallet {
 
 			ensure!(payout_commission <= 1000, Error::<T>::InvalidPayoutPerf);
 
-			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			let pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(
-				&pool_info.owner == &owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 
@@ -288,7 +289,7 @@ pub mod pallet {
 			let info_key = (pid.clone(), who.clone());
 			let mut user_info =
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
-			let pool_info = Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)?;
+			let pool_info = Self::ensure_pool(pid)?;
 
 			// update pool
 			Self::update_pool(pid.clone());
@@ -327,7 +328,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
-			let mut pool_info = Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			Self::update_pool(pid.clone());
 
 			let info_key = (pid.clone(), who.clone());
@@ -395,11 +396,11 @@ pub mod pallet {
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
 
 			ensure!(
-				&amount > &Zero::zero() && &user_info.amount >= &amount,
+				amount > Zero::zero() && user_info.amount >= amount,
 				Error::<T>::InvalidWithdrawAmount
 			);
 
-			let mut pool_info = Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
@@ -434,15 +435,15 @@ pub mod pallet {
 			stake: BalanceOf<T>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let mut pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(
-				&pool_info.owner == &owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// check free stake
 			ensure!(
-				&(pool_info.free_stake) >= &stake,
+				pool_info.free_stake >= stake,
 				Error::<T>::InsufficientStake
 			);
 			// check wheather we have add this worker
@@ -479,10 +480,10 @@ pub mod pallet {
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			let pool_info = Self::mining_pools(pid).ok_or(Error::<T>::PoolNotExist)?;
+			let pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(
-				&pool_info.owner == &owner,
+				pool_info.owner == owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
 			// check wheather we have add this worker
@@ -604,6 +605,7 @@ pub mod pallet {
 					let mut user_info = Self::staking_info(&info_key).unwrap();
 
 					if pool_info.free_stake < withdraw_info.amount {
+						// FIXME: free_stake == 0, then the rest of the logic does nothing
 						pool_info.free_stake = Zero::zero();
 						pool_info.total_stake =
 							pool_info.total_stake.saturating_sub(pool_info.free_stake);
@@ -613,10 +615,7 @@ pub mod pallet {
 						// push front the updated withdraw info
 						pool_info.withdraw_queue.push_front(withdraw_info);
 
-						// update user_debt which would determine the user's rewards
 						user_info.amount = user_info.amount.saturating_sub(pool_info.free_stake);
-						user_info.user_debt =
-							user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
 					} else {
 						// all of the amount would be withdraw to user and no need to push the popped one back
 						pool_info.free_stake =
@@ -624,11 +623,11 @@ pub mod pallet {
 						pool_info.total_stake =
 							pool_info.total_stake.saturating_sub(withdraw_info.amount);
 
-						// update user_debt which would determine the user's rewards
 						user_info.amount = user_info.amount.saturating_sub(withdraw_info.amount);
-						user_info.user_debt =
-							user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
 					}
+					// update user_debt which would determine the user's rewards
+					user_info.user_debt =
+						user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
 
 					StakingInfo::<T>::insert(&info_key, &user_info);
 
@@ -638,6 +637,7 @@ pub mod pallet {
 			}
 		}
 
+		/// Updates a user's locked balance. Doesn't check the amount is less than the free amount!
 		fn update_lock(who: T::AccountId, amount: BalanceOf<T>) {
 			if amount == Zero::zero() {
 				<T as Config>::Currency::remove_lock(STAKING_ID, &who);
@@ -675,7 +675,7 @@ pub mod pallet {
 		fn on_cleanup(worker: &WorkerPublicKey, deposit_balance: BalanceOf<T>) {
 			let pid =
 				WorkerInPool::<T>::get(worker).expect("Mining workers must be in the pool; qed.");
-			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
+			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
 			// with the worker been cleaned, whose stake now are free
 			pool_info.free_stake = pool_info.free_stake.saturating_add(deposit_balance);
