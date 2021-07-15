@@ -108,6 +108,37 @@ describe('A full stack', function () {
 		});
 	});
 
+	describe('Gatekeeper', () => {
+		it('can be resigered', async function () {
+			const info = await pruntime[1].getInfo();
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.forceRegisterWorker(
+						hex(info.public_key),
+						hex(info.ecdh_public_key),
+						null,
+					)
+				),
+				alice,
+			);
+
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+				),
+				alice,
+			);
+
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				return info.registered;
+			}, 4*6000), 'not registered in time');
+
+			// TODO: check if the role is Gatekeeper
+		});
+	});
+
 	describe('Solo mining workflow', () => {
 		let miner;
 		before(function () {
@@ -121,7 +152,7 @@ describe('A full stack', function () {
 			const operator = workerInfo.unwrap().operator.unwrap();
 			assert.equal(operator.toHuman(), alice.address, 'bad operator');
 
-			await assertSuccess(api.tx.phalaMining.bind(workerKey), alice);
+			await assert.txAccepted(api.tx.phalaMining.bind(workerKey), alice);
 
 			let actualWorker = await api.query.phalaMining.minerBinding(alice.address);
 			let actualMiner = await api.query.phalaMining.workerBinding(workerKey);
@@ -144,10 +175,9 @@ describe('A full stack', function () {
 		it('can deposite some stake')
 
 		it.skip('can start mining', async function () {
-			await assertSuccess(api.tx.phalaMining.startMining(), alice);
+			await assert.txAccepted(api.tx.phalaMining.startMining(), alice);
 			let minerInfo = await api.query.phalaMining.miners(alice.address);
 			minerInfo = minerInfo.unwrap();
-			console.log(minerInfo.state.toHuman());
 			assert.isTrue(minerInfo.state.isIdle, 'miner state should be MiningIdle');
 		})
 
@@ -208,7 +238,7 @@ describe('A full stack', function () {
 
 		it('can set payout preference', async function () {
 			// commission: 50%, target: reward address
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.setPayoutPrefs(50, reward.address),
 				controller);
 
@@ -219,7 +249,7 @@ describe('A full stack', function () {
 
 		it('can force register a worker', async function () {
 			const pubkey = '0x0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.sudo.sudo(
 					api.tx.phalaModule.forceRegisterWorker(stash.address, 'fake_mid', pubkey)),
 				root);
@@ -229,11 +259,11 @@ describe('A full stack', function () {
 		});
 
 		it('can start mining', async function () {
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.startMiningIntention(),
 				controller);
 			// Get into the next mining round
-			const { events } = await assertSuccess(
+			const { events } = await assert.txAccepted(
 				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
 				root);
 
@@ -251,10 +281,10 @@ describe('A full stack', function () {
 		});
 
 		it('can stop mining', async function () {
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.stopMiningIntention(),
 				controller);
-			const { events } = await assertSuccess(
+			const { events } = await assert.txAccepted(
 				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
 				root);
 
@@ -302,6 +332,7 @@ async function assertSuccess(txBuilder, signer) {
 		});
 	});
 }
+assert.txAccepted = assertSuccess;
 
 function fillPartialArray(obj, pattern) {
 	for (const [idx, v] of obj.entries()) {
@@ -375,7 +406,6 @@ class Cluster {
 		]);
 		this.wsPort = wsPort;
 		this.workers.forEach((w, i) => w.port = workerPorts[i]);
-		console.log(this.workers);
 	}
 
 	_createProcesses() {
@@ -456,4 +486,12 @@ function newRelayer(wsPort, teePort, tmpPath, key, name='relayer') {
 			`--pruntime-endpoint=http://localhost:${teePort}`
 		]
 	], { logPath: `${tmpPath}/${name}.log` });
+}
+
+function hex(b) {
+	if (!b.startsWith('0x')) {
+		return '0x' + b;
+	} else {
+		return b;
+	}
 }
