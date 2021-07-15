@@ -55,7 +55,8 @@ std = [
     "sp-core/full_crypto",
     "frame-benchmarking/std",
     "pallet-balances/std",
-    "log/std"
+    "log/std",
+	"phala-types/enable_serde",
 ]
 runtime-benchmarks = [
     "frame-benchmarking"

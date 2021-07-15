@@ -875,7 +875,6 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
 #[no_mangle]
 pub extern "C" fn ecall_run_tests() -> sgx_status_t {
     run_all_tests();
-    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1661,4 +1660,5 @@ mod identity {
 #[cfg(feature = "tests")]
 fn run_all_tests() {
     system::run_all_tests();
+    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
 }

@@ -346,6 +346,7 @@ pub fn testnet_genesis(
 			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
 		},
 		phala_registry,
+		phala_mining: Default::default(),
 	}
 }
 

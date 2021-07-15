@@ -15,6 +15,9 @@ pub mod messaging {
     use core::fmt::Debug;
     use sp_core::U256;
 
+    #[cfg(feature = "enable_serde")]
+    use serde::{Deserialize, Serialize};
+
     use super::EcdhP256PublicKey;
     use super::WorkerPublicKey;
     pub use phala_mq::bind_topic;
@@ -289,6 +292,7 @@ pub mod messaging {
         Registered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
         NewRandomNumber(RandomNumberEvent),
+        UpdateTokenomic(TokenomicParameters),
     }
 
     // Walkaround for heavy dep on phala-crypto
@@ -362,6 +366,19 @@ pub mod messaging {
         pub block_number: u32,
         pub random_number: RandomNumber,
         pub last_random_number: RandomNumber,
+    }
+
+    #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct TokenomicParameters {
+        pub pha_rate: U64F64Bits,
+        pub rho: U64F64Bits,
+        pub budget_per_sec: U64F64Bits,
+        pub v_max: U64F64Bits,
+        pub cost_k: U64F64Bits,
+        pub cost_b: U64F64Bits,
+        pub slash_rate: U64F64Bits,
+        pub heartbeat_window: u32,
     }
 }
 

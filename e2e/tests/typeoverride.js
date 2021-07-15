@@ -63,9 +63,8 @@ const types = {
 		"payoutCommission": "u16",
 		"ownerReward": "Balance",
 		"poolAcc": "Balance",
-		"lastRewardBlock": "BlockNumber",
-		"totalStaked": "Balance",
-		"extraStaked": "Balance",
+		"totalStake": "Balance",
+		"lockedStake": "Balance",
 		"workers": "Vec<WorkerPublicKey>"
 	},
 	"ProposalStatus": {

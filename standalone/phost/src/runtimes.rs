@@ -73,10 +73,8 @@ impl Runtime for PhalaNodeRuntime {
         event_type_registry.with_staking();
         event_type_registry.with_session();
 
-        use phala::PhalaEventTypeRegistry;
         use chain_bridge::ChainBridgeEventTypeRegistry;
 
-        event_type_registry.with_phala();
         event_type_registry.with_chain_bridge();
 
         register_default_type_sizes(event_type_registry);
@@ -112,7 +110,6 @@ impl Session for PhalaNodeRuntime {
     type Keys = BasicSessionKeys;
 }
 
-impl phala::Phala for PhalaNodeRuntime {}
 impl phala_mq::PhalaMq for PhalaNodeRuntime {}
 
 impl mining_staking::MiningStaking for PhalaNodeRuntime {}
@@ -141,46 +138,6 @@ pub mod grandpa {
         pub fn new() -> Self {
             Self {
                 _runtime: Default::default()
-            }
-        }
-    }
-}
-
-pub mod phala {
-    use codec::{Encode, Decode};
-    use subxt::{
-        module, Store,
-        system::System,
-        balances::Balances
-    };
-    use core::marker::PhantomData;
-    use phala_types::{PayoutReason, WorkerPublicKey};
-
-    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
-    pub struct EthereumTxHash([u8; 32]);
-
-    #[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq)]
-    pub struct EthereumAddress([u8; 20]);
-
-
-    #[module]
-    pub trait Phala: System + Balances {
-        #![event_type(PayoutReason)]
-        #![event_type(WorkerPublicKey)]
-    }
-
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct MachineOwnerStore<T: Phala> {
-        #[store(returns = [u8; 32])]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-        pub machine_id: Vec<u8>,
-    }
-    impl<T: Phala> MachineOwnerStore<T> {
-        pub fn new(machine_id: Vec<u8>) -> Self {
-            Self {
-                _runtime: Default::default(),
-                machine_id,
             }
         }
     }
