@@ -62,7 +62,7 @@ pub mod pallet {
 	pub(super) type NewRewards<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, BalanceOf<T>>;
 
-	/// Mapping worker to it's pool
+	/// Mapping worker to the pool it belongs to
 	#[pallet::storage]
 	pub(super) type WorkerInPool<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
 
@@ -374,7 +374,7 @@ pub mod pallet {
 			pool_info.free_stake = pool_info.free_stake.saturating_add(amount.clone());
 
 			// we have new free stake now, try handle the waitting withdraw queue
-			Self::try_handle_waitting_withdraw(&mut pool_info);
+			Self::try_handle_waiting_withdraw(&mut pool_info);
 
 			MiningPools::<T>::insert(&pid, &pool_info);
 
@@ -598,7 +598,7 @@ pub mod pallet {
 			Self::update_lock(user_info.user.clone(), user_info.amount);
 		}
 
-		fn try_handle_waitting_withdraw(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
+		fn try_handle_waiting_withdraw(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			while pool_info.free_stake > Zero::zero() {
 				if pool_info.withdraw_queue.is_empty() {
 					break;
@@ -679,7 +679,7 @@ pub mod pallet {
 			// with the worker been cleaned, whose stake now are free
 			pool_info.free_stake = pool_info.free_stake.saturating_add(deposit_balance);
 
-			Self::try_handle_waitting_withdraw(&mut pool_info);
+			Self::try_handle_waiting_withdraw(&mut pool_info);
 			MiningPools::<T>::insert(&pid, &pool_info);
 		}
 	}
