@@ -61,7 +61,7 @@ pub mod pallet {
 	}
 
 	pub trait OnCleanup<Balance> {
-		fn on_cleanup(worker: WorkerPublicKey, deposit_balance: Balance) {}
+		fn on_cleanup(worker: &WorkerPublicKey, deposit_balance: Balance) {}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -203,7 +203,8 @@ pub mod pallet {
 
 			// execute callback
 			let deposit_balance = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			T::OnCleanup::on_cleanup(worker, deposit_balance);
+			// TODO: clean up based on V
+			T::OnCleanup::on_cleanup(&worker, deposit_balance);
 
 			// clear deposit balance
 			DepositBalance::<T>::insert(&miner, BalanceOf::<T>::zero());

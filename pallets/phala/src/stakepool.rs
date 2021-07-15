@@ -671,9 +671,9 @@ pub mod pallet {
 		/// Called when worker was cleanuped
 		/// After collingdown end, worker was cleanuped, whose deposit balance
 		/// would be reset to zero
-		fn on_cleanup(worker: WorkerPublicKey, deposit_balance: BalanceOf<T>) {
+		fn on_cleanup(worker: &WorkerPublicKey, deposit_balance: BalanceOf<T>) {
 			let pid =
-				WorkerInPool::<T>::get(&worker).expect("Mining workers must be in the pool; qed.");
+				WorkerInPool::<T>::get(worker).expect("Mining workers must be in the pool; qed.");
 			let mut pool_info = MiningPools::<T>::get(&pid).expect("Pool not exist; qed.");
 
 			// with the worker been cleaned, whose stake now are free
