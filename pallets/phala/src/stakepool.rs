@@ -608,7 +608,7 @@ pub mod pallet {
 					let info_key = (pool_info.pid.clone(), withdraw_info.user.clone());
 					let mut user_info = Self::staking_info(&info_key).unwrap();
 
-					if pool_info.free_stake <= withdraw_info.amount {
+					if pool_info.free_stake < withdraw_info.amount {
 						pool_info.free_stake = Zero::zero();
 						pool_info.total_stake =
 							pool_info.total_stake.saturating_sub(pool_info.free_stake);
