@@ -194,10 +194,7 @@ pub mod pallet {
 
 			// origin must be owner of pool
 			let mut pool_info = Self::ensure_pool(pid)?;
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// make sure worker has not been not added
 			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
@@ -260,10 +257,7 @@ pub mod pallet {
 
 			let pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 
 			MiningPools::<T>::mutate(&pid, |pool| {
 				if let Some(pool) = pool {
@@ -437,15 +431,9 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// check free stake
-			ensure!(
-				pool_info.free_stake >= stake,
-				Error::<T>::InsufficientStake
-			);
+			ensure!(pool_info.free_stake >= stake, Error::<T>::InsufficientStake);
 			// check wheather we have add this worker
 			ensure!(
 				pool_info.workers.contains(&worker),
@@ -482,10 +470,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 			let pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
-			ensure!(
-				pool_info.owner == owner,
-				Error::<T>::UnauthorizedPoolOwner
-			);
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// check wheather we have add this worker
 			ensure!(
 				pool_info.workers.contains(&worker),
