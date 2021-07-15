@@ -2,10 +2,17 @@ use crate::types::{Message, MessageToBeSigned, SignedMessage};
 use crate::{MessageOrigin, MessageSigner, Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
+
+#[derive(Default)]
+struct Channel {
+    sequence: u64,
+    messages: Vec<SignedMessage>,
+    dummy: bool,
+}
+
 #[derive(Clone, Default)]
 pub struct MessageSendQueue {
-    // Map: sender -> (next sequence, messages)
-    inner: Arc<Mutex<BTreeMap<SenderId, (u64, Vec<SignedMessage>)>>>,
+    inner: Arc<Mutex<BTreeMap<SenderId, Channel>>>,
 }
 
 impl MessageSendQueue {
@@ -26,16 +33,24 @@ impl MessageSendQueue {
     ) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
-        let message = constructor(entry.0);
-        entry.1.push(message);
-        entry.0 += 1;
+        if !entry.dummy {
+            let message = constructor(entry.sequence);
+            entry.messages.push(message);
+        }
+        entry.sequence += 1;
+    }
+
+    pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
+        let mut inner = self.inner.lock();
+        let entry = inner.entry(sender).or_default();
+        entry.dummy = dummy;
     }
 
     pub fn all_messages(&self) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
         inner
             .iter()
-            .flat_map(|(_k, v)| v.1.iter().cloned())
+            .flat_map(|(_k, v)| v.messages.iter().cloned())
             .collect()
     }
 
@@ -43,19 +58,19 @@ impl MessageSendQueue {
         let inner = self.inner.lock();
         inner
             .iter()
-            .map(|(k, v)| (k.clone(), v.1.clone()))
+            .map(|(k, v)| (k.clone(), v.messages.clone()))
             .collect()
     }
 
     pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
-        inner.get(sender).map(|x| x.1.clone()).unwrap_or(Vec::new())
+        inner.get(sender).map(|x| x.messages.clone()).unwrap_or(Vec::new())
     }
 
     pub fn count_messages(&self) -> usize {
         self.inner.lock()
             .iter()
-            .map(|(_k, v)| v.1.len())
+            .map(|(_k, v)| v.messages.len())
             .sum()
     }
 
@@ -64,7 +79,7 @@ impl MessageSendQueue {
         let mut inner = self.inner.lock();
         for (k, v) in inner.iter_mut() {
             let seq = next_sequence_for(k);
-            v.1.retain(|msg| msg.sequence >= seq);
+            v.messages.retain(|msg| msg.sequence >= seq);
         }
     }
 }
@@ -123,6 +138,11 @@ mod msg_channel {
 
         pub fn send<M: Encode + BindTopic>(&self, message: &M) {
             self.sendto(message, <M as BindTopic>::TOPIC)
+        }
+
+        /// Set the channel to dummy mode which increasing the sequence but dropping the message.
+        pub fn set_dummy(&self, dummy: bool) {
+            self.queue.set_dummy_mode(self.sender.clone(), dummy);
         }
     }
 }
