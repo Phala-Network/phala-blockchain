@@ -120,7 +120,7 @@ pub mod pallet {
 			// 1) should we just stop some of workers rather than all of it
 			// 2) just iterate pools that contains waitting withdraw rather than all of it
 			for pid in 0..PoolCount::<T>::get() {
-				let pool_info = MiningPools::<T>::get(&pid).unwrap();
+				let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 				if !pool_info.withdraw_queue.is_empty() {
 					// the front withdraw always the oldest one
 					if let Some(info) = pool_info.withdraw_queue.front() {
@@ -509,7 +509,7 @@ pub mod pallet {
 		pub fn pending_rewards(pid: u64, who: T::AccountId) -> BalanceOf<T> {
 			let info_key = (pid.clone(), who.clone());
 			let user_info = Self::staking_info(&info_key).expect("Stake info doesn't exist; qed.");
-			let pool_info = Self::mining_pools(&pid).expect("Stake pool doesn't exist; qed.");
+			let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 
 			// rewards belong to user, including pending rewards and available_rewards
 			let rewards = user_info.available_rewards.saturating_add(
@@ -523,7 +523,7 @@ pub mod pallet {
 			let mut new_rewards;
 			// TODO: check payout block height
 			// let currentBlock = <frame_system::Pallet<T>>::block_number();
-			let mut pool_info = Self::mining_pools(&pid).unwrap();
+			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 
 			new_rewards = Self::calculate_reward(pid);
 			Self::reward_clear(&pool_info.workers);
@@ -543,7 +543,7 @@ pub mod pallet {
 		}
 
 		fn calculate_reward(pid: u64) -> BalanceOf<T> {
-			let pool_info = Self::mining_pools(&pid).unwrap();
+			let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 			let mut pool_new_rewards: BalanceOf<T> = Zero::zero();
 			for worker in pool_info.workers {
 				pool_new_rewards =
@@ -648,6 +648,10 @@ pub mod pallet {
 			// reset lock
 			<T as Config>::Currency::set_lock(STAKING_ID, &who, amount, WithdrawReasons::all());
 		}
+
+		fn ensure_pool(pid: u64) -> Result<PoolInfo<T::AccountId, BalanceOf<T>>, Error<T>> {
+			Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)
+		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T> {
@@ -674,7 +678,7 @@ pub mod pallet {
 		fn on_cleanup(worker: &WorkerPublicKey, deposit_balance: BalanceOf<T>) {
 			let pid =
 				WorkerInPool::<T>::get(worker).expect("Mining workers must be in the pool; qed.");
-			let mut pool_info = MiningPools::<T>::get(&pid).expect("Pool not exist; qed.");
+			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 
 			// with the worker been cleaned, whose stake now are free
 			pool_info.free_stake = pool_info.free_stake.saturating_add(deposit_balance);
