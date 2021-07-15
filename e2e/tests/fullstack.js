@@ -434,7 +434,7 @@ class Cluster {
 		// Launch relayers
 		await Promise.all(
 			this.workers.map(w => w.processRelayer
-				.startAndWaitForOutput(/runtime_info:InitRuntimeResp/)
+				.startAndWaitForOutput(/runtime_info: InitRuntimeResp/)
 			)
 		);
 	}

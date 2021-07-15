@@ -566,7 +566,7 @@ async fn bridge(args: Args) -> Result<()> {
     // Try to initialize pRuntime and register on-chain
     let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !args.no_init {
-        let mut runtime_info: Option<InitRuntimeResp> = None;
+        let runtime_info;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
             let operator_hex = match args.operator {
@@ -577,17 +577,15 @@ async fn bridge(args: Args) -> Result<()> {
                     Some(hex::encode(&parsed_operator))
                 }
             };
-            runtime_info = Some(
-                init_runtime(
-                    &client,
-                    &pr,
-                    !args.ra,
-                    args.use_dev_key,
-                    &args.inject_key,
-                    operator_hex,
-                )
-                .await?,
-            );
+            runtime_info = init_runtime(
+                &client,
+                &pr,
+                !args.ra,
+                args.use_dev_key,
+                &args.inject_key,
+                operator_hex,
+            )
+            .await?;
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = true
             pruntime_initialized = true;
@@ -603,10 +601,9 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
         } else {
             info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = Some(
-                pr.req_decode("get_runtime_info", GetRuntimeInfoReq {})
-                    .await?,
-            );
+            runtime_info = pr
+                .req_decode("get_runtime_info", GetRuntimeInfoReq {})
+                .await?;
 
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
@@ -622,11 +619,9 @@ async fn bridge(args: Args) -> Result<()> {
             .await
             .ok();
         }
-        info!("runtime_info:{:?}", runtime_info);
-        if let Some(runtime_info) = runtime_info {
-            if let Some(attestation) = runtime_info.attestation {
-                pending_register_info = Some((attestation, runtime_info.encoded_runtime_info));
-            }
+        info!("runtime_info: {:?}", runtime_info);
+        if let Some(attestation) = runtime_info.attestation {
+            pending_register_info = Some((attestation, runtime_info.encoded_runtime_info));
         }
     }
 
