@@ -17,7 +17,7 @@ pub mod pallet {
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
-		traits::{AccountIdConversion, AtLeast32BitUnsigned, Saturating, TrailingZeroInput, Zero},
+		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
 		SaturatedConversion,
 	};
 	use sp_std::collections::vec_deque::VecDeque;
