@@ -109,7 +109,7 @@ describe('A full stack', function () {
 	});
 
 	describe('Gatekeeper', () => {
-		it('can be resigered', async function () {
+		it('can be registered', async function () {
 			const info = await pruntime[1].getInfo();
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
