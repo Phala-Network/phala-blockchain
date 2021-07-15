@@ -5,7 +5,7 @@ use ring::rand::SecureRandom;
 pub const IV_BYTES: usize = 12;
 pub type IV = [u8; IV_BYTES];
 
-pub fn generate_iv() -> IV {
+pub fn generate_random_iv() -> IV {
     let mut nonce_vec = [0u8; IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();

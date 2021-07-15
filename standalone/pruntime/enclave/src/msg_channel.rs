@@ -76,7 +76,7 @@ pub mod osp {
                     }
                     Some(pubkey) => {
                         let mut data = message.encode();
-                        let iv = aead::generate_iv();
+                        let iv = aead::generate_random_iv();
                         let sk = ecdh::agree(&self.key.privkey, &pubkey);
                         aead::encrypt(&iv, &sk, &mut data);
                         let payload: OspPayload<M> = OspPayload::Encrypted(AeadCipher {
