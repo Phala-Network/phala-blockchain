@@ -695,11 +695,16 @@ mod msg_trait {
 
     pub trait MessageChannel {
         fn push_message<M: Encode + BindTopic>(&self, message: M);
+        fn set_dummy(&self, dummy: bool);
     }
 
     impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             self.send(&message);
+        }
+
+        fn set_dummy(&self, dummy: bool) {
+            self.set_dummy(dummy);
         }
     }
 }
@@ -772,6 +777,9 @@ pub mod tests {
                 payload: message.encode(),
             };
             self.messages.borrow_mut().push(message);
+        }
+
+        fn set_dummy(&self, _dummy: bool) {
         }
     }
 
