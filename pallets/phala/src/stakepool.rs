@@ -644,9 +644,11 @@ pub mod pallet {
 		}
 
 		fn update_lock(who: T::AccountId, amount: BalanceOf<T>) {
-			<T as Config>::Currency::remove_lock(STAKING_ID, &who);
-			// reset lock
-			<T as Config>::Currency::set_lock(STAKING_ID, &who, amount, WithdrawReasons::all());
+			if amount == Zero::zero() {
+				<T as Config>::Currency::remove_lock(STAKING_ID, &who);
+			} else {
+				<T as Config>::Currency::set_lock(STAKING_ID, &who, amount, WithdrawReasons::all());
+			}
 		}
 
 		fn ensure_pool(pid: u64) -> Result<PoolInfo<T::AccountId, BalanceOf<T>>, Error<T>> {
