@@ -3193,6 +3193,7 @@ version = "0.3.0"
 dependencies = [
  "parity-scale-codec",
  "phala-mq",
+ "serde",
  "sp-core",
 ]
 

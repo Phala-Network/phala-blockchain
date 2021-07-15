@@ -24,8 +24,8 @@ use crate::std::io::{Read, Write};
 use crate::std::sgxfs::SgxFile;
 use crate::std::vec::Vec;
 use msg_trait::MessageChannel;
-use tokenomic::{FixedPoint, TokenomicInfo};
 use parity_scale_codec::Encode;
+use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
 const VRF_INTERVAL: u32 = 5;
@@ -66,6 +66,17 @@ impl WorkerInfo {
     }
 }
 
+// The Gatekeeper's common internal state is consisted of:
+// 1. possessed master key;
+// 2. egress sequence number;
+// 3. worker list;
+// 4. tokenomic params;
+// 5. last random number & last random block;
+//
+// We should ensure the consistency of all the variables above in each block.
+//
+// For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
+// to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
     identity_key: ecdsa::Pair,
     master_key: Option<ecdsa::Pair>,
@@ -106,8 +117,18 @@ where
         }
     }
 
-    pub fn registered_on_chain(&self) -> bool {
+    pub fn is_registered_on_chain(&self) -> bool {
         self.registered_on_chain
+    }
+
+    pub fn resigister_on_chain(&mut self) {
+        self.registered_on_chain = true;
+        self.egress.set_dummy(false);
+    }
+
+    pub fn unresigister_on_chain(&mut self) {
+        self.registered_on_chain = false;
+        self.egress.set_dummy(true);
     }
 
     pub fn possess_master_key(&self) -> bool {
@@ -198,9 +219,7 @@ where
     }
 
     pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
-        if self.registered_on_chain() {
-            self.egress.push_message(message)
-        }
+        self.egress.push_message(message)
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -557,7 +576,7 @@ where
                     ));
                 }
             }
-            self.state.registered_on_chain = true;
+            self.state.resigister_on_chain();
         } else {
             if let Some(master_key) = &self.state.master_key {
                 let my_ecdh_key = self
@@ -895,8 +914,7 @@ pub mod tests {
             self.messages.borrow_mut().push(message);
         }
 
-        fn set_dummy(&self, _dummy: bool) {
-        }
+        fn set_dummy(&self, _dummy: bool) {}
     }
 
     struct Roles {
