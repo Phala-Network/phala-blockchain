@@ -166,7 +166,6 @@ pub mod block_feeders {
     #[derive(Display)]
     pub enum Error {
         EmptyRequest,
-        CodecError,
         MissingJustification,
         IncorrectHeaderOrder,
         HeaderValidateFailed,
@@ -273,6 +272,8 @@ pub mod block_feeders {
     }
 
     impl BlockFeeder {
+
+        /// Feed a block and apply changes to storage if it's valid.
         fn feed_block(
             &mut self,
             block: &BlockHeaderWithEvents,
@@ -380,7 +381,7 @@ pub mod block_feeders {
 
             check_headers_hash(&headers)?;
 
-            // All checks passed, record the state roots
+            // All checks passed, enqueue the state roots for storage validation.
             for hdr in headers.iter().rev() {
                 self.block_feeder.state_roots.push_back(hdr.state_root);
             }
