@@ -41,10 +41,7 @@ impl MessageOrigin {
 
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
-        match self {
-            Self::Contract(_) | Self::Worker(_) => true,
-            _ => false,
-        }
+        matches!(self, Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper)
     }
 
     /// Returns if the origin is from a Pallet
