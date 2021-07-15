@@ -1619,7 +1619,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     // Encrypt response if necessary
     let res_json = res.to_string();
     let res_payload = if let (Some(sk), Some(pk)) = (secret, pubkey) {
-        let iv = aead::generate_iv();
+        let iv = aead::generate_random_iv();
         let mut msg = res_json.as_bytes().to_vec();
         aead::encrypt(&iv, &sk, &mut msg);
         types::Payload::Cipher(cryptography::AeadCipher {

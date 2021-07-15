@@ -1,9 +1,9 @@
 use super::{TypedReceiver, WorkerState};
 use phala_crypto::{
-    aead, ecdh,
+    aead, ecdh, secp256k1,
     secp256k1::{Signing, KDF},
 };
-use phala_mq::MessageDispatcher;
+use phala_mq::{BindTopic, MessageDispatcher};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
@@ -20,12 +20,18 @@ use crate::{
 };
 
 use crate::std::convert::TryInto;
+use crate::std::io::{Read, Write};
+use crate::std::sgxfs::SgxFile;
 use crate::std::vec::Vec;
 use msg_trait::MessageChannel;
+use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
 const VRF_INTERVAL: u32 = 5;
+
+/// Master key filepath
+pub const MASTER_KEY_FILEPATH: &str = "master_key.seal";
 
 // pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
 fn next_random_number(
@@ -60,9 +66,21 @@ impl WorkerInfo {
     }
 }
 
+// The Gatekeeper's common internal state is consisted of:
+// 1. possessed master key;
+// 2. egress sequence number;
+// 3. worker list;
+// 4. tokenomic params;
+// 5. last random number & last random block;
+//
+// We should ensure the consistency of all the variables above in each block.
+//
+// For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
+// to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
     identity_key: ecdsa::Pair,
     master_key: Option<ecdsa::Pair>,
+    registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -87,6 +105,7 @@ where
         Self {
             identity_key,
             master_key: None,
+            registered_on_chain: false,
             egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -96,6 +115,115 @@ where
             last_random_block: 0,
             tokenomic_params: tokenomic::test_params(),
         }
+    }
+
+    pub fn is_registered_on_chain(&self) -> bool {
+        self.registered_on_chain
+    }
+
+    pub fn register_on_chain(&mut self) {
+        self.registered_on_chain = true;
+        self.egress.set_dummy(false);
+    }
+
+    pub fn unregister_on_chain(&mut self) {
+        self.registered_on_chain = false;
+        self.egress.set_dummy(true);
+    }
+
+    pub fn possess_master_key(&self) -> bool {
+        self.master_key.is_some()
+    }
+
+    pub fn set_master_key(&mut self, master_key: ecdsa::Pair, need_restart: bool) {
+        if self.master_key.is_none() {
+            self.master_key = Some(master_key);
+            self.seal_master_key(MASTER_KEY_FILEPATH);
+
+            if need_restart {
+                panic!("Received master key, please restart pRuntime and pHost");
+            }
+        } else if let Some(my_master_key) = &self.master_key {
+            // TODO.shelven: remove this assertion after we enable master key rotation
+            assert!(my_master_key.seed() == master_key.seed());
+        }
+    }
+
+    /// Seal master key seed with signature to ensure integrity
+    pub fn seal_master_key(&self, filepath: &str) {
+        if let Some(master_key) = &self.master_key {
+            let seed = master_key.seed();
+            let sig = self.identity_key.sign_data(&seed);
+
+            let mut buf = Vec::new();
+            buf.extend_from_slice(&seed);
+            buf.extend_from_slice(sig.as_ref());
+
+            match SgxFile::create(filepath) {
+                Ok(mut file) => match file.write_all(&buf) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!("Seal master key failed: {:?}", e);
+                    }
+                },
+                Err(e) => {
+                    error!("Create master key file failed: {:?}", e);
+                }
+            }
+        }
+    }
+
+    /// Unseal local master key seed and verify signature
+    ///
+    /// This function could panic a lot.
+    pub fn try_unseal_master_key(&mut self, filepath: &str) {
+        let mut file = match SgxFile::open(filepath) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("Open master key file failed: {:?}", e);
+                return;
+            }
+        };
+
+        let mut seed = secp256k1::Seed::default();
+        let mut sig = [0_u8; secp256k1::SIGNATURE_BYTES];
+
+        let n = match file.read(seed.as_mut()) {
+            Ok(n) => n,
+            Err(e) => panic!("Read master key failed: {:?}", e),
+        };
+        if n < secp256k1::SEED_BYTES {
+            panic!(
+                "Unexpected sealed seed length {}, expected {}",
+                n,
+                secp256k1::SEED_BYTES
+            );
+        }
+
+        let n = match file.read(sig.as_mut()) {
+            Ok(n) => n,
+            Err(e) => panic!("Read master key sig failed: {:?}", e),
+        };
+        if n < secp256k1::SIGNATURE_BYTES {
+            panic!(
+                "Unexpected sealed seed sig length {}, expected {}",
+                n,
+                secp256k1::SIGNATURE_BYTES
+            );
+        }
+
+        if !self
+            .identity_key
+            .verify_data(&secp256k1::Signature::from_raw(sig), &seed)
+        {
+            panic!("Broken sealed master key");
+        }
+
+        self.set_master_key(ecdsa::Pair::from_seed(&seed), false);
+    }
+
+    pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
+        self.egress.push_message(message)
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -132,7 +260,7 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
-            self.egress.push_message(GatekeeperEvent::new_random_number(
+            self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
                 next_random_number(master_key, block_number, self.last_random_number),
                 self.last_random_number,
@@ -436,46 +564,61 @@ where
             return;
         }
 
-        // double check the new gatekeeper is valid
+        // double check the new gatekeeper is valid on chain
         if !crate::identity::is_gatekeeper(&event.pubkey, self.block.storage) {
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }
-        let my_pubkey = self.state.identity_key.public();
-        if my_pubkey == event.pubkey && event.gatekeeper_count == 1 {
-            if self.state.master_key.is_none() {
-                // generate master key as the first gatekeeper
-                self.state.master_key =
-                    Some(crate::new_ecdsa_key().expect(
-                        "key generation should never fail since we give seed of correct sieze",
-                    ))
-            }
-        } else if my_pubkey != event.pubkey {
-            if let Some(master_key) = &self.state.master_key {
-                let my_ecdh_key = self
-                    .state
-                    .identity_key
-                    .derive_ecdh_key()
-                    .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                    .expect("should never failed with valid ecdh key");
-                let iv = crate::cryptography::aead::generate_iv();
-                let mut data = master_key.clone().to_raw_vec();
-                aead::encrypt(&iv, &secret, &mut data);
 
-                self.state
-                    .egress
-                    .push_message(GatekeeperEvent::dispatch_master_key_event(
-                        event.pubkey,
-                        my_ecdh_key
-                            .public()
-                            .as_ref()
-                            .try_into()
-                            .expect("ecdh pubkey with incorrect length"),
-                        data,
-                        iv,
-                    ));
+        let my_pubkey = self.state.identity_key.public();
+        if event.gatekeeper_count == 1 {
+            if my_pubkey == event.pubkey && self.state.master_key.is_none() {
+                // generate master key as the first gatekeeper
+                // no need to restart
+                self.state.set_master_key(
+                    crate::new_ecdsa_key().expect(
+                        "key generation should never fail since we give seed of correct sieze",
+                    ),
+                    false,
+                );
             }
+        } else {
+            // dispatch the master key to the newly-registered gatekeeper using master key
+            // if this pRuntime is the newly-registered gatekeeper himself,
+            // its egress is still in dummy mode since we will tick the state later
+            if let Some(master_key) = &self.state.master_key {
+                let derived_key = master_key
+                    .derive_secp256k1_pair(&[b"master_key"])
+                    .expect("should not fail with valid info");
+                let my_ecdh_key = derived_key
+                    .derive_ecdh_key()
+                    .expect("ecdh key derivation should never failed with valid master key");
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                    .expect("should never fail with valid ecdh key");
+                let iv = aead::generate_iv(&self.state.last_random_number);
+                let mut data = master_key.clone().to_raw_vec();
+
+                match aead::encrypt(&iv, &secret, &mut data) {
+                    Ok(_) => self.state.push_gatekeeper_message(
+                        GatekeeperEvent::dispatch_master_key_event(
+                            event.pubkey.clone(),
+                            my_ecdh_key
+                                .public()
+                                .as_ref()
+                                .try_into()
+                                .expect("should never fail given pubkey with correct length"),
+                            data,
+                            iv,
+                        ),
+                    ),
+                    Err(e) => error!("Failed to encrypt master key: {:?}", e),
+                }
+            }
+        }
+
+        // finally, tick the registration state and enable message sending
+        if my_pubkey == event.pubkey {
+            self.state.register_on_chain();
         }
     }
 
@@ -485,43 +628,42 @@ where
         origin: MessageOrigin,
         event: DispatchMasterKeyEvent,
     ) {
-        let src_pubkey = if let MessageOrigin::Worker(pubkey) = origin {
-            pubkey
-        } else {
+        if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return;
         };
 
-        // double check the event is from a valid gatekeeper
-        if !crate::identity::is_gatekeeper(&src_pubkey, self.block.storage) {
-            error!(
-                "Fatal error: Master key from invalid gatekeeper {:?}",
-                event
-            );
-            panic!("GK state poisoned");
-        }
-
         let my_pubkey = self.state.identity_key.public();
         if my_pubkey == event.dest {
-            if self.state.master_key.is_none() {
-                let my_ecdh_key = self
-                    .state
-                    .identity_key
-                    .derive_ecdh_key()
-                    .expect("ecdh key derivation should never failed with valid identity key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                    .expect("should never failed with valid ecdh key");
-                let mut seed: Vec<u8> = Vec::new();
-                aead::decrypt(&event.iv, &secret, &mut seed);
+            let my_ecdh_key = self
+                .state
+                .identity_key
+                .derive_ecdh_key()
+                .expect("should never failed with valid identity key");
+            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                .expect("should never failed with valid ecdh key");
+            let mut seed: Vec<u8> = Vec::new();
 
-                self.state.master_key =
-                    Some(ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed"));
+            match aead::decrypt(&event.iv, &secret, &mut seed) {
+                Ok(seed) => {
+                    let decrypted_master_key =
+                        ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
+                    self.state.set_master_key(decrypted_master_key, true);
+                }
+                Err(e) => {
+                    panic!("Failed to decrypt dispatched master key: {:?}", e);
+                }
             }
         }
     }
 
     /// Sync on-chain random number for next random generation
     fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        };
+
         if let Some(master_key) = &self.state.master_key {
             // instead of checking the origin, we directly verify the random to avoid access storage
             if next_random_number(master_key, event.block_number, event.last_random_number)
@@ -675,7 +817,8 @@ mod tokenomic {
         }
 
         pub fn share(&self) -> FixedPoint {
-            (square(self.v) + square(fp(2) * self.p_instant * conf_score(self.confidence_level))).sqrt()
+            (square(self.v) + square(fp(2) * self.p_instant * conf_score(self.confidence_level)))
+                .sqrt()
         }
 
         pub fn update_p_instant(&mut self, now: u64, iterations: u64) {
@@ -779,8 +922,7 @@ pub mod tests {
             self.messages.borrow_mut().push(message);
         }
 
-        fn set_dummy(&self, _dummy: bool) {
-        }
+        fn set_dummy(&self, _dummy: bool) {}
     }
 
     struct Roles {

@@ -1,7 +1,8 @@
 use crate::CryptoError;
+
 use alloc::vec::Vec;
+use core::cmp::min;
 use ring::aead::{LessSafeKey, UnboundKey};
-// use ring::rand::SecureRandom;
 
 // aes-256-gcm key
 pub struct AeadKey(LessSafeKey);
@@ -9,12 +10,12 @@ pub struct AeadKey(LessSafeKey);
 pub const IV_BYTES: usize = 12;
 pub type IV = [u8; IV_BYTES];
 
-// pub fn generate_iv() -> IV {
-//     let mut nonce_vec = [0_u8; IV_BYTES];
-//     let rand = ring::rand::SystemRandom::new();
-//     rand.fill(&mut nonce_vec).unwrap();
-//     nonce_vec
-// }
+pub fn generate_iv(nonce: &[u8]) -> IV {
+    let mut iv: IV = Default::default();
+    let min_len = min(nonce.len(), iv.len());
+    iv.copy_from_slice(&nonce[..min_len]);
+    iv
+}
 
 fn load_key(raw: &[u8]) -> Result<AeadKey, CryptoError> {
     let unbound_key =
@@ -47,4 +48,32 @@ pub fn decrypt<'in_out>(
     key.0
         .open_in_place(nonce, ring::aead::Aad::empty(), in_out)
         .map_err(|_| CryptoError::AeadDecryptError)
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ring::rand::SecureRandom;
+
+    pub fn generate_random_iv() -> IV {
+        let mut nonce_vec = [0_u8; IV_BYTES];
+        let rand = ring::rand::SystemRandom::new();
+        rand.fill(&mut nonce_vec).unwrap();
+        nonce_vec
+    }
+
+    #[test]
+    fn encrypt_and_decrypt() {
+        let iv = generate_random_iv();
+        let secret = [233_u8; 32];
+        let message = [233_u8; 64];
+
+        let mut encrypted_message = Vec::new();
+        encrypted_message.extend_from_slice(&message);
+
+        let _ = encrypt(&iv, &secret, &mut encrypted_message).unwrap();
+        let decrypted_messgae = decrypt(&iv, &secret, &mut encrypted_message[..]).unwrap();
+
+        assert_eq!(decrypted_messgae, message);
+    }
 }

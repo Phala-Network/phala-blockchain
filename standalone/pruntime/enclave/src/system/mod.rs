@@ -150,7 +150,10 @@ impl WorkerState {
                             info!("My benchmark score is {}", score);
                         }
                     }
-                    MiningStart { session_id, init_v: _ } => {
+                    MiningStart {
+                        session_id,
+                        init_v: _,
+                    } => {
                         self.mining_state = Some(MiningInfo {
                             session_id,
                             state: Mining,
@@ -349,12 +352,18 @@ impl System {
         let sender = MessageOrigin::Worker(pubkey.clone());
         // TODO: create gk_egress dynamically with gk masterkey
         let gk_egress = send_mq.channel(MessageOrigin::Gatekeeper, pair.clone());
+        // by default, gk_egress is set to dummy mode until it is registered on chain
+        gk_egress.set_dummy(true);
+
+        let mut gatekeeper = gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress);
+        gatekeeper.try_unseal_master_key(gk::MASTER_KEY_FILEPATH);
+
         System {
             receipts: Default::default(),
             egress: send_mq.channel(sender, pair.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper: gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress),
+            gatekeeper: gatekeeper,
         }
     }
 
@@ -398,11 +407,7 @@ impl System {
         }
     }
 
-    pub fn process_messages(
-        &mut self,
-        block: &BlockInfo,
-        storage: &Storage,
-    ) -> anyhow::Result<()> {
+    pub fn process_messages(&mut self, block: &BlockInfo, storage: &Storage) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {
@@ -427,7 +432,12 @@ impl System {
         self.worker_state
             .on_block_processed(block, &mut WorkerSMDelegate(&self.egress));
 
-        if crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage) {
+        // allow to process gatekeeper messages silently
+        // if pRuntime possesses master key but is not registered on chain
+        // TODO.shelven: this does not hold after we enable master key rotation
+        if self.gatekeeper.possess_master_key()
+            || crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage)
+        {
             self.gatekeeper.process_messages(block);
 
             self.gatekeeper.vrf(block.block_number);

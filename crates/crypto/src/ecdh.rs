@@ -1,4 +1,5 @@
 use crate::CryptoError;
+
 use alloc::vec::Vec;
 use curve25519_dalek::scalar::Scalar;
 use schnorrkel::keys::{ExpansionMode, Keypair, MiniSecretKey, PublicKey, SecretKey};

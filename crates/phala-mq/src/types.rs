@@ -1,6 +1,6 @@
 use alloc::vec::Vec;
-use primitive_types::H256;
 use core::hash::{Hash, Hasher};
+use primitive_types::H256;
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -47,6 +47,11 @@ impl MessageOrigin {
     /// Returns if the origin is from a Pallet
     pub fn is_pallet(&self) -> bool {
         matches!(self, Self::Pallet(_))
+    }
+
+    /// Returns if the origin is from a Gatekeeper
+    pub fn is_gatekeeper(&self) -> bool {
+        matches!(self, Self::Gatekeeper)
     }
 }
 
@@ -178,7 +183,7 @@ impl Message {
         Some(DecodedMessage {
             sender: self.sender.clone(),
             destination: self.destination.clone(),
-            payload
+            payload,
         })
     }
 }

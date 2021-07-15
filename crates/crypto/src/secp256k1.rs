@@ -1,12 +1,14 @@
 use crate::{ecdh::EcdhKey, CryptoError};
+
 use alloc::{vec, vec::Vec};
 use ring::hkdf;
 use sp_core::{ecdsa, Pair};
 
+pub const SIGNATURE_BYTES: usize = 65;
 pub type Signature = ecdsa::Signature;
 
-const SEED_BYTES: usize = 32;
-type Seed = [u8; SEED_BYTES];
+pub const SEED_BYTES: usize = 32;
+pub type Seed = [u8; SEED_BYTES];
 
 pub trait Signing {
     fn sign_data(&self, data: &[u8]) -> Signature;
