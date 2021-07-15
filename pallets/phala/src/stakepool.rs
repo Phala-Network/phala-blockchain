@@ -156,7 +156,6 @@ pub mod pallet {
 				PoolInfo {
 					pid: pid + 1,
 					owner: owner.clone(),
-					state: PoolState::default(),
 					payout_commission: Zero::zero(),
 					owner_reward: Zero::zero(),
 					pool_acc: Zero::zero(),
@@ -264,8 +263,6 @@ pub mod pallet {
 				&pool_info.owner == &owner,
 				Error::<T>::UnauthorizedPoolOwner
 			);
-			// make sure pool status is not mining
-			ensure!(pool_info.state != PoolState::Mining, Error::<T>::PoolIsBusy);
 
 			MiningPools::<T>::mutate(&pid, |pool| {
 				if let Some(pool) = pool {
@@ -521,8 +518,6 @@ pub mod pallet {
 
 		fn update_pool(pid: u64) {
 			let mut new_rewards;
-			// TODO: check payout block height
-			// let currentBlock = <frame_system::Pallet<T>>::block_number();
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 
 			new_rewards = Self::calculate_reward(pid);
@@ -702,22 +697,9 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub enum PoolState {
-		Ready,
-		Mining,
-	}
-
-	impl Default for PoolState {
-		fn default() -> Self {
-			PoolState::Ready
-		}
-	}
-
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct PoolInfo<AccountId: Default, Balance> {
 		pid: u64,
 		owner: AccountId,
-		state: PoolState,
 		payout_commission: u16,
 		owner_reward: Balance,
 		pool_acc: Balance,
