@@ -11,7 +11,7 @@ bash /root/console.sh dev > /root/node.out 2>&1 &
 
 echo "----------- starting pruntime ----------"
 source /opt/sgxsdk/environment
-cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
+cd /root/prebuilt && ./app -c 1 > /root/pruntime.out 2>&1 &
 
 sleep 6
 
