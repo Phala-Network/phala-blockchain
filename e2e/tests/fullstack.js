@@ -22,10 +22,10 @@ const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
 
 describe('A full stack', function () {
 	this.timeout(60000);
-	let processNode;
-	let processRelayer;
-	let processPRuntime;
+	let processes = [];
+	let processNode, processRelayer, processPRuntime;
 
+	let cluster;
 	let api, keyring, alice, root;
 	let pruntime;
 	const tmpDir = new TempDir();
@@ -34,67 +34,32 @@ describe('A full stack', function () {
 	before(async () => {
 		// Check binary files
 		[pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
-		// Node cli
-		const wsPort = await portfinder.getPortPromise({port: 9944});
-		const teePort = await portfinder.getPortPromise({port: 8000, stopPort: 9900});
-		processNode = new Process([
-			pathNode, [
-				'--dev',
-				'--base-path=' + path.resolve(tmpPath, 'phala-node'),
-				`--ws-port=${wsPort}`,
-				'--rpc-methods=Unsafe'
-			]
-		], { logPath: tmpPath + '/node.log' });
-		processRelayer = new Process([
-			pathRelayer, [
-				'--dev',
-				`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-				`--pruntime-endpoint=http://localhost:${teePort}`
-			]
-		], { logPath: tmpPath + '/relayer.log' });
-		processPRuntime = new Process([
-			pathPRuntime, [
-				'--cores=0',	// Disable benchmark
-			], {
-				cwd: path.dirname(pathPRuntime),
-				env: {
-					...process.env,
-					ROCKET_PORT: teePort.toString(),
-				}
-			}
-		], { logPath: tmpPath + '/pruntime.log' });
-		// Launch nodes
-		await Promise.all([
-			processNode.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/),
-			processPRuntime.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/),
-		]);
-		await processRelayer.startAndWaitForOutput(/runtime_info:Some\(InitRuntimeResp/);
+		// Bring up a cluster
+		cluster = new Cluster(2, pathNode, pathRelayer, pathPRuntime, tmpPath);
+		await cluster.start();
+		// APIs
+		api = await cluster.api;
+		pruntime = cluster.workers.map(w => w.api);
 		// Create polkadot api and keyring
-		api = await ApiPromise.create({ provider: new WsProvider(`ws://localhost:${wsPort}`), types, typeAlias });
-
 		await cryptoWaitReady();
 		keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
 		root = alice = keyring.addFromUri('//Alice');
-		// Create pRuntime API
-		pruntime = new PRuntimeApi(`http://localhost:${teePort}`);
 	});
 
 	after(async function () {
 		if (api) await api.disconnect();
-		await Promise.all([
-			processNode.kill(),
-			processPRuntime.kill(),
-			processRelayer.kill(),
-		]);
+		await cluster.kill();
 		if (process.env.KEEP_TEST_FILES != '1') {
 			tmpDir.cleanup();
 		}
 	});
 
 	it('should be up and running', async function () {
-		assert.isFalse(processNode.stopped);
-		assert.isFalse(processRelayer.stopped);
-		assert.isFalse(processPRuntime.stopped);
+		assert.isFalse(cluster.processNode.stopped);
+		for (const w of cluster.workers) {
+			assert.isFalse(w.processRelayer.stopped);
+			assert.isFalse(w.processPRuntime.stopped);
+		}
 	});
 
 	describe.skip('PhalaNode', () => {
@@ -107,7 +72,7 @@ describe('A full stack', function () {
 		it('is initialized', async function () {
 			let info;
 			assert.isTrue(await checkUntil(async () => {
-				info = await pruntime.getInfo();
+				info = await pruntime[0].getInfo();
 				return info.initialized;
 			}, 1000), 'not initialized in time');
 			// A bit guly. Any better way?
@@ -116,7 +81,7 @@ describe('A full stack', function () {
 
 		it('can sync block', async function() {
 			assert.isTrue(await checkUntil(async () => {
-				const info = await pruntime.getInfo();
+				const info = await pruntime[0].getInfo();
 				return info.blocknum > 0;
 			}, 7000), 'stuck at block 0');
 		});
@@ -127,7 +92,7 @@ describe('A full stack', function () {
 			}
 			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
 			assert.isTrue(await checkUntil(async () => {
-				const info = await pruntime.getInfo();
+				const info = await pruntime[0].getInfo();
 				return info.registered;
 			}, 4*6000), 'not registered in time');
 		});
@@ -143,6 +108,37 @@ describe('A full stack', function () {
 		});
 	});
 
+	describe('Gatekeeper', () => {
+		it('can be registered', async function () {
+			const info = await pruntime[1].getInfo();
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.forceRegisterWorker(
+						hex(info.public_key),
+						hex(info.ecdh_public_key),
+						null,
+					)
+				),
+				alice,
+			);
+
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+				),
+				alice,
+			);
+
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				return info.registered;
+			}, 4*6000), 'not registered in time');
+
+			// TODO: check if the role is Gatekeeper
+		});
+	});
+
 	describe('Solo mining workflow', () => {
 		let miner;
 		before(function () {
@@ -151,15 +147,12 @@ describe('A full stack', function () {
 
 		// worker registered
 
-		// 1. check bench finished [x]
-
-		// 2. bind miner
 		it.skip('can bind the worker', async function () {
 			const workerInfo = await api.query.phalaRegistry.worker(workerKey);
 			const operator = workerInfo.unwrap().operator.unwrap();
 			assert.equal(operator.toHuman(), alice.address, 'bad operator');
 
-			await assertSuccess(api.tx.phalaMining.bind(workerKey), alice);
+			await assert.txAccepted(api.tx.phalaMining.bind(workerKey), alice);
 
 			let actualWorker = await api.query.phalaMining.minerBinding(alice.address);
 			let actualMiner = await api.query.phalaMining.workerBinding(workerKey);
@@ -182,10 +175,9 @@ describe('A full stack', function () {
 		it('can deposite some stake')
 
 		it.skip('can start mining', async function () {
-			await assertSuccess(api.tx.phalaMining.startMining(), alice);
+			await assert.txAccepted(api.tx.phalaMining.startMining(), alice);
 			let minerInfo = await api.query.phalaMining.miners(alice.address);
 			minerInfo = minerInfo.unwrap();
-			console.log(minerInfo.state.toHuman());
 			assert.isTrue(minerInfo.state.isIdle, 'miner state should be MiningIdle');
 		})
 
@@ -246,7 +238,7 @@ describe('A full stack', function () {
 
 		it('can set payout preference', async function () {
 			// commission: 50%, target: reward address
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.setPayoutPrefs(50, reward.address),
 				controller);
 
@@ -257,7 +249,7 @@ describe('A full stack', function () {
 
 		it('can force register a worker', async function () {
 			const pubkey = '0x0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798';
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.sudo.sudo(
 					api.tx.phalaModule.forceRegisterWorker(stash.address, 'fake_mid', pubkey)),
 				root);
@@ -267,11 +259,11 @@ describe('A full stack', function () {
 		});
 
 		it('can start mining', async function () {
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.startMiningIntention(),
 				controller);
 			// Get into the next mining round
-			const { events } = await assertSuccess(
+			const { events } = await assert.txAccepted(
 				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
 				root);
 
@@ -289,10 +281,10 @@ describe('A full stack', function () {
 		});
 
 		it('can stop mining', async function () {
-			await assertSuccess(
+			await assert.txAccepted(
 				api.tx.phalaModule.stopMiningIntention(),
 				controller);
-			const { events } = await assertSuccess(
+			const { events } = await assert.txAccepted(
 				api.tx.sudo.sudo(api.tx.phalaModule.dbgNextRound()),
 				root);
 
@@ -340,6 +332,7 @@ async function assertSuccess(txBuilder, signer) {
 		});
 	});
 }
+assert.txAccepted = assertSuccess;
 
 function fillPartialArray(obj, pattern) {
 	for (const [idx, v] of obj.entries()) {
@@ -371,4 +364,134 @@ function simplifyEvents (events, keepData = false) {
 		}
 	}
 	return simpleEvents;
+}
+
+class Cluster {
+	constructor(numWorkers, pathNode, pathRelayer, pathPRuntime, tmpPath) {
+		this.numWorkers = numWorkers;
+		this.pathNode = pathNode;
+		this.pathRelayer = pathRelayer;
+		this.pathPRuntime = pathPRuntime;
+		this.tmpPath = tmpPath;
+		[pathNode, pathRelayer, pathPRuntime].map(fs.accessSync);
+		// Prepare empty workers
+		const workers = [];
+		for (let i = 0; i < this.numWorkers; i++) {
+			workers.push({});
+		}
+		this.workers = workers;
+	}
+
+	async start() {
+		await this._reservePorts();
+		this._createProcesses();
+		await this._launchAndWait();
+		await this._createApi();
+	}
+
+	async kill() {
+		await Promise.all([
+			this.processNode.kill(),
+			...this.workers.map(w => [
+				w.processPRuntime.kill(),
+				w.processRelayer.kill()
+			]).flat()
+		]);
+	}
+
+	async _reservePorts() {
+		const [wsPort, ...workerPorts] = await Promise.all([
+			portfinder.getPortPromise({port: 9944}),
+			...this.workers.map(() => portfinder.getPortPromise({port: 8000, stopPort: 9900}))
+		]);
+		this.wsPort = wsPort;
+		this.workers.forEach((w, i) => w.port = workerPorts[i]);
+	}
+
+	_createProcesses() {
+		this.processNode = newNode(this.wsPort, this.tmpPath, 'node');
+		this.workers.forEach((w, i) => {
+			const key = '0'.repeat(63) + (i + 1).toString();
+			w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, key, `relayer${i}`);
+			w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+		})
+		this.processes = [
+			this.processNode,
+			...this.workers.map(w => [w.processRelayer, w.processPRuntime]).flat()
+		];
+	}
+
+	async _launchAndWait() {
+		// Launch nodes & pruntime
+		await Promise.all([
+			this.processNode.startAndWaitForOutput(
+				/Listening for new connections on 127\.0\.0\.1:(\d+)/
+			),
+			...this.workers.map(w => w.processPRuntime
+				.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/)
+			),
+		]);
+		// Launch relayers
+		await Promise.all(
+			this.workers.map(w => w.processRelayer
+				.startAndWaitForOutput(/runtime_info: InitRuntimeResp/)
+			)
+		);
+	}
+
+	async _createApi() {
+		this.api = await ApiPromise.create({
+			provider: new WsProvider(`ws://localhost:${this.wsPort}`),
+			types, typeAlias
+		});
+		this.workers.forEach(w => {
+			w.api = new PRuntimeApi(`http://localhost:${w.port}`);
+		})
+	}
+
+}
+
+
+function newNode(wsPort, tmpPath, name='node') {
+	return new Process([
+		pathNode, [
+			'--dev',
+			'--base-path=' + path.resolve(tmpPath, 'phala-node'),
+			`--ws-port=${wsPort}`,
+			'--rpc-methods=Unsafe'
+		]
+	], { logPath: `${tmpPath}/${name}.log` });
+}
+
+function newPRuntime(teePort, tmpPath, name='pruntime') {
+	return new Process([
+		pathPRuntime, [
+			'--cores=0',	// Disable benchmark
+		], {
+			cwd: path.dirname(pathPRuntime),
+			env: {
+				...process.env,
+				ROCKET_PORT: teePort.toString(),
+			}
+		}
+	], { logPath: `${tmpPath}/${name}.log` });
+}
+
+function newRelayer(wsPort, teePort, tmpPath, key, name='relayer') {
+	return new Process([
+		pathRelayer, [
+			'--mnemonic=//Alice',
+			`--inject-key=${key}`,
+			`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
+			`--pruntime-endpoint=http://localhost:${teePort}`
+		]
+	], { logPath: `${tmpPath}/${name}.log` });
+}
+
+function hex(b) {
+	if (!b.startsWith('0x')) {
+		return '0x' + b;
+	} else {
+		return b;
+	}
 }
