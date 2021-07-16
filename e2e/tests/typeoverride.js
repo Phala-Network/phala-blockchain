@@ -182,7 +182,42 @@ const types = {
 			"OnlineReward": null,
 			"ComputeReward": null
 		}
-	}
+	},
+	"GatekeeperEvent": {
+		"_enum": {
+			"Registered": "NewGatekeeperEvent",
+			"DispatchMasterKey": "DispatchMasterKeyEvent",
+			"NewRandomNumber": "RandomNumberEvent",
+			"UpdateTokenomic": "TokenomicParameters"
+		}
+	},
+    "NewGatekeeperEvent": {
+        "pubkey": "WorkerPublicKey",
+        "ecdh_pubkey": "EcdhP256PublicKey",
+        "gatekeeper_count": "u32"
+    },
+    "DispatchMasterKeyEvent": {
+        "dest": "WorkerPublicKey",
+        "ecdh_pubkey": "EcdhP256PublicKey",
+        "encrypted_master_key": "Vec<u8>",
+        "iv": "[u8; 12]"
+    },
+    "RandomNumberEvent": {
+        "block_number": "u32",
+        "random_number": "[u8; 32]",
+        "last_random_number": "[u8; 32]"
+    },
+    "TokenomicParameters": {
+        "pha_rate": "U64F64Bits",
+        "rho": "U64F64Bits",
+        "budget_per_sec": "U64F64Bits",
+        "v_max": "U64F64Bits",
+        "cost_k": "U64F64Bits",
+        "cost_b": "U64F64Bits",
+        "slash_rate": "U64F64Bits",
+        "heartbeat_window": "u32"
+    },
+	"U64F64Bits": "u128"
 };
 
 const typeAlias = {
