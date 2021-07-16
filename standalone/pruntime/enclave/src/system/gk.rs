@@ -28,6 +28,8 @@ use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
+///
+/// WARNING: this interval need to be large enough considering the latency of mq
 const VRF_INTERVAL: u32 = 5;
 
 /// Master key filepath
@@ -250,7 +252,7 @@ where
     }
 
     pub fn vrf(&mut self, block_number: chain::BlockNumber) {
-        if block_number % VRF_INTERVAL != 1 {
+        if block_number % VRF_INTERVAL != 0 {
             return;
         }
 
@@ -260,11 +262,16 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
+            let random_number =
+                next_random_number(master_key, block_number, self.last_random_number);
             self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
-                next_random_number(master_key, block_number, self.last_random_number),
+                random_number,
                 self.last_random_number,
-            ))
+            ));
+
+            self.last_random_block = block_number;
+            self.last_random_number = random_number;
         }
     }
 }
@@ -657,7 +664,7 @@ where
         }
     }
 
-    /// Sync on-chain random number for next random generation
+    /// Verify on-chain random number
     fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -671,10 +678,6 @@ where
             {
                 error!("Fatal error: Unexpected random number {:?}", event);
                 panic!("GK state poisoned");
-            }
-            if event.block_number > self.state.last_random_block {
-                self.state.last_random_block = event.block_number;
-                self.state.last_random_number = event.random_number;
             }
         }
     }
