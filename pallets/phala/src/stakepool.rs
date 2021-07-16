@@ -151,11 +151,10 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 
 			let pid = PoolCount::<T>::get();
-			PoolCount::<T>::put(pid + 1);
 			MiningPools::<T>::insert(
-				pid + 1,
+				pid,
 				PoolInfo {
-					pid: pid + 1,
+					pid: pid,
 					owner: owner.clone(),
 					payout_commission: Zero::zero(),
 					owner_reward: Zero::zero(),
@@ -166,6 +165,7 @@ pub mod pallet {
 					withdraw_queue: VecDeque::new(),
 				},
 			);
+			PoolCount::<T>::put(pid + 1);
 			Self::deposit_event(Event::<T>::PoolCreated(owner, pid));
 
 			Ok(())
