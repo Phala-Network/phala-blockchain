@@ -721,23 +721,15 @@ pub mod pallet {
 
 	#[cfg(test)]
 	mod test {
+		use assert_matches::assert_matches;
+		use frame_support::{assert_noop, assert_ok};
 		use hex_literal::hex;
 		use sp_runtime::AccountId32;
-		use assert_matches::assert_matches;
-		use frame_support::{assert_ok, assert_noop};
 
 		use super::*;
 		use crate::mock::{
-			new_test_ext,
-			set_block_1,
-			events,
-			worker_pubkey,
-			ecdh_pubkey,
-			Test,
-			Origin,
-			Event as TestEvent,
-			PhalaRegistry,
-			PhalaStakePool,
+			ecdh_pubkey, events, new_test_ext, set_block_1, worker_pubkey, Event as TestEvent,
+			Origin, PhalaRegistry, PhalaStakePool, Test, DOLLARS,
 		};
 
 		#[test]
@@ -757,20 +749,24 @@ pub mod pallet {
 				set_block_1();
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 				PhalaStakePool::on_finalize(1);
-				assert_matches!(events().as_slice(), [
-					TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),
-				]);
-				assert_eq!(MiningPools::<Test>::get(0), Some(PoolInfo {
-					pid: 0,
-					owner: 1,
-					payout_commission: 0,
-					owner_reward: 0,
-					pool_acc: 0,
-					total_stake: 0,
-					free_stake: 0,
-					workers: Vec::new(),
-					withdraw_queue: VecDeque::new(),
-				}));
+				assert_matches!(
+					events().as_slice(),
+					[TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),]
+				);
+				assert_eq!(
+					MiningPools::<Test>::get(0),
+					Some(PoolInfo {
+						pid: 0,
+						owner: 1,
+						payout_commission: 0,
+						owner_reward: 0,
+						pool_acc: 0,
+						total_stake: 0,
+						free_stake: 0,
+						workers: Vec::new(),
+						withdraw_queue: VecDeque::new(),
+					})
+				);
 				assert_eq!(PoolCount::<Test>::get(), 1);
 			});
 		}
@@ -779,7 +775,6 @@ pub mod pallet {
 		fn test_add_worker() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
-
 				let worker1 = worker_pubkey(1);
 				let worker2 = worker_pubkey(2);
 
@@ -807,7 +802,11 @@ pub mod pallet {
 				);
 				// Add benchmark and retry
 				PhalaRegistry::internal_set_benchmark(&worker1, Some(1));
-				assert_ok!(PhalaStakePool::add_worker(Origin::signed(1), 0, worker1.clone()));
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker1.clone()
+				));
 				// Other bad cases
 				assert_noop!(
 					PhalaStakePool::add_worker(Origin::signed(1), 100, worker1.clone()),
@@ -819,6 +818,70 @@ pub mod pallet {
 					PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
 					Error::<Test>::MinerBindingCallFailed
 				);
+			});
+		}
+
+		#[test]
+		fn test_full_procedure() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				let worker1 = worker_pubkey(1);
+				let worker2 = worker_pubkey(2);
+				// Register workers
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker1.clone(),
+					ecdh_pubkey(1),
+					Some(1)
+				));
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker2.clone(),
+					ecdh_pubkey(2),
+					Some(1)
+				));
+				PhalaRegistry::internal_set_benchmark(&worker1, Some(1));
+				PhalaRegistry::internal_set_benchmark(&worker2, Some(1));
+				// Create a pool (pid = 0)
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker1.clone()
+				));
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker2.clone()
+				));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(2), 0, 200 * DOLLARS));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker1.clone(),
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker2.clone(),
+					100 * DOLLARS
+				));
+				// Withdraw free funds
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					100 * DOLLARS
+				));
+				// TODO: check balance
+				// TODO: check queued withdraw
+				//   - withdraw 100 PHA
+				//   - stop a worker
+				//   - wait CD, withdraw succeeded
+				//   - withdraw another 100 PHA
+				//   - wait 3d, force stop
+				//   - wait 7d, withdraw succeeded
 			});
 		}
 	}
