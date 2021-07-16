@@ -193,29 +193,29 @@ const types = {
 	},
     "NewGatekeeperEvent": {
         "pubkey": "WorkerPublicKey",
-        "ecdh_pubkey": "EcdhP256PublicKey",
-        "gatekeeper_count": "u32"
+        "ecdhPubkey": "EcdhP256PublicKey",
+        "gatekeeperCount": "u32"
     },
     "DispatchMasterKeyEvent": {
         "dest": "WorkerPublicKey",
-        "ecdh_pubkey": "EcdhP256PublicKey",
-        "encrypted_master_key": "Vec<u8>",
+        "ecdhPubkey": "EcdhP256PublicKey",
+        "encryptedMasterKey": "Vec<u8>",
         "iv": "[u8; 12]"
     },
     "RandomNumberEvent": {
-        "block_number": "u32",
-        "random_number": "[u8; 32]",
-        "last_random_number": "[u8; 32]"
+        "blockNumber": "u32",
+        "randomNumber": "[u8; 32]",
+        "lastRandomNumber": "[u8; 32]"
     },
     "TokenomicParameters": {
-        "pha_rate": "U64F64Bits",
+        "phaRate": "U64F64Bits",
         "rho": "U64F64Bits",
-        "budget_per_sec": "U64F64Bits",
-        "v_max": "U64F64Bits",
-        "cost_k": "U64F64Bits",
-        "cost_b": "U64F64Bits",
-        "slash_rate": "U64F64Bits",
-        "heartbeat_window": "u32"
+        "budgetPerSec": "U64F64Bits",
+        "vMax": "U64F64Bits",
+        "costK": "U64F64Bits",
+        "costB": "U64F64Bits",
+        "slashRate": "U64F64Bits",
+        "heartbeatWindow": "u32"
     },
 	"U64F64Bits": "u128"
 };
