@@ -187,6 +187,16 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
     })
 }
 
+async fn get_paraid(
+    client: &XtClient,
+    hash: Option<Hash>,
+) -> Result<runtimes::parachain_info::ParachainId, Error> {
+    client
+        .fetch_or_default(&runtimes::parachain_info::ParachainIdStore::new(), hash)
+        .await
+        .map_err(|_| Error::ParachainIdNotFound)
+}
+
 /// Returns the next set_id change by a binary search on the known blocks
 ///
 /// `known_blocks` must have at least one block with block justification, otherwise raise an error

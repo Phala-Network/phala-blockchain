@@ -241,3 +241,32 @@ pub mod chain_bridge {
         #![event_alias(U256 = sp_core::U256)]
     }
 }
+
+pub mod parachain_info {
+    use super::PhalaNodeRuntime;
+    use codec::Encode;
+    use subxt::{module, Store, system::System};
+    use core::marker::PhantomData;
+
+    pub type ParachainId = Vec<u8>;
+
+    #[module]
+    pub trait ParachainInfo: System {}
+    impl ParachainInfo for PhalaNodeRuntime {}
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct ParachainIdStore<T: ParachainInfo> {
+        #[store(returns = ParachainId)]
+        /// Runtime marker.
+        pub _runtime: PhantomData<T>,
+    }
+
+    impl<T: ParachainInfo> ParachainIdStore<T> {
+        pub fn new() -> Self {
+            Self {
+                _runtime: Default::default()
+            }
+        }
+    }
+}
+
