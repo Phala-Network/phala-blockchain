@@ -93,7 +93,7 @@ pub mod blocks {
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
-        pub proof: Vec<u8>,
+        pub proof: StorageProof,
         pub para_id: Vec<u8>,
     }
 
@@ -161,7 +161,9 @@ pub mod blocks {
 }
 
 pub mod storage_sync {
-    use super::blocks::{AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, RuntimeHasher};
+    use super::blocks::{
+        AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, RuntimeHasher, StorageProof,
+    };
 
     use alloc::collections::VecDeque;
     use alloc::vec::Vec;
@@ -177,8 +179,6 @@ pub mod storage_sync {
     pub enum Error {
         /// No header or block data in the request
         EmptyRequest,
-        /// SCALE decode somthine failed
-        CodecError,
         /// No Justification found in the last header
         MissingJustification,
         /// Header validation failed
@@ -208,7 +208,7 @@ pub mod storage_sync {
         fn validate_storage_proof(
             &self,
             state_root: Hash,
-            proof: &[u8],
+            proof: StorageProof,
             items: &[(&[u8], &[u8])],
         ) -> Result<()>;
     }
@@ -415,7 +415,7 @@ pub mod storage_sync {
         pub fn sync_parachain_header(
             &mut self,
             headers: Vec<chain::Header>,
-            proof: &[u8],
+            proof: StorageProof,
             storage_key: &[u8],
         ) -> Result<()> {
             let first_hdr = headers.first().ok_or(Error::EmptyRequest)?;

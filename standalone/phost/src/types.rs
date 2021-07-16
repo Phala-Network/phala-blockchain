@@ -68,6 +68,7 @@ pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
     pub headernum: BlockNumber,
+    pub para_headernum: BlockNumber,
     pub blocknum: BlockNumber,
     pub initialized: bool,
     pub public_key: String,

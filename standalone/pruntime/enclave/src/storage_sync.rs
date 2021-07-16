@@ -1,7 +1,6 @@
-use crate::light_validation::LightValidation;
 use crate::std::vec::Vec;
+use crate::light_validation::{LightValidation, storage_proof::StorageProof};
 use enclave_api::storage_sync::{BlockValidator, Error as SyncError, Result};
-use parity_scale_codec::Decode;
 
 impl BlockValidator for LightValidation<chain::Runtime> {
     fn submit_finalized_headers(
@@ -25,10 +24,9 @@ impl BlockValidator for LightValidation<chain::Runtime> {
     fn validate_storage_proof(
         &self,
         state_root: chain::Hash,
-        mut proof: &[u8],
+        proof: StorageProof,
         items: &[(&[u8], &[u8])],
     ) -> Result<()> {
-        let proof = Decode::decode(&mut proof).or(Err(SyncError::CodecError))?;
         self.validate_storage_proof(state_root, proof, items)
             .or(Err(SyncError::HeaderValidateFailed))
     }
