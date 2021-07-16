@@ -402,12 +402,12 @@ proxy!("/get_info", get_info, actions::ACTION_GET_INFO);
 proxy!("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO);
 proxy!("/dump_states", dump_states, actions::ACTION_DUMP_STATES);
 proxy!("/load_states", load_states, actions::ACTION_LOAD_STATES);
-proxy!("/sync_header", sync_header, actions::ACTION_SYNC_HEADER);
 proxy!("/query", query, actions::ACTION_QUERY);
 // TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
 proxy!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
 proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
 
+proxy_bin!("/bin_api/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER);
 proxy_bin!("/bin_api/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK);
 proxy_bin!("/bin_api/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER);
 
@@ -441,7 +441,7 @@ fn rocket() -> rocket::Rocket {
             dump_states, load_states,
             sync_header, dispatch_block, query,
             get_runtime_info, get_egress_messages, test_ink,
-            sync_para_header, bin_api::sync_header_bin,
+            sync_para_header,
             ]);
 
     if *ENABLE_KICK_API {
@@ -539,52 +539,5 @@ fn set_thread_idle_policy() {
         if rv != 0 {
             error!("Failed to set thread schedule prolicy to IDLE");
         }
-    }
-}
-
-mod bin_api {
-    // This is a TEMPORARY solution for the performance issue that the js relayer encountered.
-    // TODO.kevin: remove this module, switch to proxy_bin instead.
-
-    use parity_scale_codec::Decode;
-    use std::io::Read;
-
-    use enclave_api::{
-        actions,
-        blocks::{self, compat},
-    };
-    use rocket::data::Data;
-    use rocket_contrib::json::JsonValue;
-
-    fn scale_read<T: Decode>(data: Data) -> Option<T> {
-        let mut stream = data.open();
-        let mut data = Vec::new();
-        stream.read_to_end(&mut data).ok()?;
-        Decode::decode(&mut &data[..]).ok()
-    }
-
-    macro_rules! relay_to {
-        ($num: expr, $data: ident: $t: ident) => {{
-            let req: blocks::$t = match scale_read($data) {
-                None => {
-                    error!("[-] Real HTTP payload failed!");
-                    return json!({
-                        "status": "error",
-                        "payload": "Read HTTP payload failed",
-                    });
-                }
-                Some(req) => req,
-            };
-
-            let serde_req: compat::$t = req.into();
-            let contract_input = compat::ContractInput::new(serde_req);
-            let input_string = serde_json::to_string(&contract_input).unwrap();
-            do_ecall_handle!($num, input_string)
-        }};
-    }
-
-    #[post("/bin_api/sync_header", data = "<data>")]
-    pub fn sync_header_bin(data: Data) -> JsonValue {
-        relay_to!(actions::ACTION_SYNC_HEADER, data: SyncHeaderReq)
     }
 }

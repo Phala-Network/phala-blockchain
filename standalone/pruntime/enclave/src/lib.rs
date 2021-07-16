@@ -717,7 +717,6 @@ fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST => test(load_param(input_value)),
         ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -739,6 +738,7 @@ fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
     }
 
     match action {
+        BIN_ACTION_SYNC_HEADER => sync_header(load_scale(input)?),
         BIN_ACTION_SYNC_PARA_HEADER => sync_para_header(load_scale(input)?),
         BIN_ACTION_DISPATCH_BLOCK => dispatch_block(load_scale(input)?),
         _ => unknown(),
@@ -1186,29 +1186,14 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     Ok(serde_json::to_value(resp).unwrap())
 }
 
-fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
-    // Parse base64 to data
-    let parsed_data: Result<Vec<_>, _> = (&input.headers_b64).iter().map(base64::decode).collect();
-    let headers_data = parsed_data.map_err(|_| error_msg("Failed to parse base64 header"))?;
-    // Parse data to headers
-    let parsed_headers: Result<HeadersToSync, _> = headers_data
-        .iter()
-        .map(|d| Decode::decode(&mut &d[..]))
-        .collect();
-    let headers = parsed_headers.map_err(|_| error_msg("Invalid header"))?;
-
-    let authority_set_change = input
-        .authority_set_change_b64
-        .map(|b64| parse_authority_set_change(b64))
-        .transpose()?;
-
+fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
     let last_header = STATE
         .lock()
         .unwrap()
         .as_mut()
         .ok_or(error_msg("Runtime not initialized"))?
         .storage_synchronizer
-        .sync_header(headers, authority_set_change)
+        .sync_header(input.headers, input.authority_set_change)
         .map_err(display)?;
 
     Ok(json!({ "synced_to": last_header }))
@@ -1260,13 +1245,6 @@ fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
     }
 
     Ok(json!({ "dispatched_to": last_block }))
-}
-
-fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Value> {
-    let data = base64::decode(&data_b64)
-        .map_err(|_| error_msg("cannot decode authority_set_change_b64"))?;
-    AuthoritySetChange::decode(&mut &data[..])
-        .map_err(|_| error_msg("cannot decode authority_set_change"))
 }
 
 fn handle_events(

@@ -243,26 +243,14 @@ async fn bisec_setid_change(
 
 async fn req_sync_header(
     pr: &PrClient,
-    headers: &Vec<HeaderToSync>,
-    authority_set_change: Option<&AuthoritySetChange>,
+    headers: Vec<HeaderToSync>,
+    authority_set_change: Option<AuthoritySetChange>,
 ) -> Result<SyncHeaderResp> {
-    let headers_b64 = headers
-        .iter()
-        .map(|header| {
-            let raw_header = Encode::encode(&header);
-            base64::encode(&raw_header)
-        })
-        .collect();
-    let authority_set_change_b64 = authority_set_change.map(|change| {
-        let raw_change = Encode::encode(change);
-        base64::encode(&raw_change)
-    });
-
-    let req = SyncHeaderReq {
-        headers_b64,
-        authority_set_change_b64,
+    let req = blocks::SyncHeaderReq {
+        headers,
+        authority_set_change,
     };
-    let resp = pr.req_decode("sync_header", req).await?;
+    let resp = pr.bin_req_decode("bin_api/sync_header", req).await?;
     Ok(resp)
 }
 
@@ -417,7 +405,7 @@ async fn batch_sync_block(
                 .map(|change| &change.authority_set)
         );
 
-        let r = req_sync_header(pr, &header_batch, authrotiy_change.as_ref()).await?;
+        let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
 
         let dispatch_window = batch_window - 1;
