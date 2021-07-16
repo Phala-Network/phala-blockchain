@@ -3,11 +3,15 @@ require('dotenv').config();
 const { program } = require('commander');
 const axios = require('axios').default;
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
+const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const phalaTypes = require('@phala/typedefs').latest;
 
 function run(afn) {
     function runner(...args) {
-        afn(...args).catch(console.error).finally(() => process.exit())
+        afn(...args)
+            .catch(console.error)
+            .then(process.exit)
+            .finally(() => process.exit(-1));
     };
     return runner;
 }
@@ -159,7 +163,7 @@ program
                 Plain: JSON.stringify({
                     NewAccount: {
                         seq_number: seqNumber
-                    }                    
+                    }
                 })
             })
 
@@ -190,11 +194,39 @@ program
                     TransferXUS: {
                         to: dest,
                         amount: xusAmount,
-                    }                    
+                    }
                 })
             })
         ).signAndSend(pair);
         console.log(r.toHuman());
     }));
+
+// Utilities
+
+program
+    .command('verify <input>')
+    .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)', {
+        input: 'the raw input data'
+    })
+    .action(run(async (input) => {
+        input = input.trim();
+        const keyring = new Keyring({ type: 'sr25519' });
+        try {
+            if (keyring.decodeAddress(input)) {
+                console.log('Valid address');
+                return 0;
+            }
+        } catch {}
+        try {
+            await cryptoWaitReady();
+            if (keyring.addFromUri(input)) {
+                console.log('Valid private key');
+                return 0;
+            }
+        } catch {}
+        console.log('Cannot decode the input');
+        return -1;
+    }))
+
 
 program.parse(process.argv);
