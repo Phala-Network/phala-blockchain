@@ -17,6 +17,7 @@ sp-runtime = { path = "../../../substrate/primitives/runtime", default-features 
 trie-storage = { path = "../../../crates/trie-storage", default-features = false }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
+derive_more = "0.99.16"
 
 [features]
 default = ["std"]
