@@ -648,7 +648,6 @@ pub mod pallet {
 		}
 	}
 
-	// impl<T: Config, Balance: Saturating + AtLeast32BitUnsigned + Clone> mining::OnCleanup<Balance> for Pallet<T>
 	impl<T: Config> mining::OnCleanup<BalanceOf<T>> for Pallet<T>
 	where
 		T: mining::Config,
