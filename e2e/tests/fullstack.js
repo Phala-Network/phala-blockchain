@@ -6,7 +6,7 @@ const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
-const {types, typeAlias} = require('./typeoverride');
+const { types, typeAlias } = require('./typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').latest;
 
@@ -79,7 +79,7 @@ describe('A full stack', function () {
 			workerKey = Uint8Array.from(Buffer.from(info.public_key, 'hex'));
 		});
 
-		it('can sync block', async function() {
+		it('can sync block', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
 				return info.blocknum > 0;
@@ -94,7 +94,7 @@ describe('A full stack', function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
 				return info.registered;
-			}, 4*6000), 'not registered in time');
+			}, 4 * 6000), 'not registered in time');
 		});
 
 		it('finishes the benchmark', async function () {
@@ -104,12 +104,15 @@ describe('A full stack', function () {
 			assert.isTrue(await checkUntil(async () => {
 				const workerInfo = await api.query.phalaRegistry.worker(workerKey);
 				return workerInfo.unwrap().intialScore.isSome;
-			}, 3*6000), 'benchmark timeout');
+			}, 3 * 6000), 'benchmark timeout');
 		});
 	});
 
 	describe('Gatekeeper', () => {
 		it('can be registered', async function () {
+			// const initial_gatekeepers = await api.query.phalaRegistry.gatekeeper();
+			// console.log(`Init with gatekeepers: ${initial_gatekeepers}`);
+
 			const info = await pruntime[1].getInfo();
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
@@ -133,9 +136,15 @@ describe('A full stack', function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[1].getInfo();
 				return info.registered;
-			}, 4*6000), 'not registered in time');
+			}, 4 * 6000), 'not registered in time');
 
-			// TODO: check if the role is Gatekeeper
+			// Check if the role is Gatekeeper
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+				return gatekeepers.includes(hex(info.public_key));
+			}, 4 * 6000), 'not registered as gatekeeper');
 		});
 	});
 
@@ -209,9 +218,9 @@ describe('A full stack', function () {
 		it('can fund the accounts', async function () {
 			const unit10 = 10 * 1e12;
 			const nonce = await getNonce(alice.address)
-			await api.tx.balances.transfer(stash.address, unit10).signAndSend(alice, {nonce: nonce});
-			await api.tx.balances.transfer(controller.address, unit10).signAndSend(alice, {nonce: nonce + 1});
-			await api.tx.balances.transfer(reward.address, unit10).signAndSend(alice, {nonce: nonce + 2});
+			await api.tx.balances.transfer(stash.address, unit10).signAndSend(alice, { nonce: nonce });
+			await api.tx.balances.transfer(controller.address, unit10).signAndSend(alice, { nonce: nonce + 1 });
+			await api.tx.balances.transfer(reward.address, unit10).signAndSend(alice, { nonce: nonce + 2 });
 
 			await waitTxAccepted(alice.address, nonce + 2);
 			const stashInfo = await api.query.system.account(stash.address);
@@ -352,7 +361,7 @@ function assertEvents(actualEvents, expectedEvents, partial = true) {
 	assert.deepEqual(simpleEvents, expectedEvents, 'Events not equal');
 }
 
-function simplifyEvents (events, keepData = false) {
+function simplifyEvents(events, keepData = false) {
 	const simpleEvents = [];
 	for (const e of events) {
 		const { event } = e;
@@ -401,8 +410,8 @@ class Cluster {
 
 	async _reservePorts() {
 		const [wsPort, ...workerPorts] = await Promise.all([
-			portfinder.getPortPromise({port: 9944}),
-			...this.workers.map(() => portfinder.getPortPromise({port: 8000, stopPort: 9900}))
+			portfinder.getPortPromise({ port: 9944 }),
+			...this.workers.map(() => portfinder.getPortPromise({ port: 8000, stopPort: 9900 }))
 		]);
 		this.wsPort = wsPort;
 		this.workers.forEach((w, i) => w.port = workerPorts[i]);
@@ -452,7 +461,7 @@ class Cluster {
 }
 
 
-function newNode(wsPort, tmpPath, name='node') {
+function newNode(wsPort, tmpPath, name = 'node') {
 	return new Process([
 		pathNode, [
 			'--dev',
@@ -463,7 +472,7 @@ function newNode(wsPort, tmpPath, name='node') {
 	], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name='pruntime') {
+function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 	const workDir = path.resolve(`${tmpPath}/${name}`);
 	fs.mkdirSync(workDir);
 	const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
@@ -483,7 +492,7 @@ function newPRuntime(teePort, tmpPath, name='pruntime') {
 	], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, key, name='relayer') {
+function newRelayer(wsPort, teePort, tmpPath, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
 			'--mnemonic=//Alice',
