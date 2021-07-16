@@ -153,3 +153,21 @@ pub fn events() -> Vec<Event> {
 	System::reset_events();
 	evt
 }
+
+use phala_types::{
+	WorkerPublicKey,
+	EcdhP256PublicKey,
+};
+
+pub fn worker_pubkey(i: u8) -> WorkerPublicKey {
+	let mut raw = [0u8; 33];
+	raw[32] = i;
+	raw[31] = 1;  // distinguish with the genesis config
+	WorkerPublicKey::from_raw(raw)
+}
+pub fn ecdh_pubkey(i: u8) -> EcdhP256PublicKey {
+	let mut raw = [0u8; 65];
+	raw[64] = i;
+	raw[63] = 1;  // distinguish with the genesis config
+	EcdhP256PublicKey(raw)
+}

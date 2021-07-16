@@ -181,15 +181,15 @@ pub mod pallet {
 			let worker_info =
 				registry::Worker::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
 
-			// check the worker has finished the benchmark
-			ensure!(
-				worker_info.intial_score != None,
-				Error::<T>::BenchmarkMissing
-			);
 			// check wheather the owner was bounded as operator
 			ensure!(
 				worker_info.operator == Some(owner.clone()),
 				Error::<T>::UnauthorizedOperator
+			);
+			// check the worker has finished the benchmark
+			ensure!(
+				worker_info.intial_score != None,
+				Error::<T>::BenchmarkMissing
 			);
 
 			// origin must be owner of pool
@@ -199,7 +199,7 @@ pub mod pallet {
 			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
 			// TODO: limite the number of workers to avoid performance issue.
-			ensure!(workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
+			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
 			let miner: T::AccountId = pool_sub_account(pid, &pubkey);
@@ -724,16 +724,20 @@ pub mod pallet {
 		use hex_literal::hex;
 		use sp_runtime::AccountId32;
 		use assert_matches::assert_matches;
-		use frame_support::assert_ok;
+		use frame_support::{assert_ok, assert_noop};
 
 		use super::*;
 		use crate::mock::{
 			new_test_ext,
 			set_block_1,
 			events,
+			worker_pubkey,
+			ecdh_pubkey,
 			Test,
 			Origin,
 			Event as TestEvent,
+			PhalaRegistry,
+			PhalaStakePool,
 		};
 
 		#[test]
@@ -751,8 +755,8 @@ pub mod pallet {
 			// Check this fixed: <https://github.com/Phala-Network/phala-blockchain/issues/285>
 			new_test_ext().execute_with(|| {
 				set_block_1();
-				assert_ok!(Pallet::<Test>::create(Origin::signed(1)));
-				Pallet::<Test>::on_finalize(1);
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				PhalaStakePool::on_finalize(1);
 				assert_matches!(events().as_slice(), [
 					TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),
 				]);
@@ -768,6 +772,53 @@ pub mod pallet {
 					withdraw_queue: VecDeque::new(),
 				}));
 				assert_eq!(PoolCount::<Test>::get(), 1);
+			});
+		}
+
+		#[test]
+		fn test_add_worker() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+
+				let worker1 = worker_pubkey(1);
+				let worker2 = worker_pubkey(2);
+
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker1.clone(),
+					ecdh_pubkey(1),
+					Some(1)
+				));
+
+				// Create a pool (pid = 0)
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				// Bad inputs
+				assert_noop!(
+					PhalaStakePool::add_worker(Origin::signed(1), 1, worker2.clone()),
+					Error::<Test>::WorkerNotRegistered
+				);
+				assert_noop!(
+					PhalaStakePool::add_worker(Origin::signed(2), 0, worker1.clone()),
+					Error::<Test>::UnauthorizedOperator
+				);
+				assert_noop!(
+					PhalaStakePool::add_worker(Origin::signed(1), 0, worker1.clone()),
+					Error::<Test>::BenchmarkMissing
+				);
+				// Add benchmark and retry
+				PhalaRegistry::internal_set_benchmark(&worker1, Some(1));
+				assert_ok!(PhalaStakePool::add_worker(Origin::signed(1), 0, worker1.clone()));
+				// Other bad cases
+				assert_noop!(
+					PhalaStakePool::add_worker(Origin::signed(1), 100, worker1.clone()),
+					Error::<Test>::PoolNotExist
+				);
+				// Bind one worker to antoher pool (pid = 1)
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_noop!(
+					PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
+					Error::<Test>::MinerBindingCallFailed
+				);
 			});
 		}
 	}

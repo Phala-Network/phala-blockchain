@@ -352,6 +352,14 @@ pub mod pallet {
 			}
 			Ok(())
 		}
+
+		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
+			Worker::<T>::mutate(worker, |w| {
+				if let Some(w) = w {
+					w.intial_score = score;
+				}
+			});
+		}
 	}
 
 	// Genesis config build
