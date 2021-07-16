@@ -47,6 +47,7 @@ use std::str;
 use std::sync::RwLock;
 use std::env;
 
+use rocket::data::Data;
 use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
@@ -357,7 +358,7 @@ macro_rules! do_ecall_handle {
     }};
 }
 
-macro_rules! delegate_rpc {
+macro_rules! proxy {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
         fn $name(contract_input: Json<ContractInput>) -> JsonValue {
@@ -369,19 +370,45 @@ macro_rules! delegate_rpc {
     };
 }
 
-delegate_rpc!("/test", test, actions::ACTION_TEST);
-delegate_rpc!("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME);
-delegate_rpc!("/get_info", get_info, actions::ACTION_GET_INFO);
-delegate_rpc!("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO);
-delegate_rpc!("/dump_states", dump_states, actions::ACTION_DUMP_STATES);
-delegate_rpc!("/load_states", load_states, actions::ACTION_LOAD_STATES);
-delegate_rpc!("/sync_header", sync_header, actions::ACTION_SYNC_HEADER);
-delegate_rpc!("/query", query, actions::ACTION_QUERY);
-delegate_rpc!("/dispatch_block", dispatch_block, actions::ACTION_DISPATCH_BLOCK);
-// TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
-delegate_rpc!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
-delegate_rpc!("/test_ink", test_ink, actions::ACTION_TEST_INK);
+fn read_data(data: Data) -> Option<Vec<u8>> {
+    use std::io::Read;
+    let mut stream = data.open();
+    let mut data = Vec::new();
+    stream.read_to_end(&mut data).ok()?;
+    Some(data)
+}
 
+macro_rules! proxy_bin {
+    ($rpc: literal, $name: ident, $num: expr) => {
+        #[post($rpc, data = "<data>")]
+        fn $name(data: Data) -> JsonValue {
+            let data = match read_data(data) {
+                Some(data) => data,
+                None => {
+                    return json!({
+                        "status": "error",
+                        "payload": "Io error: Read input data failed"
+                    })
+                }
+            };
+            do_ecall_handle!($num, data)
+        }
+    };
+}
+
+proxy!("/test", test, actions::ACTION_TEST);
+proxy!("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME);
+proxy!("/get_info", get_info, actions::ACTION_GET_INFO);
+proxy!("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO);
+proxy!("/dump_states", dump_states, actions::ACTION_DUMP_STATES);
+proxy!("/load_states", load_states, actions::ACTION_LOAD_STATES);
+proxy!("/sync_header", sync_header, actions::ACTION_SYNC_HEADER);
+proxy!("/query", query, actions::ACTION_QUERY);
+// TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
+proxy!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
+proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
+
+proxy_bin!("/bin_api/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK);
 
 #[post("/kick")]
 fn kick() {
@@ -414,7 +441,6 @@ fn rocket() -> rocket::Rocket {
             sync_header, dispatch_block, query,
             get_runtime_info, get_egress_messages, test_ink,
             bin_api::sync_header_bin,
-            bin_api::dispatch_block_bin,
             ]);
 
     if *ENABLE_KICK_API {
@@ -558,10 +584,5 @@ mod bin_api {
     #[post("/bin_api/sync_header", data = "<data>")]
     pub fn sync_header_bin(data: Data) -> JsonValue {
         relay_to!(actions::ACTION_SYNC_HEADER, data: SyncHeaderReq)
-    }
-
-    #[post("/bin_api/dispatch_block", data = "<data>")]
-    pub fn dispatch_block_bin(data: Data) -> JsonValue {
-        relay_to!(actions::ACTION_DISPATCH_BLOCK, data: DispatchBlockReq)
     }
 }
