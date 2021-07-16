@@ -56,7 +56,7 @@ use pink::InkModule;
 
 use enclave_api::{
     actions::*,
-    blocks::{self, BlockHeaderWithEvents, HeadersToSync, SyncParachainHeaderReq},
+    blocks::{self, SyncParachainHeaderReq},
 };
 
 #[cfg(feature = "parachain")]
@@ -84,9 +84,7 @@ mod utils;
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use cryptography::{aead, ecdh};
-use light_validation::AuthoritySetChange;
 use rpc_types::*;
-use std::collections::VecDeque;
 use system::TransactionStatus;
 use trie_storage::TrieStorage;
 use types::BlockInfo;
