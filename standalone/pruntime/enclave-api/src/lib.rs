@@ -150,14 +150,14 @@ pub mod blocks {
     }
 }
 
-pub mod block_feeders {
+pub mod storage_sync {
     use super::blocks::{AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync};
 
     use alloc::collections::VecDeque;
     use alloc::vec::Vec;
     use chain::Hash;
     use derive_more::Display;
-    use parity_scale_codec::{Decode, Encode};
+    use parity_scale_codec::Encode;
 
     type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
     type Storage = trie_storage::TrieStorage<RuntimeHasher>;
@@ -165,15 +165,21 @@ pub mod block_feeders {
 
     #[derive(Display)]
     pub enum Error {
+        /// No header or block data in the request
         EmptyRequest,
+        /// No Justification found in the last header
         MissingJustification,
-        IncorrectHeaderOrder,
+        /// Header validation failed
         HeaderValidateFailed,
-        UnexpectedHeader,
-        NoRelaychainHeader,
+        /// Relay chain header not synced before syncing parachain header
+        RelaychainHeaderNotSynced,
+        /// Some header parent hash mismatches it's parent header
         HeaderHashMismatch,
+        /// The end block number mismatch the expecting next block number
         BlockNumberMismatch,
-        BlockHeaderNotFound,
+        /// No state root to validate the storage changes
+        NoStateRoot,
+        /// Invalid storage changes that cause the state root mismatch
         StateRootMismatch,
     }
 
@@ -195,22 +201,38 @@ pub mod block_feeders {
         ) -> Result<()>;
     }
 
-    pub struct HeaderFeeder<Validator> {
+    pub struct BlockSyncState<Validator> {
         validator: Validator,
         main_bridge: u64,
-        headernum: chain::BlockNumber,
+        header_number_next: chain::BlockNumber,
+        block_number_next: chain::BlockNumber,
     }
 
-    impl<Validator> HeaderFeeder<Validator>
+    impl<Validator> BlockSyncState<Validator>
     where
         Validator: BlockValidator,
     {
+        pub fn new(validator: Validator, main_bridge: u64) -> Self {
+            Self {
+                validator,
+                main_bridge,
+                header_number_next: 1,
+                block_number_next: 1,
+            }
+        }
+
+        /// Given chain headers in sequence, validate it and output the state_roots
         pub fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
             state_roots: &mut VecDeque<Hash>,
         ) -> Result<chain::BlockNumber> {
+            let first_header = headers.first().ok_or_else(|| Error::EmptyRequest)?;
+            if first_header.header.number != self.header_number_next {
+                return Err(Error::BlockNumberMismatch);
+            }
+
             // Light validation when possible
             let last_header = headers.last().ok_or_else(|| Error::EmptyRequest)?;
 
@@ -225,7 +247,7 @@ pub mod block_feeders {
                 // 2. check header sequence
                 for (i, header) in headers.iter().enumerate() {
                     if i > 0 && headers[i - 1].header.hash() != header.header.parent_hash {
-                        return Err(Error::IncorrectHeaderOrder);
+                        return Err(Error::HeaderHashMismatch);
                     }
                 }
                 // 3. generate accenstor proof
@@ -245,45 +267,28 @@ pub mod block_feeders {
                 )?;
             }
 
-            let mut last_header = 0;
-            for header_with_events in headers.iter() {
-                let header = &header_with_events.header;
-                if header.number != self.headernum {
-                    return Err(Error::UnexpectedHeader);
-                }
-
-                // move forward
-                last_header = header.number;
-                self.headernum = last_header + 1;
-            }
-
             // Save the block hashes for future dispatch
             for header in headers.iter() {
                 state_roots.push_back(header.header.state_root);
             }
 
-            Ok(last_header)
+            self.header_number_next = last_header.header.number + 1;
+
+            Ok(last_header.header.number)
         }
-    }
-
-    pub struct BlockFeeder {
-        state_roots: VecDeque<Hash>,
-        next_block_number: chain::BlockNumber,
-    }
-
-    impl BlockFeeder {
 
         /// Feed a block and apply changes to storage if it's valid.
-        fn feed_block(
+        pub fn feed_block(
             &mut self,
             block: &BlockHeaderWithEvents,
+            state_roots: &mut VecDeque<Hash>,
             storage: &mut Storage,
         ) -> Result<()> {
-            if block.block_header.number != self.next_block_number {
+            if block.block_header.number != self.block_number_next {
                 return Err(Error::BlockNumberMismatch);
             }
 
-            let expected_root = self.state_roots.get(0).ok_or(Error::BlockHeaderNotFound)?;
+            let expected_root = state_roots.get(0).ok_or(Error::NoStateRoot)?;
 
             let changes = &block.storage_changes;
 
@@ -298,28 +303,25 @@ pub mod block_feeders {
 
             storage.apply_changes(state_root, transaction);
 
-            self.next_block_number += 1;
-            self.state_roots.pop_front();
+            self.block_number_next += 1;
+            state_roots.pop_front();
             Ok(())
         }
     }
 
-    struct SolochainFeeder<Validator> {
-        header_feeder: HeaderFeeder<Validator>,
-        block_feeder: BlockFeeder,
+    pub struct SolochainSynchronizer<Validator> {
+        header_feeder: BlockSyncState<Validator>,
+        state_roots: VecDeque<Hash>,
     }
 
-    impl<Validator: BlockValidator> SolochainFeeder<Validator> {
+    impl<Validator: BlockValidator> SolochainSynchronizer<Validator> {
         pub fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
-            self.header_feeder.sync_header(
-                headers,
-                authority_set_change,
-                &mut self.block_feeder.state_roots,
-            )
+            self.header_feeder
+                .sync_header(headers, authority_set_change, &mut self.state_roots)
         }
 
         pub fn feed_block(
@@ -327,88 +329,114 @@ pub mod block_feeders {
             block: &BlockHeaderWithEvents,
             storage: &mut Storage,
         ) -> Result<()> {
-            self.block_feeder.feed_block(block, storage)
+            self.header_feeder
+                .feed_block(block, &mut self.state_roots, storage)
         }
     }
 
-    struct ParachainFeeder<Validator> {
-        relaychain_header_feeder: HeaderFeeder<Validator>,
-        last_relaychain_state_root: Option<Hash>,
-        block_feeder: BlockFeeder,
+    pub struct Counters {
+        pub next_header_number: chain::BlockNumber,
+        pub next_para_header_number: chain::BlockNumber,
+        pub next_block_number: chain::BlockNumber,
     }
 
-    impl<Validator: BlockValidator> ParachainFeeder<Validator> {
+    pub struct ParachainSynchronizer<Validator> {
+        sync_state: BlockSyncState<Validator>,
+        last_relaychain_state_root: Option<Hash>,
+        para_header_number_next: chain::BlockNumber,
+        para_state_roots: VecDeque<Hash>,
+    }
+
+    impl<Validator: BlockValidator> ParachainSynchronizer<Validator> {
+        pub fn new(validator: Validator, main_bridge: u64) -> Self {
+            Self {
+                sync_state: BlockSyncState::new(validator, main_bridge),
+                last_relaychain_state_root: None,
+                para_header_number_next: 1,
+                para_state_roots: Default::default(),
+            }
+        }
+
+        pub fn counters(&self) -> Counters {
+            Counters {
+                next_block_number: self.sync_state.block_number_next,
+                next_header_number: self.sync_state.header_number_next,
+                next_para_header_number: self.para_header_number_next,
+            }
+        }
+
+        /// Given the relaychain headers in sequence, validate it and cached the last state_root for parachain header validation
         pub fn sync_relaychain_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
             let mut state_roots = Default::default();
-            let last_header = self.relaychain_header_feeder.sync_header(
-                headers,
-                authority_set_change,
-                &mut state_roots,
-            )?;
+            let last_header =
+                self.sync_state
+                    .sync_header(headers, authority_set_change, &mut state_roots)?;
             self.last_relaychain_state_root = state_roots.pop_back();
             Ok(last_header)
         }
 
+        /// Given the parachain headers in sequence, validate it and cached the state_roots for block validation
         pub fn sync_parachain_header(
             &mut self,
             headers: Vec<chain::Header>,
             proof: &[u8],
             storage_key: &[u8],
         ) -> Result<()> {
-            let last_raw_header = if let Some(hdr) = headers.last() {
-                hdr.encode()
-            } else {
-                return Err(Error::EmptyRequest);
-            };
+            let first_hdr = headers.first().ok_or(Error::EmptyRequest)?;
+            if self.para_header_number_next != first_hdr.number {
+                return Err(Error::BlockNumberMismatch);
+            }
+
+            let last_hdr = headers.last().ok_or(Error::EmptyRequest)?;
 
             let state_root = if let Some(root) = &self.last_relaychain_state_root {
                 root.clone()
             } else {
-                return Err(Error::NoRelaychainHeader);
+                return Err(Error::RelaychainHeaderNotSynced);
             };
 
-            self.relaychain_header_feeder
-                .validator
-                .validate_storage_proof(
-                    state_root,
-                    proof,
-                    &[(storage_key, last_raw_header.as_slice())],
-                )?;
+            // 1. validate storage proof
+            self.sync_state.validator.validate_storage_proof(
+                state_root,
+                proof,
+                &[(storage_key, last_hdr.encode().as_slice())],
+            )?;
 
-            check_headers_hash(&headers)?;
+            // 2. check header sequence
+            for (i, header) in headers.iter().enumerate() {
+                if i > 0 && headers[i - 1].hash() != header.parent_hash {
+                    return Err(Error::HeaderHashMismatch);
+                }
+            }
 
             // All checks passed, enqueue the state roots for storage validation.
             for hdr in headers.iter().rev() {
-                self.block_feeder.state_roots.push_back(hdr.state_root);
+                self.para_state_roots.push_back(hdr.state_root);
             }
 
             self.last_relaychain_state_root = None;
+            self.para_header_number_next = last_hdr.number + 1;
 
             Ok(())
         }
 
+        /// Feed in a block of storage changes
         pub fn feed_block(
             &mut self,
             block: &BlockHeaderWithEvents,
             storage: &mut Storage,
         ) -> Result<()> {
-            self.block_feeder.feed_block(block, storage)
+            self.sync_state
+                .feed_block(block, &mut self.para_state_roots, storage)
         }
     }
 
-    fn check_headers_hash(headers: &[chain::Header]) -> Result<()> {
-        let mut expected_hash = headers.last().ok_or(Error::EmptyRequest)?.hash();
-
-        for hdr in headers.iter().rev() {
-            if hdr.hash() != expected_hash {
-                return Err(Error::HeaderHashMismatch);
-            }
-            expected_hash = hdr.parent_hash;
-        }
-        Ok(())
+    #[cfg(test)]
+    mod tests {
+        // TODO.kevin: Write some tests
     }
 }
