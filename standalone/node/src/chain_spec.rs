@@ -248,7 +248,7 @@ pub fn testnet_genesis(
 	// The pubkey of "0x1"
 	let raw_dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
 	let dev_ecdsa_pubkey = sp_core::ecdsa::Public::from_full(raw_dev_ecdsa_pubkey.as_slice()).unwrap();
-	let dev_ecdh_pubkey = hex!["046b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c2964fe342e2fe1a7f9b8ee7eb4a7c0f9e162bce33576b315ececbb6406837bf51f5"].to_vec();
+	let dev_ecdh_pubkey = hex!["3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"].to_vec();
 
 	let phala_registry = match dev {
 		true => PhalaRegistryConfig {

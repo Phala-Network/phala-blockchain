@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./typeoverride');
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
-const { checkUntil, skipSlowTest } = require('../utils');
+const { checkUntil, skipSlowTest, sleep } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/phost');
@@ -68,7 +68,7 @@ describe('A full stack', function () {
 	})
 
 	let workerKey;
-	describe('pRuntime', () => {
+	describe.skip('pRuntime', () => {
 		it('is initialized', async function () {
 			let info;
 			assert.isTrue(await checkUntil(async () => {
@@ -110,9 +110,6 @@ describe('A full stack', function () {
 
 	describe('Gatekeeper', () => {
 		it('can be registered', async function () {
-			// const initial_gatekeepers = await api.query.phalaRegistry.gatekeeper();
-			// console.log(`Init with gatekeepers: ${initial_gatekeepers}`);
-
 			const info = await pruntime[1].getInfo();
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
@@ -145,6 +142,8 @@ describe('A full stack', function () {
 				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
 				return gatekeepers.includes(hex(info.public_key));
 			}, 4 * 6000), 'not registered as gatekeeper');
+
+			await sleep(10000000);
 		});
 	});
 

@@ -9,7 +9,7 @@ const types = {
 	"EcdsaPublicKey": "[u8; 33]",
 	"WorkerPublicKey": "EcdsaPublicKey",
 	"ContractPublicKey": "EcdsaPublicKey",
-	"EcdhP256PublicKey": "[u8; 65]",
+	"EcdhPublicKey": "[u8; 32]",
 	"MessageOrigin": {
 		"_enum": {
 			"Pallet": "Vec<u8>",
@@ -46,7 +46,7 @@ const types = {
 		"version": "u32",
 		"machineId": "MachineId",
 		"pubkey": "WorkerPublicKey",
-		"ecdhPubkey": "EcdhP256PublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
 		"features": "Vec<u32>",
 		"operator": "Option<AccountId>"
 	},
@@ -98,7 +98,7 @@ const types = {
 	},
 	"WorkerInfo": {
 		"pubkey": "WorkerPublicKey",
-		"ecdhPubkey": "EcdhP256PublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
 		"runtimeVersion": "u32",
 		"lastUpdated": "u64",
 		"operator": "Option<AccountId>",
@@ -193,12 +193,12 @@ const types = {
 	},
     "NewGatekeeperEvent": {
         "pubkey": "WorkerPublicKey",
-        "ecdhPubkey": "EcdhP256PublicKey",
+        "ecdhPubkey": "EcdhPublicKey",
         "gatekeeperCount": "u32"
     },
     "DispatchMasterKeyEvent": {
         "dest": "WorkerPublicKey",
-        "ecdhPubkey": "EcdhP256PublicKey",
+        "ecdhPubkey": "EcdhPublicKey",
         "encryptedMasterKey": "Vec<u8>",
         "iv": "[u8; 12]"
     },

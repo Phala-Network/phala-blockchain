@@ -3,16 +3,16 @@ use crate::CryptoError;
 use alloc::vec::Vec;
 use curve25519_dalek::scalar::Scalar;
 use schnorrkel::keys::{ExpansionMode, Keypair, MiniSecretKey, PublicKey, SecretKey};
-use schnorrkel::{MINI_SECRET_KEY_LENGTH, SECRET_KEY_LENGTH};
+use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 
 /// sr25519 key pair
 #[derive(Clone)]
 pub struct EcdhKey(Keypair);
 
 pub type EcdhPrivateKey = [u8; SECRET_KEY_LENGTH];
-pub type EcdhPublicKey = PublicKey;
+pub type EcdhPublicKey = [u8; PUBLIC_KEY_LENGTH];
 
-type Seed = [u8; MINI_SECRET_KEY_LENGTH];
+pub type Seed = [u8; MINI_SECRET_KEY_LENGTH];
 
 impl EcdhKey {
     pub fn create(seed: &Seed) -> Result<EcdhKey, CryptoError> {
@@ -32,7 +32,7 @@ impl EcdhKey {
     }
 
     pub fn public(&self) -> EcdhPublicKey {
-        self.0.public
+        self.0.public.to_bytes()
     }
 
     pub fn secret(&self) -> EcdhPrivateKey {

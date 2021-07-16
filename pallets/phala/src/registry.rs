@@ -22,7 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhP256PublicKey, PRuntimeInfo, WorkerPublicKey,
+		ContractPublicKey, EcdhPublicKey, PRuntimeInfo, WorkerPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -102,7 +102,7 @@ pub mod pallet {
 		pub fn force_register_worker(
 			origin: OriginFor<T>,
 			pubkey: WorkerPublicKey,
-			ecdh_pubkey: EcdhP256PublicKey,
+			ecdh_pubkey: EcdhPublicKey,
 			operator: Option<T::AccountId>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
@@ -456,7 +456,7 @@ pub mod pallet {
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,
-		ecdh_pubkey: EcdhP256PublicKey,
+		ecdh_pubkey: EcdhPublicKey,
 		// system
 		runtime_version: u32,
 		last_updated: u64,

@@ -873,7 +873,7 @@ impl Web3Analytics {
 
     fn encrypt(&mut self, data: String) -> String {
         let mut msg = data.as_bytes().to_vec();
-        let iv = aead::generate_random_iv();
+        let iv = crate::generate_random_iv();
         aead::encrypt(&iv, &self.key, &mut msg);
 
         format!("{:}|{:}", base64::encode(&iv), base64::encode(&msg))

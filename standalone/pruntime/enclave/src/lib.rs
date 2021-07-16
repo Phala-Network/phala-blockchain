@@ -44,6 +44,7 @@ use frame_system::EventRecord;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
+use ring::rand::SecureRandom;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
@@ -60,6 +61,7 @@ use enclave_api::{
     storage_sync::SolochainSynchronizer,
 };
 
+use phala_crypto::{aead, ecdh::EcdhKey, secp256k1::KDF};
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::PRuntimeInfo;
@@ -78,7 +80,6 @@ mod utils;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
-use cryptography::{aead, ecdh};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use std::collections::VecDeque;
@@ -152,7 +153,6 @@ pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
 pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 
 type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
-type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
@@ -167,8 +167,7 @@ struct RuntimeState {
 struct LocalState {
     initialized: bool,
     identity_key: Option<ecdsa::Pair>,
-    ecdh_private_key: Option<EcdhKey>,
-    ecdh_public_key: Option<ring::agreement::PublicKey>,
+    ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
@@ -250,8 +249,7 @@ lazy_static! {
         SgxMutex::new(LocalState {
             initialized: false,
             identity_key: None,
-            ecdh_private_key: None,
-            ecdh_public_key: None,
+            ecdh_key: None,
             machine_id: [0; 16],
             dev_mode: false,
             runtime_info: None,
@@ -727,23 +725,16 @@ const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
 struct PersistentRuntimeData {
     version: u32,
     sk: String,
-    ecdh_sk: String,
     dev_mode: bool,
 }
 
-fn save_secret_keys(
-    ecdsa_sk: ecdsa::Pair,
-    ecdh_sk: EcdhKey,
-    dev_mode: bool,
-) -> Result<PersistentRuntimeData> {
+fn save_secret_keys(ecdsa_sk: ecdsa::Pair, dev_mode: bool) -> Result<PersistentRuntimeData> {
     // Put in PresistentRuntimeData
     let serialized_sk = ecdsa_sk.to_raw_vec();
-    let serialized_ecdh_sk = ecdh::dump_key(&ecdh_sk);
 
     let data = PersistentRuntimeData {
         version: 1,
         sk: hex::encode(&serialized_sk),
-        ecdh_sk: hex::encode(serialized_ecdh_sk.as_ref()),
         dev_mode,
     };
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
@@ -822,12 +813,19 @@ fn new_ecdsa_key() -> Result<ecdsa::Pair> {
         .map_err(|_| anyhow!("Failed to generate a random ecdsa key"))
 }
 
+pub fn generate_random_iv() -> aead::IV {
+    let mut nonce_vec = [0u8; aead::IV_BYTES];
+    let rand = ring::rand::SystemRandom::new();
+    rand.fill(&mut nonce_vec).unwrap();
+    nonce_vec
+}
+
 fn init_secret_keys(
     local_state: &mut LocalState,
-    predefined_keys: Option<(ecdsa::Pair, EcdhKey)>,
+    predefined_identity_key: Option<ecdsa::Pair>,
 ) -> Result<PersistentRuntimeData> {
-    let data = if let Some((ecdsa_sk, ecdh_sk)) = predefined_keys {
-        save_secret_keys(ecdsa_sk, ecdh_sk, true)?
+    let data = if let Some(ecdsa_sk) = predefined_identity_key {
+        save_secret_keys(ecdsa_sk, true)?
     } else {
         match load_secret_keys() {
             Ok(data) => data,
@@ -840,8 +838,7 @@ fn init_secret_keys(
             {
                 warn!("Persistent data not found.");
                 let ecdsa_sk = new_ecdsa_key()?;
-                let ecdh_sk = ecdh::generate_key();
-                save_secret_keys(ecdsa_sk, ecdh_sk, false)?
+                save_secret_keys(ecdsa_sk, false)?
             }
             other_err => return other_err,
         }
@@ -857,11 +854,11 @@ fn init_secret_keys(
     let ecdsa_sk = ecdsa::Pair::from_seed(&ecdsa_raw_key);
     info!("Identity pubkey: {:?}", hex::encode(&ecdsa_sk.public()));
 
-    // load ECDH identity
-    let ecdh_raw_key = hex::decode(&data.ecdh_sk).expect("Unable to decode ECDH key hex");
-    let ecdh_sk = ecdh::create_key(ecdh_raw_key.as_slice()).expect("can't create ecdh key");
-    let ecdh_pk = ecdh_sk.compute_public_key().expect("can't compute pubkey");
-    let ecdh_hex_pk = hex::encode(ecdh_pk.as_ref());
+    // derive ecdh key
+    let ecdh_key = ecdsa_sk
+        .derive_ecdh_key()
+        .expect("Unable to derive ecdh key");
+    let ecdh_hex_pk = hex::encode(ecdh_key.public().as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
     // Generate Seal Key as Machine Id
@@ -871,8 +868,7 @@ fn init_secret_keys(
 
     // Save
     local_state.identity_key = Some(ecdsa_sk);
-    local_state.ecdh_private_key = Some(ecdh_sk);
-    local_state.ecdh_public_key = Some(ecdh_pk);
+    local_state.ecdh_key = Some(ecdh_key);
     local_state.machine_id = machine_id.clone();
     local_state.dev_mode = data.dev_mode;
 
@@ -947,9 +943,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
         let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key)
             .map_err(|_| error_msg("can't parse private key"))?;
-        let ecdh_key =
-            ecdh::create_key(raw_key.as_slice()).map_err(|_| error_msg("can't create ecdh key"))?;
-        init_secret_keys(&mut local_state, Some((ecdsa_key, ecdh_key)))
+        init_secret_keys(&mut local_state, Some(ecdsa_key))
             .map_err(|_| error_msg("failed to update secret key"))?;
     }
 
@@ -965,16 +959,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
-    // load ECDH identity
-    let ecdh_raw_pk: &[u8] = local_state.ecdh_public_key.as_ref().unwrap().as_ref();
-    let ecdh_hex_pk = hex::encode(ecdh_raw_pk);
+    // derive ecdh key
+    let ecdh_pubkey = local_state.ecdh_key.as_ref().unwrap().public();
+    let ecdh_hex_pk = hex::encode(ecdh_pubkey.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
-    let ecdh_privkey = ecdh::clone_key(
-        local_state
-            .ecdh_private_key
-            .as_ref()
-            .expect("ECDH not initizlied"),
-    );
 
     // Measure machine score
     let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
@@ -1011,9 +999,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
-        ecdh_pubkey: ecdh_raw_pk
-            .try_into()
-            .expect("Ecdh key length must be correct; qed."),
+        ecdh_pubkey: phala_types::EcdhPublicKey(ecdh_pubkey),
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -1087,7 +1073,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 
         macro_rules! install_contract {
             ($id: expr, $inner: expr) => {{
-                let ecdh_privkey = ecdh::clone_key(&ecdh_privkey);
                 let sender = MessageOrigin::native_contract($id);
                 let mq = send_mq.channel(sender, id_pair.clone());
                 let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
@@ -1097,7 +1082,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
                     mq,
                     cmd_mq,
                     evt_mq,
-                    KeyPair::new(ecdh_privkey, ecdh_raw_pk.to_vec()),
+                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
                 ));
                 other_contracts.insert($id, wrapped);
             }};
@@ -1205,6 +1190,8 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     let mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
 
+    // TODO.kevin: enable e2e encryption mq for contracts
+    // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
     let mut last_block = 0;
     for block in blocks.into_iter() {
         state
@@ -1330,8 +1317,8 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         .identity_key
         .as_ref()
         .map(|pair| hex::encode(&pair.public()));
-    let s_ecdh_pk = match &local_state.ecdh_public_key {
-        Some(ecdh_public_key) => hex::encode(ecdh_public_key.as_ref()),
+    let s_ecdh_pk = match &local_state.ecdh_key {
+        Some(ecdh_key) => hex::encode(ecdh_key.public().as_ref()),
         None => "".to_string(),
     };
     let machine_id = local_state.machine_id;
@@ -1463,24 +1450,11 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     // Load and decrypt if necessary
     let payload: types::Payload =
         serde_json::from_slice(payload_data).map_err(|_| error_msg("Failed to decode payload"))?;
-    let (msg, secret, pubkey) = {
+    let msg = {
         let local_state = LOCAL_STATE.lock().unwrap();
         match payload {
-            types::Payload::Plain(data) => (data.into_bytes(), None, None),
-            types::Payload::Cipher(cipher) => {
-                info!("cipher: {:?}", cipher);
-                let ecdh_privkey = local_state
-                    .ecdh_private_key
-                    .as_ref()
-                    .expect("ECDH not initizlied");
-                let result = cryptography::decrypt(&cipher, ecdh_privkey)
-                    .map_err(|_| error_msg("Decrypt failed"))?;
-                (
-                    result.msg,
-                    Some(result.secret),
-                    local_state.ecdh_public_key.clone(),
-                )
-            }
+            types::Payload::Plain(data) => data.into_bytes(),
+            types::Payload::Cipher(cipher) => String::from("Not supported").into_bytes(),
         }
     };
     debug!("msg: {}", String::from_utf8_lossy(&msg));
@@ -1526,18 +1500,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     };
     // Encrypt response if necessary
     let res_json = res.to_string();
-    let res_payload = if let (Some(sk), Some(pk)) = (secret, pubkey) {
-        let iv = aead::generate_random_iv();
-        let mut msg = res_json.as_bytes().to_vec();
-        aead::encrypt(&iv, &sk, &mut msg);
-        types::Payload::Cipher(cryptography::AeadCipher {
-            iv_b64: base64::encode(&iv),
-            cipher_b64: base64::encode(&msg),
-            pubkey_b64: base64::encode(&pk),
-        })
-    } else {
-        types::Payload::Plain(res_json)
-    };
+    let res_payload = types::Payload::Plain(res_json);
 
     let res_value = serde_json::to_value(res_payload).unwrap();
     Ok(res_value)
