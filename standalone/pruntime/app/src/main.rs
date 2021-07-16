@@ -409,6 +409,7 @@ proxy!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_M
 proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
 
 proxy_bin!("/bin_api/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK);
+proxy_bin!("/bin_api/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER);
 
 #[post("/kick")]
 fn kick() {
@@ -440,7 +441,7 @@ fn rocket() -> rocket::Rocket {
             dump_states, load_states,
             sync_header, dispatch_block, query,
             get_runtime_info, get_egress_messages, test_ink,
-            bin_api::sync_header_bin,
+            sync_para_header, bin_api::sync_header_bin,
             ]);
 
     if *ENABLE_KICK_API {
@@ -543,6 +544,7 @@ fn set_thread_idle_policy() {
 
 mod bin_api {
     // This is a TEMPORARY solution for the performance issue that the js relayer encountered.
+    // TODO.kevin: remove this module, switch to proxy_bin instead.
 
     use parity_scale_codec::Decode;
     use std::io::Read;
