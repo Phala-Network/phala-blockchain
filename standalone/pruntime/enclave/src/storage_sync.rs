@@ -1,4 +1,5 @@
 use crate::light_validation::LightValidation;
+use crate::std::vec::Vec;
 use enclave_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 use parity_scale_codec::Decode;
 
@@ -7,8 +8,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         &mut self,
         bridge_id: u64,
         header: chain::Header,
-        ancestry_proof: sp_application_crypto::Vec<chain::Header>,
-        grandpa_proof: sp_application_crypto::Vec<u8>,
+        ancestry_proof: Vec<chain::Header>,
+        grandpa_proof: Vec<u8>,
         auhtority_set_change: Option<enclave_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
         self.submit_finalized_headers(
@@ -18,7 +19,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
             grandpa_proof,
             auhtority_set_change,
         )
-        .map_err(|_| SyncError::HeaderValidateFailed)
+        .or(Err(SyncError::HeaderValidateFailed))
     }
 
     fn validate_storage_proof(
@@ -27,8 +28,8 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         mut proof: &[u8],
         items: &[(&[u8], &[u8])],
     ) -> Result<()> {
-        let proof = Decode::decode(&mut proof).map_err(|_| SyncError::CodecError)?;
+        let proof = Decode::decode(&mut proof).or(Err(SyncError::CodecError))?;
         self.validate_storage_proof(state_root, proof, items)
-            .map_err(|_| SyncError::HeaderValidateFailed)
+            .or(Err(SyncError::HeaderValidateFailed))
     }
 }

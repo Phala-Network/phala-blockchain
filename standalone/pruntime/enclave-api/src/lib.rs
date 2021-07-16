@@ -213,7 +213,11 @@ pub mod storage_sync {
     pub struct BlockSyncState<Validator> {
         validator: Validator,
         main_bridge: u64,
+        /// The next block number of header to be sync.
         header_number_next: chain::BlockNumber,
+        /// The next block number of storage to be sync.
+        /// Note: in parachain mode the `block_number_next` is for the parachain and the
+        /// header_number_next is for the relaychain.
         block_number_next: chain::BlockNumber,
     }
 
@@ -418,11 +422,11 @@ pub mod storage_sync {
 
             let last_hdr = headers.last().ok_or(Error::EmptyRequest)?;
 
-            let state_root = if let Some(root) = &self.last_relaychain_state_root {
-                root.clone()
-            } else {
-                return Err(Error::RelaychainHeaderNotSynced);
-            };
+            let state_root = self
+                .last_relaychain_state_root
+                .as_ref()
+                .cloned()
+                .ok_or(Error::RelaychainHeaderNotSynced)?;
 
             // 1. validate storage proof
             self.sync_state.validator.validate_storage_proof(
