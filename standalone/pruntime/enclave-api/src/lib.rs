@@ -9,11 +9,14 @@ pub mod actions {
     pub const ACTION_LOAD_STATES: u8 = 4;
     pub const ACTION_SYNC_HEADER: u8 = 5;
     pub const ACTION_QUERY: u8 = 6;
-    pub const ACTION_DISPATCH_BLOCK: u8 = 7;
     // Reserved: 8, 9
     pub const ACTION_GET_RUNTIME_INFO: u8 = 10;
     pub const ACTION_GET_EGRESS_MESSAGES: u8 = 23;
     pub const ACTION_TEST_INK: u8 = 100;
+
+    pub const BIN_ACTION_START: u8 = 128;
+    pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START + 0;
+    pub const BIN_ACTION_DISPATCH_BLOCK: u8 = BIN_ACTION_START + 1;
 }
 
 pub mod blocks {

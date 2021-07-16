@@ -662,32 +662,11 @@ pub extern "C" fn ecall_handle(
     output_buf_len: usize,
 ) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
-    let input: serde_json::value::Value = serde_json::from_slice(input_slice).unwrap();
-    let input_value = input.get("input").unwrap().clone();
 
-    // Strong typed
-    fn load_param<T: de::DeserializeOwned>(input_value: serde_json::value::Value) -> T {
-        serde_json::from_value(input_value).unwrap()
-    }
-
-    let result = match action {
-        ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
-        ACTION_TEST => test(load_param(input_value)),
-        ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
-        ACTION_DISPATCH_BLOCK => dispatch_block(load_param(input_value)),
-        _ => {
-            let payload = input_value.as_object().unwrap();
-            match action {
-                ACTION_GET_INFO => get_info(payload),
-                ACTION_DUMP_STATES => dump_states(payload),
-                ACTION_LOAD_STATES => load_states(payload),
-                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
-                ACTION_TEST_INK => test_ink(payload),
-                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
-                _ => unknown(),
-            }
-        }
+    let result = if action < BIN_ACTION_START {
+        handle_json_api(action, input_slice)
+    } else {
+        handle_scale_api(action, input_slice)
     };
 
     let (status, payload) = match result {
@@ -710,20 +689,60 @@ pub extern "C" fn ecall_handle(
     });
     info!("{}", output_json.to_string());
 
-    let output_json_vec = serde_json::to_vec(&output_json).unwrap();
-    let output_json_vec_len = output_json_vec.len();
-    let output_json_vec_len_ptr = &output_json_vec_len as *const usize;
+    let output = serde_json::to_vec(&output_json).unwrap();
 
-    unsafe {
-        if output_json_vec_len <= output_buf_len {
-            ptr::copy_nonoverlapping(output_json_vec.as_ptr(), output_ptr, output_json_vec_len);
-        } else {
-            warn!("Too much output. Buffer overflow.");
+    let output_len = output.len();
+    if output_len <= output_buf_len {
+        unsafe {
+            ptr::copy_nonoverlapping(output.as_ptr(), output_ptr, output_len);
+            *output_len_ptr = output_len;
+            sgx_status_t::SGX_SUCCESS
         }
-        ptr::copy_nonoverlapping(output_json_vec_len_ptr, output_len_ptr, 1);
+    } else {
+        warn!("Too much output. Buffer overflow.");
+        sgx_status_t::SGX_ERROR_FAAS_BUFFER_TOO_SHORT
+    }
+}
+
+fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
+    let input: serde_json::value::Value = serde_json::from_slice(input).unwrap();
+    let input_value = input.get("input").unwrap().clone();
+
+    // Strong typed
+    fn load_param<T: de::DeserializeOwned>(input_value: serde_json::value::Value) -> T {
+        serde_json::from_value(input_value).unwrap()
     }
 
-    sgx_status_t::SGX_SUCCESS
+    match action {
+        ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
+        ACTION_TEST => test(load_param(input_value)),
+        ACTION_QUERY => query(load_param(input_value)),
+        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
+        _ => {
+            let payload = input_value.as_object().unwrap();
+            match action {
+                ACTION_GET_INFO => get_info(payload),
+                ACTION_DUMP_STATES => dump_states(payload),
+                ACTION_LOAD_STATES => load_states(payload),
+                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
+                ACTION_TEST_INK => test_ink(payload),
+                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
+                _ => unknown(),
+            }
+        }
+    }
+}
+
+fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
+    fn load_scale<T: Decode>(mut scale: &[u8]) -> Result<T, Value> {
+        Decode::decode(&mut scale).map_err(|_| error_msg("Decode input parameter failed"))
+    }
+
+    match action {
+        BIN_ACTION_SYNC_PARA_HEADER => sync_para_header(load_scale(input)?),
+        BIN_ACTION_DISPATCH_BLOCK => dispatch_block(load_scale(input)?),
+        _ => unknown(),
+    }
 }
 
 const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
