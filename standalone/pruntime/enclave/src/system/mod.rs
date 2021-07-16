@@ -407,7 +407,7 @@ impl System {
         }
     }
 
-    pub fn process_messages(&mut self, block: &BlockInfo, storage: &Storage) -> anyhow::Result<()> {
+    pub fn process_messages(&mut self, block: &BlockInfo) -> anyhow::Result<()> {
         loop {
             match self.ingress.try_next() {
                 Ok(Some((_, event, sender))) => {
@@ -436,7 +436,7 @@ impl System {
         // if pRuntime possesses master key but is not registered on chain
         // TODO.shelven: this does not hold after we enable master key rotation
         if self.gatekeeper.possess_master_key()
-            || crate::identity::is_gatekeeper(&self.worker_state.pubkey, storage)
+            || crate::identity::is_gatekeeper(&self.worker_state.pubkey, block.storage)
         {
             self.gatekeeper.process_messages(block);
 

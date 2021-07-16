@@ -40,12 +40,12 @@ pub mod blocks {
         pub authority_proof: StorageProof,
     }
 
-    pub type HeaderToSync =
-        GenericHeaderToSync<chain::BlockNumber, <chain::Runtime as frame_system::Config>::Hashing>;
-    pub type BlockHeaderWithEvents = GenericBlockHeaderWithEvents<
-        chain::BlockNumber,
-        <chain::Runtime as frame_system::Config>::Hashing,
-    >;
+    pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
+    pub type HeaderToSync = GenericHeaderToSync<chain::BlockNumber, RuntimeHasher>;
+    pub type BlockHeaderWithEvents =
+        GenericBlockHeaderWithEvents<chain::BlockNumber, RuntimeHasher>;
+    pub type Headers = Vec<Header<chain::BlockNumber, RuntimeHasher>>;
+    pub type HeadersToSync = Vec<HeaderToSync>;
 
     pub type RawStorageKey = Vec<u8>;
 
@@ -85,6 +85,13 @@ pub mod blocks {
     pub struct SyncHeaderReq {
         pub headers: Vec<HeaderToSync>,
         pub authority_set_change: Option<AuthoritySetChange>,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct SyncParachainHeaderReq {
+        pub headers: Headers,
+        pub proof: Vec<u8>,
+        pub para_id: Vec<u8>,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
@@ -151,7 +158,7 @@ pub mod blocks {
 }
 
 pub mod storage_sync {
-    use super::blocks::{AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync};
+    use super::blocks::{AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, RuntimeHasher};
 
     use alloc::collections::VecDeque;
     use alloc::vec::Vec;
@@ -159,14 +166,16 @@ pub mod storage_sync {
     use derive_more::Display;
     use parity_scale_codec::Encode;
 
-    type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
     type Storage = trie_storage::TrieStorage<RuntimeHasher>;
-    type Result<T> = core::result::Result<T, Error>;
+
+    pub type Result<T> = core::result::Result<T, Error>;
 
     #[derive(Display)]
     pub enum Error {
         /// No header or block data in the request
         EmptyRequest,
+        /// SCALE decode somthine failed
+        CodecError,
         /// No Justification found in the last header
         MissingJustification,
         /// Header validation failed
@@ -310,17 +319,32 @@ pub mod storage_sync {
     }
 
     pub struct SolochainSynchronizer<Validator> {
-        header_feeder: BlockSyncState<Validator>,
+        sync_state: BlockSyncState<Validator>,
         state_roots: VecDeque<Hash>,
     }
 
     impl<Validator: BlockValidator> SolochainSynchronizer<Validator> {
+        pub fn new(validator: Validator, main_bridge: u64) -> Self {
+            Self {
+                sync_state: BlockSyncState::new(validator, main_bridge),
+                state_roots: Default::default(),
+            }
+        }
+
+        pub fn counters(&self) -> Counters {
+            Counters {
+                next_block_number: self.sync_state.block_number_next,
+                next_header_number: self.sync_state.header_number_next,
+                next_para_header_number: 0,
+            }
+        }
+
         pub fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
-            self.header_feeder
+            self.sync_state
                 .sync_header(headers, authority_set_change, &mut self.state_roots)
         }
 
@@ -329,11 +353,12 @@ pub mod storage_sync {
             block: &BlockHeaderWithEvents,
             storage: &mut Storage,
         ) -> Result<()> {
-            self.header_feeder
+            self.sync_state
                 .feed_block(block, &mut self.state_roots, storage)
         }
     }
 
+    #[derive(Default, Debug)]
     pub struct Counters {
         pub next_header_number: chain::BlockNumber,
         pub next_para_header_number: chain::BlockNumber,
@@ -366,7 +391,7 @@ pub mod storage_sync {
         }
 
         /// Given the relaychain headers in sequence, validate it and cached the last state_root for parachain header validation
-        pub fn sync_relaychain_header(
+        pub fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,

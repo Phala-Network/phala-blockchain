@@ -419,6 +419,15 @@ pub mod utils {
     }
 
     /// Calculates the Substrate storage key prefix for a StorageMap
+    pub fn storage_map_prefix(module: &str, storage_item: &str, item_key: &[u8]) -> Vec<u8> {
+        let mut bytes = storage_prefix(module, storage_item);
+        let hash = sp_core::twox_64(&item_key);
+        bytes.extend(&hash);
+        bytes.extend(item_key);
+        bytes
+    }
+
+    /// Calculates the Substrate storage key prefix for a StorageMap
     pub fn storage_map_prefix_twox_64_concat(module: &[u8], storage_item: &[u8], key: &impl Encode) -> Vec<u8> {
         let mut bytes = sp_core::twox_128(module).to_vec();
         bytes.extend(&sp_core::twox_128(storage_item)[..]);

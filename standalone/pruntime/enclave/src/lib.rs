@@ -54,8 +54,12 @@ use std::time::Duration;
 
 use pink::InkModule;
 
-use enclave_api::actions::*;
-use enclave_api::blocks::{BlockHeaderWithEvents, HeaderToSync};
+use enclave_api::{
+    actions::*,
+    blocks::{BlockHeaderWithEvents, HeadersToSync, SyncParachainHeaderReq},
+    storage_sync::SolochainSynchronizer,
+};
+
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::PRuntimeInfo;
@@ -67,6 +71,7 @@ mod cryptography;
 mod light_validation;
 mod msg_channel;
 mod rpc_types;
+mod storage_sync;
 mod system;
 mod types;
 mod utils;
@@ -151,24 +156,22 @@ type EcdhKey = ring::agreement::EphemeralPrivateKey;
 
 struct RuntimeState {
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
-    light_client: ChainLightValidation,
-    main_bridge: u64,
     send_mq: MessageSendQueue,
     recv_mq: MessageDispatcher,
+
+    // chain storage synchonizing
+    storage_synchronizer: SolochainSynchronizer<ChainLightValidation>,
+    chain_storage: Storage,
 }
 
 struct LocalState {
     initialized: bool,
     identity_key: Option<ecdsa::Pair>,
-    headernum: u32, // the height of synced block
-    blocknum: u32,  // the height of dispatched block
-    block_hashes: VecDeque<(Hash, Hash)>,
     ecdh_private_key: Option<EcdhKey>,
     ecdh_public_key: Option<ring::agreement::PublicKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
     runtime_info: Option<InitRuntimeResp>,
-    runtime_state: Storage,
 }
 
 struct TestContract {
@@ -176,6 +179,29 @@ struct TestContract {
     code: Vec<u8>,
     initial_data: Vec<u8>,
     txs: Vec<Vec<u8>>,
+}
+
+impl RuntimeState {
+    fn purge_mq(&mut self) {
+        self.send_mq.purge(|sender| {
+            use pallet_mq::StorageMapTrait as _;
+            type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
+
+            let module_prefix = OffchainIngress::module_prefix();
+            let storage_prefix = OffchainIngress::storage_prefix();
+            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
+            let sequence = self
+                .chain_storage
+                .get(&key)
+                .map(|v| {
+                    u64::decode(&mut &v[..])
+                        .expect("Decode value of OffchainIngress Failed.(This should not happen)")
+                })
+                .unwrap_or(0);
+            debug!("purging, sequence = {}", sequence);
+            sequence
+        })
+    }
 }
 
 fn se_to_b64<S, V: Encode>(value: &V, serializer: S) -> Result<S::Ok, S::Error>
@@ -224,15 +250,11 @@ lazy_static! {
         SgxMutex::new(LocalState {
             initialized: false,
             identity_key: None,
-            headernum: 0,
-            blocknum: 0,
-            block_hashes: VecDeque::new(),
             ecdh_private_key: None,
             ecdh_public_key: None,
             machine_id: [0; 16],
             dev_mode: false,
             runtime_info: None,
-            runtime_state: Default::default(),
         })
     };
     static ref SYSTEM_STATE: SgxMutex<Option<system::System>> = Default::default();
@@ -889,6 +911,10 @@ pub extern "C" fn ecall_bench_run(index: u32) -> sgx_status_t {
 
 // --------------------------------
 
+fn display(e: impl core::fmt::Display) -> Value {
+    error_msg(&e.to_string())
+}
+
 fn error_msg(msg: &str) -> Value {
     json!({ "message": msg })
 }
@@ -1037,6 +1063,9 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             genesis.validator_set_proof,
         )
         .expect("Bridge initialize failed");
+
+    let storage_synchronizer = SolochainSynchronizer::new(light_client, main_bridge);
+
     let id_pair = local_state
         .identity_key
         .clone()
@@ -1095,13 +1124,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         );
     }
 
-    *state = Some(RuntimeState {
+    let mut runtime_state = RuntimeState {
         contracts: other_contracts,
-        light_client,
-        main_bridge,
         send_mq,
         recv_mq,
-    });
+        storage_synchronizer,
+        chain_storage: Default::default(),
+    };
 
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
         .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
@@ -1110,15 +1139,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .map_err(|_| error_msg("Scale decode genesis state failed"))?;
 
     // Initialize other states
-    local_state.runtime_state.load(genesis_state.into_iter());
+    runtime_state.chain_storage.load(genesis_state.into_iter());
 
     info!(
         "Genesis state loaded: {:?}",
-        local_state.runtime_state.root()
+        runtime_state.chain_storage.root()
     );
 
-    local_state.headernum = 1;
-    local_state.blocknum = 1;
+    *state = Some(runtime_state);
+
     // Response
     let resp = InitRuntimeResp {
         encoded_runtime_info,
@@ -1126,9 +1155,10 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         ecdh_public_key: ecdh_hex_pk,
         attestation,
     };
+
     local_state.runtime_info = Some(resp.clone());
-    local_state.block_hashes.clear();
     local_state.initialized = true;
+
     Ok(serde_json::to_value(resp).unwrap())
 }
 
@@ -1137,74 +1167,25 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     let parsed_data: Result<Vec<_>, _> = (&input.headers_b64).iter().map(base64::decode).collect();
     let headers_data = parsed_data.map_err(|_| error_msg("Failed to parse base64 header"))?;
     // Parse data to headers
-    let parsed_headers: Result<Vec<HeaderToSync>, _> = headers_data
+    let parsed_headers: Result<HeadersToSync, _> = headers_data
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
     let headers = parsed_headers.map_err(|_| error_msg("Invalid header"))?;
-    // Light validation when possible
-    let last_header = headers
-        .last()
-        .ok_or_else(|| error_msg("No header in the request"))?;
-    {
-        // 1. the last header must has justification
-        let justification = last_header
-            .justification
-            .as_ref()
-            .ok_or_else(|| error_msg("Missing justification"))?
-            .clone();
-        let last_header = last_header.header.clone();
-        // 2. check header sequence
-        for (i, header) in headers.iter().enumerate() {
-            if i > 0 && headers[i - 1].header.hash() != header.header.parent_hash {
-                return Err(error_msg("Incorrect header order"));
-            }
-        }
-        // 3. generate accenstor proof
-        let mut accenstor_proof: Vec<_> = headers[0..headers.len() - 1]
-            .iter()
-            .map(|h| h.header.clone())
-            .collect();
-        accenstor_proof.reverse(); // from high to low
-                                   // 4. submit to light client
-        let mut state = STATE.lock().unwrap();
-        let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-        let bridge_id = state.main_bridge;
-        let authority_set_change = input
-            .authority_set_change_b64
-            .map(|b64| parse_authority_set_change(b64))
-            .transpose()?;
-        state
-            .light_client
-            .submit_finalized_headers(
-                bridge_id,
-                last_header,
-                accenstor_proof,
-                justification,
-                authority_set_change,
-            )
-            .map_err(|e| error_msg(format!("Light validation failed {:?}", e).as_str()))?
-    }
-    // Passed the validation
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    let mut last_header = 0;
-    for header_with_events in headers.iter() {
-        let header = &header_with_events.header;
-        if header.number != local_state.headernum {
-            return Err(error_msg("Unexpected header"));
-        }
 
-        // move forward
-        last_header = header.number;
-        local_state.headernum = last_header + 1;
-    }
+    let authority_set_change = input
+        .authority_set_change_b64
+        .map(|b64| parse_authority_set_change(b64))
+        .transpose()?;
 
-    // Save the block hashes for future dispatch
-    for header in headers.iter() {
-        local_state
-            .block_hashes
-            .push_back((header.header.hash(), header.header.state_root));
-    }
+    let last_header = STATE
+        .lock()
+        .unwrap()
+        .as_mut()
+        .ok_or(error_msg("Runtime not initialized"))?
+        .storage_synchronizer
+        .sync_header(headers, authority_set_change)
+        .map_err(display)?;
 
     Ok(json!({ "synced_to": last_header }))
 }
@@ -1218,106 +1199,29 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
         .iter()
         .map(|d| Decode::decode(&mut &d[..]))
         .collect();
-    let all_blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
 
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    // Ignore processed blocks
-    let blocks: Vec<_> = all_blocks
-        .into_iter()
-        .filter(|b| b.block_header.number >= local_state.blocknum)
-        .collect();
-    // Validate blocks
-    let first_block = &blocks
-        .first()
-        .ok_or_else(|| error_msg("No block in the request"))?;
-    let last_block = &blocks
-        .last()
-        .ok_or_else(|| error_msg("No block in the request"))?;
-    if first_block.block_header.number != local_state.blocknum {
-        return Err(error_msg("Unexpected block"));
-    }
-    if last_block.block_header.number >= local_state.headernum {
-        return Err(error_msg("Unsynced block"));
-    }
-    for (i, block) in blocks.iter().enumerate() {
-        let expected_hash = local_state.block_hashes[i].0;
-        if block.block_header.hash() != expected_hash {
-            return Err(error_msg("Unexpected block hash"));
-        }
-    }
+    let blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
 
-    // TODO.kevin: enable e2e encryption mq for contracts
-    let _ecdh_privkey = ecdh::clone_key(
-        local_state
-            .ecdh_private_key
-            .as_ref()
-            .expect("ECDH not initizlied"),
-    );
+    let mut state = STATE.lock().unwrap();
+    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
+
     let mut last_block = 0;
     for block in blocks.into_iter() {
-        let expected_root = local_state
-            .block_hashes
-            .get(0)
-            .ok_or(error_msg("No enough headers to validate the blocks"))?
-            .1;
+        state
+            .storage_synchronizer
+            .feed_block(&block, &mut state.chain_storage)
+            .map_err(display)?;
 
-        let changes = &block.storage_changes;
-        let (state_root, transaction) = local_state.runtime_state.calc_root_if_changes(
-            &changes.main_storage_changes,
-            &changes.child_storage_changes,
-        );
-
-        if expected_root != state_root {
-            error!("expected root: {:?}", expected_root);
-            error!("real root: {:?}", state_root);
-            return Err(error_msg("State root mismatch"));
-        }
-        info!("New state root: {:?}", state_root);
-        local_state
-            .runtime_state
-            .apply_changes(state_root, transaction);
-
-        {
-            let mut state = STATE.lock().unwrap();
-            if let Some(state) = state.as_mut() {
-                state.send_mq.purge(|sender| {
-                    use pallet_mq::StorageMapTrait as _;
-                    type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
-
-                    let module_prefix = OffchainIngress::module_prefix();
-                    let storage_prefix = OffchainIngress::storage_prefix();
-                    let key =
-                        storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-                    let sequence = local_state
-                        .runtime_state
-                        .get(&key)
-                        .map(|v| {
-                            u64::decode(&mut &v[..]).expect(
-                                "Decode value of OffchainIngress Failed.(This should not happen)",
-                            )
-                        })
-                        .unwrap_or(0);
-                    debug!("purging, sequence = {}", sequence);
-                    sequence
-                })
-            }
-        }
+        state.purge_mq();
 
         let event_storage_key = storage_prefix("System", "Events");
-        let events = local_state
-            .runtime_state
+        let events = state
+            .chain_storage
             .get(&event_storage_key)
             .ok_or(error_msg("Can not get Events from storage"))?;
 
-        handle_events(
-            block.block_header.number,
-            events,
-            &local_state.runtime_state,
-        )?;
-
+        handle_events(block.block_header.number, events, state)?;
         last_block = block.block_header.number;
-        let _ = local_state.block_hashes.pop_front();
-        local_state.blocknum = last_block + 1;
     }
 
     Ok(json!({ "dispatched_to": last_block }))
@@ -1333,10 +1237,8 @@ fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Va
 fn handle_events(
     block_number: chain::BlockNumber,
     events: Vec<u8>,
-    storage: &Storage,
+    state: &mut RuntimeState,
 ) -> Result<(), Value> {
-    let ref mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
     // Dispatch events
     let mut events: &[u8] = events.as_ref();
     let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
@@ -1381,19 +1283,22 @@ fn handle_events(
         }
     }
 
-    let mut state = scopeguard::guard(state, |state| {
-        let n_unhandled = state.recv_mq.clear();
+    scopeguard::guard(&mut state.recv_mq, |mq| {
+        let n_unhandled = mq.clear();
         warn!("There are {} unhandled messages dropped", n_unhandled);
     });
 
-    let now_ms = block_timestamp_ms(storage).ok_or(error_msg("No timestamp found in block"))?;
+    let now_ms =
+        block_timestamp_ms(&state.chain_storage).ok_or(error_msg("No timestamp found in block"))?;
+
+    let storage = &state.chain_storage;
     let block = BlockInfo {
         block_number,
         now_ms,
         storage,
     };
 
-    if let Err(e) = system.process_messages(&block, storage) {
+    if let Err(e) = system.process_messages(&block) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
@@ -1429,19 +1334,21 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         Some(ecdh_public_key) => hex::encode(ecdh_public_key.as_ref()),
         None => "".to_string(),
     };
-    let headernum = local_state.headernum;
-    let blocknum = local_state.blocknum;
-    let state_root = hex::encode(&local_state.runtime_state.root());
     let machine_id = local_state.machine_id;
     let dev_mode = local_state.dev_mode;
     drop(local_state);
 
-    let runtime_state = STATE.lock().unwrap();
-    let pending_messages = match runtime_state.as_ref() {
-        None => 0,
-        Some(state) => state.send_mq.count_messages(),
+    let state = STATE.lock().unwrap();
+    let (state_root, pending_messages, counters) = match state.as_ref() {
+        Some(state) => {
+            let state_root = hex::encode(state.chain_storage.root());
+            let pending_messages = state.send_mq.count_messages();
+            let counters = state.storage_synchronizer.counters();
+            (state_root, pending_messages, counters)
+        }
+        None => Default::default(),
     };
-    drop(runtime_state);
+    drop(state);
 
     let registered = {
         match SYSTEM_STATE.lock().unwrap().as_ref() {
@@ -1456,8 +1363,9 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "registered": registered,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
-        "headernum": headernum,
-        "blocknum": blocknum,
+        "headernum": counters.next_header_number,
+        "para_headernum": counters.next_para_header_number,
+        "blocknum": counters.next_block_number,
         "state_root": state_root,
         "machine_id": machine_id,
         "dev_mode": dev_mode,
@@ -1643,9 +1551,9 @@ mod identity {
     use super::*;
     type WorkerPublicKey = sp_core::ecdsa::Public;
 
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, runtime_state: &Storage) -> bool {
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = runtime_state
+        let gatekeepers = chain_storage
             .get(&key)
             .map(|v| {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
