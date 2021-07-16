@@ -151,11 +151,10 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 
 			let pid = PoolCount::<T>::get();
-			PoolCount::<T>::put(pid + 1);
 			MiningPools::<T>::insert(
-				pid + 1,
+				pid,
 				PoolInfo {
-					pid: pid + 1,
+					pid: pid,
 					owner: owner.clone(),
 					payout_commission: Zero::zero(),
 					owner_reward: Zero::zero(),
@@ -166,6 +165,7 @@ pub mod pallet {
 					withdraw_queue: VecDeque::new(),
 				},
 			);
+			PoolCount::<T>::put(pid + 1);
 			Self::deposit_event(Event::<T>::PoolCreated(owner, pid));
 
 			Ok(())
@@ -725,8 +725,18 @@ pub mod pallet {
 	mod test {
 		use hex_literal::hex;
 		use sp_runtime::AccountId32;
+		use assert_matches::assert_matches;
+		use frame_support::assert_ok;
 
 		use super::*;
+		use crate::mock::{
+			new_test_ext,
+			set_block_1,
+			events,
+			Test,
+			Origin,
+			Event as TestEvent,
+		};
 
 		#[test]
 		fn test_pool_subaccount() {
@@ -736,6 +746,31 @@ pub mod pallet {
 				"73706d2f666bf107db95bd7b5b56e2c9b5a008f97361f20d10a7840cf2dfaaf5"
 			));
 			assert_eq!(sub_account, expected, "Incorrect sub account");
+		}
+
+		#[test]
+		fn test_create() {
+			// Check this fixed: <https://github.com/Phala-Network/phala-blockchain/issues/285>
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(Pallet::<Test>::create(Origin::signed(1)));
+				Pallet::<Test>::on_finalize(1);
+				assert_matches!(events().as_slice(), [
+					TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),
+				]);
+				assert_eq!(MiningPools::<Test>::get(0), Some(PoolInfo {
+					pid: 0,
+					owner: 1,
+					payout_commission: 0,
+					owner_reward: 0,
+					pool_acc: 0,
+					total_stake: 0,
+					free_stake: 0,
+					workers: Vec::new(),
+					withdraw_queue: VecDeque::new(),
+				}));
+				assert_eq!(PoolCount::<Test>::get(), 1);
+			});
 		}
 	}
 }
