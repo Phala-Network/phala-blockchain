@@ -56,9 +56,14 @@ use pink::InkModule;
 
 use enclave_api::{
     actions::*,
-    blocks::{BlockHeaderWithEvents, HeadersToSync, SyncParachainHeaderReq},
-    storage_sync::SolochainSynchronizer,
+    blocks::{self, BlockHeaderWithEvents, HeadersToSync, SyncParachainHeaderReq},
 };
+
+#[cfg(feature = "parachain")]
+use enclave_api::storage_sync::ParachainSynchronizer as StorageSynchronizer;
+
+#[cfg(not(feature = "parachain"))]
+use enclave_api::storage_sync::SolochainSynchronizer as StorageSynchronizer;
 
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
@@ -160,7 +165,7 @@ struct RuntimeState {
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    storage_synchronizer: SolochainSynchronizer<ChainLightValidation>,
+    storage_synchronizer: StorageSynchronizer<ChainLightValidation>,
     chain_storage: Storage,
 }
 
@@ -1064,7 +1069,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         )
         .expect("Bridge initialize failed");
 
-    let storage_synchronizer = SolochainSynchronizer::new(light_client, main_bridge);
+    let storage_synchronizer = StorageSynchronizer::new(light_client, main_bridge);
 
     let id_pair = local_state
         .identity_key
@@ -1190,17 +1195,28 @@ fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
     Ok(json!({ "synced_to": last_header }))
 }
 
-fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
-    // Parse base64 to data
-    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64).iter().map(base64::decode).collect();
-    let blocks_data = parsed_data.map_err(|_| error_msg("Failed to parse base64 block"))?;
-    // Parse data to blocks
-    let parsed_blocks: Result<Vec<BlockHeaderWithEvents>, _> = blocks_data
-        .iter()
-        .map(|d| Decode::decode(&mut &d[..]))
-        .collect();
+#[cfg(feature = "parachain")]
+fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
+    let storage_key = light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id);
+    let last_header = STATE
+        .lock()
+        .unwrap()
+        .as_mut()
+        .ok_or(error_msg("Runtime not initialized"))?
+        .storage_synchronizer
+        .sync_parachain_header(input.headers, &input.proof, &storage_key)
+        .map_err(display)?;
+    Ok(json!({ "synced_to": last_header }))
+}
 
-    let blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
+#[cfg(not(feature = "parachain"))]
+fn sync_para_header(_input: SyncParachainHeaderReq) -> Result<Value, Value> {
+    Err(error_msg("Not supported"))
+}
+
+fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
+    // Parse base64 to data
+    let blocks = input.blocks;
 
     let mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
