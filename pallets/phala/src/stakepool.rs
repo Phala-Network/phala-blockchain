@@ -560,9 +560,9 @@ pub mod pallet {
 					.saturated_into::<u64>();
 				// all of the free_stake would be withdrew back to user
 				let unwithdraw_amount = amount.saturating_sub(pool_info.free_stake);
-				pool_info.free_stake = Zero::zero();
 				pool_info.total_stake = pool_info.total_stake.saturating_sub(pool_info.free_stake);
 				user_info.amount = user_info.amount.saturating_sub(unwithdraw_amount);
+				pool_info.free_stake = Zero::zero();
 
 				// case some locked asset has not been withdraw(unlock) to user, add it to withdraw queue.
 				// when pool has free stake again, the withdraw would be handled
@@ -590,8 +590,6 @@ pub mod pallet {
 					let mut user_info = Self::staking_info(&info_key).unwrap();
 
 					if pool_info.free_stake < withdraw_info.amount {
-						// FIXME: free_stake == 0, then the rest of the logic does nothing
-						pool_info.free_stake = Zero::zero();
 						pool_info.total_stake =
 							pool_info.total_stake.saturating_sub(pool_info.free_stake);
 						withdraw_info.amount =
@@ -601,6 +599,7 @@ pub mod pallet {
 						pool_info.withdraw_queue.push_front(withdraw_info);
 
 						user_info.amount = user_info.amount.saturating_sub(pool_info.free_stake);
+						pool_info.free_stake = Zero::zero();
 					} else {
 						// all of the amount would be withdraw to user and no need to push the popped one back
 						pool_info.free_stake =
