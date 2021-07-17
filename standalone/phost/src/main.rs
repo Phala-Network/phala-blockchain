@@ -353,6 +353,9 @@ async fn batch_sync_block(
     if block_buf.is_empty() {
         return Ok(0);
     }
+    let mut next_headernum = info.headernum;
+    let mut next_blocknum = info.blocknum;
+    let mut next_para_headernum = info.para_headernum;
 
     let mut synced_blocks: usize = 0;
     while !block_buf.is_empty() {
@@ -389,6 +392,9 @@ async fn batch_sync_block(
             if block_buf[header_idx as usize]
                 .block
                 .justifications
+                .as_ref()
+                .map(|v| v.get(GRANDPA_ENGINE_ID))
+                .flatten()
                 .is_some()
             {
                 break;
@@ -453,17 +459,19 @@ async fn batch_sync_block(
         );
 
         let mut header_batch = header_batch;
-        header_batch.retain(|h| h.header.number >= info.headernum);
+        header_batch.retain(|h| h.header.number >= next_headernum);
         let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
+        next_headernum = r.synced_to + 1;
 
         if parachain {
-            let latest_block =
-                sync_parachain_header(pr, client, paraclient, last_header_hash, info.para_headernum)
+            let hdr_synced_to =
+                sync_parachain_header(pr, client, paraclient, last_header_hash, next_para_headernum)
                     .await?;
+            next_para_headernum = hdr_synced_to + 1;
             let mut para_blocks = Vec::new();
-            if info.blocknum <= latest_block {
-                for b in info.blocknum..=latest_block {
+            if next_blocknum <= hdr_synced_to {
+                for b in next_blocknum..=hdr_synced_to {
                     let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
                     para_blocks.push(block.clone());
                 }
@@ -487,6 +495,7 @@ async fn batch_sync_block(
                 let blocks_count = dispatch_batch.len();
                 let r = req_dispatch_block(pr, dispatch_batch).await?;
                 debug!("  ..dispatch_block: {:?}", r);
+                next_blocknum = r.dispatched_to + 1;
 
                 // Update sync state
                 synced_blocks += blocks_count;
