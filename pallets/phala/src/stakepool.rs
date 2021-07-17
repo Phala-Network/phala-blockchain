@@ -283,10 +283,10 @@ pub mod pallet {
 			let info_key = (pid.clone(), who.clone());
 			let mut user_info =
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
-			let pool_info = Self::ensure_pool(pid)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 
 			// update pool
-			Self::update_pool(pid.clone());
+			Self::update_pool(&mut pool_info);
 
 			// rewards belong to user, including pending rewards and available_rewards
 			let rewards = user_info.available_rewards.saturating_add(
@@ -299,6 +299,7 @@ pub mod pallet {
 			user_info.user_debt = user_info.amount * pool_info.pool_acc / 10u32.pow(6).into();
 			user_info.available_rewards = Zero::zero();
 			StakingInfo::<T>::insert(&info_key, &user_info);
+			MiningPools::<T>::insert(&pool_info.pid, &pool_info);
 			Self::deposit_event(Event::<T>::WithdrawRewards(pid, who, rewards));
 
 			Ok(())
@@ -323,7 +324,7 @@ pub mod pallet {
 			);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			Self::update_pool(pid.clone());
+			Self::update_pool(&mut pool_info);
 
 			let info_key = (pid.clone(), who.clone());
 			if StakingInfo::<T>::contains_key(&info_key) {
@@ -502,14 +503,13 @@ pub mod pallet {
 			return rewards;
 		}
 
-		fn update_pool(pid: u64) {
+		fn update_pool(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			let mut new_rewards;
-			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
 
-			new_rewards = Self::calculate_reward(pid);
+			new_rewards = Self::calculate_reward(pool_info.pid);
 			Self::reward_clear(&pool_info.workers);
 
-			if new_rewards > Zero::zero() {
+			if new_rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
 				pool_info.owner_reward = pool_info.owner_reward.saturating_add(
 					new_rewards * pool_info.payout_commission.into() / 1000u32.into(),
 				);
@@ -519,7 +519,6 @@ pub mod pallet {
 				pool_info.pool_acc = pool_info
 					.pool_acc
 					.saturating_add(new_rewards * 10u32.pow(6).into() / pool_info.total_stake);
-				MiningPools::<T>::insert(&pid, &pool_info);
 			}
 		}
 
@@ -547,7 +546,7 @@ pub mod pallet {
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
 			amount: BalanceOf<T>,
 		) {
-			Self::update_pool(pool_info.pid);
+			Self::update_pool(pool_info);
 
 			// enough free stake, withdraw directly
 			if pool_info.free_stake >= amount {
