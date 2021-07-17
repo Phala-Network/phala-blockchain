@@ -83,7 +83,7 @@ use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
 use std::collections::VecDeque;
-use system::TransactionStatus;
+use system::{GatekeeperRole, TransactionStatus};
 use trie_storage::TrieStorage;
 use types::BlockInfo;
 use types::Error;
@@ -1337,10 +1337,10 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     };
     drop(state);
 
-    let registered = {
+    let (registered, role) = {
         match SYSTEM_STATE.lock().unwrap().as_ref() {
-            Some(system) => system.is_registered(),
-            None => false,
+            Some(system) => (system.is_registered(), system.gatekeeper_role()),
+            None =>(false, GatekeeperRole::None),
         }
     };
     let score = benchmark::score();
@@ -1348,6 +1348,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     Ok(json!({
         "initialized": initialized,
         "registered": registered,
+        "gatekeeper_role": role,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
         "headernum": counters.next_header_number,

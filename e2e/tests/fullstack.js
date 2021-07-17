@@ -144,7 +144,6 @@ describe('A full stack', function () {
 		});
 
 		it('can receive master key', async function () {
-
 			// Wait for the successful dispatch of master key
 			// pRuntime[1] should be down
 			assert.isTrue(
@@ -155,13 +154,13 @@ describe('A full stack', function () {
 				fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
 				'master key not received'
 			);
+		});
 
-			// Step 2: in this case, pRuntime[1] starts with previously-sealed master
-			// logs like `Incoming gatekeeper event` should be observed in its log from early block (earlier than its registration)
-			// log `Gatekeeper: register on chain` should be observed at the block of its last registeration
-			// then it should behave like normal gatekeeper
-			//
-			// Considering to add a `registered_on_chain field to get_info`
+		it('becomes active', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				return info.gatekeeper_role == 'Active';
+			}, 1000))
 
 			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
 		});
