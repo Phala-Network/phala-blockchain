@@ -159,10 +159,12 @@ where
             let seed = master_key.seed();
             let sig = self.identity_key.sign_data(&seed);
 
+            // TODO(shelven): use serialization rather than manual concat.
             let mut buf = Vec::new();
             buf.extend_from_slice(&seed);
             buf.extend_from_slice(sig.as_ref());
 
+            // TODO(shelven): rust style error handling, everywhere
             match SgxFile::create(filepath) {
                 Ok(mut file) => match file.write_all(&buf) {
                     Ok(_) => {}
