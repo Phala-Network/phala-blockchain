@@ -646,21 +646,20 @@ where
                 .state
                 .identity_key
                 .derive_ecdh_key()
-                .expect("should never failed with valid identity key");
+                .expect("Should never failed with valid identity key; qed.");
+            println!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
             let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                .expect("should never failed with valid ecdh key");
-            let mut seed: Vec<u8> = Vec::new();
+                .expect("Should never failed with valid ecdh key; qed.");
 
-            match aead::decrypt(&event.iv, &secret, &mut seed) {
-                Ok(seed) => {
-                    let decrypted_master_key =
-                        ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
-                    self.state.set_master_key(decrypted_master_key, true);
-                }
-                Err(e) => {
-                    panic!("Failed to decrypt dispatched master key: {:?}", e);
-                }
-            }
+            let mut master_key_buff = event.encrypted_master_key.clone();
+            let master_key = match aead::decrypt(&event.iv, &secret, &mut master_key_buff[..]) {
+                Err(e) => panic!("Failed to decrypt dispatched master key: {:?}", e),
+                Ok(k) => k,
+            };
+
+            let master_pair = ecdsa::Pair::from_seed_slice(&master_key)
+                .expect("Master key seed must be correct; qed.");
+            self.state.set_master_key(master_pair, true);
         }
     }
 
