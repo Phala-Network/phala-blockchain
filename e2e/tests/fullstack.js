@@ -141,7 +141,24 @@ describe('A full stack', function () {
 				return gatekeepers.includes(hex(info.public_key));
 			}, 4 * 6000), 'not registered as gatekeeper');
 
-			await sleep(10000000);
+			// Wait for the successful dispatch of master key
+			// pRuntime[1] should be down
+			assert.isTrue(await checkUntil(async () => {
+				return cluster.workers[1].processPRuntime.stopped
+					&& cluster.workers[1].processRelayer.stopped
+					&& fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`);
+			}, 10 * 6000), 'master key not received');
+
+			// Step 1: restart pRuntime[1] and relayer and ensure they are running
+
+			// Step 2: in this case, pRuntime[1] starts with previously-sealed master
+			// logs like `Incoming gatekeeper event` should be observed in its log from early block (earlier than its registration)
+			// log `Gatekeeper: register on chain` should be observed at the block of its last registeration
+			// then it should behave like normal gatekeeper
+			//
+			// Considering to add a `registered_on_chain field to get_info`
+
+			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
 		});
 	});
 
