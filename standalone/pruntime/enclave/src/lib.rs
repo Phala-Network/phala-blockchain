@@ -1200,16 +1200,22 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
         input.headers.first().map(|h| h.number),
         input.headers.last().map(|h| h.number)
     );
+    let mut guard = STATE.lock().unwrap();
+    let state = guard.as_mut().ok_or(error_msg("Runtime not initialized"))?;
+
+    let para_id = state
+        .chain_storage
+        .para_id()
+        .ok_or(error_msg("No para_id"))?;
+
     let storage_key =
-        light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id.encode());
-    let last_header = STATE
-        .lock()
-        .unwrap()
-        .as_mut()
-        .ok_or(error_msg("Runtime not initialized"))?
+        light_validation::utils::storage_map_prefix("Paras", "Heads", &para_id.encode());
+
+    let last_header = state
         .storage_synchronizer
         .sync_parachain_header(input.headers, input.proof, &storage_key)
         .map_err(display)?;
+
     Ok(json!({ "synced_to": last_header }))
 }
 

@@ -98,7 +98,6 @@ pub mod blocks {
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
         pub proof: StorageProof,
-        pub para_id: ParaId,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]

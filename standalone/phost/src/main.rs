@@ -287,12 +287,10 @@ async fn req_sync_para_header(
     pr: &PrClient,
     headers: blocks::Headers,
     proof: StorageProof,
-    para_id: blocks::ParaId,
 ) -> Result<SyncHeaderResp> {
     let req = blocks::SyncParachainHeaderReq {
         headers,
         proof,
-        para_id,
     };
     let resp = pr.bin_req_decode("bin_api/sync_para_header", req).await?;
     Ok(resp)
@@ -564,7 +562,7 @@ async fn sync_parachain_header(
         }
     }
     if !para_headers.is_empty() {
-        let r = req_sync_para_header(pr, para_headers, header_proof, para_id).await?;
+        let r = req_sync_para_header(pr, para_headers, header_proof).await?;
         info!("..sync_parachain_header: {:?}", r);
     }
     Ok(para_fin_block_number)
