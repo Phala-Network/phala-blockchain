@@ -91,7 +91,7 @@ pub mod blocks {
     }
 
     // TODO.kevin: import it from some other crate
-    #[derive(Encode, Decode, Clone, Debug)]
+    #[derive(Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
     pub struct ParaId(u32);
 
     #[derive(Encode, Decode, Clone, Debug)]
@@ -196,7 +196,17 @@ pub mod storage_sync {
         /// No state root to validate the storage changes
         NoStateRoot,
         /// Invalid storage changes that cause the state root mismatch
-        StateRootMismatch,
+        #[display(
+            fmt = "StateRootMismatch block={:?} expected={:?} real={:?}",
+            block,
+            expected,
+            real
+        )]
+        StateRootMismatch {
+            block: chain::BlockNumber,
+            expected: chain::Hash,
+            real: chain::Hash,
+        },
     }
 
     pub trait BlockValidator {
@@ -318,7 +328,11 @@ pub mod storage_sync {
             );
 
             if expected_root != &state_root {
-                return Err(Error::StateRootMismatch);
+                return Err(Error::StateRootMismatch {
+                    block: block.block_header.number,
+                    expected: expected_root.clone(),
+                    real: state_root,
+                });
             }
 
             storage.apply_changes(state_root, transaction);
@@ -421,7 +435,7 @@ pub mod storage_sync {
             headers: Vec<chain::Header>,
             proof: StorageProof,
             storage_key: &[u8],
-        ) -> Result<()> {
+        ) -> Result<chain::BlockNumber> {
             let first_hdr = headers.first().ok_or(Error::EmptyRequest)?;
             if self.para_header_number_next != first_hdr.number {
                 return Err(Error::BlockNumberMismatch);
@@ -450,14 +464,14 @@ pub mod storage_sync {
             }
 
             // All checks passed, enqueue the state roots for storage validation.
-            for hdr in headers.iter().rev() {
+            for hdr in headers.iter() {
                 self.para_state_roots.push_back(hdr.state_root);
             }
 
             self.last_relaychain_state_root = None;
             self.para_header_number_next = last_hdr.number + 1;
 
-            Ok(())
+            Ok(last_hdr.number)
         }
 
         /// Feed in a block of storage changes

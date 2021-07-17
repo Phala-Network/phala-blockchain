@@ -1185,6 +1185,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 }
 
 fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
+    info!(
+        "sync_header from={:?} to={:?}",
+        input.headers.first().map(|h| h.header.number),
+        input.headers.last().map(|h| h.header.number)
+    );
     let last_header = STATE
         .lock()
         .unwrap()
@@ -1199,7 +1204,13 @@ fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
 
 #[cfg(feature = "parachain")]
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
-    let storage_key = light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id.encode());
+    info!(
+        "sync_para_header from={:?} to={:?}",
+        input.headers.first().map(|h| h.number),
+        input.headers.last().map(|h| h.number)
+    );
+    let storage_key =
+        light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id.encode());
     let last_header = STATE
         .lock()
         .unwrap()
@@ -1218,13 +1229,17 @@ fn sync_para_header(_input: SyncParachainHeaderReq) -> Result<Value, Value> {
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
     // Parse base64 to data
-    let blocks = input.blocks;
+    info!(
+        "dispatch_block from={:?} to={:?}",
+        input.blocks.first().map(|h| h.block_header.number),
+        input.blocks.last().map(|h| h.block_header.number)
+    );
 
     let mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
 
     let mut last_block = 0;
-    for block in blocks.into_iter() {
+    for block in input.blocks.into_iter() {
         state
             .storage_synchronizer
             .feed_block(&block, &mut state.chain_storage)

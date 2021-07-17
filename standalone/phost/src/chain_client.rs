@@ -80,11 +80,10 @@ pub fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
 }
 
 /// Calculates the Substrate storage key prefix for a StorageMap
-fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &[u8]) -> Vec<u8> {
+fn storage_map_key_vec(module: &str, storage_item: &str, item_key: &[u8]) -> Vec<u8> {
     let mut key = storage_value_key_vec(module, storage_item);
-    let item_key = hex::decode(storage_item_key).unwrap();
     let hash = twox_64(&item_key);
     key.extend(&hash);
-    key.extend(&item_key);
+    key.extend(item_key);
     key
 }

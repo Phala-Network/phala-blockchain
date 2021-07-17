@@ -462,9 +462,11 @@ async fn batch_sync_block(
                 sync_parachain_header(pr, client, paraclient, last_header_hash, info.para_headernum)
                     .await?;
             let mut para_blocks = Vec::new();
-            for b in info.blocknum..=latest_block {
-                let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
-                para_blocks.push(block.clone());
+            if info.blocknum <= latest_block {
+                for b in info.blocknum..=latest_block {
+                    let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
+                    para_blocks.push(block.clone());
+                }
             }
             block_batch = para_blocks;
         }
@@ -538,10 +540,8 @@ async fn sync_parachain_header(
 
     let mut para_headers = Vec::new();
 
-    para_headers.push(para_fin_header);
-
-    if next_headernum < para_fin_block_number {
-        for b in next_headernum + 1..=para_fin_block_number {
+    if next_headernum <= para_fin_block_number {
+        for b in next_headernum..=para_fin_block_number {
             let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
             let hash = paraclient
                 .block_hash(Some(num))
@@ -554,8 +554,10 @@ async fn sync_parachain_header(
             para_headers.push(header);
         }
     }
-    let r = req_sync_para_header(pr, para_headers, header_proof, para_id).await?;
-    info!("..sync_parachain_header: {:?}", r);
+    if !para_headers.is_empty() {
+        let r = req_sync_para_header(pr, para_headers, header_proof, para_id).await?;
+        info!("..sync_parachain_header: {:?}", r);
+    }
     Ok(para_fin_block_number)
 }
 
