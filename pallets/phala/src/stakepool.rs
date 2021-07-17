@@ -338,7 +338,10 @@ pub mod pallet {
 
 			let mut pool_info = Self::ensure_pool(pid)?;
 			if let Some(cap) = pool_info.cap {
-				ensure!(cap >= amount, Error::<T>::StakeExceedCapacity);
+				ensure!(
+					cap.saturating_sub(pool_info.total_stake) >= amount,
+					Error::<T>::StakeExceedCapacity
+				);
 			}
 
 			Self::update_pool(&mut pool_info);
@@ -877,8 +880,32 @@ pub mod pallet {
 					0,
 					worker2.clone()
 				));
+				assert_ok!(PhalaStakePool::set_cap(Origin::signed(1), 0, 300 * DOLLARS));
 				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				assert_eq!(
+					MiningPools::<Test>::get(0).unwrap().total_stake,
+					100 * DOLLARS
+				);
+				assert_eq!(
+					StakingInfo::<Test>::get(&(0, 1)).unwrap().amount,
+					100 * DOLLARS
+				);
+
 				assert_ok!(PhalaStakePool::deposit(Origin::signed(2), 0, 200 * DOLLARS));
+				assert_eq!(
+					MiningPools::<Test>::get(0).unwrap().total_stake,
+					300 * DOLLARS
+				);
+				assert_eq!(
+					StakingInfo::<Test>::get(&(0, 2)).unwrap().amount,
+					200 * DOLLARS
+				);
+
+				assert_noop!(
+					PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS),
+					Error::<Test>::StakeExceedCapacity
+				);
+
 				assert_ok!(PhalaStakePool::start_mining(
 					Origin::signed(1),
 					0,
