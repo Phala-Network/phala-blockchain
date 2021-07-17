@@ -75,6 +75,8 @@ pub mod pallet {
 		PoolCreated(T::AccountId, u64),
 		/// [pid, commission]
 		PoolCommissionSetted(u64, u16),
+		/// [pid, cap]
+		PoolCapacitySetted(u64, BalanceOf<T>),
 		/// [pid, worker]
 		PoolWorkerAdded(u64, WorkerPublicKey),
 		/// [pid, user, amount]
@@ -95,6 +97,8 @@ pub mod pallet {
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
 		InvalidPayoutPerf,
+		InvalidCapacity,
+		StakeExceedCapacity,
 		PoolNotExist,
 		PoolIsBusy,
 		LessthanMinDeposit,
@@ -158,6 +162,7 @@ pub mod pallet {
 					owner: owner.clone(),
 					payout_commission: Zero::zero(),
 					owner_reward: Zero::zero(),
+					cap: None,
 					pool_acc: Zero::zero(),
 					total_stake: Zero::zero(),
 					free_stake: Zero::zero(),
@@ -233,12 +238,24 @@ pub mod pallet {
 		}
 
 		/// Sets the hard cap of the pool
-		///
+		/// Note: a smaller cap than current total_stake if not allowed.
 		/// Requires:
 		/// 1. The sender is the owner
 		#[pallet::weight(0)]
-		pub fn set_cap(origin: OriginFor<T>, id: u64, cap: BalanceOf<T>) -> DispatchResult {
-			panic!("unimplemented")
+		pub fn set_cap(origin: OriginFor<T>, pid: u64, cap: BalanceOf<T>) -> DispatchResult {
+			let owner = ensure_signed(origin)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
+
+			// origin must be owner of pool
+			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
+			// check cap
+			ensure!(pool_info.total_stake <= cap, Error::<T>::InvalidCapacity);
+
+			pool_info.cap = Some(cap);
+			MiningPools::<T>::insert(&pid, &pool_info);
+
+			Self::deposit_event(Event::<T>::PoolCapacitySetted(pid, cap));
+			Ok(())
 		}
 
 		/// Change the pool commission rate
@@ -324,6 +341,10 @@ pub mod pallet {
 			);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
+			if let Some(cap) = pool_info.cap {
+				ensure!(cap >= amount, Error::<T>::StakeExceedCapacity);
+			}
+
 			Self::update_pool(&mut pool_info);
 
 			let info_key = (pid.clone(), who.clone());
@@ -689,6 +710,7 @@ pub mod pallet {
 		owner: AccountId,
 		payout_commission: u16,
 		owner_reward: Balance,
+		cap: Option<Balance>,
 		pool_acc: Balance,
 		total_stake: Balance,
 		free_stake: Balance,
@@ -764,6 +786,7 @@ pub mod pallet {
 						owner: 1,
 						payout_commission: 0,
 						owner_reward: 0,
+						cap: None,
 						pool_acc: 0,
 						total_stake: 0,
 						free_stake: 0,
