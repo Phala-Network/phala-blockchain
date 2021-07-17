@@ -82,7 +82,6 @@ use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use light_validation::AuthoritySetChange;
 use rpc_types::*;
-use std::collections::VecDeque;
 use system::{GatekeeperRole, TransactionStatus};
 use trie_storage::TrieStorage;
 use types::BlockInfo;
@@ -1340,7 +1339,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let (registered, role) = {
         match SYSTEM_STATE.lock().unwrap().as_ref() {
             Some(system) => (system.is_registered(), system.gatekeeper_role()),
-            None =>(false, GatekeeperRole::None),
+            None => (false, GatekeeperRole::None),
         }
     };
     let score = benchmark::score();
@@ -1452,10 +1451,9 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     let payload: types::Payload =
         serde_json::from_slice(payload_data).map_err(|_| error_msg("Failed to decode payload"))?;
     let msg = {
-        let local_state = LOCAL_STATE.lock().unwrap();
         match payload {
             types::Payload::Plain(data) => data.into_bytes(),
-            types::Payload::Cipher(cipher) => String::from("Not supported").into_bytes(),
+            types::Payload::Cipher(cipher) => todo!("not supported"),
         }
     };
     debug!("msg: {}", String::from_utf8_lossy(&msg));
