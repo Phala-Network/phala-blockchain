@@ -124,11 +124,13 @@ where
     }
 
     pub fn register_on_chain(&mut self) {
+        info!("Gatekeeper: register on chain");
         self.registered_on_chain = true;
         self.egress.set_dummy(false);
     }
 
     pub fn unregister_on_chain(&mut self) {
+        info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
         self.egress.set_dummy(true);
     }
@@ -264,6 +266,11 @@ where
         if let Some(master_key) = &self.master_key {
             let random_number =
                 next_random_number(master_key, block_number, self.last_random_number);
+            info!(
+                "Gatekeeper: emit random number {} in block {}",
+                hex::encode(&random_number),
+                block_number
+            );
             self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
                 random_number,
@@ -543,6 +550,7 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        info!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::Registered(new_gatekeeper_event) => {
                 self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
@@ -580,6 +588,7 @@ where
         let my_pubkey = self.state.identity_key.public();
         if event.gatekeeper_count == 1 {
             if my_pubkey == event.pubkey && self.state.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
                 // generate master key as the first gatekeeper
                 // no need to restart
                 self.state.set_master_key(
@@ -594,6 +603,7 @@ where
             // if this pRuntime is the newly-registered gatekeeper himself,
             // its egress is still in dummy mode since we will tick the state later
             if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: try dispatch master key");
                 let derived_key = master_key
                     .derive_secp256k1_pair(&[b"master_key"])
                     .expect("should not fail with valid info");
@@ -647,7 +657,7 @@ where
                 .identity_key
                 .derive_ecdh_key()
                 .expect("Should never failed with valid identity key; qed.");
-            println!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
+            // info!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
             let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
                 .expect("Should never failed with valid ecdh key; qed.");
 
@@ -659,6 +669,7 @@ where
 
             let master_pair = ecdsa::Pair::from_seed_slice(&master_key)
                 .expect("Master key seed must be correct; qed.");
+            info!("Gatekeeper: successfully decrypt received master key, prepare to reboot");
             self.state.set_master_key(master_pair, true);
         }
     }
