@@ -408,7 +408,6 @@ impl<T: Config> fmt::Debug for BridgeInitInfo<T> {
 
 pub mod utils {
     use crate::std::vec::Vec;
-    use anyhow::{Context, Result};
     use parity_scale_codec::Encode;
 
     /// Gets the prefix of a storage item

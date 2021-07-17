@@ -40,7 +40,6 @@ use crate::std::vec::Vec;
 
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
-use frame_system::EventRecord;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
@@ -76,7 +75,7 @@ mod cryptography;
 mod light_validation;
 mod msg_channel;
 mod rpc_types;
-mod storage_sync;
+mod storage;
 mod system;
 mod types;
 mod utils;
@@ -85,13 +84,12 @@ use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use cryptography::{aead, ecdh};
 use rpc_types::*;
+use storage::{Storage, StorageExt};
 use system::TransactionStatus;
-use trie_storage::TrieStorage;
 use types::BlockInfo;
 use types::Error;
 
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
-type Storage = TrieStorage<RuntimeHasher>;
 
 extern "C" {
     pub fn ocall_load_ias_spid(
@@ -193,14 +191,7 @@ impl RuntimeState {
             let module_prefix = OffchainIngress::module_prefix();
             let storage_prefix = OffchainIngress::storage_prefix();
             let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence = self
-                .chain_storage
-                .get(&key)
-                .map(|v| {
-                    u64::decode(&mut &v[..])
-                        .expect("Decode value of OffchainIngress Failed.(This should not happen)")
-                })
-                .unwrap_or(0);
+            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
         })
@@ -1246,29 +1237,19 @@ fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
             .map_err(display)?;
 
         state.purge_mq();
-
-        let event_storage_key = storage_prefix("System", "Events");
-        let events = state
-            .chain_storage
-            .get(&event_storage_key)
-            .ok_or(error_msg("Can not get Events from storage"))?;
-
-        handle_events(block.block_header.number, events, state)?;
+        handle_events(block.block_header.number, state)?;
         last_block = block.block_header.number;
     }
 
     Ok(json!({ "dispatched_to": last_block }))
 }
 
-fn handle_events(
-    block_number: chain::BlockNumber,
-    events: Vec<u8>,
-    state: &mut RuntimeState,
-) -> Result<(), Value> {
+fn handle_events(block_number: chain::BlockNumber, state: &mut RuntimeState) -> Result<(), Value> {
     // Dispatch events
-    let mut events: &[u8] = events.as_ref();
-    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
-        .map_err(|_| error_msg("Decode events error"))?;
+    let events = state
+        .chain_storage
+        .events()
+        .ok_or(error_msg("Can not get Events from storage"))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system
@@ -1316,8 +1297,10 @@ fn handle_events(
         }
     });
 
-    let now_ms =
-        block_timestamp_ms(&state.chain_storage).ok_or(error_msg("No timestamp found in block"))?;
+    let now_ms = state
+        .chain_storage
+        .timestamp_now()
+        .ok_or(error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
     let block = BlockInfo {
@@ -1341,13 +1324,6 @@ fn handle_events(
     }
 
     Ok(())
-}
-
-fn block_timestamp_ms(storage: &Storage) -> Option<u64> {
-    let key = storage_prefix("Timestamp", "Now");
-    let value = storage.get(key)?;
-    let now: chain::Moment = Decode::decode(&mut &value[..]).ok()?;
-    Some(now)
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
