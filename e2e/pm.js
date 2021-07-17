@@ -27,7 +27,8 @@ class Process {
 		this.program = comp[comp.length - 1];
 
 		try {
-			this.logFile = fs.createWriteStream(logPath);
+			this.logFile = fs.createWriteStream(logPath, {flags: 'a'});
+			this.logFile.write(`=== LOG STARTED at ${new Date().toString()} ===\n`)
 		} catch {}
 	}
 	maybeLogOutputLine(data) {
