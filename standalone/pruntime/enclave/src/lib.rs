@@ -1206,7 +1206,7 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
         .as_mut()
         .ok_or(error_msg("Runtime not initialized"))?
         .storage_synchronizer
-        .sync_parachain_header(input.headers, &input.proof, &storage_key)
+        .sync_parachain_header(input.headers, input.proof, &storage_key)
         .map_err(display)?;
     Ok(json!({ "synced_to": last_header }))
 }
