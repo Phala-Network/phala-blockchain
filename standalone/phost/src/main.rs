@@ -570,19 +570,20 @@ async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result
 
 async fn init_runtime(
     client: &XtClient,
+    paraclient: &XtClient,
     pr: &PrClient,
     skip_ra: bool,
     use_dev_key: bool,
     inject_key: &str,
     operator_hex: Option<String>,
 ) -> Result<InitRuntimeResp> {
-    let genesis_block = get_block_at(&client, Some(0)).await?.block;
+    let genesis_block = get_block_at(client, Some(0)).await?.block;
     let hash = client
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(0))))
         .await?
         .expect("No genesis block?");
-    let set_proof = get_authority_with_proof_at(&client, hash).await?;
-    let genesis_state = chain_client::fetch_genesis_storage(&client).await?;
+    let set_proof = get_authority_with_proof_at(client, hash).await?;
+    let genesis_state = chain_client::fetch_genesis_storage(paraclient).await?;
     let genesis_state_b64 = base64::encode(&Encode::encode(&genesis_state));
     let info = GenesisInfo {
         header: genesis_block.header,
@@ -620,7 +621,7 @@ async fn init_runtime(
 }
 
 async fn register_worker(
-    client: &XtClient,
+    paraclient: &XtClient,
     encoded_runtime_info: Vec<u8>,
     attestation: &InitRespAttestation,
     signer: &mut SrSigner,
@@ -640,8 +641,8 @@ async fn register_worker(
             raw_signing_cert: raw_signing_cert,
         },
     };
-    update_signer_nonce(client, signer).await?;
-    let ret = client.watch(call, signer).await;
+    update_signer_nonce(paraclient, signer).await?;
+    let ret = paraclient.watch(call, signer).await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
         return Err(anyhow!(Error::FailedToCallRegisterWorker));
@@ -666,7 +667,7 @@ async fn bridge(args: Args) -> Result<()> {
         .await?;
     info!(
         "Connected to substrate at: {}",
-        args.substrate_ws_endpoint.clone()
+        args.substrate_ws_endpoint
     );
 
     let paraclient = if args.parachain {
@@ -675,9 +676,9 @@ async fn bridge(args: Args) -> Result<()> {
             .set_url(args.collator_ws_endpoint.clone())
             .build()
             .await?;
-        println!(
+        info!(
             "Connected to parachain node at: {}",
-            args.collator_ws_endpoint.clone()
+            args.collator_ws_endpoint
         );
         paraclient
     } else {
@@ -711,6 +712,7 @@ async fn bridge(args: Args) -> Result<()> {
             };
             runtime_info = init_runtime(
                 &client,
+                &paraclient,
                 &pr,
                 !args.ra,
                 args.use_dev_key,
@@ -759,7 +761,7 @@ async fn bridge(args: Args) -> Result<()> {
 
     if args.no_sync {
         if let Some((attestation, encoded_runtime_info)) = pending_register_info {
-            register_worker(&client, encoded_runtime_info, &attestation, &mut signer).await?;
+            register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -861,7 +863,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 {
             if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
                 info!("Registering worker");
-                register_worker(&client, encoded_runtime_info, &attestation, &mut signer).await?;
+                register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
@@ -877,7 +879,7 @@ async fn bridge(args: Args) -> Result<()> {
 
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
-                let mut msg_sync = msg_sync::MsgSync::new(&client, &pr, &mut signer);
+                let mut msg_sync = msg_sync::MsgSync::new(&paraclient, &pr, &mut signer);
                 msg_sync.maybe_sync_mq_egress().await?;
             }
         }
