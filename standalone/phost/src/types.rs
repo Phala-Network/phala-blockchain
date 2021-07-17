@@ -5,7 +5,7 @@ use sp_finality_grandpa::AuthorityList;
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
 pub(crate) use enclave_api::blocks::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, StorageProof,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
 use trie_storage::ser::StorageChanges;
 
@@ -141,7 +141,7 @@ impl Resp for SyncHeaderReq {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockWithEvents {
+pub struct BlockWithChanges {
     pub block: OpaqueSignedBlock,
     pub storage_changes: StorageChanges,
 }

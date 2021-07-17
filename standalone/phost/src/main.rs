@@ -24,7 +24,7 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, BlockNumber, BlockWithEvents,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, BlockNumber, BlockWithChanges,
     DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
     InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime,
     SyncHeaderResp,
@@ -138,7 +138,7 @@ struct Args {
 }
 
 struct BlockSyncState {
-    blocks: Vec<BlockWithEvents>,
+    blocks: Vec<BlockWithChanges>,
     authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
@@ -170,9 +170,9 @@ async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<OpaqueSignedB
 async fn get_block_without_storage_changes(
     client: &XtClient,
     h: Option<u32>,
-) -> Result<BlockWithEvents> {
+) -> Result<BlockWithChanges> {
     let block = get_block_at(&client, h).await?;
-    return Ok(BlockWithEvents {
+    return Ok(BlockWithChanges {
         block,
         storage_changes: Default::default(),
     });
@@ -181,11 +181,11 @@ async fn get_block_without_storage_changes(
 async fn get_block_with_storage_changes(
     client: &XtClient,
     h: Option<u32>,
-) -> Result<BlockWithEvents> {
+) -> Result<BlockWithChanges> {
     let block = get_block_at(&client, h).await?;
     let hash = block.block.header.hash();
     let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
-    return Ok(BlockWithEvents {
+    return Ok(BlockWithChanges {
         block,
         storage_changes,
     });
@@ -233,7 +233,7 @@ async fn get_paraid(
 async fn bisec_setid_change(
     client: &XtClient,
     last_set: (BlockNumber, SetId),
-    known_blocks: &Vec<BlockWithEvents>,
+    known_blocks: &Vec<BlockWithChanges>,
 ) -> Result<Option<BlockNumber>> {
     if known_blocks.is_empty() {
         return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
@@ -300,7 +300,7 @@ async fn req_sync_para_header(
 
 async fn req_dispatch_block(
     pr: &PrClient,
-    blocks: Vec<BlockHeaderWithEvents>,
+    blocks: Vec<BlockHeaderWithChanges>,
 ) -> Result<DispatchBlockResp> {
     let req = blocks::DispatchBlockReq { blocks };
     let resp = pr.bin_req_decode("bin_api/dispatch_block", req).await?;
@@ -324,9 +324,9 @@ async fn sync_events_only(
             break;
         }
     }
-    let blocks: Vec<BlockHeaderWithEvents> = block_buf
+    let blocks: Vec<BlockHeaderWithChanges> = block_buf
         .drain(..n)
-        .map(|bwe| BlockHeaderWithEvents {
+        .map(|bwe| BlockHeaderWithChanges {
             block_header: bwe.block.block.header,
             storage_changes: bwe.storage_changes,
         })
@@ -405,7 +405,7 @@ async fn batch_sync_block(
             break;
         }
         // send out the longest batch and remove it from the input buffer
-        let mut block_batch: Vec<BlockWithEvents> =
+        let mut block_batch: Vec<BlockWithChanges> =
             block_buf.drain(..=(header_idx as usize)).collect();
         let header_batch: Vec<HeaderToSync> = block_batch
             .iter()
@@ -474,9 +474,9 @@ async fn batch_sync_block(
             let end_batch = block_batch.len() as isize - 1;
             let batch_end = cmp::min(dispatch_window as isize, end_batch);
             if batch_end >= 0 {
-                let dispatch_batch: Vec<BlockHeaderWithEvents> = block_batch
+                let dispatch_batch: Vec<BlockHeaderWithChanges> = block_batch
                     .drain(..=(batch_end as usize))
-                    .map(|bwe| BlockHeaderWithEvents {
+                    .map(|bwe| BlockHeaderWithChanges {
                         block_header: bwe.block.block.header,
                         storage_changes: bwe.storage_changes,
                     })

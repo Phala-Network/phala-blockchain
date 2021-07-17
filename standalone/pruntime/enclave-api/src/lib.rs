@@ -45,8 +45,8 @@ pub mod blocks {
 
     pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
     pub type HeaderToSync = GenericHeaderToSync<chain::BlockNumber, RuntimeHasher>;
-    pub type BlockHeaderWithEvents =
-        GenericBlockHeaderWithEvents<chain::BlockNumber, RuntimeHasher>;
+    pub type BlockHeaderWithChanges =
+        GenericBlockHeaderWithChanges<chain::BlockNumber, RuntimeHasher>;
     pub type Headers = Vec<Header<chain::BlockNumber, RuntimeHasher>>;
     pub type HeadersToSync = Vec<HeaderToSync>;
 
@@ -75,7 +75,7 @@ pub mod blocks {
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
-    pub struct GenericBlockHeaderWithEvents<BlockNumber, Hash>
+    pub struct GenericBlockHeaderWithChanges<BlockNumber, Hash>
     where
         BlockNumber: Copy + Into<U256> + TryFrom<U256> + FullCodec + Clone,
         Hash: HashT,
@@ -99,7 +99,7 @@ pub mod blocks {
 
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct DispatchBlockReq {
-        pub blocks: Vec<BlockHeaderWithEvents>,
+        pub blocks: Vec<BlockHeaderWithChanges>,
     }
 
     #[cfg(feature = "serde")]
@@ -162,7 +162,7 @@ pub mod blocks {
 
 pub mod storage_sync {
     use super::blocks::{
-        AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, RuntimeHasher, StorageProof,
+        AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, RuntimeHasher, StorageProof,
     };
 
     use alloc::collections::VecDeque;
@@ -296,7 +296,7 @@ pub mod storage_sync {
         /// Feed a block and apply changes to storage if it's valid.
         pub fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             state_roots: &mut VecDeque<Hash>,
             storage: &mut Storage,
         ) -> Result<()> {
@@ -357,7 +357,7 @@ pub mod storage_sync {
 
         pub fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             storage: &mut Storage,
         ) -> Result<()> {
             self.sync_state
@@ -459,7 +459,7 @@ pub mod storage_sync {
         /// Feed in a block of storage changes
         pub fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             storage: &mut Storage,
         ) -> Result<()> {
             self.sync_state
