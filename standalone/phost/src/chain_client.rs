@@ -1,7 +1,8 @@
 use anyhow::{anyhow, Result};
+use codec::Encode;
 use sp_core::{storage::StorageKey, twox_128, twox_64};
 use phala_types::{messaging::MessageOrigin};
-use enclave_api::blocks::StorageProof;
+use enclave_api::blocks::{StorageProof, ParaId};
 use super::runtimes;
 
 use super::XtClient;
@@ -59,8 +60,8 @@ pub async fn fetch_mq_ingress_seq(client: &XtClient, sender: MessageOrigin) -> R
         .or(Ok(0))
 }
 
-pub fn get_para_head_key(para_id: &Vec<u8>) -> StorageKey {
-    StorageKey(storage_map_key_vec("Paras", "Heads", &hex::encode(para_id)))
+pub fn get_para_head_key(para_id: &ParaId) -> StorageKey {
+    StorageKey(storage_map_key_vec("Paras", "Heads", &para_id.encode()))
 }
 
 pub fn get_parachain_heads(
@@ -79,7 +80,7 @@ pub fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
 }
 
 /// Calculates the Substrate storage key prefix for a StorageMap
-fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &str) -> Vec<u8> {
+fn storage_map_key_vec(module: &str, storage_item: &str, storage_item_key: &[u8]) -> Vec<u8> {
     let mut key = storage_value_key_vec(module, storage_item);
     let item_key = hex::decode(storage_item_key).unwrap();
     let hash = twox_64(&item_key);

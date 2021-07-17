@@ -287,7 +287,7 @@ async fn req_sync_para_header(
     pr: &PrClient,
     headers: blocks::Headers,
     proof: StorageProof,
-    para_id: Vec<u8>,
+    para_id: blocks::ParaId,
 ) -> Result<SyncHeaderResp> {
     let req = blocks::SyncParachainHeaderReq {
         headers,
@@ -554,7 +554,7 @@ async fn sync_parachain_header(
             para_headers.push(header);
         }
     }
-    let r = req_sync_para_header(pr, para_headers, header_proof, para_id.to_vec()).await?;
+    let r = req_sync_para_header(pr, para_headers, header_proof, para_id).await?;
     info!("..sync_parachain_header: {:?}", r);
     Ok(para_fin_block_number)
 }

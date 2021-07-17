@@ -90,11 +90,15 @@ pub mod blocks {
         pub authority_set_change: Option<AuthoritySetChange>,
     }
 
+    // TODO.kevin: import it from some other crate
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct ParaId(u32);
+
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
         pub proof: StorageProof,
-        pub para_id: Vec<u8>,
+        pub para_id: ParaId,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]

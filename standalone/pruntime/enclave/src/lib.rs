@@ -1199,7 +1199,7 @@ fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
 
 #[cfg(feature = "parachain")]
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
-    let storage_key = light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id);
+    let storage_key = light_validation::utils::storage_map_prefix("Paras", "Heads", &input.para_id.encode());
     let last_header = STATE
         .lock()
         .unwrap()

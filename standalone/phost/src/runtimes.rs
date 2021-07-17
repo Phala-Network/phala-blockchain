@@ -244,11 +244,11 @@ pub mod chain_bridge {
 
 pub mod parachain_info {
     use super::PhalaNodeRuntime;
-    use codec::Encode;
+    use codec::{Encode, Decode};
     use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
 
-    pub type ParachainId = Vec<u8>;
+    pub type ParachainId = enclave_api::blocks::ParaId;
 
     #[module]
     pub trait ParachainInfo: System {}
