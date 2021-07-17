@@ -15,7 +15,7 @@ async function checkUntil(async_fn, timeout) {
 		if (t - t0 >= timeout) {
 			return false;
 		}
-		sleep(100);
+		await sleep(100);
 	}
 }
 
