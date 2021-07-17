@@ -1398,16 +1398,16 @@ impl Parser {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::parser::Parser;
-
-    #[test]
-    fn test_parse_smoke() {
-        let parser = Parser::new();
-        match parser.parse("Mozilla/5.0 (Mobile; rv:18.0) Gecko/18.0 Firefox/18.0") {
-            Some(result) => assert_eq!(result.category, "smartphone".to_string()),
-            None => panic!("invalid"),
-        }
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use crate::parser::Parser;
+//
+//     #[test]
+//     fn test_parse_smoke() {
+//         let parser = Parser::new();
+//         match parser.parse("Mozilla/5.0 (Mobile; rv:18.0) Gecko/18.0 Firefox/18.0") {
+//             Some(result) => assert_eq!(result.category, "smartphone".to_string()),
+//             None => panic!("invalid"),
+//         }
+//     }
+// }

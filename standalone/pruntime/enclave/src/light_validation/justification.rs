@@ -18,10 +18,10 @@ use crate::std::collections::{HashMap, HashSet};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
 
-#[cfg(test)]
-use sc_client::Client;
-#[cfg(test)]
-use sc_client_api::{backend::Backend, CallExecutor};
+// #[cfg(test)]
+// use sc_client::Client;
+// #[cfg(test)]
+// use sc_client_api::{backend::Backend, CallExecutor};
 
 use super::error::JustificationError as ClientError;
 use anyhow::Result;
@@ -48,59 +48,59 @@ pub struct GrandpaJustification<Block: BlockT> {
 }
 
 impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
-    /// Create a GRANDPA justification from the given commit. This method
-    /// assumes the commit is valid and well-formed.
-    #[cfg(test)]
-    pub(crate) fn from_commit<B, E, RA>(
-        client: &Client<B, E, Block, RA>,
-        round: u64,
-        commit: Commit<Block>,
-    ) -> Result<GrandpaJustification<Block>>
-    where
-        B: Backend<Block, Blake2Hasher>,
-        E: CallExecutor<Block, Blake2Hasher> + Send + Sync,
-        RA: Send + Sync,
-    {
-        let mut votes_ancestries_hashes = HashSet::new();
-        let mut votes_ancestries = Vec::new();
+    // /// Create a GRANDPA justification from the given commit. This method
+    // /// assumes the commit is valid and well-formed.
+    // #[cfg(test)]
+    // pub(crate) fn from_commit<B, E, RA>(
+    //     client: &Client<B, E, Block, RA>,
+    //     round: u64,
+    //     commit: Commit<Block>,
+    // ) -> Result<GrandpaJustification<Block>>
+    // where
+    //     B: Backend<Block, Blake2Hasher>,
+    //     E: CallExecutor<Block, Blake2Hasher> + Send + Sync,
+    //     RA: Send + Sync,
+    // {
+    //     let mut votes_ancestries_hashes = HashSet::new();
+    //     let mut votes_ancestries = Vec::new();
 
-        let error = || {
-            let msg = "invalid precommits for target commit".to_string();
-            Err(anyhow::Error::msg(Error::Client(
-                ClientError::BadJustification(msg),
-            )))
-        };
+    //     let error = || {
+    //         let msg = "invalid precommits for target commit".to_string();
+    //         Err(anyhow::Error::msg(Error::Client(
+    //             ClientError::BadJustification(msg),
+    //         )))
+    //     };
 
-        for signed in commit.precommits.iter() {
-            let mut current_hash = signed.precommit.target_hash;
-            loop {
-                if current_hash == commit.target_hash {
-                    break;
-                }
+    //     for signed in commit.precommits.iter() {
+    //         let mut current_hash = signed.precommit.target_hash;
+    //         loop {
+    //             if current_hash == commit.target_hash {
+    //                 break;
+    //             }
 
-                match client.header(BlockId::Hash(current_hash))? {
-                    Some(current_header) => {
-                        if *current_header.number() <= commit.target_number {
-                            return error();
-                        }
+    //             match client.header(BlockId::Hash(current_hash))? {
+    //                 Some(current_header) => {
+    //                     if *current_header.number() <= commit.target_number {
+    //                         return error();
+    //                     }
 
-                        let parent_hash = *current_header.parent_hash();
-                        if votes_ancestries_hashes.insert(current_hash) {
-                            votes_ancestries.push(current_header);
-                        }
-                        current_hash = parent_hash;
-                    }
-                    _ => return error(),
-                }
-            }
-        }
+    //                     let parent_hash = *current_header.parent_hash();
+    //                     if votes_ancestries_hashes.insert(current_hash) {
+    //                         votes_ancestries.push(current_header);
+    //                     }
+    //                     current_hash = parent_hash;
+    //                 }
+    //                 _ => return error(),
+    //             }
+    //         }
+    //     }
 
-        Ok(GrandpaJustification {
-            round,
-            commit,
-            votes_ancestries,
-        })
-    }
+    //     Ok(GrandpaJustification {
+    //         round,
+    //         commit,
+    //         votes_ancestries,
+    //     })
+    // }
 
     /// Decode a GRANDPA justification and validate the commit and the votes'
     /// ancestry proofs finalize the given block.

@@ -376,12 +376,9 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<()> {
 
                     if rt != sgx_status_t::SGX_SUCCESS {
                         error!("rt={:?}", rt);
-                        // Borrow of packed field is unsafe in future Rust releases
-                        unsafe {
-                            error!("update_info.pswUpdate: {}", update_info.pswUpdate);
-                            error!("update_info.csmeFwUpdate: {}", update_info.csmeFwUpdate);
-                            error!("update_info.ucodeUpdate: {}", update_info.ucodeUpdate);
-                        }
+                        error!("update_info.pswUpdate: {}", { update_info.pswUpdate });
+                        error!("update_info.csmeFwUpdate: {}", { update_info.csmeFwUpdate });
+                        error!("update_info.ucodeUpdate: {}", { update_info.ucodeUpdate });
                         return Err(anyhow::Error::msg(rt));
                     }
                 } else {
@@ -403,27 +400,20 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<()> {
         // TODO: lack security check here
         let sgx_quote: sgx_quote_t = unsafe { ptr::read(quote.as_ptr() as *const _) };
 
-        // Borrow of packed field is unsafe in future Rust releases
-        // ATTENTION
-        // DO SECURITY CHECK ON DEMAND
-        // DO SECURITY CHECK ON DEMAND
-        // DO SECURITY CHECK ON DEMAND
-        unsafe {
-            info!("sgx quote version = {}", sgx_quote.version);
-            info!("sgx quote signature type = {}", sgx_quote.sign_type);
-            debug!(
-                "sgx quote report_data = {:02x}",
-                sgx_quote.report_body.report_data.d.iter().format("")
-            );
-            debug!(
-                "sgx quote mr_enclave = {:02x}",
-                sgx_quote.report_body.mr_enclave.m.iter().format("")
-            );
-            debug!(
-                "sgx quote mr_signer = {:02x}",
-                sgx_quote.report_body.mr_signer.m.iter().format("")
-            );
-        }
+        info!("sgx quote version = {}", { sgx_quote.version });
+        info!("sgx quote signature type = {}", { sgx_quote.sign_type });
+        debug!(
+            "sgx quote report_data = {:02x}",
+            sgx_quote.report_body.report_data.d.iter().format("")
+        );
+        debug!(
+            "sgx quote mr_enclave = {:02x}",
+            sgx_quote.report_body.mr_enclave.m.iter().format("")
+        );
+        debug!(
+            "sgx quote mr_signer = {:02x}",
+            sgx_quote.report_body.mr_signer.m.iter().format("")
+        );
         info!("Anticipated public key = {:02x}", pub_k.iter().format(""));
         if sgx_quote.report_body.report_data.d.to_vec() == pub_k.to_vec() {
             info!("Mutual RA done!");

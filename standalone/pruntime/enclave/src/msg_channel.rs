@@ -1,9 +1,7 @@
-
 // TODO: Remove thie attribute once we use OSP.
 #[allow(dead_code)]
 pub mod osp {
     ///! OSP (Optional Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
-
     pub use decrypt::*;
     pub use encrypt::*;
 

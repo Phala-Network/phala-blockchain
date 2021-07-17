@@ -8,39 +8,12 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::crypto::Pair;
 
 pub mod aead;
-pub mod ecdh;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
 pub struct AeadCipher {
     pub iv_b64: String,
     pub cipher_b64: String,
     pub pubkey_b64: String,
-}
-
-pub struct DecryptOutput {
-    pub msg: Vec<u8>,
-    pub secret: Vec<u8>,
-}
-
-// Decrypt by AEAD-AES-GCM with secret key agreeded by ECDH.
-pub fn decrypt(
-    cipher: &AeadCipher,
-    privkey: &ring::agreement::EphemeralPrivateKey,
-) -> Result<DecryptOutput> {
-    let pubkey = base64::decode(&cipher.pubkey_b64)
-        .map_err(|_| anyhow::Error::msg(Error::BadInput("pubkey_b64")))?;
-    let mut data = base64::decode(&cipher.cipher_b64)
-        .map_err(|_| anyhow::Error::msg(Error::BadInput("cipher_b64")))?;
-    let iv = base64::decode(&cipher.iv_b64)
-        .map_err(|_| anyhow::Error::msg(Error::BadInput("iv_b64")))?;
-    // ECDH derived secret
-    let secret = ecdh::agree(privkey, &pubkey);
-    log::info!("Agreed SK: {:?}", hex::encode(&secret));
-    let msg = aead::decrypt(iv.as_slice(), secret.as_slice(), &mut data);
-    Ok(DecryptOutput {
-        msg: msg.to_vec(),
-        secret,
-    })
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
