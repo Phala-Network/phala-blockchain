@@ -506,7 +506,7 @@ pub mod pallet {
 		fn update_pool(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			let mut new_rewards;
 
-			new_rewards = Self::calculate_reward(pool_info.pid);
+			new_rewards = Self::calculate_reward(&pool_info.workers);
 			Self::reward_clear(&pool_info.workers);
 
 			if new_rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
@@ -522,10 +522,15 @@ pub mod pallet {
 			}
 		}
 
-		fn calculate_reward(pid: u64) -> BalanceOf<T> {
-			let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
+		/// Calculate rewards that belong to this pool.
+		/// The rewards here only contains rewards belong to workers in this pool from last pool update
+		/// to now. Everytime mining tell us some workers have new rewards(by on_reward callback), we
+		/// add it to new_rewards map, when next time the pool do update, we calculate all rewards
+		/// belong to this pool, which would be used to update pool_info.pool_acc, then the cached rewards
+		/// would be clean.
+		fn calculate_reward(workers: &Vec<WorkerPublicKey>) -> BalanceOf<T> {
 			let mut pool_new_rewards: BalanceOf<T> = Zero::zero();
-			for worker in pool_info.workers {
+			for worker in workers {
 				pool_new_rewards =
 					pool_new_rewards.saturating_add(Self::new_rewards(&worker).unwrap());
 			}
