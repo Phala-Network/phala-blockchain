@@ -269,18 +269,14 @@ pub mod pallet {
 			payout_commission: u16,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-
 			ensure!(payout_commission <= 1000, Error::<T>::InvalidPayoutPerf);
-
-			let pool_info = Self::ensure_pool(pid)?;
+			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 
-			MiningPools::<T>::mutate(&pid, |pool| {
-				if let Some(pool) = pool {
-					pool.payout_commission = payout_commission;
-				}
-			});
+			pool_info.payout_commission = payout_commission;
+			MiningPools::<T>::insert(&pid, &pool_info);
+
 			Self::deposit_event(Event::<T>::PoolCommissionSetted(pid, payout_commission));
 
 			Ok(())
