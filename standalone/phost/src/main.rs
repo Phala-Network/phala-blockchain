@@ -346,8 +346,7 @@ async fn batch_sync_block(
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
-    next_headernum: BlockNumber,
-    next_blocknum: BlockNumber,
+    info: &types::GetInfoResp,
     parachain: bool,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
@@ -453,15 +452,17 @@ async fn batch_sync_block(
                 .map(|change| &change.authority_set)
         );
 
+        let mut header_batch = header_batch;
+        header_batch.retain(|h| h.header.number >= info.headernum);
         let r = req_sync_header(pr, header_batch, authrotiy_change).await?;
         info!("  ..sync_header: {:?}", r);
 
         if parachain {
             let latest_block =
-                sync_parachain_header(pr, client, paraclient, last_header_hash, next_headernum)
+                sync_parachain_header(pr, client, paraclient, last_header_hash, info.para_headernum)
                     .await?;
             let mut para_blocks = Vec::new();
-            for b in next_blocknum..=latest_block {
+            for b in info.blocknum..=latest_block {
                 let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
                 para_blocks.push(block.clone());
             }
@@ -697,7 +698,7 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pending_register_info: Option<(InitRespAttestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
-    let mut info = pr.req_decode("get_info", GetInfoReq {}).await?;
+    let info = pr.req_decode("get_info", GetInfoReq {}).await?;
     if !args.no_init {
         let runtime_info;
         if !info.initialized {
@@ -775,7 +776,7 @@ async fn bridge(args: Args) -> Result<()> {
 
     loop {
         // update the latest pRuntime state
-        info = pr.req_decode("get_info", GetInfoReq {}).await?;
+        let info = pr.req_decode("get_info", GetInfoReq {}).await?;
         info!("pRuntime get_info response: {:?}", info);
 
         // STATUS: header_synced = info.headernum
@@ -812,7 +813,7 @@ async fn bridge(args: Args) -> Result<()> {
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
-            None => info.blocknum,
+            None => if args.parachain { info.headernum } else { info.blocknum },
         };
         let batch_end = std::cmp::min(
             latest_block.header.number,
@@ -853,8 +854,7 @@ async fn bridge(args: Args) -> Result<()> {
             &pr,
             &mut sync_state,
             args.sync_blocks,
-            next_headernum,
-            info.blocknum,
+            &info,
             args.parachain,
         )
         .await?;
