@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./typeoverride');
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
-const { checkUntil, skipSlowTest, sleep } = require('../utils');
+const { checkUntil, skipSlowTest } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/phost');
@@ -141,6 +141,9 @@ describe('A full stack', function () {
 				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
 				return gatekeepers.includes(hex(info.public_key));
 			}, 4 * 6000), 'not registered as gatekeeper');
+		});
+
+		it('can receive master key', async function () {
 
 			// Wait for the successful dispatch of master key
 			// pRuntime[1] should be down
