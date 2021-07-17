@@ -22,8 +22,6 @@ const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
 
 describe('A full stack', function () {
 	this.timeout(60000);
-	let processes = [];
-	let processNode, processRelayer, processPRuntime;
 
 	let cluster;
 	let api, keyring, alice, root;
