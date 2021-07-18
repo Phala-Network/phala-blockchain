@@ -28,6 +28,8 @@ use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
+///
+/// WARNING: this interval need to be large enough considering the latency of mq
 const VRF_INTERVAL: u32 = 5;
 
 /// Master key filepath
@@ -122,11 +124,13 @@ where
     }
 
     pub fn register_on_chain(&mut self) {
+        info!("Gatekeeper: register on chain");
         self.registered_on_chain = true;
         self.egress.set_dummy(false);
     }
 
     pub fn unregister_on_chain(&mut self) {
+        info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
         self.egress.set_dummy(true);
     }
@@ -155,10 +159,12 @@ where
             let seed = master_key.seed();
             let sig = self.identity_key.sign_data(&seed);
 
+            // TODO(shelven): use serialization rather than manual concat.
             let mut buf = Vec::new();
             buf.extend_from_slice(&seed);
             buf.extend_from_slice(sig.as_ref());
 
+            // TODO(shelven): rust style error handling, everywhere
             match SgxFile::create(filepath) {
                 Ok(mut file) => match file.write_all(&buf) {
                     Ok(_) => {}
@@ -250,7 +256,7 @@ where
     }
 
     pub fn vrf(&mut self, block_number: chain::BlockNumber) {
-        if block_number % VRF_INTERVAL != 1 {
+        if block_number % VRF_INTERVAL != 0 {
             return;
         }
 
@@ -260,11 +266,21 @@ where
         }
 
         if let Some(master_key) = &self.master_key {
+            let random_number =
+                next_random_number(master_key, block_number, self.last_random_number);
+            info!(
+                "Gatekeeper: emit random number {} in block {}",
+                hex::encode(&random_number),
+                block_number
+            );
             self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
-                next_random_number(master_key, block_number, self.last_random_number),
+                random_number,
                 self.last_random_number,
-            ))
+            ));
+
+            self.last_random_block = block_number;
+            self.last_random_number = random_number;
         }
     }
 }
@@ -536,6 +552,7 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        info!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::Registered(new_gatekeeper_event) => {
                 self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
@@ -573,6 +590,7 @@ where
         let my_pubkey = self.state.identity_key.public();
         if event.gatekeeper_count == 1 {
             if my_pubkey == event.pubkey && self.state.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
                 // generate master key as the first gatekeeper
                 // no need to restart
                 self.state.set_master_key(
@@ -587,6 +605,7 @@ where
             // if this pRuntime is the newly-registered gatekeeper himself,
             // its egress is still in dummy mode since we will tick the state later
             if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: try dispatch master key");
                 let derived_key = master_key
                     .derive_secp256k1_pair(&[b"master_key"])
                     .expect("should not fail with valid info");
@@ -639,25 +658,25 @@ where
                 .state
                 .identity_key
                 .derive_ecdh_key()
-                .expect("should never failed with valid identity key");
+                .expect("Should never failed with valid identity key; qed.");
+            // info!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
             let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                .expect("should never failed with valid ecdh key");
-            let mut seed: Vec<u8> = Vec::new();
+                .expect("Should never failed with valid ecdh key; qed.");
 
-            match aead::decrypt(&event.iv, &secret, &mut seed) {
-                Ok(seed) => {
-                    let decrypted_master_key =
-                        ecdsa::Pair::from_seed_slice(&seed).expect("invalid master key seed");
-                    self.state.set_master_key(decrypted_master_key, true);
-                }
-                Err(e) => {
-                    panic!("Failed to decrypt dispatched master key: {:?}", e);
-                }
-            }
+            let mut master_key_buff = event.encrypted_master_key.clone();
+            let master_key = match aead::decrypt(&event.iv, &secret, &mut master_key_buff[..]) {
+                Err(e) => panic!("Failed to decrypt dispatched master key: {:?}", e),
+                Ok(k) => k,
+            };
+
+            let master_pair = ecdsa::Pair::from_seed_slice(&master_key)
+                .expect("Master key seed must be correct; qed.");
+            info!("Gatekeeper: successfully decrypt received master key, prepare to reboot");
+            self.state.set_master_key(master_pair, true);
         }
     }
 
-    /// Sync on-chain random number for next random generation
+    /// Verify on-chain random number
     fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -671,10 +690,6 @@ where
             {
                 error!("Fatal error: Unexpected random number {:?}", event);
                 panic!("GK state poisoned");
-            }
-            if event.block_number > self.state.last_random_block {
-                self.state.last_random_block = event.block_number;
-                self.state.last_random_number = event.random_number;
             }
         }
     }

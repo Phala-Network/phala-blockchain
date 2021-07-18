@@ -149,7 +149,7 @@ fn main() {
                     .unwrap();
             println!(
                 "Pubkey: {}",
-                hex::encode(pair.public().as_compressed().to_bytes())
+                hex::encode(pair.public())
             );
             println!("Privkey: {}", hex::encode(pair.secret()));
         }

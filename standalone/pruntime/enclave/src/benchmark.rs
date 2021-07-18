@@ -1,6 +1,6 @@
 use crate::std;
 
-use core::sync::atomic::{AtomicU64, AtomicBool, Ordering};
+use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use log::debug;
 
 // TODO.kevin: block_box will do best-effort to prevent compiler optimizations, but not guaranteed.
@@ -45,8 +45,7 @@ pub fn run() {
             let score = est_score(since, start);
             debug!(
                 "Benchmark counnter increased to {}, est score={}",
-                count,
-                score,
+                count, score,
             );
             SCORE.store(score, Ordering::Relaxed);
         }

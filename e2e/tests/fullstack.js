@@ -6,7 +6,7 @@ const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
-const {types, typeAlias} = require('./typeoverride');
+const { types, typeAlias } = require('./typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').latest;
 
@@ -22,8 +22,6 @@ const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
 
 describe('A full stack', function () {
 	this.timeout(60000);
-	let processes = [];
-	let processNode, processRelayer, processPRuntime;
 
 	let cluster;
 	let api, keyring, alice, root;
@@ -51,6 +49,8 @@ describe('A full stack', function () {
 		await cluster.kill();
 		if (process.env.KEEP_TEST_FILES != '1') {
 			tmpDir.cleanup();
+		} else {
+			console.log(`The test datadir is kept at ${cluster.tmpPath}`);
 		}
 	});
 
@@ -68,7 +68,7 @@ describe('A full stack', function () {
 	})
 
 	let workerKey;
-	describe('pRuntime', () => {
+	describe.skip('pRuntime', () => {
 		it('is initialized', async function () {
 			let info;
 			assert.isTrue(await checkUntil(async () => {
@@ -79,7 +79,7 @@ describe('A full stack', function () {
 			workerKey = Uint8Array.from(Buffer.from(info.public_key, 'hex'));
 		});
 
-		it('can sync block', async function() {
+		it('can sync block', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
 				return info.blocknum > 0;
@@ -94,7 +94,7 @@ describe('A full stack', function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
 				return info.registered;
-			}, 4*6000), 'not registered in time');
+			}, 4 * 6000), 'not registered in time');
 		});
 
 		it('finishes the benchmark', async function () {
@@ -104,12 +104,13 @@ describe('A full stack', function () {
 			assert.isTrue(await checkUntil(async () => {
 				const workerInfo = await api.query.phalaRegistry.worker(workerKey);
 				return workerInfo.unwrap().intialScore.isSome;
-			}, 3*6000), 'benchmark timeout');
+			}, 3 * 6000), 'benchmark timeout');
 		});
 	});
 
 	describe('Gatekeeper', () => {
 		it('can be registered', async function () {
+			// Register worker1 as Gatekeeper
 			const info = await pruntime[1].getInfo();
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
@@ -121,21 +122,47 @@ describe('A full stack', function () {
 				),
 				alice,
 			);
-
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
 					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
 				),
 				alice,
 			);
-
 			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[1].getInfo();
 				return info.registered;
-			}, 4*6000), 'not registered in time');
+			}, 4 * 6000), 'not registered in time');
 
-			// TODO: check if the role is Gatekeeper
+			// Check if the role is Gatekeeper
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+				return gatekeepers.includes(hex(info.public_key));
+			}, 4 * 6000), 'not registered as gatekeeper');
+		});
+
+		it('can receive master key', async function () {
+			// Wait for the successful dispatch of master key
+			// pRuntime[1] should be down
+			assert.isTrue(
+				await cluster.waitWorkerExitAndRestart(1, 10 * 6000),
+				'worker1 restart timeout'
+			);
+			assert.isTrue(
+				fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+				'master key not received'
+			);
+		});
+
+		it('becomes active', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[1].getInfo();
+				return info.gatekeeper_role == 'Active';
+			}, 1000))
+
+			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
 		});
 	});
 
@@ -209,9 +236,9 @@ describe('A full stack', function () {
 		it('can fund the accounts', async function () {
 			const unit10 = 10 * 1e12;
 			const nonce = await getNonce(alice.address)
-			await api.tx.balances.transfer(stash.address, unit10).signAndSend(alice, {nonce: nonce});
-			await api.tx.balances.transfer(controller.address, unit10).signAndSend(alice, {nonce: nonce + 1});
-			await api.tx.balances.transfer(reward.address, unit10).signAndSend(alice, {nonce: nonce + 2});
+			await api.tx.balances.transfer(stash.address, unit10).signAndSend(alice, { nonce: nonce });
+			await api.tx.balances.transfer(controller.address, unit10).signAndSend(alice, { nonce: nonce + 1 });
+			await api.tx.balances.transfer(reward.address, unit10).signAndSend(alice, { nonce: nonce + 2 });
 
 			await waitTxAccepted(alice.address, nonce + 2);
 			const stashInfo = await api.query.system.account(stash.address);
@@ -352,7 +379,7 @@ function assertEvents(actualEvents, expectedEvents, partial = true) {
 	assert.deepEqual(simpleEvents, expectedEvents, 'Events not equal');
 }
 
-function simplifyEvents (events, keepData = false) {
+function simplifyEvents(events, keepData = false) {
 	const simpleEvents = [];
 	for (const e of events) {
 		const { event } = e;
@@ -399,10 +426,25 @@ class Cluster {
 		]);
 	}
 
+	// Returns false if waiting is timeout; otherwise it restart the specified worker
+	async waitWorkerExitAndRestart(i, timeout) {
+		const w = this.workers[i];
+		const succeed = await checkUntil(async () => {
+			return w.processPRuntime.stopped && w.processRelayer.stopped
+		}, timeout);
+		if (!succeed) {
+			return false;
+		}
+		this._createWorkerProcess(i);
+		await waitPRuntimeOutput(w.processPRuntime);
+		await waitRelayerOutput(w.processRelayer);
+		return true;
+	}
+
 	async _reservePorts() {
 		const [wsPort, ...workerPorts] = await Promise.all([
-			portfinder.getPortPromise({port: 9944}),
-			...this.workers.map(() => portfinder.getPortPromise({port: 8000, stopPort: 9900}))
+			portfinder.getPortPromise({ port: 9944 }),
+			...this.workers.map(() => portfinder.getPortPromise({ port: 8000, stopPort: 9900 }))
 		]);
 		this.wsPort = wsPort;
 		this.workers.forEach((w, i) => w.port = workerPorts[i]);
@@ -410,10 +452,8 @@ class Cluster {
 
 	_createProcesses() {
 		this.processNode = newNode(this.wsPort, this.tmpPath, 'node');
-		this.workers.forEach((w, i) => {
-			const key = '0'.repeat(63) + (i + 1).toString();
-			w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, key, `relayer${i}`);
-			w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+		this.workers.forEach((_, i) => {
+			this._createWorkerProcess(i);
 		})
 		this.processes = [
 			this.processNode,
@@ -421,22 +461,21 @@ class Cluster {
 		];
 	}
 
+	_createWorkerProcess(i) {
+		const w = this.workers[i];
+		const key = '0'.repeat(63) + (i + 1).toString();
+		w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, key, `relayer${i}`);
+		w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
+	}
+
 	async _launchAndWait() {
 		// Launch nodes & pruntime
 		await Promise.all([
-			this.processNode.startAndWaitForOutput(
-				/Listening for new connections on 127\.0\.0\.1:(\d+)/
-			),
-			...this.workers.map(w => w.processPRuntime
-				.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/)
-			),
+			waitNodeOutput(this.processNode),
+			...this.workers.map(w => waitPRuntimeOutput(w.processPRuntime)),
 		]);
 		// Launch relayers
-		await Promise.all(
-			this.workers.map(w => w.processRelayer
-				.startAndWaitForOutput(/runtime_info: InitRuntimeResp/)
-			)
-		);
+		await Promise.all(this.workers.map(w => waitRelayerOutput(w.processRelayer)));
 	}
 
 	async _createApi() {
@@ -451,8 +490,18 @@ class Cluster {
 
 }
 
+function waitPRuntimeOutput(p) {
+	return p.startAndWaitForOutput(/Rocket has launched from http:\/\/0\.0\.0\.0:(\d+)/);
+}
+function waitRelayerOutput(p) {
+	return p.startAndWaitForOutput(/runtime_info: InitRuntimeResp/);
+}
+function waitNodeOutput(p) {
+	return p.startAndWaitForOutput(/Listening for new connections on 127\.0\.0\.1:(\d+)/);
+}
 
-function newNode(wsPort, tmpPath, name='node') {
+
+function newNode(wsPort, tmpPath, name = 'node') {
 	return new Process([
 		pathNode, [
 			'--dev',
@@ -463,13 +512,15 @@ function newNode(wsPort, tmpPath, name='node') {
 	], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name='pruntime') {
+function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 	const workDir = path.resolve(`${tmpPath}/${name}`);
-	fs.mkdirSync(workDir);
-	const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
-	filesToCopy.forEach(f =>
-		fs.symlinkSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
-	);
+	if (!fs.existsSync(workDir)) {
+		fs.mkdirSync(workDir);
+		const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
+		filesToCopy.forEach(f =>
+			fs.symlinkSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
+		);
+	}
 	return new Process([
 		`${workDir}/app`, [
 			'--cores=0',	// Disable benchmark
@@ -483,7 +534,7 @@ function newPRuntime(teePort, tmpPath, name='pruntime') {
 	], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, key, name='relayer') {
+function newRelayer(wsPort, teePort, tmpPath, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
 			'--mnemonic=//Alice',

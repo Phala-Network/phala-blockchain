@@ -50,7 +50,7 @@ pub struct BtcLottery {
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
-    sequence: SequenceType, // Starting from zero
+    sequence: SequenceType,      // Starting from zero
     secret: Option<ecdsa::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
@@ -137,7 +137,13 @@ impl BtcLottery {
         }
     }
 
-    pub fn new_round(&mut self, mq: &MessageChannel, round_id: u32, total_count: u32, winner_count: u32) {
+    pub fn new_round(
+        &mut self,
+        mq: &MessageChannel,
+        round_id: u32,
+        total_count: u32,
+        winner_count: u32,
+    ) {
         info!("new_round({}, {}, {})", round_id, total_count, winner_count);
         if !self.check_secret_key() {
             return;
@@ -194,7 +200,13 @@ impl BtcLottery {
         }
     }
 
-    pub fn open_lottery(&mut self, mq: &MessageChannel, round_id: u32, token_no: u32, btc_address: Vec<u8>) {
+    pub fn open_lottery(
+        &mut self,
+        mq: &MessageChannel,
+        round_id: u32,
+        token_no: u32,
+        btc_address: Vec<u8>,
+    ) {
         if !self.check_secret_key() {
             return;
         }

@@ -18,7 +18,7 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::EcdhP256PublicKey;
+    use super::EcdhPublicKey;
     use super::WorkerPublicKey;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
@@ -301,7 +301,7 @@ pub mod messaging {
     impl GatekeeperEvent {
         pub fn gatekeeper_registered(
             pubkey: WorkerPublicKey,
-            ecdh_pubkey: EcdhP256PublicKey,
+            ecdh_pubkey: EcdhPublicKey,
             gatekeeper_count: u32,
         ) -> GatekeeperEvent {
             GatekeeperEvent::Registered(NewGatekeeperEvent {
@@ -313,7 +313,7 @@ pub mod messaging {
 
         pub fn dispatch_master_key_event(
             dest: WorkerPublicKey,
-            ecdh_pubkey: EcdhP256PublicKey,
+            ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
         ) -> GatekeeperEvent {
@@ -343,7 +343,7 @@ pub mod messaging {
         /// The public key of registered gatekeeper
         pub pubkey: WorkerPublicKey,
         /// The ecdh public key of registered gatekeeper
-        pub ecdh_pubkey: EcdhP256PublicKey,
+        pub ecdh_pubkey: EcdhPublicKey,
         /// The current number of gatekeepers
         pub gatekeeper_count: u32,
     }
@@ -353,7 +353,7 @@ pub mod messaging {
         /// The target to dispatch master key
         pub dest: WorkerPublicKey,
         /// The ecdh public key of master key source
-        pub ecdh_pubkey: EcdhP256PublicKey,
+        pub ecdh_pubkey: EcdhPublicKey,
         /// Master key encrypted with aead key
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
@@ -438,19 +438,20 @@ type MachineId = [u8; 16];
 pub type WorkerPublicKey = sp_core::ecdsa::Public;
 pub type ContractPublicKey = sp_core::ecdsa::Public;
 #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-pub struct EcdhP256PublicKey(pub [u8; 65]);
+/// Sr25519 public key
+pub struct EcdhPublicKey(pub [u8; 32]);
 
-impl Default for EcdhP256PublicKey {
+impl Default for EcdhPublicKey {
     fn default() -> Self {
-        EcdhP256PublicKey([0; 65])
+        EcdhPublicKey([0_u8; 32])
     }
 }
 
-impl TryFrom<&[u8]> for EcdhP256PublicKey {
+impl TryFrom<&[u8]> for EcdhPublicKey {
     type Error = ();
     fn try_from(raw: &[u8]) -> Result<Self, ()> {
-        let raw: [u8; 65] = raw.try_into().map_err(|_| ())?;
-        Ok(EcdhP256PublicKey(raw))
+        let raw: [u8; 32] = raw.try_into().map_err(|_| ())?;
+        Ok(EcdhPublicKey(raw))
     }
 }
 
@@ -459,7 +460,7 @@ pub struct PRuntimeInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
-    pub ecdh_pubkey: EcdhP256PublicKey,
+    pub ecdh_pubkey: EcdhPublicKey,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
 }
