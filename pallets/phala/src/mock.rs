@@ -127,7 +127,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 		.unwrap();
 	// Inject genesis storage
 	let zero_pubkey = sp_core::ecdsa::Public::from_raw([0u8; 33]);
-	let zero_ecdh_pubkey = Vec::from(&[0u8; 65][..]);
+	let zero_ecdh_pubkey = Vec::from(&[0u8; 32][..]);
 	pallet_balances::GenesisConfig::<Test> {
 		balances: vec![(1, 1000 * DOLLARS), (2, 2000 * DOLLARS)],
 	}
@@ -159,7 +159,7 @@ pub fn events() -> Vec<Event> {
 	evt
 }
 
-use phala_types::{EcdhP256PublicKey, WorkerPublicKey};
+use phala_types::{EcdhPublicKey, WorkerPublicKey};
 
 pub fn worker_pubkey(i: u8) -> WorkerPublicKey {
 	let mut raw = [0u8; 33];
@@ -167,9 +167,9 @@ pub fn worker_pubkey(i: u8) -> WorkerPublicKey {
 	raw[31] = 1; // distinguish with the genesis config
 	WorkerPublicKey::from_raw(raw)
 }
-pub fn ecdh_pubkey(i: u8) -> EcdhP256PublicKey {
-	let mut raw = [0u8; 65];
-	raw[64] = i;
-	raw[63] = 1; // distinguish with the genesis config
-	EcdhP256PublicKey(raw)
+pub fn ecdh_pubkey(i: u8) -> EcdhPublicKey {
+	let mut raw = [0u8; 32];
+	raw[31] = i;
+	raw[30] = 1; // distinguish with the genesis config
+	EcdhPublicKey(raw)
 }
