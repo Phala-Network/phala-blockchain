@@ -1068,7 +1068,6 @@ impl pallet_registry::Config for Runtime {
 	type UnixTime = Timestamp;
 }
 impl pallet_mq::Config for Runtime {
-	type Event = Event;
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
 }
 impl pallet_mining::Config for Runtime {
@@ -1131,7 +1130,7 @@ construct_runtime!(
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
 		// Phala new pallets
-		PhalaMq: pallet_mq::{Pallet, Call, Event, Storage},
+		PhalaMq: pallet_mq::{Pallet, Call, Storage},
 		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
 		PhalaMining: pallet_mining::{Pallet, Call, Event<T>, Storage, Config},
 		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event<T>, Storage},

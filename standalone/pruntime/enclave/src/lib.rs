@@ -1252,10 +1252,10 @@ fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
 
 fn handle_events(block_number: chain::BlockNumber, state: &mut RuntimeState) -> Result<(), Value> {
     // Dispatch events
-    let events = state
+    let messages = state
         .chain_storage
-        .events()
-        .ok_or(error_msg("Can not get Events from storage"))?;
+        .mq_messages()
+        .ok_or(error_msg("Can not get mq messages from storage"))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system
@@ -1264,36 +1264,34 @@ fn handle_events(block_number: chain::BlockNumber, state: &mut RuntimeState) -> 
 
     state.recv_mq.reset_local_index();
 
-    for evt in events {
-        if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
-            use phala_types::messaging::SystemEvent;
-            macro_rules! log_message {
-                ($msg: expr, $t: ident) => {{
-                    let event: Result<$t, _> =
-                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
-                    match event {
-                        Ok(event) => {
-                            info!(
-                                "mq dispatching message: sender={:?} dest={:?} payload={:?}",
-                                $msg.sender, $msg.destination, event
-                            );
-                        }
-                        Err(_) => {
-                            info!("mq dispatching message (decode failed): {:?}", $msg);
-                        }
+    for message in messages {
+        use phala_types::messaging::SystemEvent;
+        macro_rules! log_message {
+            ($msg: expr, $t: ident) => {{
+                let event: Result<$t, _> =
+                    parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                match event {
+                    Ok(event) => {
+                        info!(
+                            "mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                            $msg.sender, $msg.destination, event
+                        );
                     }
-                }};
-            }
-            match &message.destination.path()[..] {
-                SystemEvent::TOPIC => {
-                    log_message!(message, SystemEvent);
+                    Err(_) => {
+                        info!("mq dispatching message (decode failed): {:?}", $msg);
+                    }
                 }
-                _ => {
-                    info!("mq dispatching message: {:?}", message);
-                }
-            }
-            state.recv_mq.dispatch(message);
+            }};
         }
+        match &message.destination.path()[..] {
+            SystemEvent::TOPIC => {
+                log_message!(message, SystemEvent);
+            }
+            _ => {
+                info!("mq dispatching message: {:?}", message);
+            }
+        }
+        state.recv_mq.dispatch(message);
     }
 
     scopeguard::guard(&mut state.recv_mq, |mq| {
