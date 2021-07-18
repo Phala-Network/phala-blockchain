@@ -90,6 +90,13 @@ struct MiningInfo {
     start_iter: u64,
 }
 
+#[derive(Serialize, Debug)]
+pub enum GatekeeperRole {
+    None,
+    Dummy,
+    Active,
+}
+
 // Minimum worker state machine can be reused to replay in GK.
 // TODO: shrink size
 struct WorkerState {
@@ -453,6 +460,16 @@ impl System {
 
     pub fn is_registered(&self) -> bool {
         self.worker_state.registered
+    }
+
+    pub fn gatekeeper_role(&self) -> GatekeeperRole {
+        let active = self.gatekeeper.is_registered_on_chain();
+        let has_key = self.gatekeeper.possess_master_key();
+        match (has_key, active) {
+            (true, true) => GatekeeperRole::Active,
+            (true, false) => GatekeeperRole::Dummy,
+            _ => GatekeeperRole::None,
+        }
     }
 }
 

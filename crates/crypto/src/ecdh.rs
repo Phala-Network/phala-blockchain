@@ -3,16 +3,16 @@ use crate::CryptoError;
 use alloc::vec::Vec;
 use curve25519_dalek::scalar::Scalar;
 use schnorrkel::keys::{ExpansionMode, Keypair, MiniSecretKey, PublicKey, SecretKey};
-use schnorrkel::{MINI_SECRET_KEY_LENGTH, SECRET_KEY_LENGTH};
+use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 
 /// sr25519 key pair
 #[derive(Clone)]
 pub struct EcdhKey(Keypair);
 
-pub type EcdhPrivateKey = [u8; SECRET_KEY_LENGTH];
-pub type EcdhPublicKey = PublicKey;
+pub type EcdhPrivateKey = [u8; SECRET_KEY_LENGTH];  // 32 privkey, 32 nonce
+pub type EcdhPublicKey = [u8; PUBLIC_KEY_LENGTH];  // 32 compressed pubkey
 
-type Seed = [u8; MINI_SECRET_KEY_LENGTH];
+pub type Seed = [u8; MINI_SECRET_KEY_LENGTH];  // 32 seed
 
 impl EcdhKey {
     pub fn create(seed: &Seed) -> Result<EcdhKey, CryptoError> {
@@ -32,7 +32,7 @@ impl EcdhKey {
     }
 
     pub fn public(&self) -> EcdhPublicKey {
-        self.0.public
+        self.0.public.to_bytes()
     }
 
     pub fn secret(&self) -> EcdhPrivateKey {
@@ -40,12 +40,15 @@ impl EcdhKey {
     }
 }
 
-// Derives a secret key for symmetric encryption without a KDF
+/// Derives a secret key for symmetric encryption without a KDF
+///
+/// `pk` must be in compressed version.
 pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, CryptoError> {
-    let mut key: [u8; 32] = [0_u8; 32];
+	// The firest 32 bytes holds the canonical private key
+    let mut key = [0u8; 32];
     key.copy_from_slice(&sk.secret()[0..32]);
     let key = Scalar::from_canonical_bytes(key).expect("This should never fail with correct seed");
-    let public = PublicKey::from_bytes(pk).map_err(|_| CryptoError::EcdhInvalidPublicKey)?;
+    let public = PublicKey::from_bytes(pk).or(Err(CryptoError::EcdhInvalidPublicKey))?;
     Ok((&key * public.as_point()).compress().0.to_vec())
 }
 

@@ -144,10 +144,14 @@ fn main() {
             use phala_crypto::ecdh;
 
             let privkey = hex::decode(privkey).expect("Failed to decode hex key");
-            let privkey: ecdh::EcdhPrivateKey = privkey.try_into().expect("Invalid key length");
-            let pair = ecdh::EcdhKey::from_secret(&privkey).expect("Failed to crate key pair");
-            let pubkey = pair.public();
-            println!("Pubkey: {:?}", pubkey);
+            let pair =
+                ecdh::EcdhKey::create(privkey.as_slice().try_into().expect("Invalid key length"))
+                    .unwrap();
+            println!(
+                "Pubkey: {}",
+                hex::encode(pair.public())
+            );
+            println!("Privkey: {}", hex::encode(pair.secret()));
         }
     }
 }

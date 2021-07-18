@@ -1,4 +1,3 @@
-
 pub mod osp {
     /// OSP (Optional Secret Protocol): A topic using OSP means it accepting either Payload::Plain or Payload::Encrypted Message.
     pub use decrypt::*;
@@ -24,22 +23,15 @@ pub mod osp {
 
     mod encrypt {
         use super::{AeadCipher, OspPayload};
-        use crate::{
-            cryptography::{aead, ecdh},
-            std::vec::Vec,
-        };
+        use crate::std::vec::Vec;
         use parity_scale_codec::Encode;
+        use phala_crypto::{aead, ecdh};
         use phala_mq::{BindTopic, EcdsaMessageChannel, Path};
-        use ring::agreement::EphemeralPrivateKey;
-
-        pub struct KeyPair {
-            privkey: EphemeralPrivateKey,
-            pubkey: Vec<u8>,
-        }
+        pub struct KeyPair(ecdh::EcdhKey);
 
         impl KeyPair {
-            pub fn new(privkey: EphemeralPrivateKey, pubkey: Vec<u8>) -> Self {
-                KeyPair { privkey, pubkey }
+            pub fn new(ecdh_key: ecdh::EcdhKey) -> Self {
+                KeyPair(ecdh_key)
             }
         }
 
@@ -76,13 +68,14 @@ pub mod osp {
                     }
                     Some(pubkey) => {
                         let mut data = message.encode();
-                        let iv = aead::generate_random_iv();
-                        let sk = ecdh::agree(&self.key.privkey, &pubkey);
+                        let iv = crate::generate_random_iv();
+                        let sk = ecdh::agree(&self.key.0, &pubkey)
+                            .expect("should never fail with valid ecdh key");
                         aead::encrypt(&iv, &sk, &mut data);
                         let payload: OspPayload<M> = OspPayload::Encrypted(AeadCipher {
                             iv: iv.into(),
                             cipher: data,
-                            pubkey: self.key.pubkey.clone(),
+                            pubkey: self.key.0.public().to_vec(),
                         });
                         self.mq.send_data(payload.encode(), to)
                     }
@@ -101,11 +94,10 @@ pub mod osp {
 
     mod decrypt {
         use super::OspPayload;
-        use crate::cryptography::{aead, ecdh};
         use core::marker::PhantomData;
         use parity_scale_codec::Decode;
+        use phala_crypto::{aead, ecdh};
         use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
-        use ring::agreement::EphemeralPrivateKey;
 
         impl<T: BindTopic> BindTopic for OspPayload<T> {
             const TOPIC: &'static [u8] = T::TOPIC;
@@ -128,14 +120,14 @@ pub mod osp {
         }
 
         pub struct OspPeeler<T> {
-            privkey: EphemeralPrivateKey,
+            ecdh_key: ecdh::EcdhKey,
             _t: PhantomData<T>,
         }
 
         impl<T> OspPeeler<T> {
-            pub fn new(privkey: EphemeralPrivateKey) -> Self {
+            pub fn new(ecdh_key: ecdh::EcdhKey) -> Self {
                 OspPeeler {
-                    privkey: privkey,
+                    ecdh_key: ecdh_key,
                     _t: PhantomData,
                 }
             }
@@ -148,8 +140,10 @@ pub mod osp {
                 match msg {
                     OspPayload::Plain(msg) => Ok(msg),
                     OspPayload::Encrypted(mut cipher) => {
-                        let sk = ecdh::agree(&self.privkey, &cipher.pubkey);
-                        let msg = aead::decrypt(&cipher.iv, &sk, &mut cipher.cipher);
+                        let sk = ecdh::agree(&self.ecdh_key, &cipher.pubkey)
+                            .expect("should never fail with valid ecdh key");
+                        let msg = aead::decrypt(&cipher.iv, &sk, &mut cipher.cipher)
+                            .expect("should never fail with valid aead key");
                         let msg = Decode::decode(&mut msg.as_ref()).map_err(|_| {
                             anyhow::anyhow!("SCALE decode Osp decrypted data failed")
                         })?;
@@ -176,10 +170,10 @@ pub mod osp {
         }
 
         impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, OspPeeler<Msg>> {
-            pub fn new_osp(receiver: TypedReceiver<Wrp>, privkey: EphemeralPrivateKey) -> Self {
+            pub fn new_osp(receiver: TypedReceiver<Wrp>, ecdh_key: ecdh::EcdhKey) -> Self {
                 PeelingReceiver {
                     receiver,
-                    peeler: OspPeeler::new(privkey),
+                    peeler: OspPeeler::new(ecdh_key),
                     _msg: Default::default(),
                 }
             }

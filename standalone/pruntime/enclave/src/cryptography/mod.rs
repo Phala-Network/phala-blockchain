@@ -4,8 +4,8 @@ use anyhow::{Context, Result};
 use core::fmt;
 use serde::{Deserialize, Serialize};
 
-use sp_core::crypto::Pair;
 use parity_scale_codec::{Decode, Encode};
+use sp_core::crypto::Pair;
 
 pub mod aead;
 pub mod ecdh;

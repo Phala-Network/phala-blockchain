@@ -9,7 +9,7 @@ const types = {
 	"EcdsaPublicKey": "[u8; 33]",
 	"WorkerPublicKey": "EcdsaPublicKey",
 	"ContractPublicKey": "EcdsaPublicKey",
-	"EcdhP256PublicKey": "[u8; 65]",
+	"EcdhPublicKey": "[u8; 32]",
 	"MessageOrigin": {
 		"_enum": {
 			"Pallet": "Vec<u8>",
@@ -46,7 +46,7 @@ const types = {
 		"version": "u32",
 		"machineId": "MachineId",
 		"pubkey": "WorkerPublicKey",
-		"ecdhPubkey": "EcdhP256PublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
 		"features": "Vec<u32>",
 		"operator": "Option<AccountId>"
 	},
@@ -98,7 +98,7 @@ const types = {
 	},
 	"WorkerInfo": {
 		"pubkey": "WorkerPublicKey",
-		"ecdhPubkey": "EcdhP256PublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
 		"runtimeVersion": "u32",
 		"lastUpdated": "u64",
 		"operator": "Option<AccountId>",
@@ -182,7 +182,42 @@ const types = {
 			"OnlineReward": null,
 			"ComputeReward": null
 		}
-	}
+	},
+	"GatekeeperEvent": {
+		"_enum": {
+			"Registered": "NewGatekeeperEvent",
+			"DispatchMasterKey": "DispatchMasterKeyEvent",
+			"NewRandomNumber": "RandomNumberEvent",
+			"UpdateTokenomic": "TokenomicParameters"
+		}
+	},
+    "NewGatekeeperEvent": {
+        "pubkey": "WorkerPublicKey",
+        "ecdhPubkey": "EcdhPublicKey",
+        "gatekeeperCount": "u32"
+    },
+    "DispatchMasterKeyEvent": {
+        "dest": "WorkerPublicKey",
+        "ecdhPubkey": "EcdhPublicKey",
+        "encryptedMasterKey": "Vec<u8>",
+        "iv": "[u8; 12]"
+    },
+    "RandomNumberEvent": {
+        "blockNumber": "u32",
+        "randomNumber": "[u8; 32]",
+        "lastRandomNumber": "[u8; 32]"
+    },
+    "TokenomicParameters": {
+        "phaRate": "U64F64Bits",
+        "rho": "U64F64Bits",
+        "budgetPerSec": "U64F64Bits",
+        "vMax": "U64F64Bits",
+        "costK": "U64F64Bits",
+        "costB": "U64F64Bits",
+        "slashRate": "U64F64Bits",
+        "heartbeatWindow": "u32"
+    },
+	"U64F64Bits": "u128"
 };
 
 const typeAlias = {
