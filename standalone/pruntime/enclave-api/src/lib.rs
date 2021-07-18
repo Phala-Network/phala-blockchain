@@ -358,17 +358,10 @@ pub mod storage_sync {
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
             state_roots: &mut VecDeque<Hash>,
-            allow_sparse: bool, // Allow non-contiguous headers
         ) -> Result<chain::BlockNumber> {
             let first_header = headers.first().ok_or_else(|| Error::EmptyRequest)?;
-            if allow_sparse {
-                if first_header.header.number < self.header_number_next {
-                    return Err(Error::BlockNumberMismatch);
-                }
-            } else {
-                if first_header.header.number != self.header_number_next {
-                    return Err(Error::BlockNumberMismatch);
-                }
+            if first_header.header.number != self.header_number_next {
+                return Err(Error::BlockNumberMismatch);
             }
 
             // Light validation when possible
@@ -478,7 +471,7 @@ pub mod storage_sync {
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
             self.sync_state
-                .sync_header(headers, authority_set_change, &mut self.state_roots, false)
+                .sync_header(headers, authority_set_change, &mut self.state_roots)
         }
 
         pub fn feed_block(
@@ -530,12 +523,9 @@ pub mod storage_sync {
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
             let mut state_roots = Default::default();
-            let last_header = self.sync_state.sync_header(
-                headers,
-                authority_set_change,
-                &mut state_roots,
-                true,
-            )?;
+            let last_header =
+                self.sync_state
+                    .sync_header(headers, authority_set_change, &mut state_roots)?;
             self.last_relaychain_state_root = state_roots.pop_back();
             Ok(last_header)
         }
