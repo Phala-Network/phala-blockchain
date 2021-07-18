@@ -27,6 +27,12 @@ pub mod pallet {
 	const STAKEPOOL_PALLETID: PalletId = PalletId(*b"phala/sp");
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
+	pub trait Ledger<AccountId, Balance> {
+		fn ledger_accrue(who: &AccountId, amount: Balance);
+		fn ledger_reduce(who: &AccountId, amount: Balance);
+		fn ledger_query(who: &AccountId) -> Balance;
+	}
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config + registry::Config + mining::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -65,6 +71,12 @@ pub mod pallet {
 	/// Mapping worker to the pool it belongs to
 	#[pallet::storage]
 	pub(super) type WorkerInPool<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
+
+	/// Mapping staker to it's the balance locked in all pools
+	#[pallet::storage]
+	#[pallet::getter(fn stake_ledger)]
+	pub(super) type StakeLedger<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -376,12 +388,7 @@ pub mod pallet {
 				);
 			}
 
-			<T as Config>::Currency::set_lock(
-				STAKING_ID,
-				&who,
-				amount.clone(),
-				WithdrawReasons::all(),
-			);
+			Self::ledger_accrue(&who, amount);
 
 			pool_info.total_stake = pool_info.total_stake.saturating_add(amount.clone());
 			pool_info.free_stake = pool_info.free_stake.saturating_add(amount.clone());
@@ -578,6 +585,7 @@ pub mod pallet {
 				pool_info.free_stake = pool_info.free_stake.saturating_sub(amount);
 				pool_info.total_stake = pool_info.total_stake.saturating_sub(amount);
 				user_info.amount = user_info.amount.saturating_sub(amount);
+				Self::ledger_reduce(&user_info.user, amount);
 			} else {
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
@@ -585,7 +593,8 @@ pub mod pallet {
 				// all of the free_stake would be withdrew back to user
 				let unwithdraw_amount = amount.saturating_sub(pool_info.free_stake);
 				pool_info.total_stake = pool_info.total_stake.saturating_sub(pool_info.free_stake);
-				user_info.amount = user_info.amount.saturating_sub(unwithdraw_amount);
+				user_info.amount = unwithdraw_amount;
+				Self::ledger_reduce(&user_info.user, pool_info.free_stake);
 				pool_info.free_stake = Zero::zero();
 
 				// case some locked asset has not been withdraw(unlock) to user, add it to withdraw queue.
@@ -598,9 +607,6 @@ pub mod pallet {
 			}
 			user_info.user_debt =
 				user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
-
-			// update the lock balance of user
-			Self::update_lock(user_info.user.clone(), user_info.amount);
 		}
 
 		fn try_handle_waiting_withdraw(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
@@ -623,34 +629,33 @@ pub mod pallet {
 						pool_info.withdraw_queue.push_front(withdraw_info);
 
 						user_info.amount = user_info.amount.saturating_sub(pool_info.free_stake);
+						Self::ledger_reduce(&user_info.user, pool_info.free_stake);
 						pool_info.free_stake = Zero::zero();
 					} else {
 						// all of the amount would be withdraw to user and no need to push the popped one back
-						pool_info.free_stake =
-							pool_info.free_stake.saturating_sub(withdraw_info.amount);
 						pool_info.total_stake =
 							pool_info.total_stake.saturating_sub(withdraw_info.amount);
 
 						user_info.amount = user_info.amount.saturating_sub(withdraw_info.amount);
+						Self::ledger_reduce(&user_info.user, withdraw_info.amount);
+						pool_info.free_stake =
+							pool_info.free_stake.saturating_sub(withdraw_info.amount);
 					}
 					// update user_debt which would determine the user's rewards
 					user_info.user_debt =
 						user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
 
 					StakingInfo::<T>::insert(&info_key, &user_info);
-
-					// update the lock balance of user
-					Self::update_lock(user_info.user.clone(), user_info.amount);
 				}
 			}
 		}
 
 		/// Updates a user's locked balance. Doesn't check the amount is less than the free amount!
-		fn update_lock(who: T::AccountId, amount: BalanceOf<T>) {
+		fn update_lock(who: &T::AccountId, amount: BalanceOf<T>) {
 			if amount == Zero::zero() {
-				<T as Config>::Currency::remove_lock(STAKING_ID, &who);
+				<T as Config>::Currency::remove_lock(STAKING_ID, who);
 			} else {
-				<T as Config>::Currency::set_lock(STAKING_ID, &who, amount, WithdrawReasons::all());
+				<T as Config>::Currency::set_lock(STAKING_ID, who, amount, WithdrawReasons::all());
 			}
 		}
 
@@ -689,6 +694,29 @@ pub mod pallet {
 
 			Self::try_handle_waiting_withdraw(&mut pool_info);
 			MiningPools::<T>::insert(&pid, &pool_info);
+		}
+	}
+
+	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T> {
+		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
+			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
+			StakeLedger::<T>::insert(who, b.saturating_add(amount));
+			Self::update_lock(who, b.saturating_add(amount));
+		}
+
+		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>) {
+			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
+			let new_b = if b > amount {
+				b.saturating_sub(amount)
+			} else {
+				Zero::zero()
+			};
+			StakeLedger::<T>::insert(who, new_b);
+			Self::update_lock(who, new_b);
+		}
+
+		fn ledger_query(who: &T::AccountId) -> BalanceOf<T> {
+			StakeLedger::<T>::get(who).unwrap_or_default()
 		}
 	}
 
@@ -853,6 +881,7 @@ pub mod pallet {
 				set_block_1();
 				let worker1 = worker_pubkey(1);
 				let worker2 = worker_pubkey(2);
+				let worker3 = worker_pubkey(3);
 				// Register workers
 				assert_ok!(PhalaRegistry::force_register_worker(
 					Origin::root(),
@@ -866,8 +895,16 @@ pub mod pallet {
 					ecdh_pubkey(2),
 					Some(1)
 				));
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker3.clone(),
+					ecdh_pubkey(3),
+					Some(1)
+				));
 				PhalaRegistry::internal_set_benchmark(&worker1, Some(1));
 				PhalaRegistry::internal_set_benchmark(&worker2, Some(1));
+				PhalaRegistry::internal_set_benchmark(&worker3, Some(1));
+
 				// Create a pool (pid = 0)
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 				assert_ok!(PhalaStakePool::add_worker(
@@ -880,8 +917,19 @@ pub mod pallet {
 					0,
 					worker2.clone()
 				));
+				// Create a pool (pid = 1)
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					1,
+					worker3.clone()
+				));
+
 				assert_ok!(PhalaStakePool::set_cap(Origin::signed(1), 0, 300 * DOLLARS));
 				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 100 * DOLLARS);
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 1, 300 * DOLLARS));
+				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 400 * DOLLARS);
 				assert_eq!(
 					MiningPools::<Test>::get(0).unwrap().total_stake,
 					100 * DOLLARS
@@ -920,10 +968,12 @@ pub mod pallet {
 				));
 				// Withdraw free funds
 				assert_ok!(PhalaStakePool::withdraw(
-					Origin::signed(2),
+					Origin::signed(1),
 					0,
 					100 * DOLLARS
 				));
+				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 300 * DOLLARS);
+
 				// TODO: check balance
 				// TODO: check queued withdraw
 				//   - withdraw 100 PHA
