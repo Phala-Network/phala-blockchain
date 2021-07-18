@@ -68,7 +68,7 @@ mod storage_ext {
             self.get_decoded(storage_prefix("System", "Events"))
         }
         fn mq_messages(&self) -> Option<Vec<Message>> {
-            self.get_decoded(storage_prefix("PhalaMq", "OutboundMessage"))
+            self.get_decoded(storage_prefix("PhalaMq", "OutboundMessages"))
         }
         fn timestamp_now(&self) -> Option<chain::Moment> {
             self.get_decoded(storage_prefix("Timestamp", "Now"))

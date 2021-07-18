@@ -38,7 +38,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn messages)]
-	pub type OutboundMessage<T> = StorageValue<_, Vec<Message>>;
+	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -111,7 +111,7 @@ pub mod pallet {
 			}
 			// Notify the off-chain components
 			if T::QueueNotifyConfig::should_push_message(&message) {
-				OutboundMessage::<T>::append(message);
+				OutboundMessages::<T>::append(message);
 			}
 		}
 
@@ -130,7 +130,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
 			// Clear the previously pushed offchain messages
-			OutboundMessage::<T>::kill();
+			OutboundMessages::<T>::kill();
 
 			// Send out queued message from the previous block
 			if let Some(msgs) = QueuedOutboundMessage::<T>::take() {
