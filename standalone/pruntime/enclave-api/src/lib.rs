@@ -94,6 +94,10 @@ pub mod blocks {
     #[derive(Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
     pub struct ParaId(u32);
 
+    impl ParaId {
+        pub fn new(n: u32) -> ParaId { ParaId(n) }
+    }
+
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
@@ -170,6 +174,7 @@ pub mod storage_sync {
 
     use alloc::collections::VecDeque;
     use alloc::vec::Vec;
+    use alloc::string::String;
     use chain::Hash;
     use derive_more::Display;
     use parity_scale_codec::Encode;
@@ -185,7 +190,11 @@ pub mod storage_sync {
         /// No Justification found in the last header
         MissingJustification,
         /// Header validation failed
-        HeaderValidateFailed,
+        #[display(fmt = "HeaderValidateFailed({})", .0)]
+        HeaderValidateFailed(String),
+        /// Storage proof failed
+        #[display(fmt = "StorageProofFailed({})", .0)]
+        StorageProofFailed(String),
         /// Relay chain header not synced before syncing parachain header
         RelaychainHeaderNotSynced,
         /// Some header parent hash mismatches it's parent header
@@ -256,10 +265,17 @@ pub mod storage_sync {
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
             state_roots: &mut VecDeque<Hash>,
+            allow_sparse: bool,  // Allow non-contiguous headers
         ) -> Result<chain::BlockNumber> {
             let first_header = headers.first().ok_or_else(|| Error::EmptyRequest)?;
-            if first_header.header.number != self.header_number_next {
-                return Err(Error::BlockNumberMismatch);
+            if allow_sparse {
+                if first_header.header.number < self.header_number_next {
+                    return Err(Error::BlockNumberMismatch);
+                }
+            } else {
+                if first_header.header.number != self.header_number_next {
+                    return Err(Error::BlockNumberMismatch);
+                }
             }
 
             // Light validation when possible
@@ -369,7 +385,7 @@ pub mod storage_sync {
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
             self.sync_state
-                .sync_header(headers, authority_set_change, &mut self.state_roots)
+                .sync_header(headers, authority_set_change, &mut self.state_roots, false)
         }
 
         pub fn feed_block(
@@ -423,7 +439,7 @@ pub mod storage_sync {
             let mut state_roots = Default::default();
             let last_header =
                 self.sync_state
-                    .sync_header(headers, authority_set_change, &mut state_roots)?;
+                    .sync_header(headers, authority_set_change, &mut state_roots, true)?;
             self.last_relaychain_state_root = state_roots.pop_back();
             Ok(last_header)
         }
@@ -452,7 +468,7 @@ pub mod storage_sync {
             self.sync_state.validator.validate_storage_proof(
                 state_root,
                 proof,
-                &[(storage_key, last_hdr.encode().as_slice())],
+                &[(storage_key, last_hdr.encode().encode().as_slice())],
             )?;
 
             // 2. check header sequence

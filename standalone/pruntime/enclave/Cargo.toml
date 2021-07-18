@@ -56,7 +56,7 @@ phala-crypto = { path = "../../../crates/crypto" }
 sp-io                = { path = "../../../substrate/primitives/io", default-features = false, features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", default-features = false, features = ["disable_target_static_assertions"] }
 sp-runtime           = { path = "../../../substrate/primitives/runtime", default-features = false }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full"] }
+parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
 # Phala specific
@@ -97,6 +97,7 @@ pink = { git = "https://github.com/Phala-Network/pink-sgx" }
 
 [features]
 default = [
+  "parachain",
   "sp-runtime-interface/disable_target_static_assertions",
   "sp-io/disable_panic_handler",
   "sp-io/disable_oom",

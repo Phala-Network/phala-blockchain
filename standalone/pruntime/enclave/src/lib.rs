@@ -46,7 +46,7 @@ use parity_scale_codec::{Decode, Encode};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
-use sp_core::{crypto::Pair, ecdsa, H256 as Hash};
+use sp_core::{crypto::Pair, ecdsa};
 
 use http_req::request::{Method, Request};
 use std::time::Duration;

@@ -1,5 +1,6 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
 use crate::std::vec::Vec;
+use crate::std::string::ToString;
 use enclave_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 
 pub use storage_ext::{Storage, StorageExt};
@@ -20,7 +21,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
             grandpa_proof,
             auhtority_set_change,
         )
-        .or(Err(SyncError::HeaderValidateFailed))
+        .map_err(|e| SyncError::HeaderValidateFailed(e.to_string()))
     }
 
     fn validate_storage_proof(
@@ -30,7 +31,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         items: &[(&[u8], &[u8])],
     ) -> Result<()> {
         self.validate_storage_proof(state_root, proof, items)
-            .or(Err(SyncError::HeaderValidateFailed))
+        .map_err(|e| SyncError::StorageProofFailed(e.to_string()))
     }
 }
 
@@ -42,6 +43,7 @@ mod storage_ext {
     use frame_system::EventRecord;
     use parity_scale_codec::Decode;
     use trie_storage::TrieStorage;
+    use log::error;
 
     pub type Storage = TrieStorage<crate::RuntimeHasher>;
 
@@ -49,7 +51,15 @@ mod storage_ext {
         fn get_raw(&self, key: impl AsRef<[u8]>) -> Option<Vec<u8>>;
         fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
             self.get_raw(key)
-                .map(|v| Decode::decode(&mut &v[..]).ok())
+                .map(|v| {
+                    match Decode::decode(&mut &v[..]) {
+                        Ok(decoded) => Some(decoded),
+                        Err(e) => {
+                            error!("Decode storage value failed: {}", e);
+                            None
+                        }
+                    }
+                })
                 .flatten()
         }
         fn para_id(&self) -> Option<ParaId> {
