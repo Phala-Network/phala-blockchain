@@ -596,6 +596,7 @@ async fn init_runtime(
     use_dev_key: bool,
     inject_key: &str,
     operator_hex: Option<String>,
+    parachain: bool,
 ) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(client, Some(0)).await?.block;
     let hash = client
@@ -634,6 +635,7 @@ async fn init_runtime(
                 debug_set_key,
                 genesis_state_b64,
                 operator_hex,
+                parachain,
             },
         )
         .await?;
@@ -735,6 +737,7 @@ async fn bridge(args: Args) -> Result<()> {
                 args.use_dev_key,
                 &args.inject_key,
                 operator_hex,
+                args.parachain,
             )
             .await?;
             // STATUS: pruntime_initialized = true

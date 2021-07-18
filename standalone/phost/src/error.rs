@@ -9,7 +9,6 @@ pub enum Error {
     FailedToDecode,
     FailedToCallRegisterWorker,
     ParachainIdNotFound,
-    ParachainHeadNotFound,
 }
 
 impl fmt::Display for Error {
@@ -22,7 +21,6 @@ impl fmt::Display for Error {
             Error::FailedToDecode => write!(f, "failed to decode"),
             Error::FailedToCallRegisterWorker => write!(f, "failed to call register_worker"),
             Error::ParachainIdNotFound => write!(f, "parachain id not found"),
-            Error::ParachainHeadNotFound => write!(f, "parachain head not found"),
         }
     }
 }

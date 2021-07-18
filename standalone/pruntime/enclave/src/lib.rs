@@ -53,17 +53,13 @@ use std::time::Duration;
 
 use pink::InkModule;
 
+use enclave_api::storage_sync::{
+    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
+};
 use enclave_api::{
     actions::*,
     blocks::{self, SyncParachainHeaderReq},
 };
-
-#[cfg(feature = "parachain")]
-use enclave_api::storage_sync::ParachainSynchronizer as StorageSynchronizer;
-
-#[cfg(not(feature = "parachain"))]
-use enclave_api::storage_sync::SolochainSynchronizer as StorageSynchronizer;
-
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::PRuntimeInfo;
@@ -161,7 +157,7 @@ struct RuntimeState {
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    storage_synchronizer: StorageSynchronizer<ChainLightValidation>,
+    storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
     chain_storage: Storage,
 }
 
@@ -1077,7 +1073,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         )
         .expect("Bridge initialize failed");
 
-    let storage_synchronizer = StorageSynchronizer::new(light_client, main_bridge);
+    let storage_synchronizer = if input.parachain {
+        Box::new(ParachainSynchronizer::new(light_client, main_bridge)) as _
+    } else {
+        Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
+    };
 
     let id_pair = local_state
         .identity_key
@@ -1193,7 +1193,6 @@ fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
     Ok(json!({ "synced_to": last_header }))
 }
 
-#[cfg(feature = "parachain")]
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
     info!(
         "sync_para_header from={:?} to={:?}",
@@ -1217,11 +1216,6 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
         .map_err(display)?;
 
     Ok(json!({ "synced_to": last_header }))
-}
-
-#[cfg(not(feature = "parachain"))]
-fn sync_para_header(_input: SyncParachainHeaderReq) -> Result<Value, Value> {
-    Err(error_msg("Not supported"))
 }
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {

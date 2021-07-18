@@ -89,6 +89,7 @@ pub struct InitRuntimeReq {
     pub debug_set_key: Option<String>,
     pub genesis_state_b64: String,
     pub operator_hex: Option<String>,
+    pub parachain: bool,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {

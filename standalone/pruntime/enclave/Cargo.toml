@@ -97,7 +97,6 @@ pink = { git = "https://github.com/Phala-Network/pink-sgx" }
 
 [features]
 default = [
-  "parachain",
   "sp-runtime-interface/disable_target_static_assertions",
   "sp-io/disable_panic_handler",
   "sp-io/disable_oom",
@@ -105,7 +104,6 @@ default = [
   "runtime/native-nostd"
 ]
 tests = []
-parachain = []
 
 [patch.crates-io]
 rand = { git = "https://github.com/mesalock-linux/rand-sgx", tag = "v0.7.3_sgx1.1.3", default-features = false }
