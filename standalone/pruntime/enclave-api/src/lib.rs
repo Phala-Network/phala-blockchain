@@ -523,9 +523,11 @@ pub mod storage_sync {
             authority_set_change: Option<AuthoritySetChange>,
         ) -> Result<chain::BlockNumber> {
             let mut state_roots = Default::default();
-            let last_header =
-                self.sync_state
-                    .sync_header(headers, authority_set_change, &mut state_roots)?;
+            let last_header = self.sync_state.sync_header(
+                headers,
+                authority_set_change,
+                &mut state_roots,
+            )?;
             self.last_relaychain_state_root = state_roots.pop_back();
             Ok(last_header)
         }

@@ -596,7 +596,7 @@ async fn init_runtime(
     use_dev_key: bool,
     inject_key: &str,
     operator_hex: Option<String>,
-    parachain: bool,
+    is_parachain: bool,
 ) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(client, Some(0)).await?.block;
     let hash = client
@@ -635,7 +635,7 @@ async fn init_runtime(
                 debug_set_key,
                 genesis_state_b64,
                 operator_hex,
-                parachain,
+                is_parachain,
             },
         )
         .await?;

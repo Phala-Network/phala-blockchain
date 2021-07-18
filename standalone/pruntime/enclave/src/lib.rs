@@ -1073,7 +1073,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         )
         .expect("Bridge initialize failed");
 
-    let storage_synchronizer = if input.parachain {
+    let storage_synchronizer = if input.is_parachain {
         Box::new(ParachainSynchronizer::new(light_client, main_bridge)) as _
     } else {
         Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
