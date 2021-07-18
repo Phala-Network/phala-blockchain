@@ -8,6 +8,7 @@ use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
+use phala_types::messaging::Message;
 
 pub(crate) type Balance = u128;
 
@@ -26,7 +27,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		// Pallets to test
-		PhalaMq: mq::{Pallet, Event},
+		PhalaMq: mq::{Pallet},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
@@ -93,7 +94,6 @@ pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
 
 impl mq::Config for Test {
-	type Event = Event;
 	type QueueNotifyConfig = ();
 }
 
@@ -157,6 +157,12 @@ pub fn events() -> Vec<Event> {
 	println!("event(): {:?}", evt);
 	System::reset_events();
 	evt
+}
+
+pub fn messages() -> Vec<Message> {
+	let messages = PhalaMq::messages().unwrap_or_default();
+	println!("messages(): {:?}", messages);
+	messages
 }
 
 use phala_types::{EcdhPublicKey, WorkerPublicKey};

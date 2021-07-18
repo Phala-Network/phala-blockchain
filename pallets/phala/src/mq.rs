@@ -37,6 +37,7 @@ pub mod pallet {
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
 	#[pallet::storage]
+	#[pallet::getter(fn messages)]
 	pub type OutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
 	#[pallet::error]

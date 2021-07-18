@@ -33,7 +33,7 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage, Event<T>},
-		PhalaMq: mq::{Pallet, Call, Event, Storage},
+		PhalaMq: mq::{Pallet, Call, Storage},
 		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 	}
@@ -114,7 +114,6 @@ impl Config for Test {
 }
 
 impl mq::Config for Test {
-	type Event = Event;
 	type QueueNotifyConfig = ();
 }
 
