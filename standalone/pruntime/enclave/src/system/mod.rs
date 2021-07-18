@@ -1,6 +1,6 @@
 mod gk;
 
-use crate::{benchmark, std::prelude::v1::*, types::BlockInfo, Storage};
+use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;

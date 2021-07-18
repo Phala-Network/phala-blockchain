@@ -7,8 +7,6 @@ use log::info;
 use phala_mq::MessageOrigin;
 use serde::{Deserialize, Serialize};
 
-use phala_pallets::pallet_mq::MessageOriginInfo as _;
-
 use crate::contracts;
 use crate::contracts::{AccountIdWrapper, NativeContext};
 use crate::TransactionStatus;

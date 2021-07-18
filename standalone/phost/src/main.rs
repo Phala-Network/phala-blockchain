@@ -288,10 +288,7 @@ async fn req_sync_para_header(
     headers: blocks::Headers,
     proof: StorageProof,
 ) -> Result<SyncHeaderResp> {
-    let req = blocks::SyncParachainHeaderReq {
-        headers,
-        proof,
-    };
+    let req = blocks::SyncParachainHeaderReq { headers, proof };
     let resp = pr.bin_req_decode("bin_api/sync_para_header", req).await?;
     Ok(resp)
 }
@@ -463,9 +460,14 @@ async fn batch_sync_block(
         next_headernum = r.synced_to + 1;
 
         if parachain {
-            let hdr_synced_to =
-                sync_parachain_header(pr, client, paraclient, last_header_hash, next_para_headernum)
-                    .await?;
+            let hdr_synced_to = sync_parachain_header(
+                pr,
+                client,
+                paraclient,
+                last_header_hash,
+                next_para_headernum,
+            )
+            .await?;
             next_para_headernum = hdr_synced_to + 1;
             let mut para_blocks = Vec::new();
             if next_blocknum <= hdr_synced_to {
@@ -524,8 +526,13 @@ async fn sync_parachain_header(
         Some(last_header_hash),
         para_head_storage_key.clone(),
     )
-    .await?
-    .ok_or(Error::ParachainHeadNotFound)?;
+    .await?;
+
+    let raw_header = if let Some(hdr) = raw_header {
+        hdr
+    } else {
+        return Ok(0);
+    };
 
     let para_fin_header_data = chain_client::get_parachain_heads(raw_header.clone())?;
 
@@ -536,7 +543,10 @@ async fn sync_parachain_header(
         .or(Err(Error::FailedToDecode))?;
 
     let para_fin_block_number = para_fin_header.number;
-    info!("relaychain finalized paraheader number: {}", para_fin_block_number);
+    info!(
+        "relaychain finalized paraheader number: {}",
+        para_fin_block_number
+    );
 
     let header_proof = chain_client::read_proof(
         &client,
@@ -563,7 +573,7 @@ async fn sync_parachain_header(
     }
     if !para_headers.is_empty() {
         let r = req_sync_para_header(pr, para_headers, header_proof).await?;
-        info!("..sync_parachain_header: {:?}", r);
+        info!("..req_sync_para_header: {:?}", r);
     }
     Ok(para_fin_block_number)
 }
@@ -675,10 +685,7 @@ async fn bridge(args: Args) -> Result<()> {
         .skip_type_sizes_check()
         .build()
         .await?;
-    info!(
-        "Connected to substrate at: {}",
-        args.substrate_ws_endpoint
-    );
+    info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let paraclient = if args.parachain {
         let paraclient = subxt::ClientBuilder::<Runtime>::new()
@@ -822,7 +829,13 @@ async fn bridge(args: Args) -> Result<()> {
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
-            None => if args.parachain { info.headernum } else { info.blocknum },
+            None => {
+                if args.parachain {
+                    info.headernum
+                } else {
+                    info.blocknum
+                }
+            }
         };
         let batch_end = std::cmp::min(
             latest_block.header.number,
@@ -872,7 +885,8 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 {
             if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
                 info!("Registering worker");
-                register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer).await?;
+                register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer)
+                    .await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
