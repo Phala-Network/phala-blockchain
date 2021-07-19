@@ -82,11 +82,13 @@ mod utils;
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use rpc_types::*;
-use system::{GatekeeperRole, TransactionStatus};
 use storage::{Storage, StorageExt};
+use system::{GatekeeperRole, TransactionStatus};
 use types::BlockInfo;
 use types::Error;
 
+// TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal
+// runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
 extern "C" {
@@ -1203,7 +1205,6 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
 }
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
-    // Parse base64 to data
     info!(
         "dispatch_block from={:?} to={:?}",
         input.blocks.first().map(|h| h.block_header.number),
@@ -1223,14 +1224,17 @@ fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
             .map_err(display)?;
 
         state.purge_mq();
-        handle_events(block.block_header.number, state)?;
+        handle_inbound_messages(block.block_header.number, state)?;
         last_block = block.block_header.number;
     }
 
     Ok(json!({ "dispatched_to": last_block }))
 }
 
-fn handle_events(block_number: chain::BlockNumber, state: &mut RuntimeState) -> Result<(), Value> {
+fn handle_inbound_messages(
+    block_number: chain::BlockNumber,
+    state: &mut RuntimeState,
+) -> Result<(), Value> {
     // Dispatch events
     let messages = state
         .chain_storage

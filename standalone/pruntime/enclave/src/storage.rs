@@ -64,15 +64,14 @@ mod storage_ext {
         fn get_decoded<T: Decode>(&self, key: impl AsRef<[u8]>) -> Option<T> {
             self.get_decoded_result(key).ok().flatten()
         }
-        fn get_decoded_or_default<T: Decode + Default>(&self, key: impl AsRef<[u8]>) -> Result<T, Error> {
-            self.get_decoded_result(key)
-                .map(|v| v.unwrap_or_default())
+        fn get_decoded_or_default<T: Decode + Default>(
+            &self,
+            key: impl AsRef<[u8]>,
+        ) -> Result<T, Error> {
+            self.get_decoded_result(key).map(|v| v.unwrap_or_default())
         }
         fn para_id(&self) -> Option<ParaId> {
             self.get_decoded(storage_prefix("ParachainInfo", "ParachainId"))
-        }
-        fn system_events(&self) -> Option<Vec<EventRecord<chain::Event, chain::Hash>>> {
-            self.get_decoded(storage_prefix("System", "Events"))
         }
         fn mq_messages(&self) -> Result<Vec<Message>, Error> {
             self.get_decoded_or_default(storage_prefix("PhalaMq", "OutboundMessages"))

@@ -60,7 +60,7 @@ pub async fn fetch_mq_ingress_seq(client: &XtClient, sender: MessageOrigin) -> R
         .or(Ok(0))
 }
 
-pub fn get_para_head_key(para_id: &ParaId) -> StorageKey {
+pub fn paras_heads_key(para_id: &ParaId) -> StorageKey {
     StorageKey(storage_map_key_vec("Paras", "Heads", &para_id.encode()))
 }
 

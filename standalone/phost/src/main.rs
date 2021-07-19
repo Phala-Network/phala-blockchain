@@ -519,7 +519,7 @@ async fn sync_parachain_header(
     next_headernum: BlockNumber,
 ) -> Result<BlockNumber> {
     let para_id = get_paraid(paraclient, None).await?;
-    let para_head_storage_key = chain_client::get_para_head_key(&para_id);
+    let para_head_storage_key = chain_client::paras_heads_key(&para_id);
 
     let raw_header = chain_client::get_storage(
         &client,
