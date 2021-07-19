@@ -389,7 +389,7 @@ impl pallet_indices::Config for Runtime {
 }
 
 parameter_types! {
-	pub const ExistentialDeposit: Balance = 1 * DOLLARS;
+	pub const ExistentialDeposit: Balance = 1 * CENTS;
 	// For weight estimation, we assume that the most locks on an individual account will be 50.
 	// This number may need to be adjusted in the future if this assumption no longer holds true.
 	pub const MaxLocks: u32 = 50;
@@ -988,7 +988,7 @@ impl pallet_society::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MinVestedTransfer: Balance = 1 * MILLICENTS;
+	pub const MinVestedTransfer: Balance = 1 * CENTS;
 }
 
 impl pallet_vesting::Config for Runtime {
