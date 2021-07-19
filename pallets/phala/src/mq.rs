@@ -36,6 +36,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
+	/// Outbound messages at the current block.
+	///
+	/// It will be cleared at the beginning of every block.
 	#[pallet::storage]
 	#[pallet::getter(fn messages)]
 	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>, ValueQuery>;
