@@ -153,7 +153,7 @@ pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
 pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 
 struct RuntimeState {
-    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
+    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
     send_mq: MessageSendQueue,
     recv_mq: MessageDispatcher,
 
@@ -1079,7 +1079,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
     drop(system_state);
 
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
+    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
         Default::default();
 
     if local_state.dev_mode {
