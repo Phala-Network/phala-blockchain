@@ -198,23 +198,6 @@ where
         Ok(())
     }
 
-    pub fn submit_simple_header(
-        &mut self,
-        bridge_id: BridgeId,
-        header: T::Header,
-        grandpa_proof: EncodedJustification,
-    ) -> Result<()> {
-        let bridge = self
-            .tracked_bridges
-            .get(&bridge_id)
-            .ok_or_else(|| anyhow::Error::msg(Error::NoSuchBridgeExists))?;
-        if bridge.last_finalized_block_header.hash() != *header.parent_hash() {
-            return Err(anyhow::Error::msg(Error::HeaderAncestryMismatch));
-        }
-        let ancestry_proof = vec![];
-        self.submit_finalized_headers(bridge_id, header, ancestry_proof, grandpa_proof, None)
-    }
-
     pub fn validate_storage_proof(
         &self,
         state_root: T::Hash,
@@ -245,7 +228,7 @@ pub enum Error {
     NoSuchBridgeExists,
     InvalidFinalityProof,
     // UnknownClientError,
-    HeaderAncestryMismatch,
+    // HeaderAncestryMismatch,
     UnexpectedValidatorSetId,
     StorageValueMismatch,
 }
@@ -259,7 +242,7 @@ impl fmt::Display for Error {
             Error::InvalidAncestryProof => write!(f, "invalid ancestry proof"),
             Error::NoSuchBridgeExists => write!(f, "no such bridge exists"),
             Error::InvalidFinalityProof => write!(f, "invalid finality proof"),
-            Error::HeaderAncestryMismatch => write!(f, "header ancestry mismatch"),
+            // Error::HeaderAncestryMismatch => write!(f, "header ancestry mismatch"),
             Error::UnexpectedValidatorSetId => write!(f, "unexpected validator set id"),
             Error::StorageValueMismatch => write!(f, "storage value mismatch"),
         }
@@ -418,15 +401,6 @@ pub mod utils {
     }
 
     /// Calculates the Substrate storage key prefix for a StorageMap
-    pub fn storage_map_prefix(module: &str, storage_item: &str, item_key: &[u8]) -> Vec<u8> {
-        let mut bytes = storage_prefix(module, storage_item);
-        let hash = sp_core::twox_64(&item_key);
-        bytes.extend(&hash);
-        bytes.extend(item_key);
-        bytes
-    }
-
-    /// Calculates the Substrate storage key prefix for a StorageMap
     pub fn storage_map_prefix_twox_64_concat(
         module: &[u8],
         storage_item: &[u8],
@@ -452,13 +426,5 @@ pub mod utils {
         bytes.extend(&sp_core::blake2_128(&encoded));
         bytes.extend(&encoded);
         bytes
-    }
-
-    /// Gets the last 32 bytes as the account key (`storage_key` must be longer than that)
-    pub fn extract_account_id_key_unsafe<'a>(storage_key: &'a [u8]) -> &'a [u8] {
-        if storage_key.len() < 32 {
-            panic!("storage_key is too short (len={})", storage_key.len());
-        }
-        &storage_key[storage_key.len() - 32..]
     }
 }

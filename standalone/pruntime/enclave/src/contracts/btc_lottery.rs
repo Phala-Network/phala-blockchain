@@ -149,7 +149,7 @@ impl BtcLottery {
             return;
         }
         if !self.token_set.contains_key(&round_id) && !self.lottery_set.contains_key(&round_id) {
-            let sequence = self.sequence;
+            let _sequence = self.sequence;
             let secret = self.secret.as_ref().expect("Key is checked; qed.");
             let token_round_id: U256 = U256::from(round_id) << 128;
             let mut round_token = Vec::new();
@@ -170,12 +170,11 @@ impl BtcLottery {
             let mut address_set = Vec::new();
             let mut salt = round_id * 10000;
             for winner_id in sample {
-                let s = Secp256k1::new();
                 let raw_data = (raw_seed.clone(), salt);
                 let seed = blake2_256(&Encode::encode(&raw_data));
                 let sk = match ExtendedPrivKey::new_master(Network::Bitcoin, &seed) {
                     Ok(e) => e.private_key,
-                    Err(err) => {
+                    Err(_err) => {
                         error!(
                             "LotteryNewRound: cannot create a new secret key from the seed: {:?}",
                             &seed
@@ -217,7 +216,7 @@ impl BtcLottery {
             // from Vec<u8> to String
             let btc_address = match String::from_utf8(btc_address.clone()) {
                 Ok(e) => e,
-                Err(err) => {
+                Err(_err) => {
                     error!(
                         "LotteryOpenBox: cannot convert btc_address to String: {:?}",
                         &btc_address
@@ -227,7 +226,7 @@ impl BtcLottery {
             };
             let target = match Address::from_str(&btc_address) {
                 Ok(e) => e,
-                Err(error) => {
+                Err(_error) => {
                     error!(
                         "LotteryOpenBox: cannot convert btc_address to Address: {:?}",
                         &btc_address
@@ -351,7 +350,7 @@ impl contracts::NativeContract for BtcLottery {
                 };
                 if self.admin == sender {
                     let round_utxo = match self.utxo.entry(round_id) {
-                        Occupied(entry) => return TransactionStatus::BadCommand,
+                        Occupied(_entry) => return TransactionStatus::BadCommand,
                         Vacant(entry) => entry.insert(Default::default()),
                     };
                     round_utxo.insert(btc_address, utxo);
@@ -433,7 +432,7 @@ impl contracts::NativeContract for BtcLottery {
                     Response::Error(Error::InvalidRequest)
                 }
             }
-            Request::GetSignedTx { round_id } => Response::GetSignedTx {
+            Request::GetSignedTx { round_id: _ } => Response::GetSignedTx {
                 tx_set: self.tx_set.clone(),
             },
         }

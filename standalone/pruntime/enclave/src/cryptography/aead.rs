@@ -5,13 +5,6 @@ use ring::rand::SecureRandom;
 pub const IV_BYTES: usize = 12;
 pub type IV = [u8; IV_BYTES];
 
-pub fn generate_random_iv() -> IV {
-    let mut nonce_vec = [0u8; IV_BYTES];
-    let rand = ring::rand::SystemRandom::new();
-    rand.fill(&mut nonce_vec).unwrap();
-    nonce_vec
-}
-
 fn load_key(raw: &[u8]) -> ring::aead::LessSafeKey {
     let unbound_key = ring::aead::UnboundKey::new(&ring::aead::AES_256_GCM, raw)
         .expect("Failed to load the secret key");

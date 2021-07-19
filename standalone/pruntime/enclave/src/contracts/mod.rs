@@ -47,30 +47,6 @@ pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     chain::AccountId::try_from(bytes.as_slice()).map_err(|_| Error::msg("Bad account id"))
 }
 
-/// Serde module to serialize or deserialize parity scale codec types
-pub mod serde_scale {
-    use crate::std::vec::Vec;
-    use parity_scale_codec::{Decode, Encode};
-    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S, T>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-        T: Encode,
-    {
-        let encoded: Vec<u8> = value.encode();
-        Vec::<u8>::serialize(&encoded, serializer)
-    }
-    pub fn deserialize<'de, D, T>(deserializer: D) -> Result<T, D::Error>
-    where
-        D: Deserializer<'de>,
-        T: Decode,
-    {
-        let encoded = Vec::<u8>::deserialize(deserializer)?;
-        T::decode(&mut &encoded[..]).map_err(de::Error::custom)
-    }
-}
-
 /// Serde moduele to serialize or deserialize Balance
 pub mod serde_balance {
     use crate::std::str::FromStr;

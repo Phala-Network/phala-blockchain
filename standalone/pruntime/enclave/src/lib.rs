@@ -1193,8 +1193,11 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
         .para_id()
         .ok_or(error_msg("No para_id"))?;
 
-    let storage_key =
-        light_validation::utils::storage_map_prefix("Paras", "Heads", &para_id.encode());
+    let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
+        b"Paras",
+        b"Heads",
+        &para_id,
+    );
 
     let last_header = state
         .storage_synchronizer
@@ -1459,7 +1462,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     let msg = {
         match payload {
             types::Payload::Plain(data) => data.into_bytes(),
-            types::Payload::Cipher(cipher) => todo!("not supported"),
+            types::Payload::Cipher(_cipher) => todo!("not supported"),
         }
     };
     debug!("msg: {}", String::from_utf8_lossy(&msg));
@@ -1511,7 +1514,7 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
     Ok(res_value)
 }
 
-fn test(param: TestReq) -> Result<Value, Value> {
+fn test(_param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
 }
 
