@@ -1235,7 +1235,7 @@ fn handle_events(block_number: chain::BlockNumber, state: &mut RuntimeState) -> 
     let messages = state
         .chain_storage
         .mq_messages()
-        .ok_or(error_msg("Can not get mq messages from storage"))?;
+        .or(Err(error_msg("Can not get mq messages from storage")))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system

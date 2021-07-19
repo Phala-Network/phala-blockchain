@@ -38,7 +38,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn messages)]
-	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>>;
+	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {

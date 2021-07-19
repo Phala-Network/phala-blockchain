@@ -160,7 +160,7 @@ pub fn events() -> Vec<Event> {
 }
 
 pub fn messages() -> Vec<Message> {
-	let messages = PhalaMq::messages().unwrap_or_default();
+	let messages = PhalaMq::messages();
 	println!("messages(): {:?}", messages);
 	messages
 }
