@@ -778,7 +778,7 @@ pub mod pallet {
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, events, new_test_ext, set_block_1, worker_pubkey, Event as TestEvent,
+			ecdh_pubkey, take_events, new_test_ext, set_block_1, worker_pubkey, Event as TestEvent,
 			Origin, PhalaRegistry, PhalaStakePool, Test, DOLLARS,
 		};
 
@@ -800,7 +800,7 @@ pub mod pallet {
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 				PhalaStakePool::on_finalize(1);
 				assert_matches!(
-					events().as_slice(),
+					take_events().as_slice(),
 					[TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),]
 				);
 				assert_eq!(

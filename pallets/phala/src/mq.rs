@@ -21,7 +21,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 		// config
 		type QueueNotifyConfig: QueueNotifyConfig;
 	}
@@ -37,13 +36,12 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
-	#[pallet::event]
-	// #[pallet::metadata(T::AccountId = "AccountId")]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event {
-		/// Got an outbound message. [mesage]
-		OutboundMessage(Message),
-	}
+	/// Outbound messages at the current block.
+	///
+	/// It will be cleared at the beginning of every block.
+	#[pallet::storage]
+	#[pallet::getter(fn messages)]
+	pub type OutboundMessages<T> = StorageValue<_, Vec<Message>, ValueQuery>;
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -115,8 +113,8 @@ pub mod pallet {
 				// TODO: Consider to emit a message as warning. We can't stop dispatching message in any situation.
 			}
 			// Notify the off-chain components
-			if T::QueueNotifyConfig::should_push_event(&message) {
-				Self::deposit_event(Event::OutboundMessage(message));
+			if T::QueueNotifyConfig::should_push_message(&message) {
+				OutboundMessages::<T>::append(message);
 			}
 		}
 
@@ -134,6 +132,9 @@ pub mod pallet {
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_initialize(_now: BlockNumberFor<T>) -> Weight {
+			// Clear the previously pushed offchain messages
+			OutboundMessages::<T>::kill();
+
 			// Send out queued message from the previous block
 			if let Some(msgs) = QueuedOutboundMessage::<T>::take() {
 				for message in msgs.into_iter() {
@@ -146,8 +147,8 @@ pub mod pallet {
 
 	/// Defines the behavior of received messages.
 	pub trait QueueNotifyConfig {
-		/// If true, the message queue will emit an event to notify the subscribers
-		fn should_push_event(message: &Message) -> bool {
+		/// If true, the message queue push this message to the subscribers
+		fn should_push_message(message: &Message) -> bool {
 			message.destination.is_offchain()
 		}
 		/// Handles an incoming message

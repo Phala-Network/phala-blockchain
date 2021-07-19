@@ -87,7 +87,7 @@ fn main() {
         }
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
-            let snapshot = enclave_api::blocks::BlockHeaderWithEvents::decode(&mut data.as_slice());
+            let snapshot = enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
         }

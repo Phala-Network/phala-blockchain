@@ -590,7 +590,7 @@ pub mod pallet {
 	#[cfg(test)]
 	mod test {
 		use super::*;
-		use crate::mock::{events, new_test_ext, set_block_1, Event as TestEvent, Test};
+		use crate::mock::{take_messages, new_test_ext, set_block_1, Test};
 
 		#[test]
 		fn test_pow_target() {
@@ -623,9 +623,9 @@ pub mod pallet {
 				OnlineMiners::<Test>::put(20);
 				Pallet::<Test>::heartbeat_challenge();
 				// Extract messages
-				let ev = events();
-				let message = match ev.as_slice() {
-					[TestEvent::PhalaMq(mq::Event::OutboundMessage(m))] => m,
+				let msgs = take_messages();
+				let message = match msgs.as_slice() {
+					[m] => m,
 					_ => panic!("Wrong message events"),
 				};
 				// Check the event target

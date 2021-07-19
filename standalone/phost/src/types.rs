@@ -5,7 +5,7 @@ use sp_finality_grandpa::AuthorityList;
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 
 pub(crate) use enclave_api::blocks::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, StorageProof,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
 use trie_storage::ser::StorageChanges;
 
@@ -68,6 +68,7 @@ pub struct GetInfoReq {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct GetInfoResp {
     pub headernum: BlockNumber,
+    pub para_headernum: BlockNumber,
     pub blocknum: BlockNumber,
     pub initialized: bool,
     pub public_key: String,
@@ -88,6 +89,7 @@ pub struct InitRuntimeReq {
     pub debug_set_key: Option<String>,
     pub genesis_state_b64: String,
     pub operator_hex: Option<String>,
+    pub is_parachain: bool,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
@@ -140,7 +142,7 @@ impl Resp for SyncHeaderReq {
 }
 
 #[derive(Clone, Debug)]
-pub struct BlockWithEvents {
+pub struct BlockWithChanges {
     pub block: OpaqueSignedBlock,
     pub storage_changes: StorageChanges,
 }

@@ -40,7 +40,6 @@ use crate::std::vec::Vec;
 
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
-use frame_system::EventRecord;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
@@ -48,17 +47,19 @@ use ring::rand::SecureRandom;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
-use sp_core::{crypto::Pair, ecdsa, H256 as Hash};
+use sp_core::{crypto::Pair, ecdsa};
 
 use http_req::request::{Method, Request};
 use std::time::Duration;
 
 use pink::InkModule;
 
+use enclave_api::storage_sync::{
+    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
+};
 use enclave_api::{
     actions::*,
-    blocks::{BlockHeaderWithEvents, HeadersToSync, SyncParachainHeaderReq},
-    storage_sync::SolochainSynchronizer,
+    blocks::{self, SyncParachainHeaderReq},
 };
 
 use phala_crypto::{aead, ecdh::EcdhKey, secp256k1::KDF};
@@ -73,22 +74,22 @@ mod cryptography;
 mod light_validation;
 mod msg_channel;
 mod rpc_types;
-mod storage_sync;
+mod storage;
 mod system;
 mod types;
 mod utils;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
-use light_validation::AuthoritySetChange;
 use rpc_types::*;
+use storage::{Storage, StorageExt};
 use system::{GatekeeperRole, TransactionStatus};
-use trie_storage::TrieStorage;
 use types::BlockInfo;
 use types::Error;
 
+// TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal
+// runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
-type Storage = TrieStorage<RuntimeHasher>;
 
 extern "C" {
     pub fn ocall_load_ias_spid(
@@ -151,15 +152,13 @@ pub const IAS_HOST: &'static str = env!("IAS_HOST");
 pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
 pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
 
-type ChainLightValidation = light_validation::LightValidation<chain::Runtime>;
-
 struct RuntimeState {
-    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>>,
+    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
     send_mq: MessageSendQueue,
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    storage_synchronizer: SolochainSynchronizer<ChainLightValidation>,
+    storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
     chain_storage: Storage,
 }
 
@@ -188,14 +187,7 @@ impl RuntimeState {
             let module_prefix = OffchainIngress::module_prefix();
             let storage_prefix = OffchainIngress::storage_prefix();
             let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence = self
-                .chain_storage
-                .get(&key)
-                .map(|v| {
-                    u64::decode(&mut &v[..])
-                        .expect("Decode value of OffchainIngress Failed.(This should not happen)")
-                })
-                .unwrap_or(0);
+            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
             debug!("purging, sequence = {}", sequence);
             sequence
         })
@@ -654,32 +646,11 @@ pub extern "C" fn ecall_handle(
     output_buf_len: usize,
 ) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
-    let input: serde_json::value::Value = serde_json::from_slice(input_slice).unwrap();
-    let input_value = input.get("input").unwrap().clone();
 
-    // Strong typed
-    fn load_param<T: de::DeserializeOwned>(input_value: serde_json::value::Value) -> T {
-        serde_json::from_value(input_value).unwrap()
-    }
-
-    let result = match action {
-        ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
-        ACTION_TEST => test(load_param(input_value)),
-        ACTION_QUERY => query(load_param(input_value)),
-        ACTION_SYNC_HEADER => sync_header(load_param(input_value)),
-        ACTION_DISPATCH_BLOCK => dispatch_block(load_param(input_value)),
-        _ => {
-            let payload = input_value.as_object().unwrap();
-            match action {
-                ACTION_GET_INFO => get_info(payload),
-                ACTION_DUMP_STATES => dump_states(payload),
-                ACTION_LOAD_STATES => load_states(payload),
-                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
-                ACTION_TEST_INK => test_ink(payload),
-                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
-                _ => unknown(),
-            }
-        }
+    let result = if action < BIN_ACTION_START {
+        handle_json_api(action, input_slice)
+    } else {
+        handle_scale_api(action, input_slice)
     };
 
     let (status, payload) = match result {
@@ -702,20 +673,60 @@ pub extern "C" fn ecall_handle(
     });
     info!("{}", output_json.to_string());
 
-    let output_json_vec = serde_json::to_vec(&output_json).unwrap();
-    let output_json_vec_len = output_json_vec.len();
-    let output_json_vec_len_ptr = &output_json_vec_len as *const usize;
+    let output = serde_json::to_vec(&output_json).unwrap();
 
-    unsafe {
-        if output_json_vec_len <= output_buf_len {
-            ptr::copy_nonoverlapping(output_json_vec.as_ptr(), output_ptr, output_json_vec_len);
-        } else {
-            warn!("Too much output. Buffer overflow.");
+    let output_len = output.len();
+    if output_len <= output_buf_len {
+        unsafe {
+            ptr::copy_nonoverlapping(output.as_ptr(), output_ptr, output_len);
+            *output_len_ptr = output_len;
+            sgx_status_t::SGX_SUCCESS
         }
-        ptr::copy_nonoverlapping(output_json_vec_len_ptr, output_len_ptr, 1);
+    } else {
+        warn!("Too much output. Buffer overflow.");
+        sgx_status_t::SGX_ERROR_FAAS_BUFFER_TOO_SHORT
+    }
+}
+
+fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
+    let input: serde_json::value::Value = serde_json::from_slice(input).unwrap();
+    let input_value = input.get("input").unwrap().clone();
+
+    // Strong typed
+    fn load_param<T: de::DeserializeOwned>(input_value: serde_json::value::Value) -> T {
+        serde_json::from_value(input_value).unwrap()
     }
 
-    sgx_status_t::SGX_SUCCESS
+    match action {
+        ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
+        ACTION_TEST => test(load_param(input_value)),
+        ACTION_QUERY => query(load_param(input_value)),
+        _ => {
+            let payload = input_value.as_object().unwrap();
+            match action {
+                ACTION_GET_INFO => get_info(payload),
+                ACTION_DUMP_STATES => dump_states(payload),
+                ACTION_LOAD_STATES => load_states(payload),
+                ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
+                ACTION_TEST_INK => test_ink(payload),
+                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
+                _ => unknown(),
+            }
+        }
+    }
+}
+
+fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
+    fn load_scale<T: Decode>(mut scale: &[u8]) -> Result<T, Value> {
+        Decode::decode(&mut scale).map_err(|_| error_msg("Decode input parameter failed"))
+    }
+
+    match action {
+        BIN_ACTION_SYNC_HEADER => sync_header(load_scale(input)?),
+        BIN_ACTION_SYNC_PARA_HEADER => sync_para_header(load_scale(input)?),
+        BIN_ACTION_DISPATCH_BLOCK => dispatch_block(load_scale(input)?),
+        _ => unknown(),
+    }
 }
 
 const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
@@ -1049,7 +1060,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         )
         .expect("Bridge initialize failed");
 
-    let storage_synchronizer = SolochainSynchronizer::new(light_client, main_bridge);
+    let storage_synchronizer = if input.is_parachain {
+        Box::new(ParachainSynchronizer::new(light_client, main_bridge)) as _
+    } else {
+        Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
+    };
 
     let id_pair = local_state
         .identity_key
@@ -1064,7 +1079,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
     drop(system_state);
 
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract>> =
+    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
         Default::default();
 
     if local_state.dev_mode {
@@ -1146,45 +1161,55 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     Ok(serde_json::to_value(resp).unwrap())
 }
 
-fn sync_header(input: SyncHeaderReq) -> Result<Value, Value> {
-    // Parse base64 to data
-    let parsed_data: Result<Vec<_>, _> = (&input.headers_b64).iter().map(base64::decode).collect();
-    let headers_data = parsed_data.map_err(|_| error_msg("Failed to parse base64 header"))?;
-    // Parse data to headers
-    let parsed_headers: Result<HeadersToSync, _> = headers_data
-        .iter()
-        .map(|d| Decode::decode(&mut &d[..]))
-        .collect();
-    let headers = parsed_headers.map_err(|_| error_msg("Invalid header"))?;
-
-    let authority_set_change = input
-        .authority_set_change_b64
-        .map(|b64| parse_authority_set_change(b64))
-        .transpose()?;
-
+fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
+    info!(
+        "sync_header from={:?} to={:?}",
+        input.headers.first().map(|h| h.header.number),
+        input.headers.last().map(|h| h.header.number)
+    );
     let last_header = STATE
         .lock()
         .unwrap()
         .as_mut()
         .ok_or(error_msg("Runtime not initialized"))?
         .storage_synchronizer
-        .sync_header(headers, authority_set_change)
+        .sync_header(input.headers, input.authority_set_change)
         .map_err(display)?;
 
     Ok(json!({ "synced_to": last_header }))
 }
 
-fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
-    // Parse base64 to data
-    let parsed_data: Result<Vec<_>, _> = (&input.blocks_b64).iter().map(base64::decode).collect();
-    let blocks_data = parsed_data.map_err(|_| error_msg("Failed to parse base64 block"))?;
-    // Parse data to blocks
-    let parsed_blocks: Result<Vec<BlockHeaderWithEvents>, _> = blocks_data
-        .iter()
-        .map(|d| Decode::decode(&mut &d[..]))
-        .collect();
+fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
+    info!(
+        "sync_para_header from={:?} to={:?}",
+        input.headers.first().map(|h| h.number),
+        input.headers.last().map(|h| h.number)
+    );
+    let mut guard = STATE.lock().unwrap();
+    let state = guard.as_mut().ok_or(error_msg("Runtime not initialized"))?;
 
-    let blocks = parsed_blocks.map_err(|e| error_msg(&format!("Invalid block: {:?}", e)))?;
+    let para_id = state
+        .chain_storage
+        .para_id()
+        .ok_or(error_msg("No para_id"))?;
+
+    let storage_key =
+        light_validation::utils::storage_map_prefix("Paras", "Heads", &para_id.encode());
+
+    let last_header = state
+        .storage_synchronizer
+        .sync_parachain_header(input.headers, input.proof, &storage_key)
+        .map_err(display)?;
+
+    Ok(json!({ "synced_to": last_header }))
+}
+
+fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
+    info!(
+        "dispatch_block from={:?} to={:?}",
+        input.blocks.first().map(|h| h.block_header.number),
+        input.blocks.last().map(|h| h.block_header.number)
+    );
 
     let mut state = STATE.lock().unwrap();
     let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
@@ -1192,43 +1217,29 @@ fn dispatch_block(input: DispatchBlockReq) -> Result<Value, Value> {
     // TODO.kevin: enable e2e encryption mq for contracts
     // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
     let mut last_block = 0;
-    for block in blocks.into_iter() {
+    for block in input.blocks.into_iter() {
         state
             .storage_synchronizer
             .feed_block(&block, &mut state.chain_storage)
             .map_err(display)?;
 
         state.purge_mq();
-
-        let event_storage_key = storage_prefix("System", "Events");
-        let events = state
-            .chain_storage
-            .get(&event_storage_key)
-            .ok_or(error_msg("Can not get Events from storage"))?;
-
-        handle_events(block.block_header.number, events, state)?;
+        handle_inbound_messages(block.block_header.number, state)?;
         last_block = block.block_header.number;
     }
 
     Ok(json!({ "dispatched_to": last_block }))
 }
 
-fn parse_authority_set_change(data_b64: String) -> Result<AuthoritySetChange, Value> {
-    let data = base64::decode(&data_b64)
-        .map_err(|_| error_msg("cannot decode authority_set_change_b64"))?;
-    AuthoritySetChange::decode(&mut &data[..])
-        .map_err(|_| error_msg("cannot decode authority_set_change"))
-}
-
-fn handle_events(
+fn handle_inbound_messages(
     block_number: chain::BlockNumber,
-    events: Vec<u8>,
     state: &mut RuntimeState,
 ) -> Result<(), Value> {
     // Dispatch events
-    let mut events: &[u8] = events.as_ref();
-    let events = Vec::<EventRecord<chain::Event, Hash>>::decode(&mut events)
-        .map_err(|_| error_msg("Decode events error"))?;
+    let messages = state
+        .chain_storage
+        .mq_messages()
+        .or(Err(error_msg("Can not get mq messages from storage")))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system
@@ -1237,45 +1248,47 @@ fn handle_events(
 
     state.recv_mq.reset_local_index();
 
-    for evt in events {
-        if let chain::Event::PhalaMq(pallet_mq::Event::OutboundMessage(message)) = evt.event {
-            use phala_types::messaging::SystemEvent;
-            macro_rules! log_message {
-                ($msg: expr, $t: ident) => {{
-                    let event: Result<$t, _> =
-                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
-                    match event {
-                        Ok(event) => {
-                            info!(
-                                "mq dispatching message: sender={:?} dest={:?} payload={:?}",
-                                $msg.sender, $msg.destination, event
-                            );
-                        }
-                        Err(_) => {
-                            info!("mq dispatching message (decode failed): {:?}", $msg);
-                        }
+    for message in messages {
+        use phala_types::messaging::SystemEvent;
+        macro_rules! log_message {
+            ($msg: expr, $t: ident) => {{
+                let event: Result<$t, _> =
+                    parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                match event {
+                    Ok(event) => {
+                        info!(
+                            "mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                            $msg.sender, $msg.destination, event
+                        );
                     }
-                }};
-            }
-            match &message.destination.path()[..] {
-                SystemEvent::TOPIC => {
-                    log_message!(message, SystemEvent);
+                    Err(_) => {
+                        info!("mq dispatching message (decode failed): {:?}", $msg);
+                    }
                 }
-                _ => {
-                    info!("mq dispatching message: {:?}", message);
-                }
-            }
-            state.recv_mq.dispatch(message);
+            }};
         }
+        match &message.destination.path()[..] {
+            SystemEvent::TOPIC => {
+                log_message!(message, SystemEvent);
+            }
+            _ => {
+                info!("mq dispatching message: {:?}", message);
+            }
+        }
+        state.recv_mq.dispatch(message);
     }
 
     let _guard = scopeguard::guard(&mut state.recv_mq, |mq| {
         let n_unhandled = mq.clear();
-        warn!("There are {} unhandled messages dropped", n_unhandled);
+        if n_unhandled > 0 {
+            warn!("There are {} unhandled messages dropped", n_unhandled);
+        }
     });
 
-    let now_ms =
-        block_timestamp_ms(&state.chain_storage).ok_or(error_msg("No timestamp found in block"))?;
+    let now_ms = state
+        .chain_storage
+        .timestamp_now()
+        .ok_or(error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
     let block = BlockInfo {
@@ -1299,13 +1312,6 @@ fn handle_events(
     }
 
     Ok(())
-}
-
-fn block_timestamp_ms(storage: &Storage) -> Option<u64> {
-    let key = storage_prefix("Timestamp", "Now");
-    let value = storage.get(key)?;
-    let now: chain::Moment = Decode::decode(&mut &value[..]).ok()?;
-    Some(now)
 }
 
 fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {

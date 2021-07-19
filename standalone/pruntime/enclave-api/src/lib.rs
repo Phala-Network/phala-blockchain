@@ -7,13 +7,16 @@ pub mod actions {
     pub const ACTION_GET_INFO: u8 = 2;
     pub const ACTION_DUMP_STATES: u8 = 3;
     pub const ACTION_LOAD_STATES: u8 = 4;
-    pub const ACTION_SYNC_HEADER: u8 = 5;
     pub const ACTION_QUERY: u8 = 6;
-    pub const ACTION_DISPATCH_BLOCK: u8 = 7;
     // Reserved: 8, 9
     pub const ACTION_GET_RUNTIME_INFO: u8 = 10;
     pub const ACTION_GET_EGRESS_MESSAGES: u8 = 23;
     pub const ACTION_TEST_INK: u8 = 100;
+
+    pub const BIN_ACTION_START: u8 = 128;
+    pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START + 0;
+    pub const BIN_ACTION_DISPATCH_BLOCK: u8 = BIN_ACTION_START + 1;
+    pub const BIN_ACTION_SYNC_HEADER: u8 = BIN_ACTION_START + 2;
 }
 
 pub mod blocks {
@@ -42,8 +45,8 @@ pub mod blocks {
 
     pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
     pub type HeaderToSync = GenericHeaderToSync<chain::BlockNumber, RuntimeHasher>;
-    pub type BlockHeaderWithEvents =
-        GenericBlockHeaderWithEvents<chain::BlockNumber, RuntimeHasher>;
+    pub type BlockHeaderWithChanges =
+        GenericBlockHeaderWithChanges<chain::BlockNumber, RuntimeHasher>;
     pub type Headers = Vec<Header<chain::BlockNumber, RuntimeHasher>>;
     pub type HeadersToSync = Vec<HeaderToSync>;
 
@@ -72,7 +75,7 @@ pub mod blocks {
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
-    pub struct GenericBlockHeaderWithEvents<BlockNumber, Hash>
+    pub struct GenericBlockHeaderWithChanges<BlockNumber, Hash>
     where
         BlockNumber: Copy + Into<U256> + TryFrom<U256> + FullCodec + Clone,
         Hash: HashT,
@@ -87,16 +90,25 @@ pub mod blocks {
         pub authority_set_change: Option<AuthoritySetChange>,
     }
 
+    // TODO.kevin: import it from some other crate
+    #[derive(Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
+    pub struct ParaId(u32);
+
+    impl ParaId {
+        pub fn new(n: u32) -> ParaId {
+            ParaId(n)
+        }
+    }
+
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
-        pub proof: Vec<u8>,
-        pub para_id: Vec<u8>,
+        pub proof: StorageProof,
     }
 
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct DispatchBlockReq {
-        pub blocks: Vec<BlockHeaderWithEvents>,
+        pub blocks: Vec<BlockHeaderWithChanges>,
     }
 
     #[cfg(feature = "serde")]
@@ -158,9 +170,12 @@ pub mod blocks {
 }
 
 pub mod storage_sync {
-    use super::blocks::{AuthoritySetChange, BlockHeaderWithEvents, HeaderToSync, RuntimeHasher};
+    use super::blocks::{
+        AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, RuntimeHasher, StorageProof,
+    };
 
     use alloc::collections::VecDeque;
+    use alloc::string::String;
     use alloc::vec::Vec;
     use chain::Hash;
     use derive_more::Display;
@@ -174,12 +189,14 @@ pub mod storage_sync {
     pub enum Error {
         /// No header or block data in the request
         EmptyRequest,
-        /// SCALE decode somthine failed
-        CodecError,
         /// No Justification found in the last header
         MissingJustification,
         /// Header validation failed
-        HeaderValidateFailed,
+        #[display(fmt = "HeaderValidateFailed({})", .0)]
+        HeaderValidateFailed(String),
+        /// Storage proof failed
+        #[display(fmt = "StorageProofFailed({})", .0)]
+        StorageProofFailed(String),
         /// Relay chain header not synced before syncing parachain header
         RelaychainHeaderNotSynced,
         /// Some header parent hash mismatches it's parent header
@@ -189,7 +206,19 @@ pub mod storage_sync {
         /// No state root to validate the storage changes
         NoStateRoot,
         /// Invalid storage changes that cause the state root mismatch
-        StateRootMismatch,
+        #[display(
+            fmt = "StateRootMismatch block={:?} expected={:?} actual={:?}",
+            block,
+            expected,
+            actual
+        )]
+        StateRootMismatch {
+            block: chain::BlockNumber,
+            expected: chain::Hash,
+            actual: chain::Hash,
+        },
+        /// Solo/Para mode mismatch
+        ChainModeMismatch,
     }
 
     pub trait BlockValidator {
@@ -205,8 +234,35 @@ pub mod storage_sync {
         fn validate_storage_proof(
             &self,
             state_root: Hash,
-            proof: &[u8],
+            proof: StorageProof,
             items: &[(&[u8], &[u8])],
+        ) -> Result<()>;
+    }
+
+    pub trait StorageSynchronizer {
+        /// Return the next block numbers to sync.
+        fn counters(&self) -> Counters;
+
+        /// Given chain headers in sequence, validate it and output the state_roots
+        fn sync_header(
+            &mut self,
+            headers: Vec<HeaderToSync>,
+            authority_set_change: Option<AuthoritySetChange>,
+        ) -> Result<chain::BlockNumber>;
+
+        /// Given the parachain headers in sequence, validate it and cached the state_roots for block validation
+        fn sync_parachain_header(
+            &mut self,
+            headers: Vec<chain::Header>,
+            proof: StorageProof,
+            storage_key: &[u8],
+        ) -> Result<chain::BlockNumber>;
+
+        /// Feed in a block of storage changes
+        fn feed_block(
+            &mut self,
+            block: &BlockHeaderWithChanges,
+            storage: &mut Storage,
         ) -> Result<()>;
     }
 
@@ -293,7 +349,7 @@ pub mod storage_sync {
         /// Feed a block and apply changes to storage if it's valid.
         pub fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             state_roots: &mut VecDeque<Hash>,
             storage: &mut Storage,
         ) -> Result<()> {
@@ -311,7 +367,11 @@ pub mod storage_sync {
             );
 
             if expected_root != &state_root {
-                return Err(Error::StateRootMismatch);
+                return Err(Error::StateRootMismatch {
+                    block: block.block_header.number,
+                    expected: expected_root.clone(),
+                    actual: state_root,
+                });
             }
 
             storage.apply_changes(state_root, transaction);
@@ -320,6 +380,13 @@ pub mod storage_sync {
             state_roots.pop_front();
             Ok(())
         }
+    }
+
+    #[derive(Default, Debug)]
+    pub struct Counters {
+        pub next_header_number: chain::BlockNumber,
+        pub next_para_header_number: chain::BlockNumber,
+        pub next_block_number: chain::BlockNumber,
     }
 
     pub struct SolochainSynchronizer<Validator> {
@@ -334,8 +401,10 @@ pub mod storage_sync {
                 state_roots: Default::default(),
             }
         }
+    }
 
-        pub fn counters(&self) -> Counters {
+    impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Validator> {
+        fn counters(&self) -> Counters {
             Counters {
                 next_block_number: self.sync_state.block_number_next,
                 next_header_number: self.sync_state.header_number_next,
@@ -343,7 +412,7 @@ pub mod storage_sync {
             }
         }
 
-        pub fn sync_header(
+        fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
@@ -352,21 +421,23 @@ pub mod storage_sync {
                 .sync_header(headers, authority_set_change, &mut self.state_roots)
         }
 
-        pub fn feed_block(
+        fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             storage: &mut Storage,
         ) -> Result<()> {
             self.sync_state
                 .feed_block(block, &mut self.state_roots, storage)
         }
-    }
 
-    #[derive(Default, Debug)]
-    pub struct Counters {
-        pub next_header_number: chain::BlockNumber,
-        pub next_para_header_number: chain::BlockNumber,
-        pub next_block_number: chain::BlockNumber,
+        fn sync_parachain_header(
+            &mut self,
+            _headers: Vec<chain::Header>,
+            _proof: StorageProof,
+            _storage_key: &[u8],
+        ) -> Result<chain::BlockNumber> {
+            Err(Error::ChainModeMismatch)
+        }
     }
 
     pub struct ParachainSynchronizer<Validator> {
@@ -385,8 +456,10 @@ pub mod storage_sync {
                 para_state_roots: Default::default(),
             }
         }
+    }
 
-        pub fn counters(&self) -> Counters {
+    impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Validator> {
+        fn counters(&self) -> Counters {
             Counters {
                 next_block_number: self.sync_state.block_number_next,
                 next_header_number: self.sync_state.header_number_next,
@@ -395,7 +468,7 @@ pub mod storage_sync {
         }
 
         /// Given the relaychain headers in sequence, validate it and cached the last state_root for parachain header validation
-        pub fn sync_header(
+        fn sync_header(
             &mut self,
             headers: Vec<HeaderToSync>,
             authority_set_change: Option<AuthoritySetChange>,
@@ -409,12 +482,12 @@ pub mod storage_sync {
         }
 
         /// Given the parachain headers in sequence, validate it and cached the state_roots for block validation
-        pub fn sync_parachain_header(
+        fn sync_parachain_header(
             &mut self,
             headers: Vec<chain::Header>,
-            proof: &[u8],
+            proof: StorageProof,
             storage_key: &[u8],
-        ) -> Result<()> {
+        ) -> Result<chain::BlockNumber> {
             let first_hdr = headers.first().ok_or(Error::EmptyRequest)?;
             if self.para_header_number_next != first_hdr.number {
                 return Err(Error::BlockNumberMismatch);
@@ -432,7 +505,7 @@ pub mod storage_sync {
             self.sync_state.validator.validate_storage_proof(
                 state_root,
                 proof,
-                &[(storage_key, last_hdr.encode().as_slice())],
+                &[(storage_key, last_hdr.encode().encode().as_slice())],
             )?;
 
             // 2. check header sequence
@@ -443,20 +516,20 @@ pub mod storage_sync {
             }
 
             // All checks passed, enqueue the state roots for storage validation.
-            for hdr in headers.iter().rev() {
+            for hdr in headers.iter() {
                 self.para_state_roots.push_back(hdr.state_root);
             }
 
             self.last_relaychain_state_root = None;
             self.para_header_number_next = last_hdr.number + 1;
 
-            Ok(())
+            Ok(last_hdr.number)
         }
 
         /// Feed in a block of storage changes
-        pub fn feed_block(
+        fn feed_block(
             &mut self,
-            block: &BlockHeaderWithEvents,
+            block: &BlockHeaderWithChanges,
             storage: &mut Storage,
         ) -> Result<()> {
             self.sync_state

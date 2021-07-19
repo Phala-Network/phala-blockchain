@@ -1,13 +1,15 @@
 use anyhow::{anyhow, Result};
-use sp_core::{storage::StorageKey};
+use codec::Encode;
+use sp_core::{storage::StorageKey, twox_128, twox_64};
 use phala_types::{messaging::MessageOrigin};
-use enclave_api::blocks::StorageProof;
+use enclave_api::blocks::{StorageProof, ParaId};
 use super::runtimes;
 
 use super::XtClient;
-use crate::types::{ Hash, utils::raw_proof};
+use crate::{Error, types::{Hash, utils::raw_proof}};
 use trie_storage::ser::StorageChanges;
 use rpc_ext::MakeInto as _;
+use codec::Decode;
 
 /// Gets a single storage item
 pub  async fn get_storage(
@@ -58,3 +60,30 @@ pub async fn fetch_mq_ingress_seq(client: &XtClient, sender: MessageOrigin) -> R
         .or(Ok(0))
 }
 
+pub fn paras_heads_key(para_id: &ParaId) -> StorageKey {
+    StorageKey(storage_map_key_vec("Paras", "Heads", &para_id.encode()))
+}
+
+pub fn get_parachain_heads(
+    head: Vec<u8>,
+) -> Result<Vec<u8>, Error> {
+    Decode::decode(&mut head.as_slice()).or(Err(Error::FailedToDecode))
+}
+
+// Utility functions
+
+/// Calculates the Substrate storage key prefix
+pub fn storage_value_key_vec(module: &str, storage_key_name: &str) -> Vec<u8> {
+    let mut key = twox_128(module.as_bytes()).to_vec();
+    key.extend(&twox_128(storage_key_name.as_bytes()));
+    key
+}
+
+/// Calculates the Substrate storage key prefix for a StorageMap
+fn storage_map_key_vec(module: &str, storage_item: &str, item_key: &[u8]) -> Vec<u8> {
+    let mut key = storage_value_key_vec(module, storage_item);
+    let hash = twox_64(&item_key);
+    key.extend(&hash);
+    key.extend(item_key);
+    key
+}

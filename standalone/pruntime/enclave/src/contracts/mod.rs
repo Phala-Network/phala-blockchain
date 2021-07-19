@@ -208,7 +208,7 @@ mod support {
         }
     }
 
-    pub trait Contract: Send + Sync {
+    pub trait Contract {
         fn id(&self) -> ContractId;
         fn handle_query(
             &mut self,
