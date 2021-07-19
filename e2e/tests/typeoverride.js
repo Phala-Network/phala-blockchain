@@ -62,10 +62,17 @@ const types = {
 		"state": "PoolState",
 		"payoutCommission": "u16",
 		"ownerReward": "Balance",
+		"cap": "Option<Balance>",
 		"poolAcc": "Balance",
 		"totalStake": "Balance",
-		"lockedStake": "Balance",
-		"workers": "Vec<WorkerPublicKey>"
+		"freeStake": "Balance",
+		"workers": "Vec<WorkerPublicKey>",
+		"withdrawQueue": "Vec<WithdrawInfo>"
+	},
+	"WithdrawInfo": {
+		"user": "AccountId",
+		"amount": "Balance",
+		"startTime": "u64"
 	},
 	"ProposalStatus": {
 		"_enum": {
@@ -217,7 +224,14 @@ const types = {
         "slashRate": "U64F64Bits",
         "heartbeatWindow": "u32"
     },
-	"U64F64Bits": "u128"
+	"TokenomicParams": "TokenomicParameters",
+	"U64F64Bits": "u128",
+	"UserStakeInfo": {
+		"user": "AccountId",
+		"amount": "Balance",
+		"availableRewards": "Balance",
+		"userDebt": "Balance",
+	}
 };
 
 const typeAlias = {
