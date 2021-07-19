@@ -136,7 +136,11 @@ struct Args {
     #[structopt(long = "parachain", help = "Parachain mode")]
     parachain: bool,
 
-    #[structopt(long, help = "The first parent header to be synced")]
+    #[structopt(
+        default_value = "0",
+        long,
+        help = "The first parent header to be synced"
+    )]
     start_header: BlockNumber,
 }
 
@@ -598,11 +602,13 @@ async fn init_runtime(
     inject_key: &str,
     operator_hex: Option<String>,
     is_parachain: bool,
-    start_header: BlockNumber, 
+    start_header: BlockNumber,
 ) -> Result<InitRuntimeResp> {
     let genesis_block = get_block_at(client, Some(start_header)).await?.block;
     let hash = client
-        .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(start_header as _))))
+        .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
+            start_header as _,
+        ))))
         .await?
         .expect("No genesis block?");
     let set_proof = get_authority_with_proof_at(client, hash).await?;
