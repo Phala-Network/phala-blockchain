@@ -700,17 +700,14 @@ pub mod pallet {
 	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T> {
 		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
-			StakeLedger::<T>::insert(who, b.saturating_add(amount));
-			Self::update_lock(who, b.saturating_add(amount));
+			let new_b = b.saturating_add(amount);
+			StakeLedger::<T>::insert(who, new_b);
+			Self::update_lock(who, new_b);
 		}
 
 		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
-			let new_b = if b > amount {
-				b.saturating_sub(amount)
-			} else {
-				Zero::zero()
-			};
+			let new_b = b.saturating_sub(amount);
 			StakeLedger::<T>::insert(who, new_b);
 			Self::update_lock(who, new_b);
 		}
