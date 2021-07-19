@@ -281,12 +281,17 @@ pub mod storage_sync {
     where
         Validator: BlockValidator,
     {
-        pub fn new(validator: Validator, main_bridge: u64) -> Self {
+        pub fn new(
+            validator: Validator,
+            main_bridge: u64,
+            header_number_next: chain::BlockNumber,
+            block_number_next: chain::BlockNumber,
+        ) -> Self {
             Self {
                 validator,
                 main_bridge,
-                header_number_next: 1,
-                block_number_next: 1,
+                header_number_next,
+                block_number_next,
             }
         }
 
@@ -397,7 +402,7 @@ pub mod storage_sync {
     impl<Validator: BlockValidator> SolochainSynchronizer<Validator> {
         pub fn new(validator: Validator, main_bridge: u64) -> Self {
             Self {
-                sync_state: BlockSyncState::new(validator, main_bridge),
+                sync_state: BlockSyncState::new(validator, main_bridge, 1, 1),
                 state_roots: Default::default(),
             }
         }
@@ -448,9 +453,13 @@ pub mod storage_sync {
     }
 
     impl<Validator: BlockValidator> ParachainSynchronizer<Validator> {
-        pub fn new(validator: Validator, main_bridge: u64) -> Self {
+        pub fn new(
+            validator: Validator,
+            main_bridge: u64,
+            headernum_next: chain::BlockNumber,
+        ) -> Self {
             Self {
-                sync_state: BlockSyncState::new(validator, main_bridge),
+                sync_state: BlockSyncState::new(validator, main_bridge, headernum_next, 1),
                 last_relaychain_state_root: None,
                 para_header_number_next: 1,
                 para_state_roots: Default::default(),

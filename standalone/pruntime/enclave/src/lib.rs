@@ -1050,6 +1050,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let genesis =
         light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
             .expect("Can't decode bridge_genesis_info_b64");
+
+    let next_headernum = genesis.block_header.number + 1;
     let mut state = STATE.lock().unwrap();
     let mut light_client = LightValidation::new();
     let main_bridge = light_client
@@ -1061,7 +1063,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         .expect("Bridge initialize failed");
 
     let storage_synchronizer = if input.is_parachain {
-        Box::new(ParachainSynchronizer::new(light_client, main_bridge)) as _
+        Box::new(ParachainSynchronizer::new(
+            light_client,
+            main_bridge,
+            next_headernum,
+        )) as _
     } else {
         Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
     };
