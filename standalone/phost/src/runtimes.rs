@@ -244,7 +244,7 @@ pub mod chain_bridge {
 
 pub mod parachain_info {
     use super::PhalaNodeRuntime;
-    use codec::{Encode, Decode};
+    use codec::{Encode};
     use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
 

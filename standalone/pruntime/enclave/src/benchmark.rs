@@ -88,10 +88,6 @@ fn est_score(since: u64, start: u64) -> u64 {
     (ITERATION_COUNTER.load(Ordering::Relaxed) - start) * 6 / (now - since)
 }
 
-fn debugging() -> bool {
-    log::STATIC_MAX_LEVEL >= log::Level::Debug && log::max_level() >= log::Level::Debug
-}
-
 fn now() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

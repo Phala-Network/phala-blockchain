@@ -40,7 +40,6 @@ mod storage_ext {
     use crate::light_validation::utils::storage_prefix;
     use crate::std::vec::Vec;
     use enclave_api::blocks::ParaId;
-    use frame_system::EventRecord;
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::Message;

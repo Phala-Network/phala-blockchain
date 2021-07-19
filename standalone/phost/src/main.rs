@@ -555,27 +555,25 @@ async fn sync_parachain_header(
     )
     .await?;
 
+    if next_headernum > para_fin_block_number {
+        return Ok(next_headernum - 1);
+    }
     let mut para_headers = Vec::new();
-
-    if next_headernum <= para_fin_block_number {
-        for b in next_headernum..=para_fin_block_number {
-            let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
-            let hash = paraclient
-                .block_hash(Some(num))
-                .await?
-                .ok_or(Error::BlockHashNotFound)?;
-            let header = paraclient
-                .header(Some(hash))
-                .await?
-                .ok_or(Error::BlockNotFound)?;
-            para_headers.push(header);
-        }
+    for b in next_headernum..=para_fin_block_number {
+        let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
+        let hash = paraclient
+            .block_hash(Some(num))
+            .await?
+            .ok_or(Error::BlockHashNotFound)?;
+        let header = paraclient
+            .header(Some(hash))
+            .await?
+            .ok_or(Error::BlockNotFound)?;
+        para_headers.push(header);
     }
-    if !para_headers.is_empty() {
-        let r = req_sync_para_header(pr, para_headers, header_proof).await?;
-        info!("..req_sync_para_header: {:?}", r);
-    }
-    Ok(para_fin_block_number)
+    let r = req_sync_para_header(pr, para_headers, header_proof).await?;
+    info!("..req_sync_para_header: {:?}", r);
+    Ok(r.synced_to)
 }
 
 /// Updates the nonce from the blockchain (system.account)
