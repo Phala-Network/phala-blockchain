@@ -149,7 +149,7 @@ pub fn set_block_1() {
 	System::set_block_number(1);
 }
 
-pub fn events() -> Vec<Event> {
+pub fn take_events() -> Vec<Event> {
 	let evt = System::events()
 		.into_iter()
 		.map(|evt| evt.event)
@@ -159,9 +159,10 @@ pub fn events() -> Vec<Event> {
 	evt
 }
 
-pub fn messages() -> Vec<Message> {
+pub fn take_messages() -> Vec<Message> {
 	let messages = PhalaMq::messages();
 	println!("messages(): {:?}", messages);
+	mq::OutboundMessages::<Test>::kill();
 	messages
 }
 
