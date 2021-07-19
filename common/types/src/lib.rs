@@ -292,7 +292,7 @@ pub mod messaging {
         Registered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
         NewRandomNumber(RandomNumberEvent),
-        UpdateTokenomic(TokenomicParameters),
+        TokenomicParametersChanged(TokenomicParameters),
     }
 
     // Walkaround for heavy dep on phala-crypto

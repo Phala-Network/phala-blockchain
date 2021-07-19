@@ -511,7 +511,7 @@ pub mod pallet {
 		#[allow(unused)]
 		fn update_tokenomic_parameters(params: TokenomicParams) {
 			TokenomicParameters::<T>::put(params.clone());
-			Self::push_message(GatekeeperEvent::UpdateTokenomic(params));
+			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
 		}
 	}
 
@@ -557,7 +557,7 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			TokenomicParameters::<T>::put(self.tokenomic_parameters.clone());
-			Pallet::<T>::queue_message(GatekeeperEvent::UpdateTokenomic(
+			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
 			));
 		}

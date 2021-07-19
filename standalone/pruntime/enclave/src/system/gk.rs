@@ -563,7 +563,7 @@ where
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }
-            GatekeeperEvent::UpdateTokenomic(params) => {
+            GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
                     self.state.tokenomic_params = params.into();
                 }
