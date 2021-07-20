@@ -71,9 +71,9 @@ pub struct GetInfoResp {
     pub para_headernum: BlockNumber,
     pub blocknum: BlockNumber,
     pub initialized: bool,
-    pub genesis_block_hash: String,
-    pub public_key: String,
-    pub ecdh_public_key: String,
+    pub genesis_block_hash: Option<String>,
+    pub public_key: Option<String>,
+    pub ecdh_public_key: Option<String>,
     pub machine_id: Vec<u8>,
 }
 

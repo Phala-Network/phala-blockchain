@@ -1356,18 +1356,18 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let local_state = LOCAL_STATE.lock().unwrap();
 
     let initialized = local_state.initialized;
-    let genesis_block_hash = match &local_state.genesis_block_hash {
-        Some(genesis_block_hash) => hex::encode(genesis_block_hash.as_ref()),
-        None => "".to_string(),
-    };
-    let pubkey = match &local_state.identity_key {
-        Some(pair) => hex::encode(pair.public().as_ref()),
-        None => "".to_string(),
-    };
-    let s_ecdh_pk = match &local_state.ecdh_key {
-        Some(ecdh_key) => hex::encode(ecdh_key.public().as_ref()),
-        None => "".to_string(),
-    };
+    let genesis_block_hash = local_state
+        .genesis_block_hash
+        .as_ref()
+        .map(|hash| hex::encode(hash));
+    let pubkey = local_state
+        .identity_key
+        .as_ref()
+        .map(|pair| hex::encode(pair.public().as_ref()));
+    let s_ecdh_pk = local_state
+        .ecdh_key
+        .as_ref()
+        .map(|pair| hex::encode(pair.public().as_ref()));
     let machine_id = local_state.machine_id;
     let dev_mode = local_state.dev_mode;
     drop(local_state);
