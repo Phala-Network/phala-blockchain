@@ -99,7 +99,7 @@ pub mod pallet {
 		/// [pid, commission]
 		PoolCommissionSetted(u64, u16),
 		/// [pid, cap]
-		PoolCapacitySetted(u64, BalanceOf<T>),
+		PoolCapacitySet(u64, BalanceOf<T>),
 		/// [pid, worker]
 		PoolWorkerAdded(u64, WorkerPublicKey),
 		/// [pid, user, amount]
@@ -294,7 +294,7 @@ pub mod pallet {
 			pool_info.cap = Some(cap);
 			MiningPools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCapacitySetted(pid, cap));
+			Self::deposit_event(Event::<T>::PoolCapacitySet(pid, cap));
 			Ok(())
 		}
 
@@ -926,6 +926,56 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
 					Error::<Test>::MinerBindingCallFailed
+				);
+			});
+		}
+
+		#[test]
+		fn test_pool_cap() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				let worker1 = worker_pubkey(1);
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker1.clone(),
+					ecdh_pubkey(1),
+					Some(1)
+				));
+
+				assert_ok!(PhalaStakePool::create(Origin::signed(1))); // pid = 0
+				assert_eq!(PhalaStakePool::mining_pools(0).unwrap().cap, None);
+				// Pool existence
+				assert_noop!(
+					PhalaStakePool::set_cap(Origin::signed(2), 100, 1),
+					Error::<Test>::PoolNotExist,
+				);
+				// Owner only
+				assert_noop!(
+					PhalaStakePool::set_cap(Origin::signed(2), 0, 1),
+					Error::<Test>::UnauthorizedPoolOwner,
+				);
+				// Cap to 1000 PHA
+				assert_ok!(PhalaStakePool::set_cap(
+					Origin::signed(1),
+					0,
+					1000 * DOLLARS
+				));
+				assert_eq!(
+					PhalaStakePool::mining_pools(0).unwrap().cap,
+					Some(1000 * DOLLARS)
+				);
+				// Check cap shouldn't be less than the current stake
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				assert_noop!(
+					PhalaStakePool::set_cap(Origin::signed(1), 0, 99 * DOLLARS),
+					Error::<Test>::InvalidCapacity,
+				);
+				// Stake to the cap
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 900 * DOLLARS));
+				// Exceed the cap
+				assert_noop!(
+					PhalaStakePool::deposit(Origin::signed(1), 0, 900 * DOLLARS),
+					Error::<Test>::StakeExceedCapacity,
 				);
 			});
 		}
