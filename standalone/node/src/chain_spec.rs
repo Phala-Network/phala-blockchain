@@ -258,7 +258,11 @@ pub fn testnet_genesis(
 			gatekeepers: vec![dev_ecdsa_pubkey],
 			benchmark_duration: 1,
 		},
-		false => Default::default()
+		false => PhalaRegistryConfig {
+			workers: Vec::new(),
+			gatekeepers: Vec::new(),
+			benchmark_duration: 10,
+		},
 	};
 
 	GenesisConfig {

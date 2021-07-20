@@ -97,6 +97,13 @@ pub mod pallet {
 	where
 		T: crate::mq::Config,
 	{
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn force_set_benchmark_duration(origin: OriginFor<T>, value: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			BenchmarkDuration::<T>::put(value);
+			Ok(())
+		}
+
 		/// Force register a worker with the given pubkey with sudo permission
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn force_register_worker(
