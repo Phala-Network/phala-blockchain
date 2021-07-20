@@ -2,10 +2,10 @@ use crate::{ecdh::EcdhKey, CryptoError};
 
 use alloc::{vec, vec::Vec};
 use ring::hkdf;
-use sp_core::{ecdsa, Pair};
+use sp_core::{sr25519, Pair};
 
-pub const SIGNATURE_BYTES: usize = 65;
-pub type Signature = ecdsa::Signature;
+pub const SIGNATURE_BYTES: usize = 64;
+pub type Signature = sr25519::Signature;
 
 pub const SEED_BYTES: usize = 32;
 pub type Seed = [u8; SEED_BYTES];
@@ -16,13 +16,13 @@ pub trait Signing {
     fn verify_data(&self, sig: &Signature, data: &[u8]) -> bool;
 }
 
-impl Signing for ecdsa::Pair {
+impl Signing for sr25519::Pair {
     fn sign_data(&self, data: &[u8]) -> Signature {
-        sp_core::Pair::sign(self, data)
+        sr25519::Pair::sign(self, data)
     }
 
     fn verify_data(&self, sig: &Signature, data: &[u8]) -> bool {
-        ecdsa::Pair::verify(sig, data, &self.public())
+        sr25519::Pair::verify(sig, data, &self.public())
     }
 }
 
@@ -33,7 +33,7 @@ const KDF_SALT: [u8; 32] = [
 ];
 
 pub trait KDF {
-    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, CryptoError>;
+    fn derive_sr25519_pair(&self, info: &[&[u8]]) -> Result<sr25519::Pair, CryptoError>;
 
     fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError>;
 }
@@ -59,11 +59,11 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
     }
 }
 
-impl KDF for ecdsa::Pair {
+impl KDF for sr25519::Pair {
     // TODO.shelven: allow to specify the salt from pruntime (instead of hard code)
-    fn derive_secp256k1_pair(&self, info: &[&[u8]]) -> Result<ecdsa::Pair, CryptoError> {
+    fn derive_sr25519_pair(&self, info: &[&[u8]]) -> Result<sr25519::Pair, CryptoError> {
         let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &KDF_SALT);
-        let prk = salt.extract(&self.seed());
+        let prk = salt.extract(&self.as_ref().secret.to_bytes()[..32]);
         let okm = prk
             .expand(info, My(SEED_BYTES))
             .map_err(|_| CryptoError::EcdsaHkdfExpandError)?;
@@ -72,11 +72,11 @@ impl KDF for ecdsa::Pair {
         okm.fill(seed.as_mut())
             .map_err(|_| CryptoError::EcdsaHkdfExpandError)?;
 
-        ecdsa::Pair::from_seed_slice(&seed).map_err(|err| CryptoError::EcdsaInvalidSeedLength(err))
+        Ok(sr25519::Pair::from_seed(&seed))
     }
 
     fn derive_ecdh_key(&self) -> Result<EcdhKey, CryptoError> {
-        EcdhKey::create(&self.seed())
+        EcdhKey::from_secret(&self.as_ref().secret.to_bytes())
     }
 }
 
@@ -84,14 +84,14 @@ impl KDF for ecdsa::Pair {
 mod test {
     use super::*;
 
-    fn generate_key() -> ecdsa::Pair {
+    fn generate_key() -> sr25519::Pair {
         use rand::RngCore;
         let mut rng = rand::thread_rng();
         let mut seed: Seed = [0_u8; SEED_BYTES];
 
         rng.fill_bytes(&mut seed);
 
-        ecdsa::Pair::from_seed(&seed)
+        sr25519::Pair::from_seed(&seed)
     }
 
     #[test]
@@ -108,7 +108,7 @@ mod test {
         let secp256k1_key = generate_key();
         // this should not panic
         secp256k1_key
-            .derive_secp256k1_pair(&[&[255], &[255, 255], &[255, 255, 255]])
+            .derive_sr25519_pair(&[&[255], &[255, 255], &[255, 255, 255]])
             .unwrap();
 
         let ecdh_key = secp256k1_key.derive_ecdh_key().unwrap();
