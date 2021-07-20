@@ -59,7 +59,6 @@ const types = {
 	"PoolInfo": {
 		"pid": "u64",
 		"owner": "AccountId",
-		"state": "PoolState",
 		"payoutCommission": "u16",
 		"ownerReward": "Balance",
 		"cap": "Option<Balance>",
