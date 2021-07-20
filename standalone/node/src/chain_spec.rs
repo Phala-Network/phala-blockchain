@@ -261,7 +261,7 @@ pub fn testnet_genesis(
 		false => PhalaRegistryConfig {
 			workers: Vec::new(),
 			gatekeepers: Vec::new(),
-			benchmark_duration: 10,
+			benchmark_duration: 50,
 		},
 	};
 
