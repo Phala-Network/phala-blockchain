@@ -137,23 +137,6 @@ const types = {
 	"WorkerStat": {
 		"totalReward": "Balance"
 	},
-	"_deprecated_WorkerInfo": {
-		"machineId": "Vec<u8>",
-		"pubkey": "Vec<u8>",
-		"lastUpdated": "u64",
-		"state": "WorkerStateEnum",
-		"score": "Option<Score>",
-		"confidenceLevel": "u8",
-		"runtimeVersion": "u32"
-	},
-	"Score": {
-		"overallScore": "u32",
-		"features": "Vec<u32>"
-	},
-	"StashInfo": {
-		"controller": "AccountId",
-		"payoutPrefs": "PayoutPrefs"
-	},
 	"PayoutPrefs": {
 		"commission": "u32",
 		"target": "AccountId"
@@ -161,33 +144,6 @@ const types = {
 	"HeartbeatChallenge": {
 		"seed": "U256",
 		"onlineTarget": "U256",
-	},
-	"RoundInfo": {
-		"round": "u32",
-		"startBlock": "BlockNumber"
-	},
-	"RoundStats": {
-		"round": "u32",
-		"onlineWorkers": "u32",
-		"computeWorkers": "u32",
-		"fracTargetOnlineReward": "u32",
-		"totalPower": "u32",
-		"fracTargetComputeReward": "u32"
-	},
-	"StashWorkerStats": {
-		"slash": "Balance",
-		"computeReceived": "Balance",
-		"onlineReceived": "Balance"
-	},
-	"MinerStatsDelta": {
-		"numWorker": "i32",
-		"numPower": "i32"
-	},
-	"PayoutReason": {
-		"_enum": {
-			"OnlineReward": null,
-			"ComputeReward": null
-		}
 	},
 	"GatekeeperEvent": {
 		"_enum": {
