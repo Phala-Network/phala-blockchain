@@ -47,7 +47,7 @@ use ring::rand::SecureRandom;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
-use sp_core::{crypto::Pair, ecdsa};
+use sp_core::{crypto::Pair, ecdsa, H256};
 
 use http_req::request::{Method, Request};
 use std::time::Duration;
@@ -164,6 +164,7 @@ struct RuntimeState {
 
 struct LocalState {
     initialized: bool,
+    genesis_block_hash: Option<H256>,
     identity_key: Option<ecdsa::Pair>,
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
@@ -239,6 +240,7 @@ lazy_static! {
     static ref LOCAL_STATE: SgxMutex<LocalState> = {
         SgxMutex::new(LocalState {
             initialized: false,
+            genesis_block_hash: None,
             identity_key: None,
             ecdh_key: None,
             machine_id: [0; 16],
@@ -734,16 +736,22 @@ const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct PersistentRuntimeData {
     version: u32,
+    genesis_block_hash: String,
     sk: String,
     dev_mode: bool,
 }
 
-fn save_secret_keys(ecdsa_sk: ecdsa::Pair, dev_mode: bool) -> Result<PersistentRuntimeData> {
+fn save_secret_keys(
+    genesis_block_hash: H256,
+    ecdsa_sk: ecdsa::Pair,
+    dev_mode: bool,
+) -> Result<PersistentRuntimeData> {
     // Put in PresistentRuntimeData
     let serialized_sk = ecdsa_sk.to_raw_vec();
 
     let data = PersistentRuntimeData {
         version: 1,
+        genesis_block_hash: hex::encode(genesis_block_hash.as_ref()),
         sk: hex::encode(&serialized_sk),
         dev_mode,
     };
@@ -832,10 +840,11 @@ pub fn generate_random_iv() -> aead::IV {
 
 fn init_secret_keys(
     local_state: &mut LocalState,
+    genesis_block_hash: H256,
     predefined_identity_key: Option<ecdsa::Pair>,
 ) -> Result<PersistentRuntimeData> {
     let data = if let Some(ecdsa_sk) = predefined_identity_key {
-        save_secret_keys(ecdsa_sk, true)?
+        save_secret_keys(genesis_block_hash, ecdsa_sk, true)?
     } else {
         match load_secret_keys() {
             Ok(data) => data,
@@ -848,15 +857,29 @@ fn init_secret_keys(
             {
                 warn!("Persistent data not found.");
                 let ecdsa_sk = new_ecdsa_key()?;
-                save_secret_keys(ecdsa_sk, false)?
+                save_secret_keys(genesis_block_hash, ecdsa_sk, false)?
             }
             other_err => return other_err,
         }
     };
 
+    // check genesis block hash
+    let saved_genesis_block_hash: [u8; 32] = hex::decode(&data.genesis_block_hash)
+        .expect("Unable to decode genesis block hash hex")
+        .as_slice()
+        .try_into()
+        .expect("slice with incorrect length");
+    let saved_genesis_block_hash = H256::from(saved_genesis_block_hash);
+    if genesis_block_hash != saved_genesis_block_hash {
+        panic!(
+            "Genesis block hash mismatches with saved keys, expected {}",
+            saved_genesis_block_hash
+        );
+    }
+
     // load identity
     let ecdsa_raw_key: [u8; 32] = hex::decode(&data.sk)
-        .expect("Unalbe to decode identity key hex")
+        .expect("Unable to decode identity key hex")
         .as_slice()
         .try_into()
         .expect("slice with incorrect length");
@@ -877,6 +900,7 @@ fn init_secret_keys(
     info!("Machine id: {:?}", hex::encode(&machine_id));
 
     // Save
+    local_state.genesis_block_hash = Some(genesis_block_hash);
     local_state.identity_key = Some(ecdsa_sk);
     local_state.ecdh_key = Some(ecdh_key);
     local_state.machine_id = machine_id.clone();
@@ -892,11 +916,7 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
 
     benchmark::reset_iteration_counter();
 
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    match init_secret_keys(&mut local_state, None) {
-        Err(e) if e.is::<sgx_status_t>() => e.downcast::<sgx_status_t>().unwrap(),
-        _ => sgx_status_t::SGX_SUCCESS,
-    }
+    sgx_status_t::SGX_SUCCESS
 }
 
 #[cfg(feature = "tests")]
@@ -945,6 +965,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(json!({"message": "Already initialized"}));
     }
 
+    // load chain genesis
+    let raw_genesis =
+        base64::decode(&input.bridge_genesis_info_b64).expect("Bad bridge_genesis_info_b64");
+    let genesis =
+        light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
+            .expect("Can't decode bridge_genesis_info_b64");
+    let genesis_block_hash = genesis.block_header.hash();
+    let genesis_block_hash_hex = hex::encode(genesis_block_hash.as_ref());
+
     // load identity
     if let Some(key) = input.debug_set_key {
         if input.skip_ra == false {
@@ -953,8 +982,15 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
         let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key)
             .map_err(|_| error_msg("can't parse private key"))?;
-        init_secret_keys(&mut local_state, Some(ecdsa_key))
-            .map_err(|_| error_msg("failed to update secret key"))?;
+        init_secret_keys(
+            &mut local_state,
+            genesis_block_hash.clone(),
+            Some(ecdsa_key),
+        )
+        .map_err(|_| error_msg("failed to update secret key"))?;
+    } else {
+        init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
+            .map_err(|_| error_msg("failed to init secret key"))?;
     }
 
     if !input.skip_ra && local_state.dev_mode {
@@ -1010,6 +1046,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk,
         ecdh_pubkey: phala_types::EcdhPublicKey(ecdh_pubkey),
+        genesis_block_hash: genesis_block_hash,
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -1045,12 +1082,6 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     }
 
     // Initialize bridge
-    let raw_genesis =
-        base64::decode(&input.bridge_genesis_info_b64).expect("Bad bridge_genesis_info_b64");
-    let genesis =
-        light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
-            .expect("Can't decode bridge_genesis_info_b64");
-
     let next_headernum = genesis.block_header.number + 1;
     let mut state = STATE.lock().unwrap();
     let mut light_client = LightValidation::new();
@@ -1156,6 +1187,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     // Response
     let resp = InitRuntimeResp {
         encoded_runtime_info,
+        genesis_block_hash: genesis_block_hash_hex,
         public_key: ecdsa_hex_pk,
         ecdh_public_key: ecdh_hex_pk,
         attestation,
@@ -1199,11 +1231,8 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
         .para_id()
         .ok_or(error_msg("No para_id"))?;
 
-    let storage_key = light_validation::utils::storage_map_prefix_twox_64_concat(
-        b"Paras",
-        b"Heads",
-        &para_id,
-    );
+    let storage_key =
+        light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
 
     let last_header = state
         .storage_synchronizer
@@ -1327,10 +1356,14 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let local_state = LOCAL_STATE.lock().unwrap();
 
     let initialized = local_state.initialized;
-    let pubkey = local_state
-        .identity_key
-        .as_ref()
-        .map(|pair| hex::encode(&pair.public()));
+    let genesis_block_hash = match &local_state.genesis_block_hash {
+        Some(genesis_block_hash) => hex::encode(genesis_block_hash.as_ref()),
+        None => "".to_string(),
+    };
+    let pubkey = match &local_state.identity_key {
+        Some(pair) => hex::encode(pair.public().as_ref()),
+        None => "".to_string(),
+    };
     let s_ecdh_pk = match &local_state.ecdh_key {
         Some(ecdh_key) => hex::encode(ecdh_key.public().as_ref()),
         None => "".to_string(),
@@ -1363,6 +1396,7 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
         "initialized": initialized,
         "registered": registered,
         "gatekeeper_role": role,
+        "genesis_block_hash": genesis_block_hash,
         "public_key": pubkey,
         "ecdh_public_key": s_ecdh_pk,
         "headernum": counters.next_header_number,
