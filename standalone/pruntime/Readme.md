@@ -115,6 +115,6 @@ directly. It's useful for testing.
 ```
 
 However, in order to send commands and queries to pRuntime, it's better to use a complete setup
-(blockchain, pHost (bridge), pRuntime, and frontend), because these messages are encrypted and
+(blockchain, pherry (bridge), pRuntime, and frontend), because these messages are encrypted and
 signed with blockchain identity and therefore not easy to be emulated by a standalone script. It's
 recommended to use our Docker build for the complete setup.

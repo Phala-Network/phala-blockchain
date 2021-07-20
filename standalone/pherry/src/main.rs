@@ -37,7 +37,7 @@ type PrClient = pruntime_client::PRuntimeClient;
 type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
 
 #[derive(Debug, StructOpt)]
-#[structopt(name = "phost")]
+#[structopt(name = "pherry")]
 struct Args {
     #[structopt(
         long,

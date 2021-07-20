@@ -15,8 +15,8 @@ cd /root/prebuilt && ./app -c 1 > /root/pruntime.out 2>&1 &
 
 sleep 6
 
-echo "----------- starting phost -------------"
-cd /root/prebuilt && ./phost --dev --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/phost.out 2>&1 &
+echo "----------- starting pherry -------------"
+cd /root/prebuilt && ./pherry --dev --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/pherry.out 2>&1 &
 
-# tail -f /root/alice.out /root/bob.out /root/pruntime.out /root/phost.out
-tail -f /root/node.out /root/pruntime.out /root/phost.out
+# tail -f /root/alice.out /root/bob.out /root/pruntime.out /root/pherry.out
+tail -f /root/node.out /root/pruntime.out /root/pherry.out

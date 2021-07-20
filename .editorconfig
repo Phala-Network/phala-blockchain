@@ -19,7 +19,7 @@ end_of_line=lf
 indent_style=space
 indent_size=4
 
-[standalone/phost/**.rs]
+[standalone/pherry/**.rs]
 indent_style=space
 indent_size=4
 

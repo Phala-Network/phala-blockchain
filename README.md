@@ -7,7 +7,7 @@
 Phala Network is a blockchain-based confidential computing cloud. This repo includes:
 
 - `node/`: the main blockchain built on Substrate
-- `standalone/phost/`: the bridge relayer to connect the blockchain and pRuntime
+- `standalone/pherry/`: the message relayer to connect the blockchain and pRuntime
 - `standalone/pruntime/`: the contract execution kernel running inside TEE enclave
 
 ## Overview
@@ -16,7 +16,7 @@ Phala Network is a blockchain-based confidential computing cloud. This repo incl
 
 The **blockchain** is the central compoent of the system. It records commands (confidential contract invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
 
-**pHost** (runtime-bridge) is the bridge relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge).
+**pherry** (runtime-bridge) is the message relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge).
 
 **pRuntime** (Phala Network Secure Enclave Runtime) is a runtime to execute confidential smart contracts, based on confidential computing.
 
@@ -24,7 +24,7 @@ Related repos:
 
 - [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentations.
 - [apps-ng](https://github.com/Phala-Network/apps-ng): The fontend, with the UI of the Phase Wallet and the Phala confidential contract api sdk. (Will be upgraded to [apps-nng](https://github.com/Phala-Network/apps-nng) soon.)
-- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, phost, and pRuntime. 
+- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime. 
 
 ### File structure
 
@@ -40,8 +40,8 @@ Related repos:
 │   └── init.sh
 └───standalone
     ├── node                  Blockchain node
-    ├── phost                 pHost, the bridge relayer
     ├── pruntime              pRuntime, the Secure Encalve kernel
+    ├── pherry                The message relayer to connect the blockchain and pRuntime
     └── runtime               Phala Substrate Runtime
 ```
 
@@ -133,10 +133,10 @@ the _current_ rustc.
     ./app
     ```
 
-3. Run pHost (node and pRuntime required):
+3. Run pherry (node and pRuntime required):
 
     ```bash
-    ./target/release/phost
+    ./target/release/pherry
     ```
 
 4. Use the WebUI

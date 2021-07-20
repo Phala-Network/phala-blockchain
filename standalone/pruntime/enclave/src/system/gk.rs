@@ -145,7 +145,7 @@ where
             self.seal_master_key(MASTER_KEY_FILEPATH);
 
             if need_restart {
-                panic!("Received master key, please restart pRuntime and pHost");
+                panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation

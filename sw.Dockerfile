@@ -23,7 +23,7 @@ RUN mkdir prebuilt
 
 RUN cd phala-blockchain && \
     PATH="$PATH:$HOME/.cargo/bin" cargo build --release && \
-    cp ./target/release/phost /root/prebuilt && \
+    cp ./target/release/pherry /root/prebuilt && \
     cp ./target/release/phala-node /root/prebuilt && \
     PATH="$PATH:$HOME/.cargo/bin" cargo clean && \
     rm -rf /root/.cargo/registry && \

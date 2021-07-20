@@ -14,6 +14,6 @@ windows:
     options: {}
     panes:
       - focus: 'true'
-        shell_command: echo RUN ./target/release/phost
+        shell_command: echo RUN ./target/release/pherry
       - cd ./pruntime/bin
     window_name: offchain

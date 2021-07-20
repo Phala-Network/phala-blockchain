@@ -15,7 +15,7 @@ members = [
 	"standalone/rpc",
     "standalone/node",
 	"standalone/runtime",
-	"standalone/phost",
+	"standalone/pherry",
 	"crates/trie-storage",
 	"crates/phala-mq",
 	"crates/crypto",
