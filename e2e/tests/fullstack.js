@@ -15,7 +15,7 @@ const { PRuntimeApi } = require('../pruntime');
 const { checkUntil, skipSlowTest } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
-const pathRelayer = path.resolve('../target/release/phost');
+const pathRelayer = path.resolve('../target/release/pherry');
 const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test

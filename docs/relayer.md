@@ -4,10 +4,10 @@ The relayer is responsible to sync data between the blockchain and pRuntime.
 
 Now we have two relayer implementations:
 
-- [phost](../standalone/phost): the legacy relayer written in Rust, based on subxt
+- [pherry](../standalone/pherry): the legacy relayer written in Rust, based on subxt
 - [runtime-bridge](https://github.com/Phala-Network/runtime-bridge) (prb): the next generation relayer written in Javascript, based on polkadot.js
 
-The code pointers in this doc are based on `phost`.
+The code pointers in this doc are based on `pherry`.
 
 ## Blockchain -> Enclave Sync
 
@@ -36,8 +36,8 @@ From the genesis block, the validator set is a constant defined in the genesis b
 
 The relayer is responsible to get the initial validator set and the following authority changes, and keep `pRuntime` in sync.
 
-> - [Code: get the initial validator set](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L480)
-> - [Code: get authority change]((https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L389-L394))
+> - [Code: get the initial validator set](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L480)
+> - [Code: get authority change]((https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L389-L394))
 
 Because the validator set rotation in every era, the relayer can only sync the block headers up to the last block in the current era to `pRuntime`. The sequence of syncing must follow:
 
@@ -54,18 +54,18 @@ Because the validator set rotation in every era, the relayer can only sync the b
 
 Init `pRuntime`
 
-- [init_runtime()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L475)
-    - [get_authority_with_proof_at()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L480)
-    - [call pruntime "init_runtime"](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L501-L505)
+- [init_runtime()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L475)
+    - [get_authority_with_proof_at()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L480)
+    - [call pruntime "init_runtime"](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L501-L505)
 
 Sync block headers
 
 - bridge()
-    - [download new block headers](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L695-L707)
-    - [batch_sync_block()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L318-L402) (partial)
-        - [get_authority_with_proof_at()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L392)
-        - [req_sync_header](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L401)
-            - [call pruntime "sync_header"](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/phost/src/main.rs#L224)
+    - [download new block headers](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L695-L707)
+    - [batch_sync_block()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L318-L402) (partial)
+        - [get_authority_with_proof_at()](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L392)
+        - [req_sync_header](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L401)
+            - [call pruntime "sync_header"](https://github.com/Phala-Network/phala-blockchain/blob/6da6386026fc240d8be3c43d3b0375d3bd2f7071/standalone/pherry/src/main.rs#L224)
 
 Handle block headers and authority changes (in `pRuntime`)
 
