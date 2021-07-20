@@ -590,7 +590,7 @@ pub mod pallet {
 	#[cfg(test)]
 	mod test {
 		use super::*;
-		use crate::mock::{take_messages, new_test_ext, set_block_1, Test};
+		use crate::mock::{new_test_ext, set_block_1, take_messages, Test};
 
 		#[test]
 		fn test_pow_target() {

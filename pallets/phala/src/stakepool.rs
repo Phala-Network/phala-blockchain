@@ -28,8 +28,15 @@ pub mod pallet {
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
 	pub trait Ledger<AccountId, Balance> {
+		/// Increases the locked amount for a user
+		///
+		/// Unsafe: it assumes there's enough free `amount`
 		fn ledger_accrue(who: &AccountId, amount: Balance);
+		/// Decreases the locked amount for a user
+		///
+		/// Unsafe: it assumes there's enough locked `amount`
 		fn ledger_reduce(who: &AccountId, amount: Balance);
+		/// Gets the locked amount of `who`
 		fn ledger_query(who: &AccountId) -> Balance;
 	}
 
@@ -124,7 +131,7 @@ pub mod pallet {
 		StakeExceedCapacity,
 		PoolNotExist,
 		PoolIsBusy,
-		LessthanMinDeposit,
+		LessThanMinDeposit,
 		InsufficientBalance,
 		StakeInfoNotFound,
 		InsufficientStake,
@@ -347,6 +354,7 @@ pub mod pallet {
 			);
 
 			// send reward to user
+			// TODO: transfer token from the pallet to the user, instead of creating imbalance.
 			<T as Config>::Currency::deposit_into_existing(&who.clone(), rewards.clone())?;
 
 			user_info.user_debt = user_info.amount * pool_info.pool_acc / 10u32.pow(6).into();
@@ -369,7 +377,7 @@ pub mod pallet {
 
 			ensure!(
 				amount.clone() >= T::MinDeposit::get(),
-				Error::<T>::LessthanMinDeposit
+				Error::<T>::LessThanMinDeposit
 			);
 			ensure!(
 				<T as Config>::Currency::free_balance(&who) >= amount.clone(),
@@ -836,8 +844,21 @@ pub mod pallet {
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, new_test_ext, set_block_1, take_events, worker_pubkey, Event as TestEvent,
-			Origin, PhalaRegistry, PhalaStakePool, Test, DOLLARS,
+			ecdh_pubkey,
+			new_test_ext,
+			set_block_1,
+			take_events,
+			worker_pubkey,
+			Balance,
+			Balances,
+			Event as TestEvent,
+			Origin,
+			// Pallets
+			PhalaRegistry,
+			PhalaStakePool,
+			Test,
+			// Constants
+			DOLLARS,
 		};
 
 		#[test]
@@ -856,10 +877,14 @@ pub mod pallet {
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
 				PhalaStakePool::on_finalize(1);
 				assert_matches!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),]
+					[
+						TestEvent::PhalaStakePool(Event::PoolCreated(1, 0)),
+						TestEvent::PhalaStakePool(Event::PoolCreated(1, 1)),
+					]
 				);
 				assert_eq!(
 					MiningPools::<Test>::get(0),
@@ -876,7 +901,7 @@ pub mod pallet {
 						withdraw_queue: VecDeque::new(),
 					})
 				);
-				assert_eq!(PoolCount::<Test>::get(), 1);
+				assert_eq!(PoolCount::<Test>::get(), 2);
 			});
 		}
 
@@ -976,6 +1001,63 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::deposit(Origin::signed(1), 0, 900 * DOLLARS),
 					Error::<Test>::StakeExceedCapacity,
+				);
+			});
+		}
+
+		#[test]
+		fn test_stake() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				let worker1 = worker_pubkey(1);
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker1.clone(),
+					ecdh_pubkey(1),
+					Some(1)
+				));
+
+				assert_ok!(PhalaStakePool::create(Origin::signed(1))); // pid = 0
+				assert_ok!(PhalaStakePool::create(Origin::signed(2))); // pid = 1
+
+				// Stake normally
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 1 * DOLLARS));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(2), 0, 10 * DOLLARS));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 1, 100 * DOLLARS));
+				assert_ok!(PhalaStakePool::deposit(
+					Origin::signed(2),
+					1,
+					1000 * DOLLARS
+				));
+				// Check total stake
+				assert_eq!(
+					PhalaStakePool::mining_pools(0).unwrap().total_stake,
+					11 * DOLLARS
+				);
+				assert_eq!(
+					PhalaStakePool::mining_pools(1).unwrap().total_stake,
+					1100 * DOLLARS
+				);
+				// Check total locks
+				assert_eq!(PhalaStakePool::stake_ledger(1), Some(101 * DOLLARS));
+				assert_eq!(PhalaStakePool::stake_ledger(2), Some(1010 * DOLLARS));
+				assert_eq!(Balances::locks(1), vec![the_lock(101 * DOLLARS)]);
+				assert_eq!(Balances::locks(2), vec![the_lock(1010 * DOLLARS)]);
+
+				// Pool existence
+				assert_noop!(
+					PhalaStakePool::deposit(Origin::signed(1), 100, 1 * DOLLARS),
+					Error::<Test>::PoolNotExist
+				);
+				// Dust deposit
+				assert_noop!(
+					PhalaStakePool::deposit(Origin::signed(1), 0, 1),
+					Error::<Test>::LessThanMinDeposit
+				);
+				// Stake more than account1 has
+				assert_noop!(
+					PhalaStakePool::deposit(Origin::signed(1), 0, Balances::free_balance(1) + 1,),
+					Error::<Test>::InsufficientBalance,
 				);
 			});
 		}
@@ -1088,6 +1170,14 @@ pub mod pallet {
 				//   - wait 3d, force stop
 				//   - wait 7d, withdraw succeeded
 			});
+		}
+
+		fn the_lock(amount: Balance) -> pallet_balances::BalanceLock<Balance> {
+			pallet_balances::BalanceLock {
+				id: STAKING_ID,
+				amount,
+				reasons: pallet_balances::Reasons::All,
+			}
 		}
 	}
 }
