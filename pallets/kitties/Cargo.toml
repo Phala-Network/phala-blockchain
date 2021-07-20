@@ -15,14 +15,14 @@ targets = ['x86_64-unknown-linux-gnu']
 codec = { package = "parity-scale-codec", version = "2.1.0", default-features = false, features = ["derive", "max-encoded-len"] }
 
 serde = { version = "1.0.101", default-features = false, optional = true }
-frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
-frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
-sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
-sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
-sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
-pallet-randomness-collective-flip = { version = "3.0.0", default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
+frame-support = { default-features = false, path = "../../substrate/frame/support" }
+frame-system = { default-features = false, path = "../../substrate/frame/system" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
+sp-std = { default-features = false, path = "../../substrate/primitives/std" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+pallet-randomness-collective-flip = { default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
 
-pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
+pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 phala-pallets = { path = "../phala", default-features = false }
 phala-types = { path = "../../common/types", default-features = false }
 

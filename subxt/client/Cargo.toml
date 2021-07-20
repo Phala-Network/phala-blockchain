@@ -20,13 +20,13 @@ log = "0.4.13"
 serde_json = "1.0.61"
 thiserror = "1.0.23"
 
-sc-client-db = { version = "0.9.0", path = "../../substrate/client/db" }
-sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
-sc-network = { version = "0.9.0", default-features = false, path = "../../substrate/client/network" }
-sc-service = { version = "0.9.0", default-features = false, path = "../../substrate/client/service" }
+sc-client-db = { path = "../../substrate/client/db" }
+sp-keyring = { path = "../../substrate/primitives/keyring" }
+sc-network = { default-features = false, path = "../../substrate/client/network" }
+sc-service = { default-features = false, path = "../../substrate/client/service" }
 
 [target.'cfg(target_arch="x86_64")'.dependencies]
-sc-service = { version = "0.9.0", default-features = false, features = ["wasmtime"], path = "../../substrate/client/service" }
+sc-service = { default-features = false, features = ["wasmtime"], path = "../../substrate/client/service" }
 
 [dev-dependencies]
 async-std = { version = "1.8.0", features = ["attributes"] }

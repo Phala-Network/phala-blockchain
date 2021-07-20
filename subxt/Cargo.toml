@@ -43,17 +43,17 @@ url = "2.2.1"
 substrate-subxt-client = { version = "0.7.0", path = "client", optional = true }
 substrate-subxt-proc-macro = { version = "0.15.0", path = "proc-macro" }
 
-sp-application-crypto = { version = "3.0.0", path = "../substrate/primitives/application-crypto" }
-sp-core = { version = "3.0.0", path = "../substrate/primitives/core" }
-sp-rpc = { version = "3.0.0", path = "../substrate/primitives/rpc" }
-sp-runtime = { version = "3.0.0", path = "../substrate/primitives/runtime" }
-sp-std = { version = "3.0.0", path = "../substrate/primitives/std" }
-sp-version = { version = "3.0.0", path = "../substrate/primitives/version" }
+sp-application-crypto = { path = "../substrate/primitives/application-crypto" }
+sp-core = { path = "../substrate/primitives/core" }
+sp-rpc = { path = "../substrate/primitives/rpc" }
+sp-runtime = { path = "../substrate/primitives/runtime" }
+sp-std = { path = "../substrate/primitives/std" }
+sp-version = { path = "../substrate/primitives/version" }
 
-frame-metadata = { version = "13.0.0", path = "../substrate/frame/metadata" }
-frame-support = { version = "3.0.0", path = "../substrate/frame/support" }
-pallet-indices = { version = "3.0.0", path = "../substrate/frame/indices" }
-pallet-staking = { version = "3.0.0", path = "../substrate/frame/staking" }
+frame-metadata = { path = "../substrate/frame/metadata" }
+frame-support = { path = "../substrate/frame/support" }
+pallet-indices = { path = "../substrate/frame/indices" }
+pallet-staking = { path = "../substrate/frame/staking" }
 
 rpc-ext = { path = "../standalone/rpc-ext" }
 
@@ -64,6 +64,6 @@ env_logger = "0.8.3"
 tempdir = "0.3.7"
 wabt = "0.10.0"
 which = "4.0.2"
-sp-keyring = { version = "3.0.0", path = "../substrate/primitives/keyring" }
-frame-system = { version = "3.0.0", path = "../substrate/frame/system" }
-pallet-balances = { version = "3.0.0", path = "../substrate/frame/balances" }
+sp-keyring = { path = "../substrate/primitives/keyring" }
+frame-system = { path = "../substrate/frame/system" }
+pallet-balances = { path = "../substrate/frame/balances" }

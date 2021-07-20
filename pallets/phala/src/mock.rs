@@ -44,7 +44,7 @@ parameter_types! {
 	pub const MiningInsurancePeriod: u64 = 3 * DAYS;
 }
 impl system::Config for Test {
-	type BaseCallFilter = ();
+	type BaseCallFilter = frame_support::traits::AllowAll;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Origin = Origin;

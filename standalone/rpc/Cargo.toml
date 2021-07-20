@@ -13,24 +13,24 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 jsonrpc-core = "15.1.0"
 node-primitives = { version = "2.0.0", path = "../../substrate/bin/node/primitives" }
-pallet-transaction-payment-rpc = { version = "3.0.0", path = "../../substrate/frame/transaction-payment/rpc/" }
-sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
-sc-consensus-babe = { version = "0.9.0", path = "../../substrate/client/consensus/babe" }
-sc-consensus-babe-rpc = { version = "0.9.0", path = "../../substrate/client/consensus/babe/rpc" }
-sc-consensus-epochs = { version = "0.9.0", path = "../../substrate/client/consensus/epochs" }
-sc-chain-spec = { version = "3.0.0", path = "../../substrate/client/chain-spec" }
-sc-finality-grandpa = { version = "0.9.0", path = "../../substrate/client/finality-grandpa" }
-sc-finality-grandpa-rpc = { version = "0.9.0", path = "../../substrate/client/finality-grandpa/rpc" }
-sc-keystore = { version = "3.0.0", path = "../../substrate/client/keystore" }
-sc-rpc-api = { version = "0.9.0", path = "../../substrate/client/rpc-api" }
-sc-rpc = { version = "3.0.0", path = "../../substrate/client/rpc" }
-sc-sync-state-rpc = { version = "0.9.0", path = "../../substrate/client/sync-state-rpc" }
-sp-api = { version = "3.0.0", path = "../../substrate/primitives/api" }
-sp-block-builder = { version = "3.0.0", path = "../../substrate/primitives/block-builder" }
-sp-blockchain = { version = "3.0.0", path = "../../substrate/primitives/blockchain" }
-sp-keystore = { version = "0.9.0", path = "../../substrate/primitives/keystore" }
-sp-consensus = { version = "0.9.0", path = "../../substrate/primitives/consensus/common" }
-sp-consensus-babe = { version = "0.9.0", path = "../../substrate/primitives/consensus/babe" }
-sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
-sp-transaction-pool = { version = "3.0.0", path = "../../substrate/primitives/transaction-pool" }
-substrate-frame-rpc-system = { version = "3.0.0", path = "../../substrate/utils/frame/rpc/system" }
+pallet-transaction-payment-rpc = { path = "../../substrate/frame/transaction-payment/rpc/" }
+sc-client-api = { path = "../../substrate/client/api" }
+sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
+sc-consensus-babe-rpc = { path = "../../substrate/client/consensus/babe/rpc" }
+sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
+sc-chain-spec = { path = "../../substrate/client/chain-spec" }
+sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
+sc-finality-grandpa-rpc = { path = "../../substrate/client/finality-grandpa/rpc" }
+sc-keystore = { path = "../../substrate/client/keystore" }
+sc-rpc-api = { path = "../../substrate/client/rpc-api" }
+sc-rpc = { path = "../../substrate/client/rpc" }
+sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
+sp-api = { path = "../../substrate/primitives/api" }
+sp-block-builder = { path = "../../substrate/primitives/block-builder" }
+sp-blockchain = { path = "../../substrate/primitives/blockchain" }
+sp-keystore = { path = "../../substrate/primitives/keystore" }
+sp-consensus = { path = "../../substrate/primitives/consensus/common" }
+sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
+sp-runtime = { path = "../../substrate/primitives/runtime" }
+sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
+substrate-frame-rpc-system = { path = "../../substrate/utils/frame/rpc/system" }

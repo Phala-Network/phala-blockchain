@@ -13,15 +13,15 @@ codec = { package = "parity-scale-codec", version = "2.1.0", default-features = 
 serde = { version = "1.0.101", optional = true }
 
 # primitives
-sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
-sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
-sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
-sp-arithmetic = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/arithmetic" }
+sp-std = { default-features = false, path = "../../substrate/primitives/std" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+sp-core = { default-features = false, path = "../../substrate/primitives/core" }
+sp-arithmetic = { default-features = false, path = "../../substrate/primitives/arithmetic" }
 
 # frame dependencies
-frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
-frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
+frame-support = { default-features = false, path = "../../substrate/frame/support" }
+frame-system = { default-features = false, path = "../../substrate/frame/system" }
 
 phala-types = { path = "../../common/types", default-features = false }
 phala-pallets = { path = "../phala", default-features = false }
@@ -29,8 +29,8 @@ pallet-bridge = { path = "../bridge" , default-features = false }
 hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
-pallet-timestamp = { version = "3.0.0", path = "../../substrate/frame/timestamp" }
+pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
+pallet-timestamp = { path = "../../substrate/frame/timestamp" }
 
 [features]
 default = ["std"]

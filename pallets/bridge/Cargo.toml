@@ -14,16 +14,16 @@ serde = { version = "1.0.101", optional = true }
 blake2-rfc = { version = "0.2.18", default-features = false }
 
 # primitives
-sp-std = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/std" }
-sp-runtime = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/runtime" }
-sp-io = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/io" }
-sp-core = { version = "3.0.0", default-features = false, path = "../../substrate/primitives/core" }
+sp-std = { default-features = false, path = "../../substrate/primitives/std" }
+sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 
 # frame dependencies
-frame-support = { version = "3.0.0", default-features = false, path = "../../substrate/frame/support" }
-frame-system = { version = "3.0.0", default-features = false, path = "../../substrate/frame/system" }
+frame-support = { default-features = false, path = "../../substrate/frame/support" }
+frame-system = { default-features = false, path = "../../substrate/frame/system" }
 
-pallet-balances = { version = "3.0.0", default-features = false, path = "../../substrate/frame/balances" }
+pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 
 [features]
 default = ["std"]

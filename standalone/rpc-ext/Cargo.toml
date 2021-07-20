@@ -17,12 +17,12 @@ jsonrpc-core-client = "15.1"
 impl-serde = "0.3"
 
 # primitives
-sp-runtime = { version = "3.0.0", path = "../../substrate/primitives/runtime" }
-sp-blockchain = { version = "3.0.0", path = "../../substrate/primitives/blockchain" }
-sp-api = { version = "3.0.0", path = "../../substrate/primitives/api" }
+sp-runtime = { path = "../../substrate/primitives/runtime" }
+sp-blockchain = { path = "../../substrate/primitives/blockchain" }
+sp-api = { path = "../../substrate/primitives/api" }
 
 # client dependencies
-sc-client-api = { version = "3.0.0", path = "../../substrate/client/api" }
+sc-client-api = { path = "../../substrate/client/api" }
 
 # node-specific dependencies
 node-rpc = { version = "2.0.0", path = "../rpc" }
