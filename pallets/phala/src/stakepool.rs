@@ -147,9 +147,10 @@ pub mod pallet {
 			// has waiting withdraw request
 			if !t.is_empty() {
 				// we just handle timeout request every block
-				while !t.is_empty()
-					&& now - t.front().unwrap() > T::InsurancePeriod::get().saturated_into::<u64>()
-				{
+				while let Some(start_time) = t.front().cloned() {
+					if now - start_time <= T::InsurancePeriod::get().saturated_into::<u64>() {
+						break;
+					}
 					let pools = WithdrawPools::<T>::take(&t.front().unwrap())
 						.expect("Pool list must exist; qed.");
 					for &pid in pools.iter() {
