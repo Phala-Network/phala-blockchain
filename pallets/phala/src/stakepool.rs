@@ -169,6 +169,7 @@ pub mod pallet {
 									// TODO: only stop running workers?
 									for worker in pool_info.workers {
 										let miner: T::AccountId = pool_sub_account(pid, &worker);
+										// TODO: avoid stop mining multiple times
 										let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
 									}
 								}
