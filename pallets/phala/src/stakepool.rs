@@ -851,7 +851,7 @@ pub mod pallet {
 		#[test]
 		fn test_pool_subaccount() {
 			let sub_account: AccountId32 =
-				pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 33]));
+				pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 32]));
 			let expected = AccountId32::new(hex!(
 				"73706d2f666bf107db95bd7b5b56e2c9b5a008f97361f20d10a7840cf2dfaaf5"
 			));

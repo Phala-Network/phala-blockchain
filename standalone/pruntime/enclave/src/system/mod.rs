@@ -9,14 +9,14 @@ use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
 use phala_mq::{
-    EcdsaMessageChannel, MessageDispatcher, MessageOrigin, MessageSendQueue, TypedReceiveError,
+    MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError,
     TypedReceiver,
 };
 use phala_types::{
     messaging::{HeartbeatChallenge, MiningReportEvent, SystemEvent, WorkerEvent},
     WorkerPublicKey,
 };
-use sp_core::{ecdsa, hashing::blake2_256, U256};
+use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type CommandIndex = u64;
 
@@ -300,7 +300,7 @@ trait WorkerStateMachineCallback {
     }
 }
 
-struct WorkerSMDelegate<'a>(&'a EcdsaMessageChannel);
+struct WorkerSMDelegate<'a>(&'a Sr25519MessageChannel);
 
 impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
@@ -342,20 +342,20 @@ pub struct System {
     // Transaction
     receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
-    egress: EcdsaMessageChannel,
+    egress: Sr25519MessageChannel,
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper<EcdsaMessageChannel>,
+    gatekeeper: gk::Gatekeeper<Sr25519MessageChannel>,
 }
 
 impl System {
     pub fn new(
-        pair: &ecdsa::Pair,
+        pair: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
     ) -> Self {
-        let pubkey = ecdsa::Public::from(pair.clone());
+        let pubkey = pair.clone().public();
         let sender = MessageOrigin::Worker(pubkey.clone());
         // TODO: create gk_egress dynamically with gk masterkey
         let gk_egress = send_mq.channel(MessageOrigin::Gatekeeper, pair.clone());

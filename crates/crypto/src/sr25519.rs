@@ -2,7 +2,7 @@ use crate::{ecdh::EcdhKey, CryptoError};
 
 use alloc::{vec, vec::Vec};
 use ring::hkdf;
-use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
+pub use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 use sp_core::{sr25519, Pair};
 
 pub const SIGNATURE_BYTES: usize = 64;

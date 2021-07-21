@@ -436,8 +436,8 @@ pub struct Score {
 }
 
 type MachineId = [u8; 16];
-pub type WorkerPublicKey = sp_core::ecdsa::Public;
-pub type ContractPublicKey = sp_core::ecdsa::Public;
+pub type WorkerPublicKey = sp_core::sr25519::Public;
+pub type ContractPublicKey = sp_core::sr25519::Public;
 #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
 /// Sr25519 public key
 pub struct EcdhPublicKey(pub [u8; 32]);

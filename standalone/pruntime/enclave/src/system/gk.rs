@@ -1,7 +1,7 @@
 use super::{TypedReceiver, WorkerState};
 use phala_crypto::{
-    aead, ecdh, secp256k1,
-    secp256k1::{Signing, KDF},
+    aead, ecdh,
+    sr25519::{Persistence, Signing, KDF, SECRET_KEY_LENGTH, SIGNATURE_BYTES},
 };
 use phala_mq::{BindTopic, MessageDispatcher};
 use phala_types::{
@@ -12,7 +12,7 @@ use phala_types::{
     },
     WorkerPublicKey,
 };
-use sp_core::{ecdsa, hashing, Pair};
+use sp_core::{hashing, sr25519, Pair};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
@@ -37,7 +37,7 @@ pub const MASTER_KEY_FILEPATH: &str = "master_key.seal";
 
 // pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
 fn next_random_number(
-    master_key: &ecdsa::Pair,
+    master_key: &sr25519::Pair,
     block_number: chain::BlockNumber,
     last_random_number: RandomNumber,
 ) -> RandomNumber {
@@ -80,8 +80,8 @@ impl WorkerInfo {
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
-    identity_key: ecdsa::Pair,
-    master_key: Option<ecdsa::Pair>,
+    identity_key: sr25519::Pair,
+    master_key: Option<sr25519::Pair>,
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
@@ -100,7 +100,7 @@ where
     MsgChan: MessageChannel,
 {
     pub fn new(
-        identity_key: ecdsa::Pair,
+        identity_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
         egress: MsgChan,
     ) -> Self {
@@ -139,7 +139,7 @@ where
         self.master_key.is_some()
     }
 
-    pub fn set_master_key(&mut self, master_key: ecdsa::Pair, need_restart: bool) {
+    pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
             self.master_key = Some(master_key);
             self.seal_master_key(MASTER_KEY_FILEPATH);
@@ -149,19 +149,19 @@ where
             }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation
-            assert!(my_master_key.seed() == master_key.seed());
+            assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
         }
     }
 
     /// Seal master key seed with signature to ensure integrity
     pub fn seal_master_key(&self, filepath: &str) {
         if let Some(master_key) = &self.master_key {
-            let seed = master_key.seed();
-            let sig = self.identity_key.sign_data(&seed);
+            let secret = master_key.dump_secret_key();
+            let sig = self.identity_key.sign_data(&secret);
 
             // TODO(shelven): use serialization rather than manual concat.
             let mut buf = Vec::new();
-            buf.extend_from_slice(&seed);
+            buf.extend_from_slice(&secret);
             buf.extend_from_slice(sig.as_ref());
 
             // TODO(shelven): rust style error handling, everywhere
@@ -191,18 +191,17 @@ where
             }
         };
 
-        let mut seed = secp256k1::Seed::default();
-        let mut sig = [0_u8; secp256k1::SIGNATURE_BYTES];
+        let mut secret = [0_u8; SECRET_KEY_LENGTH];
+        let mut sig = [0_u8; SIGNATURE_BYTES];
 
-        let n = match file.read(seed.as_mut()) {
+        let n = match file.read(secret.as_mut()) {
             Ok(n) => n,
             Err(e) => panic!("Read master key failed: {:?}", e),
         };
-        if n < secp256k1::SEED_BYTES {
+        if n < SECRET_KEY_LENGTH {
             panic!(
-                "Unexpected sealed seed length {}, expected {}",
-                n,
-                secp256k1::SEED_BYTES
+                "Unexpected sealed secret key length {}, expected {}",
+                n, SECRET_KEY_LENGTH
             );
         }
 
@@ -210,22 +209,21 @@ where
             Ok(n) => n,
             Err(e) => panic!("Read master key sig failed: {:?}", e),
         };
-        if n < secp256k1::SIGNATURE_BYTES {
+        if n < SIGNATURE_BYTES {
             panic!(
                 "Unexpected sealed seed sig length {}, expected {}",
-                n,
-                secp256k1::SIGNATURE_BYTES
+                n, SIGNATURE_BYTES
             );
         }
 
         if !self
             .identity_key
-            .verify_data(&secp256k1::Signature::from_raw(sig), &seed)
+            .verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret)
         {
             panic!("Broken sealed master key");
         }
 
-        self.set_master_key(ecdsa::Pair::from_seed(&seed), false);
+        self.set_master_key(sr25519::Pair::restore_from_secret_key(&secret), false);
     }
 
     pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
@@ -593,12 +591,7 @@ where
                 info!("Gatekeeper: generate master key as the first gatekeeper");
                 // generate master key as the first gatekeeper
                 // no need to restart
-                self.state.set_master_key(
-                    crate::new_ecdsa_key().expect(
-                        "key generation should never fail since we give seed of correct sieze",
-                    ),
-                    false,
-                );
+                self.state.set_master_key(crate::new_sr25519_key(), false);
             }
         } else {
             // dispatch the master key to the newly-registered gatekeeper using master key
@@ -607,7 +600,7 @@ where
             if let Some(master_key) = &self.state.master_key {
                 info!("Gatekeeper: try dispatch master key");
                 let derived_key = master_key
-                    .derive_secp256k1_pair(&[b"master_key"])
+                    .derive_sr25519_pair(&[b"master_key"])
                     .expect("should not fail with valid info");
                 let my_ecdh_key = derived_key
                     .derive_ecdh_key()
@@ -615,7 +608,7 @@ where
                 let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
                     .expect("should never fail with valid ecdh key");
                 let iv = aead::generate_iv(&self.state.last_random_number);
-                let mut data = master_key.clone().to_raw_vec();
+                let mut data = master_key.dump_secret_key().to_vec();
 
                 match aead::encrypt(&iv, &secret, &mut data) {
                     Ok(_) => self.state.push_gatekeeper_message(
@@ -669,7 +662,7 @@ where
                 Ok(k) => k,
             };
 
-            let master_pair = ecdsa::Pair::from_seed_slice(&master_key)
+            let master_pair = sr25519::Pair::from_seed_slice(&master_key)
                 .expect("Master key seed must be correct; qed.");
             info!("Gatekeeper: successfully decrypt received master key, prepare to reboot");
             self.state.set_master_key(master_pair, true);
@@ -952,14 +945,14 @@ pub mod tests {
 
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let key = sp_core::ecdsa::Pair::from_seed(&[1u8; 32]);
+            let key = sp_core::sr25519::Pair::from_seed(&[1u8; 32]);
             let gk = Gatekeeper::new(key, &mut mq, egress);
             Roles {
                 mq,
                 gk,
                 workers: [
-                    WorkerPublicKey::from_raw([0x01u8; 33]),
-                    WorkerPublicKey::from_raw([0x02u8; 33]),
+                    WorkerPublicKey::from_raw([0x01u8; 32]),
+                    WorkerPublicKey::from_raw([0x02u8; 32]),
                 ],
             }
         }

@@ -17,7 +17,7 @@ pub enum MessageOrigin {
     /// A confidential contract
     Contract(H256),
     /// A pRuntime worker
-    Worker(sp_core::ecdsa::Public),
+    Worker(sp_core::sr25519::Public),
     /// A user
     AccountId(H256),
     /// A remote location (parachain, etc.)

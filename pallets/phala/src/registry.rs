@@ -312,11 +312,11 @@ pub mod pallet {
 		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
 			let raw_sig = &message.signature;
 			ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureLength);
-			let sig = sp_core::ecdsa::Signature::try_from(raw_sig.as_slice())
+			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let data = message.data_be_signed();
 			ensure!(
-				sp_io::crypto::ecdsa_verify(&sig, &data, &pubkey),
+				sp_io::crypto::sr25519_verify(&sig, &data, &pubkey),
 				Error::<T>::InvalidSignature
 			);
 			Ok(())

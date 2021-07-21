@@ -87,7 +87,8 @@ fn main() {
         }
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
-            let snapshot = enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
+            let snapshot =
+                enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
         }
@@ -147,10 +148,7 @@ fn main() {
             let pair =
                 ecdh::EcdhKey::create(privkey.as_slice().try_into().expect("Invalid key length"))
                     .unwrap();
-            println!(
-                "Pubkey: {}",
-                hex::encode(pair.public())
-            );
+            println!("Pubkey: {}", hex::encode(pair.public()));
             println!("Privkey: {}", hex::encode(pair.secret()));
         }
     }

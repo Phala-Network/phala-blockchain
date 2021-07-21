@@ -246,16 +246,16 @@ pub fn testnet_genesis(
 	const ENDOWMENT: Balance = 10_000_000 * DOLLARS;
 	const STASH: Balance = ENDOWMENT / 1000;
 	// The pubkey of "0x1"
-	let raw_dev_ecdsa_pubkey: Vec<u8> = hex!["0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"].to_vec();
-	let dev_ecdsa_pubkey = sp_core::ecdsa::Public::from_full(raw_dev_ecdsa_pubkey.as_slice()).unwrap();
+	let raw_dev_sr25519_pubkey: [u8; 32] = hex!["3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"];
+	let dev_sr25519_pubkey = sp_core::sr25519::Public::from_raw(raw_dev_sr25519_pubkey);
 	let dev_ecdh_pubkey = hex!["3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"].to_vec();
 
 	let phala_registry = match dev {
 		true => PhalaRegistryConfig {
 			workers: vec![
-				(dev_ecdsa_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
+				(dev_sr25519_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
-			gatekeepers: vec![dev_ecdsa_pubkey],
+			gatekeepers: vec![dev_sr25519_pubkey],
 			benchmark_duration: 1,
 		},
 		false => PhalaRegistryConfig {
@@ -290,7 +290,7 @@ pub fn testnet_genesis(
 		},
 		kitty_storage: KittyStorageConfig {
 			// Now we have 4 contracts but reserver 10 for convenience
-			contract_keys: std::iter::repeat(raw_dev_ecdsa_pubkey).take(10).collect(),
+			contract_keys: std::iter::repeat(raw_dev_sr25519_pubkey.to_vec()).take(10).collect(),
 		},
 		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
