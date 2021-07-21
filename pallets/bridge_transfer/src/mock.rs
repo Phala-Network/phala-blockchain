@@ -2,9 +2,9 @@
 
 use super::*;
 
+use hex_literal::hex;
 use frame_support::{ord_parameter_types, parameter_types, weights::Weight, PalletId};
 use frame_system::{self as system};
-use sp_core::hashing::blake2_128;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -12,13 +12,10 @@ use sp_runtime::{
 	Perbill,
 };
 
-use crate::{self as bride_transfer, Config};
+use crate::{self as bridge_transfer, Config};
 pub use pallet_balances as balances;
 use pallet_bridge as bridge;
 use phala_pallets::{pallet_mq as mq, pallet_registry as reg};
-
-pub(crate) type Balance = u128;
-pub(crate) type BlockNumber = u64;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -32,7 +29,7 @@ frame_support::construct_runtime!(
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
-		BridgeTransfer: bride_transfer::{Pallet, Call, Config, Storage, Event<T>},
+		BridgeTransfer: bridge_transfer::{Pallet, Call, Storage, Event<T>},
 		PhalaMq: mq::{Pallet, Call, Storage},
 		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
@@ -107,10 +104,19 @@ impl bridge::Config for Test {
 	type ProposalLifetime = ProposalLifetime;
 }
 
+parameter_types! {
+	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
+	pub const BridgeTokenId: [u8; 32] = hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
+	// bridge::derive_resource_id(1, &hashing::blake2_128(b"lottery"))
+	pub const BridgeLotteryId: [u8; 32] = hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
+}
+
 impl Config for Test {
 	type Event = Event;
 	type BridgeOrigin = bridge::EnsureBridge<Test>;
 	type Currency = Balances;
+	type BridgeTokenId = BridgeTokenId;
+	type BridgeLotteryId = BridgeLotteryId;
 }
 
 impl mq::Config for Test {
