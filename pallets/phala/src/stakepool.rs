@@ -694,15 +694,15 @@ pub mod pallet {
 
 		fn try_add_withdraw_pool_to_queue(start_time: u64, pid: u64) {
 			let mut t = WithdrawTimestamps::<T>::get();
-			// first time add withdraw pool
-			if t.is_empty() {
-				t.push_back(start_time);
-			} else {
-				// the end timestamp == start_time means already have a withdraw request added early of this block,
-				// timestamp > start_time is impossible
-				if t.back().unwrap() < &start_time {
+			if let Some(last_start_time) = t.back().cloned() {
+				// the last_start_time == start_time means already have a withdraw request added early of this block,
+				// last_start_time > start_time is impossible
+				if last_start_time < start_time {
 					t.push_back(start_time);
 				}
+			} else {
+				// first time add withdraw pool
+				t.push_back(start_time);
 			}
 			WithdrawTimestamps::<T>::put(&t);
 
