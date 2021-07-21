@@ -714,6 +714,7 @@ pub mod pallet {
 				// if pool has already been added, ignore it
 				if !pool_list.contains(&pid) {
 					pool_list.push(pid);
+					WithdrawPools::<T>::insert(&start_time, &pool_list);
 				}
 			} else {
 				WithdrawPools::<T>::insert(&start_time, vec![pid]);
