@@ -547,7 +547,7 @@ pub mod pallet {
 			return rewards;
 		}
 
-		fn update_pool(
+		fn pool_reward_handler(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
@@ -692,7 +692,7 @@ pub mod pallet {
 					.expect("Mining workers must be in the pool; qed.");
 				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
-				Self::update_pool(&mut pool_info, info.payout.saturated_into());
+				Self::pool_reward_handler(&mut pool_info, info.payout.saturated_into());
 				MiningPools::<T>::insert(&pid, &pool_info);
 			}
 		}
