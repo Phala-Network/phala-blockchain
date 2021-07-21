@@ -78,6 +78,17 @@ pub mod pallet {
 	pub(super) type StakeLedger<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
+	/// Mapping current block timestamp to pools that contains waiting withdraw request in that block
+	#[pallet::storage]
+	#[pallet::getter(fn withdraw_pools)]
+	pub(super) type WithdrawPools<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u64>>;
+
+	/// Queue that contains all block's timestamp, in that block contains the waiting withdraw reqeust.
+	/// This queue has a max size of (T::InsurancePeriod * 8) bytes
+	#[pallet::storage]
+	#[pallet::getter(fn withdraw_timestamps)]
+	pub(super) type WithdrawTimestamps<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -132,26 +143,43 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 
-			// TODO:
-			// 1) should we just stop some of workers rather than all of it
-			// 2) just iterate pools that contains waitting withdraw rather than all of it
-			for pid in 0..PoolCount::<T>::get() {
-				let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
-				if !pool_info.withdraw_queue.is_empty() {
-					// the front withdraw always the oldest one
-					if let Some(info) = pool_info.withdraw_queue.front() {
-						if (now - info.start_time)
-							> T::InsurancePeriod::get().saturated_into::<u64>()
-						{
-							// stop all worker in this pool
-							// TODO: only stop running workers?
-							for worker in pool_info.workers {
-								let miner: T::AccountId = pool_sub_account(pid, &worker);
-								let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
+			let mut t = WithdrawTimestamps::<T>::get();
+			// has waiting withdraw request
+			if !t.is_empty() {
+				// we just handle timeout request every block
+				while let Some(start_time) = t.front().cloned() {
+					if now - start_time <= T::InsurancePeriod::get().saturated_into::<u64>() {
+						break;
+					}
+					let pools = WithdrawPools::<T>::take(start_time)
+						.expect("Pool list must exist; qed.");
+					for &pid in pools.iter() {
+						let pool_info =
+							Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+						// if we check the pool withdraw_queue here, we don't have to remove a pool from WithdrawPools when
+						// a pool has handled their waiting withdraw request before timeout. Compare the IO performance we
+						// think remove pool from WithdrawPools would have more resource cost.
+						if !pool_info.withdraw_queue.is_empty() {
+							// the front withdraw always the oldest one
+							if let Some(info) = pool_info.withdraw_queue.front() {
+								if (now - info.start_time)
+									> T::InsurancePeriod::get().saturated_into::<u64>()
+								{
+									// stop all worker in this pool
+									// TODO: only stop running workers?
+									for worker in pool_info.workers {
+										let miner: T::AccountId = pool_sub_account(pid, &worker);
+										// TODO: avoid stop mining multiple times
+										let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
+									}
+								}
 							}
 						}
 					}
+					// pop front timestamp
+					t.pop_front();
 				}
+				WithdrawTimestamps::<T>::put(&t);
 			}
 		}
 	}
@@ -434,6 +462,7 @@ pub mod pallet {
 					amount: amount.clone(),
 					start_time: now,
 				});
+				Self::try_add_withdraw_pool_to_queue(now, pool_info.pid);
 			} else {
 				Self::try_withdraw(&mut pool_info, &mut user_info, amount.clone());
 			}
@@ -604,6 +633,7 @@ pub mod pallet {
 					amount: unwithdraw_amount,
 					start_time: now,
 				});
+				Self::try_add_withdraw_pool_to_queue(now, pool_info.pid);
 			}
 			user_info.user_debt =
 				user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
@@ -661,6 +691,34 @@ pub mod pallet {
 
 		fn ensure_pool(pid: u64) -> Result<PoolInfo<T::AccountId, BalanceOf<T>>, Error<T>> {
 			Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)
+		}
+
+		fn try_add_withdraw_pool_to_queue(start_time: u64, pid: u64) {
+			let mut t = WithdrawTimestamps::<T>::get();
+			if let Some(last_start_time) = t.back().cloned() {
+				// the last_start_time == start_time means already have a withdraw request added early of this block,
+				// last_start_time > start_time is impossible
+				if last_start_time < start_time {
+					t.push_back(start_time);
+				}
+			} else {
+				// first time add withdraw pool
+				t.push_back(start_time);
+			}
+			WithdrawTimestamps::<T>::put(&t);
+
+			// push pool to the pool list, if the pool was added in this pool, means it has waiting withdraw request
+			// in current block(if they have the same timestamp, we think they are in the same block)
+			if WithdrawPools::<T>::contains_key(&start_time) {
+				let mut pool_list = WithdrawPools::<T>::get(&start_time).unwrap();
+				// if pool has already been added, ignore it
+				if !pool_list.contains(&pid) {
+					pool_list.push(pid);
+					WithdrawPools::<T>::insert(&start_time, &pool_list);
+				}
+			} else {
+				WithdrawPools::<T>::insert(&start_time, vec![pid]);
+			}
 		}
 	}
 
@@ -778,7 +836,7 @@ pub mod pallet {
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, take_events, new_test_ext, set_block_1, worker_pubkey, Event as TestEvent,
+			ecdh_pubkey, new_test_ext, set_block_1, take_events, worker_pubkey, Event as TestEvent,
 			Origin, PhalaRegistry, PhalaStakePool, Test, DOLLARS,
 		};
 
