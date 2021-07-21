@@ -150,11 +150,11 @@ pub mod pallet {
 				while !t.is_empty()
 					&& now - t.front().unwrap() > T::InsurancePeriod::get().saturated_into::<u64>()
 				{
-					let pools = WithdrawPools::<T>::get(&t.front().unwrap())
-						.expect("Pool list doesn't exist; qed.");
+					let pools = WithdrawPools::<T>::take(&t.front().unwrap())
+						.expect("Pool list must exist; qed.");
 					for &pid in pools.iter() {
 						let pool_info =
-							Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
+							Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 						// if we check the pool withdraw_queue here, we don't have to remove a pool from WithdrawPools when
 						// a pool has handled their waiting withdraw request before timeout. Compare the IO performance we
 						// think remove pool from WithdrawPools would have more resource cost.
