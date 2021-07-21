@@ -31,7 +31,7 @@ pub trait Resp {
 pub struct SignedResp {
     pub payload: String,
     pub status: String,
-    pub signature: String,
+    pub signature: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -71,8 +71,9 @@ pub struct GetInfoResp {
     pub para_headernum: BlockNumber,
     pub blocknum: BlockNumber,
     pub initialized: bool,
-    pub public_key: String,
-    pub ecdh_public_key: String,
+    pub genesis_block_hash: Option<String>,
+    pub public_key: Option<String>,
+    pub ecdh_public_key: Option<String>,
     pub machine_id: Vec<u8>,
 }
 
@@ -94,6 +95,7 @@ pub struct InitRuntimeReq {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct InitRuntimeResp {
     pub encoded_runtime_info: Vec<u8>,
+    pub genesis_block_hash: String,
     pub public_key: String,
     pub ecdh_public_key: String,
     pub attestation: Option<InitRespAttestation>,

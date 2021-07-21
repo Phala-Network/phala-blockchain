@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::convert::{TryFrom, TryInto};
 use core::fmt::Debug;
+use sp_core::H256;
 
 // Messages: Phase Wallet
 
@@ -461,6 +462,7 @@ pub struct PRuntimeInfo<AccountId> {
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
     pub ecdh_pubkey: EcdhPublicKey,
+    pub genesis_block_hash: H256,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
 }
