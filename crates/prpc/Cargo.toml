@@ -1,0 +1,9 @@
+[package]
+name = "prpc"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-trait = "0.1.50"
+prost = "0.8.0"
+derive_more = "0.99.16"

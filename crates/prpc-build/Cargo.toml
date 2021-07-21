@@ -1,0 +1,10 @@
+[package]
+name = "prpc-build"
+version = "0.5.1"
+edition = "2018"
+
+[dependencies]
+prost-build = { version = "0.8" }
+syn = "1.0"
+quote = "1.0"
+proc-macro2 = "1.0"
