@@ -62,12 +62,6 @@ pub mod pallet {
 	#[pallet::getter(fn pool_count)]
 	pub(super) type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
-	/// Mapping worker to it's new rewards
-	#[pallet::storage]
-	#[pallet::getter(fn new_rewards)]
-	pub(super) type NewRewards<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, BalanceOf<T>>;
-
 	/// Mapping worker to the pool it belongs to
 	#[pallet::storage]
 	pub(super) type WorkerInPool<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
@@ -151,8 +145,8 @@ pub mod pallet {
 					if now - start_time <= T::InsurancePeriod::get().saturated_into::<u64>() {
 						break;
 					}
-					let pools = WithdrawPools::<T>::take(start_time)
-						.expect("Pool list must exist; qed.");
+					let pools =
+						WithdrawPools::<T>::take(start_time).expect("Pool list must exist; qed.");
 					for &pid in pools.iter() {
 						let pool_info =
 							Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
@@ -255,7 +249,6 @@ pub mod pallet {
 					// update worker vector
 					workers.push(pubkey.clone());
 					MiningPools::<T>::insert(&pid, &pool_info);
-					NewRewards::<T>::insert(&pubkey, BalanceOf::<T>::zero());
 					WorkerInPool::<T>::insert(&pubkey, pid);
 					Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
 				}
@@ -338,9 +331,6 @@ pub mod pallet {
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
 			let mut pool_info = Self::ensure_pool(pid)?;
 
-			// update pool
-			Self::update_pool(&mut pool_info);
-
 			// rewards belong to user, including pending rewards and available_rewards
 			let rewards = user_info.available_rewards.saturating_add(
 				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt,
@@ -383,8 +373,6 @@ pub mod pallet {
 					Error::<T>::StakeExceedCapacity
 				);
 			}
-
-			Self::update_pool(&mut pool_info);
 
 			let info_key = (pid.clone(), who.clone());
 			if StakingInfo::<T>::contains_key(&info_key) {
@@ -559,45 +547,19 @@ pub mod pallet {
 			return rewards;
 		}
 
-		fn update_pool(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
-			let mut new_rewards;
+		fn update_pool(
+			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
+			rewards: BalanceOf<T>,
+		) {
+			if rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
+				let owner_rewards = rewards * pool_info.payout_commission.into() / 1000u32.into();
+				pool_info.owner_reward = pool_info.owner_reward.saturating_add(owner_rewards);
 
-			new_rewards = Self::calculate_reward(&pool_info.workers);
-			Self::reward_clear(&pool_info.workers);
-
-			if new_rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
-				pool_info.owner_reward = pool_info.owner_reward.saturating_add(
-					new_rewards * pool_info.payout_commission.into() / 1000u32.into(),
-				);
-
-				new_rewards =
-					new_rewards * (1000 - pool_info.payout_commission).into() / 1000u32.into();
+				let pool_rewards =
+					rewards * (1000 - pool_info.payout_commission).into() / 1000u32.into();
 				pool_info.pool_acc = pool_info
 					.pool_acc
-					.saturating_add(new_rewards * 10u32.pow(6).into() / pool_info.total_stake);
-			}
-		}
-
-		/// Calculate rewards that belong to this pool.
-		/// The rewards here only contains rewards belong to workers in this pool from last pool update
-		/// to now. Everytime mining tell us some workers have new rewards(by on_reward callback), we
-		/// add it to new_rewards map, when next time the pool do update, we calculate all rewards
-		/// belong to this pool, which would be used to update pool_info.pool_acc, then the cached rewards
-		/// would be clean.
-		fn calculate_reward(workers: &Vec<WorkerPublicKey>) -> BalanceOf<T> {
-			let mut pool_new_rewards: BalanceOf<T> = Zero::zero();
-			for worker in workers {
-				pool_new_rewards =
-					pool_new_rewards.saturating_add(Self::new_rewards(&worker).unwrap());
-			}
-			return pool_new_rewards;
-		}
-
-		/// Clear specific miner's reward, only current round rewards can be used to calculate
-		/// pool arguments.
-		fn reward_clear(workers: &Vec<WorkerPublicKey>) {
-			for worker in workers {
-				NewRewards::<T>::insert(&worker, BalanceOf::<T>::zero());
+					.saturating_add(pool_rewards * 10u32.pow(6).into() / pool_info.total_stake);
 			}
 		}
 
@@ -607,8 +569,6 @@ pub mod pallet {
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
 			amount: BalanceOf<T>,
 		) {
-			Self::update_pool(pool_info);
-
 			// enough free stake, withdraw directly
 			if pool_info.free_stake >= amount {
 				pool_info.free_stake = pool_info.free_stake.saturating_sub(amount);
@@ -728,9 +688,12 @@ pub mod pallet {
 		/// would be clear once pool was updated
 		fn on_reward(settle: &Vec<SettleInfo>) {
 			for info in settle {
-				let mut balance = Self::new_rewards(&info.pubkey).unwrap();
-				balance = balance.saturating_add(info.payout.saturated_into());
-				NewRewards::<T>::insert(&info.pubkey, &balance);
+				let pid = WorkerInPool::<T>::get(&info.pubkey)
+					.expect("Mining workers must be in the pool; qed.");
+				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+
+				Self::update_pool(&mut pool_info, info.payout.saturated_into());
+				MiningPools::<T>::insert(&pid, &pool_info);
 			}
 		}
 	}
