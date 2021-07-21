@@ -3,12 +3,12 @@ use crate::{mining, mq, registry, stakepool};
 use frame_support::{parameter_types, traits::GenesisBuild};
 use frame_support_test::TestRandomness;
 use frame_system as system;
+use phala_types::messaging::Message;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
 };
-use phala_types::messaging::Message;
 
 pub(crate) type Balance = u128;
 
@@ -129,7 +129,11 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	let zero_pubkey = sp_core::ecdsa::Public::from_raw([0u8; 33]);
 	let zero_ecdh_pubkey = Vec::from(&[0u8; 32][..]);
 	pallet_balances::GenesisConfig::<Test> {
-		balances: vec![(1, 1000 * DOLLARS), (2, 2000 * DOLLARS)],
+		balances: vec![
+			(1, 1000 * DOLLARS),
+			(2, 2000 * DOLLARS),
+			(3, 1000 * DOLLARS),
+		],
 	}
 	.assimilate_storage(&mut t)
 	.unwrap();
