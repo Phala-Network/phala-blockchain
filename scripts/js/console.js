@@ -104,6 +104,32 @@ program
         console.log(r.toHuman());
     }));
 
+program
+    .command('chain-sync-state')
+    .description('show the chain status; returns 0 if it\'s in sync')
+    .action(run(async () => {
+        const api = await substrateApi();
+        const hash = await api.rpc.chain.getBlockHash();
+        const header = await api.rpc.chain.getHeader(hash);
+        const syncState = await api.rpc.system.syncState();
+        const tsObj = await api.query.timestamp.now.at(hash);
+        const blockTs = tsObj.toNumber();
+        const now = Date.now();
+
+        const timestampDelta = now - blockTs;
+
+        console.log({
+            hash: hash.toJSON(),
+            blockTs,
+            timestampDelta,
+            syncState: syncState.toJSON(),
+            header: header.toJSON(),
+        });
+
+        // Return -1 if it's not in sync (delta > 5mins)
+        return timestampDelta <= 50 * 60 * 1000 ? 0 : -1;
+    }));
+
 // pRuntime operations
 
 program
