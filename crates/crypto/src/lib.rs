@@ -12,9 +12,7 @@ pub mod sr25519;
 
 #[derive(Debug)]
 pub enum CryptoError {
-    // Ecdsa errors
-    EcdsaInvalidSeedLength(sp_core::crypto::SecretStringError),
-    EcdsaHkdfExpandError,
+    HkdfExpandError,
     // Ecdh errors
     EcdhInvalidSecretKey,
     EcdhInvalidPublicKey,
