@@ -151,7 +151,7 @@ pub mod pallet {
 					if now - start_time <= T::InsurancePeriod::get().saturated_into::<u64>() {
 						break;
 					}
-					let pools = WithdrawPools::<T>::take(&t.front().unwrap())
+					let pools = WithdrawPools::<T>::take(start_time)
 						.expect("Pool list must exist; qed.");
 					for &pid in pools.iter() {
 						let pool_info =
