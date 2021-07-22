@@ -130,6 +130,19 @@ program
         return timestampDelta <= 50 * 60 * 1000 ? 0 : -1;
     }));
 
+program
+    .command('free-balance <account>')
+    .description('get the firee blance of an account', {
+        'account': 'the account to lookup'
+    })
+    .action(run (async (account) => {
+        const api = await substrateApi();
+        const accountData = await api.query.system.account(account);
+        const freeBalance = accountData.data.free.toString();
+        console.log(freeBalance);
+        return 0;
+    }))
+
 // pRuntime operations
 
 program
