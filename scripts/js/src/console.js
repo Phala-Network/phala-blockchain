@@ -249,17 +249,20 @@ program
     })
     .action(run(async (input) => {
         input = input.trim();
-        const keyring = new Keyring({ type: 'sr25519' });
+        const keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         try {
-            if (keyring.decodeAddress(input)) {
-                console.log('Valid address');
+            const decoded = keyring.decodeAddress(input);
+            if (decoded) {
+                const address = keyring.encodeAddress(decoded);
+                console.log(address);
                 return 0;
             }
         } catch {}
         try {
             await cryptoWaitReady();
-            if (keyring.addFromUri(input)) {
-                console.log('Valid private key');
+            const pair = keyring.addFromUri(input);
+            if (pair) {
+                console.log(pair.address);
                 return 0;
             }
         } catch {}
