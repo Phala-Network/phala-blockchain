@@ -459,7 +459,6 @@ pub mod pallet {
 		},
 	}
 
-	// TODO.shelven: handle the WorkerInfo in phala_types
 	#[derive(Encode, Decode, Default, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity

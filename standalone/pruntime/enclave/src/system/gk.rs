@@ -171,18 +171,10 @@ where
             buf.extend_from_slice(&secret);
             buf.extend_from_slice(sig.as_ref());
 
-            // TODO(shelven): rust style error handling, everywhere
-            match SgxFile::create(filepath) {
-                Ok(mut file) => match file.write_all(&buf) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!("Seal master key failed: {:?}", e);
-                    }
-                },
-                Err(e) => {
-                    error!("Create master key file failed: {:?}", e);
-                }
-            }
+            let mut file = SgxFile::create(filepath)
+                .unwrap_or_else(|e| panic!("Create master key file failed: {:?}", e));
+            file.write_all(&buf)
+                .unwrap_or_else(|e| panic!("Seal master key failed: {:?}", e));
         }
     }
 
@@ -201,10 +193,9 @@ where
         let mut secret = [0_u8; SECRET_KEY_LENGTH];
         let mut sig = [0_u8; SIGNATURE_BYTES];
 
-        let n = match file.read(secret.as_mut()) {
-            Ok(n) => n,
-            Err(e) => panic!("Read master key failed: {:?}", e),
-        };
+        let n = file
+            .read(secret.as_mut())
+            .unwrap_or_else(|e| panic!("Read master key failed: {:?}", e));
         if n < SECRET_KEY_LENGTH {
             panic!(
                 "Unexpected sealed secret key length {}, expected {}",
@@ -212,10 +203,9 @@ where
             );
         }
 
-        let n = match file.read(sig.as_mut()) {
-            Ok(n) => n,
-            Err(e) => panic!("Read master key sig failed: {:?}", e),
-        };
+        let n = file
+            .read(sig.as_mut())
+            .unwrap_or_else(|e| panic!("Read master key sig failed: {:?}", e));
         if n < SIGNATURE_BYTES {
             panic!(
                 "Unexpected sealed seed sig length {}, expected {}",
@@ -223,12 +213,11 @@ where
             );
         }
 
-        if !self
-            .identity_key
-            .verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret)
-        {
-            panic!("Broken sealed master key");
-        }
+        assert!(
+            self.identity_key
+                .verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret),
+            "Broken sealed master key"
+        );
 
         self.set_master_key(sr25519::Pair::restore_from_secret_key(&secret), false);
     }
