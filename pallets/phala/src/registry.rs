@@ -194,7 +194,7 @@ pub mod pallet {
 		pub fn unregister_gatekeeper(
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
-			sig: [u8; 65],
+			sig: [u8; 64],
 		) -> DispatchResult {
 			// TODO.shelven
 			panic!("unimpleneted");
@@ -311,7 +311,7 @@ pub mod pallet {
 
 		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
 			let raw_sig = &message.signature;
-			ensure!(raw_sig.len() == 65, Error::<T>::InvalidSignatureLength);
+			ensure!(raw_sig.len() == 64, Error::<T>::InvalidSignatureLength);
 			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let data = message.data_be_signed();
