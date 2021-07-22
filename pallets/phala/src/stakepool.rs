@@ -338,17 +338,13 @@ pub mod pallet {
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
 			let pool_info = Self::ensure_pool(pid)?;
 
-			// rewards belong to user, including pending rewards and available_rewards
-			let rewards = user_info.available_rewards.saturating_add(
-				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt,
-			);
-
-			// send reward to user
+			// Clear the pending reward, and calculate the rewards belong to user
+			pool_info.clear_user_pending_reward(&mut user_info);
+			let rewards = user_info.available_rewards;
 			// TODO: transfer token from the pallet to the user, instead of creating imbalance.
-			<T as Config>::Currency::deposit_into_existing(&who.clone(), rewards.clone())?;
-
-			user_info.user_debt = user_info.amount * pool_info.pool_acc / 10u32.pow(6).into();
+			<T as Config>::Currency::deposit_into_existing(&target, rewards.clone())?;
 			user_info.available_rewards = Zero::zero();
+
 			StakingInfo::<T>::insert(&info_key, &user_info);
 			Self::deposit_event(Event::<T>::WithdrawRewards(pid, who, rewards));
 
@@ -380,41 +376,31 @@ pub mod pallet {
 			}
 
 			let info_key = (pid.clone(), who.clone());
-			if StakingInfo::<T>::contains_key(&info_key) {
-				let mut user_info = Self::staking_info(&info_key).unwrap();
-				// Settle all the pending rewards to `available_rewards`
-				let pending_rewards = user_info.amount * pool_info.pool_acc
-					/ 10u32.pow(6).saturated_into()
-					- user_info.user_debt;
-				if pending_rewards > Zero::zero() {
-					user_info.available_rewards =
-						user_info.available_rewards.saturating_add(pending_rewards);
+			// Clear the pending reward before adding stake, if applies
+			let mut user_info = match Self::staking_info(&info_key) {
+				Some(mut user_info) => {
+					pool_info.clear_user_pending_reward(&mut user_info);
+					user_info
 				}
-				// Now the pending rewards is zero. Set the debt to reflect it.
-				user_info.amount = user_info.amount.saturating_add(a);
-				user_info.user_debt =
-					user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
-
-				StakingInfo::<T>::insert(&info_key, &user_info);
-			} else {
-				// first time deposit to this pool
-				StakingInfo::<T>::insert(
-					&info_key,
-					UserStakeInfo {
-						user: who.clone(),
-						amount: a,
-						available_rewards: Zero::zero(),
-						user_debt: a * pool_info.pool_acc / 10u32.pow(6).saturated_into(),
-					},
-				);
-			}
+				None => UserStakeInfo {
+					user: who.clone(),
+					amount: Zero::zero(),
+					available_rewards: Zero::zero(),
+					user_debt: Zero::zero(),
+				},
+			};
+			// Add the stake
+			user_info.amount.saturating_accrue(a);
+			user_info.clear_pending_reward(pool_info.pool_acc);
+			StakingInfo::<T>::insert(&info_key, &user_info);
+			// Lock the funds
 			Self::ledger_accrue(&who, a);
-
+			// Update pool info
 			pool_info.total_stake = pool_info.total_stake.saturating_add(a);
 			pool_info.free_stake = pool_info.free_stake.saturating_add(a);
 
 			// we have new free stake now, try handle the waitting withdraw queue
-			Self::try_handle_waiting_withdraw(&mut pool_info);
+			Self::try_process_withdraw_queue(&mut pool_info);
 
 			MiningPools::<T>::insert(&pid, &pool_info);
 
@@ -455,7 +441,7 @@ pub mod pallet {
 					amount: amount,
 					start_time: now,
 				});
-				Self::try_add_withdraw_pool_to_queue(now, pool_info.pid);
+				Self::maybe_add_withdraw_queue(now, pool_info.pid);
 			} else {
 				Self::try_withdraw(&mut pool_info, &mut user_info, amount);
 			}
@@ -538,20 +524,6 @@ pub mod pallet {
 			STAKEPOOL_PALLETID.into_account()
 		}
 
-		/// Query rewards of user in a specific pool
-		pub fn pending_rewards(pid: u64, who: T::AccountId) -> BalanceOf<T> {
-			let info_key = (pid.clone(), who.clone());
-			let user_info = Self::staking_info(&info_key).expect("Stake info doesn't exist; qed.");
-			let pool_info = Self::ensure_pool(pid).expect("Stake pool doesn't exist; qed.");
-
-			// rewards belong to user, including pending rewards and available_rewards
-			let rewards = user_info.available_rewards.saturating_add(
-				user_info.amount * pool_info.pool_acc / 10u32.pow(6).into() - user_info.user_debt,
-			);
-
-			return rewards;
-		}
-
 		/// Adds up the newly received reward to `pool_acc`
 		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
@@ -559,19 +531,20 @@ pub mod pallet {
 		) {
 			if rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
 				let commission = rewards * pool_info.payout_commission.into() / 1000u32.into();
-				pool_info.owner_reward = pool_info.owner_reward.saturating_add(commission);
-				// Additional rewards contribute to the face value of the pool shares.
-				// The vaue of each share effectively grows by (rewards / total_shares)
-				let pool_rewards = rewards - commission;
-				pool_info.pool_acc = pool_info
-					.pool_acc
-					.saturating_add(pool_rewards * 10u32.pow(6).into() / pool_info.total_stake);
+				pool_info.owner_reward.saturating_accrue(commission);
+				pool_info.add_reward(rewards - commission);
 			}
 		}
 
 		/// Tries to withdraw a specific amount from a pool.
 		///
-		/// The withdraw request would be delayed if the free stake is not enough.
+		/// The withdraw request would be delayed if the free stake is not enough, otherwise
+		/// withdraw from the free deposit immediately.
+		///
+		/// WARNING:
+		/// 1. The method assumes user pending reward is already cleared.
+		/// 2. The updates are made in `pool_info` and `user_info`. It's up to the caller to
+		///     persist the data.
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
@@ -611,13 +584,14 @@ pub mod pallet {
 					amount: unwithdraw_amount,
 					start_time: now,
 				});
-				Self::try_add_withdraw_pool_to_queue(now, pool_info.pid);
+				Self::maybe_add_withdraw_queue(now, pool_info.pid);
 			}
-			user_info.user_debt =
-				user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
+			// Update the pending reward after changing the staked amount
+			user_info.clear_pending_reward(pool_info.pool_acc);
 		}
 
-		fn try_handle_waiting_withdraw(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
+		/// Tries to fulfill the withdraw queue with the newly freed stake
+		fn try_process_withdraw_queue(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			while pool_info.free_stake > Zero::zero() {
 				if pool_info.withdraw_queue.is_empty() {
 					break;
@@ -626,6 +600,8 @@ pub mod pallet {
 				if let Some(mut withdraw_info) = pool_info.withdraw_queue.pop_front() {
 					let info_key = (pool_info.pid.clone(), withdraw_info.user.clone());
 					let mut user_info = Self::staking_info(&info_key).unwrap();
+					// Must clear the pending reward before any stake change
+					pool_info.clear_user_pending_reward(&mut user_info);
 
 					if pool_info.free_stake < withdraw_info.amount {
 						pool_info.total_stake =
@@ -659,10 +635,8 @@ pub mod pallet {
 						pool_info.free_stake =
 							pool_info.free_stake.saturating_sub(withdraw_info.amount);
 					}
-					// update user_debt which would determine the user's rewards
-					user_info.user_debt =
-						user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
-
+					// Update the pending reward after changing the staked amount
+					user_info.clear_pending_reward(pool_info.pool_acc);
 					StakingInfo::<T>::insert(&info_key, &user_info);
 				}
 			}
@@ -677,11 +651,13 @@ pub mod pallet {
 			}
 		}
 
+		/// Gets the pool record by `pid`. Returns error if not exist
 		fn ensure_pool(pid: u64) -> Result<PoolInfo<T::AccountId, BalanceOf<T>>, Error<T>> {
 			Self::mining_pools(&pid).ok_or(Error::<T>::PoolNotExist)
 		}
 
-		fn try_add_withdraw_pool_to_queue(start_time: u64, pid: u64) {
+		/// Adds the givin pool (`pid`) to the withdraw queue if not present
+		fn maybe_add_withdraw_queue(start_time: u64, pid: u64) {
 			let mut t = WithdrawTimestamps::<T>::get();
 			if let Some(last_start_time) = t.back().cloned() {
 				// the last_start_time == start_time means already have a withdraw request added early of this block,
@@ -741,7 +717,7 @@ pub mod pallet {
 			// with the worker been cleaned, whose stake now are free
 			pool_info.free_stake = pool_info.free_stake.saturating_add(deposit_balance);
 
-			Self::try_handle_waiting_withdraw(&mut pool_info);
+			Self::try_process_withdraw_queue(&mut pool_info);
 			MiningPools::<T>::insert(&pid, &pool_info);
 		}
 	}
@@ -791,6 +767,30 @@ pub mod pallet {
 		withdraw_queue: VecDeque<WithdrawInfo<AccountId, Balance>>,
 	}
 
+	impl<AccountId, Balance> PoolInfo<AccountId, Balance>
+	where
+		AccountId: Default,
+		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy,
+	{
+		/// Clears the pending rewards of a user and move to `available_rewards` for claiming
+		fn clear_user_pending_reward(&self, user_info: &mut UserStakeInfo<AccountId, Balance>) {
+			let pending_reward = user_info.pending_reward(self.pool_acc);
+			user_info
+				.available_rewards
+				.saturating_accrue(pending_reward);
+			user_info.clear_pending_reward(self.pool_acc);
+		}
+
+		// Distributes additinoal rewards to the current share holders.
+		//
+		// Additional rewards contribute to the face value of the pool shares. The vaue of each
+		// share effectively grows by (rewards / total_shares).
+		fn add_reward(&mut self, rewards: Balance) {
+			self.pool_acc
+				.saturating_accrue(rewards * 10u32.pow(6).into() / self.total_stake);
+		}
+	}
+
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId: Default, Balance> {
 		user: AccountId,
@@ -828,6 +828,11 @@ pub mod pallet {
 		/// - `acc_per_share`: accumulated reward per share
 		fn pending_reward(&self, acc_per_share: Balance) -> Balance {
 			self.amount * acc_per_share / 1_000_000u32.into() - self.user_debt
+		}
+
+		/// Resets the `user_debt` to remove all the pending rewards
+		fn clear_pending_reward(&mut self, acc_per_share: Balance) {
+			self.user_debt = self.amount * acc_per_share / 1_000_000u32.into();
 		}
 	}
 
