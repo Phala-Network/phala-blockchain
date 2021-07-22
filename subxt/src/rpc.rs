@@ -121,6 +121,19 @@ pub struct SystemProperties {
     pub token_symbol: String,
 }
 
+/// System sync state for a Substrate-based runtime
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncState {
+    /// Height of the block at which syncing started.
+    pub starting_block: u64,
+    /// Height of the current best block of the node.
+    pub current_block: u64,
+    /// Height of the highest block learned from the network. Missing if no block is known yet.
+    #[serde(default = "Default::default")]
+    pub highest_block: Option<u64>,
+}
+
 /// Possible transaction status events.
 ///
 /// # Note
@@ -403,6 +416,11 @@ impl<T: Runtime> Rpc<T> {
     /// Fetch system properties
     pub async fn system_properties(&self) -> Result<SystemProperties, Error> {
         Ok(self.client.request("system_properties", &[]).await?)
+    }
+
+    /// Fetch block syncing status
+    pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
+        Ok(self.client.request("system_syncState", &[]).await?)
     }
 
     /// Get a header
