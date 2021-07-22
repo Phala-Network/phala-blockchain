@@ -687,11 +687,11 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     loop {
         let state = client.rpc.system_sync_state().await?;
         if let Some(highest) = state.highest_block {
-            if highest - state.current_block <= 1 {
+            if highest - state.current_block <= 2 {
                 return Ok(());
             }
         }
-        delay_for(Duration::from_secs(10)).await;
+        delay_for(Duration::from_secs(5)).await;
     }
 }
 
