@@ -25,11 +25,12 @@ mod types;
 use crate::error::Error;
 use crate::types::{
     AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, BlockNumber, BlockWithChanges,
-    DispatchBlockResp, GenesisInfo, GetInfoReq, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
+    DispatchBlockResp, GenesisInfo, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
     InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime,
     SyncHeaderResp,
 };
 use enclave_api::blocks::{self, StorageProof};
+use enclave_api::prpc::PhactoryInfo;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
@@ -348,7 +349,7 @@ async fn batch_sync_block(
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
-    info: &types::GetInfoResp,
+    info: &PhactoryInfo,
     parachain: bool,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
@@ -724,7 +725,7 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pending_register_info: Option<(InitRespAttestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
-    let info = pr.req_decode("get_info", GetInfoReq {}).await?;
+    let info = pr.prpc.get_info(()).await?;
     if !args.no_init {
         let runtime_info;
         if !info.initialized {
@@ -804,7 +805,7 @@ async fn bridge(args: Args) -> Result<()> {
 
     loop {
         // update the latest pRuntime state
-        let info = pr.req_decode("get_info", GetInfoReq {}).await?;
+        let info = pr.prpc.get_info(()).await?;
         info!("pRuntime get_info response: {:?}", info);
 
         // STATUS: header_synced = info.headernum

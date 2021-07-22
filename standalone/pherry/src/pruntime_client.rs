@@ -1,27 +1,34 @@
+use anyhow::Context;
 use anyhow::Result;
+use bytes::buf::BufExt as _;
 use codec::Encode;
-use serde::Serialize;
 use hyper::Client as HttpClient;
 use hyper::{Body, Method, Request};
 use log::info;
-use bytes::buf::BufExt as _;
+use serde::Serialize;
 use sp_runtime::DeserializeOwned;
-use anyhow::Context;
 
-use crate::types::{RuntimeReq, Resp, SignedResp};
+use crate::types::{Resp, RuntimeReq, SignedResp};
+use enclave_api::prpc;
+use enclave_api::prpc::phactory_api_client::PhactoryApiClient;
 
 pub struct PRuntimeClient {
-    base_url: String
+    base_url: String,
+    pub prpc: PhactoryApiClient<RpcRequest>,
 }
 
 impl PRuntimeClient {
     pub fn new(base_url: &str) -> Self {
         PRuntimeClient {
-            base_url: base_url.to_string()
+            base_url: base_url.to_string(),
+            prpc: PhactoryApiClient::new(RpcRequest::new(base_url.to_string()))
         }
     }
 
-    async fn req<T>(&self, command: &str, param: &T) -> Result<SignedResp>  where T: Serialize {
+    async fn req<T>(&self, command: &str, param: &T) -> Result<SignedResp>
+    where
+        T: Serialize,
+    {
         let client = HttpClient::new();
         let endpoint = format!("{}/{}", self.base_url, command);
 
@@ -48,7 +55,9 @@ impl PRuntimeClient {
     }
 
     pub async fn req_decode<Req>(&self, command: &str, request: Req) -> Result<Req::Resp>
-        where Req: Serialize + Resp {
+    where
+        Req: Serialize + Resp,
+    {
         let payload = RuntimeReq::new(request);
         let resp = self.req(command, &payload).await?;
         let result: Req::Resp = serde_json::from_str(&resp.payload)?;
@@ -83,5 +92,47 @@ impl PRuntimeClient {
         let resp = self.bin_req(command, &request).await?;
         let result: Resp = serde_json::from_str(&resp.payload)?;
         Ok(result)
+    }
+}
+
+pub struct RpcRequest {
+    base_url: String,
+    client: reqwest::Client,
+}
+
+impl RpcRequest {
+    pub fn new(base_url: String) -> Self {
+        Self {
+            base_url,
+            client: reqwest::Client::new(),
+        }
+    }
+}
+
+#[async_trait::async_trait]
+impl prpc::RequestClient for RpcRequest {
+    async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, prpc::ClientError> {
+        fn display_err(err: impl std::fmt::Display) -> prpc::ClientError {
+            prpc::ClientError::RpcError(err.to_string())
+        }
+
+        let url = format!("{}/prpc/{}", self.base_url, path);
+        let res = self
+            .client
+            .post(url)
+            .body(body)
+            .send()
+            .await
+            .map_err(display_err)?;
+
+        info!("Response: {}", res.status());
+        let status = res.status();
+        let body = res.bytes().await.map_err(display_err)?;
+        if status.is_success() {
+            Ok(body.to_vec())
+        } else {
+            let err: prpc::ServerError = prpc::Message::decode(body.as_ref())?;
+            Err(prpc::ClientError::ServerError(err))
+        }
     }
 }

@@ -5,6 +5,11 @@ mod pruntime_rpc_generated;
 
 pub mod prpc {
     pub use crate::pruntime_rpc_generated::*;
+    pub use prpc::{
+        client::{Error as ClientError, RequestClient},
+        server::ProtoError as ServerError,
+        Message,
+    };
 }
 
 pub mod actions {

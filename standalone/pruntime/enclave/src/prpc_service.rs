@@ -20,6 +20,7 @@ pub extern "C" fn ecall_prpc_request(
     } else {
         (code, data)
     };
+    info!("rpc code: {}, data: {:?}", code, data);
     unsafe {
         *status_code = code;
         let len = output_buf_len.min(data.len());
@@ -47,6 +48,7 @@ fn prpc_request(
     };
     let server = PhactoryApiServer::new(Server);
     let data = unsafe { std::slice::from_raw_parts(data, data_len) };
+    info!("Dispatching request: {}", path);
     let (code, data) = match server.dispatch_request(path, data.to_vec()) {
         Ok(data) => (200, data),
         Err(e) => {
@@ -78,7 +80,6 @@ pub fn get_info() -> PhactoryInfo {
         .ecdh_key
         .as_ref()
         .map(|pair| hex::encode(pair.public().as_ref()));
-    let machine_id = local_state.machine_id;
     let dev_mode = local_state.dev_mode;
     drop(local_state);
 

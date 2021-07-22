@@ -74,7 +74,6 @@ pub struct GetInfoResp {
     pub genesis_block_hash: Option<String>,
     pub public_key: Option<String>,
     pub ecdh_public_key: Option<String>,
-    pub machine_id: Vec<u8>,
 }
 
 impl Resp for GetInfoReq {

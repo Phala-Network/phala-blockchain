@@ -42,3 +42,4 @@ phala-pallets = { path = "../../pallets/phala" }
 trie-storage = { path = "../../crates/trie-storage" }
 rpc-ext = { path = "../../standalone/rpc-ext" }
 enclave-api = { path = "../../standalone/pruntime/enclave-api" }
+reqwest = { version = "0.11" }

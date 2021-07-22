@@ -11,8 +11,6 @@ use prost::DecodeError;
 pub use prost::Message;
 
 pub mod server {
-    use core::fmt::Display;
-
     use super::*;
 
     #[derive(Display, Debug)]
@@ -27,6 +25,13 @@ pub mod server {
             Self::DecodeError(e)
         }
     }
+
+    impl From<Error> for anyhow::Error {
+        fn from(error: Error) -> Self {
+            Self::msg(error)
+        }
+    }
+
 
     /// Error in protobuf format
     #[derive(Display, Message)]
@@ -50,6 +55,7 @@ pub mod client {
     #[derive(Display, Debug)]
     pub enum Error {
         DecodeError(DecodeError),
+        ServerError(super::server::ProtoError),
         RpcError(String),
     }
 
@@ -59,9 +65,15 @@ pub mod client {
         }
     }
 
+    impl From<Error> for anyhow::Error {
+        fn from(error: Error) -> Self {
+            Self::msg(error)
+        }
+    }
+
     #[async_trait]
     pub trait RequestClient {
-        async fn request(&self, path: &str, body: impl AsRef<[u8]>) -> Result<Vec<u8>, Error>;
+        async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, Error>;
     }
 }
 
