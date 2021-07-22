@@ -911,6 +911,22 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
+pub extern "C" fn ecall_prpc_request(
+    path: *const uint8_t,
+    path_len: usize,
+    data: *const uint8_t,
+    data_len: usize,
+    status_code: *mut u16,
+    output_ptr: *mut uint8_t,
+    output_buf_len: usize,
+    output_len_ptr: *mut usize,
+) -> sgx_status_t {
+
+    sgx_status_t::SGX_SUCCESS
+}
+
+
+#[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 

@@ -13,7 +13,6 @@ pub use prost::Message;
 pub mod server {
     use super::*;
 
-    /// Server side request error
     #[derive(Display, Debug)]
     pub enum Error {
         NotFound,
@@ -27,7 +26,7 @@ pub mod server {
         }
     }
 
-    /// Error in Protobuf
+    /// Error in protobuf format
     #[derive(Display, ::prost::Message)]
     pub struct ProtoError {
         #[prost(string, tag = "1")]
@@ -38,7 +37,6 @@ pub mod server {
 pub mod client {
     use super::*;
 
-    /// Client side request error
     #[derive(Display, Debug)]
     pub enum Error {
         DecodeError(DecodeError),
