@@ -683,6 +683,18 @@ async fn register_worker(
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
+async fn wait_until_synced(client: &XtClient) -> Result<()> {
+    loop {
+        let state = client.rpc.system_sync_state().await?;
+        if let Some(highest) = state.highest_block {
+            if highest - state.current_block <= 1 {
+                return Ok(());
+            }
+        }
+        delay_for(Duration::from_secs(10)).await;
+    }
+}
+
 async fn bridge(args: Args) -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -711,6 +723,12 @@ async fn bridge(args: Args) -> Result<()> {
     } else {
         client.clone()
     };
+
+    // Don't start our worker until the substrate node is synced
+    info!("Waiting for substrate to sync blocks...");
+    wait_until_synced(&client).await?;
+    wait_until_synced(&paraclient).await?;
+    info!("Substrate sync blocks done");
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
