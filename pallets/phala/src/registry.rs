@@ -360,6 +360,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[cfg(test)]
 		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
 			Worker::<T>::mutate(worker, |w| {
 				if let Some(w) = w {
