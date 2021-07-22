@@ -1,9 +1,6 @@
 use anyhow::Context;
 use anyhow::Result;
-use bytes::buf::BufExt as _;
 use codec::Encode;
-use hyper::Client as HttpClient;
-use hyper::{Body, Method, Request};
 use log::info;
 use serde::Serialize;
 use sp_runtime::DeserializeOwned;
@@ -29,23 +26,20 @@ impl PRuntimeClient {
     where
         T: Serialize,
     {
-        let client = HttpClient::new();
+        let client = reqwest::Client::new();
         let endpoint = format!("{}/{}", self.base_url, command);
 
         let body_json = serde_json::to_string(param)?;
-
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(endpoint)
+        let res = client.post(endpoint)
             .header("content-type", "application/json")
-            .body(Body::from(body_json))?;
-
-        let res = client.request(req).await?;
+            .body(body_json)
+            .send()
+            .await?;
 
         info!("Response: {}", res.status());
 
-        let body = hyper::body::aggregate(res.into_body()).await?;
-        let opaque_value: serde_json::Value = serde_json::from_reader(body.reader())?;
+        let body = res.bytes().await?;
+        let opaque_value: serde_json::Value = serde_json::from_slice(body.as_ref())?;
         let signed_resp: SignedResp = serde_json::from_value(opaque_value.clone())
             .with_context(|| format!("Cannot convert json to SignedResp ({})", opaque_value))?;
 
@@ -65,21 +59,18 @@ impl PRuntimeClient {
     }
 
     async fn bin_req<T: Encode>(&self, command: &str, param: &T) -> Result<SignedResp> {
-        let client = HttpClient::new();
+        let client = reqwest::Client::new();
         let endpoint = format!("{}/{}", self.base_url, command);
         let body = param.encode();
 
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(endpoint)
-            .body(Body::from(body))?;
-
-        let res = client.request(req).await?;
+        let res = client.post(endpoint)
+            .body(body)
+            .send().await?;
 
         info!("Response: {}", res.status());
 
-        let body = hyper::body::aggregate(res.into_body()).await?;
-        let signed_resp: SignedResp = serde_json::from_reader(body.reader())?;
+        let body = res.bytes().await?;
+        let signed_resp: SignedResp = serde_json::from_slice(body.as_ref())?;
 
         Ok(signed_resp)
     }

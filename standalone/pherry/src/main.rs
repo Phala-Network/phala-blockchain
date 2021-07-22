@@ -5,7 +5,7 @@ use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
 use structopt::StructOpt;
-use tokio::time::delay_for;
+use tokio::time::sleep;
 
 use codec::{Decode, Encode};
 use core::marker::PhantomData;
@@ -806,7 +806,7 @@ async fn bridge(args: Args) -> Result<()> {
     loop {
         // update the latest pRuntime state
         let info = pr.prpc.get_info(()).await?;
-        info!("pRuntime get_info response: {:?}", info);
+        info!("pRuntime get_info response: {:#?}", info);
 
         // STATUS: header_synced = info.headernum
         // STATUS: block_synced = info.blocknum
@@ -921,7 +921,7 @@ async fn bridge(args: Args) -> Result<()> {
         }
         if synced_blocks == 0 {
             info!("Waiting for new blocks");
-            delay_for(Duration::from_millis(5000)).await;
+            sleep(Duration::from_millis(5000)).await;
             continue;
         }
     }

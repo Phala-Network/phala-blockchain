@@ -29,8 +29,8 @@ pub struct PhactoryInfo {
     #[prost(uint32, tag = "9")]
     pub blocknum: u32,
     /// Current chain storage's state root.
-    #[prost(string, optional, tag = "10")]
-    pub state_root: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, tag = "10")]
+    pub state_root: ::prost::alloc::string::String,
     /// Whether the worker is running in dev mode.
     #[prost(bool, tag = "11")]
     pub dev_mode: bool,

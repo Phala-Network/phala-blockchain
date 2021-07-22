@@ -1,6 +1,4 @@
 use anyhow::Result;
-use hyper::Client as HttpClient;
-use hyper::{Body, Method, Request, Response};
 
 use crate::types::{
     NotifyReq
@@ -17,23 +15,25 @@ impl NotifyClient {
         }
     }
 
-    pub async fn notify(&self, param: &NotifyReq) -> Result<Response<Body>> {
+    pub async fn notify(&self, param: &NotifyReq) -> Result<()> {
         if self.base_url.is_empty() {
-            return Ok(Response::default());
+            return Ok(())
         }
 
-        let client = HttpClient::new();
+        let client = reqwest::Client::new();
 
         let body_json = serde_json::to_string(param).unwrap();
 
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(&self.base_url)
+        let res = client.post(&self.base_url)
             .header("content-type", "application/json")
-            .body(Body::from(body_json)).unwrap();
+            .body(body_json)
+            .send()
+            .await?;
 
-        let res = client.request(req).await;
-
-        Ok(res?)
+        if res.status().is_success() {
+            Ok(())
+        } else {
+            Err(anyhow::Error::msg(res.status()))
+        }
     }
 }

@@ -17,7 +17,7 @@ keywords = ["parity", "substrate", "blockchain"]
 include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 
 [features]
-default = ["tokio02"]
+default = ["tokio1"]
 client = ["substrate-subxt-client"]
 # jsonrpsee can be configured to use tokio02 or tokio1.
 tokio02 = ["jsonrpsee-http-client/tokio02", "jsonrpsee-ws-client/tokio02"]

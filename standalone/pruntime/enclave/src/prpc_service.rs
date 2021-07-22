@@ -20,7 +20,7 @@ pub extern "C" fn ecall_prpc_request(
     } else {
         (code, data)
     };
-    info!("rpc code: {}, data: {:?}", code, data);
+    info!("rpc code: {}, data len: {}", code, data.len());
     unsafe {
         *status_code = code;
         let len = output_buf_len.min(data.len());
@@ -102,6 +102,7 @@ pub fn get_info() -> PhactoryInfo {
         }
     };
     let score = benchmark::score();
+
     PhactoryInfo {
         initialized,
         registered,
@@ -112,7 +113,7 @@ pub fn get_info() -> PhactoryInfo {
         headernum: counters.next_header_number,
         para_headernum: counters.next_para_header_number,
         blocknum: counters.next_block_number,
-        state_root: Some(state_root),
+        state_root,
         dev_mode,
         pending_messages: pending_messages as _,
         score,

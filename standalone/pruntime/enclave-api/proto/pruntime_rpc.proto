@@ -34,7 +34,7 @@ message PhactoryInfo {
     // The changes block number synchronized to.
     uint32 blocknum = 9;
     // Current chain storage's state root.
-    optional string state_root = 10;
+    string state_root = 10;
     // Whether the worker is running in dev mode.
     bool dev_mode = 11;
     // The number of mq messages in the egress queue.
