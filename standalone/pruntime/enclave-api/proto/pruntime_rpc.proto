@@ -1,0 +1,28 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package pruntime_rpc_generated;
+
+// The greeting service definition.
+service PhactoryAPI {
+  // Sends a greeting
+  rpc SayHello (HelloRequest) returns (HelloReply) {}
+
+  /// Get basic information about Phactory state.
+  rpc GetInfo (google.protobuf.Empty) returns (HelloReply) {}
+}
+
+// The request message containing the user's name.
+message HelloRequest {
+  string name = 1;
+}
+
+// The response message containing the greetings
+message HelloReply {
+  string message = 1;
+}
+
+message Empty {
+}
