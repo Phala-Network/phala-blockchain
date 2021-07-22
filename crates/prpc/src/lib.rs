@@ -27,7 +27,7 @@ pub mod server {
     }
 
     /// Error in protobuf format
-    #[derive(Display, ::prost::Message)]
+    #[derive(Display, Message)]
     pub struct ProtoError {
         #[prost(string, tag = "1")]
         pub message: ::prost::alloc::string::String,

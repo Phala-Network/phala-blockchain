@@ -19,6 +19,8 @@ trie-storage = { path = "../../../crates/trie-storage", default-features = false
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
 derive_more = "0.99.16"
+prpc = { path = "../../../crates/prpc" }
+prost = { version = "0.8.0", default-features = false }
 
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build", optional = true }

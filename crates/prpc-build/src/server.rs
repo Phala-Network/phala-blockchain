@@ -36,6 +36,8 @@ pub fn generate<T: Service>(
         /// Generated server implementations.
         #(#mod_attributes)*
         pub mod #server_mod {
+            use alloc::vec::Vec;
+
             #generated_trait
 
             #service_doc
