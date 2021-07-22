@@ -594,51 +594,36 @@ pub mod pallet {
 		/// Tries to fulfill the withdraw queue with the newly freed stake
 		fn try_process_withdraw_queue(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
 			while pool_info.free_stake > Zero::zero() {
-				if pool_info.withdraw_queue.is_empty() {
-					break;
-				}
-
-				if let Some(mut withdraw_info) = pool_info.withdraw_queue.pop_front() {
-					let info_key = (pool_info.pid.clone(), withdraw_info.user.clone());
-					let mut user_info = Self::staking_info(&info_key).unwrap();
+				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
+					let info_key = (pool_info.pid.clone(), withdraw.user.clone());
+					let mut user_info = Self::staking_info(&info_key).unwrap();
 					pool_info.clear_user_pending_reward(&mut user_info);
-
-					if pool_info.free_stake < withdraw_info.amount {
-						pool_info.total_stake =
-							pool_info.total_stake.saturating_sub(pool_info.free_stake);
-						withdraw_info.amount =
-							withdraw_info.amount.saturating_sub(pool_info.free_stake);
-
-						// push front the updated withdraw info
-						pool_info.withdraw_queue.push_front(withdraw_info);
-
-						user_info.amount = user_info.amount.saturating_sub(pool_info.free_stake);
-						Self::ledger_reduce(&user_info.user, pool_info.free_stake);
-						Self::deposit_event(Event::<T>::Withdraw(
-							pool_info.pid,
-							user_info.user.clone(),
-							pool_info.free_stake,
-						));
-						pool_info.free_stake = Zero::zero();
-					} else {
-						// all of the amount would be withdraw to user and no need to push the popped one back
-						pool_info.total_stake =
-							pool_info.total_stake.saturating_sub(withdraw_info.amount);
-
-						user_info.amount = user_info.amount.saturating_sub(withdraw_info.amount);
-						Self::ledger_reduce(&user_info.user, withdraw_info.amount);
-						Self::deposit_event(Event::<T>::Withdraw(
-							pool_info.pid,
-							user_info.user.clone(),
-							withdraw_info.amount,
-						));
-						pool_info.free_stake =
-							pool_info.free_stake.saturating_sub(withdraw_info.amount);
-					}
+					// Try to fulfill the withdraw requests as much as possible
+					let delta = sp_std::cmp::min(pool_info.free_stake, withdraw.amount);
+					pool_info.free_stake.saturating_reduce(delta);
+					pool_info.total_stake.saturating_reduce(delta);
+					withdraw.amount.saturating_reduce(delta);
+					user_info.amount.saturating_reduce(delta);
+					// Actually withdraw the funds
+					Self::ledger_reduce(&user_info.user, delta);
+					Self::deposit_event(Event::<T>::Withdraw(
+						pool_info.pid,
+						user_info.user.clone(),
+						delta,
+					));
 					// Update the pending reward after changing the staked amount
 					user_info.clear_pending_reward(pool_info.pool_acc);
 					StakingInfo::<T>::insert(&info_key, &user_info);
+					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
+					// queue
+					if withdraw.amount == Zero::zero() {
+						pool_info.withdraw_queue.pop_front();
+					} else {
+						*pool_info.withdraw_queue.front_mut().unwrap() = withdraw;
+					}
+				} else {
+					break;
 				}
 			}
 		}
