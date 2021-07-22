@@ -11,6 +11,8 @@ use prost::DecodeError;
 pub use prost::Message;
 
 pub mod server {
+    use core::fmt::Display;
+
     use super::*;
 
     #[derive(Display, Debug)]
@@ -31,6 +33,14 @@ pub mod server {
     pub struct ProtoError {
         #[prost(string, tag = "1")]
         pub message: ::prost::alloc::string::String,
+    }
+
+    impl ProtoError {
+        pub fn new(message: impl Into<String>) -> ProtoError {
+            ProtoError {
+                message: message.into(),
+            }
+        }
     }
 }
 

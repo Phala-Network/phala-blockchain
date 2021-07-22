@@ -3,6 +3,10 @@ extern crate alloc;
 
 mod pruntime_rpc_generated;
 
+pub mod prpc {
+    pub use crate::pruntime_rpc_generated::*;
+}
+
 pub mod actions {
     pub const ACTION_TEST: u8 = 0;
     pub const ACTION_INIT_RUNTIME: u8 = 1;
@@ -553,5 +557,3 @@ pub mod storage_sync {
         // TODO.kevin: Write some tests
     }
 }
-
-pub mod prpc {}

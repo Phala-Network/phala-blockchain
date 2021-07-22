@@ -54,7 +54,7 @@ pub fn generate<T: Service>(
                     }
                 }
 
-                fn dispatch_request(&self, path: &str, data: Vec<u8>) -> Result<Vec<u8>, prpc::server::Error> {
+                pub fn dispatch_request(&self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
                     match path {
                         #methods
                         _ => Err(prpc::server::Error::NotFound),
@@ -172,7 +172,7 @@ fn generate_unary<T: Method>(
     let (request, _response) = method.request_response_name(proto_path, compile_well_known_types);
 
     quote! {
-        let input: #request = prpc::Message::decode(&data[..])?;
+        let input: #request = prpc::Message::decode(data.as_ref())?;
         let response = self.inner.#method_ident(input)?;
         Ok(prpc::codec::encode_message_to_vec(&response))
     }

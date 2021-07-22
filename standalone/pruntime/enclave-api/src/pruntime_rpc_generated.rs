@@ -1,17 +1,56 @@
-/// The request message containing the user's name.
+/// Basic information about a Phactory instance.
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct HelloRequest {
-    #[prost(string, tag = "1")]
-    pub name: ::prost::alloc::string::String,
+pub struct PhactoryInfo {
+    /// Whether the init_runtime has been called successfully.
+    #[prost(bool, tag = "1")]
+    pub initialized: bool,
+    /// Whether the worker has been registered on-chain.
+    #[prost(bool, tag = "2")]
+    pub registered: bool,
+    /// The Gatekeeper role of the worker.
+    #[prost(enumeration = "phactory_info::GatekeeperRole", tag = "3")]
+    pub gatekeeper_role: i32,
+    /// Genesis block header hash passed in by init_runtime.
+    #[prost(string, optional, tag = "4")]
+    pub genesis_block_hash: ::core::option::Option<::prost::alloc::string::String>,
+    /// Public key of the worker.
+    #[prost(string, optional, tag = "5")]
+    pub public_key: ::core::option::Option<::prost::alloc::string::String>,
+    /// ECDH public key of the worker.
+    #[prost(string, optional, tag = "6")]
+    pub ecdh_public_key: ::core::option::Option<::prost::alloc::string::String>,
+    /// The relaychain/solochain header number synchronized to.
+    #[prost(uint32, tag = "7")]
+    pub headernum: u32,
+    /// The parachain header number synchronized to. (parachain mode only)
+    #[prost(uint32, tag = "8")]
+    pub para_headernum: u32,
+    /// The changes block number synchronized to.
+    #[prost(uint32, tag = "9")]
+    pub blocknum: u32,
+    /// Current chain storage's state root.
+    #[prost(string, optional, tag = "10")]
+    pub state_root: ::core::option::Option<::prost::alloc::string::String>,
+    /// Whether the worker is running in dev mode.
+    #[prost(bool, tag = "11")]
+    pub dev_mode: bool,
+    /// The number of mq messages in the egress queue.
+    #[prost(uint64, tag = "12")]
+    pub pending_messages: u64,
+    /// Local estimated benchmark score.
+    #[prost(uint64, tag = "13")]
+    pub score: u64,
 }
-/// The response message containing the greetings
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct HelloReply {
-    #[prost(string, tag = "1")]
-    pub message: ::prost::alloc::string::String,
+/// Nested message and enum types in `PhactoryInfo`.
+pub mod phactory_info {
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+    #[repr(i32)]
+    pub enum GatekeeperRole {
+        None = 0,
+        Dummy = 1,
+        Active = 2,
+    }
 }
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct Empty {}
 #[doc = r" Generated client implementations."]
 pub mod phactory_api_client {
     #[doc = " The greeting service definition."]
@@ -26,25 +65,11 @@ pub mod phactory_api_client {
         pub fn new(client: Client) -> Self {
             Self { client }
         }
-        #[doc = " Sends a greeting"]
-        pub async fn say_hello(
-            &self,
-            request: super::HelloRequest,
-        ) -> Result<super::HelloReply, prpc::client::Error> {
-            let response = self
-                .client
-                .request(
-                    "PhactoryAPI.SayHello",
-                    prpc::codec::encode_message_to_vec(&request),
-                )
-                .await?;
-            Ok(prpc::Message::decode(&response[..])?)
-        }
-        #[doc = "/ Get basic information about Phactory state."]
+        #[doc = " Get basic information about Phactory state."]
         pub async fn get_info(
             &self,
             request: (),
-        ) -> Result<super::HelloReply, prpc::client::Error> {
+        ) -> Result<super::PhactoryInfo, prpc::client::Error> {
             let response = self
                 .client
                 .request(
@@ -58,15 +83,11 @@ pub mod phactory_api_client {
 }
 #[doc = r" Generated server implementations."]
 pub mod phactory_api_server {
+    use alloc::vec::Vec;
     #[doc = "Generated trait containing RPC methods that should be implemented for use with PhactoryApiServer."]
     pub trait PhactoryApi {
-        #[doc = " Sends a greeting"]
-        fn say_hello(
-            &self,
-            request: super::HelloRequest,
-        ) -> Result<super::HelloReply, prpc::server::Error>;
-        #[doc = "/ Get basic information about Phactory state."]
-        fn get_info(&self, request: ()) -> Result<super::HelloReply, prpc::server::Error>;
+        #[doc = " Get basic information about Phactory state."]
+        fn get_info(&self, request: ()) -> Result<super::PhactoryInfo, prpc::server::Error>;
     }
     #[doc = " The greeting service definition."]
     #[derive(Debug)]
@@ -77,19 +98,14 @@ pub mod phactory_api_server {
         pub fn new(inner: T) -> Self {
             Self { inner }
         }
-        fn dispatch_request(
+        pub fn dispatch_request(
             &self,
             path: &str,
-            data: Vec<u8>,
+            data: impl AsRef<[u8]>,
         ) -> Result<Vec<u8>, prpc::server::Error> {
             match path {
-                "PhactoryAPI.SayHello" => {
-                    let input: super::HelloRequest = prpc::Message::decode(&data[..])?;
-                    let response = self.inner.say_hello(input)?;
-                    Ok(prpc::codec::encode_message_to_vec(&response))
-                }
                 "PhactoryAPI.GetInfo" => {
-                    let input: () = prpc::Message::decode(&data[..])?;
+                    let input: () = prpc::Message::decode(data.as_ref())?;
                     let response = self.inner.get_info(input)?;
                     Ok(prpc::codec::encode_message_to_vec(&response))
                 }

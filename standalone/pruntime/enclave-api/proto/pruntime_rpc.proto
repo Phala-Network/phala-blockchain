@@ -7,22 +7,38 @@ package pruntime_rpc_generated;
 
 // The greeting service definition.
 service PhactoryAPI {
-  // Sends a greeting
-  rpc SayHello (HelloRequest) returns (HelloReply) {}
-
-  /// Get basic information about Phactory state.
-  rpc GetInfo (google.protobuf.Empty) returns (HelloReply) {}
+  // Get basic information about Phactory state.
+  rpc GetInfo (google.protobuf.Empty) returns (PhactoryInfo) {}
 }
 
-// The request message containing the user's name.
-message HelloRequest {
-  string name = 1;
-}
+// Basic information about a Phactory instance.
+message PhactoryInfo {
+    enum GatekeeperRole { None = 0; Dummy = 1; Active = 2; }
 
-// The response message containing the greetings
-message HelloReply {
-  string message = 1;
-}
-
-message Empty {
+    // Whether the init_runtime has been called successfully.
+    bool initialized = 1;
+    // Whether the worker has been registered on-chain.
+    bool registered = 2;
+    // The Gatekeeper role of the worker.
+    GatekeeperRole gatekeeper_role = 3;
+    // Genesis block header hash passed in by init_runtime.
+    optional string genesis_block_hash = 4;
+    // Public key of the worker.
+    optional string public_key = 5;
+    // ECDH public key of the worker.
+    optional string ecdh_public_key = 6;
+    // The relaychain/solochain header number synchronized to.
+    uint32 headernum = 7;
+    // The parachain header number synchronized to. (parachain mode only)
+    uint32 para_headernum = 8;
+    // The changes block number synchronized to.
+    uint32 blocknum = 9;
+    // Current chain storage's state root.
+    optional string state_root = 10;
+    // Whether the worker is running in dev mode.
+    bool dev_mode = 11;
+    // The number of mq messages in the egress queue.
+    uint64 pending_messages = 12;
+    // Local estimated benchmark score.
+    uint64 score = 13;
 }

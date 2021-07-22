@@ -78,6 +78,7 @@ mod storage;
 mod system;
 mod types;
 mod utils;
+mod prpc_service;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -706,7 +707,7 @@ fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
-                ACTION_GET_INFO => get_info(payload),
+                ACTION_GET_INFO => get_info_json(),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
@@ -909,22 +910,6 @@ fn init_secret_keys(
     info!("Init done.");
     Ok(data)
 }
-
-#[no_mangle]
-pub extern "C" fn ecall_prpc_request(
-    path: *const uint8_t,
-    path_len: usize,
-    data: *const uint8_t,
-    data_len: usize,
-    status_code: *mut u16,
-    output_ptr: *mut uint8_t,
-    output_buf_len: usize,
-    output_len_ptr: *mut usize,
-) -> sgx_status_t {
-
-    sgx_status_t::SGX_SUCCESS
-}
-
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
@@ -1368,61 +1353,22 @@ fn handle_inbound_messages(
     Ok(())
 }
 
-fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-
-    let initialized = local_state.initialized;
-    let genesis_block_hash = local_state
-        .genesis_block_hash
-        .as_ref()
-        .map(|hash| hex::encode(hash));
-    let pubkey = local_state
-        .identity_key
-        .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
-    let s_ecdh_pk = local_state
-        .ecdh_key
-        .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
-    let machine_id = local_state.machine_id;
-    let dev_mode = local_state.dev_mode;
-    drop(local_state);
-
-    let state = STATE.lock().unwrap();
-    let (state_root, pending_messages, counters) = match state.as_ref() {
-        Some(state) => {
-            let state_root = hex::encode(state.chain_storage.root());
-            let pending_messages = state.send_mq.count_messages();
-            let counters = state.storage_synchronizer.counters();
-            (state_root, pending_messages, counters)
-        }
-        None => Default::default(),
-    };
-    drop(state);
-
-    let (registered, role) = {
-        match SYSTEM_STATE.lock().unwrap().as_ref() {
-            Some(system) => (system.is_registered(), system.gatekeeper_role()),
-            None => (false, GatekeeperRole::None),
-        }
-    };
-    let score = benchmark::score();
-
+fn get_info_json() -> Result<Value, Value> {
+    let info = prpc_service::get_info();
     Ok(json!({
-        "initialized": initialized,
-        "registered": registered,
-        "gatekeeper_role": role,
-        "genesis_block_hash": genesis_block_hash,
-        "public_key": pubkey,
-        "ecdh_public_key": s_ecdh_pk,
-        "headernum": counters.next_header_number,
-        "para_headernum": counters.next_para_header_number,
-        "blocknum": counters.next_block_number,
-        "state_root": state_root,
-        "machine_id": machine_id,
-        "dev_mode": dev_mode,
-        "pending_messages": pending_messages,
-        "score": score,
+        "initialized": info.initialized,
+        "registered": info.registered,
+        "gatekeeper_role": info.gatekeeper_role,
+        "genesis_block_hash": info.genesis_block_hash,
+        "public_key": info.public_key,
+        "ecdh_public_key": info.ecdh_public_key,
+        "headernum": info.headernum,
+        "para_headernum": info.para_headernum,
+        "blocknum": info.blocknum,
+        "state_root": info.state_root,
+        "dev_mode": info.dev_mode,
+        "pending_messages": info.pending_messages,
+        "score": info.score,
     }))
 }
 
