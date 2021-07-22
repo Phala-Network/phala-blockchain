@@ -447,7 +447,7 @@ impl System {
         {
             self.gatekeeper.process_messages(block);
 
-            self.gatekeeper.vrf(block.block_number);
+            self.gatekeeper.emit_random_number(block.block_number);
         }
         Ok(())
     }

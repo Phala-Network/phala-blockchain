@@ -35,17 +35,24 @@ const VRF_INTERVAL: u32 = 5;
 /// Master key filepath
 pub const MASTER_KEY_FILEPATH: &str = "master_key.seal";
 
-// pesudo_random_number = blake2_256(master_key.sign(last_random_number, block_number))
+// pesudo_random_number = blake2_256(last_random_number, block_number, derived_master_key)
+//
+// NOTICE: we abandon the random number involving master key signature, since the malleability of sr25519 signature
+// refer to: https://github.com/w3f/schnorrkel/blob/34cdb371c14a73cbe86dfd613ff67d61662b4434/old/README.md#a-note-on-signature-malleability
 fn next_random_number(
     master_key: &sr25519::Pair,
     block_number: chain::BlockNumber,
     last_random_number: RandomNumber,
 ) -> RandomNumber {
+    let derived_random_key = master_key
+        .derive_sr25519_pair(&[b"random_number"])
+        .expect("should not fail with valid info");
+
     let mut buf: Vec<u8> = last_random_number.to_vec();
     buf.extend(block_number.to_be_bytes().iter().copied());
-    // TODO.shelven: use a derived key instead of master_key
-    let sig = master_key.sign_data(buf.as_ref());
-    hashing::blake2_256(&sig.0)
+    buf.extend(derived_random_key.dump_secret_key().iter().copied());
+
+    hashing::blake2_256(buf.as_ref())
 }
 
 struct WorkerInfo {
@@ -253,7 +260,7 @@ where
         }
     }
 
-    pub fn vrf(&mut self, block_number: chain::BlockNumber) {
+    pub fn emit_random_number(&mut self, block_number: chain::BlockNumber) {
         if block_number % VRF_INTERVAL != 0 {
             return;
         }
@@ -677,11 +684,11 @@ where
         };
 
         if let Some(master_key) = &self.state.master_key {
+            let expect_random =
+                next_random_number(master_key, event.block_number, event.last_random_number);
             // instead of checking the origin, we directly verify the random to avoid access storage
-            if next_random_number(master_key, event.block_number, event.last_random_number)
-                != event.random_number
-            {
-                error!("Fatal error: Unexpected random number {:?}", event);
+            if expect_random != event.random_number {
+                error!("Fatal error: Expect random number {:?}", expect_random);
                 panic!("GK state poisoned");
             }
         }

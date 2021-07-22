@@ -144,7 +144,7 @@ mod test {
         let data = [233u8; 32];
 
         let sig = key.sign_data(&data);
-        assert!(key.verify_data(&sig, &data))
+        assert!(key.verify_data(&sig, &data));
     }
 
     #[test]
