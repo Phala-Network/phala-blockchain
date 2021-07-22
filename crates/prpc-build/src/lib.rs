@@ -232,6 +232,25 @@ fn naive_snake_case(name: &str) -> String {
     s
 }
 
+fn join_path(emit_package: bool, package: &str, service: &str, method: &str) -> String {
+    let mut path = String::new();
+    if emit_package {
+        path += package;
+    }
+
+    if !path.is_empty() {
+        path += ".";
+    }
+
+    path += service;
+
+    if !method.is_empty() {
+        path += ".";
+        path += method;
+    }
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

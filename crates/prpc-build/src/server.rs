@@ -28,13 +28,7 @@ pub fn generate<T: Service>(
     );
     let service_doc = generate_doc_comments(service.comment());
     let package = if emit_package { service.package() } else { "" };
-    // Transport based implementations
-    let path = format!(
-        "{}{}{}",
-        package,
-        if package.is_empty() { "" } else { "." },
-        service.identifier()
-    );
+    let path = crate::join_path(emit_package, service.package(), service.identifier(), "");
     let mod_attributes = attributes.for_mod(package);
     let struct_attributes = attributes.for_struct(&path);
 
@@ -131,15 +125,12 @@ fn generate_methods<T: Service>(
 ) -> TokenStream {
     let mut stream = TokenStream::new();
 
-    let package = if emit_package { service.package() } else { "" };
-
     for method in service.methods() {
-        let path = format!(
-            "/{}{}{}/{}",
-            package,
-            if package.is_empty() { "" } else { "/" },
+        let path = crate::join_path(
+            emit_package,
+            service.package(),
             service.identifier(),
-            method.identifier()
+            method.identifier(),
         );
         let method_path = Lit::Str(LitStr::new(&path, Span::call_site()));
         let method_ident = quote::format_ident!("{}", method.name());

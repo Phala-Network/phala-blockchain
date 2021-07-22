@@ -63,15 +63,12 @@ fn generate_methods<T: Service>(
     compile_well_known_types: bool,
 ) -> TokenStream {
     let mut stream = TokenStream::new();
-    let package = if emit_package { service.package() } else { "" };
-
     for method in service.methods() {
-        let path = format!(
-            "/{}{}{}/{}",
-            package,
-            if package.is_empty() { "" } else { "/" },
+        let path = crate::join_path(
+            emit_package,
+            service.package(),
             service.identifier(),
-            method.identifier()
+            method.identifier(),
         );
 
         stream.extend(generate_doc_comments(method.comment()));
