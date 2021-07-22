@@ -336,7 +336,7 @@ pub mod pallet {
 			let info_key = (pid.clone(), who.clone());
 			let mut user_info =
 				Self::staking_info(&info_key).ok_or(Error::<T>::StakeInfoNotFound)?;
-			let mut pool_info = Self::ensure_pool(pid)?;
+			let pool_info = Self::ensure_pool(pid)?;
 
 			// rewards belong to user, including pending rewards and available_rewards
 			let rewards = user_info.available_rewards.saturating_add(
@@ -350,7 +350,6 @@ pub mod pallet {
 			user_info.user_debt = user_info.amount * pool_info.pool_acc / 10u32.pow(6).into();
 			user_info.available_rewards = Zero::zero();
 			StakingInfo::<T>::insert(&info_key, &user_info);
-			MiningPools::<T>::insert(&pool_info.pid, &pool_info);
 			Self::deposit_event(Event::<T>::WithdrawRewards(pid, who, rewards));
 
 			Ok(())
@@ -364,20 +363,18 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn deposit(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
+			let a = amount; // Alias to reduce confusion in the code below
 
+			ensure!(a >= T::MinDeposit::get(), Error::<T>::LessThanMinDeposit);
 			ensure!(
-				amount.clone() >= T::MinDeposit::get(),
-				Error::<T>::LessThanMinDeposit
-			);
-			ensure!(
-				<T as Config>::Currency::free_balance(&who) >= amount.clone(),
+				<T as Config>::Currency::free_balance(&who) >= a,
 				Error::<T>::InsufficientBalance
 			);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
 			if let Some(cap) = pool_info.cap {
 				ensure!(
-					cap.saturating_sub(pool_info.total_stake) >= amount,
+					cap.saturating_sub(pool_info.total_stake) >= a,
 					Error::<T>::StakeExceedCapacity
 				);
 			}
@@ -385,6 +382,7 @@ pub mod pallet {
 			let info_key = (pid.clone(), who.clone());
 			if StakingInfo::<T>::contains_key(&info_key) {
 				let mut user_info = Self::staking_info(&info_key).unwrap();
+				// Settle all the pending rewards to `available_rewards`
 				let pending_rewards = user_info.amount * pool_info.pool_acc
 					/ 10u32.pow(6).saturated_into()
 					- user_info.user_debt;
@@ -392,8 +390,8 @@ pub mod pallet {
 					user_info.available_rewards =
 						user_info.available_rewards.saturating_add(pending_rewards);
 				}
-
-				user_info.amount = user_info.amount.saturating_add(amount.clone());
+				// Now the pending rewards is zero. Set the debt to reflect it.
+				user_info.amount = user_info.amount.saturating_add(a);
 				user_info.user_debt =
 					user_info.amount * pool_info.pool_acc / 10u32.pow(6).saturated_into();
 
@@ -404,36 +402,35 @@ pub mod pallet {
 					&info_key,
 					UserStakeInfo {
 						user: who.clone(),
-						amount: amount.clone(),
+						amount: a,
 						available_rewards: Zero::zero(),
-						user_debt: amount.clone() * pool_info.pool_acc
-							/ 10u32.pow(6).saturated_into(),
+						user_debt: a * pool_info.pool_acc / 10u32.pow(6).saturated_into(),
 					},
 				);
 			}
+			Self::ledger_accrue(&who, a);
 
-			Self::ledger_accrue(&who, amount);
-
-			pool_info.total_stake = pool_info.total_stake.saturating_add(amount.clone());
-			pool_info.free_stake = pool_info.free_stake.saturating_add(amount.clone());
+			pool_info.total_stake = pool_info.total_stake.saturating_add(a);
+			pool_info.free_stake = pool_info.free_stake.saturating_add(a);
 
 			// we have new free stake now, try handle the waitting withdraw queue
 			Self::try_handle_waiting_withdraw(&mut pool_info);
 
 			MiningPools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::Deposit(pid, who, amount));
-
+			Self::deposit_event(Event::<T>::Deposit(pid, who, a));
 			Ok(())
 		}
 
-		/// Deposits some funds from a pool
-		/// Note: there are two scenarios people may meet:
-		///     if the pool has free stake and and amount of the free stake greater or equal than withdraw amount
-		///     (e.g. pool.free_stake >= amount), the withdraw would take effect immediately.
-		///     else the withdraw would be queued and delay untill there have enough free stake in the pool.
-		/// Requires:
-		/// 1. The pool exists
+		/// Withdraws some stake from a pool.
+		///
+		/// Note: there are two scenarios people may meet
+		///
+		/// - if the pool has free stake and and amount of the free stake greater than or equal to
+		///    the withdraw amount (e.g. pool.free_stake >= amount), the withdraw would take effect
+		//     immediately.
+		/// - else the withdraw would be queued and delay untill there are enough free stake in the
+		///    pool.
 		#[pallet::weight(0)]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -455,12 +452,12 @@ pub mod pallet {
 			if !pool_info.withdraw_queue.is_empty() {
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
 					user: who.clone(),
-					amount: amount.clone(),
+					amount: amount,
 					start_time: now,
 				});
 				Self::try_add_withdraw_pool_to_queue(now, pool_info.pid);
 			} else {
-				Self::try_withdraw(&mut pool_info, &mut user_info, amount.clone());
+				Self::try_withdraw(&mut pool_info, &mut user_info, amount);
 			}
 
 			StakingInfo::<T>::insert(&info_key, &user_info);
@@ -555,23 +552,26 @@ pub mod pallet {
 			return rewards;
 		}
 
-		fn pool_reward_handler(
+		/// Adds up the newly received reward to `pool_acc`
+		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
-				let owner_rewards = rewards * pool_info.payout_commission.into() / 1000u32.into();
-				pool_info.owner_reward = pool_info.owner_reward.saturating_add(owner_rewards);
-
-				let pool_rewards =
-					rewards * (1000 - pool_info.payout_commission).into() / 1000u32.into();
+				let commission = rewards * pool_info.payout_commission.into() / 1000u32.into();
+				pool_info.owner_reward = pool_info.owner_reward.saturating_add(commission);
+				// Additional rewards contribute to the face value of the pool shares.
+				// The vaue of each share effectively grows by (rewards / total_shares)
+				let pool_rewards = rewards - commission;
 				pool_info.pool_acc = pool_info
 					.pool_acc
 					.saturating_add(pool_rewards * 10u32.pow(6).into() / pool_info.total_stake);
 			}
 		}
 
-		/// Try to withdraw specific amount from pool, would be delayed if the free stake is not enough.
+		/// Tries to withdraw a specific amount from a pool.
+		///
+		/// The withdraw request would be delayed if the free stake is not enough.
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
@@ -583,6 +583,11 @@ pub mod pallet {
 				pool_info.total_stake = pool_info.total_stake.saturating_sub(amount);
 				user_info.amount = user_info.amount.saturating_sub(amount);
 				Self::ledger_reduce(&user_info.user, amount);
+				Self::deposit_event(Event::<T>::Withdraw(
+					pool_info.pid,
+					user_info.user.clone(),
+					amount,
+				));
 			} else {
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
@@ -592,6 +597,11 @@ pub mod pallet {
 				pool_info.total_stake = pool_info.total_stake.saturating_sub(pool_info.free_stake);
 				user_info.amount = unwithdraw_amount;
 				Self::ledger_reduce(&user_info.user, pool_info.free_stake);
+				Self::deposit_event(Event::<T>::Withdraw(
+					pool_info.pid,
+					user_info.user.clone(),
+					pool_info.free_stake,
+				));
 				pool_info.free_stake = Zero::zero();
 
 				// case some locked asset has not been withdraw(unlock) to user, add it to withdraw queue.
@@ -628,6 +638,11 @@ pub mod pallet {
 
 						user_info.amount = user_info.amount.saturating_sub(pool_info.free_stake);
 						Self::ledger_reduce(&user_info.user, pool_info.free_stake);
+						Self::deposit_event(Event::<T>::Withdraw(
+							pool_info.pid,
+							user_info.user.clone(),
+							pool_info.free_stake,
+						));
 						pool_info.free_stake = Zero::zero();
 					} else {
 						// all of the amount would be withdraw to user and no need to push the popped one back
@@ -636,6 +651,11 @@ pub mod pallet {
 
 						user_info.amount = user_info.amount.saturating_sub(withdraw_info.amount);
 						Self::ledger_reduce(&user_info.user, withdraw_info.amount);
+						Self::deposit_event(Event::<T>::Withdraw(
+							pool_info.pid,
+							user_info.user.clone(),
+							withdraw_info.amount,
+						));
 						pool_info.free_stake =
 							pool_info.free_stake.saturating_sub(withdraw_info.amount);
 					}
@@ -700,7 +720,7 @@ pub mod pallet {
 					.expect("Mining workers must be in the pool; qed.");
 				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
-				Self::pool_reward_handler(&mut pool_info, info.payout.saturated_into());
+				Self::handle_pool_new_reward(&mut pool_info, info.payout.saturated_into());
 				MiningPools::<T>::insert(&pid, &pool_info);
 			}
 		}
@@ -795,6 +815,19 @@ pub mod pallet {
 				frame_system::RawOrigin::Signed(who) if who == pool_id => Ok(pool_id),
 				r => Err(T::Origin::from(r)),
 			})
+		}
+	}
+
+	impl<AccountId, Balance> UserStakeInfo<AccountId, Balance>
+	where
+		AccountId: Default,
+		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy,
+	{
+		/// Calculates the pending reward this user holds
+		///
+		/// - `acc_per_share`: accumulated reward per share
+		fn pending_reward(&self, acc_per_share: Balance) -> Balance {
+			self.amount * acc_per_share / 1_000_000u32.into() - self.user_debt
 		}
 	}
 
@@ -1026,6 +1059,116 @@ pub mod pallet {
 		}
 
 		#[test]
+		fn test_reward_management() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Check stake before receiving any rewards
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(2), 0, 400 * DOLLARS));
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				assert_eq!(pool.pool_acc, 0);
+				assert_eq!(pool.total_stake, 500 * DOLLARS);
+
+				// Mined 500 PHA
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: 1,
+					payout: 500 * DOLLARS,
+				}]);
+				// Should result in 100, 400 PHA pending reward for staker1 & 2
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
+				assert_eq!(pool.pool_acc, 1_000_000);
+				assert_eq!(staker1.pending_reward(pool.pool_acc), 100 * DOLLARS);
+				assert_eq!(staker2.pending_reward(pool.pool_acc), 400 * DOLLARS);
+
+				// Staker1 claims 100 PHA rewrad, left 100 debt & no pending reward
+				let _ = take_events();
+				assert_ok!(PhalaStakePool::claim_reward(Origin::signed(1), 0, 1));
+				assert_eq!(
+					take_events().as_slice(),
+					[TestEvent::PhalaStakePool(Event::WithdrawRewards(
+						0,
+						1,
+						100 * DOLLARS
+					))]
+				);
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				assert_eq!(pool.pool_acc, 1_000_000, "pool_acc shouldn't change");
+				assert_eq!(staker1.user_debt, 100 * DOLLARS);
+				assert_eq!(staker1.pending_reward(pool.pool_acc), 0);
+
+				// Mined 500 PHA
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: 1,
+					payout: 500 * DOLLARS,
+				}]);
+				// Should result in 100, 800 PHA pending reward for staker1 & 2
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
+				assert_eq!(pool.pool_acc, 2_000_000);
+				assert_eq!(staker1.pending_reward(pool.pool_acc), 100 * DOLLARS);
+				assert_eq!(staker2.pending_reward(pool.pool_acc), 800 * DOLLARS);
+
+				// Staker2 claims 800 PHA rewrad, left 800 debt
+				let _ = take_events();
+				assert_ok!(PhalaStakePool::claim_reward(Origin::signed(2), 0, 2));
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
+				assert_eq!(staker2.user_debt, 800 * DOLLARS);
+
+				// Staker1 deposit another 300 PHA (now 50:50), causing a passive reward settlement
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 300 * DOLLARS));
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				assert_eq!(staker1.amount, 400 * DOLLARS);
+				assert_eq!(staker1.user_debt, 800 * DOLLARS);
+
+				// Mined 800 PHA
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: 1,
+					payout: 800 * DOLLARS,
+				}]);
+				assert_ok!(PhalaStakePool::claim_reward(Origin::signed(1), 0, 1));
+				let pool = PhalaStakePool::mining_pools(0).unwrap();
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
+				assert_eq!(pool.pool_acc, 3_000_000);
+				assert_eq!(staker1.pending_reward(pool.pool_acc), 0);
+				assert_eq!(staker2.pending_reward(pool.pool_acc), 400 * DOLLARS);
+
+				// Staker1 withdraw all
+				let _ = take_events();
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					0,
+					400 * DOLLARS
+				));
+				assert_eq!(
+					take_events().as_slice(),
+					[TestEvent::PhalaStakePool(Event::Withdraw(
+						0,
+						1,
+						400 * DOLLARS
+					))]
+				);
+				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
+				assert_eq!(staker1.amount, 0);
+				assert_eq!(staker1.user_debt, 0);
+				assert_eq!(staker2.amount, 400 * DOLLARS);
+			});
+		}
+
+		#[test]
 		fn test_full_procedure() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
@@ -1141,6 +1284,36 @@ pub mod pallet {
 				amount,
 				reasons: pallet_balances::Reasons::All,
 			}
+		}
+
+		/// Sets up `n` workers starting from 1, registered and benchmarked.
+		fn setup_workers(n: u8) {
+			for i in 1..=n {
+				let worker = worker_pubkey(i);
+				assert_ok!(PhalaRegistry::force_register_worker(
+					Origin::root(),
+					worker.clone(),
+					ecdh_pubkey(1),
+					Some(1)
+				));
+				PhalaRegistry::internal_set_benchmark(&worker, Some(1));
+			}
+		}
+
+		/// Sets up a stakepool with the given workers added.
+		///
+		/// Returns the pool id.
+		fn setup_pool_with_workers(owner: u64, workers: &[u8]) -> u64 {
+			let pid = PhalaStakePool::pool_count();
+			assert_ok!(PhalaStakePool::create(Origin::signed(owner)));
+			for id in workers {
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(owner),
+					pid,
+					worker_pubkey(*id),
+				));
+			}
+			pid
 		}
 	}
 }
