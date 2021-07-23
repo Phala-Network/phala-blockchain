@@ -150,13 +150,13 @@ pub fn fmt(out_dir: &str) {
         match result {
             Err(e) => {
                 eprintln!("error running rustfmt: {:?}", e);
-                exit(1)
+                // exit(1)
             }
             Ok(output) => {
                 if !output.status.success() {
                     io::stdout().write_all(&output.stdout).unwrap();
                     io::stderr().write_all(&output.stderr).unwrap();
-                    exit(output.status.code().unwrap_or(1))
+                    //exit(output.status.code().unwrap_or(1))
                 }
             }
         }
