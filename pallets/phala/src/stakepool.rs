@@ -243,25 +243,21 @@ pub mod pallet {
 			// make sure worker has not been not added
 			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
-			// TODO: limite the number of workers to avoid performance issue.
+			// TODO: limit the number of workers to avoid performance issue.
 			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerHasAdded);
 
 			// generate miner account
 			let miner: T::AccountId = pool_sub_account(pid, &pubkey);
 
 			// bind worker with minner
-			match <mining::pallet::Pallet<T>>::bind(miner.clone(), pubkey.clone()) {
-				Ok(()) => {
-					// update worker vector
-					workers.push(pubkey.clone());
-					MiningPools::<T>::insert(&pid, &pool_info);
-					WorkerInPool::<T>::insert(&pubkey, pid);
-					Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
-				}
-				_ => {
-					return Err(Error::<T>::MinerBindingCallFailed.into());
-				}
-			}
+			mining::pallet::Pallet::<T>::bind(miner.clone(), pubkey.clone())
+				.or(Err(Error::<T>::MinerBindingCallFailed))?;
+
+			// update worker vector
+			workers.push(pubkey.clone());
+			MiningPools::<T>::insert(&pid, &pool_info);
+			WorkerInPool::<T>::insert(&pubkey, pid);
+			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
 
 			Ok(())
 		}
@@ -1339,6 +1335,11 @@ pub mod pallet {
 
 				// Create a pool (pid = 0)
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
 				assert_ok!(PhalaStakePool::add_worker(
 					Origin::signed(1),
 					0,
