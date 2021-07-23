@@ -2,10 +2,11 @@
 name = "phala-crypto"
 version = "0.1.0"
 edition = "2018"
+resolver = "2"
 
 [dependencies]
-sp-core = { path = "../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
-sp-application-crypto = { path = "../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
+sp-core = { path = "../../substrate/primitives/core", default-features = false }
+sp-application-crypto = { path = "../../substrate/primitives/application-crypto", default-features = false }
 
 ring = { version = "0.16.20", default-features = false, features = ["alloc"] }
 curve25519-dalek = { version = "2.0", default-features = false }
@@ -13,9 +14,12 @@ schnorrkel = { version = "0.9.1", default-features = false, features = ["preaudi
 
 [dev-dependencies]
 rand = "0.7.3"
+hex = "0.4"
+schnorrkel = { version = "0.9.1", default-features = false, features = ["preaudit_deprecated", "u64_backend", "getrandom"] }
 
 [features]
 default = [ "full_crypto" ]
+getrandom = [ "schnorrkel/getrandom" ]
 full_crypto = [
     "sp-core/full_crypto",
     "sp-application-crypto/full_crypto",

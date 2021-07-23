@@ -9,10 +9,10 @@ use schnorrkel::{MINI_SECRET_KEY_LENGTH, PUBLIC_KEY_LENGTH, SECRET_KEY_LENGTH};
 #[derive(Clone)]
 pub struct EcdhKey(Keypair);
 
-pub type EcdhPrivateKey = [u8; SECRET_KEY_LENGTH];  // 32 privkey, 32 nonce
-pub type EcdhPublicKey = [u8; PUBLIC_KEY_LENGTH];  // 32 compressed pubkey
+pub type EcdhSecretKey = [u8; SECRET_KEY_LENGTH]; // 32 privkey, 32 nonce
+pub type EcdhPublicKey = [u8; PUBLIC_KEY_LENGTH]; // 32 compressed pubkey
 
-pub type Seed = [u8; MINI_SECRET_KEY_LENGTH];  // 32 seed
+pub type Seed = [u8; MINI_SECRET_KEY_LENGTH]; // 32 seed
 
 impl EcdhKey {
     pub fn create(seed: &Seed) -> Result<EcdhKey, CryptoError> {
@@ -23,9 +23,9 @@ impl EcdhKey {
         ))
     }
 
-    pub fn from_secret(sk: &EcdhPrivateKey) -> Result<EcdhKey, CryptoError> {
+    pub fn from_secret(secret: &EcdhSecretKey) -> Result<EcdhKey, CryptoError> {
         Ok(EcdhKey(
-            SecretKey::from_bytes(sk.as_ref())
+            SecretKey::from_bytes(secret.as_ref())
                 .map_err(|_| CryptoError::EcdhInvalidSecretKey)?
                 .to_keypair(),
         ))
@@ -35,7 +35,7 @@ impl EcdhKey {
         self.0.public.to_bytes()
     }
 
-    pub fn secret(&self) -> EcdhPrivateKey {
+    pub fn secret(&self) -> EcdhSecretKey {
         self.0.secret.to_bytes()
     }
 }
@@ -44,7 +44,7 @@ impl EcdhKey {
 ///
 /// `pk` must be in compressed version.
 pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, CryptoError> {
-	// The firest 32 bytes holds the canonical private key
+    // The first 32 bytes holds the canonical private key
     let mut key = [0u8; 32];
     key.copy_from_slice(&sk.secret()[0..32]);
     let key = Scalar::from_canonical_bytes(key).expect("This should never fail with correct seed");

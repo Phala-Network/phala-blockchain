@@ -8,13 +8,11 @@ extern crate std;
 
 pub mod ecdh;
 pub mod aead;
-pub mod secp256k1;
+pub mod sr25519;
 
 #[derive(Debug)]
 pub enum CryptoError {
-    // Ecdsa errors
-    EcdsaInvalidSeedLength(sp_core::crypto::SecretStringError),
-    EcdsaHkdfExpandError,
+    HkdfExpandError,
     // Ecdh errors
     EcdhInvalidSecretKey,
     EcdhInvalidPublicKey,

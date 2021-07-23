@@ -12,7 +12,7 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use core::{fmt, str};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, EcdsaMessageChannel as MessageChannel, MessageOrigin};
+use phala_mq::{BindTopic, MessageOrigin, Sr25519MessageChannel as MessageChannel};
 use phala_types::messaging::PushCommand;
 
 use serde::{

@@ -6,15 +6,15 @@ const types = {
 	"TokenId": "u256",
 	"DepositNonce": "u64",
 	"RawSolution": "RawSolutionWith24",
-	"EcdsaPublicKey": "[u8; 33]",
-	"WorkerPublicKey": "EcdsaPublicKey",
-	"ContractPublicKey": "EcdsaPublicKey",
+	"Sr25519PublicKey": "[u8; 32]",
+	"WorkerPublicKey": "Sr25519PublicKey",
+	"ContractPublicKey": "Sr25519PublicKey",
 	"EcdhPublicKey": "[u8; 32]",
 	"MessageOrigin": {
 		"_enum": {
 			"Pallet": "Vec<u8>",
 			"Contract": "H256",
-			"Worker": "EcdsaPublicKey",
+			"Worker": "Sr25519PublicKey",
 			"AccountId": "H256",
 			"MultiLocation": "Vec<u8>"
 		}

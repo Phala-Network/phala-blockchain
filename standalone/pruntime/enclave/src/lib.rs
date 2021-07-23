@@ -47,7 +47,7 @@ use ring::rand::SecureRandom;
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
-use sp_core::{crypto::Pair, ecdsa, H256};
+use sp_core::{crypto::Pair, sr25519, H256};
 
 use http_req::request::{Method, Request};
 use std::time::Duration;
@@ -62,7 +62,11 @@ use enclave_api::{
     blocks::{self, SyncParachainHeaderReq},
 };
 
-use phala_crypto::{aead, ecdh::EcdhKey, secp256k1::KDF};
+use phala_crypto::{
+    aead,
+    ecdh::EcdhKey,
+    sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
+};
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::PRuntimeInfo;
@@ -165,7 +169,7 @@ struct RuntimeState {
 struct LocalState {
     initialized: bool,
     genesis_block_hash: Option<H256>,
-    identity_key: Option<ecdsa::Pair>,
+    identity_key: Option<sr25519::Pair>,
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
@@ -743,11 +747,11 @@ struct PersistentRuntimeData {
 
 fn save_secret_keys(
     genesis_block_hash: H256,
-    ecdsa_sk: ecdsa::Pair,
+    sr25519_sk: sr25519::Pair,
     dev_mode: bool,
 ) -> Result<PersistentRuntimeData> {
     // Put in PresistentRuntimeData
-    let serialized_sk = ecdsa_sk.to_raw_vec();
+    let serialized_sk = sr25519_sk.dump_secret_key();
 
     let data = PersistentRuntimeData {
         version: 1,
@@ -822,17 +826,23 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
     serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
 
-fn new_ecdsa_key() -> Result<ecdsa::Pair> {
+fn new_sr25519_key() -> sr25519::Pair {
     use rand::RngCore;
     let mut rng = rand::thread_rng();
-    let mut seed = [0_u8; 32];
+    let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
-    ecdsa::Pair::from_seed_slice(&seed)
-        .map_err(|_| anyhow!("Failed to generate a random ecdsa key"))
+    sr25519::Pair::from_seed(&seed)
 }
 
-pub fn generate_random_iv() -> aead::IV {
+fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
+    let rand = ring::rand::SystemRandom::new();
+    rand.fill(&mut nonce_vec).unwrap();
+    nonce_vec
+}
+
+fn generate_random_info() -> [u8; 32] {
+    let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
@@ -841,10 +851,10 @@ pub fn generate_random_iv() -> aead::IV {
 fn init_secret_keys(
     local_state: &mut LocalState,
     genesis_block_hash: H256,
-    predefined_identity_key: Option<ecdsa::Pair>,
+    predefined_identity_key: Option<sr25519::Pair>,
 ) -> Result<PersistentRuntimeData> {
-    let data = if let Some(ecdsa_sk) = predefined_identity_key {
-        save_secret_keys(genesis_block_hash, ecdsa_sk, true)?
+    let data = if let Some(sr25519_sk) = predefined_identity_key {
+        save_secret_keys(genesis_block_hash, sr25519_sk, true)?
     } else {
         match load_secret_keys() {
             Ok(data) => data,
@@ -856,8 +866,8 @@ fn init_secret_keys(
                     ) =>
             {
                 warn!("Persistent data not found.");
-                let ecdsa_sk = new_ecdsa_key()?;
-                save_secret_keys(genesis_block_hash, ecdsa_sk, false)?
+                let sr25519_sk = new_sr25519_key();
+                save_secret_keys(genesis_block_hash, sr25519_sk, false)?
             }
             other_err => return other_err,
         }
@@ -878,17 +888,17 @@ fn init_secret_keys(
     }
 
     // load identity
-    let ecdsa_raw_key: [u8; 32] = hex::decode(&data.sk)
+    let sr25519_raw_key: Sr25519SecretKey = hex::decode(&data.sk)
         .expect("Unable to decode identity key hex")
         .as_slice()
         .try_into()
         .expect("slice with incorrect length");
 
-    let ecdsa_sk = ecdsa::Pair::from_seed(&ecdsa_raw_key);
-    info!("Identity pubkey: {:?}", hex::encode(&ecdsa_sk.public()));
+    let sr25519_sk = sr25519::Pair::restore_from_secret_key(&sr25519_raw_key);
+    info!("Identity pubkey: {:?}", hex::encode(&sr25519_sk.public()));
 
     // derive ecdh key
-    let ecdh_key = ecdsa_sk
+    let ecdh_key = sr25519_sk
         .derive_ecdh_key()
         .expect("Unable to derive ecdh key");
     let ecdh_hex_pk = hex::encode(ecdh_key.public().as_ref());
@@ -901,7 +911,7 @@ fn init_secret_keys(
 
     // Save
     local_state.genesis_block_hash = Some(genesis_block_hash);
-    local_state.identity_key = Some(ecdsa_sk);
+    local_state.identity_key = Some(sr25519_sk);
     local_state.ecdh_key = Some(ecdh_key);
     local_state.machine_id = machine_id.clone();
     local_state.dev_mode = data.dev_mode;
@@ -980,12 +990,12 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
         }
         let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
-        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key)
+        let sr25519_key = sr25519::Pair::from_seed_slice(&raw_key)
             .map_err(|_| error_msg("can't parse private key"))?;
         init_secret_keys(
             &mut local_state,
             genesis_block_hash.clone(),
-            Some(ecdsa_key),
+            Some(sr25519_key),
         )
         .map_err(|_| error_msg("failed to update secret key"))?;
     } else {
@@ -997,13 +1007,13 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
     }
 
-    let ecdsa_pk = local_state
+    let sr25519_pk = local_state
         .identity_key
         .as_ref()
         .expect("Identity key must be initialized; qed.")
         .public();
-    let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
-    info!("Identity pubkey: {:?}", ecdsa_hex_pk);
+    let sr25519_hex_pk = hex::encode(&sr25519_pk);
+    info!("Identity pubkey: {:?}", sr25519_hex_pk);
 
     // derive ecdh key
     let ecdh_pubkey = local_state.ecdh_key.as_ref().unwrap().public();
@@ -1044,7 +1054,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let runtime_info = PRuntimeInfo::<chain::AccountId> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
-        pubkey: ecdsa_pk,
+        pubkey: sr25519_pk,
         ecdh_pubkey: phala_types::EcdhPublicKey(ecdh_pubkey),
         genesis_block_hash: genesis_block_hash,
         features: vec![cpu_core_num, cpu_feature_level],
@@ -1106,7 +1116,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let id_pair = local_state
         .identity_key
         .clone()
-        .expect("Unexpected ecdsa key error in init_runtime");
+        .expect("Unexpected sr25519 key error in init_runtime");
 
     let send_mq = MessageSendQueue::default();
     let mut recv_mq = MessageDispatcher::default();
@@ -1146,10 +1156,11 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
             contracts::SUBSTRATE_KITTIES,
             contracts::substrate_kitties::SubstrateKitties::new()
         );
-        install_contract!(
-            contracts::BTC_LOTTERY,
-            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
-        );
+        // TODO.shelven: restore this contract
+        // install_contract!(
+        //     contracts::BTC_LOTTERY,
+        //     contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+        // );
         install_contract!(
             contracts::WEB3_ANALYTICS,
             contracts::web3analytics::Web3Analytics::new()
@@ -1188,7 +1199,7 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
     let resp = InitRuntimeResp {
         encoded_runtime_info,
         genesis_block_hash: genesis_block_hash_hex,
-        public_key: ecdsa_hex_pk,
+        public_key: sr25519_hex_pk,
         ecdh_public_key: ecdh_hex_pk,
         attestation,
     };
@@ -1363,11 +1374,11 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let pubkey = local_state
         .identity_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
+        .map(|pair| hex::encode(&pair.public()));
     let s_ecdh_pk = local_state
         .ecdh_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
+        .map(|pair| hex::encode(&pair.public()));
     let machine_id = local_state.machine_id;
     let dev_mode = local_state.dev_mode;
     drop(local_state);
@@ -1560,7 +1571,7 @@ fn test(_param: TestReq) -> Result<Value, Value> {
 
 mod identity {
     use super::*;
-    type WorkerPublicKey = sp_core::ecdsa::Public;
+    type WorkerPublicKey = sp_core::sr25519::Public;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");

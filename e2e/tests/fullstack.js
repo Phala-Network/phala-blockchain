@@ -68,7 +68,7 @@ describe('A full stack', function () {
 	})
 
 	let workerKey;
-	describe.skip('pRuntime', () => {
+	describe('pRuntime', () => {
 		it('is initialized', async function () {
 			let info;
 			assert.isTrue(await checkUntil(async () => {
