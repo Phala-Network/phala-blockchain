@@ -98,7 +98,7 @@ pub mod pallet {
 		/// [owner, pid]
 		PoolCreated(T::AccountId, u64),
 		/// [pid, commission]
-		PoolCommissionSetted(u64, u16),
+		PoolCommissionSet(u64, u16),
 		/// [pid, cap]
 		PoolCapacitySet(u64, BalanceOf<T>),
 		/// [pid, worker]
@@ -317,7 +317,7 @@ pub mod pallet {
 			pool_info.payout_commission = payout_commission;
 			MiningPools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCommissionSetted(pid, payout_commission));
+			Self::deposit_event(Event::<T>::PoolCommissionSet(pid, payout_commission));
 
 			Ok(())
 		}
