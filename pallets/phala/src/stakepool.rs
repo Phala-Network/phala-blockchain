@@ -1335,6 +1335,11 @@ pub mod pallet {
 
 				// Create a pool (pid = 0)
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
 				assert_ok!(PhalaStakePool::add_worker(
 					Origin::signed(1),
 					0,
