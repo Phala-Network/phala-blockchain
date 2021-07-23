@@ -176,26 +176,14 @@ impl prost_build::ServiceGenerator for ServiceGenerator {
 
     fn finalize(&mut self, buf: &mut String) {
         if self.builder.build_client && !self.clients.is_empty() {
-            let clients = &self.clients;
-
-            let client_service = quote::quote! {
-                #clients
-            };
-
-            let code = format!("{}", client_service);
+            let code = format!("{}", self.clients);
             buf.push_str(&code);
 
             self.clients = TokenStream::default();
         }
 
         if self.builder.build_server && !self.servers.is_empty() {
-            let servers = &self.servers;
-
-            let server_service = quote::quote! {
-                #servers
-            };
-
-            let code = format!("{}", server_service);
+            let code = format!("{}", self.servers);
             buf.push_str(&code);
 
             self.servers = TokenStream::default();
