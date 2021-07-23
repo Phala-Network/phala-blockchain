@@ -18,7 +18,7 @@ pub mod pallet {
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
 		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
-		SaturatedConversion,
+		Permill, SaturatedConversion,
 	};
 	use sp_std::collections::vec_deque::VecDeque;
 	use sp_std::vec;
@@ -98,7 +98,7 @@ pub mod pallet {
 		/// [owner, pid]
 		PoolCreated(T::AccountId, u64),
 		/// [pid, commission]
-		PoolCommissionSetted(u64, u16),
+		PoolCommissionSet(u64, Permill),
 		/// [pid, cap]
 		PoolCapacitySet(u64, BalanceOf<T>),
 		/// [pid, worker]
@@ -120,7 +120,6 @@ pub mod pallet {
 		WorkerHasNotAdded,
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
-		InvalidPayoutPerf,
 		InvalidCapacity,
 		StakeExceedCapacity,
 		PoolNotExist,
@@ -201,7 +200,7 @@ pub mod pallet {
 				PoolInfo {
 					pid: pid,
 					owner: owner.clone(),
-					payout_commission: Zero::zero(),
+					payout_commission: None,
 					owner_reward: Zero::zero(),
 					cap: None,
 					pool_acc: Zero::zero(),
@@ -306,18 +305,17 @@ pub mod pallet {
 		pub fn set_payout_pref(
 			origin: OriginFor<T>,
 			pid: u64,
-			payout_commission: u16,
+			payout_commission: Permill,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			ensure!(payout_commission <= 1000, Error::<T>::InvalidPayoutPerf);
 			let mut pool_info = Self::ensure_pool(pid)?;
 			// origin must be owner of pool
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 
-			pool_info.payout_commission = payout_commission;
+			pool_info.payout_commission = Some(payout_commission);
 			MiningPools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCommissionSetted(pid, payout_commission));
+			Self::deposit_event(Event::<T>::PoolCommissionSet(pid, payout_commission));
 
 			Ok(())
 		}
@@ -530,7 +528,7 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
-				let commission = rewards * pool_info.payout_commission.into() / 1000u32.into();
+				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
 				pool_info.add_reward(rewards - commission);
 			}
@@ -743,7 +741,7 @@ pub mod pallet {
 	pub struct PoolInfo<AccountId: Default, Balance> {
 		pid: u64,
 		owner: AccountId,
-		payout_commission: u16,
+		payout_commission: Option<Permill>,
 		owner_reward: Balance,
 		cap: Option<Balance>,
 		pool_acc: Balance,
@@ -878,7 +876,7 @@ pub mod pallet {
 					Some(PoolInfo {
 						pid: 0,
 						owner: 1,
-						payout_commission: 0,
+						payout_commission: None,
 						owner_reward: 0,
 						cap: None,
 						pool_acc: 0,
@@ -1246,7 +1244,11 @@ pub mod pallet {
 				assert_eq!(staker2.amount, 499 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(499 * DOLLARS)]);
 				// Withdraw 199 PHA, queued, and then wait for force clear
-				assert_ok!(PhalaStakePool::withdraw(Origin::signed(2), 0, 199 * DOLLARS));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					199 * DOLLARS
+				));
 				let pool = PhalaStakePool::mining_pools(0).unwrap();
 				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
