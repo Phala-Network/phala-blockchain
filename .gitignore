@@ -82,6 +82,7 @@ ring/pregenerated/
 **/pruntime/protos/tmp
 **/pruntime/tmp
 tmp
+coverage/
 
 # JS scripts
 scripts/js/node_modules
