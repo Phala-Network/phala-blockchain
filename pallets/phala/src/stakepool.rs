@@ -853,7 +853,7 @@ pub mod pallet {
 			let sub_account: AccountId32 =
 				pool_sub_account(1, &WorkerPublicKey::from_raw([0u8; 32]));
 			let expected = AccountId32::new(hex!(
-				"73706d2f666bf107db95bd7b5b56e2c9b5a008f97361f20d10a7840cf2dfaaf5"
+				"73706d2f02ab4d74c86ec3b3997a4fadf33e55e8279650c8539ea67e053c02dc"
 			));
 			assert_eq!(sub_account, expected, "Incorrect sub account");
 		}
