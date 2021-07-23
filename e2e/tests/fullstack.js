@@ -537,6 +537,7 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 function newRelayer(wsPort, teePort, tmpPath, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
+			'--no-wait',
 			'--mnemonic=//Alice',
 			`--inject-key=${key}`,
 			`--substrate-ws-endpoint=ws://localhost:${wsPort}`,

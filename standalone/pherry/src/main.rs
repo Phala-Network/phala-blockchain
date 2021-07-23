@@ -142,6 +142,9 @@ struct Args {
         help = "The first parent header to be synced"
     )]
     start_header: BlockNumber,
+
+    #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
+    no_wait: bool,
 }
 
 struct BlockSyncState {
@@ -724,11 +727,13 @@ async fn bridge(args: Args) -> Result<()> {
         client.clone()
     };
 
-    // Don't start our worker until the substrate node is synced
-    info!("Waiting for substrate to sync blocks...");
-    wait_until_synced(&client).await?;
-    wait_until_synced(&paraclient).await?;
-    info!("Substrate sync blocks done");
+    if !args.no_wait {
+        // Don't start our worker until the substrate node is synced
+        info!("Waiting for substrate to sync blocks...");
+        wait_until_synced(&client).await?;
+        wait_until_synced(&paraclient).await?;
+        info!("Substrate sync blocks done");
+    }
 
     // Other initialization
     let pr = PrClient::new(&args.pruntime_endpoint);
