@@ -596,7 +596,7 @@ where
             if let Some(master_key) = &self.state.master_key {
                 info!("Gatekeeper: try dispatch master key");
                 let derived_key = master_key
-                    .derive_sr25519_pair(&[b"master_key"])
+                    .derive_sr25519_pair(&[&crate::generate_random_info()])
                     .expect("should not fail with valid info");
                 let my_ecdh_key = derived_key
                     .derive_ecdh_key()

@@ -834,8 +834,15 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 
-pub fn generate_random_iv() -> aead::IV {
+fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
+    let rand = ring::rand::SystemRandom::new();
+    rand.fill(&mut nonce_vec).unwrap();
+    nonce_vec
+}
+
+fn generate_random_info() -> [u8; 32] {
+    let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
@@ -1367,11 +1374,11 @@ fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
     let pubkey = local_state
         .identity_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().0.as_ref()));
+        .map(|pair| hex::encode(&pair.public()));
     let s_ecdh_pk = local_state
         .ecdh_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
+        .map(|pair| hex::encode(&pair.public()));
     let machine_id = local_state.machine_id;
     let dev_mode = local_state.dev_mode;
     drop(local_state);
