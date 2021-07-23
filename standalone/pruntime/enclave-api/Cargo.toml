@@ -24,6 +24,7 @@ prost = { version = "0.8.0", default-features = false }
 
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build", optional = true }
+tera = { version = "1.12.1", optional = true }
 
 
 [features]
@@ -38,6 +39,7 @@ std = [
     "frame-system/std",
     "chain/std",
     "prpc-build",
+    "tera",
 ]
 
 sgx = [
