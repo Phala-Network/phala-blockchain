@@ -12,6 +12,8 @@ pub use prost::Message;
 
 pub mod server {
     use super::*;
+    use alloc::string::ToString;
+    use parity_scale_codec::Error as ScaleCodecErr;
 
     #[derive(Display, Debug)]
     pub enum Error {
@@ -31,6 +33,13 @@ pub mod server {
             Self::msg(error)
         }
     }
+
+    impl From<ScaleCodecErr> for Error {
+        fn from(e: ScaleCodecErr) -> Self {
+            Self::DecodeError(DecodeError::new(e.to_string()))
+        }
+    }
+
 
     /// Error in protobuf format
     #[derive(Display, Message)]
