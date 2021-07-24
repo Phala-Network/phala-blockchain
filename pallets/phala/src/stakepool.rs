@@ -470,19 +470,10 @@ pub mod pallet {
 				Error::<T>::WorkerHasNotAdded
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
-			match <mining::pallet::Pallet<T>>::start_mining(miner.clone()) {
-				Ok(()) => {
-					pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
-					MiningPools::<T>::insert(&pid, &pool_info);
-				}
-				_ => {
-					// rollback
-					<mining::pallet::Pallet<T>>::set_deposit(&miner, Zero::zero());
-					return Err(Error::<T>::StartMiningCallFailed.into());
-				}
-			}
-
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)
+				.or(Err(Error::<T>::StartMiningCallFailed))?;
+			pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
+			MiningPools::<T>::insert(&pid, &pool_info);
 			Ok(())
 		}
 
@@ -786,18 +777,6 @@ pub mod pallet {
 		start_time: u64,
 	}
 
-	pub struct EnsurePool<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> EnsureOrigin<T::Origin> for EnsurePool<T> {
-		type Success = T::AccountId;
-		fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
-			let pool_id = STAKEPOOL_PALLETID.into_account();
-			o.into().and_then(|o| match o {
-				frame_system::RawOrigin::Signed(who) if who == pool_id => Ok(pool_id),
-				r => Err(T::Origin::from(r)),
-			})
-		}
-	}
-
 	impl<AccountId, Balance> UserStakeInfo<AccountId, Balance>
 	where
 		AccountId: Default,
@@ -932,6 +911,34 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
 					Error::<Test>::MinerBindingCallFailed
+				);
+			});
+		}
+
+		#[test]
+		fn test_start_mining() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				// Cannot start mining wihtout a bounded worker
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::WorkerHasNotAdded
+				);
+				// Basic setup
+				setup_workers(2);
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				// No enough stake (TODO: apply the parameters)
+				// let d = PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0);
+				// println!("ERROR: {:?}", d);
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::StartMiningCallFailed
 				);
 			});
 		}
@@ -1182,6 +1189,11 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
 				assert_eq!(staker2.amount, 1000 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(1000 * DOLLARS)]);
+				// Cannot withdraw more than one's stake
+				assert_noop!(
+					PhalaStakePool::withdraw(Origin::signed(2), 0, 9999 * DOLLARS),
+					Error::<Test>::InvalidWithdrawAmount
+				);
 				// Immediate withdraw 499 PHA from the free stake
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(2),
@@ -1239,26 +1251,35 @@ pub mod pallet {
 				assert_eq!(staker1.amount, 1 * DOLLARS);
 				assert_eq!(staker2.amount, 499 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(499 * DOLLARS)]);
-				// Withdraw 199 PHA, queued, and then wait for force clear
+				// Staker2 and 1 withdraw 199 PHA, 1 PHA, queued, and then wait for force clear
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(2),
 					0,
 					199 * DOLLARS
 				));
+				assert_ok!(PhalaStakePool::withdraw(Origin::signed(1), 0, 1 * DOLLARS));
 				let pool = PhalaStakePool::mining_pools(0).unwrap();
 				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
 				assert_eq!(
 					pool.withdraw_queue,
-					vec![WithdrawInfo {
-						user: 2,
-						amount: 199 * DOLLARS,
-						start_time: 0
-					}]
+					vec![
+						WithdrawInfo {
+							user: 2,
+							amount: 199 * DOLLARS,
+							start_time: 0
+						},
+						WithdrawInfo {
+							user: 1,
+							amount: 1 * DOLLARS,
+							start_time: 0
+						}
+					]
 				);
+				assert_eq!(staker1.amount, 1 * DOLLARS);
 				assert_eq!(staker2.amount, 499 * DOLLARS);
 				// Trigger a force clear by `on_cleanup()`, releasing 100 PHA stake to partially
-				// fulfill staker2's withdraw request
+				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
 				PhalaStakePool::on_cleanup(&worker_pubkey(2), 100 * DOLLARS);
 				assert_eq!(
@@ -1278,25 +1299,24 @@ pub mod pallet {
 				assert_eq!(staker2.amount, 399 * DOLLARS);
 				// Trigger another force clear, releasing all the remaining 400 PHA stake,
 				// fulfilling staker2's request.
-				// Then all 301 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
+				// Then all 300 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
 				let _ = take_events();
 				PhalaStakePool::on_cleanup(&worker_pubkey(1), 400 * DOLLARS);
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdraw(
-						0,
-						2,
-						99 * DOLLARS
-					)),]
+					[
+						TestEvent::PhalaStakePool(Event::Withdraw(0, 2, 99 * DOLLARS)),
+						TestEvent::PhalaStakePool(Event::Withdraw(0, 1, 1 * DOLLARS))
+					]
 				);
 				let pool = PhalaStakePool::mining_pools(0).unwrap();
 				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
-				assert_eq!(pool.total_stake, 301 * DOLLARS);
-				assert_eq!(pool.free_stake, 301 * DOLLARS);
-				assert_eq!(staker1.amount, 1 * DOLLARS);
+				assert_eq!(pool.total_stake, 300 * DOLLARS);
+				assert_eq!(pool.free_stake, 300 * DOLLARS);
+				assert_eq!(staker1.amount, 0);
 				assert_eq!(staker2.amount, 300 * DOLLARS);
-				assert_eq!(Balances::locks(1), vec![the_lock(1 * DOLLARS)]);
+				assert_eq!(Balances::locks(1), vec![]);
 				assert_eq!(Balances::locks(2), vec![the_lock(300 * DOLLARS)]);
 
 				// TODO: handle slash at on_cleanup()
