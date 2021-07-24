@@ -1,7 +1,10 @@
 use super::*;
-use enclave_api::blocks::{AuthoritySetChange, HeaderToSync};
-use enclave_api::prpc::phactory_api_server::{PhactoryApi, PhactoryApiServer};
-use enclave_api::prpc::{server::Error as RpcError, HeadersToSync, PhactoryInfo, SyncedTo};
+use enclave_api::blocks;
+use enclave_api::prpc::{
+    phactory_api_server::{PhactoryApi, PhactoryApiServer},
+    server::Error as RpcError,
+    HeadersToSync, ParaHeadersToSync, PhactoryInfo, SyncedTo,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -128,8 +131,8 @@ pub fn get_info() -> PhactoryInfo {
 }
 
 pub fn sync_header(
-    headers: Vec<HeaderToSync>,
-    authority_set_change: Option<AuthoritySetChange>,
+    headers: Vec<blocks::HeaderToSync>,
+    authority_set_change: Option<blocks::AuthoritySetChange>,
 ) -> RpcResult<SyncedTo> {
     info!(
         "sync_header from={:?} to={:?}",
