@@ -320,6 +320,8 @@ impl<'a> CodeGenerator<'a> {
         };
         if self.optional(field) {
             format!("Option<{}>", ty)
+        } else if field.label() == Label::Repeated {
+            format!("::prost::alloc::vec::Vec<{}>", ty)
         } else {
             ty
         }
