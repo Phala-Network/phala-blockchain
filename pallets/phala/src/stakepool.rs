@@ -777,18 +777,6 @@ pub mod pallet {
 		start_time: u64,
 	}
 
-	pub struct EnsurePool<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> EnsureOrigin<T::Origin> for EnsurePool<T> {
-		type Success = T::AccountId;
-		fn try_origin(o: T::Origin) -> Result<Self::Success, T::Origin> {
-			let pool_id = STAKEPOOL_PALLETID.into_account();
-			o.into().and_then(|o| match o {
-				frame_system::RawOrigin::Signed(who) if who == pool_id => Ok(pool_id),
-				r => Err(T::Origin::from(r)),
-			})
-		}
-	}
-
 	impl<AccountId, Balance> UserStakeInfo<AccountId, Balance>
 	where
 		AccountId: Default,

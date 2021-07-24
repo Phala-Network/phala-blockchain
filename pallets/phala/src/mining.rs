@@ -21,7 +21,6 @@ pub mod pallet {
 	};
 	use sp_core::U256;
 	use sp_runtime::{
-		traits::{Saturating, Zero},
 		SaturatedConversion,
 	};
 	use sp_std::cmp;
