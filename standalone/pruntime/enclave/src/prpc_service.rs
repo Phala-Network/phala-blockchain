@@ -194,8 +194,6 @@ fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<Sync
         .as_mut()
         .ok_or(display_err("Runtime not initialized"))?;
 
-    // TODO.kevin: enable e2e encryption mq for contracts
-    // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
     let mut last_block = 0;
     for block in blocks.into_iter() {
         state
