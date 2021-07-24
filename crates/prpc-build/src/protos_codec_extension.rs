@@ -402,6 +402,7 @@ pub fn extend_types(
     buf.push_str(
         r#"
     use ::prpc::codec::scale::{Encode, Decode, Error as ScaleDecodeError};
+    use ::alloc::vec::Vec;
     "#,
     );
     for file in file_descriptor_set.file {
