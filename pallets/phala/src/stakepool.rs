@@ -1182,6 +1182,11 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
 				assert_eq!(staker2.amount, 1000 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(1000 * DOLLARS)]);
+				// Cannot withdraw more than one's stake
+				assert_noop!(
+					PhalaStakePool::withdraw(Origin::signed(2), 0, 9999 * DOLLARS),
+					Error::<Test>::InvalidWithdrawAmount
+				);
 				// Immediate withdraw 499 PHA from the free stake
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(2),
@@ -1239,26 +1244,35 @@ pub mod pallet {
 				assert_eq!(staker1.amount, 1 * DOLLARS);
 				assert_eq!(staker2.amount, 499 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(499 * DOLLARS)]);
-				// Withdraw 199 PHA, queued, and then wait for force clear
+				// Staker2 and 1 withdraw 199 PHA, 1 PHA, queued, and then wait for force clear
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(2),
 					0,
 					199 * DOLLARS
 				));
+				assert_ok!(PhalaStakePool::withdraw(Origin::signed(1), 0, 1 * DOLLARS));
 				let pool = PhalaStakePool::mining_pools(0).unwrap();
 				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
 				assert_eq!(
 					pool.withdraw_queue,
-					vec![WithdrawInfo {
-						user: 2,
-						amount: 199 * DOLLARS,
-						start_time: 0
-					}]
+					vec![
+						WithdrawInfo {
+							user: 2,
+							amount: 199 * DOLLARS,
+							start_time: 0
+						},
+						WithdrawInfo {
+							user: 1,
+							amount: 1 * DOLLARS,
+							start_time: 0
+						}
+					]
 				);
+				assert_eq!(staker1.amount, 1 * DOLLARS);
 				assert_eq!(staker2.amount, 499 * DOLLARS);
 				// Trigger a force clear by `on_cleanup()`, releasing 100 PHA stake to partially
-				// fulfill staker2's withdraw request
+				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
 				PhalaStakePool::on_cleanup(&worker_pubkey(2), 100 * DOLLARS);
 				assert_eq!(
@@ -1278,25 +1292,24 @@ pub mod pallet {
 				assert_eq!(staker2.amount, 399 * DOLLARS);
 				// Trigger another force clear, releasing all the remaining 400 PHA stake,
 				// fulfilling staker2's request.
-				// Then all 301 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
+				// Then all 300 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
 				let _ = take_events();
 				PhalaStakePool::on_cleanup(&worker_pubkey(1), 400 * DOLLARS);
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::Withdraw(
-						0,
-						2,
-						99 * DOLLARS
-					)),]
+					[
+						TestEvent::PhalaStakePool(Event::Withdraw(0, 2, 99 * DOLLARS)),
+						TestEvent::PhalaStakePool(Event::Withdraw(0, 1, 1 * DOLLARS))
+					]
 				);
 				let pool = PhalaStakePool::mining_pools(0).unwrap();
 				let staker1 = PhalaStakePool::staking_info((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::staking_info((0, 2)).unwrap();
-				assert_eq!(pool.total_stake, 301 * DOLLARS);
-				assert_eq!(pool.free_stake, 301 * DOLLARS);
-				assert_eq!(staker1.amount, 1 * DOLLARS);
+				assert_eq!(pool.total_stake, 300 * DOLLARS);
+				assert_eq!(pool.free_stake, 300 * DOLLARS);
+				assert_eq!(staker1.amount, 0);
 				assert_eq!(staker2.amount, 300 * DOLLARS);
-				assert_eq!(Balances::locks(1), vec![the_lock(1 * DOLLARS)]);
+				assert_eq!(Balances::locks(1), vec![]);
 				assert_eq!(Balances::locks(2), vec![the_lock(300 * DOLLARS)]);
 
 				// TODO: handle slash at on_cleanup()
