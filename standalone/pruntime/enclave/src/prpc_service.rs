@@ -1,6 +1,13 @@
 use super::*;
+use enclave_api::blocks::{AuthoritySetChange, HeaderToSync};
 use enclave_api::prpc::phactory_api_server::{PhactoryApi, PhactoryApiServer};
-use enclave_api::prpc::PhactoryInfo;
+use enclave_api::prpc::{server::Error as RpcError, HeadersToSync, PhactoryInfo, SyncedTo};
+
+type RpcResult<T> = Result<T, RpcError>;
+
+fn display_err(e: impl core::fmt::Display) -> RpcError {
+    RpcError::AppError(e.to_string())
+}
 
 #[no_mangle]
 pub extern "C" fn ecall_prpc_request(
@@ -46,7 +53,7 @@ fn prpc_request(
             return (500, vec![]);
         }
     };
-    let server = PhactoryApiServer::new(Server);
+    let server = PhactoryApiServer::new(RpcService);
     let data = unsafe { std::slice::from_raw_parts(data, data_len) };
     info!("Dispatching request: {}", path);
     let (code, data) = match server.dispatch_request(path, data.to_vec()) {
@@ -120,12 +127,42 @@ pub fn get_info() -> PhactoryInfo {
     }
 }
 
-struct Server;
+pub fn sync_header(
+    headers: Vec<HeaderToSync>,
+    authority_set_change: Option<AuthoritySetChange>,
+) -> RpcResult<SyncedTo> {
+    info!(
+        "sync_header from={:?} to={:?}",
+        headers.first().map(|h| h.header.number),
+        headers.last().map(|h| h.header.number)
+    );
+    let last_header = STATE
+        .lock()
+        .unwrap()
+        .as_mut()
+        .ok_or(display_err("Runtime not initialized"))?
+        .storage_synchronizer
+        .sync_header(headers, authority_set_change)
+        .map_err(display_err)?;
+
+    Ok(SyncedTo {
+        synced_to: last_header,
+    })
+}
+
+pub struct RpcService;
 
 /// A server that process all RPCs.
-impl PhactoryApi for Server {
+impl PhactoryApi for RpcService {
     /// Get basic information about Phactory state.
-    fn get_info(&self, _request: ()) -> Result<PhactoryInfo, prpc::server::Error> {
+    fn get_info(&self, _request: ()) -> RpcResult<PhactoryInfo> {
         Ok(get_info())
+    }
+
+    /// Sync the parent chain header
+    fn sync_header(&self, request: HeadersToSync) -> RpcResult<SyncedTo> {
+        let headers = request.headers_decoded()?;
+        let authority_set_change = request.authority_set_change_decoded()?;
+        sync_header(headers, authority_set_change)
     }
 }

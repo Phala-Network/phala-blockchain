@@ -2405,6 +2405,7 @@ dependencies = [
  "anyhow 1.0.42",
  "async-trait",
  "derive_more",
+ "parity-scale-codec 2.2.0",
  "prost",
 ]
 

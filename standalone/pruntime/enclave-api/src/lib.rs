@@ -5,11 +5,7 @@ mod proto_generated;
 
 pub mod prpc {
     pub use crate::proto_generated::*;
-    pub use prpc::{
-        client::{Error as ClientError, RequestClient},
-        server::ProtoError as ServerError,
-        Message,
-    };
+    pub use prpc::{client, server, Message};
 }
 
 pub mod actions {

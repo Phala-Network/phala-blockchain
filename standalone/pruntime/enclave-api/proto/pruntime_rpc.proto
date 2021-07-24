@@ -9,6 +9,9 @@ package pruntime_rpc;
 service PhactoryAPI {
   // Get basic information about Phactory state.
   rpc GetInfo (google.protobuf.Empty) returns (PhactoryInfo) {}
+
+  // Sync the parent chain header
+  rpc SyncHeader (HeadersToSync) returns (SyncedTo) {}
 }
 
 // Basic information about a Phactory instance.
@@ -40,4 +43,19 @@ message PhactoryInfo {
   uint64 pending_messages = 12;
   // Local estimated benchmark score.
   uint64 score = 13;
+}
+
+// Response to SyncHeader & SyncParaHeader.
+message SyncedTo {
+  // The final actual block number synced to.
+  uint32 synced_to = 1;
+}
+
+// Request parameters for SyncHeader.
+message HeadersToSync {
+  // The relaychain headers to be synced.
+  // @codec scale crate::blocks::HeadersToSync
+  bytes headers = 1;
+  // @codec scale crate::blocks::AuthoritySetChange
+  optional bytes authority_set_change = 2;
 }
