@@ -151,7 +151,7 @@ impl<'a> CodeGenerator<'a> {
                         ));
                     } else {
                         buf.push_str(&format!(
-                            "::prpc::codec::scale::Decode::decode(&mut &self.{}[..])",
+                            "Decode::decode(&mut &self.{}[..])",
                             field.name()
                         ));
                     }
