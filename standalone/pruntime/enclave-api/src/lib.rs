@@ -1,10 +1,10 @@
 #![no_std]
 extern crate alloc;
 
-mod pruntime_rpc_generated;
+mod proto_generated;
 
 pub mod prpc {
-    pub use crate::pruntime_rpc_generated::*;
+    pub use crate::proto_generated::*;
     pub use prpc::{
         client::{Error as ClientError, RequestClient},
         server::ProtoError as ServerError,

@@ -3,7 +3,7 @@ syntax = "proto3";
 
 import "google/protobuf/empty.proto";
 
-package pruntime_rpc_generated;
+package pruntime_rpc;
 
 // The greeting service definition.
 service PhactoryAPI {
@@ -14,7 +14,6 @@ service PhactoryAPI {
 // Basic information about a Phactory instance.
 message PhactoryInfo {
     enum GatekeeperRole { None = 0; Dummy = 1; Active = 2; }
-
     // Whether the init_runtime has been called successfully.
     bool initialized = 1;
     // Whether the worker has been registered on-chain.

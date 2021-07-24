@@ -4,15 +4,17 @@ use proc_macro2::{Delimiter, Group, Ident, Literal, Punct, Spacing, Span, TokenS
 use quote::TokenStreamExt;
 mod prost;
 
-pub use prost::{compile_protos, configure, Builder};
+pub use crate::prost::{compile_protos, configure, Builder};
 
 use std::io::{self, Write};
-use std::process::{exit, Command};
+use std::process::Command;
 
 /// Service code generation for client
 pub mod client;
 /// Service code generation for Server
 pub mod server;
+
+mod codec_patch;
 
 /// Service generation trait.
 ///

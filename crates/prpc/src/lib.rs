@@ -32,7 +32,6 @@ pub mod server {
         }
     }
 
-
     /// Error in protobuf format
     #[derive(Display, Message)]
     pub struct ProtoError {
@@ -79,6 +78,8 @@ pub mod client {
 
 pub mod codec {
     use super::*;
+
+    pub use parity_scale_codec as scale;
 
     pub fn encode_message_to_vec(msg: &impl Message) -> Vec<u8> {
         let mut buf = Vec::with_capacity(msg.encoded_len());
