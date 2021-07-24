@@ -15,6 +15,9 @@ service PhactoryAPI {
 
   // Sync the parachain header
   rpc SyncParaHeader (ParaHeadersToSync) returns (SyncedTo) {}
+
+  // Dispatch blocks (Sync storage changes)
+  rpc DispatchBlocks (Blocks) returns (SyncedTo) {}
 }
 
 // Basic information about a Phactory instance.
@@ -70,4 +73,11 @@ message ParaHeadersToSync {
   bytes headers = 1;
   // aka StorageProof
   repeated bytes proof = 2;
+}
+
+// Request parameters for DispatchBlock.
+message Blocks {
+  // The blocks to be synced.
+  // @codec scale Vec<crate::blocks::BlockHeaderWithChanges>
+  bytes blocks = 1;
 }

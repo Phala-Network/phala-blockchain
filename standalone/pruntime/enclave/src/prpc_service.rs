@@ -3,7 +3,7 @@ use enclave_api::blocks;
 use enclave_api::prpc::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    HeadersToSync, ParaHeadersToSync, PhactoryInfo, SyncedTo,
+    Blocks, HeadersToSync, ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -182,6 +182,37 @@ fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> Rp
     })
 }
 
+fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<SyncedTo> {
+    info!(
+        "dispatch_block from={:?} to={:?}",
+        blocks.first().map(|h| h.block_header.number),
+        blocks.last().map(|h| h.block_header.number)
+    );
+
+    let mut state = STATE.lock().unwrap();
+    let state = state
+        .as_mut()
+        .ok_or(display_err("Runtime not initialized"))?;
+
+    // TODO.kevin: enable e2e encryption mq for contracts
+    // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
+    let mut last_block = 0;
+    for block in blocks.into_iter() {
+        state
+            .storage_synchronizer
+            .feed_block(&block, &mut state.chain_storage)
+            .map_err(display_err)?;
+
+        state.purge_mq();
+        handle_inbound_messages(block.block_header.number, state).map_err(display_err)?;
+        last_block = block.block_header.number;
+    }
+
+    Ok(SyncedTo {
+        synced_to: last_block,
+    })
+}
+
 pub struct RpcService;
 
 /// A server that process all RPCs.
@@ -202,5 +233,11 @@ impl PhactoryApi for RpcService {
     fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
         let headers = request.headers_decoded()?;
         sync_para_header(headers, request.proof)
+    }
+
+    /// Dispatch blocks (Sync storage changes)"
+    fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
+        let blocks = request.blocks_decoded()?;
+        dispatch_block(blocks)
     }
 }

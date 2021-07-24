@@ -305,9 +305,8 @@ async fn req_sync_para_header(
 async fn req_dispatch_block(
     pr: &PrClient,
     blocks: Vec<BlockHeaderWithChanges>,
-) -> Result<DispatchBlockResp> {
-    let req = blocks::DispatchBlockReq { blocks };
-    let resp = pr.bin_req_decode("bin_api/dispatch_block", req).await?;
+) -> Result<prpc::SyncedTo> {
+    let resp = pr.prpc.dispatch_blocks(prpc::Blocks::new(blocks)).await?;
     Ok(resp)
 }
 
@@ -504,7 +503,7 @@ async fn batch_sync_block(
                 let blocks_count = dispatch_batch.len();
                 let r = req_dispatch_block(pr, dispatch_batch).await?;
                 debug!("  ..dispatch_block: {:?}", r);
-                next_blocknum = r.dispatched_to + 1;
+                next_blocknum = r.synced_to + 1;
 
                 // Update sync state
                 synced_blocks += blocks_count;
