@@ -6,8 +6,12 @@ use serde::Serialize;
 use sp_runtime::DeserializeOwned;
 
 use crate::types::{Resp, RuntimeReq, SignedResp};
-use enclave_api::prpc;
-use enclave_api::prpc::phactory_api_client::PhactoryApiClient;
+use enclave_api::prpc::{
+    client::{Error as ClientError, RequestClient},
+    phactory_api_client::PhactoryApiClient,
+    server::ProtoError as ServerError,
+    Message,
+};
 
 pub struct PRuntimeClient {
     base_url: String,
@@ -18,7 +22,7 @@ impl PRuntimeClient {
     pub fn new(base_url: &str) -> Self {
         PRuntimeClient {
             base_url: base_url.to_string(),
-            prpc: PhactoryApiClient::new(RpcRequest::new(base_url.to_string()))
+            prpc: PhactoryApiClient::new(RpcRequest::new(base_url.to_string())),
         }
     }
 
@@ -30,7 +34,8 @@ impl PRuntimeClient {
         let endpoint = format!("{}/{}", self.base_url, command);
 
         let body_json = serde_json::to_string(param)?;
-        let res = client.post(endpoint)
+        let res = client
+            .post(endpoint)
             .header("content-type", "application/json")
             .body(body_json)
             .send()
@@ -63,9 +68,7 @@ impl PRuntimeClient {
         let endpoint = format!("{}/{}", self.base_url, command);
         let body = param.encode();
 
-        let res = client.post(endpoint)
-            .body(body)
-            .send().await?;
+        let res = client.post(endpoint).body(body).send().await?;
 
         info!("Response: {}", res.status());
 
@@ -101,10 +104,10 @@ impl RpcRequest {
 }
 
 #[async_trait::async_trait]
-impl prpc::RequestClient for RpcRequest {
-    async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, prpc::ClientError> {
-        fn display_err(err: impl std::fmt::Display) -> prpc::ClientError {
-            prpc::ClientError::RpcError(err.to_string())
+impl RequestClient for RpcRequest {
+    async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, ClientError> {
+        fn display_err(err: impl std::fmt::Display) -> ClientError {
+            ClientError::RpcError(err.to_string())
         }
 
         let url = format!("{}/prpc/{}", self.base_url, path);
@@ -122,8 +125,8 @@ impl prpc::RequestClient for RpcRequest {
         if status.is_success() {
             Ok(body.to_vec())
         } else {
-            let err: prpc::ServerError = prpc::Message::decode(body.as_ref())?;
-            Err(prpc::ClientError::ServerError(err))
+            let err: ServerError = Message::decode(body.as_ref())?;
+            Err(ClientError::ServerError(err))
         }
     }
 }

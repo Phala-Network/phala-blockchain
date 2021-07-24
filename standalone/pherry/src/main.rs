@@ -30,7 +30,7 @@ use crate::types::{
     SyncHeaderResp,
 };
 use enclave_api::blocks::{self, StorageProof};
-use enclave_api::prpc::PhactoryInfo;
+use enclave_api::prpc;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
@@ -282,12 +282,11 @@ async fn req_sync_header(
     pr: &PrClient,
     headers: Vec<HeaderToSync>,
     authority_set_change: Option<AuthoritySetChange>,
-) -> Result<SyncHeaderResp> {
-    let req = blocks::SyncHeaderReq {
-        headers,
-        authority_set_change,
-    };
-    let resp = pr.bin_req_decode("bin_api/sync_header", req).await?;
+) -> Result<prpc::SyncedTo> {
+    let resp = pr
+        .prpc
+        .sync_header(prpc::HeadersToSync::new(headers, authority_set_change))
+        .await?;
     Ok(resp)
 }
 
@@ -349,7 +348,7 @@ async fn batch_sync_block(
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
-    info: &PhactoryInfo,
+    info: &prpc::PhactoryInfo,
     parachain: bool,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
