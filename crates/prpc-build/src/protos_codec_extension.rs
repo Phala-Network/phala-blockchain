@@ -387,7 +387,7 @@ pub fn to_upper_camel(s: &str) -> String {
     ident
 }
 
-pub fn patch_all_types(
+pub fn extend_types(
     file_descriptor_set_path: impl AsRef<std::path::Path>,
     out_file: impl AsRef<std::path::Path>,
     mod_prefix: &str,

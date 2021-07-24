@@ -14,7 +14,7 @@ pub mod client;
 /// Service code generation for Server
 pub mod server;
 
-mod codec_patch;
+mod protos_codec_extension;
 
 /// Service generation trait.
 ///

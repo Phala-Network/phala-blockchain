@@ -1,5 +1,5 @@
-mod codec_patches;
+mod protos_codec_extensions;
 mod pruntime_rpc;
 
-pub use codec_patches::*;
+pub use protos_codec_extensions::*;
 pub use pruntime_rpc::*;

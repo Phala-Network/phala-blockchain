@@ -424,9 +424,9 @@ impl Builder {
 
         config.compile_protos(protos, includes)?;
 
-        let patch_file = out_dir.join("codec_patches.rs");
+        let patch_file = out_dir.join("protos_codec_extensions.rs");
 
-        crate::codec_patch::patch_all_types(
+        crate::protos_codec_extension::extend_types(
             &file_descriptor_set_path,
             patch_file,
             &mod_prefix,
