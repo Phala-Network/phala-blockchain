@@ -470,19 +470,10 @@ pub mod pallet {
 				Error::<T>::WorkerHasNotAdded
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			<mining::pallet::Pallet<T>>::set_deposit(&miner, stake);
-			match <mining::pallet::Pallet<T>>::start_mining(miner.clone()) {
-				Ok(()) => {
-					pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
-					MiningPools::<T>::insert(&pid, &pool_info);
-				}
-				_ => {
-					// rollback
-					<mining::pallet::Pallet<T>>::set_deposit(&miner, Zero::zero());
-					return Err(Error::<T>::StartMiningCallFailed.into());
-				}
-			}
-
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)
+				.or(Err(Error::<T>::StartMiningCallFailed))?;
+			pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
+			MiningPools::<T>::insert(&pid, &pool_info);
 			Ok(())
 		}
 
@@ -932,6 +923,34 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::add_worker(Origin::signed(1), 1, worker1.clone()),
 					Error::<Test>::MinerBindingCallFailed
+				);
+			});
+		}
+
+		#[test]
+		fn test_start_mining() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				// Cannot start mining wihtout a bounded worker
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::WorkerHasNotAdded
+				);
+				// Basic setup
+				setup_workers(2);
+				assert_ok!(PhalaStakePool::add_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				assert_ok!(PhalaStakePool::deposit(Origin::signed(1), 0, 100 * DOLLARS));
+				// No enough stake (TODO: apply the parameters)
+				// let d = PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0);
+				// println!("ERROR: {:?}", d);
+				assert_noop!(
+					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
+					Error::<Test>::StartMiningCallFailed
 				);
 			});
 		}

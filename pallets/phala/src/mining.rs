@@ -207,7 +207,7 @@ pub mod pallet {
 			T::OnCleanup::on_cleanup(&worker, deposit_balance);
 
 			// clear deposit balance
-			DepositBalance::<T>::insert(&miner, BalanceOf::<T>::zero());
+			DepositBalance::<T>::remove(&miner);
 
 			Self::deposit_event(Event::<T>::MiningCleanup(miner));
 			Ok(())
@@ -236,8 +236,7 @@ pub mod pallet {
 			stake: BalanceOf<T>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			DepositBalance::<T>::insert(&miner, stake);
-			Self::start_mining(miner)?;
+			Self::start_mining(miner, stake)?;
 			Ok(())
 		}
 
@@ -389,52 +388,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Desposits some tokan as stake
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		pub fn deposit(miner: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			ensure!(
-				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotInReadyState
-			);
-
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			DepositBalance::<T>::insert(&miner, already_reserved.saturating_add(amount));
-
-			Ok(())
-		}
-
-		/// Withdraw some token from the stake
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		pub fn withdraw(miner: T::AccountId, amount: BalanceOf<T>) -> DispatchResult {
-			ensure!(
-				MinerBinding::<T>::contains_key(&miner),
-				Error::<T>::MinerNotFounded
-			);
-			// mining should be stopped before withdraw
-			ensure!(
-				Miner::<T>::get(&miner).unwrap().state == MinerState::Ready,
-				Error::<T>::MinerNotInReadyState
-			);
-
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
-			DepositBalance::<T>::insert(&miner, already_reserved.saturating_sub(amount));
-
-			Ok(())
-		}
-
-		/// Starts mining
-		///
-		/// Requires:
-		/// 1. Ther miner is in Ready state
-		pub fn start_mining(miner: T::AccountId) -> DispatchResult {
+		/// Starts mining with the given `stake`, assuming the stake is already locked externally
+		pub fn start_mining(miner: T::AccountId, stake: BalanceOf<T>) -> DispatchResult {
 			let worker = MinerBinding::<T>::get(&miner).ok_or(Error::<T>::MinerNotFounded)?;
 
 			ensure!(
@@ -449,12 +404,12 @@ pub mod pallet {
 				Error::<T>::BenchmarkMissing
 			);
 
-			let already_reserved = DepositBalance::<T>::get(&miner).unwrap_or_default();
 			ensure!(
 				// TODO: dynamic compute MinStaking according to worker
-				already_reserved >= T::MinStaking::get(),
+				stake >= T::MinStaking::get(),
 				Error::<T>::InsufficientStaking
 			);
+			DepositBalance::<T>::insert(&miner, stake);
 
 			Miner::<T>::mutate(&miner, |info| {
 				if let Some(info) = info {
@@ -502,10 +457,6 @@ pub mod pallet {
 			));
 			Self::deposit_event(Event::<T>::MiningStoped(miner));
 			Ok(())
-		}
-
-		pub fn set_deposit(miner: &T::AccountId, amount: BalanceOf<T>) {
-			DepositBalance::<T>::insert(miner, amount);
 		}
 
 		#[allow(unused)]
