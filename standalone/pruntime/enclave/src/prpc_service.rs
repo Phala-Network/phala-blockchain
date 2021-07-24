@@ -153,6 +153,35 @@ pub fn sync_header(
     })
 }
 
+fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> RpcResult<SyncedTo> {
+    info!(
+        "sync_para_header from={:?} to={:?}",
+        headers.first().map(|h| h.number),
+        headers.last().map(|h| h.number)
+    );
+    let mut guard = STATE.lock().unwrap();
+    let state = guard
+        .as_mut()
+        .ok_or(display_err("Runtime not initialized"))?;
+
+    let para_id = state
+        .chain_storage
+        .para_id()
+        .ok_or(display_err("No para_id"))?;
+
+    let storage_key =
+        light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
+
+    let last_header = state
+        .storage_synchronizer
+        .sync_parachain_header(headers, proof, &storage_key)
+        .map_err(display_err)?;
+
+    Ok(SyncedTo {
+        synced_to: last_header,
+    })
+}
+
 pub struct RpcService;
 
 /// A server that process all RPCs.
@@ -167,5 +196,11 @@ impl PhactoryApi for RpcService {
         let headers = request.headers_decoded()?;
         let authority_set_change = request.authority_set_change_decoded()?;
         sync_header(headers, authority_set_change)
+    }
+
+    /// Sync the parachain header
+    fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
+        let headers = request.headers_decoded()?;
+        sync_para_header(headers, request.proof)
     }
 }

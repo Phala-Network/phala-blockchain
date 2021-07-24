@@ -12,6 +12,9 @@ service PhactoryAPI {
 
   // Sync the parent chain header
   rpc SyncHeader (HeadersToSync) returns (SyncedTo) {}
+
+  // Sync the parachain header
+  rpc SyncParaHeader (ParaHeadersToSync) returns (SyncedTo) {}
 }
 
 // Basic information about a Phactory instance.
@@ -58,4 +61,13 @@ message HeadersToSync {
   bytes headers = 1;
   // @codec scale crate::blocks::AuthoritySetChange
   optional bytes authority_set_change = 2;
+}
+
+// Request parameters for SyncParaHeader.
+message ParaHeadersToSync {
+  // The parachain headers to be synced.
+  // @codec scale crate::blocks::Headers
+  bytes headers = 1;
+  // aka StorageProof
+  repeated bytes proof = 2;
 }

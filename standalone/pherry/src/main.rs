@@ -294,9 +294,11 @@ async fn req_sync_para_header(
     pr: &PrClient,
     headers: blocks::Headers,
     proof: StorageProof,
-) -> Result<SyncHeaderResp> {
-    let req = blocks::SyncParachainHeaderReq { headers, proof };
-    let resp = pr.bin_req_decode("bin_api/sync_para_header", req).await?;
+) -> Result<prpc::SyncedTo> {
+    let resp = pr
+        .prpc
+        .sync_para_header(prpc::ParaHeadersToSync::new(headers, proof))
+        .await?;
     Ok(resp)
 }
 
