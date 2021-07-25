@@ -21,6 +21,9 @@ service PhactoryAPI {
 
   // Init the Phactory runtime
   rpc InitRuntime (InitRuntimeRequest) returns (InitRuntimeResponse) {}
+
+  // Get the cached Phactory runtime init response
+  rpc RuntimeInfo (google.protobuf.Empty) returns (InitRuntimeResponse) {}
 }
 
 // Basic information about a Phactory instance.

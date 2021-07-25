@@ -54,6 +54,7 @@ use std::time::Duration;
 
 use pink::InkModule;
 
+use enclave_api::prpc::InitRuntimeResponse;
 use enclave_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
 };
@@ -73,12 +74,12 @@ mod contracts;
 mod cryptography;
 mod light_validation;
 mod msg_channel;
+mod prpc_service;
 mod rpc_types;
 mod storage;
 mod system;
 mod types;
 mod utils;
-mod prpc_service;
 
 use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
@@ -170,7 +171,7 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
-    runtime_info: Option<InitRuntimeResp>,
+    runtime_info: Option<InitRuntimeResponse>,
 }
 
 struct TestContract {
@@ -961,72 +962,19 @@ fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    if local_state.initialized {
-        return Err(json!({"message": "Already initialized"}));
-    }
-
     // load chain genesis
     let raw_genesis =
         base64::decode(&input.bridge_genesis_info_b64).expect("Bad bridge_genesis_info_b64");
     let genesis =
         light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
             .expect("Can't decode bridge_genesis_info_b64");
-    let genesis_block_hash = genesis.block_header.hash();
-    let genesis_block_hash_hex = hex::encode(genesis_block_hash.as_ref());
 
     // load identity
-    if let Some(key) = input.debug_set_key {
-        if input.skip_ra == false {
-            return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
-        }
-        let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
-        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key)
-            .map_err(|_| error_msg("can't parse private key"))?;
-        init_secret_keys(
-            &mut local_state,
-            genesis_block_hash.clone(),
-            Some(ecdsa_key),
-        )
-        .map_err(|_| error_msg("failed to update secret key"))?;
+    let debug_set_key = if let Some(key) = input.debug_set_key {
+        Some(hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?)
     } else {
-        init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
-            .map_err(|_| error_msg("failed to init secret key"))?;
-    }
-
-    if !input.skip_ra && local_state.dev_mode {
-        return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
-    }
-
-    let ecdsa_pk = local_state
-        .identity_key
-        .as_ref()
-        .expect("Identity key must be initialized; qed.")
-        .public();
-    let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
-    info!("Identity pubkey: {:?}", ecdsa_hex_pk);
-
-    // derive ecdh key
-    let ecdh_pubkey = local_state.ecdh_key.as_ref().unwrap().public();
-    let ecdh_hex_pk = hex::encode(ecdh_pubkey.as_ref());
-    info!("ECDH pubkey: {:?}", ecdh_hex_pk);
-
-    // Measure machine score
-    let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
-    info!("CPU cores: {}", cpu_core_num);
-
-    let mut cpu_feature_level: u32 = 1;
-    // Atom doesn't support AVX
-    if is_x86_feature_detected!("avx2") {
-        info!("CPU Support AVX2");
-        cpu_feature_level += 1;
-
-        // Customer-level Core doesn't support AVX512
-        if is_x86_feature_detected!("avx512f") {
-            info!("CPU Support AVX512");
-            cpu_feature_level += 1;
-        }
-    }
+        None
+    };
 
     let operator = match input.operator_hex {
         Some(h) => {
@@ -1041,162 +989,28 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         None => None,
     };
 
-    // Build PRuntimeInfo
-    let runtime_info = PRuntimeInfo::<chain::AccountId> {
-        version: VERSION,
-        machine_id: local_state.machine_id.clone(),
-        pubkey: ecdsa_pk,
-        ecdh_pubkey: phala_types::EcdhPublicKey(ecdh_pubkey),
-        genesis_block_hash: genesis_block_hash,
-        features: vec![cpu_core_num, cpu_feature_level],
-        operator,
-    };
-    let encoded_runtime_info = runtime_info.encode();
-    let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
-
-    info!("Encoded runtime info");
-    info!("{:?}", hex::encode(&encoded_runtime_info));
-
-    // Produce remote attestation report
-    let mut attestation: Option<InitRespAttestation> = None;
-    if !input.skip_ra {
-        let (attn_report, sig, cert) = match create_attestation_report(
-            &runtime_info_hash,
-            sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("Error in create_attestation_report: {:?}", e);
-                return Err(json!({"message": "Error while connecting to IAS"}));
-            }
-        };
-
-        attestation = Some(InitRespAttestation {
-            version: 1,
-            provider: "SGX".to_string(),
-            payload: AttestationReport {
-                report: attn_report,
-                signature: sig,
-                signing_cert: cert,
-            },
-        });
-    }
-
-    // Initialize bridge
-    let next_headernum = genesis.block_header.number + 1;
-    let mut state = STATE.lock().unwrap();
-    let mut light_client = LightValidation::new();
-    let main_bridge = light_client
-        .initialize_bridge(
-            genesis.block_header,
-            genesis.validator_set,
-            genesis.validator_set_proof,
-        )
-        .expect("Bridge initialize failed");
-
-    let storage_synchronizer = if input.is_parachain {
-        Box::new(ParachainSynchronizer::new(
-            light_client,
-            main_bridge,
-            next_headernum,
-        )) as _
-    } else {
-        Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
-    };
-
-    let id_pair = local_state
-        .identity_key
-        .clone()
-        .expect("Unexpected ecdsa key error in init_runtime");
-
-    let send_mq = MessageSendQueue::default();
-    let mut recv_mq = MessageDispatcher::default();
-
-    // Re-init some contracts because they require the identity key
-    let mut system_state = SYSTEM_STATE.lock().unwrap();
-    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
-    drop(system_state);
-
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
-        Default::default();
-
-    if local_state.dev_mode {
-        // Install contracts when running in dev_mode.
-
-        macro_rules! install_contract {
-            ($id: expr, $inner: expr) => {{
-                let sender = MessageOrigin::native_contract($id);
-                let mq = send_mq.channel(sender, id_pair.clone());
-                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let wrapped = Box::new(contracts::NativeCompatContract::new(
-                    $inner,
-                    mq,
-                    cmd_mq,
-                    evt_mq,
-                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
-                ));
-                other_contracts.insert($id, wrapped);
-            }};
-        }
-
-        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-        install_contract!(
-            contracts::SUBSTRATE_KITTIES,
-            contracts::substrate_kitties::SubstrateKitties::new()
-        );
-        install_contract!(
-            contracts::BTC_LOTTERY,
-            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
-        );
-        install_contract!(
-            contracts::WEB3_ANALYTICS,
-            contracts::web3analytics::Web3Analytics::new()
-        );
-        install_contract!(
-            contracts::DATA_PLAZA,
-            contracts::data_plaza::DataPlaza::new()
-        );
-    }
-
-    let mut runtime_state = RuntimeState {
-        contracts: other_contracts,
-        send_mq,
-        recv_mq,
-        storage_synchronizer,
-        chain_storage: Default::default(),
-    };
-
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
         .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
     let mut genesis_state_scl = &genesis_state_scl[..];
     let genesis_state: Vec<(Vec<u8>, Vec<u8>)> = Decode::decode(&mut genesis_state_scl)
         .map_err(|_| error_msg("Scale decode genesis state failed"))?;
 
-    // Initialize other states
-    runtime_state.chain_storage.load(genesis_state.into_iter());
-
-    info!(
-        "Genesis state loaded: {:?}",
-        runtime_state.chain_storage.root()
-    );
-
-    *state = Some(runtime_state);
-
-    // Response
-    let resp = InitRuntimeResp {
-        encoded_runtime_info,
-        genesis_block_hash: genesis_block_hash_hex,
-        public_key: ecdsa_hex_pk,
-        ecdh_public_key: ecdh_hex_pk,
-        attestation,
+    let genesis = blocks::GenesisBlockInfo {
+        block_header: genesis.block_header,
+        validator_set: genesis.validator_set,
+        validator_set_proof: genesis.validator_set_proof,
     };
 
-    local_state.runtime_info = Some(resp.clone());
-    local_state.initialized = true;
-
+    let resp = prpc_service::init_runtime(
+        input.skip_ra,
+        input.is_parachain,
+        genesis,
+        genesis_state,
+        operator,
+        debug_set_key,
+    )
+    .map_err(display)?;
+    let resp = convert_runtime_info(resp)?;
     Ok(serde_json::to_value(resp).unwrap())
 }
 
@@ -1372,13 +1186,40 @@ fn get_info_json() -> Result<Value, Value> {
     }))
 }
 
+fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Value> {
+    let genesis_block_hash = info.genesis_block_hash_decoded().map_err(display)?;
+    let public_key = info.public_key_decoded().map_err(display)?;
+    let ecdh_public_key = info.ecdh_public_key_decoded().map_err(display)?;
+
+    let genesis_block_hash_hex = hex::encode(genesis_block_hash);
+    let ecdsa_hex_pk = hex::encode(public_key);
+    let ecdh_hex_pk = hex::encode(ecdh_public_key.0);
+
+    let attestation = info.attestation.map(|att| {
+        let payload = att.payload.expect("BUG: Payload must exist");
+        InitRespAttestation {
+            version: att.version,
+            provider: att.provider,
+            payload: AttestationReport {
+                report: payload.report,
+                signature: payload.signature,
+                signing_cert: payload.signing_cert,
+            },
+        }
+    });
+
+    Ok(InitRuntimeResp {
+        encoded_runtime_info: info.runtime_info,
+        genesis_block_hash: genesis_block_hash_hex,
+        public_key: ecdsa_hex_pk,
+        ecdh_public_key: ecdh_hex_pk,
+        attestation,
+    })
+}
+
 fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-    let resp = local_state
-        .runtime_info
-        .as_ref()
-        .ok_or_else(|| error_msg("Uninitiated runtime info"))?;
-    Ok(serde_json::to_value(resp).unwrap())
+    let resp = prpc_service::get_runtime_info().map_err(display)?;
+    Ok(serde_json::to_value(convert_runtime_info(resp)?).unwrap())
 }
 
 fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {

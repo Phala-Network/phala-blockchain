@@ -216,7 +216,7 @@ fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<Sync
     })
 }
 
-fn init_runtime(
+pub fn init_runtime(
     skip_ra: bool,
     is_parachain: bool,
     genesis: blocks::GenesisBlockInfo,
@@ -426,16 +426,26 @@ fn init_runtime(
 
     *state = Some(runtime_state);
 
-    local_state.initialized = true;
-    local_state.runtime_info = Some(todo!("TODO.kevin"));
-
-    Ok(InitRuntimeResponse::new(
+    let resp = InitRuntimeResponse::new(
         runtime_info,
         genesis_block_hash,
         ecdsa_pk,
         ecdh_pubkey,
         attestation,
-    ))
+    );
+    local_state.runtime_info = Some(resp.clone());
+    local_state.initialized = true;
+    Ok(resp)
+}
+
+pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
+    let resp = LOCAL_STATE
+        .lock()
+        .unwrap()
+        .runtime_info
+        .clone()
+        .ok_or_else(|| display_err("Uninitiated runtime info"))?;
+    Ok(resp)
 }
 
 pub struct RpcService;
@@ -475,5 +485,9 @@ impl PhactoryApi for RpcService {
             request.operator_decoded()?,
             request.debug_set_key,
         )
+    }
+
+    fn runtime_info(&self, request: ()) -> RpcResult<InitRuntimeResponse> {
+        get_runtime_info()
     }
 }
