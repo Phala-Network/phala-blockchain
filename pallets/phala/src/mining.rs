@@ -131,8 +131,6 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Meh. [n]
-		Meh(u32),
 		/// [period]
 		CoplingDownExpireChanged(u64),
 		/// [miner]
