@@ -24,17 +24,23 @@ mod runtimes;
 mod types;
 
 use crate::error::Error;
-use crate::types::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, BlockNumber, BlockWithChanges, Hash,
-    Header, HeaderToSync, NotifyReq, OpaqueSignedBlock, Runtime,
+use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
+use enclave_api::blocks::{
+    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
+    StorageProof,
 };
-use enclave_api::blocks::{self, StorageProof};
 use enclave_api::prpc::{self, InitRuntimeResponse};
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
 type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
+
+#[derive(Clone, Debug)]
+struct BlockWithChanges {
+    block: OpaqueSignedBlock,
+    storage_changes: StorageChanges,
+}
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pherry")]
@@ -286,7 +292,6 @@ async fn req_sync_header(
     authority_set_change: Option<AuthoritySetChange>,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        
         .sync_header(prpc::HeadersToSync::new(headers, authority_set_change))
         .await?;
     Ok(resp)
@@ -298,7 +303,6 @@ async fn req_sync_para_header(
     proof: StorageProof,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        
         .sync_para_header(prpc::ParaHeadersToSync::new(headers, proof))
         .await?;
     Ok(resp)
@@ -635,7 +639,6 @@ async fn init_runtime(
     }
 
     let resp = pr
-        
         .init_runtime(prpc::InitRuntimeRequest::new(
             skip_ra,
             genesis_info,
