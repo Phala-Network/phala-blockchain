@@ -9,11 +9,11 @@ use enclave_api::prpc::{
 
 type RpcResult<T> = Result<T, RpcError>;
 
-fn display_err(e: impl core::fmt::Display) -> RpcError {
+fn from_display(e: impl core::fmt::Display) -> RpcError {
     RpcError::AppError(e.to_string())
 }
 
-fn debug_err(e: impl core::fmt::Debug) -> RpcError {
+fn from_debug(e: impl core::fmt::Debug) -> RpcError {
     RpcError::AppError(format!("{:?}", e))
 }
 
@@ -148,10 +148,10 @@ pub fn sync_header(
         .lock()
         .unwrap()
         .as_mut()
-        .ok_or(display_err("Runtime not initialized"))?
+        .ok_or(from_display("Runtime not initialized"))?
         .storage_synchronizer
         .sync_header(headers, authority_set_change)
-        .map_err(display_err)?;
+        .map_err(from_display)?;
 
     Ok(SyncedTo {
         synced_to: last_header,
@@ -167,12 +167,12 @@ fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> Rp
     let mut guard = STATE.lock().unwrap();
     let state = guard
         .as_mut()
-        .ok_or(display_err("Runtime not initialized"))?;
+        .ok_or(from_display("Runtime not initialized"))?;
 
     let para_id = state
         .chain_storage
         .para_id()
-        .ok_or(display_err("No para_id"))?;
+        .ok_or(from_display("No para_id"))?;
 
     let storage_key =
         light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
@@ -180,7 +180,7 @@ fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> Rp
     let last_header = state
         .storage_synchronizer
         .sync_parachain_header(headers, proof, &storage_key)
-        .map_err(display_err)?;
+        .map_err(from_display)?;
 
     Ok(SyncedTo {
         synced_to: last_header,
@@ -197,17 +197,17 @@ fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<Sync
     let mut state = STATE.lock().unwrap();
     let state = state
         .as_mut()
-        .ok_or(display_err("Runtime not initialized"))?;
+        .ok_or(from_display("Runtime not initialized"))?;
 
     let mut last_block = 0;
     for block in blocks.into_iter() {
         state
             .storage_synchronizer
             .feed_block(&block, &mut state.chain_storage)
-            .map_err(display_err)?;
+            .map_err(from_display)?;
 
         state.purge_mq();
-        handle_inbound_messages(block.block_header.number, state).map_err(display_err)?;
+        handle_inbound_messages(block.block_header.number, state).map_err(from_display)?;
         last_block = block.block_header.number;
     }
 
@@ -227,7 +227,7 @@ pub fn init_runtime(
     let mut local_state = LOCAL_STATE.lock().unwrap();
 
     if local_state.initialized {
-        return Err(display_err("Runtime already initialized"));
+        return Err(from_display("Runtime already initialized"));
     }
 
     // load chain genesis
@@ -236,24 +236,24 @@ pub fn init_runtime(
     // load identity
     if let Some(raw_key) = debug_set_key {
         if skip_ra == false {
-            return Err(display_err(
+            return Err(from_display(
                 "RA is disallowed when debug_set_key is enabled",
             ));
         }
-        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key).map_err(debug_err)?;
+        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
         init_secret_keys(
             &mut local_state,
             genesis_block_hash.clone(),
             Some(ecdsa_key),
         )
-        .map_err(display_err)?;
+        .map_err(from_display)?;
     } else {
         init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
-            .map_err(display_err)?;
+            .map_err(from_display)?;
     }
 
     if !skip_ra && local_state.dev_mode {
-        return Err(display_err(
+        return Err(from_display(
             "RA is disallowed when debug_set_key is enabled",
         ));
     }
@@ -314,7 +314,7 @@ pub fn init_runtime(
             Ok(r) => r,
             Err(e) => {
                 error!("Error in create_attestation_report: {:?}", e);
-                return Err(display_err("Error while connecting to IAS"));
+                return Err(from_display("Error while connecting to IAS"));
             }
         };
 
@@ -444,7 +444,7 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
         .unwrap()
         .runtime_info
         .clone()
-        .ok_or_else(|| display_err("Uninitiated runtime info"))?;
+        .ok_or_else(|| from_display("Uninitiated runtime info"))?;
     Ok(resp)
 }
 
@@ -487,7 +487,7 @@ impl PhactoryApi for RpcService {
         )
     }
 
-    fn runtime_info(&self, request: ()) -> RpcResult<InitRuntimeResponse> {
+    fn get_runtime_info(&self, request: ()) -> RpcResult<InitRuntimeResponse> {
         get_runtime_info()
     }
 }

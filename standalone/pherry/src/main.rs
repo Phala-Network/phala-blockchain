@@ -760,7 +760,7 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
         } else {
             info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = pr.prpc.runtime_info(()).await?;
+            runtime_info = pr.prpc.get_runtime_info(()).await?;
 
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
