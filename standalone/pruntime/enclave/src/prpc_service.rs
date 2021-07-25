@@ -29,19 +29,42 @@ pub extern "C" fn ecall_prpc_request(
     output_buf_len: usize,
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
+    const SIG_LEN: usize = 65;
+
     let (code, data) = prpc_request(path, path_len, data, data_len);
-    let (code, data) = if data.len() > output_buf_len {
+    let (code, data) = if data.len() + SIG_LEN + 1 > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])
     } else {
         (code, data)
     };
     info!("rpc code: {}, data len: {}", code, data.len());
+    let signature: Option<[u8; SIG_LEN]> = {
+        let local_state = LOCAL_STATE.lock().unwrap();
+        local_state.identity_key.as_ref().map(|pair| {
+            let sig = pair.sign(&data).0;
+            sig
+        })
+    };
+
+    match signature {
+        Some(sig) => unsafe {
+            *output_ptr = 1;
+            core::ptr::copy_nonoverlapping(sig.as_ptr(), output_ptr.offset(1), SIG_LEN);
+        },
+        None => unsafe {
+            *output_ptr = 0;
+        },
+    }
     unsafe {
         *status_code = code;
-        let len = output_buf_len.min(data.len());
-        core::ptr::copy_nonoverlapping(data.as_ptr(), output_ptr, len);
-        *output_len_ptr = len;
+        let len = data.len().min(output_buf_len - SIG_LEN - 1);
+        core::ptr::copy_nonoverlapping(
+            data.as_ptr(),
+            output_ptr.offset(1).offset(SIG_LEN as _),
+            len,
+        );
+        *output_len_ptr = 1 + SIG_LEN + len;
     }
     sgx_status_t::SGX_SUCCESS
 }

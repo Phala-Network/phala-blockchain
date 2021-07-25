@@ -31,7 +31,7 @@ impl RpcRequest {
 #[async_trait::async_trait]
 impl RequestClient for RpcRequest {
     async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, ClientError> {
-        fn display_err(err: impl std::fmt::Display) -> ClientError {
+        fn from_display(err: impl std::fmt::Display) -> ClientError {
             ClientError::RpcError(err.to_string())
         }
 
@@ -42,15 +42,22 @@ impl RequestClient for RpcRequest {
             .body(body)
             .send()
             .await
-            .map_err(display_err)?;
+            .map_err(from_display)?;
 
         info!("Response: {}", res.status());
         let status = res.status();
-        let body = res.bytes().await.map_err(display_err)?;
+        let body = res.bytes().await.map_err(from_display)?;
+        fn payload(body: &[u8]) -> &[u8] {
+            if body.len() >= 66 {
+                &body[66..]
+            } else {
+                &[]
+            }
+        }
         if status.is_success() {
-            Ok(body.to_vec())
+            Ok(payload(body.as_ref()).to_vec())
         } else {
-            let err: ServerError = Message::decode(body.as_ref())?;
+            let err: ServerError = Message::decode(payload(body.as_ref()))?;
             Err(ClientError::ServerError(err))
         }
     }
