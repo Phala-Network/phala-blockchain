@@ -1,18 +1,11 @@
 use anyhow::Result;
-use phala_types::messaging::{MessageOrigin, SignedMessage};
-use codec::Decode;
 use core::marker::PhantomData;
 use log::{error, info};
+use phala_types::messaging::{MessageOrigin, SignedMessage};
 
 use crate::chain_client::fetch_mq_ingress_seq;
 
-use super::{
-    update_signer_nonce,
-    error::Error,
-    types::GetEgressMessagesReq,
-    runtimes,
-    XtClient, PrClient, SrSigner
-};
+use super::{runtimes, update_signer_nonce, PrClient, SrSigner, XtClient};
 
 /// Hold everything needed to sync some egress messages back to the blockchain
 pub struct MsgSync<'a> {
@@ -30,20 +23,21 @@ impl<'a> MsgSync<'a> {
     /// Creates a new MsgSync object
     pub fn new(client: &'a XtClient, pr: &'a PrClient, signer: &'a mut SrSigner) -> Self {
         Self {
-            client, pr, signer,
+            client,
+            pr,
+            signer,
             nonce_updated: false,
         }
     }
 
     pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
         // Send the query
-        let resp = self
+        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> = self
             .pr
-            .req_decode("get_egress_messages", GetEgressMessagesReq {})
-            .await?;
-        let messages_scl = base64::decode(&resp.messages).map_err(|_| Error::FailedToDecode)?;
-        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> =
-            Decode::decode(&mut &messages_scl[..]).map_err(|_| Error::FailedToDecode)?;
+            .prpc
+            .get_egress_messages(())
+            .await?
+            .messages_decoded()?;
 
         // No pending message. We are done.
         if messages.is_empty() {

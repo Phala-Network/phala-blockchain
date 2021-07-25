@@ -3,8 +3,9 @@ use enclave_api::blocks;
 use enclave_api::prpc::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Attestation, AttestationReport, Blocks, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse,
-    ParaHeadersToSync, PhactoryInfo, SyncedTo,
+    Attestation, AttestationReport, Blocks, EgressMessages, GetEgressMessagesResponse,
+    HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo,
+    SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -448,6 +449,16 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
     Ok(resp)
 }
 
+pub fn get_egress_messages() -> RpcResult<EgressMessages> {
+    let messages: Vec<_> = STATE
+        .lock()
+        .unwrap()
+        .as_ref()
+        .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
+        .unwrap_or(Default::default());
+    Ok(messages)
+}
+
 pub struct RpcService;
 
 /// A server that process all RPCs.
@@ -487,7 +498,11 @@ impl PhactoryApi for RpcService {
         )
     }
 
-    fn get_runtime_info(&self, request: ()) -> RpcResult<InitRuntimeResponse> {
+    fn get_runtime_info(&self, _: ()) -> RpcResult<InitRuntimeResponse> {
         get_runtime_info()
+    }
+
+    fn get_egress_messages(&self, _: ()) -> RpcResult<GetEgressMessagesResponse> {
+        get_egress_messages().map(GetEgressMessagesResponse::new)
     }
 }

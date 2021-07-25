@@ -4,8 +4,11 @@ extern crate alloc;
 mod proto_generated;
 
 pub mod prpc {
+    use alloc::vec::Vec;
     pub use crate::proto_generated::*;
     pub use prpc::{client, server, Message};
+    use phala_types::messaging::{MessageOrigin, SignedMessage};
+    pub type EgressMessages = Vec<(MessageOrigin, Vec<SignedMessage>)>;
 }
 
 pub mod actions {

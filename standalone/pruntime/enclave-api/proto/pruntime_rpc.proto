@@ -24,6 +24,9 @@ service PhactoryAPI {
 
   // Get the cached Phactory runtime init response
   rpc GetRuntimeInfo (google.protobuf.Empty) returns (InitRuntimeResponse) {}
+
+  // Get pending egress messages
+  rpc GetEgressMessages (google.protobuf.Empty) returns (GetEgressMessagesResponse) {}
 }
 
 // Basic information about a Phactory instance.
@@ -132,4 +135,10 @@ message AttestationReport {
   string report = 1;
   string signature = 2;
   string signing_cert = 3;
+}
+
+// Response for GetEgressMessages
+message GetEgressMessagesResponse {
+  // @codec scale EgressMessages
+  bytes messages = 1;
 }
