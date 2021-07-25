@@ -13,9 +13,9 @@ pub trait MessageVerifier {
 mod signers {
     use super::MessageSigner;
     use alloc::vec::Vec;
-    use sp_core::{crypto::Pair as PairTrait, ecdsa};
+    use sp_core::{crypto::Pair as PairTrait, sr25519};
 
-    impl MessageSigner for ecdsa::Pair {
+    impl MessageSigner for sr25519::Pair {
         fn sign(&self, data: &[u8]) -> Vec<u8> {
             PairTrait::sign(self, data).0.to_vec()
         }

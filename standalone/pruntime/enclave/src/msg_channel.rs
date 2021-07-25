@@ -28,7 +28,7 @@ pub mod osp {
         use crate::std::vec::Vec;
         use parity_scale_codec::Encode;
         use phala_crypto::{aead, ecdh};
-        use phala_mq::{BindTopic, EcdsaMessageChannel, Path};
+        use phala_mq::{BindTopic, Path, Sr25519MessageChannel};
         pub struct KeyPair(ecdh::EcdhKey);
 
         impl KeyPair {
@@ -39,14 +39,14 @@ pub mod osp {
 
         pub struct OspMq<'a> {
             key: &'a KeyPair,
-            mq: &'a EcdsaMessageChannel,
+            mq: &'a Sr25519MessageChannel,
             key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
         }
 
         impl<'a> OspMq<'a> {
             pub fn new(
                 key: &'a KeyPair,
-                mq: &'a EcdsaMessageChannel,
+                mq: &'a Sr25519MessageChannel,
                 key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
             ) -> Self {
                 OspMq { key, mq, key_map }

@@ -16,7 +16,7 @@ use anyhow::Result;
 use lazy_static;
 use log::error;
 use parity_scale_codec::Encode;
-use phala_mq::{EcdsaMessageChannel as MessageChannel, MessageOrigin};
+use phala_mq::{Sr25519MessageChannel as MessageChannel, MessageOrigin};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};

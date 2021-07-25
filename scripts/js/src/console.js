@@ -130,6 +130,19 @@ program
         return timestampDelta <= 50 * 60 * 1000 ? 0 : -1;
     }));
 
+program
+    .command('free-balance <account>')
+    .description('get the firee blance of an account', {
+        'account': 'the account to lookup'
+    })
+    .action(run (async (account) => {
+        const api = await substrateApi();
+        const accountData = await api.query.system.account(account);
+        const freeBalance = accountData.data.free.toString();
+        console.log(freeBalance);
+        return 0;
+    }))
+
 // pRuntime operations
 
 program
@@ -236,17 +249,20 @@ program
     })
     .action(run(async (input) => {
         input = input.trim();
-        const keyring = new Keyring({ type: 'sr25519' });
+        const keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         try {
-            if (keyring.decodeAddress(input)) {
-                console.log('Valid address');
+            const decoded = keyring.decodeAddress(input);
+            if (decoded) {
+                const address = keyring.encodeAddress(decoded);
+                console.log(address);
                 return 0;
             }
         } catch {}
         try {
             await cryptoWaitReady();
-            if (keyring.addFromUri(input)) {
-                console.log('Valid private key');
+            const pair = keyring.addFromUri(input);
+            if (pair) {
+                console.log(pair.address);
                 return 0;
             }
         } catch {}

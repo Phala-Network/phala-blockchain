@@ -39,6 +39,6 @@ pub use alias::*;
 #[cfg(all(feature = "queue", feature = "signers"))]
 mod alias {
     use super::*;
-    use sp_core::ecdsa;
-    pub type EcdsaMessageChannel = MessageChannel<ecdsa::Pair>;
+    use sp_core::sr25519;
+    pub type Sr25519MessageChannel = MessageChannel<sr25519::Pair>;
 }

@@ -142,6 +142,9 @@ struct Args {
         help = "The first parent header to be synced"
     )]
     start_header: BlockNumber,
+
+    #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
+    no_wait: bool,
 }
 
 struct BlockSyncState {
@@ -679,6 +682,18 @@ async fn register_worker(
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
+async fn wait_until_synced(client: &XtClient) -> Result<()> {
+    loop {
+        let state = client.rpc.system_sync_state().await?;
+        if let Some(highest) = state.highest_block {
+            if highest - state.current_block <= 2 {
+                return Ok(());
+            }
+        }
+        delay_for(Duration::from_secs(5)).await;
+    }
+}
+
 async fn bridge(args: Args) -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -707,6 +722,14 @@ async fn bridge(args: Args) -> Result<()> {
     } else {
         client.clone()
     };
+
+    if !args.no_wait {
+        // Don't start our worker until the substrate node is synced
+        info!("Waiting for substrate to sync blocks...");
+        wait_until_synced(&client).await?;
+        wait_until_synced(&paraclient).await?;
+        info!("Substrate sync blocks done");
+    }
 
     // Other initialization
     let pr = pruntime_client::new_pruntime_client(args.pruntime_endpoint.clone());

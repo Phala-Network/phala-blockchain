@@ -68,7 +68,7 @@ describe('A full stack', function () {
 	})
 
 	let workerKey;
-	describe.skip('pRuntime', () => {
+	describe('pRuntime', () => {
 		it('is initialized', async function () {
 			let info;
 			assert.isTrue(await checkUntil(async () => {
@@ -537,6 +537,7 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 function newRelayer(wsPort, teePort, tmpPath, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
+			'--no-wait',
 			'--mnemonic=//Alice',
 			`--inject-key=${key}`,
 			`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
