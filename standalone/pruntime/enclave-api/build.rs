@@ -29,9 +29,22 @@ fn main() {
     #[cfg(not(feature = "std"))]
     {
         // goto Path #1
-        std::process::Command::new("cargo")
+        let output = std::process::Command::new("cargo")
             .arg("check")
-            .status()
-            .unwrap();
+            .output();
+        match output {
+            Err(e) => {
+                eprintln!("error running cargo check: {:?}", e);
+                std::process::exit(1)
+            }
+            Ok(output) => {
+                if !output.status.success() {
+                    use std::io::Write;
+                    std::io::stdout().write_all(&output.stdout).unwrap();
+                    std::io::stderr().write_all(&output.stderr).unwrap();
+                    std::process::exit(output.status.code().unwrap_or(1))
+                }
+            }
+        }
     }
 }
