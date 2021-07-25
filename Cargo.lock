@@ -1578,6 +1578,7 @@ dependencies = [
  "frame-system",
  "parity-scale-codec",
  "phala-node-runtime",
+ "phala-types",
  "prost 0.8.0",
  "prpc",
  "prpc-build",

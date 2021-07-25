@@ -1,6 +1,7 @@
 use anyhow::{anyhow, Result};
 use log::{debug, error, info, warn};
 use phala_pallets::registry::Attestation;
+use sp_core::crypto::AccountId32;
 use std::cmp;
 use std::str::FromStr;
 use std::time::Duration;
@@ -24,13 +25,11 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{
-    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, BlockNumber, BlockWithChanges,
-    DispatchBlockResp, GenesisInfo, GetRuntimeInfoReq, Hash, Header, HeaderToSync,
-    InitRespAttestation, InitRuntimeReq, InitRuntimeResp, NotifyReq, OpaqueSignedBlock, Runtime,
-    SyncHeaderResp,
+    AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, BlockNumber, BlockWithChanges, Hash,
+    Header, HeaderToSync, NotifyReq, OpaqueSignedBlock, Runtime,
 };
 use enclave_api::blocks::{self, StorageProof};
-use enclave_api::prpc;
+use enclave_api::prpc::{self, InitRuntimeResponse};
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
@@ -601,10 +600,10 @@ async fn init_runtime(
     skip_ra: bool,
     use_dev_key: bool,
     inject_key: &str,
-    operator_hex: Option<String>,
+    operator: Option<AccountId32>,
     is_parachain: bool,
     start_header: BlockNumber,
-) -> Result<InitRuntimeResp> {
+) -> Result<InitRuntimeResponse> {
     let genesis_block = get_block_at(client, Some(start_header)).await?.block;
     let hash = client
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
@@ -614,14 +613,11 @@ async fn init_runtime(
         .expect("No genesis block?");
     let set_proof = get_authority_with_proof_at(client, hash).await?;
     let genesis_state = chain_client::fetch_genesis_storage(paraclient).await?;
-    let genesis_state_b64 = base64::encode(&Encode::encode(&genesis_state));
-    let info = GenesisInfo {
-        header: genesis_block.header,
-        validators: set_proof.authority_set.authority_set,
-        proof: set_proof.authority_proof,
+    let genesis_info = blocks::GenesisBlockInfo {
+        block_header: genesis_block.header,
+        validator_set: set_proof.authority_set.authority_set,
+        validator_set_proof: set_proof.authority_proof,
     };
-
-    let info_b64 = base64::encode(&info.encode());
     let mut debug_set_key = None;
     if !inject_key.is_empty() {
         if inject_key.len() != 64 {
@@ -629,24 +625,22 @@ async fn init_runtime(
         } else {
             info!("Inject key {}", inject_key);
         }
-        debug_set_key = Some(inject_key.to_string());
+        debug_set_key = Some(hex::decode(inject_key.to_string()).expect("Invalid dev key"));
     } else if use_dev_key {
         info!("Inject key {}", DEV_KEY);
-        debug_set_key = Some(String::from(DEV_KEY));
+        debug_set_key = Some(hex::decode(DEV_KEY).expect("Invalid dev key"));
     }
 
     let resp = pr
-        .req_decode(
-            "init_runtime",
-            InitRuntimeReq {
-                skip_ra,
-                bridge_genesis_info_b64: info_b64,
-                debug_set_key,
-                genesis_state_b64,
-                operator_hex,
-                is_parachain,
-            },
-        )
+        .prpc
+        .init_runtime(prpc::InitRuntimeRequest::new(
+            skip_ra,
+            genesis_info,
+            debug_set_key,
+            genesis_state,
+            operator,
+            is_parachain,
+        ))
         .await?;
     Ok(resp)
 }
@@ -654,20 +648,21 @@ async fn init_runtime(
 async fn register_worker(
     paraclient: &XtClient,
     encoded_runtime_info: Vec<u8>,
-    attestation: &InitRespAttestation,
+    attestation: prpc::Attestation,
     signer: &mut SrSigner,
 ) -> Result<()> {
-    let signature =
-        base64::decode(&attestation.payload.signature).expect("Failed to decode signature");
-    let raw_signing_cert =
-        base64::decode_config(&attestation.payload.signing_cert, base64::STANDARD)
-            .expect("Failed to decode certificate");
+    let payload = attestation
+        .payload
+        .ok_or(anyhow!("Missing attestation payload"))?;
+    let signature = base64::decode(&payload.signature).expect("Failed to decode signature");
+    let raw_signing_cert = base64::decode_config(&payload.signing_cert, base64::STANDARD)
+        .expect("Failed to decode certificate");
     let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
         pruntime_info: Decode::decode(&mut &encoded_runtime_info[..])
             .map_err(|_| anyhow!("Decode pruntime info failed"))?,
         attestation: Attestation::SgxIas {
-            ra_report: attestation.payload.report.as_bytes().to_vec(),
+            ra_report: payload.report.as_bytes().to_vec(),
             signature: signature,
             raw_signing_cert: raw_signing_cert,
         },
@@ -722,7 +717,7 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    let mut pending_register_info: Option<(InitRespAttestation, Vec<u8>)> = None;
+    let mut pending_register_info: Option<(prpc::Attestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.prpc.get_info(()).await?;
@@ -730,12 +725,12 @@ async fn bridge(args: Args) -> Result<()> {
         let runtime_info;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
-            let operator_hex = match args.operator {
+            let operator = match args.operator {
                 None => None,
                 Some(operator) => {
-                    let parsed_operator = sp_core::crypto::AccountId32::from_str(&operator)
+                    let parsed_operator = AccountId32::from_str(&operator)
                         .map_err(|e| anyhow!("Failed to parse operator address: {}", e))?;
-                    Some(hex::encode(&parsed_operator))
+                    Some(parsed_operator)
                 }
             };
             runtime_info = init_runtime(
@@ -745,7 +740,7 @@ async fn bridge(args: Args) -> Result<()> {
                 !args.ra,
                 args.use_dev_key,
                 &args.inject_key,
-                operator_hex,
+                operator,
                 args.parachain,
                 args.start_header,
             )
@@ -765,9 +760,11 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
         } else {
             info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = pr
-                .req_decode("get_runtime_info", GetRuntimeInfoReq {})
-                .await?;
+            // TODO.kevin
+            // runtime_info = pr
+            //     .req_decode("get_runtime_info", GetRuntimeInfoReq {})
+            //     .await?;
+            runtime_info = todo!("TODO.kevin");
 
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
@@ -785,13 +782,13 @@ async fn bridge(args: Args) -> Result<()> {
         }
         info!("runtime_info: {:?}", runtime_info);
         if let Some(attestation) = runtime_info.attestation {
-            pending_register_info = Some((attestation, runtime_info.encoded_runtime_info));
+            pending_register_info = Some((attestation, runtime_info.runtime_info));
         }
     }
 
     if args.no_sync {
         if let Some((attestation, encoded_runtime_info)) = pending_register_info {
-            register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer).await?;
+            register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -898,7 +895,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 {
             if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
                 info!("Registering worker");
-                register_worker(&paraclient, encoded_runtime_info, &attestation, &mut signer)
+                register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer)
                     .await?;
             }
             // STATUS: initial_sync_finished = true

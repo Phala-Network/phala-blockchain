@@ -150,10 +150,7 @@ impl<'a> CodeGenerator<'a> {
                             field.name()
                         ));
                     } else {
-                        buf.push_str(&format!(
-                            "Decode::decode(&mut &self.{}[..])",
-                            field.name()
-                        ));
+                        buf.push_str(&format!("Decode::decode(&mut &self.{}[..])", field.name()));
                     }
                     buf.push_str("\n}\n");
                     return true;
@@ -405,6 +402,9 @@ pub fn extend_types(
     use ::alloc::vec::Vec;
     "#,
     );
+    if !mod_prefix.is_empty() {
+        buf.push_str(&format!("use {}*;\n", mod_prefix));
+    }
     for file in file_descriptor_set.file {
         CodeGenerator::generate(file, &mut buf, mod_prefix, type_prefix);
     }

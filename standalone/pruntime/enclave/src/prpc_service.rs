@@ -3,13 +3,18 @@ use enclave_api::blocks;
 use enclave_api::prpc::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Blocks, HeadersToSync, ParaHeadersToSync, PhactoryInfo, SyncedTo,
+    Attestation, AttestationReport, Blocks, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse,
+    ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
 
 fn display_err(e: impl core::fmt::Display) -> RpcError {
     RpcError::AppError(e.to_string())
+}
+
+fn debug_err(e: impl core::fmt::Debug) -> RpcError {
+    RpcError::AppError(format!("{:?}", e))
 }
 
 #[no_mangle]
@@ -211,6 +216,228 @@ fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<Sync
     })
 }
 
+fn init_runtime(
+    skip_ra: bool,
+    is_parachain: bool,
+    genesis: blocks::GenesisBlockInfo,
+    genesis_state: blocks::StorageState,
+    operator: Option<chain::AccountId>,
+    debug_set_key: ::core::option::Option<Vec<u8>>,
+) -> RpcResult<InitRuntimeResponse> {
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+
+    if local_state.initialized {
+        return Err(display_err("Runtime already initialized"));
+    }
+
+    // load chain genesis
+    let genesis_block_hash = genesis.block_header.hash();
+
+    // load identity
+    if let Some(raw_key) = debug_set_key {
+        if skip_ra == false {
+            return Err(display_err(
+                "RA is disallowed when debug_set_key is enabled",
+            ));
+        }
+        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key).map_err(debug_err)?;
+        init_secret_keys(
+            &mut local_state,
+            genesis_block_hash.clone(),
+            Some(ecdsa_key),
+        )
+        .map_err(display_err)?;
+    } else {
+        init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
+            .map_err(display_err)?;
+    }
+
+    if !skip_ra && local_state.dev_mode {
+        return Err(display_err(
+            "RA is disallowed when debug_set_key is enabled",
+        ));
+    }
+
+    let ecdsa_pk = local_state
+        .identity_key
+        .as_ref()
+        .expect("Identity key must be initialized; qed.")
+        .public();
+    let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
+    info!("Identity pubkey: {:?}", ecdsa_hex_pk);
+
+    // derive ecdh key
+    let ecdh_pubkey = phala_types::EcdhPublicKey(local_state.ecdh_key.as_ref().unwrap().public());
+    let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
+    info!("ECDH pubkey: {:?}", ecdh_hex_pk);
+
+    // Measure machine score
+    let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
+    info!("CPU cores: {}", cpu_core_num);
+
+    let mut cpu_feature_level: u32 = 1;
+    // Atom doesn't support AVX
+    if is_x86_feature_detected!("avx2") {
+        info!("CPU Support AVX2");
+        cpu_feature_level += 1;
+
+        // Customer-level Core doesn't support AVX512
+        if is_x86_feature_detected!("avx512f") {
+            info!("CPU Support AVX512");
+            cpu_feature_level += 1;
+        }
+    }
+
+    // Build PRuntimeInfo
+    let runtime_info = PRuntimeInfo::<chain::AccountId> {
+        version: VERSION,
+        machine_id: local_state.machine_id.clone(),
+        pubkey: ecdsa_pk.clone(),
+        ecdh_pubkey: ecdh_pubkey.clone(),
+        genesis_block_hash: genesis_block_hash,
+        features: vec![cpu_core_num, cpu_feature_level],
+        operator,
+    };
+    let encoded_runtime_info = runtime_info.encode();
+    let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
+
+    info!("Encoded runtime info");
+    info!("{:?}", hex::encode(&encoded_runtime_info));
+
+    // Produce remote attestation report
+    let mut attestation: Option<Attestation> = None;
+    if !skip_ra {
+        let (attn_report, sig, cert) = match create_attestation_report(
+            &runtime_info_hash,
+            sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
+        ) {
+            Ok(r) => r,
+            Err(e) => {
+                error!("Error in create_attestation_report: {:?}", e);
+                return Err(display_err("Error while connecting to IAS"));
+            }
+        };
+
+        attestation = Some(Attestation {
+            version: 1,
+            provider: "SGX".to_string(),
+            payload: Some(AttestationReport {
+                report: attn_report,
+                signature: sig,
+                signing_cert: cert,
+            }),
+        });
+    }
+
+    // Initialize bridge
+    let next_headernum = genesis.block_header.number + 1;
+    let mut state = STATE.lock().unwrap();
+    let mut light_client = LightValidation::new();
+    let main_bridge = light_client
+        .initialize_bridge(
+            genesis.block_header,
+            genesis.validator_set,
+            genesis.validator_set_proof,
+        )
+        .expect("Bridge initialize failed");
+
+    let storage_synchronizer = if is_parachain {
+        Box::new(ParachainSynchronizer::new(
+            light_client,
+            main_bridge,
+            next_headernum,
+        )) as _
+    } else {
+        Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
+    };
+
+    let id_pair = local_state
+        .identity_key
+        .clone()
+        .expect("Unexpected ecdsa key error in init_runtime");
+
+    let send_mq = MessageSendQueue::default();
+    let mut recv_mq = MessageDispatcher::default();
+
+    // Re-init some contracts because they require the identity key
+    let mut system_state = SYSTEM_STATE.lock().unwrap();
+    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
+    drop(system_state);
+
+    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
+        Default::default();
+
+    if local_state.dev_mode {
+        // Install contracts when running in dev_mode.
+
+        macro_rules! install_contract {
+            ($id: expr, $inner: expr) => {{
+                let sender = MessageOrigin::native_contract($id);
+                let mq = send_mq.channel(sender, id_pair.clone());
+                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let wrapped = Box::new(contracts::NativeCompatContract::new(
+                    $inner,
+                    mq,
+                    cmd_mq,
+                    evt_mq,
+                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
+                ));
+                other_contracts.insert($id, wrapped);
+            }};
+        }
+
+        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
+        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        install_contract!(
+            contracts::SUBSTRATE_KITTIES,
+            contracts::substrate_kitties::SubstrateKitties::new()
+        );
+        install_contract!(
+            contracts::BTC_LOTTERY,
+            contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+        );
+        install_contract!(
+            contracts::WEB3_ANALYTICS,
+            contracts::web3analytics::Web3Analytics::new()
+        );
+        install_contract!(
+            contracts::DATA_PLAZA,
+            contracts::data_plaza::DataPlaza::new()
+        );
+    }
+
+    let mut runtime_state = RuntimeState {
+        contracts: other_contracts,
+        send_mq,
+        recv_mq,
+        storage_synchronizer,
+        chain_storage: Default::default(),
+    };
+
+    // Initialize other states
+    runtime_state.chain_storage.load(genesis_state.into_iter());
+
+    info!(
+        "Genesis state loaded: {:?}",
+        runtime_state.chain_storage.root()
+    );
+
+    *state = Some(runtime_state);
+
+    local_state.initialized = true;
+    local_state.runtime_info = Some(todo!("TODO.kevin"));
+
+    Ok(InitRuntimeResponse::new(
+        runtime_info,
+        genesis_block_hash,
+        ecdsa_pk,
+        ecdh_pubkey,
+        attestation,
+    ))
+}
+
 pub struct RpcService;
 
 /// A server that process all RPCs.
@@ -237,5 +464,16 @@ impl PhactoryApi for RpcService {
     fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
         let blocks = request.blocks_decoded()?;
         dispatch_block(blocks)
+    }
+
+    fn init_runtime(&self, request: InitRuntimeRequest) -> RpcResult<InitRuntimeResponse> {
+        init_runtime(
+            request.skip_ra,
+            request.is_parachain,
+            request.genesis_info_decoded()?,
+            request.genesis_state_decoded()?,
+            request.operator_decoded()?,
+            request.debug_set_key,
+        )
     }
 }
