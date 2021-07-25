@@ -1015,73 +1015,19 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
 }
 
 fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
-    info!(
-        "sync_header from={:?} to={:?}",
-        input.headers.first().map(|h| h.header.number),
-        input.headers.last().map(|h| h.header.number)
-    );
-    let last_header = STATE
-        .lock()
-        .unwrap()
-        .as_mut()
-        .ok_or(error_msg("Runtime not initialized"))?
-        .storage_synchronizer
-        .sync_header(input.headers, input.authority_set_change)
-        .map_err(display)?;
-
-    Ok(json!({ "synced_to": last_header }))
+    let resp =
+        prpc_service::sync_header(input.headers, input.authority_set_change).map_err(display)?;
+    Ok(json!({ "synced_to": resp.synced_to }))
 }
 
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
-    info!(
-        "sync_para_header from={:?} to={:?}",
-        input.headers.first().map(|h| h.number),
-        input.headers.last().map(|h| h.number)
-    );
-    let mut guard = STATE.lock().unwrap();
-    let state = guard.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-
-    let para_id = state
-        .chain_storage
-        .para_id()
-        .ok_or(error_msg("No para_id"))?;
-
-    let storage_key =
-        light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
-
-    let last_header = state
-        .storage_synchronizer
-        .sync_parachain_header(input.headers, input.proof, &storage_key)
-        .map_err(display)?;
-
-    Ok(json!({ "synced_to": last_header }))
+    let resp = prpc_service::sync_para_header(input.headers, input.proof).map_err(display)?;
+    Ok(json!({ "synced_to": resp.synced_to }))
 }
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
-    info!(
-        "dispatch_block from={:?} to={:?}",
-        input.blocks.first().map(|h| h.block_header.number),
-        input.blocks.last().map(|h| h.block_header.number)
-    );
-
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-
-    // TODO.kevin: enable e2e encryption mq for contracts
-    // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
-    let mut last_block = 0;
-    for block in input.blocks.into_iter() {
-        state
-            .storage_synchronizer
-            .feed_block(&block, &mut state.chain_storage)
-            .map_err(display)?;
-
-        state.purge_mq();
-        handle_inbound_messages(block.block_header.number, state)?;
-        last_block = block.block_header.number;
-    }
-
-    Ok(json!({ "dispatched_to": last_block }))
+    let resp = prpc_service::dispatch_block(input.blocks).map_err(display)?;
+    Ok(json!({ "dispatched_to": resp.synced_to }))
 }
 
 fn handle_inbound_messages(
@@ -1275,11 +1221,7 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn get_egress_messages() -> Result<Value, Value> {
-    let guard = STATE.lock().unwrap();
-    let messages: Vec<_> = guard
-        .as_ref()
-        .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
-        .unwrap_or(Default::default());
+    let messages = prpc_service::get_egress_messages().map_err(display)?;
     let bin_messages = Encode::encode(&messages);
     let b64_messages = base64::encode(bin_messages);
     Ok(json!({

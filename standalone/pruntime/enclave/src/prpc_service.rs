@@ -182,7 +182,7 @@ pub fn sync_header(
     })
 }
 
-fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> RpcResult<SyncedTo> {
+pub fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> RpcResult<SyncedTo> {
     info!(
         "sync_para_header from={:?} to={:?}",
         headers.first().map(|h| h.number),
@@ -211,7 +211,7 @@ fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> Rp
     })
 }
 
-fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<SyncedTo> {
+pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<SyncedTo> {
     info!(
         "dispatch_block from={:?} to={:?}",
         blocks.first().map(|h| h.block_header.number),
