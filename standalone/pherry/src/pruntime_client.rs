@@ -5,7 +5,7 @@ use enclave_api::prpc::{
     client::{Error as ClientError, RequestClient},
     phactory_api_client::PhactoryApiClient,
     server::ProtoError as ServerError,
-    Message,
+    Message, SIG_LEN,
 };
 
 pub type PRuntimeClient = PhactoryApiClient<RpcRequest>;
@@ -48,8 +48,8 @@ impl RequestClient for RpcRequest {
         let status = res.status();
         let body = res.bytes().await.map_err(from_display)?;
         fn payload(body: &[u8]) -> &[u8] {
-            if body.len() >= 66 {
-                &body[66..]
+            if body.len() >= 1 + SIG_LEN {
+                &body[1 + SIG_LEN..]
             } else {
                 &[]
             }

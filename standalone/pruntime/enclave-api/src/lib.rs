@@ -9,6 +9,8 @@ pub mod prpc {
     pub use prpc::{client, server, Message};
     use phala_types::messaging::{MessageOrigin, SignedMessage};
     pub type EgressMessages = Vec<(MessageOrigin, Vec<SignedMessage>)>;
+
+    pub const SIG_LEN: usize = 64;
 }
 
 pub mod actions {

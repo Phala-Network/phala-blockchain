@@ -19,7 +19,7 @@ use parity_scale_codec::Encode;
 use phala_mq::{Sr25519MessageChannel as MessageChannel, MessageOrigin};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use serde::{Deserialize, Serialize};
-use sp_core::{crypto::Pair, ecdsa, hashing::blake2_256, U256};
+use sp_core::{crypto::Pair, sr25519, hashing::blake2_256, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
 
 use bitcoin;
@@ -51,7 +51,7 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType,      // Starting from zero
-    secret: Option<ecdsa::Pair>, // TODO: replace it with a seed.
+    secret: Option<sr25519::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
     admin: AccountIdWrapper,
@@ -103,7 +103,7 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<ecdsa::Pair>) -> Self {
+    pub fn new(secret: Option<sr25519::Pair>) -> Self {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();

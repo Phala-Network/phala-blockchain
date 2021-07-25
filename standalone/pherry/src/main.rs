@@ -690,7 +690,7 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
                 return Ok(());
             }
         }
-        delay_for(Duration::from_secs(5)).await;
+        sleep(Duration::from_secs(5)).await;
     }
 }
 

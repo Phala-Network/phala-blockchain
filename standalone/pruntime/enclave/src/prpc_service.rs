@@ -29,7 +29,7 @@ pub extern "C" fn ecall_prpc_request(
     output_buf_len: usize,
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
-    const SIG_LEN: usize = 65;
+    use enclave_api::prpc::SIG_LEN;
 
     let (code, data) = prpc_request(path, path_len, data, data_len);
     let (code, data) = if data.len() + SIG_LEN + 1 > output_buf_len {
@@ -114,11 +114,11 @@ pub fn get_info() -> PhactoryInfo {
     let public_key = local_state
         .identity_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
+        .map(|pair| hex::encode(pair.public()));
     let ecdh_public_key = local_state
         .ecdh_key
         .as_ref()
-        .map(|pair| hex::encode(pair.public().as_ref()));
+        .map(|pair| hex::encode(pair.public()));
     let dev_mode = local_state.dev_mode;
     drop(local_state);
 
@@ -264,11 +264,11 @@ pub fn init_runtime(
                 "RA is disallowed when debug_set_key is enabled",
             ));
         }
-        let ecdsa_key = ecdsa::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
+        let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
         init_secret_keys(
             &mut local_state,
             genesis_block_hash.clone(),
-            Some(ecdsa_key),
+            Some(priv_key),
         )
         .map_err(from_display)?;
     } else {
