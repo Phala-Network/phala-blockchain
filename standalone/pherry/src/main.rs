@@ -283,7 +283,7 @@ async fn req_sync_header(
     authority_set_change: Option<AuthoritySetChange>,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        .prpc
+        
         .sync_header(prpc::HeadersToSync::new(headers, authority_set_change))
         .await?;
     Ok(resp)
@@ -295,7 +295,7 @@ async fn req_sync_para_header(
     proof: StorageProof,
 ) -> Result<prpc::SyncedTo> {
     let resp = pr
-        .prpc
+        
         .sync_para_header(prpc::ParaHeadersToSync::new(headers, proof))
         .await?;
     Ok(resp)
@@ -305,7 +305,7 @@ async fn req_dispatch_block(
     pr: &PrClient,
     blocks: Vec<BlockHeaderWithChanges>,
 ) -> Result<prpc::SyncedTo> {
-    let resp = pr.prpc.dispatch_blocks(prpc::Blocks::new(blocks)).await?;
+    let resp = pr.dispatch_blocks(prpc::Blocks::new(blocks)).await?;
     Ok(resp)
 }
 
@@ -632,7 +632,7 @@ async fn init_runtime(
     }
 
     let resp = pr
-        .prpc
+        
         .init_runtime(prpc::InitRuntimeRequest::new(
             skip_ra,
             genesis_info,
@@ -709,7 +709,7 @@ async fn bridge(args: Args) -> Result<()> {
     };
 
     // Other initialization
-    let pr = PrClient::new(&args.pruntime_endpoint);
+    let pr = pruntime_client::new_pruntime_client(args.pruntime_endpoint.clone());
     let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
         .expect("Bad privkey derive path");
     let mut signer: SrSigner = subxt::PairSigner::new(pair);
@@ -720,7 +720,7 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pending_register_info: Option<(prpc::Attestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
-    let info = pr.prpc.get_info(()).await?;
+    let info = pr.get_info(()).await?;
     if !args.no_init {
         let runtime_info;
         if !info.initialized {
@@ -760,7 +760,7 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
         } else {
             info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = pr.prpc.get_runtime_info(()).await?;
+            runtime_info = pr.get_runtime_info(()).await?;
 
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
@@ -798,7 +798,7 @@ async fn bridge(args: Args) -> Result<()> {
 
     loop {
         // update the latest pRuntime state
-        let info = pr.prpc.get_info(()).await?;
+        let info = pr.get_info(()).await?;
         info!("pRuntime get_info response: {:#?}", info);
 
         // STATUS: header_synced = info.headernum

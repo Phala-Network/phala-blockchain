@@ -34,7 +34,7 @@ impl<'a> MsgSync<'a> {
         // Send the query
         let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> = self
             .pr
-            .prpc
+            
             .get_egress_messages(())
             .await?
             .messages_decoded()?;
