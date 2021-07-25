@@ -93,8 +93,6 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// Meh. [n]
-		Meh(u32),
 		/// [owner, pid]
 		PoolCreated(T::AccountId, u64),
 		/// [pid, commission]
@@ -113,7 +111,6 @@ pub mod pallet {
 
 	#[pallet::error]
 	pub enum Error<T> {
-		Meh,
 		WorkerNotRegistered,
 		BenchmarkMissing,
 		WorkerHasAdded,
