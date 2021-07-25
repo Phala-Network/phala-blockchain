@@ -8,7 +8,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use tokio::time::sleep;
 
-use codec::{Decode, Encode};
+use codec::Decode;
 use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};

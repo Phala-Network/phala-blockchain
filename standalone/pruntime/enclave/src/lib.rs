@@ -1115,6 +1115,7 @@ fn handle_inbound_messages(
 
 fn get_info_json() -> Result<Value, Value> {
     let info = prpc_service::get_info();
+    let machin_id = LOCAL_STATE.lock().unwrap().machine_id;
     Ok(json!({
         "initialized": info.initialized,
         "registered": info.registered,
@@ -1129,6 +1130,7 @@ fn get_info_json() -> Result<Value, Value> {
         "dev_mode": info.dev_mode,
         "pending_messages": info.pending_messages,
         "score": info.score,
+        "machine_id": machin_id,
     }))
 }
 
