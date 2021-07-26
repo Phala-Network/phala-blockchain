@@ -18,6 +18,7 @@ fn from_debug(e: impl core::fmt::Debug) -> RpcError {
     RpcError::AppError(format!("{:?}", e))
 }
 
+// TODO: Implement a secure channel of the RPC service.
 #[no_mangle]
 pub extern "C" fn ecall_prpc_request(
     path: *const uint8_t,
@@ -29,42 +30,19 @@ pub extern "C" fn ecall_prpc_request(
     output_buf_len: usize,
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
-    use enclave_api::prpc::SIG_LEN;
-
     let (code, data) = prpc_request(path, path_len, data, data_len);
-    let (code, data) = if data.len() + SIG_LEN + 1 > output_buf_len {
+    let (code, data) = if data.len() > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])
     } else {
         (code, data)
     };
     info!("pRPC status code: {}, data len: {}", code, data.len());
-    let signature: Option<[u8; SIG_LEN]> = {
-        let local_state = LOCAL_STATE.lock().unwrap();
-        local_state.identity_key.as_ref().map(|pair| {
-            let sig = pair.sign(&data).0;
-            sig
-        })
-    };
-
-    match signature {
-        Some(sig) => unsafe {
-            *output_ptr = 1;
-            core::ptr::copy_nonoverlapping(sig.as_ptr(), output_ptr.offset(1), SIG_LEN);
-        },
-        None => unsafe {
-            *output_ptr = 0;
-        },
-    }
     unsafe {
         *status_code = code;
-        let len = data.len().min(output_buf_len - SIG_LEN - 1);
-        core::ptr::copy_nonoverlapping(
-            data.as_ptr(),
-            output_ptr.offset(1).offset(SIG_LEN as _),
-            len,
-        );
-        *output_len_ptr = 1 + SIG_LEN + len;
+        let len = data.len().min(output_buf_len);
+        core::ptr::copy_nonoverlapping(data.as_ptr(), output_ptr, len);
+        *output_len_ptr = len;
     }
     sgx_status_t::SGX_SUCCESS
 }
@@ -182,7 +160,10 @@ pub fn sync_header(
     })
 }
 
-pub fn sync_para_header(headers: blocks::Headers, proof: blocks::StorageProof) -> RpcResult<SyncedTo> {
+pub fn sync_para_header(
+    headers: blocks::Headers,
+    proof: blocks::StorageProof,
+) -> RpcResult<SyncedTo> {
     info!(
         "sync_para_header from={:?} to={:?}",
         headers.first().map(|h| h.number),
@@ -265,12 +246,8 @@ pub fn init_runtime(
             ));
         }
         let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-        init_secret_keys(
-            &mut local_state,
-            genesis_block_hash.clone(),
-            Some(priv_key),
-        )
-        .map_err(from_display)?;
+        init_secret_keys(&mut local_state, genesis_block_hash.clone(), Some(priv_key))
+            .map_err(from_display)?;
     } else {
         init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
             .map_err(from_display)?;
@@ -348,7 +325,8 @@ pub fn init_runtime(
             payload: Some(AttestationReport {
                 report: attn_report,
                 signature: base64::decode(sig).map_err(from_display)?,
-                signing_cert: base64::decode_config(cert, base64::STANDARD).map_err(from_display)?,
+                signing_cert: base64::decode_config(cert, base64::STANDARD)
+                    .map_err(from_display)?,
             }),
         });
     }
