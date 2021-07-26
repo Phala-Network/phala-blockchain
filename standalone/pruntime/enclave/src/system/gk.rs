@@ -641,9 +641,26 @@ impl GKMessageProcesser<'_> {
             }
         }
 
-        // finally, tick the registration state and enable message sending
+        // tick the registration state and enable message sending
         if my_pubkey == event.pubkey {
             self.state.register_on_chain();
+        }
+
+        // finally, upload the master key on chain
+        // noted that every gk should execute this to ensure the state consistency of egress seq
+        if let Some(master_key) = &self.state.master_key {
+            info!("Gatekeeper: upload master key on chain");
+            let my_pubkey = self.state.identity_key.public();
+            let master_pubkey = RegistryEvent::MasterPubkey {
+                gatekeeper: my_pubkey.clone(),
+                master_pubkey: master_key.public(),
+                sig: self.state.identity_key.sign_data(&master_key.public()),
+            };
+            self.state
+                .egress
+                .as_ref()
+                .expect("gk should work after acquiring master key; qed.")
+                .send(&master_pubkey);
         }
     }
 
