@@ -22,7 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, PRuntimeInfo, WorkerPublicKey,
+		ContractPublicKey, EcdhPublicKey, WorkerRegistrationInfo, WorkerPublicKey,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -48,7 +48,7 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
-	pub type Worker<T: Config> =
+	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
 	/// Mapping from contract address to pubkey
@@ -123,7 +123,7 @@ pub mod pallet {
 				intial_score: None,
 				features: vec![1, 4],
 			};
-			Worker::<T>::insert(&worker_info.pubkey, &worker_info);
+			Workers::<T>::insert(&worker_info.pubkey, &worker_info);
 			Self::push_message(SystemEvent::new_worker_event(
 				pubkey,
 				WorkerEvent::Registered(messaging::WorkerInfo {
@@ -168,7 +168,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
 			if !gatekeepers.contains(&gatekeeper) {
-				match Worker::<T>::try_get(&gatekeeper) {
+				match Workers::<T>::try_get(&gatekeeper) {
 					Ok(worker_info) => {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;
@@ -204,7 +204,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn register_worker(
 			origin: OriginFor<T>,
-			pruntime_info: PRuntimeInfo<T::AccountId>,
+			pruntime_info: WorkerRegistrationInfo<T::AccountId>,
 			attestation: Attestation,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -234,7 +234,7 @@ pub mod pallet {
 			);
 			// Update the registry
 			let pubkey = pruntime_info.pubkey.clone();
-			Worker::<T>::mutate(pubkey.clone(), |v| {
+			Workers::<T>::mutate(pubkey.clone(), |v| {
 				match v {
 					Some(worker_info) => {
 						// Case 1 - Refresh the RA report and redo benchmark
@@ -344,7 +344,7 @@ pub mod pallet {
 					let score = score * 6; // iterations per 6s
 					let score = MAX_SCORE.min(score as u32);
 
-					Worker::<T>::mutate(worker_pubkey, |val| {
+					Workers::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
 							val.intial_score = Some(score);
 							val.last_updated = now;
@@ -362,7 +362,7 @@ pub mod pallet {
 
 		#[cfg(test)]
 		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
-			Worker::<T>::mutate(worker, |w| {
+			Workers::<T>::mutate(worker, |w| {
 				if let Some(w) = w {
 					w.intial_score = score;
 				}
@@ -400,7 +400,7 @@ pub mod pallet {
 	{
 		fn build(&self) {
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
-				Worker::<T>::insert(
+				Workers::<T>::insert(
 					&pubkey,
 					&WorkerInfo {
 						pubkey: pubkey.clone(),
@@ -429,7 +429,7 @@ pub mod pallet {
 			}
 			let mut gatekeepers: Vec<WorkerPublicKey> = Vec::new();
 			for gatekeeper in &self.gatekeepers {
-				match Worker::<T>::try_get(&gatekeeper) {
+				match Workers::<T>::try_get(&gatekeeper) {
 					Ok(worker_info) => {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;

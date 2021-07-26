@@ -289,8 +289,8 @@ pub fn init_runtime(
         }
     }
 
-    // Build PRuntimeInfo
-    let runtime_info = PRuntimeInfo::<chain::AccountId> {
+    // Build WorkerRegistrationInfo
+    let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: ecdsa_pk.clone(),

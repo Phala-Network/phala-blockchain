@@ -70,7 +70,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::PRuntimeInfo;
+use phala_types::WorkerRegistrationInfo;
 
 mod benchmark;
 mod cert;
