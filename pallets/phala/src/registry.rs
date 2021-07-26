@@ -22,13 +22,22 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, Sr25519Signature, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport { start_time: u64, iterations: u64 },
+		BenchReport {
+			start_time: u64,
+			iterations: u64,
+		},
+		MasterPubkey {
+			gatekeeper: WorkerPublicKey,
+			master_pubkey: MasterPublicKey,
+			sig: Sr25519Signature,
+		},
 	}
 
 	#[pallet::config]
@@ -45,6 +54,10 @@ pub mod pallet {
 	/// Gatekeeper pubkey list
 	#[pallet::storage]
 	pub type Gatekeeper<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
+
+	/// Gatekeeper master pubkey
+	#[pallet::storage]
+	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
@@ -90,6 +103,11 @@ pub mod pallet {
 		InvalidInput,
 		InvalidBenchReport,
 		WorkerNotFound,
+		// Gatekeeper related
+		InvalidGatekeeper,
+		InvalidMasterPubkey,
+		MasterKeyMismatch,
+		MasterKeyUninitialized,
 	}
 
 	#[pallet::call]
@@ -291,8 +309,10 @@ pub mod pallet {
 					&pubkey_copy
 				}
 				MessageOrigin::Gatekeeper => {
-					// !!!!!!! TODO.kevin: get GK master_pubkey
-					return Ok(());
+					// GatekeeperMasterPubkey should not be None
+					pubkey_copy = GatekeeperMasterPubkey::<T>::get()
+						.ok_or(Error::<T>::MasterKeyUninitialized)?;
+					&pubkey_copy
 				}
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
@@ -345,6 +365,33 @@ pub mod pallet {
 						worker_pubkey.clone(),
 						WorkerEvent::BenchScore(score),
 					));
+				}
+				RegistryEvent::MasterPubkey {
+					gatekeeper,
+					master_pubkey,
+					sig,
+				} => {
+					let gatekeepers = Gatekeeper::<T>::get();
+					if !gatekeepers.contains(&gatekeeper) {
+						return Err(Error::<T>::InvalidGatekeeper.into());
+					}
+
+					ensure!(
+						sp_io::crypto::sr25519_verify(&sig, &master_pubkey, &gatekeeper),
+						Error::<T>::InvalidSignature
+					);
+
+					match GatekeeperMasterPubkey::<T>::try_get() {
+						Ok(saved_pubkey) => {
+							ensure!(
+								saved_pubkey.0 == master_pubkey.0,
+								Error::<T>::MasterKeyMismatch // Oops, this is really bad
+							);
+						}
+						_ => {
+							GatekeeperMasterPubkey::<T>::put(master_pubkey);
+						}
+					}
 				}
 			}
 			Ok(())
