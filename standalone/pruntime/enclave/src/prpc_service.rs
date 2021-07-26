@@ -38,7 +38,7 @@ pub extern "C" fn ecall_prpc_request(
     } else {
         (code, data)
     };
-    info!("rpc code: {}, data len: {}", code, data.len());
+    info!("pRPC status code: {}, data len: {}", code, data.len());
     let signature: Option<[u8; SIG_LEN]> = {
         let local_state = LOCAL_STATE.lock().unwrap();
         local_state.identity_key.as_ref().map(|pair| {
@@ -82,7 +82,7 @@ fn prpc_request(
         Ok(path) => path,
         Err(e) => {
             error!("prpc_request: invalid path: {}", e);
-            return (500, vec![]);
+            return (400, b"Invalid path".to_vec());
         }
     };
     let server = PhactoryApiServer::new(RpcService);
