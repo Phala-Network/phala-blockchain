@@ -16,15 +16,11 @@ pub fn new_pruntime_client(base_url: String) -> PhactoryApiClient<RpcRequest> {
 
 pub struct RpcRequest {
     base_url: String,
-    client: reqwest::Client,
 }
 
 impl RpcRequest {
     pub fn new(base_url: String) -> Self {
-        Self {
-            base_url,
-            client: reqwest::Client::new(),
-        }
+        Self { base_url }
     }
 }
 
@@ -36,8 +32,7 @@ impl RequestClient for RpcRequest {
         }
 
         let url = format!("{}/prpc/{}", self.base_url, path);
-        let res = self
-            .client
+        let res = reqwest::Client::new()
             .post(url)
             .body(body)
             .send()
