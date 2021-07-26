@@ -1,0 +1,11 @@
+[package]
+name = "prpc"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+async-trait = "0.1.50"
+derive_more = "0.99.16"
+prost = { version = "0.8.0", default-features = false, features = [ "prost-derive" ] }
+anyhow = { version = "1.0.42", default-features = false }
+parity-scale-codec = { version = "2.2.0", default-features = false }

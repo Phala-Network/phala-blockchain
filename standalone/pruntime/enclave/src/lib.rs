@@ -54,6 +54,7 @@ use std::time::Duration;
 
 use pink::InkModule;
 
+use enclave_api::prpc::InitRuntimeResponse;
 use enclave_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
 };
@@ -77,6 +78,7 @@ mod contracts;
 mod cryptography;
 mod light_validation;
 mod msg_channel;
+mod prpc_service;
 mod rpc_types;
 mod storage;
 mod system;
@@ -173,7 +175,7 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
-    runtime_info: Option<InitRuntimeResp>,
+    runtime_info: Option<InitRuntimeResponse>,
 }
 
 struct TestContract {
@@ -710,7 +712,7 @@ fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
-                ACTION_GET_INFO => get_info(payload),
+                ACTION_GET_INFO => get_info_json(),
                 ACTION_DUMP_STATES => dump_states(payload),
                 ACTION_LOAD_STATES => load_states(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
@@ -970,72 +972,19 @@ fn load_states(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
-    let mut local_state = LOCAL_STATE.lock().unwrap();
-    if local_state.initialized {
-        return Err(json!({"message": "Already initialized"}));
-    }
-
     // load chain genesis
     let raw_genesis =
         base64::decode(&input.bridge_genesis_info_b64).expect("Bad bridge_genesis_info_b64");
     let genesis =
         light_validation::BridgeInitInfo::<chain::Runtime>::decode(&mut raw_genesis.as_slice())
             .expect("Can't decode bridge_genesis_info_b64");
-    let genesis_block_hash = genesis.block_header.hash();
-    let genesis_block_hash_hex = hex::encode(genesis_block_hash.as_ref());
 
     // load identity
-    if let Some(key) = input.debug_set_key {
-        if input.skip_ra == false {
-            return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
-        }
-        let raw_key = hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?;
-        let sr25519_key = sr25519::Pair::from_seed_slice(&raw_key)
-            .map_err(|_| error_msg("can't parse private key"))?;
-        init_secret_keys(
-            &mut local_state,
-            genesis_block_hash.clone(),
-            Some(sr25519_key),
-        )
-        .map_err(|_| error_msg("failed to update secret key"))?;
+    let debug_set_key = if let Some(key) = input.debug_set_key {
+        Some(hex::decode(&key).map_err(|_| error_msg("Can't decode key hex"))?)
     } else {
-        init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
-            .map_err(|_| error_msg("failed to init secret key"))?;
-    }
-
-    if !input.skip_ra && local_state.dev_mode {
-        return Err(error_msg("RA is disallowed when debug_set_key is enabled"));
-    }
-
-    let sr25519_pk = local_state
-        .identity_key
-        .as_ref()
-        .expect("Identity key must be initialized; qed.")
-        .public();
-    let sr25519_hex_pk = hex::encode(&sr25519_pk);
-    info!("Identity pubkey: {:?}", sr25519_hex_pk);
-
-    // derive ecdh key
-    let ecdh_pubkey = local_state.ecdh_key.as_ref().unwrap().public();
-    let ecdh_hex_pk = hex::encode(ecdh_pubkey.as_ref());
-    info!("ECDH pubkey: {:?}", ecdh_hex_pk);
-
-    // Measure machine score
-    let cpu_core_num: u32 = sgx_trts::enclave::rsgx_get_cpu_core_num();
-    info!("CPU cores: {}", cpu_core_num);
-
-    let mut cpu_feature_level: u32 = 1;
-    // Atom doesn't support AVX
-    if is_x86_feature_detected!("avx2") {
-        info!("CPU Support AVX2");
-        cpu_feature_level += 1;
-
-        // Customer-level Core doesn't support AVX512
-        if is_x86_feature_detected!("avx512f") {
-            info!("CPU Support AVX512");
-            cpu_feature_level += 1;
-        }
-    }
+        None
+    };
 
     let operator = match input.operator_hex {
         Some(h) => {
@@ -1050,234 +999,45 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         None => None,
     };
 
-    // Build WorkerRegistrationInfo
-    let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
-        version: VERSION,
-        machine_id: local_state.machine_id.clone(),
-        pubkey: sr25519_pk,
-        ecdh_pubkey: phala_types::EcdhPublicKey(ecdh_pubkey),
-        genesis_block_hash: genesis_block_hash,
-        features: vec![cpu_core_num, cpu_feature_level],
-        operator,
-    };
-    let encoded_runtime_info = runtime_info.encode();
-    let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
-
-    info!("Encoded runtime info");
-    info!("{:?}", hex::encode(&encoded_runtime_info));
-
-    // Produce remote attestation report
-    let mut attestation: Option<InitRespAttestation> = None;
-    if !input.skip_ra {
-        let (attn_report, sig, cert) = match create_attestation_report(
-            &runtime_info_hash,
-            sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("Error in create_attestation_report: {:?}", e);
-                return Err(json!({"message": "Error while connecting to IAS"}));
-            }
-        };
-
-        attestation = Some(InitRespAttestation {
-            version: 1,
-            provider: "SGX".to_string(),
-            payload: AttestationReport {
-                report: attn_report,
-                signature: sig,
-                signing_cert: cert,
-            },
-        });
-    }
-
-    // Initialize bridge
-    let next_headernum = genesis.block_header.number + 1;
-    let mut state = STATE.lock().unwrap();
-    let mut light_client = LightValidation::new();
-    let main_bridge = light_client
-        .initialize_bridge(
-            genesis.block_header,
-            genesis.validator_set,
-            genesis.validator_set_proof,
-        )
-        .expect("Bridge initialize failed");
-
-    let storage_synchronizer = if input.is_parachain {
-        Box::new(ParachainSynchronizer::new(
-            light_client,
-            main_bridge,
-            next_headernum,
-        )) as _
-    } else {
-        Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
-    };
-
-    let id_pair = local_state
-        .identity_key
-        .clone()
-        .expect("Unexpected sr25519 key error in init_runtime");
-
-    let send_mq = MessageSendQueue::default();
-    let mut recv_mq = MessageDispatcher::default();
-
-    // Re-init some contracts because they require the identity key
-    let mut system_state = SYSTEM_STATE.lock().unwrap();
-    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
-    drop(system_state);
-
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
-        Default::default();
-
-    if local_state.dev_mode {
-        // Install contracts when running in dev_mode.
-
-        macro_rules! install_contract {
-            ($id: expr, $inner: expr) => {{
-                let sender = MessageOrigin::native_contract($id);
-                let mq = send_mq.channel(sender, id_pair.clone());
-                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let wrapped = Box::new(contracts::NativeCompatContract::new(
-                    $inner,
-                    mq,
-                    cmd_mq,
-                    evt_mq,
-                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
-                ));
-                other_contracts.insert($id, wrapped);
-            }};
-        }
-
-        install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-        install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-        install_contract!(
-            contracts::SUBSTRATE_KITTIES,
-            contracts::substrate_kitties::SubstrateKitties::new()
-        );
-        // TODO.shelven: restore this contract
-        // install_contract!(
-        //     contracts::BTC_LOTTERY,
-        //     contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
-        // );
-        install_contract!(
-            contracts::WEB3_ANALYTICS,
-            contracts::web3analytics::Web3Analytics::new()
-        );
-        install_contract!(
-            contracts::DATA_PLAZA,
-            contracts::data_plaza::DataPlaza::new()
-        );
-    }
-
-    let mut runtime_state = RuntimeState {
-        contracts: other_contracts,
-        send_mq,
-        recv_mq,
-        storage_synchronizer,
-        chain_storage: Default::default(),
-    };
-
     let genesis_state_scl = base64::decode(input.genesis_state_b64)
         .map_err(|_| error_msg("Base64 decode genesis state failed"))?;
     let mut genesis_state_scl = &genesis_state_scl[..];
     let genesis_state: Vec<(Vec<u8>, Vec<u8>)> = Decode::decode(&mut genesis_state_scl)
         .map_err(|_| error_msg("Scale decode genesis state failed"))?;
 
-    // Initialize other states
-    runtime_state.chain_storage.load(genesis_state.into_iter());
-
-    info!(
-        "Genesis state loaded: {:?}",
-        runtime_state.chain_storage.root()
-    );
-
-    *state = Some(runtime_state);
-
-    // Response
-    let resp = InitRuntimeResp {
-        encoded_runtime_info,
-        genesis_block_hash: genesis_block_hash_hex,
-        public_key: sr25519_hex_pk,
-        ecdh_public_key: ecdh_hex_pk,
-        attestation,
+    let genesis = blocks::GenesisBlockInfo {
+        block_header: genesis.block_header,
+        validator_set: genesis.validator_set,
+        validator_set_proof: genesis.validator_set_proof,
     };
 
-    local_state.runtime_info = Some(resp.clone());
-    local_state.initialized = true;
-
+    let resp = prpc_service::init_runtime(
+        input.skip_ra,
+        input.is_parachain,
+        genesis,
+        genesis_state,
+        operator,
+        debug_set_key,
+    )
+    .map_err(display)?;
+    let resp = convert_runtime_info(resp)?;
     Ok(serde_json::to_value(resp).unwrap())
 }
 
 fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
-    info!(
-        "sync_header from={:?} to={:?}",
-        input.headers.first().map(|h| h.header.number),
-        input.headers.last().map(|h| h.header.number)
-    );
-    let last_header = STATE
-        .lock()
-        .unwrap()
-        .as_mut()
-        .ok_or(error_msg("Runtime not initialized"))?
-        .storage_synchronizer
-        .sync_header(input.headers, input.authority_set_change)
-        .map_err(display)?;
-
-    Ok(json!({ "synced_to": last_header }))
+    let resp =
+        prpc_service::sync_header(input.headers, input.authority_set_change).map_err(display)?;
+    Ok(json!({ "synced_to": resp.synced_to }))
 }
 
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
-    info!(
-        "sync_para_header from={:?} to={:?}",
-        input.headers.first().map(|h| h.number),
-        input.headers.last().map(|h| h.number)
-    );
-    let mut guard = STATE.lock().unwrap();
-    let state = guard.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-
-    let para_id = state
-        .chain_storage
-        .para_id()
-        .ok_or(error_msg("No para_id"))?;
-
-    let storage_key =
-        light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
-
-    let last_header = state
-        .storage_synchronizer
-        .sync_parachain_header(input.headers, input.proof, &storage_key)
-        .map_err(display)?;
-
-    Ok(json!({ "synced_to": last_header }))
+    let resp = prpc_service::sync_para_header(input.headers, input.proof).map_err(display)?;
+    Ok(json!({ "synced_to": resp.synced_to }))
 }
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
-    info!(
-        "dispatch_block from={:?} to={:?}",
-        input.blocks.first().map(|h| h.block_header.number),
-        input.blocks.last().map(|h| h.block_header.number)
-    );
-
-    let mut state = STATE.lock().unwrap();
-    let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-
-    // TODO.kevin: enable e2e encryption mq for contracts
-    // let _ecdh_privkey = local_state.ecdh_key.as_ref().unwrap().clone();
-    let mut last_block = 0;
-    for block in input.blocks.into_iter() {
-        state
-            .storage_synchronizer
-            .feed_block(&block, &mut state.chain_storage)
-            .map_err(display)?;
-
-        state.purge_mq();
-        handle_inbound_messages(block.block_header.number, state)?;
-        last_block = block.block_header.number;
-    }
-
-    Ok(json!({ "dispatched_to": last_block }))
+    let resp = prpc_service::dispatch_block(input.blocks).map_err(display)?;
+    Ok(json!({ "dispatched_to": resp.synced_to }))
 }
 
 fn handle_inbound_messages(
@@ -1363,71 +1123,61 @@ fn handle_inbound_messages(
     Ok(())
 }
 
-fn get_info(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-
-    let initialized = local_state.initialized;
-    let genesis_block_hash = local_state
-        .genesis_block_hash
-        .as_ref()
-        .map(|hash| hex::encode(hash));
-    let pubkey = local_state
-        .identity_key
-        .as_ref()
-        .map(|pair| hex::encode(&pair.public()));
-    let s_ecdh_pk = local_state
-        .ecdh_key
-        .as_ref()
-        .map(|pair| hex::encode(&pair.public()));
-    let machine_id = local_state.machine_id;
-    let dev_mode = local_state.dev_mode;
-    drop(local_state);
-
-    let state = STATE.lock().unwrap();
-    let (state_root, pending_messages, counters) = match state.as_ref() {
-        Some(state) => {
-            let state_root = hex::encode(state.chain_storage.root());
-            let pending_messages = state.send_mq.count_messages();
-            let counters = state.storage_synchronizer.counters();
-            (state_root, pending_messages, counters)
-        }
-        None => Default::default(),
-    };
-    drop(state);
-
-    let (registered, role) = {
-        match SYSTEM_STATE.lock().unwrap().as_ref() {
-            Some(system) => (system.is_registered(), system.gatekeeper_role()),
-            None => (false, GatekeeperRole::None),
-        }
-    };
-    let score = benchmark::score();
-
+fn get_info_json() -> Result<Value, Value> {
+    let info = prpc_service::get_info();
+    let machin_id = LOCAL_STATE.lock().unwrap().machine_id;
     Ok(json!({
-        "initialized": initialized,
-        "registered": registered,
-        "gatekeeper_role": role,
-        "genesis_block_hash": genesis_block_hash,
-        "public_key": pubkey,
-        "ecdh_public_key": s_ecdh_pk,
-        "headernum": counters.next_header_number,
-        "para_headernum": counters.next_para_header_number,
-        "blocknum": counters.next_block_number,
-        "state_root": state_root,
-        "machine_id": machine_id,
-        "dev_mode": dev_mode,
-        "pending_messages": pending_messages,
-        "score": score,
+        "initialized": info.initialized,
+        "registered": info.registered,
+        "gatekeeper_role": info.gatekeeper_role,
+        "genesis_block_hash": info.genesis_block_hash,
+        "public_key": info.public_key,
+        "ecdh_public_key": info.ecdh_public_key,
+        "headernum": info.headernum,
+        "para_headernum": info.para_headernum,
+        "blocknum": info.blocknum,
+        "state_root": info.state_root,
+        "dev_mode": info.dev_mode,
+        "pending_messages": info.pending_messages,
+        "score": info.score,
+        "machine_id": machin_id,
     }))
 }
 
+fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Value> {
+    let genesis_block_hash = info.genesis_block_hash_decoded().map_err(display)?;
+    let public_key = info.public_key_decoded().map_err(display)?;
+    let ecdh_public_key = info.ecdh_public_key_decoded().map_err(display)?;
+
+    let genesis_block_hash_hex = hex::encode(genesis_block_hash);
+    let ecdsa_hex_pk = hex::encode(public_key);
+    let ecdh_hex_pk = hex::encode(ecdh_public_key.0);
+
+    let attestation = info.attestation.map(|att| {
+        let payload = att.payload.expect("BUG: Payload must exist");
+        InitRespAttestation {
+            version: att.version,
+            provider: att.provider,
+            payload: AttestationReport {
+                report: payload.report,
+                signature: base64::encode(&payload.signature),
+                signing_cert: base64::encode_config(&payload.signing_cert, base64::STANDARD),
+            },
+        }
+    });
+
+    Ok(InitRuntimeResp {
+        encoded_runtime_info: info.runtime_info,
+        genesis_block_hash: genesis_block_hash_hex,
+        public_key: ecdsa_hex_pk,
+        ecdh_public_key: ecdh_hex_pk,
+        attestation,
+    })
+}
+
 fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
-    let local_state = LOCAL_STATE.lock().unwrap();
-    let resp = local_state
-        .runtime_info
-        .as_ref()
-        .ok_or_else(|| error_msg("Uninitiated runtime info"))?;
-    Ok(serde_json::to_value(resp).unwrap())
+    let resp = prpc_service::get_runtime_info().map_err(display)?;
+    Ok(serde_json::to_value(convert_runtime_info(resp)?).unwrap())
 }
 
 fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
@@ -1483,11 +1233,7 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
 }
 
 fn get_egress_messages() -> Result<Value, Value> {
-    let guard = STATE.lock().unwrap();
-    let messages: Vec<_> = guard
-        .as_ref()
-        .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
-        .unwrap_or(Default::default());
+    let messages = prpc_service::get_egress_messages().map_err(display)?;
     let bin_messages = Encode::encode(&messages);
     let b64_messages = base64::encode(bin_messages);
     Ok(json!({

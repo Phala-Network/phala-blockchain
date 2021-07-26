@@ -38,6 +38,7 @@ mod attestation;
 mod contract_input;
 mod contract_output;
 
+use colored::Colorize;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
@@ -48,13 +49,15 @@ use std::sync::RwLock;
 use std::env;
 
 use rocket::data::Data;
+use rocket::http::Status;
+use rocket::response::status::Custom;
 use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
 use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
-use enclave_api::actions;
+use enclave_api::{actions, prpc};
 
 
 #[derive(StructOpt, Debug)]
@@ -69,7 +72,7 @@ struct Args {
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_STATE_FILE: &'static str = "enclave.token";
 
-const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 2*2048*1024 as usize;
+const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 10*2048*1024 as usize;
 
 lazy_static! {
     static ref ENCLAVE: RwLock<Option<SgxEnclave>> = RwLock::new(None);
@@ -110,6 +113,19 @@ extern {
     fn ecall_bench_run(
         eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
         index: u32,
+    ) -> sgx_status_t;
+
+    fn ecall_prpc_request(
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        path: *const uint8_t,
+        path_len: usize,
+        data: *const uint8_t,
+        data_len: usize,
+        status_code: *mut u16,
+        output_ptr: *mut uint8_t,
+        output_buf_len: usize,
+        output_len_ptr: *mut usize,
     ) -> sgx_status_t;
 }
 
@@ -420,6 +436,61 @@ fn kick() {
     std::process::exit(0);
 }
 
+#[post("/<method>", data = "<data>")]
+fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
+    let eid = crate::get_eid();
+
+    let path_bytes = method.as_bytes();
+    let path_len = path_bytes.len();
+    let path_ptr = path_bytes.as_ptr();
+
+    let data = match crate::read_data(data) {
+        Some(data) => data,
+        None => {
+            return Custom(Status::BadRequest, b"Read body failed".to_vec());
+        }
+    };
+    let data_len = data.len();
+    let data_ptr = data.as_ptr();
+
+    let mut output_buf = vec![0; crate::ENCLAVE_OUTPUT_BUF_MAX_LEN];
+    let output_buf_len = output_buf.len();
+    let output_ptr = output_buf.as_mut_ptr();
+
+    let mut output_len : usize = 0;
+    let output_len_ptr = &mut output_len as *mut usize;
+
+    let mut status_code: u16 = 500;
+
+    let mut retval = crate::sgx_status_t::SGX_SUCCESS;
+
+    let result = unsafe {
+        crate::ecall_prpc_request(
+            eid, &mut retval,
+            path_ptr, path_len,
+            data_ptr, data_len,
+            &mut status_code,
+            output_ptr, output_buf_len, output_len_ptr
+        )
+    };
+
+    match result {
+        crate::sgx_status_t::SGX_SUCCESS => {
+            let output_slice = unsafe { std::slice::from_raw_parts(output_ptr, output_len) };
+            if let Some(status) = Status::from_code(status_code) {
+                Custom(status, output_slice.to_vec())
+            } else {
+                error!("[-] prpc: Invalid status code: {}!", status_code);
+                Custom(Status::ServiceUnavailable, vec![])
+            }
+        },
+        _ => {
+            error!("[-] ECALL Enclave Failed {}!", result.as_str());
+            Custom(Status::ServiceUnavailable, vec![])
+        }
+    }
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post].into_iter().map(From::from).collect();
@@ -431,6 +502,13 @@ fn cors_options() -> CorsOptions {
         allowed_headers: AllowedHeaders::all(),
         allow_credentials: true,
         ..Default::default()
+    }
+}
+
+fn print_rpc_methods(prefix: &str, methods: &[&str]) {
+    info!("Methods under {}:", prefix);
+    for method in methods {
+        info!("    {}", format!("{}/{}", prefix, method).blue());
     }
 }
 
@@ -449,6 +527,9 @@ fn rocket() -> rocket::Rocket {
 
         server = server.mount("/", routes![kick]);
     }
+
+    server = server.mount("/prpc", routes![prpc_proxy]);
+    print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());
 
     if *ALLOW_CORS {
         info!("Allow CORS");
@@ -495,7 +576,7 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    let mut bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
+    let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
     let rocket = thread::spawn(move || {
@@ -519,9 +600,9 @@ fn main() {
         v.push(child);
     }
 
-    rocket.join();
+    let _ = rocket.join();
     for child in v {
-        child.join();
+        let _ = child.join();
     }
 
     info!("Quit signal received, destroying enclave...");

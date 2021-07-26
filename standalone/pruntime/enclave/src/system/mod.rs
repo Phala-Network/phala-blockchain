@@ -17,6 +17,7 @@ use phala_types::{
     WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+pub use enclave_api::prpc::phactory_info::GatekeeperRole;
 
 pub type CommandIndex = u64;
 
@@ -88,13 +89,6 @@ struct MiningInfo {
     state: MiningState,
     start_time: u64,
     start_iter: u64,
-}
-
-#[derive(Serialize, Debug)]
-pub enum GatekeeperRole {
-    None,
-    Dummy,
-    Active,
 }
 
 // Minimum worker state machine can be reused to replay in GK.

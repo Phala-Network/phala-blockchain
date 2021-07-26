@@ -1,0 +1,18 @@
+[package]
+name = "prpc-build"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+prost-build = { version = "0.8" }
+syn = "1.0"
+quote = "1.0"
+proc-macro2 = "1.0"
+derive_wrapper = "0.1.7"
+prost-types = "0.8.0"
+prost = "0.8.0"
+itertools= "0.10.1"
+either = "1.6.1"
+multimap = "0.8.3"
+heck = "0.3.3"
+log = "0.4.14"

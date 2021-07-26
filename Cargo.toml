@@ -19,6 +19,8 @@ members = [
 	"crates/trie-storage",
 	"crates/phala-mq",
 	"crates/crypto",
+	"crates/prpc",
+	"crates/prpc-build",
 	"pallets/phala",
 	"pallets/bridge",
 	"scripts/toml-upgrade-version",

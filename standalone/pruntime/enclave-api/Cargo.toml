@@ -2,6 +2,7 @@
 name = "enclave-api"
 version = "0.1.0"
 edition = "2018"
+resolver = "2"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -15,9 +16,18 @@ sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", de
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
 trie-storage = { path = "../../../crates/trie-storage", default-features = false }
+phala-types = { path = "../../../common/types", default-features = false }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
 derive_more = "0.99.16"
+prpc = { path = "../../../crates/prpc" }
+prost = { version = "0.8.0", default-features = false }
+
+[build-dependencies]
+prpc-build = { path = "../../../crates/prpc-build", optional = true }
+tera = { version = "1.12.1", optional = true }
+tempdir = { version = "0.3.7", optional = true }
+
 
 [features]
 default = ["std"]
@@ -30,6 +40,9 @@ std = [
     "sp-application-crypto/std",
     "frame-system/std",
     "chain/std",
+    "prpc-build",
+    "tera",
+    "tempdir",
 ]
 
 sgx = [

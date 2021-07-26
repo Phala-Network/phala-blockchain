@@ -1,6 +1,18 @@
 #![no_std]
 extern crate alloc;
 
+mod proto_generated;
+
+pub mod prpc {
+    use alloc::vec::Vec;
+    pub use crate::proto_generated::*;
+    pub use prpc::{client, server, Message};
+    use phala_types::messaging::{MessageOrigin, SignedMessage};
+    pub type EgressMessages = Vec<(MessageOrigin, Vec<SignedMessage>)>;
+
+    pub const SIG_LEN: usize = 64;
+}
+
 pub mod actions {
     pub const ACTION_TEST: u8 = 0;
     pub const ACTION_INIT_RUNTIME: u8 = 1;
@@ -23,13 +35,14 @@ pub mod blocks {
     use alloc::vec::Vec;
     use core::convert::TryFrom;
     use parity_scale_codec::{Decode, Encode, FullCodec};
-    use sp_finality_grandpa::{AuthorityList, SetId};
+    pub use sp_finality_grandpa::{AuthorityList, SetId};
 
     use sp_core::U256;
     use sp_runtime::{generic::Header, traits::Hash as HashT};
-    use trie_storage::ser::StorageChanges;
+    pub use trie_storage::ser::StorageChanges;
 
     pub type StorageProof = Vec<Vec<u8>>;
+    pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 
     #[derive(Encode, Decode, Clone, PartialEq, Debug)]
     pub struct AuthoritySet {
@@ -41,6 +54,13 @@ pub mod blocks {
     pub struct AuthoritySetChange {
         pub authority_set: AuthoritySet,
         pub authority_proof: StorageProof,
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq)]
+    pub struct GenesisBlockInfo {
+        pub block_header: chain::Header,
+        pub validator_set: AuthorityList,
+        pub validator_set_proof: StorageProof,
     }
 
     pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;

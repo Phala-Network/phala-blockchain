@@ -1,87 +1,52 @@
 use anyhow::Result;
-use codec::Encode;
-use serde::Serialize;
-use hyper::Client as HttpClient;
-use hyper::{Body, Method, Request};
 use log::info;
-use bytes::buf::BufExt as _;
-use sp_runtime::DeserializeOwned;
-use anyhow::Context;
 
-use crate::types::{RuntimeReq, Resp, SignedResp};
+use enclave_api::prpc::{
+    client::{Error as ClientError, RequestClient},
+    phactory_api_client::PhactoryApiClient,
+    server::ProtoError as ServerError,
+    Message,
+};
 
-pub struct PRuntimeClient {
-    base_url: String
+pub type PRuntimeClient = PhactoryApiClient<RpcRequest>;
+
+pub fn new_pruntime_client(base_url: String) -> PhactoryApiClient<RpcRequest> {
+    PhactoryApiClient::new(RpcRequest::new(base_url.to_string()))
 }
 
-impl PRuntimeClient {
-    pub fn new(base_url: &str) -> Self {
-        PRuntimeClient {
-            base_url: base_url.to_string()
+pub struct RpcRequest {
+    base_url: String,
+}
+
+impl RpcRequest {
+    pub fn new(base_url: String) -> Self {
+        Self { base_url }
+    }
+}
+
+#[async_trait::async_trait]
+impl RequestClient for RpcRequest {
+    async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, ClientError> {
+        fn from_display(err: impl std::fmt::Display) -> ClientError {
+            ClientError::RpcError(err.to_string())
         }
-    }
 
-    async fn req<T>(&self, command: &str, param: &T) -> Result<SignedResp>  where T: Serialize {
-        let client = HttpClient::new();
-        let endpoint = format!("{}/{}", self.base_url, command);
-
-        let body_json = serde_json::to_string(param)?;
-
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(endpoint)
-            .header("content-type", "application/json")
-            .body(Body::from(body_json))?;
-
-        let res = client.request(req).await?;
+        let url = format!("{}/prpc/{}", self.base_url, path);
+        let res = reqwest::Client::new()
+            .post(url)
+            .body(body)
+            .send()
+            .await
+            .map_err(from_display)?;
 
         info!("Response: {}", res.status());
-
-        let body = hyper::body::aggregate(res.into_body()).await?;
-        let opaque_value: serde_json::Value = serde_json::from_reader(body.reader())?;
-        let signed_resp: SignedResp = serde_json::from_value(opaque_value.clone())
-            .with_context(|| format!("Cannot convert json to SignedResp ({})", opaque_value))?;
-
-        // TODO: validate the response from pRuntime
-
-        Ok(signed_resp)
-    }
-
-    pub async fn req_decode<Req>(&self, command: &str, request: Req) -> Result<Req::Resp>
-        where Req: Serialize + Resp {
-        let payload = RuntimeReq::new(request);
-        let resp = self.req(command, &payload).await?;
-        let result: Req::Resp = serde_json::from_str(&resp.payload)?;
-        Ok(result)
-    }
-
-    async fn bin_req<T: Encode>(&self, command: &str, param: &T) -> Result<SignedResp> {
-        let client = HttpClient::new();
-        let endpoint = format!("{}/{}", self.base_url, command);
-        let body = param.encode();
-
-        let req = Request::builder()
-            .method(Method::POST)
-            .uri(endpoint)
-            .body(Body::from(body))?;
-
-        let res = client.request(req).await?;
-
-        info!("Response: {}", res.status());
-
-        let body = hyper::body::aggregate(res.into_body()).await?;
-        let signed_resp: SignedResp = serde_json::from_reader(body.reader())?;
-
-        Ok(signed_resp)
-    }
-
-    pub async fn bin_req_decode<Req: Encode, Resp: DeserializeOwned>(
-        &self,
-        command: &str,
-        request: Req,
-    ) -> Result<Resp> {
-        let resp = self.bin_req(command, &request).await?;
-        let result: Resp = serde_json::from_str(&resp.payload)?;
-        Ok(result)
+        let status = res.status();
+        let body = res.bytes().await.map_err(from_display)?;
+        if status.is_success() {
+            Ok(body.as_ref().to_vec())
+        } else {
+            let err: ServerError = Message::decode(body.as_ref())?;
+            Err(ClientError::ServerError(err))
+        }
     }
 }

@@ -21,6 +21,14 @@ enclave {
             [out] size_t *output_len_ptr, size_t output_buf_len
         );
 
+        public sgx_status_t ecall_prpc_request(
+            [in, size = path_len] uint8_t *path, size_t path_len,
+            [in, size = data_len] uint8_t *data, size_t data_len,
+            [out] uint16_t *status_code,
+            [out, size = output_buf_len] uint8_t *output_ptr, size_t output_buf_len,
+            [out] size_t *output_len_ptr
+        );
+
         public sgx_status_t ecall_init();
 
         public sgx_status_t ecall_bench_run(uint32_t index);
