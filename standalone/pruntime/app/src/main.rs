@@ -1,6 +1,5 @@
 #![feature(decl_macro)]
 
-use std::os::unix::prelude::OsStrExt;
 use std::thread;
 
 extern crate env_logger;
@@ -436,11 +435,11 @@ fn kick() {
     std::process::exit(0);
 }
 
-#[post("/<path..>", data = "<data>")]
-fn prpc_proxy(path: path::PathBuf, data: Data) -> Custom<Vec<u8>> {
+#[post("/<method>", data = "<data>")]
+fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
     let eid = crate::get_eid();
 
-    let path_bytes = path.as_os_str().as_bytes();
+    let path_bytes = method.as_bytes();
     let path_len = path_bytes.len();
     let path_ptr = path_bytes.as_ptr();
 
@@ -568,7 +567,7 @@ fn main() {
         panic!("Initialize Failed");
     }
 
-    let mut bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
+    let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
     let rocket = thread::spawn(move || {
@@ -592,9 +591,9 @@ fn main() {
         v.push(child);
     }
 
-    rocket.join();
+    let _ = rocket.join();
     for child in v {
-        child.join();
+        let _ = child.join();
     }
 
     info!("Quit signal received, destroying enclave...");
