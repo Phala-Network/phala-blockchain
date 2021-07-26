@@ -418,7 +418,7 @@ pub mod pallet {
 
 		/// Unbinds a miner from a worker
 		///
-		/// - `notify`: whether to notify the
+		/// - `notify`: whether to notify the subscribe the unbinding event.
 		///
 		/// Requires:
 		/// 1. The miner is bounded with a worker
