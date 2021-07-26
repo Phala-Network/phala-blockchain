@@ -1,9 +1,10 @@
 use super::{TypedReceiver, WorkerState};
+use chain::pallet_registry::RegistryEvent;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, Signing, KDF, SECRET_KEY_LENGTH, SIGNATURE_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, Sr25519MessageChannel};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
@@ -86,11 +87,12 @@ impl WorkerInfo {
 //
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
-pub(super) struct Gatekeeper<MsgChan> {
+pub(super) struct Gatekeeper {
     identity_key: sr25519::Pair,
     master_key: Option<sr25519::Pair>,
     registered_on_chain: bool,
-    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    send_mq: MessageSendQueue,
+    egress: Option<Sr25519MessageChannel>, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -102,20 +104,18 @@ pub(super) struct Gatekeeper<MsgChan> {
     tokenomic_params: tokenomic::Params,
 }
 
-impl<MsgChan> Gatekeeper<MsgChan>
-where
-    MsgChan: MessageChannel,
-{
+impl Gatekeeper {
     pub fn new(
         identity_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
-        egress: MsgChan,
+        send_mq: MessageSendQueue,
     ) -> Self {
         Self {
             identity_key,
             master_key: None,
             registered_on_chain: false,
-            egress,
+            send_mq,
+            egress: None,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -133,13 +133,19 @@ where
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
         self.registered_on_chain = true;
-        self.egress.set_dummy(false);
+        self.egress
+            .as_mut()
+            .expect("gk should work after acquiring master key; qed.")
+            .set_dummy(false);
     }
 
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
-        self.egress.set_dummy(true);
+        self.egress
+            .as_mut()
+            .expect("gk should work after acquiring master key; qed.")
+            .set_dummy(true);
     }
 
     pub fn possess_master_key(&self) -> bool {
@@ -148,11 +154,19 @@ where
 
     pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
-            self.master_key = Some(master_key);
+            self.master_key = Some(master_key.clone());
             self.seal_master_key(MASTER_KEY_FILEPATH);
 
             if need_restart {
                 panic!("Received master key, please restart pRuntime and pherry");
+            }
+
+            // init gatekeeper egress dynamically with master key
+            if self.egress.is_none() {
+                let gk_egress = self.send_mq.channel(MessageOrigin::Gatekeeper, master_key);
+                // by default, gk_egress is set to dummy mode until it is registered on chain
+                gk_egress.set_dummy(true);
+                self.egress = Some(gk_egress);
             }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation
@@ -223,7 +237,10 @@ where
     }
 
     pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
-        self.egress.push_message(message)
+        self.egress
+            .as_ref()
+            .expect("gk should work after acquiring master key; qed.")
+            .push_message(message)
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -245,7 +262,10 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress.push_message(report);
+            self.egress
+                .as_mut()
+                .expect("gk should work after acquiring master key; qed.")
+                .push_message(report);
         }
     }
 
@@ -279,17 +299,14 @@ where
     }
 }
 
-struct GKMessageProcesser<'a, MsgChan> {
-    state: &'a mut Gatekeeper<MsgChan>,
+struct GKMessageProcesser<'a> {
+    state: &'a mut Gatekeeper,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
     sum_share: FixedPoint,
 }
 
-impl<MsgChan> GKMessageProcesser<'_, MsgChan>
-where
-    MsgChan: MessageChannel,
-{
+impl GKMessageProcesser<'_> {
     fn process(&mut self) {
         self.prepare();
         loop {
@@ -576,7 +593,7 @@ where
         }
 
         // double check the new gatekeeper is valid on chain
-        if !crate::identity::is_gatekeeper(&event.pubkey, self.block.storage) {
+        if !crate::gatekeeper::is_gatekeeper(&event.pubkey, self.block.storage) {
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }

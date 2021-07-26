@@ -340,7 +340,7 @@ pub struct System {
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper<Sr25519MessageChannel>,
+    gatekeeper: gk::Gatekeeper,
 }
 
 impl System {
@@ -351,12 +351,8 @@ impl System {
     ) -> Self {
         let pubkey = pair.clone().public();
         let sender = MessageOrigin::Worker(pubkey.clone());
-        // TODO: create gk_egress dynamically with gk masterkey
-        let gk_egress = send_mq.channel(MessageOrigin::Gatekeeper, pair.clone());
-        // by default, gk_egress is set to dummy mode until it is registered on chain
-        gk_egress.set_dummy(true);
 
-        let mut gatekeeper = gk::Gatekeeper::new(pair.clone(), recv_mq, gk_egress);
+        let mut gatekeeper = gk::Gatekeeper::new(pair.clone(), recv_mq, send_mq.clone());
         gatekeeper.try_unseal_master_key(gk::MASTER_KEY_FILEPATH);
 
         System {
@@ -437,7 +433,7 @@ impl System {
         // if pRuntime possesses master key but is not registered on chain
         // TODO.shelven: this does not hold after we enable master key rotation
         if self.gatekeeper.possess_master_key()
-            || crate::identity::is_gatekeeper(&self.worker_state.pubkey, block.storage)
+            || crate::gatekeeper::is_gatekeeper(&self.worker_state.pubkey, block.storage)
         {
             self.gatekeeper.process_messages(block);
 

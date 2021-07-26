@@ -70,7 +70,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::WorkerRegistrationInfo;
+use phala_types::{WorkerPublicKey, WorkerRegistrationInfo};
 
 mod benchmark;
 mod cert;
@@ -1315,9 +1315,8 @@ fn test(_param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
 }
 
-mod identity {
+mod gatekeeper {
     use super::*;
-    type WorkerPublicKey = sp_core::sr25519::Public;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
         let key = storage_prefix("PhalaRegistry", "Gatekeeper");
