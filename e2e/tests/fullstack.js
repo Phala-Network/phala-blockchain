@@ -102,7 +102,7 @@ describe('A full stack', function () {
 				this.skip();
 			}
 			assert.isTrue(await checkUntil(async () => {
-				const workerInfo = await api.query.phalaRegistry.worker(workerKey);
+				const workerInfo = await api.query.phalaRegistry.workers(workerKey);
 				return workerInfo.unwrap().intialScore.isSome;
 			}, 3 * 6000), 'benchmark timeout');
 		});
@@ -159,7 +159,7 @@ describe('A full stack', function () {
 		it('becomes active', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[1].getInfo();
-				return info.gatekeeper_role == 'Active';
+				return info.gatekeeper_role == 2;  // 2: MiningActive in protobuf
 			}, 1000))
 
 			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
