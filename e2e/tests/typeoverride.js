@@ -119,7 +119,7 @@ const types = {
 		"vUpdatedAt": "u64",
 		"pInstant": "u64",
 		"benchmark": "Benchmark",
-		"coolingDownStart": "u64"
+		"coolDownStart": "u64"
 	},
 	"Benchmark": {
 		"iterations": "u64",
@@ -189,10 +189,6 @@ const types = {
 	}
 };
 
-const typeAlias = {
-	"phala": {
-		"WorkerInfo": "_deprecated_WorkerInfo"
-	}
-};
+const typeAlias = null;
 
 module.exports = {types, typeAlias};
