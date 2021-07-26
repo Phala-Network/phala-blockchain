@@ -69,7 +69,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::PRuntimeInfo;
+use phala_types::WorkerRegistrationInfo;
 
 mod benchmark;
 mod cert;
@@ -1050,8 +1050,8 @@ fn init_runtime(input: InitRuntimeReq) -> Result<Value, Value> {
         None => None,
     };
 
-    // Build PRuntimeInfo
-    let runtime_info = PRuntimeInfo::<chain::AccountId> {
+    // Build WorkerRegistrationInfo
+    let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
         version: VERSION,
         machine_id: local_state.machine_id.clone(),
         pubkey: sr25519_pk,
