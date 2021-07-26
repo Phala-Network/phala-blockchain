@@ -20,6 +20,10 @@ pub fn generate<T: Service>(
     let server_service = quote::format_ident!("{}Server", service.name());
     let server_trait = quote::format_ident!("{}", service.name());
     let server_mod = quote::format_ident!("{}_server", naive_snake_case(&service.name()));
+    let supported_methods = generate_supported_methods(
+        service,
+        emit_package,
+    );
     let generated_trait = generate_trait(
         service,
         proto_path,
@@ -37,6 +41,8 @@ pub fn generate<T: Service>(
         #(#mod_attributes)*
         pub mod #server_mod {
             use alloc::vec::Vec;
+
+            #supported_methods
 
             #generated_trait
 
@@ -117,6 +123,35 @@ fn generate_trait_methods<T: Service>(
     }
 
     stream
+}
+
+fn generate_supported_methods<T: Service>(
+    service: &T,
+    emit_package: bool,
+) -> TokenStream {
+    let mut all_methods = TokenStream::new();
+    for method in service.methods() {
+        let path = crate::join_path(
+            emit_package,
+            service.package(),
+            service.identifier(),
+            method.identifier(),
+        );
+
+        let method_path = Lit::Str(LitStr::new(&path, Span::call_site()));
+        all_methods.extend(quote! {
+            #method_path,
+        });
+    }
+
+    quote! {
+        pub fn supported_methods()
+            -> &'static [&'static str] {
+                &[
+                    #all_methods
+                ]
+            }
+    }
 }
 
 fn generate_methods<T: Service>(

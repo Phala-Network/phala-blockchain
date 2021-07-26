@@ -38,6 +38,7 @@ mod attestation;
 mod contract_input;
 mod contract_output;
 
+use colored::Colorize;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
@@ -56,7 +57,7 @@ use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
-use enclave_api::actions;
+use enclave_api::{actions, prpc};
 
 
 #[derive(StructOpt, Debug)]
@@ -504,6 +505,13 @@ fn cors_options() -> CorsOptions {
     }
 }
 
+fn print_rpc_methods(prefix: &str, methods: &[&str]) {
+    info!("Methods under {}:", prefix);
+    for method in methods {
+        info!("    {}", format!("{}/{}", prefix, method).blue());
+    }
+}
+
 fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount("/", routes![
@@ -521,6 +529,7 @@ fn rocket() -> rocket::Rocket {
     }
 
     server = server.mount("/prpc", routes![prpc_proxy]);
+    print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());
 
     if *ALLOW_CORS {
         info!("Allow CORS");
