@@ -884,6 +884,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			ecdh_pubkey,
+			elapse_cool_down,
 			new_test_ext,
 			set_block_1,
 			setup_workers,
@@ -1593,7 +1594,7 @@ pub mod pallet {
 					1,
 					worker3.clone()
 				));
-
+				// Contribute 300 PHA to pool0, 300 to pool1
 				assert_ok!(PhalaStakePool::set_cap(Origin::signed(1), 0, 300 * DOLLARS));
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(1),
@@ -1629,12 +1630,12 @@ pub mod pallet {
 					PoolStakers::<Test>::get(&(0, 2)).unwrap().amount,
 					200 * DOLLARS
 				);
-
+				// Shouldn't exceed the pool cap
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(1), 0, 100 * DOLLARS),
 					Error::<Test>::StakeExceedsCapacity
 				);
-
+				// Start mining on pool0 (stake 100 for worker1, 100 for worke2)
 				assert_ok!(PhalaStakePool::start_mining(
 					Origin::signed(1),
 					0,
@@ -1647,7 +1648,7 @@ pub mod pallet {
 					worker2.clone(),
 					100 * DOLLARS
 				));
-				// Withdraw free funds
+				// Withdraw 100 free funds
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(1),
 					0,
@@ -1655,7 +1656,6 @@ pub mod pallet {
 				));
 				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 300 * DOLLARS);
 
-				// TODO: check balance
 				// TODO: check queued withdraw
 				//   - withdraw 100 PHA
 				//   - stop a worker
@@ -1663,6 +1663,54 @@ pub mod pallet {
 				//   - withdraw another 100 PHA
 				//   - wait 3d, force stop
 				//   - wait 7d, withdraw succeeded
+
+				// Stop mining
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker1.clone()
+				));
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker2.clone()
+				));
+				let sub_account1: u64 = pool_sub_account(0, &worker1);
+				let sub_account2: u64 = pool_sub_account(0, &worker2);
+				let miner1 = PhalaMining::miners(&sub_account1).unwrap();
+				let miner2 = PhalaMining::miners(&sub_account2).unwrap();
+				assert_eq!(miner1.state, mining::MinerState::MiningCoolingDown);
+				assert_eq!(miner2.state, mining::MinerState::MiningCoolingDown);
+				// Wait the cool down period
+				elapse_cool_down();
+				assert_ok!(PhalaMining::reclaim(
+					Origin::signed(1),
+					sub_account1.clone()
+				));
+				assert_ok!(PhalaMining::reclaim(
+					Origin::signed(1),
+					sub_account2.clone()
+				));
+				// All stake get returend
+				let pool0 = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool0.free_stake, 200 * DOLLARS);
+				// Withdraw the stakes
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					200 * DOLLARS
+				));
+				// Stop pool1 and withdraw stake as well
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					1,
+					300 * DOLLARS
+				));
+				// Settle everything
+				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 0);
+				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 0);
+				assert!(Balances::locks(1).is_empty());
+				assert!(Balances::locks(2).is_empty());
 			});
 		}
 

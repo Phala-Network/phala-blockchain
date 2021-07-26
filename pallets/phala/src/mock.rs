@@ -216,3 +216,8 @@ pub fn setup_workers_linked_operators(n: u8) {
 		PhalaRegistry::internal_set_benchmark(&worker, Some(1));
 	}
 }
+
+pub fn elapse_cool_down() {
+	let now = Timestamp::get();
+	Timestamp::set_timestamp(now + PhalaMining::cool_down_period());
+}

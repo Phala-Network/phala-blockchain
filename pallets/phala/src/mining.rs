@@ -145,7 +145,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
 
-	/// The stakes of miner accounts. Only presents for mining miners.
+	/// The stakes of miner accounts.
+	///
+	/// Only presents for mining and cooling down miners.
 	#[pallet::storage]
 	#[pallet::getter(fn stakes)]
 	pub(super) type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
@@ -188,7 +190,7 @@ pub mod pallet {
 		MinerNotReady,
 		MinerNotMining,
 		WorkerNotBound,
-		StillInCoolDown,
+		CoolDownNotReady,
 		InsufficientStake,
 	}
 
@@ -230,19 +232,14 @@ pub mod pallet {
 		pub fn reclaim(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
 			ensure_signed(origin)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-			ensure!(Self::can_reclaim(&miner_info), Error::<T>::StillInCoolDown);
+			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
 			miner_info.state = MinerState::Ready;
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
 
-			// execute callback
-			let stake = Stakes::<T>::get(&miner).unwrap_or_default();
+			let stake = Stakes::<T>::take(&miner).unwrap_or_default();
 			// TODO: clean up based on V
 			T::OnReclaim::on_reclaim(&miner, stake);
-
-			// clear contributed balance
-			Stakes::<T>::remove(&miner);
-
 			Self::deposit_event(Event::<T>::MinerReclaimed(miner));
 			Ok(())
 		}
@@ -365,15 +362,10 @@ pub mod pallet {
 			if miner_info.state != MinerState::MiningCoolingDown {
 				return false;
 			}
-
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
-			if (now - miner_info.cool_down_start) > Self::cool_down_period() {
-				true
-			} else {
-				false
-			}
+			now - miner_info.cool_down_start >= Self::cool_down_period()
 		}
 
 		/// Binding miner with worker
