@@ -660,17 +660,14 @@ async fn register_worker(
     let payload = attestation
         .payload
         .ok_or(anyhow!("Missing attestation payload"))?;
-    let signature = base64::decode(&payload.signature).expect("Failed to decode signature");
-    let raw_signing_cert = base64::decode_config(&payload.signing_cert, base64::STANDARD)
-        .expect("Failed to decode certificate");
     let call = runtimes::phala_registry::RegisterWorkerCall {
         _runtime: PhantomData,
         pruntime_info: Decode::decode(&mut &encoded_runtime_info[..])
             .map_err(|_| anyhow!("Decode pruntime info failed"))?,
         attestation: Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
-            signature: signature,
-            raw_signing_cert: raw_signing_cert,
+            signature: payload.signature,
+            raw_signing_cert: payload.signing_cert,
         },
     };
     update_signer_nonce(paraclient, signer).await?;

@@ -1160,8 +1160,8 @@ fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Va
             provider: att.provider,
             payload: AttestationReport {
                 report: payload.report,
-                signature: payload.signature,
-                signing_cert: payload.signing_cert,
+                signature: base64::encode(&payload.signature),
+                signing_cert: base64::encode_config(&payload.signing_cert, base64::STANDARD),
             },
         }
     });

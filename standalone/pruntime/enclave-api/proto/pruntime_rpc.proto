@@ -133,8 +133,8 @@ message Attestation {
 
 message AttestationReport {
   string report = 1;
-  string signature = 2;
-  string signing_cert = 3;
+  bytes signature = 2;
+  bytes signing_cert = 3;
 }
 
 // Response for GetEgressMessages

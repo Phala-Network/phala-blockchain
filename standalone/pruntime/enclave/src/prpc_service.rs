@@ -347,8 +347,8 @@ pub fn init_runtime(
             provider: "SGX".to_string(),
             payload: Some(AttestationReport {
                 report: attn_report,
-                signature: sig,
-                signing_cert: cert,
+                signature: base64::decode(sig).map_err(from_display)?,
+                signing_cert: base64::decode_config(cert, base64::STANDARD).map_err(from_display)?,
             }),
         });
     }
