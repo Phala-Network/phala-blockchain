@@ -145,7 +145,7 @@ pub mod grandpa {
 
 pub mod phala_registry {
     use codec::Encode;
-    use phala_types::PRuntimeInfo;
+    use phala_types::WorkerRegistrationInfo;
     use core::marker::PhantomData;
     use phala_pallets::registry::Attestation;
     use subxt::{module, system::System, Call};
@@ -160,7 +160,7 @@ pub mod phala_registry {
         /// Runtime marker
         pub _runtime: PhantomData<T>,
         /// The runtime info
-        pub pruntime_info: PRuntimeInfo<T::AccountId>,
+        pub pruntime_info: WorkerRegistrationInfo<T::AccountId>,
         /// The enclave attestation
         pub attestation: Attestation,
     }

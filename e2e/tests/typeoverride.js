@@ -42,7 +42,7 @@ const types = {
 		"signature": "Vec<u8>"
 	},
 	"MachineId": "[u8; 16]",
-	"PRuntimeInfo": {
+	"WorkerRegistrationInfo": {
 		"version": "u32",
 		"machineId": "MachineId",
 		"pubkey": "WorkerPublicKey",

@@ -40,7 +40,7 @@ parameter_types! {
 	pub const MinimumPeriod: u64 = 1;
 	pub const ExpectedBlockTimeSec: u32 = 12;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
-	pub const MinDeposit: Balance = 1 * CENTS;
+	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningInsurancePeriod: u64 = 3 * DAYS;
 }
 impl system::Config for Test {
@@ -109,13 +109,13 @@ impl mining::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
-	type OnCleanup = PhalaStakePool;
+	type OnReclaim = PhalaStakePool;
 }
 
 impl stakepool::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
-	type MinDeposit = MinDeposit;
+	type MinContribution = MinContribution;
 	type InsurancePeriod = MiningInsurancePeriod;
 }
 

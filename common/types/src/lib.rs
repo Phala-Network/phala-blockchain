@@ -457,7 +457,7 @@ impl TryFrom<&[u8]> for EcdhPublicKey {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
-pub struct PRuntimeInfo<AccountId> {
+pub struct WorkerRegistrationInfo<AccountId> {
     pub version: u32,
     pub machine_id: MachineId,
     pub pubkey: WorkerPublicKey,
