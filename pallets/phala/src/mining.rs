@@ -20,9 +20,7 @@ pub mod pallet {
 		WorkerPublicKey,
 	};
 	use sp_core::U256;
-	use sp_runtime::{
-		SaturatedConversion,
-	};
+	use sp_runtime::SaturatedConversion;
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
@@ -38,6 +36,12 @@ pub mod pallet {
 		MiningCoolingDown,
 	}
 
+	impl MinerState {
+		fn can_unbind(&self) -> bool {
+			matches!(self, MinerState::Ready | MinerState::MiningCoolingDown)
+		}
+	}
+
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
 		iterations: u64,
@@ -46,7 +50,7 @@ pub mod pallet {
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
-		state: MinerState,
+		pub state: MinerState,
 		ve: u64,
 		v: u64,
 		v_updated_at: u64,
@@ -59,8 +63,19 @@ pub mod pallet {
 		fn on_reward(settle: &Vec<SettleInfo>) {}
 	}
 
-	pub trait OnReclaim<Balance> {
-		fn on_reclaim(worker: &WorkerPublicKey, stake: Balance) {}
+	pub trait OnUnbound {
+		/// Called wthen a worker was unbound from a miner.
+		///
+		/// `force` is set if the unbinding caused an unexpected miner shutdown.
+		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
+	}
+
+	pub trait OnReclaim<AccountId, Balance> {
+		/// Called when the miner has finished reclaiming and a given amount of the stake should be
+		/// returned.
+		///
+		/// When called, it's not guaranteed there's still a worker associated to the miner.
+		fn on_reclaim(worker: &AccountId, stake: Balance) {}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -77,7 +92,8 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type MinStaking: Get<BalanceOf<Self>>;
 		type OnReward: OnReward;
-		type OnReclaim: OnReclaim<BalanceOf<Self>>;
+		type OnUnbound: OnUnbound;
+		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
 	}
 
 	#[pallet::pallet]
@@ -96,7 +112,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ExpectedHeartbeatCount<T> = StorageValue<_, u32>;
 
-	/// Map from miner accounts to MinerInfo structs
+	/// The miner state.
+	///
+	/// The miner state is created when a miner is bounded with a worker, but it will be kept even
+	/// if the worker is force unbounded. A re-bind of a worker will reset the mining state.
 	#[pallet::storage]
 	#[pallet::getter(fn miners)]
 	pub(super) type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
@@ -129,8 +148,7 @@ pub mod pallet {
 	/// The stakes of miner accounts. Only presents for mining miners.
 	#[pallet::storage]
 	#[pallet::getter(fn stakes)]
-	pub(super) type Stakes<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub(super) type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -145,6 +163,8 @@ pub mod pallet {
 		MinerReclaimed(T::AccountId),
 		/// [miner, worker]
 		MinerBound(T::AccountId, WorkerPublicKey),
+		/// [miner, worker]
+		MinerUnbound(T::AccountId, WorkerPublicKey),
 		/// [miner]
 		MinerEnterUnresponsive(T::AccountId),
 		/// [miner]
@@ -167,6 +187,7 @@ pub mod pallet {
 		MinerNotBound,
 		MinerNotReady,
 		MinerNotMining,
+		WorkerNotBound,
 		StillInCoolDown,
 		InsufficientStake,
 	}
@@ -185,19 +206,31 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Turns the miner back to Ready state after the cool down
+		/// Unbinds a worker from the given miner (or pool sub-account).
+		///
+		/// It will trigger a force stop of mining if the miner is still in mining state.
+		#[pallet::weight(0)]
+		pub fn unbind(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
+			let who = ensure_signed(origin)?;
+			let pubkey = Self::ensure_miner_bound(&miner)?;
+			let worker =
+				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+			ensure!(worker.operator == Some(who), Error::<T>::BadSender);
+			// Always notify the subscriber. Please note that even if the miner is not mining, we
+			// still have to notify the subscriber that an unbinding operation has just happened.
+			Self::unbind_miner(&miner, true)
+		}
+
+		/// Turns the miner back to Ready state after cooling down
+		///
 		/// Note: anyone can trigger cleanup
 		/// Requires:
 		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
 		#[pallet::weight(0)]
-		pub fn cleanup(origin: OriginFor<T>, worker: WorkerPublicKey) -> DispatchResult {
+		pub fn reclaim(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
 			ensure_signed(origin)?;
-			let miner = WorkerBindings::<T>::get(&worker).ok_or(Error::<T>::MinerNotBound)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-			ensure!(
-				Self::can_reclaim(&miner_info),
-				Error::<T>::StillInCoolDown
-			);
+			ensure!(Self::can_reclaim(&miner_info), Error::<T>::StillInCoolDown);
 			miner_info.state = MinerState::Ready;
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
@@ -205,7 +238,7 @@ pub mod pallet {
 			// execute callback
 			let stake = Stakes::<T>::get(&miner).unwrap_or_default();
 			// TODO: clean up based on V
-			T::OnReclaim::on_reclaim(&worker, stake);
+			T::OnReclaim::on_reclaim(&miner, stake);
 
 			// clear contributed balance
 			Stakes::<T>::remove(&miner);
@@ -346,7 +379,9 @@ pub mod pallet {
 		/// Binding miner with worker
 		///
 		/// Requires:
-		/// 1. Ther worker is alerady registered
+		/// 1. The worker is alerady registered
+		/// 2. The worker has an initial benchmark
+		/// 3. The worker is not bounded
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
@@ -358,11 +393,11 @@ pub mod pallet {
 			);
 
 			ensure!(
-				!MinerBindings::<T>::contains_key(&miner),
+				Self::ensure_miner_bound(&miner).is_err(),
 				Error::<T>::DuplicateBoundMiner
 			);
 			ensure!(
-				!WorkerBindings::<T>::contains_key(&pubkey),
+				Self::ensure_worker_bound(&pubkey).is_err(),
 				Error::<T>::DuplicateBoundMiner
 			);
 
@@ -386,6 +421,33 @@ pub mod pallet {
 			);
 
 			Self::deposit_event(Event::<T>::MinerBound(miner, pubkey));
+			Ok(())
+		}
+
+		/// Unbinds a miner from a worker
+		///
+		/// - `notify`: whether to notify the
+		///
+		/// Requires:
+		/// 1. The miner is bounded with a worker
+		pub fn unbind_miner(miner: &T::AccountId, notify: bool) -> DispatchResult {
+			let worker = Self::ensure_miner_bound(miner)?;
+			let miner_info = Miners::<T>::get(miner)
+				.expect("A bounded miner must has the associated MinerInfo; qed.");
+
+			let force = !miner_info.state.can_unbind();
+			if force {
+				// Force unbinding. Stop the miner first.
+				Self::stop_mining(miner.clone())?;
+				// TODO: consider the final state sync (could cause slash) when stopping mining
+			}
+			MinerBindings::<T>::remove(miner);
+			WorkerBindings::<T>::remove(&worker);
+			Self::deposit_event(Event::<T>::MinerUnbound(miner.clone(), worker.clone()));
+			if notify {
+				T::OnUnbound::on_unbound(&worker, force);
+			}
+
 			Ok(())
 		}
 
@@ -458,6 +520,16 @@ pub mod pallet {
 			));
 			Self::deposit_event(Event::<T>::MinerStopped(miner));
 			Ok(())
+		}
+
+		/// Returns if the worker is already bounded to a miner
+		pub fn ensure_worker_bound(pubkey: &WorkerPublicKey) -> Result<T::AccountId, Error<T>> {
+			WorkerBindings::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotBound)
+		}
+
+		/// Returns if the miner is already bounded to a worker
+		pub fn ensure_miner_bound(miner: &T::AccountId) -> Result<WorkerPublicKey, Error<T>> {
+			MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)
 		}
 
 		#[allow(unused)]
@@ -542,7 +614,22 @@ pub mod pallet {
 	#[cfg(test)]
 	mod test {
 		use super::*;
-		use crate::mock::{new_test_ext, set_block_1, take_messages, Test};
+		use crate::mock::{
+			new_test_ext,
+			set_block_1,
+			setup_workers,
+			take_events,
+			take_messages,
+			worker_pubkey,
+			Event as TestEvent,
+			Origin,
+			// Pallets
+			PhalaMining,
+			Test,
+			// Constants
+			DOLLARS,
+		};
+		use frame_support::{assert_noop, assert_ok};
 
 		#[test]
 		fn test_pow_target() {
@@ -590,6 +677,58 @@ pub mod pallet {
 				assert_eq!(target, U256::from_dec_str(
 					"771946525395830978497002573683960742805751636319313395421818009383503547160"
 				).unwrap());
+			});
+		}
+
+		#[test]
+		fn test_bind_unbind() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				// Bind & unbind normally
+				let _ = take_events();
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				assert_ok!(PhalaMining::unbind_miner(&1, false));
+				assert_eq!(
+					take_events().as_slice(),
+					[
+						TestEvent::PhalaMining(Event::MinerBound(1, worker_pubkey(1))),
+						TestEvent::PhalaMining(Event::MinerUnbound(1, worker_pubkey(1)))
+					]
+				);
+				// Checks edge cases
+				assert_noop!(
+					PhalaMining::bind(1, worker_pubkey(100)),
+					Error::<Test>::WorkerNotRegistered,
+				);
+				assert_noop!(
+					PhalaMining::unbind_miner(&1, false),
+					Error::<Test>::MinerNotBound,
+				);
+				// No double binding
+				assert_ok!(PhalaMining::bind(2, worker_pubkey(2)));
+				assert_noop!(
+					PhalaMining::bind(2, worker_pubkey(1)),
+					Error::<Test>::DuplicateBoundMiner
+				);
+				assert_noop!(
+					PhalaMining::bind(1, worker_pubkey(2)),
+					Error::<Test>::DuplicateBoundMiner
+				);
+				// Force unbind should be tested via StakePool
+			});
+		}
+
+		#[test]
+		#[should_panic]
+		fn test_stakepool_callback_panic() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				assert_ok!(PhalaMining::start_mining(1, 1000 * DOLLARS));
+				// Force unbind without StakePool registration will cause a panic
+				let _ = PhalaMining::unbind(Origin::signed(1), 1);
 			});
 		}
 	}
