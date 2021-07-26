@@ -15,10 +15,14 @@ pub mod server {
     use alloc::string::ToString;
     use parity_scale_codec::Error as ScaleCodecErr;
 
+    /// Error for server side RPC handlers. Finally, this error will be wrapped in a `ProtoError`.
     #[derive(Display, Debug)]
     pub enum Error {
+        /// The requesting RPC method is not recognized
         NotFound,
+        /// Failed to decode the request parameters
         DecodeError(DecodeError),
+        /// Some error occurred when handling the request
         AppError(String),
     }
 
@@ -41,7 +45,7 @@ pub mod server {
     }
 
 
-    /// Error in protobuf format
+    /// The final Error type of RPCs to be serialized to protobuf.
     #[derive(Display, Message)]
     pub struct ProtoError {
         #[prost(string, tag = "1")]
@@ -60,10 +64,14 @@ pub mod server {
 pub mod client {
     use super::*;
 
+    /// The Error type for the generated client-side RPCs.
     #[derive(Display, Debug)]
     pub enum Error {
+        /// Failed to decode the response from the server.
         DecodeError(DecodeError),
+        /// The error returned by the server.
         ServerError(super::server::ProtoError),
+        /// Other errors sush as networking error.
         RpcError(String),
     }
 
@@ -79,6 +87,8 @@ pub mod client {
         }
     }
 
+    /// Trait for RPC client to implement the underlying data transport.
+    /// Required by the generated RPC client.
     #[async_trait]
     pub trait RequestClient {
         async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, Error>;
