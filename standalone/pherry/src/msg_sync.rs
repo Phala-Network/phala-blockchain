@@ -1,7 +1,6 @@
 use anyhow::Result;
 use core::marker::PhantomData;
 use log::{error, info};
-use phala_types::messaging::{MessageOrigin, SignedMessage};
 
 use crate::chain_client::fetch_mq_ingress_seq;
 
@@ -32,12 +31,7 @@ impl<'a> MsgSync<'a> {
 
     pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
         // Send the query
-        let messages: Vec<(MessageOrigin, Vec<SignedMessage>)> = self
-            .pr
-            
-            .get_egress_messages(())
-            .await?
-            .messages_decoded()?;
+        let messages = self.pr.get_egress_messages(()).await?.messages_decoded()?;
 
         // No pending message. We are done.
         if messages.is_empty() {
