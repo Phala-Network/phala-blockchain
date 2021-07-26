@@ -223,7 +223,7 @@ pub mod pallet {
 			Self::unbind_miner(&miner, true)
 		}
 
-		/// Turns the miner back to Ready state after cooling down
+		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
 		///
 		/// Note: anyone can trigger cleanup
 		/// Requires:
