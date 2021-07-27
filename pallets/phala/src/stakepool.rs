@@ -13,6 +13,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 
+	use crate::balance_convert::FixedPointConvert;
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
 		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
@@ -143,7 +144,11 @@ pub mod pallet {
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
+	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn on_finalize(_n: T::BlockNumber) {
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
@@ -194,6 +199,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
+		BalanceOf<T>: FixedPointConvert,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
@@ -248,7 +254,7 @@ pub mod pallet {
 			);
 			// check the worker has finished the benchmark
 			ensure!(
-				worker_info.intial_score != None,
+				worker_info.initial_score != None,
 				Error::<T>::BenchmarkMissing
 			);
 

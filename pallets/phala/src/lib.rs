@@ -19,6 +19,7 @@
 //! only has very basic API for testing.
 
 pub(crate) mod attestation;
+pub(crate) mod balance_convert;
 pub mod constants;
 
 pub mod mining;

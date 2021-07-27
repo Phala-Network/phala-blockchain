@@ -29,13 +29,8 @@ pub mod pallet {
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport {
-			start_time: u64,
-			iterations: u64,
-		},
-		MasterPubkey {
-			master_pubkey: MasterPublicKey,
-		},
+		BenchReport { start_time: u64, iterations: u64 },
+		MasterPubkey { master_pubkey: MasterPublicKey },
 	}
 
 	#[pallet::config]
@@ -136,7 +131,7 @@ pub mod pallet {
 				last_updated: 0,
 				operator,
 				confidence_level: 128u8,
-				intial_score: None,
+				initial_score: None,
 				features: vec![1, 4],
 			};
 			Workers::<T>::insert(&worker_info.pubkey, &worker_info);
@@ -275,7 +270,7 @@ pub mod pallet {
 							last_updated: now,
 							operator: pruntime_info.operator,
 							confidence_level: fields.confidence_level,
-							intial_score: None,
+							initial_score: None,
 							features: pruntime_info.features,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
@@ -358,7 +353,7 @@ pub mod pallet {
 
 					Workers::<T>::mutate(worker_pubkey, |val| {
 						if let Some(val) = val {
-							val.intial_score = Some(score);
+							val.initial_score = Some(score);
 							val.last_updated = now;
 						}
 					});
@@ -368,9 +363,7 @@ pub mod pallet {
 						WorkerEvent::BenchScore(score),
 					));
 				}
-				RegistryEvent::MasterPubkey {
-					master_pubkey,
-				} => {
+				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
 					if !gatekeepers.contains(&worker_pubkey) {
 						return Err(Error::<T>::InvalidGatekeeper.into());
@@ -396,7 +389,7 @@ pub mod pallet {
 		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
 			Workers::<T>::mutate(worker, |w| {
 				if let Some(w) = w {
-					w.intial_score = score;
+					w.initial_score = score;
 				}
 			});
 		}
@@ -441,7 +434,7 @@ pub mod pallet {
 						last_updated: 0,
 						operator: operator.clone(),
 						confidence_level: 128u8,
-						intial_score: None,
+						initial_score: None,
 						features: vec![1, 4],
 					},
 				);
@@ -503,7 +496,7 @@ pub mod pallet {
 		// platform
 		confidence_level: u8,
 		// scoring
-		pub intial_score: Option<u32>,
+		pub initial_score: Option<u32>,
 		features: Vec<u32>,
 	}
 

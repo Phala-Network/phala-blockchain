@@ -24,6 +24,10 @@ pub mod pallet {
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
+	use crate::balance_convert::FixedPointConvert;
+	use fixed::types::U64F64 as FixedPoint;
+	use fixed_sqrt::FixedSqrt;
+
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const INITIAL_V: u64 = 1;
 
@@ -90,7 +94,6 @@ pub mod pallet {
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-		type MinStaking: Get<BalanceOf<Self>>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
@@ -198,7 +201,10 @@ pub mod pallet {
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		#[pallet::weight(0)]
 		pub fn set_cool_down_expiration(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
@@ -283,14 +289,20 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn on_finalize(_n: T::BlockNumber) {
 			Self::heartbeat_challenge();
 		}
 	}
 
 	// - Properly handle heartbeat message.
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn heartbeat_challenge() {
 			// Random seed for the heartbeat challenge
 			let seed_hash = T::Randomness::random(crate::constants::RANDOMNESS_SUBJECT).0;
@@ -454,16 +466,13 @@ pub mod pallet {
 
 			let worker_info =
 				registry::Workers::<T>::get(&worker).expect("Bounded worker must exist; qed.");
-			ensure!(
-				worker_info.intial_score != None,
-				Error::<T>::BenchmarkMissing
-			);
+			let p = worker_info
+				.initial_score
+				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			ensure!(
-				// TODO: dynamic compute MinStaking according to worker
-				stake >= T::MinStaking::get(),
-				Error::<T>::InsufficientStake
-			);
+			let min_stake = Self::minimal_stake(p);
+
+			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 			Stakes::<T>::insert(&miner, stake);
 
 			Miners::<T>::mutate(&miner, |info| {
@@ -529,6 +538,15 @@ pub mod pallet {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
 		}
+
+		fn minimal_stake(p: u32) -> BalanceOf<T> {
+			let tokenomic =
+				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
+			let p = FixedPoint::from_num(p);
+			let k = FixedPoint::from_bits(tokenomic.k);
+			let min_stake = k * p.sqrt();
+			FixedPointConvert::from_fixed(&min_stake)
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -539,8 +557,6 @@ pub mod pallet {
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
 		fn default() -> Self {
-			use substrate_fixed::types::U64F64 as FixedPoint;
-
 			pub fn fp(n: u64) -> FixedPoint {
 				FixedPoint::from_num(n)
 			}
@@ -553,6 +569,7 @@ pub mod pallet {
 			let cost_k = fp(287) / 10000 / 300; // hourly: 0.0287
 			let cost_b = fp(15) / 300; // hourly : 15
 			let heartbeat_window = 10; // 10 blocks
+			let k = fp(100);
 
 			Self {
 				tokenomic_parameters: TokenomicParams {
@@ -564,6 +581,7 @@ pub mod pallet {
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
 					heartbeat_window: 10,
+					k: k.to_bits(),
 				},
 			}
 		}
@@ -580,7 +598,7 @@ pub mod pallet {
 	}
 
 	fn pow_target(num_tx: u32, num_workers: u32, secs_per_block: u32) -> U256 {
-		use substrate_fixed::types::U32F32;
+		use fixed::types::U32F32;
 		if num_workers == 0 {
 			return U256::zero();
 		}
@@ -721,6 +739,14 @@ pub mod pallet {
 				assert_ok!(PhalaMining::start_mining(1, 1000 * DOLLARS));
 				// Force unbind without StakePool registration will cause a panic
 				let _ = PhalaMining::unbind(Origin::signed(1), 1);
+			});
+		}
+
+		#[test]
+		fn test_minimal_stake() {
+			new_test_ext().execute_with(|| {
+				let s = PhalaMining::minimal_stake(1000);
+				assert_eq!(s, 3162_277660146355);
 			});
 		}
 	}

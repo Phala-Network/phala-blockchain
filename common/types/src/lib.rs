@@ -372,6 +372,7 @@ pub mod messaging {
     #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct TokenomicParameters {
+		// V calculation
         pub pha_rate: U64F64Bits,
         pub rho: U64F64Bits,
         pub budget_per_sec: U64F64Bits,
@@ -380,6 +381,8 @@ pub mod messaging {
         pub cost_b: U64F64Bits,
         pub slash_rate: U64F64Bits,
         pub heartbeat_window: u32,
+		// Ve calculation
+		pub k: U64F64Bits,
     }
 }
 

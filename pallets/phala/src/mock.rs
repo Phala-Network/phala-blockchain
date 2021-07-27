@@ -107,7 +107,6 @@ impl mining::Config for Test {
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
 	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
-	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
