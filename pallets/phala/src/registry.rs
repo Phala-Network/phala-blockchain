@@ -185,20 +185,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
+
+			// wait for the lead gatekeeper to upload the master pubkey
+			if gatekeepers.len() == 1 {
+				GatekeeperMasterPubkey::<T>::try_get()
+					.or(Err(Error::<T>::MasterKeyUninitialized))?;
+			}
+
 			if !gatekeepers.contains(&gatekeeper) {
-				match Workers::<T>::try_get(&gatekeeper) {
-					Ok(worker_info) => {
-						gatekeepers.push(gatekeeper.clone());
-						let gatekeeper_count = gatekeepers.len() as u32;
-						Gatekeeper::<T>::put(gatekeepers);
-						Self::push_message(GatekeeperEvent::gatekeeper_registered(
-							gatekeeper,
-							worker_info.ecdh_pubkey,
-							gatekeeper_count,
-						));
-					}
-					_ => return Err(Error::<T>::WorkerNotFound.into()),
-				}
+				let worker_info =
+					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+				gatekeepers.push(gatekeeper.clone());
+				let gatekeeper_count = gatekeepers.len() as u32;
+				Gatekeeper::<T>::put(gatekeepers);
+				Self::push_message(GatekeeperEvent::gatekeeper_registered(
+					gatekeeper,
+					worker_info.ecdh_pubkey,
+					gatekeeper_count,
+				));
 			}
 			Ok(())
 		}

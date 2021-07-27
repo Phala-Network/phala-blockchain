@@ -7,6 +7,7 @@ const types = {
 	"DepositNonce": "u64",
 	"RawSolution": "RawSolutionWith24",
 	"Sr25519PublicKey": "[u8; 32]",
+	"MasterPublicKey": "Sr25519PublicKey",
 	"WorkerPublicKey": "Sr25519PublicKey",
 	"ContractPublicKey": "Sr25519PublicKey",
 	"EcdhPublicKey": "[u8; 32]",
