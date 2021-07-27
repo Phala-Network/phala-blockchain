@@ -170,7 +170,8 @@ where
 
             // init gatekeeper egress dynamically with master key
             if self.egress.is_none() {
-                let gk_egress = self.send_mq.channel(MessageOrigin::Gatekeeper, master_key);
+                let gk_egress =
+                    MsgChan::create(&self.send_mq, MessageOrigin::Gatekeeper, master_key);
                 // by default, gk_egress is set to dummy mode until it is registered on chain
                 gk_egress.set_dummy(true);
                 self.egress = Some(gk_egress);
@@ -878,20 +879,33 @@ mod tokenomic {
 
 mod msg_trait {
     use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, MessageSigner};
+    use phala_mq::{BindTopic, MessageSendQueue, SenderId};
 
     pub trait MessageChannel {
         fn push_message<M: Encode + BindTopic>(&self, message: M);
         fn set_dummy(&self, dummy: bool);
+        fn create(
+            send_mq: &MessageSendQueue,
+            sender: SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self;
     }
 
-    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
+    impl MessageChannel for phala_mq::MessageChannel<sp_core::sr25519::Pair> {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             self.send(&message);
         }
 
         fn set_dummy(&self, dummy: bool) {
             self.set_dummy(dummy);
+        }
+
+        fn create(
+            send_mq: &MessageSendQueue,
+            sender: SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self {
+            send_mq.channel(sender, signer)
         }
     }
 }
@@ -967,6 +981,14 @@ pub mod tests {
         }
 
         fn set_dummy(&self, _dummy: bool) {}
+
+        fn create(
+            send_mq: &phala_mq::MessageSendQueue,
+            sender: phala_mq::SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self {
+            panic!("We don't need this")
+        }
     }
 
     struct Roles {
