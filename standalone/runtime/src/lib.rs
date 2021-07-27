@@ -1077,6 +1077,7 @@ impl pallet_mining::Config for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
+	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
 }
 impl pallet_stakepool::Config for Runtime {
