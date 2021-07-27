@@ -340,7 +340,7 @@ pub struct System {
     ingress: TypedReceiver<Event>,
 
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper,
+    gatekeeper: gk::Gatekeeper<Sr25519MessageChannel>,
 }
 
 impl System {

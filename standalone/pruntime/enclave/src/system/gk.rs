@@ -87,12 +87,12 @@ impl WorkerInfo {
 //
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
-pub(super) struct Gatekeeper {
+pub(super) struct Gatekeeper<MsgChan> {
     identity_key: sr25519::Pair,
     master_key: Option<sr25519::Pair>,
     registered_on_chain: bool,
     send_mq: MessageSendQueue,
-    egress: Option<Sr25519MessageChannel>, // TODO.kevin: syncing the egress state while migrating.
+    egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
     worker_egress: Sr25519MessageChannel,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -105,7 +105,10 @@ pub(super) struct Gatekeeper {
     tokenomic_params: tokenomic::Params,
 }
 
-impl Gatekeeper {
+impl<MsgChan> Gatekeeper<MsgChan>
+where
+    MsgChan: MessageChannel,
+{
     pub fn new(
         identity_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
@@ -300,14 +303,17 @@ impl Gatekeeper {
     }
 }
 
-struct GKMessageProcesser<'a> {
-    state: &'a mut Gatekeeper,
+struct GKMessageProcesser<'a, MsgChan> {
+    state: &'a mut Gatekeeper<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
     sum_share: FixedPoint,
 }
 
-impl GKMessageProcesser<'_> {
+impl<MsgChan> GKMessageProcesser<'_, MsgChan>
+where
+    MsgChan: MessageChannel,
+{
     fn process(&mut self) {
         self.prepare();
         loop {
