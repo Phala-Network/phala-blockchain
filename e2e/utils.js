@@ -1,5 +1,5 @@
 
-async function sleep (t) {
+async function sleep(t) {
 	await new Promise(resolve => {
 		setTimeout(resolve, t);
 	});
