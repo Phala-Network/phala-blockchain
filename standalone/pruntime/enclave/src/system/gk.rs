@@ -133,22 +133,23 @@ impl Gatekeeper {
         self.registered_on_chain
     }
 
-    pub fn register_on_chain(&mut self) {
-        info!("Gatekeeper: register on chain");
-        self.registered_on_chain = true;
+    pub fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
         self.egress
             .as_mut()
             .expect("gk should work after acquiring master key; qed.")
-            .set_dummy(false);
+            .set_dummy(dummy);
+    }
+
+    pub fn register_on_chain(&mut self) {
+        info!("Gatekeeper: register on chain");
+        self.registered_on_chain = true;
+        self.set_gatekeeper_egress_dummy(false);
     }
 
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
-        self.egress
-            .as_mut()
-            .expect("gk should work after acquiring master key; qed.")
-            .set_dummy(true);
+        self.set_gatekeeper_egress_dummy(true);
     }
 
     pub fn possess_master_key(&self) -> bool {
@@ -265,10 +266,7 @@ impl Gatekeeper {
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress
-                .as_mut()
-                .expect("gk should work after acquiring master key; qed.")
-                .push_message(report);
+            self.push_gatekeeper_message(report);
         }
     }
 
