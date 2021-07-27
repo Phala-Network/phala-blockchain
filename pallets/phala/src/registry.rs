@@ -22,7 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, WorkerRegistrationInfo, WorkerPublicKey,
+		ContractPublicKey, EcdhPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -274,16 +274,6 @@ pub mod pallet {
 				WorkerEvent::BenchStart { duration },
 			));
 			Ok(())
-		}
-
-		/// Unbinds a worker from a miner
-		///
-		/// Requirements:
-		//  1. `origin` is the `worker`'s operator
-		#[allow(unused_variables)]
-		#[pallet::weight(0)]
-		pub fn unbind(origin: OriginFor<T>, worker: WorkerPublicKey) -> DispatchResult {
-			panic!("unimpleneted");
 		}
 	}
 

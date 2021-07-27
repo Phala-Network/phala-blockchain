@@ -109,6 +109,7 @@ impl mining::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type MinStaking = MinMiningStaking;
 	type OnReward = PhalaStakePool;
+	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
 }
 
@@ -183,4 +184,40 @@ pub fn ecdh_pubkey(i: u8) -> EcdhPublicKey {
 	raw[31] = i;
 	raw[30] = 1; // distinguish with the genesis config
 	EcdhPublicKey(raw)
+}
+
+/// Sets up `n` workers starting from 1, registered and benchmarked. All owned by account1.
+pub fn setup_workers(n: u8) {
+	use frame_support::assert_ok;
+	for i in 1..=n {
+		let worker = worker_pubkey(i);
+		assert_ok!(PhalaRegistry::force_register_worker(
+			Origin::root(),
+			worker.clone(),
+			ecdh_pubkey(1),
+			Some(1)
+		));
+		PhalaRegistry::internal_set_benchmark(&worker, Some(1));
+	}
+}
+
+/// Sets up `n` workers starting from 1, registered and benchmarked, owned by the corresponding
+/// accounts.
+pub fn setup_workers_linked_operators(n: u8) {
+	use frame_support::assert_ok;
+	for i in 1..=n {
+		let worker = worker_pubkey(i);
+		assert_ok!(PhalaRegistry::force_register_worker(
+			Origin::root(),
+			worker.clone(),
+			ecdh_pubkey(1),
+			Some(i as _)
+		));
+		PhalaRegistry::internal_set_benchmark(&worker, Some(1));
+	}
+}
+
+pub fn elapse_cool_down() {
+	let now = Timestamp::get();
+	Timestamp::set_timestamp(now + PhalaMining::cool_down_period());
 }
