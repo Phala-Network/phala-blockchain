@@ -1,9 +1,10 @@
 use super::{TypedReceiver, WorkerState};
+use chain::pallet_registry::RegistryEvent;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, Signing, KDF, SECRET_KEY_LENGTH, SIGNATURE_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, Sr25519MessageChannel};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
@@ -90,7 +91,9 @@ pub(super) struct Gatekeeper<MsgChan> {
     identity_key: sr25519::Pair,
     master_key: Option<sr25519::Pair>,
     registered_on_chain: bool,
-    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    send_mq: MessageSendQueue,
+    egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
+    worker_egress: Sr25519MessageChannel,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -109,13 +112,16 @@ where
     pub fn new(
         identity_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
-        egress: MsgChan,
+        send_mq: MessageSendQueue,
+        worker_egress: Sr25519MessageChannel,
     ) -> Self {
         Self {
             identity_key,
             master_key: None,
             registered_on_chain: false,
-            egress,
+            send_mq,
+            egress: None,
+            worker_egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -130,16 +136,24 @@ where
         self.registered_on_chain
     }
 
+    pub fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
+        self.egress
+            .as_mut()
+            .expect("gk should work after acquiring master key; qed.")
+            .set_dummy(dummy);
+    }
+
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
         self.registered_on_chain = true;
-        self.egress.set_dummy(false);
+        self.set_gatekeeper_egress_dummy(false);
     }
 
+    #[allow(dead_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
-        self.egress.set_dummy(true);
+        self.set_gatekeeper_egress_dummy(true);
     }
 
     pub fn possess_master_key(&self) -> bool {
@@ -148,11 +162,20 @@ where
 
     pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
-            self.master_key = Some(master_key);
+            self.master_key = Some(master_key.clone());
             self.seal_master_key(MASTER_KEY_FILEPATH);
 
             if need_restart {
                 panic!("Received master key, please restart pRuntime and pherry");
+            }
+
+            // init gatekeeper egress dynamically with master key
+            if self.egress.is_none() {
+                let gk_egress =
+                    MsgChan::create(&self.send_mq, MessageOrigin::Gatekeeper, master_key);
+                // by default, gk_egress is set to dummy mode until it is registered on chain
+                gk_egress.set_dummy(true);
+                self.egress = Some(gk_egress);
             }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation
@@ -223,7 +246,10 @@ where
     }
 
     pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
-        self.egress.push_message(message)
+        self.egress
+            .as_ref()
+            .expect("gk should work after acquiring master key; qed.")
+            .push_message(message)
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -245,7 +271,7 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress.push_message(report);
+            self.push_gatekeeper_message(report);
         }
     }
 
@@ -576,7 +602,7 @@ where
         }
 
         // double check the new gatekeeper is valid on chain
-        if !crate::identity::is_gatekeeper(&event.pubkey, self.block.storage) {
+        if !crate::gatekeeper::is_gatekeeper(&event.pubkey, self.block.storage) {
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }
@@ -588,6 +614,17 @@ where
                 // generate master key as the first gatekeeper
                 // no need to restart
                 self.state.set_master_key(crate::new_sr25519_key(), false);
+            }
+
+            // upload the master key on chain
+            // noted that every gk should execute this to ensure the state consistency of egress seq
+            if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: upload master key on chain");
+                let master_pubkey = RegistryEvent::MasterPubkey {
+                    master_pubkey: master_key.public(),
+                };
+                // master key should be uploaded as worker
+                self.state.worker_egress.send(&master_pubkey);
             }
         } else {
             // dispatch the master key to the newly-registered gatekeeper using master key
@@ -624,8 +661,10 @@ where
             }
         }
 
-        // finally, tick the registration state and enable message sending
-        if my_pubkey == event.pubkey {
+        // tick the registration state and enable message sending
+        // for the newly-registered gatekeeper, NewGatekeeperEvent comes before DispatchMasterKeyEvent
+        // so it's necessary to check the existence of master key here
+        if self.state.possess_master_key() && my_pubkey == event.pubkey {
             self.state.register_on_chain();
         }
     }
@@ -838,20 +877,33 @@ mod tokenomic {
 
 mod msg_trait {
     use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, MessageSigner};
+    use phala_mq::{BindTopic, MessageSendQueue, SenderId};
 
     pub trait MessageChannel {
         fn push_message<M: Encode + BindTopic>(&self, message: M);
         fn set_dummy(&self, dummy: bool);
+        fn create(
+            send_mq: &MessageSendQueue,
+            sender: SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self;
     }
 
-    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
+    impl MessageChannel for phala_mq::MessageChannel<sp_core::sr25519::Pair> {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             self.send(&message);
         }
 
         fn set_dummy(&self, dummy: bool) {
             self.set_dummy(dummy);
+        }
+
+        fn create(
+            send_mq: &MessageSendQueue,
+            sender: SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self {
+            send_mq.channel(sender, signer)
         }
     }
 }
@@ -927,6 +979,14 @@ pub mod tests {
         }
 
         fn set_dummy(&self, _dummy: bool) {}
+
+        fn create(
+            send_mq: &phala_mq::MessageSendQueue,
+            sender: phala_mq::SenderId,
+            signer: sp_core::sr25519::Pair,
+        ) -> Self {
+            panic!("We don't need this")
+        }
     }
 
     struct Roles {

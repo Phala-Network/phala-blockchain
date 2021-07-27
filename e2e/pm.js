@@ -13,7 +13,7 @@ function once(fn) {
 }
 
 class Process {
-	constructor(args, {logPath}) {
+	constructor(args, { logPath }) {
 		this.args = args;
 		this.process = null;
 		this.promiseStopped = null;
@@ -27,9 +27,9 @@ class Process {
 		this.program = comp[comp.length - 1];
 
 		try {
-			this.logFile = fs.createWriteStream(logPath, {flags: 'a'});
+			this.logFile = fs.createWriteStream(logPath, { flags: 'a' });
 			this.logFile.write(`=== LOG STARTED at ${new Date().toString()} ===\n`)
-		} catch {}
+		} catch { }
 	}
 	maybeLogOutputLine(data) {
 		if (this.debug) {
@@ -87,7 +87,7 @@ class Process {
 }
 
 class TempDir {
-	constructor(prefix='phala-e2e-') {
+	constructor(prefix = 'phala-e2e-') {
 		this.dir = fs.mkdtempSync(prefix);
 	}
 	cleanup() {
@@ -96,17 +96,17 @@ class TempDir {
 }
 
 function rimraf(dir_path) {
-    if (fs.existsSync(dir_path)) {
-        fs.readdirSync(dir_path).forEach(function(entry) {
-            var entry_path = path.join(dir_path, entry);
-            if (fs.lstatSync(entry_path).isDirectory()) {
-                rimraf(entry_path);
-            } else {
-                fs.unlinkSync(entry_path);
-            }
-        });
-        fs.rmdirSync(dir_path);
-    }
+	if (fs.existsSync(dir_path)) {
+		fs.readdirSync(dir_path).forEach(function (entry) {
+			var entry_path = path.join(dir_path, entry);
+			if (fs.lstatSync(entry_path).isDirectory()) {
+				rimraf(entry_path);
+			} else {
+				fs.unlinkSync(entry_path);
+			}
+		});
+		fs.rmdirSync(dir_path);
+	}
 }
 
 

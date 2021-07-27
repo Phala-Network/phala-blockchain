@@ -7,6 +7,7 @@ const types = {
 	"DepositNonce": "u64",
 	"RawSolution": "RawSolutionWith24",
 	"Sr25519PublicKey": "[u8; 32]",
+	"MasterPublicKey": "Sr25519PublicKey",
 	"WorkerPublicKey": "Sr25519PublicKey",
 	"ContractPublicKey": "Sr25519PublicKey",
 	"EcdhPublicKey": "[u8; 32]",
@@ -153,32 +154,32 @@ const types = {
 			"UpdateTokenomic": "TokenomicParameters"
 		}
 	},
-    "NewGatekeeperEvent": {
-        "pubkey": "WorkerPublicKey",
-        "ecdhPubkey": "EcdhPublicKey",
-        "gatekeeperCount": "u32"
-    },
-    "DispatchMasterKeyEvent": {
-        "dest": "WorkerPublicKey",
-        "ecdhPubkey": "EcdhPublicKey",
-        "encryptedMasterKey": "Vec<u8>",
-        "iv": "[u8; 12]"
-    },
-    "RandomNumberEvent": {
-        "blockNumber": "u32",
-        "randomNumber": "[u8; 32]",
-        "lastRandomNumber": "[u8; 32]"
-    },
-    "TokenomicParameters": {
-        "phaRate": "U64F64Bits",
-        "rho": "U64F64Bits",
-        "budgetPerSec": "U64F64Bits",
-        "vMax": "U64F64Bits",
-        "costK": "U64F64Bits",
-        "costB": "U64F64Bits",
-        "slashRate": "U64F64Bits",
-        "heartbeatWindow": "u32"
-    },
+	"NewGatekeeperEvent": {
+		"pubkey": "WorkerPublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
+		"gatekeeperCount": "u32"
+	},
+	"DispatchMasterKeyEvent": {
+		"dest": "WorkerPublicKey",
+		"ecdhPubkey": "EcdhPublicKey",
+		"encryptedMasterKey": "Vec<u8>",
+		"iv": "[u8; 12]"
+	},
+	"RandomNumberEvent": {
+		"blockNumber": "u32",
+		"randomNumber": "[u8; 32]",
+		"lastRandomNumber": "[u8; 32]"
+	},
+	"TokenomicParameters": {
+		"phaRate": "U64F64Bits",
+		"rho": "U64F64Bits",
+		"budgetPerSec": "U64F64Bits",
+		"vMax": "U64F64Bits",
+		"costK": "U64F64Bits",
+		"costB": "U64F64Bits",
+		"slashRate": "U64F64Bits",
+		"heartbeatWindow": "u32"
+	},
 	"TokenomicParams": "TokenomicParameters",
 	"U64F64Bits": "u128",
 	"UserStakeInfo": {
@@ -191,4 +192,4 @@ const types = {
 
 const typeAlias = null;
 
-module.exports = {types, typeAlias};
+module.exports = { types, typeAlias };

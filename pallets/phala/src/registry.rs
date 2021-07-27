@@ -22,13 +22,20 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, Sr25519Signature, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum RegistryEvent {
-		BenchReport { start_time: u64, iterations: u64 },
+		BenchReport {
+			start_time: u64,
+			iterations: u64,
+		},
+		MasterPubkey {
+			master_pubkey: MasterPublicKey,
+		},
 	}
 
 	#[pallet::config]
@@ -45,6 +52,10 @@ pub mod pallet {
 	/// Gatekeeper pubkey list
 	#[pallet::storage]
 	pub type Gatekeeper<T: Config> = StorageValue<_, Vec<WorkerPublicKey>, ValueQuery>;
+
+	/// Gatekeeper master pubkey
+	#[pallet::storage]
+	pub type GatekeeperMasterPubkey<T: Config> = StorageValue<_, MasterPublicKey>;
 
 	/// Mapping from worker pubkey to WorkerInfo
 	#[pallet::storage]
@@ -90,6 +101,11 @@ pub mod pallet {
 		InvalidInput,
 		InvalidBenchReport,
 		WorkerNotFound,
+		// Gatekeeper related
+		InvalidGatekeeper,
+		InvalidMasterPubkey,
+		MasterKeyMismatch,
+		MasterKeyUninitialized,
 	}
 
 	#[pallet::call]
@@ -167,20 +183,24 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let mut gatekeepers = Gatekeeper::<T>::get();
+
+			// wait for the lead gatekeeper to upload the master pubkey
+			ensure!(
+				gatekeepers.is_empty() || GatekeeperMasterPubkey::<T>::get().is_some(),
+				Error::<T>::MasterKeyUninitialized
+			);
+
 			if !gatekeepers.contains(&gatekeeper) {
-				match Workers::<T>::try_get(&gatekeeper) {
-					Ok(worker_info) => {
-						gatekeepers.push(gatekeeper.clone());
-						let gatekeeper_count = gatekeepers.len() as u32;
-						Gatekeeper::<T>::put(gatekeepers);
-						Self::push_message(GatekeeperEvent::gatekeeper_registered(
-							gatekeeper,
-							worker_info.ecdh_pubkey,
-							gatekeeper_count,
-						));
-					}
-					_ => return Err(Error::<T>::WorkerNotFound.into()),
-				}
+				let worker_info =
+					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+				gatekeepers.push(gatekeeper.clone());
+				let gatekeeper_count = gatekeepers.len() as u32;
+				Gatekeeper::<T>::put(gatekeepers);
+				Self::push_message(GatekeeperEvent::gatekeeper_registered(
+					gatekeeper,
+					worker_info.ecdh_pubkey,
+					gatekeeper_count,
+				));
 			}
 			Ok(())
 		}
@@ -291,8 +311,10 @@ pub mod pallet {
 					&pubkey_copy
 				}
 				MessageOrigin::Gatekeeper => {
-					// !!!!!!! TODO.kevin: get GK master_pubkey
-					return Ok(());
+					// GatekeeperMasterPubkey should not be None
+					pubkey_copy = GatekeeperMasterPubkey::<T>::get()
+						.ok_or(Error::<T>::MasterKeyUninitialized)?;
+					&pubkey_copy
 				}
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
@@ -345,6 +367,26 @@ pub mod pallet {
 						worker_pubkey.clone(),
 						WorkerEvent::BenchScore(score),
 					));
+				}
+				RegistryEvent::MasterPubkey {
+					master_pubkey,
+				} => {
+					let gatekeepers = Gatekeeper::<T>::get();
+					if !gatekeepers.contains(&worker_pubkey) {
+						return Err(Error::<T>::InvalidGatekeeper.into());
+					}
+
+					match GatekeeperMasterPubkey::<T>::try_get() {
+						Ok(saved_pubkey) => {
+							ensure!(
+								saved_pubkey.0 == master_pubkey.0,
+								Error::<T>::MasterKeyMismatch // Oops, this is really bad
+							);
+						}
+						_ => {
+							GatekeeperMasterPubkey::<T>::put(master_pubkey);
+						}
+					}
 				}
 			}
 			Ok(())

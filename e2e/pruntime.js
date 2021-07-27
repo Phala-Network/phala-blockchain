@@ -10,7 +10,7 @@ class PRuntimeApi {
             }
         });
     }
-    async req(method, data={}) {
+    async req(method, data = {}) {
         const r = await this.api.post('/' + method, {
             input: data,
             nonce: { id: rand() }
@@ -27,16 +27,16 @@ class PRuntimeApi {
             nonce: rand(),
             request
         });
-        const payloadJson = JSON.stringify({Plain: bodyJson});
-        const queryData = {query_payload: payloadJson};
+        const payloadJson = JSON.stringify({ Plain: bodyJson });
+        const queryData = { query_payload: payloadJson };
         const response = await this.req('query', queryData);
         const plainResp = JSON.parse(response.Plain);
         return plainResp;
     }
 
-	async getInfo() {
-		return await this.req('get_info');
-	}
+    async getInfo() {
+        return await this.req('get_info');
+    }
 }
 
 function rand() {

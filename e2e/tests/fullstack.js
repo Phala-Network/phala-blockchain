@@ -109,6 +109,13 @@ describe('A full stack', function () {
 	});
 
 	describe('Gatekeeper', () => {
+		it('finishes master pubkey upload', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const master_pubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
+				return master_pubkey.isSome;
+			}, 4 * 6000), 'master pubkey not uploaded');
+		});
+
 		it('can be registered', async function () {
 			// Register worker1 as Gatekeeper
 			const info = await pruntime[1].getInfo();
