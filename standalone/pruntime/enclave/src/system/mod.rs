@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
+pub use enclave_api::prpc::phactory_info::GatekeeperRole;
 use phala_mq::{
     MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError,
     TypedReceiver,
@@ -17,7 +18,6 @@ use phala_types::{
     WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-pub use enclave_api::prpc::phactory_info::GatekeeperRole;
 
 pub type CommandIndex = u64;
 
@@ -352,7 +352,12 @@ impl System {
         let pubkey = pair.clone().public();
         let sender = MessageOrigin::Worker(pubkey.clone());
 
-        let mut gatekeeper = gk::Gatekeeper::new(pair.clone(), recv_mq, send_mq.clone());
+        let mut gatekeeper = gk::Gatekeeper::new(
+            pair.clone(),
+            recv_mq,
+            send_mq.clone(),
+            send_mq.channel(sender.clone(), pair.clone()),
+        );
         gatekeeper.try_unseal_master_key(gk::MASTER_KEY_FILEPATH);
 
         System {

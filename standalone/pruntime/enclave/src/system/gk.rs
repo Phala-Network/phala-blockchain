@@ -93,6 +93,7 @@ pub(super) struct Gatekeeper {
     registered_on_chain: bool,
     send_mq: MessageSendQueue,
     egress: Option<Sr25519MessageChannel>, // TODO.kevin: syncing the egress state while migrating.
+    worker_egress: Sr25519MessageChannel,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -109,6 +110,7 @@ impl Gatekeeper {
         identity_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
         send_mq: MessageSendQueue,
+        worker_egress: Sr25519MessageChannel,
     ) -> Self {
         Self {
             identity_key,
@@ -116,6 +118,7 @@ impl Gatekeeper {
             registered_on_chain: false,
             send_mq,
             egress: None,
+            worker_egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -642,7 +645,9 @@ impl GKMessageProcesser<'_> {
         }
 
         // tick the registration state and enable message sending
-        if my_pubkey == event.pubkey {
+        // for the newly-registered gatekeeper, NewGatekeeperEvent comes before DispatchMasterKeyEvent
+        // so it's necessary to check the existence of master key here
+        if self.state.possess_master_key() && my_pubkey == event.pubkey {
             self.state.register_on_chain();
         }
 
@@ -656,11 +661,8 @@ impl GKMessageProcesser<'_> {
                 master_pubkey: master_key.public(),
                 sig: self.state.identity_key.sign_data(&master_key.public()),
             };
-            self.state
-                .egress
-                .as_ref()
-                .expect("gk should work after acquiring master key; qed.")
-                .send(&master_pubkey);
+            // master key should be uploaded as worker
+            self.state.worker_egress.send(&master_pubkey);
         }
     }
 

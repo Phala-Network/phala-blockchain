@@ -70,7 +70,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{WorkerPublicKey, WorkerRegistrationInfo};
+use phala_types::{MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo};
 
 mod benchmark;
 mod cert;
@@ -1329,6 +1329,19 @@ mod gatekeeper {
             .unwrap_or(Vec::new());
 
         gatekeepers.contains(pubkey)
+    }
+
+    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
+        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
+        chain_storage
+            .get(&key)
+            .map(|v| {
+                Some(
+                    MasterPublicKey::decode(&mut &v[..])
+                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
+                )
+            })
+            .unwrap_or(None)
     }
 }
 
