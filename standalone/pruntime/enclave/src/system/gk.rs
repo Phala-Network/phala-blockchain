@@ -660,11 +660,8 @@ where
         // noted that every gk should execute this to ensure the state consistency of egress seq
         if let Some(master_key) = &self.state.master_key {
             info!("Gatekeeper: upload master key on chain");
-            let my_pubkey = self.state.identity_key.public();
             let master_pubkey = RegistryEvent::MasterPubkey {
-                gatekeeper: my_pubkey.clone(),
                 master_pubkey: master_key.public(),
-                sig: self.state.identity_key.sign_data(&master_key.public()),
             };
             // master key should be uploaded as worker
             self.state.worker_egress.send(&master_pubkey);

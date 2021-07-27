@@ -34,9 +34,7 @@ pub mod pallet {
 			iterations: u64,
 		},
 		MasterPubkey {
-			gatekeeper: WorkerPublicKey,
 			master_pubkey: MasterPublicKey,
-			sig: Sr25519Signature,
 		},
 	}
 
@@ -187,10 +185,10 @@ pub mod pallet {
 			let mut gatekeepers = Gatekeeper::<T>::get();
 
 			// wait for the lead gatekeeper to upload the master pubkey
-			if gatekeepers.len() == 1 {
-				GatekeeperMasterPubkey::<T>::try_get()
-					.or(Err(Error::<T>::MasterKeyUninitialized))?;
-			}
+			ensure!(
+				gatekeepers.is_empty() || GatekeeperMasterPubkey::<T>::get().is_some(),
+				Error::<T>::MasterKeyUninitialized
+			);
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
@@ -371,19 +369,12 @@ pub mod pallet {
 					));
 				}
 				RegistryEvent::MasterPubkey {
-					gatekeeper,
 					master_pubkey,
-					sig,
 				} => {
 					let gatekeepers = Gatekeeper::<T>::get();
-					if !gatekeepers.contains(&gatekeeper) {
+					if !gatekeepers.contains(&worker_pubkey) {
 						return Err(Error::<T>::InvalidGatekeeper.into());
 					}
-
-					ensure!(
-						sp_io::crypto::sr25519_verify(&sig, &master_pubkey, &gatekeeper),
-						Error::<T>::InvalidSignature
-					);
 
 					match GatekeeperMasterPubkey::<T>::try_get() {
 						Ok(saved_pubkey) => {
