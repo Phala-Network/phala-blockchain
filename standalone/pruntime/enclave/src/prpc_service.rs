@@ -30,7 +30,7 @@ pub extern "C" fn ecall_prpc_request(
     output_buf_len: usize,
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
-    let (code, data) = prpc_request(path, path_len, data, data_len);
+    let (code, data) = prpc_request(path, path_len, data, data_len, output_buf_len);
     let (code, data) = if data.len() > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])
@@ -52,6 +52,7 @@ fn prpc_request(
     path_len: usize,
     data: *const uint8_t,
     data_len: usize,
+    output_buf_len: usize,
 ) -> (u16, Vec<u8>) {
     use prpc::server::{Error, ProtoError};
 
@@ -63,7 +64,7 @@ fn prpc_request(
             return (400, b"Invalid path".to_vec());
         }
     };
-    let server = PhactoryApiServer::new(RpcService);
+    let server = PhactoryApiServer::new(RpcService { output_buf_len });
     let data = unsafe { std::slice::from_raw_parts(data, data_len) };
     info!("Dispatching request: {}", path);
     let (code, data) = match server.dispatch_request(path, data.to_vec()) {
@@ -450,17 +451,36 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
     Ok(resp)
 }
 
-pub fn get_egress_messages() -> RpcResult<EgressMessages> {
+// Drop latest messages if needed to fit in size.
+fn fit_size(mut messages: EgressMessages, size: usize) -> EgressMessages {
+    while messages.encoded_size() > size {
+        for (_, queue) in messages.iter_mut() {
+            if queue.pop().is_some() {
+                break;
+            }
+        }
+        messages.retain(|(_, q)| !q.is_empty());
+        if messages.is_empty() {
+            break;
+        }
+    }
+    messages
+}
+
+pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<EgressMessages> {
     let messages: Vec<_> = STATE
         .lock()
         .unwrap()
         .as_ref()
         .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
-        .unwrap_or(Default::default());
-    Ok(messages)
+        .unwrap_or_default();
+    // Prune messages if needed to avoid the OUTPUT BUFFER overflow.
+    Ok(fit_size(messages, output_buf_len))
 }
 
-pub struct RpcService;
+pub struct RpcService {
+    output_buf_len: usize,
+}
 
 /// A server that process all RPCs.
 impl PhactoryApi for RpcService {
@@ -504,6 +524,8 @@ impl PhactoryApi for RpcService {
     }
 
     fn get_egress_messages(&self, _: ()) -> RpcResult<GetEgressMessagesResponse> {
-        get_egress_messages().map(GetEgressMessagesResponse::new)
+        // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
+        assert!(self.output_buf_len >= 1024);
+        get_egress_messages(self.output_buf_len - 1024).map(GetEgressMessagesResponse::new)
     }
 }

@@ -419,7 +419,6 @@ proxy!("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO);
 proxy!("/dump_states", dump_states, actions::ACTION_DUMP_STATES);
 proxy!("/load_states", load_states, actions::ACTION_LOAD_STATES);
 proxy!("/query", query, actions::ACTION_QUERY);
-// TODO.kevin: becareful the limitation of ENCLAVE_OUTPUT_BUF_MAX_LEN
 proxy!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
 proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
 
