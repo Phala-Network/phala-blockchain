@@ -1331,6 +1331,7 @@ mod gatekeeper {
         gatekeepers.contains(pubkey)
     }
 
+    #[allow(dead_code)]
     pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
         let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
         chain_storage

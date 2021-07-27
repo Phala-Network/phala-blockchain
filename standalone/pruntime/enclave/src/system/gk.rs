@@ -149,6 +149,7 @@ where
         self.set_gatekeeper_egress_dummy(false);
     }
 
+    #[allow(dead_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
@@ -614,6 +615,17 @@ where
                 // no need to restart
                 self.state.set_master_key(crate::new_sr25519_key(), false);
             }
+
+            // upload the master key on chain
+            // noted that every gk should execute this to ensure the state consistency of egress seq
+            if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: upload master key on chain");
+                let master_pubkey = RegistryEvent::MasterPubkey {
+                    master_pubkey: master_key.public(),
+                };
+                // master key should be uploaded as worker
+                self.state.worker_egress.send(&master_pubkey);
+            }
         } else {
             // dispatch the master key to the newly-registered gatekeeper using master key
             // if this pRuntime is the newly-registered gatekeeper himself,
@@ -654,17 +666,6 @@ where
         // so it's necessary to check the existence of master key here
         if self.state.possess_master_key() && my_pubkey == event.pubkey {
             self.state.register_on_chain();
-        }
-
-        // finally, upload the master key on chain
-        // noted that every gk should execute this to ensure the state consistency of egress seq
-        if let Some(master_key) = &self.state.master_key {
-            info!("Gatekeeper: upload master key on chain");
-            let master_pubkey = RegistryEvent::MasterPubkey {
-                master_pubkey: master_key.public(),
-            };
-            // master key should be uploaded as worker
-            self.state.worker_egress.send(&master_pubkey);
         }
     }
 
