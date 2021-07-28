@@ -104,8 +104,8 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		/// [owner, pid]
 		PoolCreated(T::AccountId, u64),
-		/// [pid, commission]
-		PoolCommissionSet(u64, Permill),
+		/// [pid, commission]. The real commission ratio is commission/1_000_000u32
+		PoolCommissionSet(u64, u32),
 		/// [pid, cap]
 		PoolCapacitySet(u64, BalanceOf<T>),
 		/// [pid, worker]
@@ -366,7 +366,10 @@ pub mod pallet {
 			pool_info.payout_commission = Some(payout_commission);
 			StakePools::<T>::insert(&pid, &pool_info);
 
-			Self::deposit_event(Event::<T>::PoolCommissionSet(pid, payout_commission));
+			Self::deposit_event(Event::<T>::PoolCommissionSet(
+				pid,
+				payout_commission.deconstruct(),
+			));
 
 			Ok(())
 		}
@@ -1601,11 +1604,19 @@ pub mod pallet {
 
 				// Create a pool (pid = 0)
 				assert_ok!(PhalaStakePool::create(Origin::signed(1)));
+				let _ = take_events();
 				assert_ok!(PhalaStakePool::set_payout_pref(
 					Origin::signed(1),
 					0,
 					Permill::from_percent(50)
 				));
+				assert_eq!(
+					take_events().as_slice(),
+					[TestEvent::PhalaStakePool(Event::PoolCommissionSet(
+						0,
+						1000_000u32 * 50 / 100
+					))]
+				);
 				assert_ok!(PhalaStakePool::add_worker(
 					Origin::signed(1),
 					0,
