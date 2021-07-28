@@ -22,8 +22,7 @@ pub mod pallet {
 			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, Sr25519Signature, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -494,7 +493,7 @@ pub mod pallet {
 		last_updated: u64,
 		pub operator: Option<AccountId>,
 		// platform
-		confidence_level: u8,
+		pub confidence_level: u8,
 		// scoring
 		pub initial_score: Option<u32>,
 		features: Vec<u32>,

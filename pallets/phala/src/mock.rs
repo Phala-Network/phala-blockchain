@@ -133,6 +133,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 			(1, 1000 * DOLLARS),
 			(2, 2000 * DOLLARS),
 			(3, 1000 * DOLLARS),
+			(99, 1_000_000 * DOLLARS),
 		],
 	}
 	.assimilate_storage(&mut t)

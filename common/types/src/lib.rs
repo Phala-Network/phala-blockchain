@@ -382,6 +382,9 @@ pub mod messaging {
         pub slash_rate: U64F64Bits,
         pub heartbeat_window: u32,
 		// Ve calculation
+		pub rig_k: U64F64Bits,
+		pub rig_b: U64F64Bits,
+		pub re: U64F64Bits,
 		pub k: U64F64Bits,
     }
 }
