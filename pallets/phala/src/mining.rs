@@ -603,6 +603,16 @@ pub mod pallet {
 			(cost_k * p + cost_b) / pha_rate
 		}
 
+		/// Gets the operating cost per sec
+		#[cfg(test)]
+		fn op_cost(&self, p: u32) -> FixedPoint {
+			let cost_k = FixedPoint::from_bits(self.params.cost_k);
+			let cost_b = FixedPoint::from_bits(self.params.cost_b);
+			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
+			let p = FixedPoint::from_num(p);
+			(cost_k * p + cost_b) / pha_rate
+		}
+
 		/// Converts confidence level to score
 		fn confidence_score(confidence_level: u8) -> FixedPoint {
 			const SCORES_BASE10: [u32; 5] = [10, 10, 10, 8, 7];
@@ -622,18 +632,18 @@ pub mod pallet {
 
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
+		/// Default tokenoic parameters for Phala
 		fn default() -> Self {
-			pub fn fp(n: u64) -> FixedPoint {
+			fn fp(n: u64) -> FixedPoint {
 				FixedPoint::from_num(n)
 			}
-
 			let pha_rate = fp(1);
 			let rho = fp(100000099985) / 100000000000; // hourly: 1.00020,  1.0002 ** (1/300)
 			let slash_rate = fp(1) / 1000 / 300; // hourly rate: 0.001, convert to per-block rate
-			let budget_per_sec = fp(1000);
+			let budget_per_sec = fp(720000) / 24 / 3600;
 			let v_max = fp(30000);
-			let cost_k = fp(287) / 10000 / 300; // hourly: 0.0287
-			let cost_b = fp(15) / 300; // hourly : 15
+			let cost_k = fp(415625) / 10_000000 / 3600 / 24 / 365; // annual 0.0415625, convert to per sec
+			let cost_b = fp(88_59375) / 100000 / 3600 / 24 / 365; // annual 88.59375, convert to per sec
 			let heartbeat_window = 10; // 10 blocks
 			let rig_k = fp(3) / 10;
 			let rig_b = fp(0);
@@ -824,6 +834,19 @@ pub mod pallet {
 				fn fps(s: &str) -> FixedPoint {
 					FixedPoint::from_str(s).unwrap()
 				}
+				fn pow(x: FixedPoint, n: u32) -> FixedPoint {
+					let mut i = n;
+					let mut x_pow2 = x;
+					let mut z = FixedPoint::from_num(1);
+					while i > 0 {
+						if i & 1 == 1 {
+							z *= x_pow2;
+						}
+						x_pow2 *= x_pow2;
+						i >>= 1;
+					}
+					z
+				}
 				// Vmax
 				assert_eq!(tokenomic.v_max(), fps("30000"));
 				// Minimal stake
@@ -853,6 +876,24 @@ pub mod pallet {
 				assert_eq!(tokenomic.rig_cost(500), fps("149.9999999999999999783"));
 				assert_eq!(tokenomic.rig_cost(2000), fps("599.99999999999999991326"));
 				assert_eq!(tokenomic.rig_cost(2800), fps("839.99999999999999987857"));
+
+				const BLOCK_SEC: u32 = 12;
+				const HOUR_BLOCKS: u32 = 3600 / BLOCK_SEC;
+				// Slash per hour (around 0.1%)
+				let slash_rate = FixedPoint::from_bits(tokenomic.params.slash_rate);
+				let slash_decay = FixedPoint::from_num(1) - slash_rate;
+				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fps("0.9990004981683704595"));
+				// Budget per day
+				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
+				assert_eq!(
+					budger_per_sec * 3600 * 24,
+					fps("719999.99999999999999843875")
+				);
+				// Cost estimation per year
+				assert_eq!(
+					tokenomic.op_cost(2000) * 3600 * 24 * 365,
+					fps("171.71874999890369452304")
+				);
 			});
 		}
 	}
