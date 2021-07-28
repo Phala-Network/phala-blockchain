@@ -615,13 +615,13 @@ pub mod pallet {
 
 		/// Converts confidence level to score
 		fn confidence_score(confidence_level: u8) -> FixedPoint {
-			const SCORES_BASE10: [u32; 5] = [10, 10, 10, 8, 7];
-			let score_base10 = if 1 <= confidence_level && confidence_level <= 5 {
-				SCORES_BASE10[confidence_level as usize - 1]
+			use fixed_macro::types::U64F64 as fp;
+			const SCORES: [FixedPoint; 5] = [fp!(1), fp!(1), fp!(1), fp!(0.8), fp!(0.7)];
+			if 1 <= confidence_level && confidence_level <= 5 {
+				SCORES[confidence_level as usize - 1]
 			} else {
-				10u32
-			};
-			FixedPoint::from_num(score_base10) / 10
+				SCORES[0]
+			}
 		}
 	}
 
