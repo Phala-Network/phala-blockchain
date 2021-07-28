@@ -13,6 +13,8 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 
+	use crate::balance_convert::FixedPointConvert;
+	use fixed::types::U64F64 as FixedPoint;
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
 		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
@@ -133,9 +135,8 @@ pub mod pallet {
 		InsufficientContribution,
 		InsufficientBalance,
 		PoolStakeNotFound,
-		InsufficientStake,
+		InsufficientFreeStake,
 		InvalidWithdrawalAmount,
-		FailedToStartMining,
 		FailedToBindMinerAndWorker,
 	}
 
@@ -143,7 +144,11 @@ pub mod pallet {
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
+	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn on_finalize(_n: T::BlockNumber) {
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
@@ -194,6 +199,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
+		BalanceOf<T>: FixedPointConvert,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
@@ -248,7 +254,7 @@ pub mod pallet {
 			);
 			// check the worker has finished the benchmark
 			ensure!(
-				worker_info.intial_score != None,
+				worker_info.initial_score != None,
 				Error::<T>::BenchmarkMissing
 			);
 
@@ -514,15 +520,17 @@ pub mod pallet {
 			// origin must be owner of pool
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// check free stake
-			ensure!(pool_info.free_stake >= stake, Error::<T>::InsufficientStake);
+			ensure!(
+				pool_info.free_stake >= stake,
+				Error::<T>::InsufficientFreeStake
+			);
 			// check wheather we have add this worker
 			ensure!(
 				pool_info.workers.contains(&worker),
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)
-				.or(Err(Error::<T>::FailedToStartMining))?;
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
 			pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
 			StakePools::<T>::insert(&pid, &pool_info);
 			Ok(())
@@ -722,7 +730,10 @@ pub mod pallet {
 		}
 	}
 
-	impl<T: Config> mining::OnReward for Pallet<T> {
+	impl<T: Config> mining::OnReward for Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
 		/// would be clear once pool was updated
@@ -732,7 +743,9 @@ pub mod pallet {
 					.expect("Mining workers must be in the pool; qed.");
 				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
-				Self::handle_pool_new_reward(&mut pool_info, info.payout.saturated_into());
+				let payout_fixed = FixedPoint::from_bits(info.payout);
+				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
+				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
 		}
@@ -1033,10 +1046,25 @@ pub mod pallet {
 					0,
 					100 * DOLLARS
 				));
-				// No enough stake (TODO: apply the parameters)
+				// No enough stake
 				assert_noop!(
 					PhalaStakePool::start_mining(Origin::signed(1), 0, worker_pubkey(1), 0),
-					Error::<Test>::FailedToStartMining
+					mining::Error::<Test>::InsufficientStake
+				);
+				// Too much stake
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(99),
+					0,
+					30000 * DOLLARS
+				));
+				assert_noop!(
+					PhalaStakePool::start_mining(
+						Origin::signed(1),
+						0,
+						worker_pubkey(1),
+						30000 * DOLLARS
+					),
+					mining::Error::<Test>::TooMuchStake
 				);
 				// Can start mining normally
 				assert_ok!(PhalaStakePool::start_mining(
@@ -1275,8 +1303,8 @@ pub mod pallet {
 				// Mined 500 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: 1,
-					payout: 500 * DOLLARS,
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
 				}]);
 				// Should result in 100, 400 PHA pending reward for staker1 & 2
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -1306,8 +1334,8 @@ pub mod pallet {
 				// Mined 500 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: 1,
-					payout: 500 * DOLLARS,
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
 				}]);
 				// Should result in 100, 800 PHA pending reward for staker1 & 2
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -1337,8 +1365,8 @@ pub mod pallet {
 				// Mined 800 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: 1,
-					payout: 800 * DOLLARS,
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(800).to_bits(),
 				}]);
 				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
 				let pool = PhalaStakePool::stake_pools(0).unwrap();

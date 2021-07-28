@@ -24,8 +24,11 @@ pub mod pallet {
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
+	use crate::balance_convert::FixedPointConvert;
+	use fixed::types::U64F64 as FixedPoint;
+	use fixed_sqrt::FixedSqrt;
+
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
-	const INITIAL_V: u64 = 1;
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
@@ -51,8 +54,8 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
 		pub state: MinerState,
-		ve: u64,
-		v: u64,
+		ve: u128,
+		v: u128,
 		v_updated_at: u64,
 		p_instant: u64,
 		benchmark: Benchmark,
@@ -90,7 +93,6 @@ pub mod pallet {
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
-		type MinStaking: Get<BalanceOf<Self>>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
@@ -192,13 +194,17 @@ pub mod pallet {
 		WorkerNotBound,
 		CoolDownNotReady,
 		InsufficientStake,
+		TooMuchStake,
 	}
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::call]
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		#[pallet::weight(0)]
 		pub fn set_cool_down_expiration(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
@@ -283,14 +289,20 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn on_finalize(_n: T::BlockNumber) {
 			Self::heartbeat_challenge();
 		}
 	}
 
 	// - Properly handle heartbeat message.
-	impl<T: Config> Pallet<T> {
+	impl<T: Config> Pallet<T>
+	where
+		BalanceOf<T>: FixedPointConvert,
+	{
 		fn heartbeat_challenge() {
 			// Random seed for the heartbeat challenge
 			let seed_hash = T::Randomness::random(crate::constants::RANDOMNESS_SUBJECT).0;
@@ -346,7 +358,7 @@ pub mod pallet {
 					if let Some(binding_miner) = WorkerBindings::<T>::get(&info.pubkey) {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
-						miner_info.v = info.v as _; //TODO(wenfeng)
+						miner_info.v = info.v; // in bits
 						miner_info.v_updated_at = now;
 						Miners::<T>::insert(&binding_miner, &miner_info);
 					}
@@ -400,8 +412,8 @@ pub mod pallet {
 				&miner,
 				MinerInfo {
 					state: MinerState::Ready,
-					ve: 0u64,
-					v: 0u64,
+					ve: 0,
+					v: 0,
 					v_updated_at: now,
 					p_instant: 0u64,
 					benchmark: Benchmark {
@@ -454,21 +466,31 @@ pub mod pallet {
 
 			let worker_info =
 				registry::Workers::<T>::get(&worker).expect("Bounded worker must exist; qed.");
-			ensure!(
-				worker_info.intial_score != None,
-				Error::<T>::BenchmarkMissing
-			);
+			let p = worker_info
+				.initial_score
+				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			ensure!(
-				// TODO: dynamic compute MinStaking according to worker
-				stake >= T::MinStaking::get(),
-				Error::<T>::InsufficientStake
+			let tokenomic = Tokenomic::<T>::new(
+				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed."),
 			);
+			let min_stake = tokenomic.minimal_stake(p);
+			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
+
+			let ve = tokenomic.ve(stake, p, worker_info.confidence_level);
+			let v_max = tokenomic.v_max();
+			ensure!(ve <= v_max, Error::<T>::TooMuchStake);
+
+			let now = <T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>();
+
 			Stakes::<T>::insert(&miner, stake);
-
 			Miners::<T>::mutate(&miner, |info| {
 				if let Some(info) = info {
 					info.state = MinerState::MiningIdle;
+					info.ve = ve.to_bits();
+					info.v = ve.to_bits();
+					info.v_updated_at = now;
 				}
 			});
 
@@ -478,7 +500,7 @@ pub mod pallet {
 				worker,
 				WorkerEvent::MiningStart {
 					session_id: session_id,
-					init_v: INITIAL_V as _,
+					init_v: ve.to_bits(),
 				},
 			));
 			Self::deposit_event(Event::<T>::MinerStarted(miner));
@@ -531,6 +553,78 @@ pub mod pallet {
 		}
 	}
 
+	struct Tokenomic<T> {
+		params: TokenomicParams,
+		mark: PhantomData<T>,
+	}
+
+	impl<T> Tokenomic<T>
+	where
+		T: Config,
+		BalanceOf<T>: FixedPointConvert,
+	{
+		fn new(params: TokenomicParams) -> Self {
+			Tokenomic {
+				params,
+				mark: Default::default(),
+			}
+		}
+
+		/// Gets the minimal stake with the given performance score
+		fn minimal_stake(&self, p: u32) -> BalanceOf<T> {
+			let p = FixedPoint::from_num(p);
+			let k = FixedPoint::from_bits(self.params.k);
+			let min_stake = k * p.sqrt();
+			FixedPointConvert::from_fixed(&min_stake)
+		}
+
+		/// Calcuates the initial Ve
+		fn ve(&self, s: BalanceOf<T>, p: u32, confidence_level: u8) -> FixedPoint {
+			let f1 = FixedPoint::from_num(1);
+			let score = Self::confidence_score(confidence_level);
+			let re = FixedPoint::from_bits(self.params.re);
+			let tweaked_re = (re - f1) * score + f1;
+			let s = s.to_fixed();
+			let c = self.rig_cost(p);
+			tweaked_re * (s + c)
+		}
+
+		/// Gets the max v in fixed point
+		fn v_max(&self) -> FixedPoint {
+			FixedPoint::from_bits(self.params.v_max)
+		}
+
+		/// Gets the estimated rig costs in PHA
+		fn rig_cost(&self, p: u32) -> FixedPoint {
+			let cost_k = FixedPoint::from_bits(self.params.rig_k);
+			let cost_b = FixedPoint::from_bits(self.params.rig_b);
+			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
+			let p = FixedPoint::from_num(p);
+			(cost_k * p + cost_b) / pha_rate
+		}
+
+		/// Gets the operating cost per sec
+		#[cfg(test)]
+		fn op_cost(&self, p: u32) -> FixedPoint {
+			let cost_k = FixedPoint::from_bits(self.params.cost_k);
+			let cost_b = FixedPoint::from_bits(self.params.cost_b);
+			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
+			let p = FixedPoint::from_num(p);
+			(cost_k * p + cost_b) / pha_rate
+		}
+
+		/// Converts confidence level to score
+		fn confidence_score(confidence_level: u8) -> FixedPoint {
+			use fixed_macro::types::U64F64 as fp;
+			const SCORES: [FixedPoint; 5] = [fp!(1), fp!(1), fp!(1), fp!(0.8), fp!(0.7)];
+			if 1 <= confidence_level && confidence_level <= 5 {
+				SCORES[confidence_level as usize - 1]
+			} else {
+				SCORES[0]
+			}
+		}
+	}
+
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
 		pub tokenomic_parameters: TokenomicParams,
@@ -538,21 +632,21 @@ pub mod pallet {
 
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
+		/// Default tokenoic parameters for Phala
 		fn default() -> Self {
-			use substrate_fixed::types::U64F64 as FixedPoint;
-
-			pub fn fp(n: u64) -> FixedPoint {
-				FixedPoint::from_num(n)
-			}
-
-			let pha_rate = fp(1);
-			let rho = fp(100000099985) / 100000000000; // hourly: 1.00020,  1.0002 ** (1/300)
-			let slash_rate = fp(1) / 1000 / 300; // hourly rate: 0.001, convert to per-block rate
-			let budget_per_sec = fp(1000);
-			let v_max = fp(30000);
-			let cost_k = fp(287) / 10000 / 300; // hourly: 0.0287
-			let cost_b = fp(15) / 300; // hourly : 15
+			use fixed_macro::types::U64F64 as fp;
+			let pha_rate = fp!(1);
+			let rho = fp!(1.00000099985); // hourly: 1.00020,  1.0002 ** (1/300)
+			let slash_rate = fp!(0.001) / 300; // hourly rate: 0.001, convert to per-block rate
+			let budget_per_sec = fp!(720000) / 24 / 3600;
+			let v_max = fp!(30000);
+			let cost_k = fp!(0.0415625) / 3600 / 24 / 365; // annual 0.0415625, convert to per sec
+			let cost_b = fp!(88.59375) / 3600 / 24 / 365; // annual 88.59375, convert to per sec
 			let heartbeat_window = 10; // 10 blocks
+			let rig_k = fp!(0.3);
+			let rig_b = fp!(0);
+			let re = fp!(1.5);
+			let k = fp!(100);
 
 			Self {
 				tokenomic_parameters: TokenomicParams {
@@ -564,6 +658,10 @@ pub mod pallet {
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
 					heartbeat_window: 10,
+					rig_k: rig_k.to_bits(),
+					rig_b: rig_b.to_bits(),
+					re: re.to_bits(),
+					k: k.to_bits(),
 				},
 			}
 		}
@@ -580,7 +678,7 @@ pub mod pallet {
 	}
 
 	fn pow_target(num_tx: u32, num_workers: u32, secs_per_block: u32) -> U256 {
-		use substrate_fixed::types::U32F32;
+		use fixed::types::U32F32;
 		if num_workers == 0 {
 			return U256::zero();
 		}
@@ -622,6 +720,7 @@ pub mod pallet {
 			DOLLARS,
 		};
 		use frame_support::{assert_noop, assert_ok};
+		use fixed_macro::types::U64F64 as fp;
 
 		#[test]
 		fn test_pow_target() {
@@ -721,6 +820,74 @@ pub mod pallet {
 				assert_ok!(PhalaMining::start_mining(1, 1000 * DOLLARS));
 				// Force unbind without StakePool registration will cause a panic
 				let _ = PhalaMining::unbind(Origin::signed(1), 1);
+			});
+		}
+
+		#[test]
+		fn test_tokenomic() {
+			new_test_ext().execute_with(|| {
+				let params = TokenomicParameters::<Test>::get().unwrap();
+				let tokenomic = Tokenomic::<Test>::new(params);
+				fn pow(x: FixedPoint, n: u32) -> FixedPoint {
+					let mut i = n;
+					let mut x_pow2 = x;
+					let mut z = FixedPoint::from_num(1);
+					while i > 0 {
+						if i & 1 == 1 {
+							z *= x_pow2;
+						}
+						x_pow2 *= x_pow2;
+						i >>= 1;
+					}
+					z
+				}
+				// Vmax
+				assert_eq!(tokenomic.v_max(), fp!(30000));
+				// Minimal stake
+				assert_eq!(tokenomic.minimal_stake(1000), 3162_277660146355);
+				// Ve for different confidence level
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 1),
+					fp!(1950.00000000000000001626)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 2),
+					fp!(1950.00000000000000001626)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 3),
+					fp!(1950.00000000000000001626)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 4),
+					fp!(1819.99999999999999998694)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 5),
+					fp!(1754.9999999999999999723)
+				);
+				// Rig cost estimation
+				assert_eq!(tokenomic.rig_cost(500), fp!(150.0000000000000000054));
+				assert_eq!(tokenomic.rig_cost(2000), fp!(600.0000000000000000217));
+				assert_eq!(tokenomic.rig_cost(2800), fp!(840.00000000000000003036));
+
+				const BLOCK_SEC: u32 = 12;
+				const HOUR_BLOCKS: u32 = 3600 / BLOCK_SEC;
+				// Slash per hour (around 0.1%)
+				let slash_rate = FixedPoint::from_bits(tokenomic.params.slash_rate);
+				let slash_decay = FixedPoint::from_num(1) - slash_rate;
+				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fp!(0.9990004981683704595));
+				// Budget per day
+				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
+				assert_eq!(
+					budger_per_sec * 3600 * 24,
+					fp!(719999.99999999999999843875)
+				);
+				// Cost estimation per year
+				assert_eq!(
+					tokenomic.op_cost(2000) * 3600 * 24 * 365,
+					fp!(171.71874999890369452304)
+				);
 			});
 		}
 	}

@@ -258,9 +258,9 @@ pub mod messaging {
         /// Workers that received a heartbeat in offline state.
         pub recovered_to_online: Vec<WorkerPublicKey>,
         /// V update and payout info
-        pub settle: Vec<SettleInfo>
+        pub settle: Vec<SettleInfo>,
 
-        // NOTE: Take care of the is_empty method when adding fields
+		// NOTE: Take care of the is_empty method when adding fields
     }
 
     impl<BlockNumber> MiningInfoUpdateEvent<BlockNumber> {
@@ -372,6 +372,7 @@ pub mod messaging {
     #[cfg_attr(feature = "enable_serde", derive(Serialize, Deserialize))]
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct TokenomicParameters {
+        // V calculation
         pub pha_rate: U64F64Bits,
         pub rho: U64F64Bits,
         pub budget_per_sec: U64F64Bits,
@@ -380,6 +381,11 @@ pub mod messaging {
         pub cost_b: U64F64Bits,
         pub slash_rate: U64F64Bits,
         pub heartbeat_window: u32,
+        // Ve calculation
+        pub rig_k: U64F64Bits,
+        pub rig_b: U64F64Bits,
+        pub re: U64F64Bits,
+        pub k: U64F64Bits,
     }
 }
 
