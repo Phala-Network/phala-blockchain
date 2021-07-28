@@ -107,8 +107,11 @@ pub mod pallet {
 	pub type TokenomicParameters<T> = StorageValue<_, TokenomicParams>;
 
 	/// Total online miners
+	///
+	/// Increased when a miner is turned to MininIdle; decreased when turned to CoolingDown
 	#[pallet::storage]
-	pub type OnlineMiners<T> = StorageValue<_, u32>;
+	#[pallet::getter(fn online_miners)]
+	pub type OnlineMiners<T> = StorageValue<_, u32, ValueQuery>;
 
 	/// The expected heartbeat count (default: 20)
 	#[pallet::storage]
@@ -308,7 +311,7 @@ pub mod pallet {
 			let seed_hash = T::Randomness::random(crate::constants::RANDOMNESS_SUBJECT).0;
 			let seed: U256 = AsRef::<[u8]>::as_ref(&seed_hash).into();
 			// PoW target for the random sampling
-			let online_miners = OnlineMiners::<T>::get().unwrap_or(0);
+			let online_miners = OnlineMiners::<T>::get();
 			let num_tx =
 				ExpectedHeartbeatCount::<T>::get().unwrap_or(DEFAULT_EXPECTED_HEARTBEAT_COUNT);
 			let online_target = pow_target(num_tx, online_miners, T::ExpectedBlockTimeSec::get());
@@ -493,6 +496,7 @@ pub mod pallet {
 					info.v_updated_at = now;
 				}
 			});
+			OnlineMiners::<T>::mutate(|v| *v += 1);
 
 			let session_id = NextSessionId::<T>::get();
 			NextSessionId::<T>::put(session_id + 1);
@@ -527,6 +531,7 @@ pub mod pallet {
 			miner_info.state = MinerState::MiningCoolingDown;
 			miner_info.cool_down_start = now;
 			Miners::<T>::insert(&miner, &miner_info);
+			OnlineMiners::<T>::mutate(|v| *v -= 1); // v cannot be 0
 
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
@@ -719,8 +724,8 @@ pub mod pallet {
 			// Constants
 			DOLLARS,
 		};
-		use frame_support::{assert_noop, assert_ok};
 		use fixed_macro::types::U64F64 as fp;
+		use frame_support::{assert_noop, assert_ok};
 
 		#[test]
 		fn test_pow_target() {
@@ -879,10 +884,7 @@ pub mod pallet {
 				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fp!(0.9990004981683704595));
 				// Budget per day
 				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
-				assert_eq!(
-					budger_per_sec * 3600 * 24,
-					fp!(719999.99999999999999843875)
-				);
+				assert_eq!(budger_per_sec * 3600 * 24, fp!(719999.99999999999999843875));
 				// Cost estimation per year
 				assert_eq!(
 					tokenomic.op_cost(2000) * 3600 * 24 * 365,
