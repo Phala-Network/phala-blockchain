@@ -1073,6 +1073,7 @@ pub mod pallet {
 					worker_pubkey(1),
 					100 * DOLLARS
 				));
+				assert_eq!(PhalaMining::online_miners(), 1);
 			});
 		}
 
@@ -1676,6 +1677,7 @@ pub mod pallet {
 					worker2.clone(),
 					100 * DOLLARS
 				));
+				assert_eq!(PhalaMining::online_miners(), 2);
 				// Withdraw 100 free funds
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(1),
@@ -1703,6 +1705,7 @@ pub mod pallet {
 					0,
 					worker2.clone()
 				));
+				assert_eq!(PhalaMining::online_miners(), 0);
 				let sub_account1: u64 = pool_sub_account(0, &worker1);
 				let sub_account2: u64 = pool_sub_account(0, &worker2);
 				let miner1 = PhalaMining::miners(&sub_account1).unwrap();
