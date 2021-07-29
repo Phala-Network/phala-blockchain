@@ -656,7 +656,7 @@ pub extern "C" fn ecall_handle(
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
 
     let result = if action < BIN_ACTION_START {
-        handle_json_api(action, input_slice)
+        handle_json_api(action, input_slice, output_buf_len)
     } else {
         handle_scale_api(action, input_slice)
     };
@@ -696,7 +696,7 @@ pub extern "C" fn ecall_handle(
     }
 }
 
-fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
+fn handle_json_api(action: u8, input: &[u8], output_buf_len: usize) -> Result<Value, Value> {
     let input: serde_json::value::Value = serde_json::from_slice(input).unwrap();
     let input_value = input.get("input").unwrap().clone();
 
@@ -717,7 +717,7 @@ fn handle_json_api(action: u8, input: &[u8]) -> Result<Value, Value> {
                 ACTION_LOAD_STATES => load_states(payload),
                 ACTION_GET_RUNTIME_INFO => get_runtime_info(payload),
                 ACTION_TEST_INK => test_ink(payload),
-                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(),
+                ACTION_GET_EGRESS_MESSAGES => get_egress_messages(output_buf_len),
                 _ => unknown(),
             }
         }
@@ -1232,8 +1232,9 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     Ok(json!({}))
 }
 
-fn get_egress_messages() -> Result<Value, Value> {
-    let messages = prpc_service::get_egress_messages().map_err(display)?;
+fn get_egress_messages(output_buf_len: usize) -> Result<Value, Value> {
+    let messages =
+        prpc_service::get_egress_messages(output_buf_len * 3 / 4 - 1024).map_err(display)?;
     let bin_messages = Encode::encode(&messages);
     let b64_messages = base64::encode(bin_messages);
     Ok(json!({
