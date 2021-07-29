@@ -766,13 +766,18 @@ pub mod pallet {
 		/// Called when worker was cleanuped
 		/// After collingdown end, worker was cleanuped, whose contributed balance
 		/// would be reset to zero
-		fn on_reclaim(miner: &T::AccountId, stake: BalanceOf<T>) {
+		fn on_reclaim(miner: &T::AccountId, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
 			let pid =
 				SubAccountAssignments::<T>::take(miner).expect("Sub-acocunt must exist; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
+			let returned = orig_stake - slashed;
+			if slashed != Zero::zero() {
+				unimplemented!("pooled slash");
+			}
+
 			// with the worker been cleaned, whose stake now are free
-			pool_info.free_stake = pool_info.free_stake.saturating_add(stake);
+			pool_info.free_stake = pool_info.free_stake.saturating_add(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info);
 			StakePools::<T>::insert(&pid, &pool_info);
@@ -1544,7 +1549,7 @@ pub mod pallet {
 				// Trigger a force clear by `on_reclaim()`, releasing 100 PHA stake to partially
 				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
-				PhalaStakePool::on_reclaim(&sub_account2, 100 * DOLLARS);
+				PhalaStakePool::on_reclaim(&sub_account2, 100 * DOLLARS, 0);
 				assert_eq!(
 					take_events().as_slice(),
 					[TestEvent::PhalaStakePool(Event::Withdrawal(
@@ -1564,7 +1569,7 @@ pub mod pallet {
 				// fulfilling staker2's request.
 				// Then all 300 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
 				let _ = take_events();
-				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS);
+				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS, 0);
 				assert_eq!(
 					take_events().as_slice(),
 					[

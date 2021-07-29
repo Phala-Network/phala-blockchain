@@ -56,7 +56,9 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
 		pub state: MinerState,
+		/// The intiial V, in U64F64 bits
 		ve: u128,
+		/// The last updated V, in U64F64 bits
 		v: u128,
 		v_updated_at: u64,
 		p_instant: u64,
@@ -77,10 +79,10 @@ pub mod pallet {
 
 	pub trait OnReclaim<AccountId, Balance> {
 		/// Called when the miner has finished reclaiming and a given amount of the stake should be
-		/// returned.
+		/// returned
 		///
 		/// When called, it's not guaranteed there's still a worker associated to the miner.
-		fn on_reclaim(worker: &AccountId, stake: Balance) {}
+		fn on_reclaim(worker: &AccountId, orig_stake: Balance, slashed: Balance) {}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -169,8 +171,8 @@ pub mod pallet {
 		MinerStarted(T::AccountId),
 		/// [miner]
 		MinerStopped(T::AccountId),
-		/// [miner]
-		MinerReclaimed(T::AccountId),
+		/// [miner, original_stake, slashed]
+		MinerReclaimed(T::AccountId, BalanceOf<T>, BalanceOf<T>),
 		/// [miner, worker]
 		MinerBound(T::AccountId, WorkerPublicKey),
 		/// [miner, worker]
@@ -249,10 +251,21 @@ pub mod pallet {
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
 
-			let stake = Stakes::<T>::take(&miner).unwrap_or_default();
-			// TODO: clean up based on V
-			T::OnReclaim::on_reclaim(&miner, stake);
-			Self::deposit_event(Event::<T>::MinerReclaimed(miner));
+			// Calcualte remaining stake
+			let v = FixedPoint::from_bits(miner_info.v);
+			let ve = FixedPoint::from_bits(miner_info.ve);
+			let return_rate = (v / ve).min(FixedPoint::from_num(1));
+			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
+			// If we consider kappa as a panelty of frequent exit:
+			// 	let tokenomic = Self::tokenomic();
+			// 	let returned = return_rate * orig_stake.to_fixed() * tokenomic.kappa();
+			let returned = return_rate * orig_stake.to_fixed();
+			// Convert to Balance
+			let returned = FixedPointConvert::from_fixed(&returned);
+			let slashed = orig_stake - returned;
+
+			T::OnReclaim::on_reclaim(&miner, orig_stake, slashed);
+			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
 			Ok(())
 		}
 
@@ -488,9 +501,7 @@ pub mod pallet {
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			let tokenomic = Tokenomic::<T>::new(
-				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed."),
-			);
+			let tokenomic = Self::tokenomic();
 			let min_stake = tokenomic.minimal_stake(p);
 			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 
@@ -575,6 +586,12 @@ pub mod pallet {
 			let wallet = Self::account_id();
 			T::Currency::transfer(&wallet, &target, value, KeepAlive)
 		}
+
+		fn tokenomic() -> Tokenomic<T> {
+			let params =
+				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
+			Tokenomic::<T>::new(params)
+		}
 	}
 
 	struct Tokenomic<T> {
@@ -647,6 +664,11 @@ pub mod pallet {
 				SCORES[0]
 			}
 		}
+
+		/// Gets kappa in FixedPoint
+		fn _kappa(&self) -> FixedPoint {
+			FixedPoint::from_bits(self.params.kappa)
+		}
 	}
 
 	#[pallet::genesis_config]
@@ -671,6 +693,7 @@ pub mod pallet {
 			let rig_b = fp!(0);
 			let re = fp!(1.5);
 			let k = fp!(100);
+			let kappa = fp!(1);
 
 			Self {
 				tokenomic_parameters: TokenomicParams {
@@ -686,6 +709,7 @@ pub mod pallet {
 					rig_b: rig_b.to_bits(),
 					re: re.to_bits(),
 					k: k.to_bits(),
+					kappa: kappa.to_bits(),
 				},
 			}
 		}
