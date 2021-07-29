@@ -9,7 +9,6 @@ pub mod pallet {
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{Currency, LockIdentifier, LockableCurrency, UnixTime, WithdrawReasons},
-		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 
@@ -17,14 +16,13 @@ pub mod pallet {
 	use fixed::types::U64F64 as FixedPoint;
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 	use sp_runtime::{
-		traits::{AccountIdConversion, Saturating, TrailingZeroInput, Zero},
+		traits::{Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
 	use sp_std::collections::vec_deque::VecDeque;
 	use sp_std::vec;
 	use sp_std::vec::Vec;
 
-	const STAKEPOOL_PALLETID: PalletId = PalletId(*b"phala/sp");
 	const STAKING_ID: LockIdentifier = *b"phala/sp";
 
 	pub trait Ledger<AccountId, Balance> {
@@ -138,6 +136,8 @@ pub mod pallet {
 		InsufficientFreeStake,
 		InvalidWithdrawalAmount,
 		FailedToBindMinerAndWorker,
+		/// Internal error: Cannot withdraw from the subsidy pool. This should never happen.
+		InternalSubsidyPoolCannotWithdraw,
 	}
 
 	type BalanceOf<T> =
@@ -393,10 +393,9 @@ pub mod pallet {
 			// Clear the pending reward, and calculate the rewards belong to user
 			pool_info.clear_user_pending_reward(&mut user_info);
 			let rewards = user_info.available_rewards;
-			// TODO: transfer token from the pallet to the user, instead of creating imbalance.
-			<T as Config>::Currency::deposit_into_existing(&target, rewards.clone())?;
 			user_info.available_rewards = Zero::zero();
-
+			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
+				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
 			PoolStakers::<T>::insert(&info_key, &user_info);
 			Self::deposit_event(Event::<T>::RewardsWithdrawn(pid, who, rewards));
 
@@ -567,10 +566,6 @@ pub mod pallet {
 	}
 
 	impl<T: Config> Pallet<T> {
-		pub fn account_id() -> T::AccountId {
-			STAKEPOOL_PALLETID.into_account()
-		}
-
 		/// Adds up the newly received reward to `pool_acc`
 		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
@@ -899,26 +894,12 @@ pub mod pallet {
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey,
-			elapse_cool_down,
-			new_test_ext,
-			set_block_1,
-			setup_workers,
-			setup_workers_linked_operators,
-			take_events,
-			worker_pubkey,
-			Balance,
-			Balances,
-			Event as TestEvent,
-			Origin,
-			PhalaMining,
-			// Pallets
-			PhalaRegistry,
-			PhalaStakePool,
-			Test,
-			// Constants
-			DOLLARS,
+			ecdh_pubkey, elapse_cool_down, new_test_ext, set_block_1, setup_workers,
+			setup_workers_linked_operators, take_events, worker_pubkey, Balance,
+			Event as TestEvent, Origin, Test, DOLLARS,
 		};
+		// Pallets
+		use crate::mock::{Balances, PhalaMining, PhalaRegistry, PhalaStakePool};
 
 		#[test]
 		fn test_pool_subaccount() {
@@ -1323,11 +1304,14 @@ pub mod pallet {
 				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
 				assert_eq!(
 					take_events().as_slice(),
-					[TestEvent::PhalaStakePool(Event::RewardsWithdrawn(
-						0,
-						1,
-						100 * DOLLARS
-					))]
+					[
+						TestEvent::Balances(pallet_balances::Event::<Test>::Transfer(
+							PhalaMining::account_id(),
+							1,
+							100 * DOLLARS
+						)),
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 100 * DOLLARS))
+					]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();

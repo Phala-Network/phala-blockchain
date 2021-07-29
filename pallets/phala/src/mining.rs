@@ -8,7 +8,8 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, Randomness, UnixTime},
+		traits::{Currency, ExistenceRequirement::KeepAlive, Randomness, UnixTime},
+		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
@@ -20,7 +21,7 @@ pub mod pallet {
 		WorkerPublicKey,
 	};
 	use sp_core::U256;
-	use sp_runtime::SaturatedConversion;
+	use sp_runtime::{traits::AccountIdConversion, SaturatedConversion};
 	use sp_std::cmp;
 	use sp_std::vec::Vec;
 
@@ -29,6 +30,7 @@ pub mod pallet {
 	use fixed_sqrt::FixedSqrt;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
+	const MINING_PALLETID: PalletId = PalletId(*b"phala/pp");
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
@@ -306,6 +308,10 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert,
 	{
+		pub fn account_id() -> T::AccountId {
+			MINING_PALLETID.into_account()
+		}
+
 		fn heartbeat_challenge() {
 			// Random seed for the heartbeat challenge
 			let seed_hash = T::Randomness::random(crate::constants::RANDOMNESS_SUBJECT).0;
@@ -556,6 +562,11 @@ pub mod pallet {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
 		}
+
+		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
+			let wallet = Self::account_id();
+			T::Currency::transfer(&wallet, &target, value, KeepAlive)
+		}
 	}
 
 	struct Tokenomic<T> {
@@ -710,22 +721,21 @@ pub mod pallet {
 	mod test {
 		use super::*;
 		use crate::mock::{
-			new_test_ext,
-			set_block_1,
-			setup_workers,
-			take_events,
-			take_messages,
-			worker_pubkey,
-			Event as TestEvent,
-			Origin,
-			// Pallets
-			PhalaMining,
-			Test,
-			// Constants
-			DOLLARS,
+			new_test_ext, set_block_1, setup_workers, take_events, take_messages, worker_pubkey,
+			Event as TestEvent, Origin, Test, DOLLARS,
 		};
+		// Pallets
+		use crate::mock::{PhalaMining, System};
+
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::{assert_noop, assert_ok};
+
+		#[test]
+		fn test_mining_wallet_setup() {
+			new_test_ext().execute_with(|| {
+				assert!(System::account_exists(&PhalaMining::account_id()));
+			});
+		}
 
 		#[test]
 		fn test_pow_target() {
