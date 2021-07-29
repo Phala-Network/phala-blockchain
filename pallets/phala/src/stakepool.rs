@@ -1388,6 +1388,36 @@ pub mod pallet {
 		}
 
 		#[test]
+		fn test_drained_subsidy_pool_noop() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
+				}]);
+				assert_ok!(Balances::set_balance(
+					Origin::root(),
+					PhalaMining::account_id(),
+					1 * DOLLARS,
+					0
+				));
+				assert_noop!(
+					PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1),
+					Error::<Test>::InternalSubsidyPoolCannotWithdraw
+				);
+			});
+		}
+
+		#[test]
 		fn test_withdraw() {
 			use crate::mining::pallet::OnReclaim;
 			new_test_ext().execute_with(|| {
