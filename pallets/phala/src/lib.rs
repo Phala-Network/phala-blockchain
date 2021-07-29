@@ -9,18 +9,12 @@
 //! - `registry`: Manages the public key of offchain components (i.e. workers and contracts)
 //! - `mining`: Manages mining lifecycle, reward and slashes
 //! - `stakepool`: Pool for collaboratively mining staking
-//!
-//! # Status
-//!
-//! Now `phala-pallet` is still functional, but it will be gradually deconstructed as separate
-//! pallets.
-//!
-//! The `mq` pallet has a basic implementation and it's supposed to work. The `registry` pallet
-//! only has very basic API for testing.
 
+pub(crate) mod accumulator;
 pub(crate) mod attestation;
 pub(crate) mod balance_convert;
 pub mod constants;
+pub(crate) mod fixed_point;
 
 pub mod mining;
 pub mod mq;
