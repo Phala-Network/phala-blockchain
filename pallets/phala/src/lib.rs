@@ -10,11 +10,16 @@
 //! - `mining`: Manages mining lifecycle, reward and slashes
 //! - `stakepool`: Pool for collaboratively mining staking
 
-pub(crate) mod accumulator;
-pub(crate) mod attestation;
-pub(crate) mod balance_convert;
-pub mod constants;
-pub(crate) mod fixed_point;
+// Re-export
+use utils::{
+	accumulator,
+	attestation,
+	balance_convert,
+	constants,
+	fixed_point,
+};
+
+mod utils;
 
 pub mod mining;
 pub mod mq;
