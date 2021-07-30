@@ -14,9 +14,6 @@ use sp_runtime::{
 use crate::{self as bridge, Config};
 pub use pallet_balances as balances;
 
-pub(crate) type Balance = u128;
-pub(crate) type BlockNumber = u64;
-
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
 

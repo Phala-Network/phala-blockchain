@@ -29,6 +29,7 @@ pallet-bridge = { path = "../bridge" , default-features = false }
 hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
+hex-literal = "0.3"
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
 

@@ -2,7 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, Get};
 use frame_support::{
 	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
@@ -42,22 +42,14 @@ pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 
 	/// The currency mechanism.
 	type Currency: Currency<Self::AccountId>;
+
+	type BridgeTokenId: Get<ResourceId>;
+	type BridgeLotteryId: Get<ResourceId>;
 }
 
 decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
-		BridgeTokenId get(fn bridge_tokenid): ResourceId;
-		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
 		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::ChainId => (BalanceOf<T>, u32);
-	}
-
-	add_extra_genesis {
-		config(bridge_tokenid): ResourceId;
-		config(bridge_lotteryid): ResourceId;
-		build(|config: &GenesisConfig| {
-			BridgeTokenId::put(config.bridge_tokenid);
-			BridgeLotteryId::put(config.bridge_lotteryid);
-		});
 	}
 }
 
@@ -125,9 +117,7 @@ decl_module! {
 			};
 			T::Currency::transfer(&source, &bridge_id, (amount + fee).into(), AllowDeath)?;
 
-			let resource_id = Self::bridge_tokenid();
-
-			<bridge::Module<T>>::transfer_fungible(dest_id, resource_id, recipient, U256::from(amount.saturated_into::<u128>()))
+			<bridge::Module<T>>::transfer_fungible(dest_id, T::BridgeTokenId::get(), recipient, U256::from(amount.saturated_into::<u128>()))
 		}
 
 		//
@@ -207,9 +197,8 @@ impl<T: Config> Module<T> {
 			<bridge::Module<T>>::chain_whitelisted(dest_id),
 			Error::<T>::InvalidTransfer
 		);
-		let resource_id = Self::bridge_lotteryid();
 		let metadata: Vec<u8> = payload.encode();
-		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
+		<bridge::Module<T>>::transfer_generic(dest_id, T::BridgeLotteryId::get(), metadata)
 	}
 
 	fn push_message(payload: impl Encode + BindTopic) {

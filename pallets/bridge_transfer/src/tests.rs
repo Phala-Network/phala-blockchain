@@ -2,34 +2,46 @@
 
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeTransfer, Call, Event, Origin, ProposalLifetime, Test, ENDOWED_BALANCE, RELAYER_A,
-	RELAYER_B, RELAYER_C,
+	BridgeTransfer, Call, Event, Origin, ProposalLifetime, ENDOWED_BALANCE, RELAYER_A,
+	RELAYER_B, RELAYER_C, BridgeLotteryId, BridgeTokenId
 };
 use super::*;
 use frame_support::dispatch::DispatchError;
 use frame_support::{assert_noop, assert_ok};
 
 use codec::Encode;
+use hex_literal::hex;
 
 use phala_types::messaging::Lottery;
 
 const TEST_THRESHOLD: u32 = 2;
 
 fn make_generic_proposal(metada: Vec<u8>) -> Call {
-	let resource_id = BridgeTransfer::bridge_lotteryid();
+	let resource_id = BridgeLotteryId::get();
 	Call::BridgeTransfer(crate::Call::lottery_handler(metada, resource_id))
 }
 
 fn make_transfer_proposal(to: u64, amount: u64) -> Call {
-	let resource_id = BridgeTransfer::bridge_lotteryid();
+	let resource_id = BridgeTokenId::get();
 	Call::BridgeTransfer(crate::Call::transfer(to, amount.into(), resource_id))
+}
+
+#[test]
+fn constant_equality() {
+	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
+	let encoded: [u8; 32] = hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
+	assert_eq!(r_id, encoded);
+
+	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"lottery"));
+	let encoded: [u8; 32] = hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
+	assert_eq!(r_id, encoded);
 }
 
 #[test]
 fn lottery_output() {
 	new_test_ext().execute_with(|| {
 		let dest_chain = 0;
-		let resource_id = BridgeTransfer::bridge_lotteryid();
+		let resource_id = BridgeLotteryId::get();
 		let lottery: Lottery = Lottery::BtcAddresses {
 			address_set: vec![b"123456".to_vec()].to_vec(),
 		};
@@ -52,7 +64,7 @@ fn lottery_output() {
 fn transfer_native() {
 	new_test_ext().execute_with(|| {
 		let dest_chain = 0;
-		let resource_id = BridgeTransfer::bridge_tokenid();
+		let resource_id = BridgeTokenId::get();
 		let amount: u64 = 100;
 		let recipient = vec![99];
 
@@ -84,7 +96,7 @@ fn transfer_native() {
 fn execute_lottery_handler_bad_origin() {
 	new_test_ext().execute_with(|| {
 		let payload: Vec<u8> = hex::decode("00000000010000000100000001").unwrap();
-		let resource_id = BridgeTransfer::bridge_lotteryid();
+		let resource_id = BridgeLotteryId::get();
 		assert_ok!(BridgeTransfer::lottery_handler(
 			Origin::signed(Bridge::account_id()),
 			payload.clone(),
@@ -112,7 +124,7 @@ fn transfer() {
 	new_test_ext().execute_with(|| {
 		// Check inital state
 		let bridge_id: u64 = Bridge::account_id();
-		let resource_id = BridgeTransfer::bridge_lotteryid();
+		let resource_id = BridgeTokenId::get();
 		assert_eq!(Balances::free_balance(&bridge_id), ENDOWED_BALANCE);
 		// Transfer and check result
 		assert_ok!(BridgeTransfer::transfer(
