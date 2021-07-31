@@ -45,6 +45,6 @@ ifeq ($(XARGO_SGX), 1)
 	RUST_TARGET_PATH=$(Rust_Target_Path) xargo build --target x86_64-unknown-linux-sgx --release
 	cp ./target/x86_64-unknown-linux-sgx/release/libenclaveapp.a ../lib/libenclave.a
 else
-	cargo build --release
-	cp ./target/release/libenclaveapp.a ../lib/libenclave.a
+	cargo build --target x86_64-unknown-linux-gnu -Z build-std=panic_abort,std -Z build-std-features=
+	cp ./target/x86_64-unknown-linux-gnu/debug/libenclaveapp.a ../lib/libenclave.a
 endif

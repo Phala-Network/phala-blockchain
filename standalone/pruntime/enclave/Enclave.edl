@@ -1,6 +1,5 @@
 enclave {
     from "sgx_backtrace.edl" import *;
-    from "sgx_tstd.edl" import *;
     from "sgx_stdio.edl" import *;
     from "sgx_fs.edl" import *;
     from "sgx_net.edl" import *;
@@ -8,6 +7,7 @@ enclave {
     from "sgx_tstdc.edl" import *;
     from "sgx_env.edl" import *;
     from "sgx_tprotected_fs.edl" import *;
+    from "sgx_pthread.edl" import *;
 
     include "sgx_quote.h"
 

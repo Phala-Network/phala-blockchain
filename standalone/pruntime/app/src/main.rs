@@ -567,9 +567,11 @@ fn main() {
 
     let eid = get_eid();
     let mut retval = sgx_status_t::SGX_SUCCESS;
+    info!("call ecall_init");
     let result = unsafe {
         ecall_init(eid, &mut retval)
     };
+    info!("ecall_init result={} rv={}", result, retval);
 
     if result != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
