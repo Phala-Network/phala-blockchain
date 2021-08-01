@@ -4,12 +4,13 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use crate::accumulator::Accumulator;
-	use crate::balance_convert::FixedPointConvert;
+	use crate::balance_convert::{div as bdiv, mul as bmul, FixedPointConvert};
 	use crate::fixed_point::CodecFixedPoint;
 	use crate::mining;
 	use crate::registry;
 
 	use fixed::types::U64F64 as FixedPoint;
+	use fixed_macro::types::U64F64 as fp;
 
 	use frame_support::{
 		dispatch::DispatchResult,
@@ -21,9 +22,7 @@ pub mod pallet {
 		traits::{Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
-	use sp_std::collections::vec_deque::VecDeque;
-	use sp_std::vec;
-	use sp_std::vec::Vec;
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, vec::Vec};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
@@ -151,7 +150,7 @@ pub mod pallet {
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn on_finalize(_n: T::BlockNumber) {
 			let now = <T as registry::Config>::UnixTime::now()
@@ -203,7 +202,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Creates a new stake pool
 		#[pallet::weight(0)]
@@ -220,6 +219,7 @@ pub mod pallet {
 					owner_reward: Zero::zero(),
 					cap: None,
 					reward_acc: CodecFixedPoint::zero(),
+					total_shares: Zero::zero(),
 					total_stake: Zero::zero(),
 					free_stake: Zero::zero(),
 					workers: vec![],
@@ -438,30 +438,29 @@ pub mod pallet {
 			let mut user_info = match Self::pool_stakers(&info_key) {
 				Some(mut user_info) => {
 					pool_info.settle_user_pending_reward(&mut user_info);
+					// XXX: settle slash
 					user_info
 				}
 				None => UserStakeInfo {
 					user: who.clone(),
-					amount: Zero::zero(),
+					locked: Zero::zero(),
+					shares: Zero::zero(),
 					available_rewards: Zero::zero(),
 					reward_debt: Zero::zero(),
 				},
 			};
-			// Add the stake
-			user_info.amount.saturating_accrue(a);
-			pool_info.reset_pending_reward(&mut user_info);
+			pool_info.add_stake(&mut user_info, a);
+
+			// Persist
 			PoolStakers::<T>::insert(&info_key, &user_info);
 			// Lock the funds
 			Self::ledger_accrue(&who, a);
-			// Update pool info
-			pool_info.total_stake = pool_info.total_stake.saturating_add(a);
-			pool_info.free_stake = pool_info.free_stake.saturating_add(a);
 
-			// we have new free stake now, try handle the waitting withdraw queue
+			// We have new free stake now, try handle the waitting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
 
+			// Persist
 			StakePools::<T>::insert(&pid, &pool_info);
-
 			Self::deposit_event(Event::<T>::Contribution(pid, who, a));
 			Ok(())
 		}
@@ -475,14 +474,14 @@ pub mod pallet {
 		///     take effect immediately.
 		/// - else the withdrawal would be queued and delayed until there is enough free stake.
 		#[pallet::weight(0)]
-		pub fn withdraw(origin: OriginFor<T>, pid: u64, amount: BalanceOf<T>) -> DispatchResult {
+		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let info_key = (pid.clone(), who.clone());
 			let mut user_info =
 				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
 
 			ensure!(
-				amount > Zero::zero() && user_info.amount >= amount,
+				BalanceOf::<T>::zero() < shares && shares <= user_info.shares,
 				Error::<T>::InvalidWithdrawalAmount
 			);
 
@@ -495,12 +494,12 @@ pub mod pallet {
 			if !pool_info.withdraw_queue.is_empty() {
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
 					user: who.clone(),
-					amount: amount,
+					shares,
 					start_time: now,
 				});
 				Self::maybe_add_withdraw_queue(now, pool_info.pid);
 			} else {
-				Self::try_withdraw(&mut pool_info, &mut user_info, amount);
+				Self::try_withdraw(&mut pool_info, &mut user_info, shares);
 			}
 
 			PoolStakers::<T>::insert(&info_key, &user_info);
@@ -571,17 +570,17 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Adds up the newly received reward to `reward_acc`
 		fn handle_pool_new_reward(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
-			if rewards > Zero::zero() && pool_info.total_stake > Zero::zero() {
+			if rewards > Zero::zero() && pool_info.total_shares > Zero::zero() {
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
-				pool_info.add_reward(rewards - commission);
+				pool_info.distribute_reward(rewards - commission);
 			}
 		}
 
@@ -590,48 +589,49 @@ pub mod pallet {
 		/// The withdraw request would be delayed if the free stake is not enough, otherwise
 		/// withdraw from the free stake immediately.
 		///
-		/// WARNING:
-		/// 1. The method assumes user pending reward is already cleared.
-		/// 2. The updates are made in `pool_info` and `user_info`. It's up to the caller to
-		///     persist the data.
+		/// The updates are made in `pool_info` and `user_info`. It's up to the caller to persist
+		/// the data.
+		///
+		/// Requires:
+		/// 1. The user's pending reward is already settled.
+		/// 2. The user's pending slash is already settled.
+		/// 3. The pool must has shares and stake (or it can cause division by zero error)
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
-			amount: BalanceOf<T>,
+			shares: BalanceOf<T>,
 		) {
-			// enough free stake, withdraw directly
-			if pool_info.free_stake >= amount {
-				pool_info.free_stake = pool_info.free_stake.saturating_sub(amount);
-				pool_info.total_stake = pool_info.total_stake.saturating_sub(amount);
-				user_info.amount = user_info.amount.saturating_sub(amount);
-				Self::ledger_reduce(&user_info.user, amount);
+			let free_shares = match pool_info.share_price() {
+				Some(price) if price != fp!(0) => bdiv(pool_info.free_stake, &price),
+				// LOL, 100% slashed. We allow to withdraw all any number of shares with zero token
+				// in return.
+				_ => shares,
+			};
+			let withdrawing_shares = shares.min(free_shares);
+			let queued_shares = shares - withdrawing_shares;
+			// Try withdraw immediately if we can
+			if withdrawing_shares > Zero::zero() {
+				// XXX: settle the pending slash
+				// Overflow warning: remove_stake is carefully written to avoid precision error.
+				let reduced = pool_info
+					.remove_stake(user_info, withdrawing_shares)
+					.expect("There are enough withdrawing_shares; qed.");
+				Self::ledger_reduce(&user_info.user, reduced);
 				Self::deposit_event(Event::<T>::Withdrawal(
 					pool_info.pid,
 					user_info.user.clone(),
-					amount,
+					reduced,
 				));
-			} else {
+			}
+			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
+			// queue. When the pool has free stake again, the withdrawal will be fulfilled.
+			if queued_shares > Zero::zero() {
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
 					.saturated_into::<u64>();
-				// all of the free_stake would be withdrew back to user
-				let delta = pool_info.free_stake;
-				let unwithdraw_amount = amount.saturating_sub(pool_info.free_stake);
-				pool_info.total_stake = pool_info.total_stake.saturating_sub(delta);
-				user_info.amount.saturating_reduce(delta);
-				Self::ledger_reduce(&user_info.user, pool_info.free_stake);
-				Self::deposit_event(Event::<T>::Withdrawal(
-					pool_info.pid,
-					user_info.user.clone(),
-					pool_info.free_stake,
-				));
-				pool_info.free_stake = Zero::zero();
-
-				// case some locked asset has not been withdraw(unlock) to user, add it to withdraw queue.
-				// when pool has free stake again, the withdraw would be handled
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
 					user: user_info.user.clone(),
-					amount: unwithdraw_amount,
+					shares: queued_shares,
 					start_time: now,
 				});
 				Self::maybe_add_withdraw_queue(now, pool_info.pid);
@@ -642,6 +642,13 @@ pub mod pallet {
 
 		/// Tries to fulfill the withdraw queue with the newly freed stake
 		fn try_process_withdraw_queue(pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>) {
+			// The share price shouldn't change at any point in this function. So we can calculate
+			// only once at the beginning.
+			let price = match pool_info.share_price() {
+				Some(price) => price,
+				None => return,
+			};
+
 			while pool_info.free_stake > Zero::zero() {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
@@ -649,24 +656,30 @@ pub mod pallet {
 					let mut user_info = Self::pool_stakers(&info_key).unwrap();
 					pool_info.settle_user_pending_reward(&mut user_info);
 					// Try to fulfill the withdraw requests as much as possible
-					let delta = sp_std::cmp::min(pool_info.free_stake, withdraw.amount);
-					pool_info.free_stake.saturating_reduce(delta);
-					pool_info.total_stake.saturating_reduce(delta);
-					withdraw.amount.saturating_reduce(delta);
-					user_info.amount.saturating_reduce(delta);
+					let free_shares = if price == fp!(0) {
+						withdraw.shares // 100% slashed
+					} else {
+						bdiv(pool_info.free_stake, &price)
+					};
+					let withdrawing_shares = free_shares.min(withdraw.shares);
+					// XXX: settle the pending slash
+					let reduced = pool_info
+						.remove_stake(&mut user_info, withdrawing_shares)
+						.expect("Remove only what we have; qed.");
+					withdraw.shares.saturating_reduce(withdrawing_shares);
 					// Actually withdraw the funds
-					Self::ledger_reduce(&user_info.user, delta);
+					Self::ledger_reduce(&user_info.user, reduced);
 					Self::deposit_event(Event::<T>::Withdrawal(
 						pool_info.pid,
 						user_info.user.clone(),
-						delta,
+						reduced,
 					));
 					// Update the pending reward after changing the staked amount
 					pool_info.reset_pending_reward(&mut user_info);
 					PoolStakers::<T>::insert(&info_key, &user_info);
 					// Update if the withdraw is partially fulfilled, otherwise pop it out of the
 					// queue
-					if withdraw.amount == Zero::zero() {
+					if withdraw.shares == Zero::zero() {
 						pool_info.withdraw_queue.pop_front();
 					} else {
 						*pool_info.withdraw_queue.front_mut().unwrap() = withdraw;
@@ -737,7 +750,7 @@ pub mod pallet {
 
 	impl<T: Config> mining::OnReward for Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
@@ -759,7 +772,7 @@ pub mod pallet {
 	impl<T: Config> mining::OnUnbound for Pallet<T>
 	where
 		T: mining::Config,
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
 			// Assuming force == true?
@@ -770,7 +783,7 @@ pub mod pallet {
 	impl<T: Config> mining::OnReclaim<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
 		T: mining::Config,
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when worker was cleanuped
 		/// After collingdown end, worker was cleanuped, whose contributed balance
@@ -795,7 +808,7 @@ pub mod pallet {
 
 	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
-		BalanceOf<T>: FixedPointConvert,
+		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
@@ -841,6 +854,8 @@ pub mod pallet {
 		cap: Option<Balance>,
 		/// The reward accumulator
 		reward_acc: CodecFixedPoint,
+		/// Total shares
+		total_shares: Balance,
 		/// Total stake
 		total_stake: Balance,
 		/// Total free stake (unused)
@@ -854,8 +869,93 @@ pub mod pallet {
 	impl<AccountId, Balance> PoolInfo<AccountId, Balance>
 	where
 		AccountId: Default,
-		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
+		/// Adds some stake to a user.
+		///
+		/// No dirty slash allowed. Usually it doesn't change the price of the share, unless the
+		/// share price is zero (all slashed), which is a really a disrupting case that we don't
+		/// even bother to deal with.
+		fn add_stake(&mut self, user: &mut UserStakeInfo<AccountId, Balance>, amount: Balance) {
+			self.assert_slash_clean(user);
+			// Calcuate shares to add
+			let shares = match self.share_price() {
+				Some(price) if price != fp!(0) => bdiv(amount, &price),
+				_ => amount, // adding new stake (share price = 1)
+			};
+			// Add the stake
+			user.shares.saturating_accrue(shares);
+			user.locked.saturating_accrue(amount);
+			self.reset_pending_reward(user);
+			// Update self
+			self.total_shares += shares;
+			self.total_stake.saturating_accrue(amount);
+			self.free_stake.saturating_accrue(amount);
+		}
+
+		/// Removes some shares from a user and returns the removed stake amount.
+		///
+		/// This function can deal with fixed point precision issue. However it also requires:
+		///
+		/// - There's no dirty slash
+		/// - `shares` mustn't exceed the user shares.
+		///
+		/// It returns `None` and makes no change if there's any error. Otherwise it returns the
+		/// amount of the actual removed stake.
+		fn remove_stake(
+			&mut self,
+			user: &mut UserStakeInfo<AccountId, Balance>,
+			shares: Balance,
+		) -> Option<Balance> {
+			self.assert_slash_clean(user);
+			let total_shares = self.total_shares.checked_sub(&shares)?;
+			let price = self.share_price()?;
+			let amount = bmul(shares, &price);
+			// In case `amount` is a little bit larger than `free_stake`
+			let amount = amount.min(self.free_stake);
+			let user_shares = user.shares.checked_sub(&shares)?;
+			let user_locked = user.locked.checked_sub(&amount)?;
+			// Apply updates
+			self.free_stake -= amount;
+			self.total_stake -= amount;
+			self.total_shares = total_shares;
+			user.shares = user_shares;
+			user.locked = user_locked;
+			Some(amount)
+		}
+
+		/// Asserts there's no dirty slash (in debue profile only)
+		fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
+			core::debug_assert!(
+				self.total_shares == Zero::zero()
+					|| user.shares.to_fixed() * self.share_price().unwrap()
+						== user.locked.to_fixed(),
+				"There shouldn't be any dirty slash (user shares = {}, price = {:?}, user locked = {})",
+				user.shares, self.share_price(), user.locked,
+			);
+		}
+
+		/// Settles the pending slash for a pool user.
+		///
+		/// Returns the slashed amount if succeeded, otherwise None.
+		fn settle_slash(&self, user: &mut UserStakeInfo<AccountId, Balance>) -> Option<Balance> {
+			let price = self.share_price()?;
+			let locked = user.locked;
+			let new_locked = bmul(user.shares, &price);
+			user.locked = new_locked;
+			// The actual slashed amount. Usually slash will only cause the share price decreasing.
+			// However in some edge case (i.e. the pool got slashed to 0 and then new contribution
+			// added), the locked amount may even become larger
+			Some(locked.saturating_sub(new_locked))
+		}
+
+		/// Returns the price of one share, or None if no share at all.
+		fn share_price(&self) -> Option<FixedPoint> {
+			self.total_stake
+				.to_fixed()
+				.checked_div(self.total_shares.to_fixed())
+		}
+
 		/// Settles all the pending rewards of a user and move to `available_rewards` for claiming
 		fn settle_user_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
 			let pending_reward = self.pending_reward(user);
@@ -867,9 +967,9 @@ pub mod pallet {
 		//
 		// Additional rewards contribute to the face value of the pool shares. The vaue of each
 		// share effectively grows by (rewards / total_shares).
-		fn add_reward(&mut self, rewards: Balance) {
+		fn distribute_reward(&mut self, rewards: Balance) {
 			Accumulator::<Balance>::distribute(
-				self.total_stake,
+				self.total_shares,
 				self.reward_acc.get_mut(),
 				rewards,
 			);
@@ -877,13 +977,13 @@ pub mod pallet {
 
 		/// Calculates the pending reward a user is holding
 		fn pending_reward(&self, user: &UserStakeInfo<AccountId, Balance>) -> Balance {
-			Accumulator::<Balance>::pending(user.amount, &self.reward_acc.into(), user.reward_debt)
+			Accumulator::<Balance>::pending(user.shares, &self.reward_acc.into(), user.reward_debt)
 		}
 
 		/// Resets user's `reward_debt` to remove all the pending rewards
 		fn reset_pending_reward(&self, user: &mut UserStakeInfo<AccountId, Balance>) {
 			Accumulator::<Balance>::clear_pending(
-				user.amount,
+				user.shares,
 				&self.reward_acc.into(),
 				&mut user.reward_debt,
 			);
@@ -899,8 +999,10 @@ pub mod pallet {
 	pub struct UserStakeInfo<AccountId: Default, Balance> {
 		/// User account
 		user: AccountId,
-		/// Stake
-		amount: Balance,
+		/// The actual locked stake
+		locked: Balance,
+		/// The share in the pool
+		shares: Balance,
 		/// Claimable rewards
 		available_rewards: Balance,
 		/// The debt of a user's stake subject to the pool reward accumulator
@@ -910,7 +1012,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId: Default, Balance> {
 		user: AccountId,
-		amount: Balance,
+		shares: Balance,
 		start_time: u64,
 	}
 
@@ -965,6 +1067,7 @@ pub mod pallet {
 						owner_reward: 0,
 						cap: None,
 						reward_acc: CodecFixedPoint::zero(),
+						total_shares: 0,
 						total_stake: 0,
 						free_stake: 0,
 						workers: Vec::new(),
@@ -1377,7 +1480,7 @@ pub mod pallet {
 					300 * DOLLARS
 				));
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
-				assert_eq!(staker1.amount, 400 * DOLLARS);
+				assert_eq!(staker1.shares, 400 * DOLLARS);
 				assert_eq!(staker1.reward_debt, 800 * DOLLARS);
 
 				// Mined 800 PHA
@@ -1411,9 +1514,9 @@ pub mod pallet {
 				);
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker1.amount, 0);
+				assert_eq!(staker1.shares, 0);
 				assert_eq!(staker1.reward_debt, 0);
-				assert_eq!(staker2.amount, 400 * DOLLARS);
+				assert_eq!(staker2.shares, 400 * DOLLARS);
 			});
 		}
 
@@ -1476,7 +1579,7 @@ pub mod pallet {
 					100 * DOLLARS
 				));
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(staker2.amount, 1000 * DOLLARS);
+				assert_eq!(staker2.shares, 1000 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(1000 * DOLLARS)]);
 				// Cannot withdraw more than one's stake
 				assert_noop!(
@@ -1493,7 +1596,7 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
 				assert_eq!(pool.free_stake, 1 * DOLLARS);
 				assert_eq!(pool.total_stake, 501 * DOLLARS);
-				assert_eq!(staker2.amount, 501 * DOLLARS);
+				assert_eq!(staker2.shares, 501 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(501 * DOLLARS)]);
 				// Withdraw 2 PHA will only fulfill 1 PHA from the free stake, leaving 1 PHA in the
 				// withdraw queue
@@ -1502,14 +1605,14 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
 				assert_eq!(pool.free_stake, 0);
 				assert_eq!(pool.total_stake, 500 * DOLLARS);
-				assert_eq!(staker2.amount, 500 * DOLLARS);
+				assert_eq!(staker2.shares, 500 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(500 * DOLLARS)]);
 				// Check the queue
 				assert_eq!(
 					pool.withdraw_queue,
 					vec![WithdrawInfo {
 						user: 2,
-						amount: 1 * DOLLARS,
+						shares: 1 * DOLLARS,
 						start_time: 0
 					}]
 				);
@@ -1541,8 +1644,8 @@ pub mod pallet {
 				assert_eq!(pool.free_stake, 0);
 				assert_eq!(pool.total_stake, 500 * DOLLARS);
 				assert_eq!(pool.withdraw_queue.is_empty(), true);
-				assert_eq!(staker1.amount, 1 * DOLLARS);
-				assert_eq!(staker2.amount, 499 * DOLLARS);
+				assert_eq!(staker1.shares, 1 * DOLLARS);
+				assert_eq!(staker2.shares, 499 * DOLLARS);
 				assert_eq!(Balances::locks(2), vec![the_lock(499 * DOLLARS)]);
 				// Staker2 and 1 withdraw 199 PHA, 1 PHA, queued, and then wait for force clear
 				assert_ok!(PhalaStakePool::withdraw(
@@ -1559,18 +1662,18 @@ pub mod pallet {
 					vec![
 						WithdrawInfo {
 							user: 2,
-							amount: 199 * DOLLARS,
+							shares: 199 * DOLLARS,
 							start_time: 0
 						},
 						WithdrawInfo {
 							user: 1,
-							amount: 1 * DOLLARS,
+							shares: 1 * DOLLARS,
 							start_time: 0
 						}
 					]
 				);
-				assert_eq!(staker1.amount, 1 * DOLLARS);
-				assert_eq!(staker2.amount, 499 * DOLLARS);
+				assert_eq!(staker1.shares, 1 * DOLLARS);
+				assert_eq!(staker2.shares, 499 * DOLLARS);
 				// Trigger a force clear by `on_reclaim()`, releasing 100 PHA stake to partially
 				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
@@ -1588,8 +1691,8 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
 				assert_eq!(pool.total_stake, 400 * DOLLARS);
 				assert_eq!(pool.free_stake, 0);
-				assert_eq!(staker1.amount, 1 * DOLLARS);
-				assert_eq!(staker2.amount, 399 * DOLLARS);
+				assert_eq!(staker1.shares, 1 * DOLLARS);
+				assert_eq!(staker2.shares, 399 * DOLLARS);
 				// Trigger another force clear, releasing all the remaining 400 PHA stake,
 				// fulfilling staker2's request.
 				// Then all 300 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
@@ -1607,8 +1710,8 @@ pub mod pallet {
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
 				assert_eq!(pool.total_stake, 300 * DOLLARS);
 				assert_eq!(pool.free_stake, 300 * DOLLARS);
-				assert_eq!(staker1.amount, 0);
-				assert_eq!(staker2.amount, 300 * DOLLARS);
+				assert_eq!(staker1.shares, 0);
+				assert_eq!(staker2.shares, 300 * DOLLARS);
 				assert_eq!(Balances::locks(1), vec![]);
 				assert_eq!(Balances::locks(2), vec![the_lock(300 * DOLLARS)]);
 
@@ -1697,7 +1800,7 @@ pub mod pallet {
 					100 * DOLLARS
 				);
 				assert_eq!(
-					PoolStakers::<Test>::get(&(0, 1)).unwrap().amount,
+					PoolStakers::<Test>::get(&(0, 1)).unwrap().shares,
 					100 * DOLLARS
 				);
 
@@ -1711,7 +1814,7 @@ pub mod pallet {
 					300 * DOLLARS
 				);
 				assert_eq!(
-					PoolStakers::<Test>::get(&(0, 2)).unwrap().amount,
+					PoolStakers::<Test>::get(&(0, 2)).unwrap().shares,
 					200 * DOLLARS
 				);
 				// Shouldn't exceed the pool cap

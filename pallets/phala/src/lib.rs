@@ -11,13 +11,7 @@
 //! - `stakepool`: Pool for collaboratively mining staking
 
 // Re-export
-use utils::{
-	accumulator,
-	attestation,
-	balance_convert,
-	constants,
-	fixed_point,
-};
+use utils::{accumulator, attestation, balance_convert, constants, fixed_point};
 
 mod utils;
 

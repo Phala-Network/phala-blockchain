@@ -1,8 +1,6 @@
 use frame_support::PalletId;
 
-pub const PALLET_ID: PalletId = PalletId(*b"Phala!!!");
 pub const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
-pub const BUILTIN_MACHINE_ID: &'static str = "BUILTIN";
 pub const BLOCK_REWARD_TO_KEEP: u32 = 20;
 pub const ROUND_STATS_TO_KEEP: u32 = 2;
 pub const PERCENTAGE_BASE: u32 = 100_000;

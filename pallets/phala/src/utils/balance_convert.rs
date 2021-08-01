@@ -19,3 +19,17 @@ impl FixedPointConvert for u128 {
 		v.saturating_div(FIXED_1E12)
 	}
 }
+
+pub fn mul<B>(x: B, y: &FixedPoint) -> B
+where
+	B: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+{
+	FixedPointConvert::from_fixed(&(x.to_fixed() * y))
+}
+
+pub fn div<B>(x: B, y: &FixedPoint) -> B
+where
+	B: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+{
+	FixedPointConvert::from_fixed(&(x.to_fixed() / y))
+}
