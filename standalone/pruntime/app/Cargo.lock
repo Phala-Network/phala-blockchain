@@ -369,6 +369,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "az"
+version = "1.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "822d7d63e0c0260a050f6b1f0d316f5c79b9eab830aca526ed904e1011bd64ca"
+
+[[package]]
 name = "backtrace"
 version = "0.3.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -521,6 +527,12 @@ name = "byte-tools"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3b5ca7a04898ad4bcd41c90c5285445ff5b791899bb1b0abdd2a2aa791211d7"
+
+[[package]]
+name = "bytemuck"
+version = "1.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "72957246c41db82b8ef88a5486143830adeb8227ef9837740bdec67724cf2c5b"
 
 [[package]]
 name = "byteorder"
@@ -1043,6 +1055,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "fixed"
+version = "1.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c97cabfe1ce0db024d64e9f688469e80a8e2b36cb792b09ba33e1ee8d21d00ae"
+dependencies = [
+ "az",
+ "bytemuck",
+ "half",
+ "typenum",
+]
+
+[[package]]
 name = "fixed-hash"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1052,6 +1076,49 @@ dependencies = [
  "rand 0.8.4",
  "rustc-hex",
  "static_assertions",
+]
+
+[[package]]
+name = "fixed-macro"
+version = "1.1.1"
+source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+dependencies = [
+ "fixed",
+ "fixed-macro-impl",
+ "fixed-macro-types",
+]
+
+[[package]]
+name = "fixed-macro-impl"
+version = "1.1.1"
+source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+dependencies = [
+ "fixed",
+ "paste",
+ "proc-macro-error",
+ "proc-macro2 1.0.27",
+ "quote 1.0.9",
+ "syn 1.0.73",
+]
+
+[[package]]
+name = "fixed-macro-types"
+version = "1.1.1"
+source = "git+https://github.com/kvinwang/fixed-macro.git#fe688ef1dbb350c67d4be00bb808f726439289dd"
+dependencies = [
+ "fixed",
+ "fixed-macro-impl",
+]
+
+[[package]]
+name = "fixed-sqrt"
+version = "0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73d44f350be1d321180dc53d14b3a03570607ae6b3d9d681607e554f95b284c8"
+dependencies = [
+ "fixed",
+ "integer-sqrt",
+ "typenum",
 ]
 
 [[package]]
@@ -1503,6 +1570,12 @@ dependencies = [
  "tracing",
  "tracing-futures",
 ]
+
+[[package]]
+name = "half"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62aca2aba2d62b4a7f5b33f3712cb1b0692779a56fb510499d5c0aa594daeaf3"
 
 [[package]]
 name = "hash-db"
@@ -3311,6 +3384,9 @@ version = "3.2.6"
 dependencies = [
  "base64 0.11.0",
  "chrono",
+ "fixed",
+ "fixed-macro",
+ "fixed-sqrt",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -3327,7 +3403,6 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "substrate-fixed",
  "untrusted",
  "webpki",
 ]
@@ -4966,15 +5041,6 @@ dependencies = [
  "schnorrkel",
  "sha2 0.8.2",
  "zeroize",
-]
-
-[[package]]
-name = "substrate-fixed"
-version = "0.5.6"
-source = "git+https://github.com/encointer/substrate-fixed.git?rev=b33d186888c60f38adafcfc0ec3a21aab263aef1#b33d186888c60f38adafcfc0ec3a21aab263aef1"
-dependencies = [
- "parity-scale-codec",
- "typenum",
 ]
 
 [[package]]

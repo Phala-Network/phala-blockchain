@@ -15,7 +15,6 @@ sp-io   = { path = "../../substrate/primitives/io", default-features = false, fe
 sp-state-machine = { path = "../../substrate/primitives/state-machine", default-features = false }
 
 serde = { version = "1.0", default-features = false, features = ["derive", "alloc"], optional = true }
-serde_sgx = { package="serde", git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive", "alloc"], optional = true }
 
 [dev-dependencies]
 sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false }
@@ -27,4 +26,3 @@ impl-serde = "0.3"
 
 [features]
 default = ["serde"]
-sgx = ["serde_sgx"]

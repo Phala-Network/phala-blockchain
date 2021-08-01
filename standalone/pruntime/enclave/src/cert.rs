@@ -22,6 +22,7 @@ use std::io::BufReader;
 use webpki;
 use yasna;
 use yasna::models::ObjectIdentifier;
+use std::convert::TryFrom;
 
 const CERTEXPIRYDAYS: i64 = 90i64;
 

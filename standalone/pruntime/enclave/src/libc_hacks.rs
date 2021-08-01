@@ -11,24 +11,6 @@ pub fn print_msg(msg: &str) {
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_set_state() {
-    print_msg("ecall_set_state\n");
-    loop {}
-
-}
-#[no_mangle]
-pub extern "C" fn ecall_prpc_request() {
-    print_msg("ecall_prpc_request\n");
-    loop {}
-
-}
-#[no_mangle]
-pub extern "C" fn ecall_handle() {
-    print_msg("ecall_handle\n");
-    loop {}
-}
-
-#[no_mangle]
 pub extern "C" fn posix_memalign(align: size_t, size: size_t) -> *mut c_void {
     unsafe { libc::memalign(align, size) }
 }

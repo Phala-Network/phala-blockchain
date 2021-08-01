@@ -2,9 +2,7 @@
 
 extern crate alloc;
 
-#[cfg(feature = "sgx")]
-pub extern crate serde_sgx as serde;
-
+#[cfg(feature = "serde")]
 pub mod ser;
 
 use alloc::vec::Vec;

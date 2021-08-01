@@ -171,11 +171,11 @@ $(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files) SGX_MODE
 ######## Enclave Objects ########
 
 enclave/Enclave_t.o: $(Enclave_EDL_Files)
-	$(CC) $(RustEnclave_Compile_Flags) -c enclave/Enclave_t.c -o $@
+	@$(CC) $(RustEnclave_Compile_Flags) -c enclave/Enclave_t.c -o $@
 	@echo "CC   <=  $<"
 
 $(RustEnclave_Name): enclave enclave/Enclave_t.o
-	$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
+	@$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
 $(Signed_RustEnclave_Name): $(RustEnclave_Name)

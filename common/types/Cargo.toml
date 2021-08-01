@@ -31,7 +31,6 @@ pruntime = [
 	"trie-storage",
 ]
 sgx = [
-	"trie-storage/sgx",
     "full_crypto",
 ]
 full_crypto = [

@@ -15,7 +15,7 @@ frame-system = { package = "frame-system", path = "../../../substrate/frame/syst
 sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
-trie-storage = { path = "../../../crates/trie-storage", default-features = false }
+trie-storage = { path = "../../../crates/trie-storage", default-features = false, features = ["serde"] }
 phala-types = { path = "../../../common/types", default-features = false }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
@@ -46,6 +46,5 @@ std = [
 ]
 
 sgx = [
-    "trie-storage/sgx",
     "chain/native-nostd",
 ]

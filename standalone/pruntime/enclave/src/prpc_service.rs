@@ -392,7 +392,7 @@ pub fn init_runtime(
 
         install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
         install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
         install_contract!(
             contracts::SUBSTRATE_KITTIES,
             contracts::substrate_kitties::SubstrateKitties::new()
