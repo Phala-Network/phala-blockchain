@@ -1,11 +1,30 @@
 const types = {
     "Address": "MultiAddress",
     "LookupSource": "MultiAddress",
+    "RawSolution": "RawSolutionWith24",
     "ChainId": "u8",
     "ResourceId": "[u8; 32]",
     "TokenId": "u256",
     "DepositNonce": "u64",
-    "RawSolution": "RawSolutionWith24",
+    "ProposalStatus": {
+        "_enum": {
+            "Initiated":null,
+            "Approved":null,
+            "Rejected":null
+        }
+    },
+    "ProposalVotes": {
+        "votes_for": "Vec<AccountId>",
+        "votes_against": "Vec<AccountId>",
+        "status": "ProposalStatus",
+        "expiry": "BlockNumber"
+    },
+    "Kitty": {
+        "id": "Hash",
+        "dna": "Hash",
+        "price": "Balance",
+        "gen": "u64"
+    },
     "Sr25519PublicKey": "[u8; 32]",
     "MasterPublicKey": "Sr25519PublicKey",
     "WorkerPublicKey": "Sr25519PublicKey",
@@ -71,25 +90,6 @@ const types = {
         "user": "AccountId",
         "shares": "Balance",
         "startTime": "u64"
-    },
-    "ProposalStatus": {
-        "_enum": {
-            "Initiated":null,
-            "Approved":null,
-            "Rejected":null
-        }
-    },
-    "ProposalVotes": {
-        "votes_for": "Vec<AccountId>",
-        "votes_against": "Vec<AccountId>",
-        "status": "ProposalStatus",
-        "expiry": "BlockNumber"
-    },
-    "Kitty": {
-        "id": "Hash",
-        "dna": "Hash",
-        "price": "Balance",
-        "gen": "u64"
     },
     "WorkerInfo": {
         "pubkey": "WorkerPublicKey",
