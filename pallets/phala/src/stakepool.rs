@@ -680,7 +680,7 @@ pub mod pallet {
 						bdiv(pool_info.free_stake, &price)
 					};
 					let withdrawing_shares = free_shares.min(withdraw.shares);
-					// XXX: settle the pending slash
+					Self::maybe_settle_slash(pool_info, &mut user_info);
 					let reduced = pool_info
 						.remove_stake(&mut user_info, withdrawing_shares)
 						.expect("Remove only what we have; qed.");
@@ -1030,7 +1030,13 @@ pub mod pallet {
 		//
 		// Additional rewards contribute to the face value of the pool shares. The vaue of each
 		// share effectively grows by (rewards / total_shares).
+		//
+		// Warning: `total_reward` mustn't be zero.
 		fn distribute_reward(&mut self, rewards: Balance) {
+			assert!(
+				self.total_shares != Zero::zero(),
+				"Divide by zero at distribute_reward"
+			);
 			Accumulator::<Balance>::distribute(
 				self.total_shares,
 				self.reward_acc.get_mut(),
@@ -1948,29 +1954,34 @@ pub mod pallet {
 				assert_eq!(pool.free_stake, 0);
 				assert_eq!(staker1.shares, 1 * DOLLARS);
 				assert_eq!(staker2.shares, 399 * DOLLARS);
-				// Trigger another force clear, releasing all the remaining 400 PHA stake,
-				// fulfilling staker2's request.
-				// Then all 300 PHA becomes free, and there are 1 & 300 PHA loced by the stakers.
+				// Trigger another force clear with 100 PHA slashed, releasing all 400 PHA stake
+				// (100 slashed & 300 free), fulfilling stakers' requests.
 				let _ = take_events();
-				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS, 0);
+				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS, 100 * DOLLARS);
 				assert_eq!(
 					take_events().as_slice(),
 					[
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 99 * DOLLARS)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 1 * DOLLARS))
+						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 100 * DOLLARS)),
+						// Staker 2 got 75% * 99 PHA back
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 99_750000000000)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 74_250000000000)),
+						// Staker 1 got 75% * 1 PHA back
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 250000000000)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 750000000000)),
 					]
 				);
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
-				assert_eq!(pool.total_stake, 300 * DOLLARS);
-				assert_eq!(pool.free_stake, 300 * DOLLARS);
+				// After fulfill all the withdraw requests (100 shares, 75 PHA), there are 100 PHA
+				// slashed and 75 PHA withdrawn, leaving 225 PHA in the pool, all belong to
+				// staker2.
+				assert_eq!(pool.total_stake, 225 * DOLLARS);
+				assert_eq!(pool.free_stake, 225 * DOLLARS);
 				assert_eq!(staker1.shares, 0);
 				assert_eq!(staker2.shares, 300 * DOLLARS);
 				assert_eq!(Balances::locks(1), vec![]);
-				assert_eq!(Balances::locks(2), vec![the_lock(300 * DOLLARS)]);
-
-				// TODO: handle slash at on_reclaim()
+				assert_eq!(Balances::locks(2), vec![the_lock(225 * DOLLARS)]);
 			});
 		}
 
