@@ -17,7 +17,8 @@ const types = {
             "Contract": "H256",
             "Worker": "Sr25519PublicKey",
             "AccountId": "H256",
-            "MultiLocation": "Vec<u8>"
+            "MultiLocation": "Vec<u8>",
+			"Gatekeeper": null
         }
     },
     "Attestation": {
@@ -27,7 +28,8 @@ const types = {
     },
     "AttestationSgxIas": {
         "raReport": "Vec<u8>",
-        "signature": "Vec<u8>"
+        "signature": "Vec<u8>",
+		"rawSigningCert": "Vec<u8>"
     },
     "SenderId": "MessageOrigin",
     "Path": "Vec<u8>",
@@ -48,6 +50,7 @@ const types = {
         "machineId": "MachineId",
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
+		"genesisBlockHash": "H256",
         "features": "Vec<u32>",
         "operator": "Option<AccountId>"
     },
@@ -58,6 +61,7 @@ const types = {
         "ownerReward": "Balance",
         "cap": "Option<Balance>",
         "poolAcc": "Balance",
+        "totalShares": "Balance",
         "totalStake": "Balance",
         "freeStake": "Balance",
         "workers": "Vec<WorkerPublicKey>",
@@ -65,7 +69,7 @@ const types = {
     },
     "WithdrawInfo": {
         "user": "AccountId",
-        "amount": "Balance",
+        "shares": "Balance",
         "startTime": "u64"
     },
     "ProposalStatus": {
@@ -87,16 +91,6 @@ const types = {
         "price": "Balance",
         "gen": "u64"
     },
-    "WorkerStateEnum": {
-        "_enum": {
-            "Empty":null,
-            "Free":null,
-            "Gatekeeper":null,
-            "MiningPending":null,
-            "Mining": "BlockNumber",
-            "MiningStopping":null
-        }
-    },
     "WorkerInfo": {
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
@@ -109,8 +103,8 @@ const types = {
     },
     "MinerInfo": {
         "state": "MinerState",
-        "ve": "u64",
-        "v": "u64",
+        "ve": "u128",
+        "v": "u128",
         "vUpdatedAt": "u64",
         "pInstant": "u64",
         "benchmark": "Benchmark",
@@ -130,11 +124,8 @@ const types = {
         }
     },
     "WorkerStat": {
-        "totalReward": "Balance"
-    },
-    "PayoutPrefs": {
-        "commission": "u32",
-        "target": "AccountId"
+        "totalReward": "Balance",
+        "totalSlash": "Balance"
     },
     "HeartbeatChallenge": {
         "seed": "U256",
@@ -172,15 +163,21 @@ const types = {
         "costK": "U64F64Bits",
         "costB": "U64F64Bits",
         "slashRate": "U64F64Bits",
-        "heartbeatWindow": "u32"
+        "heartbeatWindow": "u32",
+        "rigK": "U64F64Bits",
+        "rigB": "U64F64Bits",
+        "re": "U64F64Bits",
+        "k": "U64F64Bits",
+        "kappa": "U64F64Bits"
     },
     "TokenomicParams": "TokenomicParameters",
     "U64F64Bits": "u128",
     "UserStakeInfo": {
         "user": "AccountId",
-        "amount": "Balance",
+        "locked": "Balance",
+        "shares": "Balance",
         "availableRewards": "Balance",
-        "userDebt": "Balance"
+        "rewardDebt": "Balance"
     }
 };
 
