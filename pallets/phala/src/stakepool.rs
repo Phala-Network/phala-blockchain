@@ -72,13 +72,15 @@ pub mod pallet {
 	pub(super) type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
 	/// Mapping from workers to the pool they belong to
+	///
+	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
 	#[pallet::storage]
 	pub(super) type WorkerAssignments<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
 
 	/// Mapping a miner sub-account to the pool it belongs to.
 	///
-	/// The map entry lasts from `start_mining()` to `on_cleanup()`.
+	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
 	#[pallet::storage]
 	pub(super) type SubAccountAssignments<T: Config> =
 		StorageMap<_, Twox64Concat, T::AccountId, u64>;
@@ -117,6 +119,10 @@ pub mod pallet {
 		Withdrawal(u64, T::AccountId, BalanceOf<T>),
 		/// [pid, user, amount]
 		RewardsWithdrawn(u64, T::AccountId, BalanceOf<T>),
+		/// [pid, amount]
+		PoolSlashed(u64, BalanceOf<T>),
+		/// [pid, account, amount]
+		SlashSettled(u64, T::AccountId, BalanceOf<T>),
 	}
 
 	#[pallet::error]
@@ -438,7 +444,7 @@ pub mod pallet {
 			let mut user_info = match Self::pool_stakers(&info_key) {
 				Some(mut user_info) => {
 					pool_info.settle_user_pending_reward(&mut user_info);
-					// XXX: settle slash
+					Self::maybe_settle_slash(&pool_info, &mut user_info);
 					user_info
 				}
 				None => UserStakeInfo {
@@ -562,6 +568,7 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
+			// TODO: handle slashed amount
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 
 			Ok(())
@@ -611,7 +618,7 @@ pub mod pallet {
 			let queued_shares = shares - withdrawing_shares;
 			// Try withdraw immediately if we can
 			if withdrawing_shares > Zero::zero() {
-				// XXX: settle the pending slash
+				Self::maybe_settle_slash(pool_info, user_info);
 				// Overflow warning: remove_stake is carefully written to avoid precision error.
 				let reduced = pool_info
 					.remove_stake(user_info, withdrawing_shares)
@@ -746,6 +753,24 @@ pub mod pallet {
 				}
 			});
 		}
+
+		fn maybe_settle_slash(
+			pool: &PoolInfo<T::AccountId, BalanceOf<T>>,
+			user: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
+		) {
+			match pool.settle_slash(user) {
+				Some(slashed) if slashed > Zero::zero() => {
+					<T as Config>::Currency::slash(&user.user, slashed);
+					Self::ledger_reduce(&user.user, slashed);
+					Self::deposit_event(Event::<T>::SlashSettled(
+						pool.pid,
+						user.user.clone(),
+						slashed,
+					));
+				}
+				_ => (),
+			}
+		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T>
@@ -775,7 +800,12 @@ pub mod pallet {
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
-			// Assuming force == true?
+			// Usually called on worker force unbinding (force == true), but it's also possible
+			// that the user unbind from the mining pallet directly.
+
+			// Warning: when using Mining & StakePool pallets together, here we assume all the
+			// miners are only registered by StakePool. So we don't bother to double check if the
+			// worker exists.
 			Self::remove_worker_from_pool(worker);
 		}
 	}
@@ -789,13 +819,16 @@ pub mod pallet {
 		/// After collingdown end, worker was cleanuped, whose contributed balance
 		/// would be reset to zero
 		fn on_reclaim(miner: &T::AccountId, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
-			let pid =
-				SubAccountAssignments::<T>::take(miner).expect("Sub-acocunt must exist; qed.");
+			let pid = SubAccountAssignments::<T>::get(miner).expect("Sub-acocunt must exist; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
 			let returned = orig_stake - slashed;
 			if slashed != Zero::zero() {
-				unimplemented!("pooled slash");
+				// Remove some slashed value from `total_stake`, causing the share price to reduce
+				// and creating a logical pending slash. The actual slash happens with the pending
+				// slash to individuals is settled.
+				pool_info.slash(slashed);
+				Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
 			}
 
 			// with the worker been cleaned, whose stake now are free
@@ -819,6 +852,7 @@ pub mod pallet {
 
 		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
+			debug_assert!(b >= amount, "Cannot reduce lock more than it has");
 			let new_b = b.saturating_sub(amount);
 			StakeLedger::<T>::insert(who, new_b);
 			Self::update_lock(who, new_b);
@@ -924,14 +958,30 @@ pub mod pallet {
 			Some(amount)
 		}
 
+		fn slash(&mut self, amount: Balance) {
+			debug_assert!(
+				self.total_shares > Zero::zero(),
+				"No share in hte pool. This shouldn't happen."
+			);
+			debug_assert!(
+				self.total_stake > amount,
+				"No enough stake to slash. This shouldn't happen."
+			);
+			self.total_stake.saturating_reduce(amount);
+		}
+
 		/// Asserts there's no dirty slash (in debue profile only)
+		///
+		/// This could be probalematic if the fixed point precision is not handled correctly.
+		/// However since here we check the exact same condition as we set in `settle_slash`, it
+		/// should be always safe.
 		fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
-			core::debug_assert!(
+			debug_assert!(
 				self.total_shares == Zero::zero()
-					|| user.shares.to_fixed() * self.share_price().unwrap()
-						== user.locked.to_fixed(),
-				"There shouldn't be any dirty slash (user shares = {}, price = {:?}, user locked = {})",
+					|| bmul(user.shares, &self.share_price().unwrap()) == user.locked,
+				"There shouldn't be any dirty slash (user shares = {}, price = {:?}, user locked = {}, delta = {})",
 				user.shares, self.share_price(), user.locked,
+				bmul(user.shares, &self.share_price().unwrap()) - user.locked
 			);
 		}
 
@@ -1027,7 +1077,7 @@ pub mod pallet {
 		use super::*;
 		use crate::mock::{
 			ecdh_pubkey, elapse_cool_down, new_test_ext, set_block_1, setup_workers,
-			setup_workers_linked_operators, take_events, worker_pubkey, Balance,
+			setup_workers_linked_operators, take_events, worker_pubkey, Balance, BlockNumber,
 			Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
@@ -1391,6 +1441,196 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(1), 0, Balances::free_balance(1) + 1,),
 					Error::<Test>::InsufficientBalance,
+				);
+			});
+		}
+
+		#[test]
+		fn test_slash() {
+			use phala_types::messaging::{
+				DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
+			};
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Account1 contributes 100 PHA, account2 contributes 400 PHA
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				// Start a miner
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					500 * DOLLARS
+				));
+				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
+				let miner = PhalaMining::miners(sub_account1).unwrap();
+				let ve = FixedPoint::from_bits(miner.ve);
+				assert_eq!(ve, fp!(750.45));
+				// Simulate a slash of 50%
+				let _ = take_events();
+				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+					MiningInfoUpdateEvent<BlockNumber>,
+				> {
+					sender: MessageOrigin::Gatekeeper,
+					destination: Topic::new(*b"^phala/mining/update"),
+					payload: MiningInfoUpdateEvent::<BlockNumber> {
+						block_number: 1,
+						timestamp_ms: 0,
+						offline: vec![],
+						recovered_to_online: vec![],
+						settle: vec![SettleInfo {
+							pubkey: worker_pubkey(1),
+							v: (ve / 2).to_bits(),
+							payout: 0,
+						}],
+					},
+				}));
+				// Stop & settle
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				elapse_cool_down();
+				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				let ev = take_events();
+				assert_matches!(
+					ev.as_slice(),
+					[
+						TestEvent::PhalaMining(mining::Event::MinerSettled(_, v, 0)),
+						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
+						TestEvent::PhalaStakePool(Event::PoolSlashed(0, slashed)),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _))
+					]
+					if FixedPoint::from_bits(*v) == ve / 2
+						&& *slashed == 250000000000001
+				);
+				// Settle the pending slash
+				let _ = take_events();
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.total_stake, 249999999999999);
+				let mut staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let mut staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
+				PhalaStakePool::maybe_settle_slash(&pool, &mut staker2);
+				StakePools::<Test>::insert(0, pool);
+				PoolStakers::<Test>::insert((0, 1), staker1);
+				PoolStakers::<Test>::insert((0, 2), staker2);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000001)),
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000001)),
+					]
+				);
+				// Check slash settled. Remaining: 50 PHA, 200 PHA
+				assert_eq!(PhalaStakePool::stake_ledger(1), Some(49999999999999));
+				assert_eq!(PhalaStakePool::stake_ledger(2), Some(199999999999999));
+				assert_eq!(Balances::locks(1), vec![the_lock(49999999999999)]);
+				assert_eq!(Balances::locks(2), vec![the_lock(199999999999999)]);
+				assert_eq!(Balances::free_balance(1), 949999999999999);
+				assert_eq!(Balances::free_balance(2), 1799999999999999);
+				// Account3 contributes 250 PHA. Now: 50 : 200 : 250
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					250 * DOLLARS + 1 // Round up to 500 PHA again
+				));
+				// Slash 50% again
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					500 * DOLLARS
+				));
+				let miner = PhalaMining::miners(sub_account1).unwrap();
+				let ve = FixedPoint::from_bits(miner.ve);
+				let _ = take_events();
+				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+					MiningInfoUpdateEvent<BlockNumber>,
+				> {
+					sender: MessageOrigin::Gatekeeper,
+					destination: Topic::new(*b"^phala/mining/update"),
+					payload: MiningInfoUpdateEvent::<BlockNumber> {
+						block_number: 1,
+						timestamp_ms: 0,
+						offline: vec![],
+						recovered_to_online: vec![],
+						settle: vec![SettleInfo {
+							pubkey: worker_pubkey(1),
+							v: (ve / 2).to_bits(),
+							payout: 0,
+						}],
+					},
+				}));
+				// Full stop & settle
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				elapse_cool_down();
+				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				let ev = take_events();
+				assert_matches!(
+					ev.as_slice(),
+					[
+						TestEvent::PhalaMining(mining::Event::MinerSettled(_, _, 0)),
+						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
+						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000001)),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed(
+							_,
+							500000000000000,
+							250000000000001
+						)),
+					]
+				);
+				// Withdraw & check amount
+				let staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
+				let staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
+				let staker3 = PhalaStakePool::pool_stakers((0, 3)).unwrap();
+				let _ = take_events();
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(1),
+					0,
+					staker1.shares
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					staker2.shares
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(3),
+					0,
+					staker3.shares
+				));
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![
+						// Account1: ~25 PHA remaining
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 25000000000000)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 24999999999999)),
+						// Account2: ~100 PHA remaining
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 100000000000000)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 99999999999999)),
+						// Account1: ~125 PHA remaining
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
+					]
 				);
 			});
 		}

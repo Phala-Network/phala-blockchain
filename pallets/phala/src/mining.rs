@@ -45,6 +45,15 @@ pub mod pallet {
 		fn can_unbind(&self) -> bool {
 			matches!(self, MinerState::Ready | MinerState::MiningCoolingDown)
 		}
+		fn can_settle(&self) -> bool {
+			matches!(
+				self,
+				MinerState::MiningIdle
+				| MinerState::MiningActive
+				| MinerState::MiningCoolingDown  // TODO: allowed?
+				| MinerState::MiningUnresponsive // TODO: allowed?
+			)
+		}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -57,9 +66,9 @@ pub mod pallet {
 	pub struct MinerInfo {
 		pub state: MinerState,
 		/// The intiial V, in U64F64 bits
-		ve: u128,
+		pub ve: u128,
 		/// The last updated V, in U64F64 bits
-		v: u128,
+		pub v: u128,
 		v_updated_at: u64,
 		p_instant: u64,
 		benchmark: Benchmark,
@@ -181,6 +190,8 @@ pub mod pallet {
 		MinerEnterUnresponsive(T::AccountId),
 		/// [miner]
 		MinerExitUnresponive(T::AccountId),
+		/// [miner, v, payout]
+		MinerSettled(T::AccountId, u128, u128),
 		/// [miner, amount]
 		_MinerStaked(T::AccountId, BalanceOf<T>),
 		/// [miner, amount]
@@ -385,13 +396,19 @@ pub mod pallet {
 					}
 				}
 
-				for info in event.settle.clone() {
+				for info in &event.settle {
 					if let Some(binding_miner) = WorkerBindings::<T>::get(&info.pubkey) {
 						let mut miner_info =
 							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+						debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
 						miner_info.v = info.v; // in bits
 						miner_info.v_updated_at = now;
 						Miners::<T>::insert(&binding_miner, &miner_info);
+						Self::deposit_event(Event::<T>::MinerSettled(
+							binding_miner,
+							info.v,
+							info.payout,
+						));
 					}
 				}
 
