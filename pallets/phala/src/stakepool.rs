@@ -147,6 +147,11 @@ pub mod pallet {
 		FailedToBindMinerAndWorker,
 		/// Internal error: Cannot withdraw from the subsidy pool. This should never happen.
 		InternalSubsidyPoolCannotWithdraw,
+		/// The pool has already got all the stake completely slashed.
+		///
+		/// In this case, no more funds can be contributed to the pool until all the pending slash
+		/// has been resolved.
+		PoolBankrupt,
 	}
 
 	type BalanceOf<T> =
@@ -438,6 +443,12 @@ pub mod pallet {
 					Error::<T>::StakeExceedsCapacity
 				);
 			}
+			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
+			// a lot of weird edge cases when dealing with pending slash.
+			ensure!(
+				pool_info.total_shares == Zero::zero() || pool_info.total_stake > Zero::zero(),
+				Error::<T>::PoolBankrupt
+			);
 
 			let info_key = (pid.clone(), who.clone());
 			// Clear the pending reward before adding stake, if applies
@@ -964,8 +975,10 @@ pub mod pallet {
 				"No share in hte pool. This shouldn't happen."
 			);
 			debug_assert!(
-				self.total_stake > amount,
-				"No enough stake to slash. This shouldn't happen."
+				self.total_stake >= amount,
+				"No enough stake to slash (total = {}, slash = {})",
+				self.total_stake,
+				amount
 			);
 			self.total_stake.saturating_reduce(amount);
 		}
@@ -1598,6 +1611,41 @@ pub mod pallet {
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
 					]
+				);
+			});
+		}
+
+		#[test]
+		fn test_no_contribution_to_bankrupt_pool() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					100 * DOLLARS
+				));
+				// Slash 100% and stop
+				simulate_v_update(1, fp!(0).to_bits());
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				elapse_cool_down();
+				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
+				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				// Check cannot contribute
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(1), 0, 10 * DOLLARS),
+					Error::<Test>::PoolBankrupt,
 				);
 			});
 		}
