@@ -291,6 +291,14 @@ pub mod pallet {
 			Self::stop_mining(miner)?;
 			Ok(())
 		}
+
+		/// Updates the tokenomic parameters
+		#[pallet::weight(1)]
+		pub fn update_tokenomic(origin: OriginFor<T>, new_params: TokenomicParams) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_tokenomic_parameters(new_params);
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -557,7 +565,6 @@ pub mod pallet {
 			MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)
 		}
 
-		#[allow(unused)]
 		fn update_tokenomic_parameters(params: TokenomicParams) {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
