@@ -27,8 +27,19 @@ macro_rules! not_allowed {
 assert_eq_size!(libc::iovec, sgx_libc::iovec);
 
 #[no_mangle]
-pub extern "C" fn posix_memalign(align: size_t, size: size_t) -> *mut c_void {
-    unsafe { sgx_libc::memalign(align, size) }
+pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: size_t) -> c_int {
+    unsafe {
+        let ptr = sgx_libc::memalign(align, size);
+        // man posix_memalign:
+        // posix_memalign() returns zero on success, or one of the error values listed in the next section on failure.  The value of errno is not set.  On Linux (and other systems),
+        // posix_memalign() does not modify memptr on failure.  A requirement standardizing this behavior was added in POSIX.1-2016.
+        if ptr.is_null() && size > 0 {
+            libc::ENOMEM
+        } else {
+            *memptr = ptr;
+            0
+        }
+    }
 }
 
 #[no_mangle]
@@ -62,7 +73,8 @@ pub extern "C" fn _Unwind_GetIPInfo() {
 
 #[no_mangle]
 pub extern "C" fn syscall(num: libc::c_long) -> libc::c_long {
-    if num == libc::SYS_getrandom { // getrandom
+    if num == libc::SYS_getrandom {
+        // getrandom
         // TODO.kevin: do real getrandom
         return 1;
     }
@@ -177,9 +189,7 @@ pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
 #[no_mangle]
 pub extern "C" fn open64(path: *const c_char, oflag: c_int, mode: c_int) -> c_int {
     // TODO.kevin: forbid this call
-    unsafe {
-        ocall::open64(path, oflag, mode)
-    }
+    unsafe { ocall::open64(path, oflag, mode) }
     // not_allowed!()
 }
 
@@ -190,10 +200,7 @@ pub extern "C" fn isatty() -> c_int {
 
 #[no_mangle]
 pub extern "C" fn freeaddrinfo(res: *mut sgx_libc::addrinfo) {
-    unsafe {
-        // TODO.kevin: whats the res memory space?
-        ocall::freeaddrinfo(res)
-    }
+    unsafe { ocall::freeaddrinfo(res) }
 }
 
 #[no_mangle]
@@ -306,13 +313,11 @@ pub extern "C" fn fstat64(fildes: c_int, buf: *mut libc::stat64) -> c_int {
 }
 
 #[no_mangle]
-pub extern "C"
-    fn pthread_atfork(
-        prepare: Option<unsafe extern "C" fn()>,
-        parent: Option<unsafe extern "C" fn()>,
-        child: Option<unsafe extern "C" fn()>,
-    ) -> c_int
-{
+pub extern "C" fn pthread_atfork(
+    prepare: Option<unsafe extern "C" fn()>,
+    parent: Option<unsafe extern "C" fn()>,
+    child: Option<unsafe extern "C" fn()>,
+) -> c_int {
     println!("pthread_atfork prepare={:?}", prepare);
     println!("pthread_atfork parent={:?}", parent);
     println!("pthread_atfork child={:?}", child);
