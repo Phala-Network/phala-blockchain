@@ -1,6 +1,8 @@
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
 #![feature(bench_black_box)]
+#![feature(panic_unwind)]
+#![feature(c_variadic)]
 
 #[macro_use]
 extern crate serde_json;
@@ -43,7 +45,10 @@ use serde_cbor;
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
 
-use http_req::{uri::Uri, request::{Method, Request}};
+use http_req::{
+    request::{Method, Request},
+    uri::Uri,
+};
 use std::time::Duration;
 
 // use pink::InkModule;
@@ -302,8 +307,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid);
-    let url = Uri::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = Uri::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Ocp-Apim-Subscription-Key", &ias_key())
@@ -358,8 +362,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
     let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
-    let url = Uri::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = Uri::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")
@@ -826,7 +829,6 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
 }
 
 fn new_sr25519_key() -> sr25519::Pair {
-    use rand::RngCore;
     let mut rng = rand::thread_rng();
     let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
@@ -921,7 +923,7 @@ fn init_secret_keys(
 
 #[no_mangle]
 pub extern "C" fn ecall_init() -> sgx_status_t {
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
 

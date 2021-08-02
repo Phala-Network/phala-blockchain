@@ -17,9 +17,10 @@ sgx_trts        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sg
 sgx_tseal       = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tprotected_fs = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_libc        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
+sgx_unwind      = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [dependencies]
-libc         = "*"
+libc        = "*"
 log         = "*"
 env_logger  = "*"
 chrono      = "*"
@@ -36,6 +37,7 @@ regex       = "*"
 http_req    = { version = "*", default-features = false, features = ["rust-tls"]}
 bitcoin     = { version = "*", features = ["use-serde"]}
 bitcoin_hashes = "*"
+call-trace     = "*"
 
 serde = { version = "*", features = ["derive"] }
 serde_json = { version = "*" }
