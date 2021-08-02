@@ -13,10 +13,10 @@ struct Tracer;
 
 impl Trace for Tracer {
     fn on_pre(&mut self, ctx: &CallContext) {
-        println!("> {:?}", ctx);
+        // println!("> {:?}", ctx);
     }
     fn on_post(&mut self, ctx: &CallContext) {
-        println!(" < {:?}", ctx);
+        // println!(" < {:?}", ctx);
     }
 }
 
@@ -147,16 +147,7 @@ pub extern "C" fn __xpg_strerror_r(errnum: c_int, buf: *mut c_char, buflen: size
 pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec) -> c_int {
     assert_eq_size!(libc::timespec, sgx_libc::timespec);
 
-    // let mut t = sgx_libc::timespec { tv_sec: 0, tv_nsec: 0 };
-
-    let rv = unsafe { ocall::clock_gettime(clk_id, tp as _) };
-    println!("clock_gettime rv={}", rv);
-    rv
-    // TODO: not sure why, the ocall::clock_gettime always fail
-    // unsafe {
-    //     ocall::clock_gettime(clk_id, tp);
-    // }
-    // 0
+    unsafe { ocall::clock_gettime(clk_id, tp as _) }
 }
 
 #[trace_with(Tracer)]
