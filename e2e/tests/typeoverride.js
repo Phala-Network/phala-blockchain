@@ -108,7 +108,8 @@ const types = {
         "vUpdatedAt": "u64",
         "pInstant": "u64",
         "benchmark": "Benchmark",
-        "coolDownStart": "u64"
+        "coolDownStart": "u64",
+		"stats": "MinerStats"
     },
     "Benchmark": {
         "iterations": "u64",
@@ -123,9 +124,8 @@ const types = {
             "MiningCollingDown":null
         }
     },
-    "WorkerStat": {
-        "totalReward": "Balance",
-        "totalSlash": "Balance"
+    "MinerStats": {
+        "totalReward": "Balance"
     },
     "HeartbeatChallenge": {
         "seed": "U256",
