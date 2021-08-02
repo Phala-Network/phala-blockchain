@@ -1,12 +1,12 @@
+use call_trace::{trace_with, CallContext, Trace};
 use libc::{self, c_char, c_int, c_uint, c_ulong, c_void, iovec, size_t, ssize_t};
 use sgx_libc::{self, ocall};
 use sgx_types::{sgx_read_rand, sgx_status_t};
+use sgx_unwind as _;
 use std::{
     ffi::CStr,
     sync::atomic::{AtomicU16, Ordering},
 };
-use sgx_unwind as _;
-use call_trace::{trace_with, Trace, CallContext};
 
 // TODO: remove this when debug finished.
 struct Tracer;
@@ -253,17 +253,21 @@ pub extern "C" fn munmap(_addr: *mut c_void, _len: size_t) -> c_int {
 #[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn socket(domain: c_int, ty: c_int, protocol: c_int) -> c_int {
-    let rv = unsafe { ocall::socket(domain, ty, protocol) };
-    println!("socket rv={}", rv);
-    rv
+    unsafe { ocall::socket(domain, ty, protocol) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
-pub extern "C" fn ioctl(fd: c_int, request: c_ulong) -> c_int {
-    println!("ioctl fd={} request={}", fd, request);
-    //not_allowed!()
-    0
+pub unsafe extern "C" fn ioctl(fd: c_int, request: c_ulong, mut args: ...) -> c_int {
+    match request {
+        libc::FIONBIO => {
+            let arg = args.arg::<*mut c_int>();
+            return ocall::ioctl_arg1(fd, request as _, arg);
+        },
+        _ => {
+            eprintln!("ioctl fd={} request={}", fd, request);
+            not_allowed!()
+        }
+    }
 }
 
 #[trace_with(Tracer)]
