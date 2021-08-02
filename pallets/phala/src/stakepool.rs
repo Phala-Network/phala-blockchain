@@ -1081,7 +1081,9 @@ pub mod pallet {
 			Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
-		use crate::mock::{Balances, PhalaMining, PhalaRegistry, PhalaStakePool};
+		use crate::mock::{
+			Balances, PhalaMining, PhalaRegistry, PhalaStakePool, System, Timestamp,
+		};
 
 		#[test]
 		fn test_pool_subaccount() {
@@ -1447,9 +1449,6 @@ pub mod pallet {
 
 		#[test]
 		fn test_slash() {
-			use phala_types::messaging::{
-				DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
-			};
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(1);
@@ -1479,23 +1478,7 @@ pub mod pallet {
 				assert_eq!(ve, fp!(750.45));
 				// Simulate a slash of 50%
 				let _ = take_events();
-				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-					MiningInfoUpdateEvent<BlockNumber>,
-				> {
-					sender: MessageOrigin::Gatekeeper,
-					destination: Topic::new(*b"^phala/mining/update"),
-					payload: MiningInfoUpdateEvent::<BlockNumber> {
-						block_number: 1,
-						timestamp_ms: 0,
-						offline: vec![],
-						recovered_to_online: vec![],
-						settle: vec![SettleInfo {
-							pubkey: worker_pubkey(1),
-							v: (ve / 2).to_bits(),
-							payout: 0,
-						}],
-					},
-				}));
+				simulate_v_update(1, (ve / 2).to_bits());
 				// Stop & settle
 				assert_ok!(PhalaStakePool::stop_mining(
 					Origin::signed(1),
@@ -1558,23 +1541,7 @@ pub mod pallet {
 				let miner = PhalaMining::miners(sub_account1).unwrap();
 				let ve = FixedPoint::from_bits(miner.ve);
 				let _ = take_events();
-				assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
-					MiningInfoUpdateEvent<BlockNumber>,
-				> {
-					sender: MessageOrigin::Gatekeeper,
-					destination: Topic::new(*b"^phala/mining/update"),
-					payload: MiningInfoUpdateEvent::<BlockNumber> {
-						block_number: 1,
-						timestamp_ms: 0,
-						offline: vec![],
-						recovered_to_online: vec![],
-						settle: vec![SettleInfo {
-							pubkey: worker_pubkey(1),
-							v: (ve / 2).to_bits(),
-							payout: 0,
-						}],
-					},
-				}));
+				simulate_v_update(1, (ve / 2).to_bits());
 				// Full stop & settle
 				assert_ok!(PhalaStakePool::stop_mining(
 					Origin::signed(1),
@@ -2092,6 +2059,14 @@ pub mod pallet {
 				//   - wait 3d, force stop
 				//   - wait 7d, withdraw succeeded
 
+				let sub_account1: u64 = pool_sub_account(0, &worker1);
+				let sub_account2: u64 = pool_sub_account(0, &worker2);
+
+				// Slash pool 0 to 90%
+				let miner0 = PhalaMining::miners(sub_account1).unwrap();
+				let ve = FixedPoint::from_bits(miner0.ve);
+				simulate_v_update(1, (ve * fp!(0.9)).to_bits());
+
 				// Stop mining
 				assert_ok!(PhalaStakePool::stop_mining(
 					Origin::signed(1),
@@ -2104,8 +2079,6 @@ pub mod pallet {
 					worker2.clone()
 				));
 				assert_eq!(PhalaMining::online_miners(), 0);
-				let sub_account1: u64 = pool_sub_account(0, &worker1);
-				let sub_account2: u64 = pool_sub_account(0, &worker2);
 				let miner1 = PhalaMining::miners(&sub_account1).unwrap();
 				let miner2 = PhalaMining::miners(&sub_account2).unwrap();
 				assert_eq!(miner1.state, mining::MinerState::MiningCoolingDown);
@@ -2120,9 +2093,9 @@ pub mod pallet {
 					Origin::signed(1),
 					sub_account2.clone()
 				));
-				// All stake get returend
+				// 90% stake get returend from pool 0
 				let pool0 = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool0.free_stake, 200 * DOLLARS);
+				assert_eq!(pool0.free_stake, 189_999999999999);
 				// Withdraw the stakes
 				assert_ok!(PhalaStakePool::withdraw(
 					Origin::signed(2),
@@ -2165,6 +2138,31 @@ pub mod pallet {
 				));
 			}
 			pid
+		}
+
+		fn simulate_v_update(worker: u8, v_bits: u128) {
+			use phala_types::messaging::{
+				DecodedMessage, MessageOrigin, MiningInfoUpdateEvent, SettleInfo, Topic,
+			};
+			let block = System::block_number();
+			let now = Timestamp::now();
+			assert_ok!(PhalaMining::on_gk_message_received(DecodedMessage::<
+				MiningInfoUpdateEvent<BlockNumber>,
+			> {
+				sender: MessageOrigin::Gatekeeper,
+				destination: Topic::new(*b"^phala/mining/update"),
+				payload: MiningInfoUpdateEvent::<BlockNumber> {
+					block_number: block,
+					timestamp_ms: now,
+					offline: vec![],
+					recovered_to_online: vec![],
+					settle: vec![SettleInfo {
+						pubkey: worker_pubkey(worker),
+						v: v_bits,
+						payout: 0,
+					}],
+				},
+			}));
 		}
 	}
 }
