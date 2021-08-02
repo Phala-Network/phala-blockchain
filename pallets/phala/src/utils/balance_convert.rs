@@ -3,6 +3,7 @@ use fixed_macro::fixed;
 use U64F64 as FixedPoint;
 
 pub trait FixedPointConvert {
+	fn from_bits(bits: u128) -> Self;
 	fn from_fixed(v: &FixedPoint) -> Self;
 	fn to_fixed(&self) -> FixedPoint;
 }
@@ -11,6 +12,9 @@ const FIXED_1E12: FixedPoint = fixed!(1_000_000_000_000: U64F64);
 
 // 12 decimals u128 conversion
 impl FixedPointConvert for u128 {
+	fn from_bits(bits: u128) -> Self {
+		Self::from_fixed(&FixedPoint::from_bits(bits))
+	}
 	fn from_fixed(v: &FixedPoint) -> Self {
 		v.saturating_mul(FIXED_1E12).to_num()
 	}

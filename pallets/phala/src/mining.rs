@@ -73,6 +73,7 @@ pub mod pallet {
 		p_instant: u64,
 		benchmark: Benchmark,
 		cool_down_start: u64,
+		stats: MinerStats,
 	}
 
 	pub trait OnReward {
@@ -94,10 +95,16 @@ pub mod pallet {
 		fn on_reclaim(worker: &AccountId, orig_stake: Balance, slashed: Balance) {}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct WorkerStat<Balance> {
-		total_reward: Balance,
-		total_slash: Balance,
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+	pub struct MinerStats {
+		total_reward: u128,
+	}
+
+	impl MinerStats {
+		fn on_reward(&mut self, payout_bits: u128) {
+			let payout: u128 = FixedPointConvert::from_bits(payout_bits);
+			self.total_reward += payout;
+		}
 	}
 
 	#[pallet::config]
@@ -134,7 +141,7 @@ pub mod pallet {
 	/// The miner state.
 	///
 	/// The miner state is created when a miner is bounded with a worker, but it will be kept even
-	/// if the worker is force unbounded. A re-bind of a worker will reset the mining state.
+	/// if the worker is force unbound. A re-bind of a worker will reset the mining state.
 	#[pallet::storage]
 	#[pallet::getter(fn miners)]
 	pub(super) type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
@@ -148,12 +155,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type WorkerBindings<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
-
-	/// The statistics for a worker
-	#[pallet::storage]
-	#[pallet::getter(fn worker_stats)]
-	pub(super) type WorkerStats<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerStat<BalanceOf<T>>>;
 
 	/// The cool down period (in blocks)
 	#[pallet::storage]
@@ -319,7 +320,10 @@ pub mod pallet {
 
 		/// Updates the tokenomic parameters
 		#[pallet::weight(1)]
-		pub fn update_tokenomic(origin: OriginFor<T>, new_params: TokenomicParams) -> DispatchResult {
+		pub fn update_tokenomic(
+			origin: OriginFor<T>,
+			new_params: TokenomicParams,
+		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::update_tokenomic_parameters(new_params);
 			Ok(())
@@ -376,39 +380,36 @@ pub mod pallet {
 
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
 						miner_info.state = MinerState::MiningUnresponsive;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(binding_miner));
+						Miners::<T>::insert(&account, &miner_info);
+						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(account));
 					}
 				}
 
 				// worker recovered to online, update bound miner state to idle
 				for worker in event.recovered_to_online {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
 						miner_info.state = MinerState::MiningIdle;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-						Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
+						Miners::<T>::insert(&account, &miner_info);
+						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
 					}
 				}
 
 				for info in &event.settle {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&info.pubkey) {
+					if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
 						debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
 						miner_info.v = info.v; // in bits
 						miner_info.v_updated_at = now;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-						Self::deposit_event(Event::<T>::MinerSettled(
-							binding_miner,
-							info.v,
-							info.payout,
-						));
+						miner_info.stats.on_reward(info.payout);
+						Miners::<T>::insert(&account, &miner_info);
+						Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
 					}
 				}
 
@@ -469,6 +470,7 @@ pub mod pallet {
 						mining_start_time: now,
 					},
 					cool_down_start: 0u64,
+					stats: Default::default(),
 				},
 			);
 

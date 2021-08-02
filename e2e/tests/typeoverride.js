@@ -18,7 +18,7 @@ const types = {
             "Worker": "Sr25519PublicKey",
             "AccountId": "H256",
             "MultiLocation": "Vec<u8>",
-			"Gatekeeper": null
+            "Gatekeeper": null
         }
     },
     "Attestation": {
@@ -29,7 +29,7 @@ const types = {
     "AttestationSgxIas": {
         "raReport": "Vec<u8>",
         "signature": "Vec<u8>",
-		"rawSigningCert": "Vec<u8>"
+        "rawSigningCert": "Vec<u8>"
     },
     "SenderId": "MessageOrigin",
     "Path": "Vec<u8>",
@@ -50,7 +50,7 @@ const types = {
         "machineId": "MachineId",
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
-		"genesisBlockHash": "H256",
+        "genesisBlockHash": "H256",
         "features": "Vec<u32>",
         "operator": "Option<AccountId>"
     },
@@ -108,7 +108,8 @@ const types = {
         "vUpdatedAt": "u64",
         "pInstant": "u64",
         "benchmark": "Benchmark",
-        "coolDownStart": "u64"
+        "coolDownStart": "u64",
+        "stats": "MinerStats"
     },
     "Benchmark": {
         "iterations": "u64",
@@ -123,9 +124,8 @@ const types = {
             "MiningCollingDown":null
         }
     },
-    "WorkerStat": {
-        "totalReward": "Balance",
-        "totalSlash": "Balance"
+    "MinerStats": {
+        "totalReward": "Balance"
     },
     "HeartbeatChallenge": {
         "seed": "U256",
