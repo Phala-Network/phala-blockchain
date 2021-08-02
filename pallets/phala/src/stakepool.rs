@@ -22,7 +22,7 @@ pub mod pallet {
 		traits::{Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
 	};
-	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, vec::Vec};
+	use sp_std::{collections::vec_deque::VecDeque, fmt::Display, prelude::*};
 
 	use phala_types::{messaging::SettleInfo, WorkerPublicKey};
 
