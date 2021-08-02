@@ -26,6 +26,7 @@ dependencies = [
  "http_req",
  "itertools 0.8.2",
  "lazy_static",
+ "libc",
  "log",
  "num-bigint",
  "num-traits",

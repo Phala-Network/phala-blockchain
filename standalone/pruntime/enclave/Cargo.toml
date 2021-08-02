@@ -19,6 +19,7 @@ sgx_tprotected_fs = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-
 sgx_libc        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 
 [dependencies]
+libc         = "*"
 log         = "*"
 env_logger  = "*"
 chrono      = "*"
