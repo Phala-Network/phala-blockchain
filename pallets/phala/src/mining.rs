@@ -86,6 +86,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WorkerStat<Balance> {
 		total_reward: Balance,
+		total_slash: Balance,
 	}
 
 	#[pallet::config]
