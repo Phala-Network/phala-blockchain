@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
-pub use enclave_api::prpc::phactory_info::GatekeeperRole;
+pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_mq::{
     MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError,
     TypedReceiver,
@@ -457,13 +457,22 @@ impl System {
         self.worker_state.registered
     }
 
-    pub fn gatekeeper_role(&self) -> GatekeeperRole {
+    pub fn gatekeeper_status(&self) -> GatekeeperStatus {
         let active = self.gatekeeper.is_registered_on_chain();
         let has_key = self.gatekeeper.possess_master_key();
-        match (has_key, active) {
+        let role = match (has_key, active) {
             (true, true) => GatekeeperRole::Active,
             (true, false) => GatekeeperRole::Dummy,
             _ => GatekeeperRole::None,
+        };
+        let master_public_key = self
+            .gatekeeper
+            .master_public_key()
+            .map(|k| hex::encode(&k))
+            .unwrap_or_default();
+        GatekeeperStatus {
+            role: role.into(),
+            master_public_key,
         }
     }
 }

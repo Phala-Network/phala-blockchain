@@ -3,9 +3,9 @@ use enclave_api::blocks;
 use enclave_api::prpc::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Attestation, AttestationReport, Blocks, EgressMessages, GetEgressMessagesResponse,
-    HeadersToSync, InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo,
-    SyncedTo,
+    Attestation, AttestationReport, Blocks, EgressMessages, GatekeeperRole, GatekeeperStatus,
+    GetEgressMessagesResponse, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse,
+    ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -113,10 +113,16 @@ pub fn get_info() -> PhactoryInfo {
     };
     drop(state);
 
-    let (registered, role) = {
+    let (registered, gatekeeper_status) = {
         match SYSTEM_STATE.lock().unwrap().as_ref() {
-            Some(system) => (system.is_registered(), system.gatekeeper_role()),
-            None => (false, GatekeeperRole::None),
+            Some(system) => (system.is_registered(), system.gatekeeper_status()),
+            None => (
+                false,
+                GatekeeperStatus {
+                    role: GatekeeperRole::None.into(),
+                    master_public_key: Default::default(),
+                },
+            ),
         }
     };
     let score = benchmark::score();
@@ -124,7 +130,7 @@ pub fn get_info() -> PhactoryInfo {
     PhactoryInfo {
         initialized,
         registered,
-        gatekeeper_role: role.into(),
+        gatekeeper: Some(gatekeeper_status),
         genesis_block_hash,
         public_key,
         ecdh_public_key,

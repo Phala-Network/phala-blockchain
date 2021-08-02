@@ -89,7 +89,7 @@ use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
-use system::{GatekeeperRole, TransactionStatus};
+use system::TransactionStatus;
 use types::BlockInfo;
 use types::Error;
 
@@ -1125,11 +1125,16 @@ fn handle_inbound_messages(
 
 fn get_info_json() -> Result<Value, Value> {
     let info = prpc_service::get_info();
-    let machin_id = LOCAL_STATE.lock().unwrap().machine_id;
+    let machine_id = LOCAL_STATE.lock().unwrap().machine_id;
+    let machine_id = hex::encode(&machine_id);
+    let gatekeeper = info.gatekeeper.unwrap();
     Ok(json!({
         "initialized": info.initialized,
         "registered": info.registered,
-        "gatekeeper_role": info.gatekeeper_role,
+        "gatekeeper": {
+            "role": gatekeeper.role,
+            "master_public_key": gatekeeper.master_public_key,
+        },
         "genesis_block_hash": info.genesis_block_hash,
         "public_key": info.public_key,
         "ecdh_public_key": info.ecdh_public_key,
@@ -1140,7 +1145,7 @@ fn get_info_json() -> Result<Value, Value> {
         "dev_mode": info.dev_mode,
         "pending_messages": info.pending_messages,
         "score": info.score,
-        "machine_id": machin_id,
+        "machine_id": machine_id,
     }))
 }
 

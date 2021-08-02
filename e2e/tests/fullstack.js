@@ -166,7 +166,7 @@ describe('A full stack', function () {
 		it('becomes active', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[1].getInfo();
-				return info.gatekeeper_role == 2;  // 2: MiningActive in protobuf
+				return info.gatekeeper.role == 2;  // 2: MiningActive in protobuf
 			}, 1000))
 
 			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq

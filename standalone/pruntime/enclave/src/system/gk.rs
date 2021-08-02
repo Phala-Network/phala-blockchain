@@ -132,6 +132,11 @@ where
         }
     }
 
+    /// Returns the master public key
+    pub fn master_public_key(&self) -> Option<sr25519::Public> {
+        self.master_key.as_ref().map(|k| k.public())
+    }
+
     pub fn is_registered_on_chain(&self) -> bool {
         self.registered_on_chain
     }
