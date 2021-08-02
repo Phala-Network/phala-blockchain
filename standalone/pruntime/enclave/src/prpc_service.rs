@@ -72,7 +72,7 @@ fn prpc_request(
         Err(e) => {
             let (code, err) = match e {
                 Error::NotFound => (404, ProtoError::new("Method Not Found")),
-                Error::DecodeError(_) => (400, ProtoError::new("DecodeError")),
+                Error::DecodeError(err) => (400, ProtoError::new(format!("DecodeError({:?})", err))),
                 Error::AppError(msg) => (500, ProtoError::new(msg)),
             };
             (code, prpc::codec::encode_message_to_vec(&err))
