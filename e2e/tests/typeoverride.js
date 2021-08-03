@@ -106,14 +106,15 @@ const types = {
         "ve": "u128",
         "v": "u128",
         "vUpdatedAt": "u64",
-        "pInstant": "u64",
         "benchmark": "Benchmark",
         "coolDownStart": "u64",
         "stats": "MinerStats"
     },
     "Benchmark": {
+		"pInstant": "u32",
         "iterations": "u64",
-        "miningStartTime": "u64"
+        "miningStartTime": "u64",
+		"updated_at": "u64"
     },
     "MinerState": {
         "_enum": {
