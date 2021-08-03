@@ -826,9 +826,10 @@ pub mod pallet {
 		T: mining::Config,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
-		/// Called when worker was cleanuped
-		/// After collingdown end, worker was cleanuped, whose contributed balance
-		/// would be reset to zero
+		/// Called when worker was cleanuped.
+		///
+		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
+		/// reset to zero.
 		fn on_reclaim(miner: &T::AccountId, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
 			let pid = SubAccountAssignments::<T>::get(miner).expect("Sub-acocunt must exist; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");

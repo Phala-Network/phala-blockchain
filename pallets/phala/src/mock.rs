@@ -220,5 +220,5 @@ pub fn setup_workers_linked_operators(n: u8) {
 
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
-	Timestamp::set_timestamp(now + PhalaMining::cool_down_period());
+	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
 }
