@@ -1,4 +1,3 @@
-use call_trace::{trace_with, CallContext, Trace};
 use libc::{self, c_char, c_int, c_uint, c_ulong, c_void, iovec, size_t, ssize_t};
 use sgx_libc::{self, ocall};
 use sgx_types::{sgx_read_rand, sgx_status_t};
@@ -7,18 +6,6 @@ use std::{
     ffi::CStr,
     sync::atomic::{AtomicU16, Ordering},
 };
-
-// TODO: remove this when debug finished.
-struct Tracer;
-
-impl Trace for Tracer {
-    fn on_pre(&mut self, ctx: &CallContext) {
-        // println!("> {:?}", ctx);
-    }
-    fn on_post(&mut self, ctx: &CallContext) {
-        // println!(" < {:?}", ctx);
-    }
-}
 
 macro_rules! assert_eq_size {
     ($x:ty, $($xs:ty),+ $(,)?) => {
@@ -40,7 +27,6 @@ macro_rules! not_allowed {
 
 assert_eq_size!(libc::iovec, sgx_libc::iovec);
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: size_t) -> c_int {
     unsafe {
@@ -62,7 +48,6 @@ pub extern "C" fn write(fd: c_int, buf: *const c_void, count: size_t) -> ssize_t
     unsafe { ocall::write(fd, buf, count) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t {
     unsafe { ocall::readv(fd, iov as _, iovcnt) }
@@ -73,7 +58,6 @@ pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t
     unsafe { ocall::writev(fd, iov as _, iovcnt) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn getcwd(buf: *mut c_char, size: size_t) -> *mut c_char {
     // Enclave have no working directory, let's return ""
@@ -142,7 +126,6 @@ pub extern "C" fn __xpg_strerror_r(errnum: c_int, buf: *mut c_char, buflen: size
     unsafe { strerror_r(errnum, buf, buflen) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec) -> c_int {
     assert_eq_size!(libc::timespec, sgx_libc::timespec);
@@ -150,22 +133,18 @@ pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec
     unsafe { ocall::clock_gettime(clk_id, tp as _) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
     unsafe { ocall::read(fd, buf, count) }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn close(fd: c_int) -> c_int {
     unsafe { ocall::close(fd) }
 }
 
-#[trace_with(Tracer)]
-// ssize_t getrandom(void *buf, size_t buflen, unsigned int flags);
 #[no_mangle]
-pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, flags: c_uint) -> ssize_t {
+pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, _flags: c_uint) -> ssize_t {
     if buflen == 0 {
         return 0;
     }
@@ -174,11 +153,13 @@ pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, flags: c_uint) -> 
 
     match rv {
         sgx_status_t::SGX_SUCCESS => buflen as _,
-        _ => -1, // TODO: set errno
+        _ => {
+            sgx_libc::set_errno(libc::EINTR);
+            -1
+        }
     }
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn dlsym(_handle: *const c_void, symbol: *const c_char) -> *const c_void {
     let symbol = unsafe { CStr::from_ptr(symbol) };
@@ -191,7 +172,6 @@ pub extern "C" fn dlsym(_handle: *const c_void, symbol: *const c_char) -> *const
     core::ptr::null()
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
     // The ocall returns a host space ptr which can not be used directly.
@@ -202,27 +182,57 @@ pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
     core::ptr::null()
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
-pub extern "C" fn open64(path: *const c_char, oflag: c_int, mode: c_int) -> c_int {
-    // TODO.kevin: forbid this call
-    unsafe { ocall::open64(path, oflag, mode) }
-    // not_allowed!()
+pub extern "C" fn open64(_path: *const c_char, _oflag: c_int, _mode: c_int) -> c_int {
+    // unsafe { ocall::open64(path, oflag, mode) }
+    not_allowed!()
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn isatty() -> c_int {
     0
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
-pub extern "C" fn freeaddrinfo(res: *mut sgx_libc::addrinfo) {
-    unsafe { ocall::freeaddrinfo(res) }
+pub extern "C" fn poll(fds: *mut libc::pollfd, nfds: libc::nfds_t, timeout: c_int) -> c_int {
+    assert_eq_size!(libc::pollfd, sgx_libc::pollfd);
+    unsafe { ocall::poll(fds as _, nfds, timeout) }
 }
 
-#[trace_with(Tracer)]
+#[no_mangle]
+pub unsafe extern "C" fn ioctl(fd: c_int, request: c_ulong, mut args: ...) -> c_int {
+    match request {
+        libc::FIONBIO => {
+            let arg = args.arg::<*mut c_int>();
+            return ocall::ioctl_arg1(fd, request as _, arg);
+        }
+        _ => {
+            eprintln!("ioctl fd={} request={}", fd, request);
+            not_allowed!()
+        }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn readlink(path: *const c_char, buf: *mut c_char, bufsz: size_t) -> ssize_t {
+    unsafe { ocall::readlink(path, buf, bufsz) }
+}
+
+#[no_mangle]
+pub extern "C" fn fstat64(fildes: c_int, buf: *mut libc::stat64) -> c_int {
+    assert_eq_size!(libc::stat64, sgx_libc::stat64);
+    unsafe { ocall::fstat64(fildes, buf as _) }
+}
+
+#[no_mangle]
+pub extern "C" fn pthread_atfork(
+    _prepare: Option<unsafe extern "C" fn()>,
+    _parent: Option<unsafe extern "C" fn()>,
+    _child: Option<unsafe extern "C" fn()>,
+) -> c_int {
+    not_allowed!()
+}
+
 #[no_mangle]
 pub extern "C" fn mmap(
     _addr: *mut c_void,
@@ -235,134 +245,93 @@ pub extern "C" fn mmap(
     not_allowed!()
 }
 
-#[trace_with(Tracer)]
 #[no_mangle]
 pub extern "C" fn munmap(_addr: *mut c_void, _len: size_t) -> c_int {
     not_allowed!()
 }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn socket(domain: c_int, ty: c_int, protocol: c_int) -> c_int {
-    unsafe { ocall::socket(domain, ty, protocol) }
-}
+#[cfg(feature = "net")]
+mod net {
+    use super::*;
 
-#[no_mangle]
-pub unsafe extern "C" fn ioctl(fd: c_int, request: c_ulong, mut args: ...) -> c_int {
-    match request {
-        libc::FIONBIO => {
-            let arg = args.arg::<*mut c_int>();
-            return ocall::ioctl_arg1(fd, request as _, arg);
-        },
-        _ => {
-            eprintln!("ioctl fd={} request={}", fd, request);
-            not_allowed!()
-        }
+    #[no_mangle]
+    pub extern "C" fn freeaddrinfo(res: *mut sgx_libc::addrinfo) {
+        unsafe { ocall::freeaddrinfo(res) }
     }
-}
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn connect(
-    socket: c_int,
-    address: *const libc::sockaddr,
-    len: libc::socklen_t,
-) -> c_int {
-    assert_eq_size!(libc::sockaddr, sgx_libc::sockaddr);
-    unsafe { ocall::connect(socket, address as _, len) }
-}
+    #[no_mangle]
+    pub extern "C" fn socket(domain: c_int, ty: c_int, protocol: c_int) -> c_int {
+        unsafe { ocall::socket(domain, ty, protocol) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn poll(fds: *mut libc::pollfd, nfds: libc::nfds_t, timeout: c_int) -> c_int {
-    assert_eq_size!(libc::pollfd, sgx_libc::pollfd);
-    unsafe { ocall::poll(fds as _, nfds, timeout) }
-}
+    #[no_mangle]
+    pub extern "C" fn connect(
+        socket: c_int,
+        address: *const libc::sockaddr,
+        len: libc::socklen_t,
+    ) -> c_int {
+        assert_eq_size!(libc::sockaddr, sgx_libc::sockaddr);
+        unsafe { ocall::connect(socket, address as _, len) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn getsockopt(
-    sockfd: c_int,
-    level: c_int,
-    optname: c_int,
-    optval: *mut c_void,
-    optlen: *mut libc::socklen_t,
-) -> c_int {
-    unsafe { ocall::getsockopt(sockfd, level, optname, optval, optlen) }
-}
+    #[no_mangle]
+    pub extern "C" fn getsockopt(
+        sockfd: c_int,
+        level: c_int,
+        optname: c_int,
+        optval: *mut c_void,
+        optlen: *mut libc::socklen_t,
+    ) -> c_int {
+        unsafe { ocall::getsockopt(sockfd, level, optname, optval, optlen) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn send(socket: c_int, buf: *const c_void, len: size_t, flags: c_int) -> ssize_t {
-    unsafe { ocall::send(socket, buf, len, flags) }
-}
+    #[no_mangle]
+    pub extern "C" fn send(
+        socket: c_int,
+        buf: *const c_void,
+        len: size_t,
+        flags: c_int,
+    ) -> ssize_t {
+        unsafe { ocall::send(socket, buf, len, flags) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn recv(socket: c_int, buf: *mut c_void, len: size_t, flags: c_int) -> ssize_t {
-    unsafe { ocall::recv(socket, buf, len, flags) }
-}
+    #[no_mangle]
+    pub extern "C" fn recv(socket: c_int, buf: *mut c_void, len: size_t, flags: c_int) -> ssize_t {
+        unsafe { ocall::recv(socket, buf, len, flags) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn setsockopt(
-    socket: c_int,
-    level: c_int,
-    name: c_int,
-    value: *const c_void,
-    option_len: libc::socklen_t,
-) -> c_int {
-    unsafe { ocall::setsockopt(socket, level, name, value, option_len) }
-}
+    #[no_mangle]
+    pub extern "C" fn setsockopt(
+        socket: c_int,
+        level: c_int,
+        name: c_int,
+        value: *const c_void,
+        option_len: libc::socklen_t,
+    ) -> c_int {
+        unsafe { ocall::setsockopt(socket, level, name, value, option_len) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn getaddrinfo(
-    node: *const c_char,
-    service: *const c_char,
-    hints: *const libc::addrinfo,
-    res: *mut *mut libc::addrinfo,
-) -> c_int {
-    assert_eq_size!(libc::addrinfo, sgx_libc::addrinfo);
-    unsafe { ocall::getaddrinfo(node, service, hints as _, res as _) }
-}
+    #[no_mangle]
+    pub extern "C" fn getaddrinfo(
+        node: *const c_char,
+        service: *const c_char,
+        hints: *const libc::addrinfo,
+        res: *mut *mut libc::addrinfo,
+    ) -> c_int {
+        assert_eq_size!(libc::addrinfo, sgx_libc::addrinfo);
+        unsafe { ocall::getaddrinfo(node, service, hints as _, res as _) }
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn __res_init() -> c_int {
-    eprintln!("WARN: __res_init not implemented");
-    0
-}
+    #[no_mangle]
+    pub extern "C" fn __res_init() -> c_int {
+        eprintln!("WARN: __res_init not implemented");
+        0
+    }
 
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn gai_strerror(_errcode: c_int) -> *const c_char {
-    // different memory space
-    // ocall::gai_strerror(errcode)
-    b"gai_strerror not supported\0".as_ptr() as _
-}
-
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn readlink(path: *const c_char, buf: *mut c_char, bufsz: size_t) -> ssize_t {
-    unsafe { ocall::readlink(path, buf, bufsz) }
-}
-
-#[trace_with(Tracer)]
-#[no_mangle]
-pub extern "C" fn fstat64(fildes: c_int, buf: *mut libc::stat64) -> c_int {
-    assert_eq_size!(libc::stat64, sgx_libc::stat64);
-    unsafe { ocall::fstat64(fildes, buf as _) }
-}
-
-#[no_mangle]
-pub extern "C" fn pthread_atfork(
-    prepare: Option<unsafe extern "C" fn()>,
-    parent: Option<unsafe extern "C" fn()>,
-    child: Option<unsafe extern "C" fn()>,
-) -> c_int {
-    println!("pthread_atfork prepare={:?}", prepare);
-    println!("pthread_atfork parent={:?}", parent);
-    println!("pthread_atfork child={:?}", child);
-    not_allowed!()
+    #[no_mangle]
+    pub extern "C" fn gai_strerror(_errcode: c_int) -> *const c_char {
+        // different memory space
+        // ocall::gai_strerror(errcode)
+        b"gai_strerror not supported\0".as_ptr() as _
+    }
 }

@@ -8,6 +8,7 @@ enclave {
     from "sgx_env.edl" import *;
     from "sgx_tprotected_fs.edl" import *;
     from "sgx_pthread.edl" import *;
+    from "sgx_tstd.edl" import *;
 
     include "sgx_quote.h"
 

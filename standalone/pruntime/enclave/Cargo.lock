@@ -7,7 +7,7 @@ name = "EnclaveApp"
 version = "0.0.1"
 dependencies = [
  "anyhow",
- "base64 0.13.0",
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bit-vec",
  "bitcoin",
  "bitcoin_hashes",
@@ -28,7 +28,7 @@ dependencies = [
  "itertools 0.8.2",
  "lazy_static",
  "libc",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "num-bigint",
  "num-traits",
  "pallet-bridge-transfer",
@@ -44,7 +44,7 @@ dependencies = [
  "regex",
  "ring 0.16.20",
  "rust-crypto",
- "rustls",
+ "rustls 0.19.1",
  "scopeguard",
  "serde",
  "serde_cbor",
@@ -66,7 +66,7 @@ dependencies = [
  "sp-runtime-interface",
  "sp-trie",
  "trie-storage",
- "webpki 0.21.4",
+ "webpki 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "webpki-roots 0.22.0",
  "yasna",
 ]
@@ -179,6 +179,14 @@ name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
+
+[[package]]
+name = "base64"
+version = "0.13.0"
+source = "git+https://github.com/mesalock-linux/rust-base64-sgx#dc7389e10817b078f289386b3b6a852ab6c4c021"
+dependencies = [
+ "sgx_tstd",
+]
 
 [[package]]
 name = "bech32"
@@ -492,7 +500,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 name = "enclave-api"
 version = "0.1.0"
 dependencies = [
- "base64 0.13.0",
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "derive_more",
  "frame-system",
  "parity-scale-codec",
@@ -535,7 +543,7 @@ checksum = "0b2cf0344971ee6c64c31be0d530793fba457d322dfec2810c453d0ef228f9c3"
 dependencies = [
  "atty",
  "humantime",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "regex",
  "termcolor",
 ]
@@ -673,7 +681,7 @@ dependencies = [
  "frame-metadata",
  "frame-support-procedural",
  "impl-trait-for-tuples",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "paste",
  "smallvec",
@@ -724,7 +732,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "impl-trait-for-tuples",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -940,14 +948,14 @@ dependencies = [
 
 [[package]]
 name = "http_req"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9e6cd45a270dff33553602fd84beb02c89460ee32db638715f10d9060389fd6a"
+version = "0.7.2"
+source = "git+https://github.com/mesalock-linux/http_req-sgx#5d0f7474c73b70d2dbdda69c1db2a2e31aee6eb8"
 dependencies = [
- "rustls",
+ "rustls 0.19.0",
+ "sgx_tstd",
  "unicase",
- "webpki 0.21.4",
- "webpki-roots 0.21.1",
+ "webpki 0.21.4 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
+ "webpki-roots 0.21.0",
 ]
 
 [[package]]
@@ -1062,6 +1070,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "51b9bbe6c47d51fc3e1a9b945965946b4c44142ab8792c50835a980d362c2710"
 dependencies = [
  "cfg-if 1.0.0",
+]
+
+[[package]]
+name = "log"
+version = "0.4.14"
+source = "git+https://github.com/mesalock-linux/log-sgx#2ca9039a9ebba0ed90ed2ad57425917d4b3a2a24"
+dependencies = [
+ "cfg-if 1.0.0",
+ "sgx_tstd",
 ]
 
 [[package]]
@@ -1201,7 +1218,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-authorship",
  "pallet-session",
  "pallet-timestamp",
@@ -1222,7 +1239,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-runtime",
  "sp-std",
@@ -1279,7 +1296,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -1306,7 +1323,7 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-arithmetic",
  "sp-core",
@@ -1323,7 +1340,7 @@ version = "5.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -1338,7 +1355,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
@@ -1371,7 +1388,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-authorship",
  "parity-scale-codec",
  "sp-application-crypto",
@@ -1428,7 +1445,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-io",
  "sp-runtime",
@@ -1454,7 +1471,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-balances",
  "parity-scale-codec",
  "sp-runtime",
@@ -1506,7 +1523,7 @@ version = "4.0.0-dev"
 dependencies = [
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-io",
  "sp-runtime",
@@ -1520,7 +1537,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-timestamp",
  "parity-scale-codec",
  "sp-core",
@@ -1551,7 +1568,7 @@ dependencies = [
  "frame-election-provider-support",
  "frame-support",
  "frame-system",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-authorship",
  "pallet-session",
  "parity-scale-codec",
@@ -1593,7 +1610,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "impl-trait-for-tuples",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-inherents",
  "sp-runtime",
@@ -1772,7 +1789,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "frame-system-rpc-runtime-api",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "native-nostd-hasher",
  "node-primitives",
  "pallet-authority-discovery",
@@ -1843,7 +1860,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "hex",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "pallet-balances",
  "pallet-randomness-collective-flip",
  "parity-scale-codec",
@@ -2137,6 +2154,17 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 
 [[package]]
 name = "ring"
+version = "0.16.19"
+source = "git+https://github.com/mesalock-linux/ring-sgx?tag=v0.16.5#844efe271ed78a399d803b2579f5f2424d543c9f"
+dependencies = [
+ "cc",
+ "sgx_tstd",
+ "spin 0.5.2",
+ "untrusted",
+]
+
+[[package]]
+name = "ring"
 version = "0.16.20-1"
 dependencies = [
  "cc",
@@ -2201,15 +2229,28 @@ dependencies = [
 
 [[package]]
 name = "rustls"
+version = "0.19.0"
+source = "git+https://github.com/mesalock-linux/rustls?branch=mesalock_sgx#95b5e79dc24b02f3ce424437eb9698509d0baf58"
+dependencies = [
+ "base64 0.13.0 (git+https://github.com/mesalock-linux/rust-base64-sgx)",
+ "log 0.4.14 (git+https://github.com/mesalock-linux/log-sgx)",
+ "ring 0.16.19",
+ "sct 0.6.0",
+ "sgx_tstd",
+ "webpki 0.21.4 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
+]
+
+[[package]]
+name = "rustls"
 version = "0.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "35edb675feee39aec9c99fa5ff985081995a06d594114ae14cbe797ad7b7a6d7"
 dependencies = [
- "base64 0.13.0",
- "log",
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "ring 0.16.20",
- "sct",
- "webpki 0.21.4",
+ "sct 0.6.1",
+ "webpki 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -2273,6 +2314,16 @@ name = "scopeguard"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d29ab0c6d3fc0ee92fe66e2d99f700eab17a8d57d1c1d3b748380fb20baa78cd"
+
+[[package]]
+name = "sct"
+version = "0.6.0"
+source = "git+https://github.com/mesalock-linux/sct.rs?branch=mesalock_sgx#c4d859cca232e6c9d88ca12048df3bc26e1ed4ad"
+dependencies = [
+ "ring 0.16.19",
+ "sgx_tstd",
+ "untrusted",
+]
 
 [[package]]
 name = "sct"
@@ -2521,7 +2572,7 @@ checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
 name = "sp-api"
 version = "4.0.0-dev"
 dependencies = [
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "sp-api-proc-macro",
  "sp-core",
@@ -2642,7 +2693,7 @@ dependencies = [
  "hash256-std-hasher",
  "hex",
  "libsecp256k1",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "merlin",
  "num-traits",
  "parity-scale-codec",
@@ -2754,7 +2805,7 @@ dependencies = [
  "either",
  "hash256-std-hasher",
  "impl-trait-for-tuples",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-scale-codec",
  "parity-util-mem",
  "paste",
@@ -3065,7 +3116,7 @@ checksum = "9eac131e334e81b6b3be07399482042838adcd7957aa0010231d0813e39e02fa"
 dependencies = [
  "hash-db",
  "hashbrown",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "smallvec",
 ]
 
@@ -3127,9 +3178,9 @@ dependencies = [
 [[package]]
 name = "unicase"
 version = "2.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50f37be617794602aabbeee0be4f259dc1778fabe05e2d67ee8f79326d5cb4f6"
+source = "git+https://github.com/mesalock-linux/unicase-sgx#0b0519348572927118af47af3da4da9ffdca8ec6"
 dependencies = [
+ "sgx_tstd",
  "version_check",
 ]
 
@@ -3187,7 +3238,7 @@ checksum = "3b33f6a0694ccfea53d94db8b2ed1c3a8a4c86dd936b13b9f0a15ec4a451b900"
 dependencies = [
  "bumpalo",
  "lazy_static",
- "log",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 1.0.28",
  "quote 1.0.9",
  "syn 1.0.74",
@@ -3245,6 +3296,16 @@ dependencies = [
 
 [[package]]
 name = "webpki"
+version = "0.21.4"
+source = "git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx#8dbe6fbeefadf05582ae47c7fa818b04db49c61e"
+dependencies = [
+ "ring 0.16.19",
+ "sgx_tstd",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki"
 version = "0.22.0"
 dependencies = [
  "ring 0.16.20",
@@ -3264,11 +3325,11 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.21.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
+version = "0.21.0"
+source = "git+https://github.com/mesalock-linux/webpki-roots?branch=mesalock_sgx#6ff3be547ac13ccd46ae55605ad6506ce30688ef"
 dependencies = [
- "webpki 0.21.4",
+ "sgx_tstd",
+ "webpki 0.21.4 (git+https://github.com/mesalock-linux/webpki?branch=mesalock_sgx)",
 ]
 
 [[package]]

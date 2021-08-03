@@ -35,7 +35,7 @@ rustls      = { version = "*", features = ["dangerous_configuration"] }
 webpki-roots= "*"
 rand        = { version = "0.7.3" }
 regex       = "*"
-http_req    = { version = "*", default-features = false, features = ["rust-tls"]}
+http_req    = { git = "https://github.com/mesalock-linux/http_req-sgx", features = ["rust-tls"]}
 bitcoin     = { version = "*", features = ["use-serde"]}
 bitcoin_hashes = "*"
 call-trace     = "*"
