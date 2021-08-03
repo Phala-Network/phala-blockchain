@@ -1,5 +1,3 @@
-use frame_support::PalletId;
-
 pub const RANDOMNESS_SUBJECT: &'static [u8] = b"PhalaPoW";
 
 pub const IAS_QUOTE_STATUS_LEVEL_1: &'static [&str] = &["OK"];

@@ -218,6 +218,11 @@ pub fn setup_workers_linked_operators(n: u8) {
 	}
 }
 
+pub fn elapse_seconds(sec: u64) {
+	let now = Timestamp::get();
+	Timestamp::set_timestamp(now + sec * 1000);
+}
+
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
 	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);

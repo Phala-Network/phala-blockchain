@@ -15,8 +15,8 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			DecodedMessage, GatekeeperEvent, HeartbeatChallenge, MessageOrigin,
-			MiningInfoUpdateEvent, SettleInfo, SystemEvent, TokenomicParameters as TokenomicParams,
-			WorkerEvent,
+			MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
+			TokenomicParameters as TokenomicParams, WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -58,8 +58,34 @@ pub mod pallet {
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
+		p_instant: u32,
 		iterations: u64,
 		mining_start_time: u64,
+		updated_at: u64,
+	}
+
+	impl Benchmark {
+		/// Records the latest benchmark status snapshot and updates `p_instant`
+		fn update(
+			&mut self,
+			updated_at: u64,
+			iterations: u64,
+			initial_score: u32,
+		) -> Result<(), ()> {
+			if updated_at <= self.updated_at || iterations <= self.iterations {
+				return Err(());
+			}
+			let delta_iter = iterations - self.iterations;
+			let delta_ts = updated_at - self.updated_at;
+			self.updated_at = updated_at;
+			self.iterations = iterations;
+			// Normalize the instant P value:
+			// 1. Normalize to iterations in 6 sec
+			// 2. Cap it to 120% `initial_score`
+			let p_instant = (delta_iter * 6 / delta_ts) as u32;
+			self.p_instant = p_instant.min(initial_score * 12 / 10);
+			Ok(())
+		}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -70,7 +96,6 @@ pub mod pallet {
 		/// The last updated V, in U64F64 bits
 		pub v: u128,
 		v_updated_at: u64,
-		p_instant: u64,
 		benchmark: Benchmark,
 		cool_down_start: u64,
 		stats: MinerStats,
@@ -365,6 +390,42 @@ pub mod pallet {
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 		}
 
+		pub fn on_mining_message_received(
+			message: DecodedMessage<MiningReportEvent>,
+		) -> DispatchResult {
+			if let MessageOrigin::Worker(worker) = message.sender {
+				match message.payload {
+					MiningReportEvent::Heartbeat { iterations, .. } => {
+						// Handle with great care!
+						//
+						// In some cases, a message can be delayed, but the worker has been already
+						// unbound or removed (possible?). So when we receive a message, don't
+						// assume the worker is always there and the miner state is complete. So
+						// far it sounds safe to just discard this message, but not interrupt the
+						// entire message queue.
+						//
+						// So we call `ensure_worker_bound` here, and return an error if the worker
+						// is not bound. However if the worker is indeed bound, the rest of the
+						// code assumes the Miners, Workers, and worker score must exist.
+						let miner = Self::ensure_worker_bound(&worker)?;
+						let mut miner_info = Self::miners(&miner).expect("Bound miner; qed.");
+						let worker =
+							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
+						let initial_score = worker
+							.initial_score
+							.expect("Mining worker has benchmark; qed.");
+						let now = Self::now_sec();
+						miner_info
+							.benchmark
+							.update(now, iterations, initial_score)
+							.expect("Benchmark report must be valid; qed.");
+						Miners::<T>::insert(&miner, miner_info);
+					}
+				};
+			}
+			Ok(())
+		}
+
 		pub fn on_gk_message_received(
 			message: DecodedMessage<MiningInfoUpdateEvent<T::BlockNumber>>,
 		) -> DispatchResult {
@@ -374,9 +435,7 @@ pub mod pallet {
 
 			let event = message.payload;
 			if !event.is_empty() {
-				let now = <T as registry::Config>::UnixTime::now()
-					.as_secs()
-					.saturated_into::<u64>();
+				let now = Self::now_sec();
 
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
@@ -423,28 +482,26 @@ pub mod pallet {
 			if miner_info.state != MinerState::MiningCoolingDown {
 				return false;
 			}
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 			now - miner_info.cool_down_start >= Self::cool_down_period()
 		}
 
-		/// Binding miner with worker
+		/// Binds a miner to a worker
+		///
+		/// This will bind the miner account to the worker, and then create a `Miners` entry to
+		/// track the mining session in the future. The mining session will exist until ther miner
+		/// and the worker is unbound.
 		///
 		/// Requires:
 		/// 1. The worker is alerady registered
 		/// 2. The worker has an initial benchmark
-		/// 3. The worker is not bounded
+		/// 3. Both the worker and the miner are not bound
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-
-			ensure!(
-				registry::Workers::<T>::contains_key(&pubkey),
-				Error::<T>::WorkerNotRegistered
-			);
-
+			let worker =
+				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+			// Check the worker has finished the benchmark
+			ensure!(worker.initial_score != None, Error::<T>::BenchmarkMissing);
+			// Check miner and worker not bound
 			ensure!(
 				Self::ensure_miner_bound(&miner).is_err(),
 				Error::<T>::DuplicateBoundMiner
@@ -454,9 +511,9 @@ pub mod pallet {
 				Error::<T>::DuplicateBoundMiner
 			);
 
+			let now = Self::now_sec();
 			MinerBindings::<T>::insert(&miner, &pubkey);
 			WorkerBindings::<T>::insert(&pubkey, &miner);
-
 			Miners::<T>::insert(
 				&miner,
 				MinerInfo {
@@ -464,10 +521,11 @@ pub mod pallet {
 					ve: 0,
 					v: 0,
 					v_updated_at: now,
-					p_instant: 0u64,
 					benchmark: Benchmark {
+						p_instant: 0u32,
 						iterations: 0u64,
 						mining_start_time: now,
+						updated_at: 0u64,
 					},
 					cool_down_start: 0u64,
 					stats: Default::default(),
@@ -528,9 +586,7 @@ pub mod pallet {
 			let v_max = tokenomic.v_max();
 			ensure!(ve <= v_max, Error::<T>::TooMuchStake);
 
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 
 			Stakes::<T>::insert(&miner, stake);
 			Miners::<T>::mutate(&miner, |info| {
@@ -570,9 +626,7 @@ pub mod pallet {
 				Error::<T>::MinerNotMining
 			);
 
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 			miner_info.state = MinerState::MiningCoolingDown;
 			miner_info.cool_down_start = now;
 			Miners::<T>::insert(&miner, &miner_info);
@@ -610,6 +664,12 @@ pub mod pallet {
 			let params =
 				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
 			Tokenomic::<T>::new(params)
+		}
+
+		fn now_sec() -> u64 {
+			<T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>()
 		}
 	}
 
@@ -775,11 +835,11 @@ pub mod pallet {
 	mod test {
 		use super::*;
 		use crate::mock::{
-			new_test_ext, set_block_1, setup_workers, take_events, take_messages, worker_pubkey,
-			Event as TestEvent, Origin, Test, DOLLARS,
+			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
+			worker_pubkey, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
-		use crate::mock::{PhalaMining, System};
+		use crate::mock::{PhalaMining, PhalaRegistry, System};
 
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::{assert_noop, assert_ok};
@@ -953,6 +1013,71 @@ pub mod pallet {
 				assert_eq!(
 					tokenomic.op_cost(2000) * 3600 * 24 * 365,
 					fp!(171.71874999890369452304)
+				);
+			});
+		}
+
+		#[test]
+		fn test_benchmark_report() {
+			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				// 100 iters per sec
+				PhalaRegistry::internal_set_benchmark(&worker_pubkey(1), Some(600));
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				// Though only the mining workers can send heartbeat, but we don't enforce it in
+				// the pallet, but just by pRuntime. Therefore we can directly throw a heartbeat
+				// response to test benchmark report.
+
+				// 110% boost
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
+					MiningReportEvent,
+				> {
+					sender: MessageOrigin::Worker(worker_pubkey(1)),
+					destination: Topic::new(*b"phala/mining/report"),
+					payload: MiningReportEvent::Heartbeat {
+						session_id: 0,
+						challenge_block: 0,
+						challenge_time: 0,
+						iterations: 11000,
+					},
+				}));
+				let miner = PhalaMining::miners(1).unwrap();
+				assert_eq!(
+					miner.benchmark,
+					Benchmark {
+						p_instant: 660,
+						iterations: 11000,
+						mining_start_time: 0,
+						updated_at: 100,
+					}
+				);
+
+				// 150% boost (capped)
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
+					MiningReportEvent,
+				> {
+					sender: MessageOrigin::Worker(worker_pubkey(1)),
+					destination: Topic::new(*b"phala/mining/report"),
+					payload: MiningReportEvent::Heartbeat {
+						session_id: 0,
+						challenge_block: 0,
+						challenge_time: 0,
+						iterations: 11000 + 15000,
+					},
+				}));
+				let miner = PhalaMining::miners(1).unwrap();
+				assert_eq!(
+					miner.benchmark,
+					Benchmark {
+						p_instant: 720,
+						iterations: 26000,
+						mining_start_time: 0,
+						updated_at: 200,
+					}
 				);
 			});
 		}
