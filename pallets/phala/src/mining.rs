@@ -156,7 +156,7 @@ pub mod pallet {
 	pub(super) type WorkerBindings<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
 
-	/// The cool down period (in blocks)
+	/// The cool down period (in sec)
 	#[pallet::storage]
 	#[pallet::getter(fn cool_down_period)]
 	pub(super) type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
@@ -692,6 +692,7 @@ pub mod pallet {
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
+		pub cool_down_period_sec: u32,
 		pub tokenomic_parameters: TokenomicParams,
 	}
 
@@ -715,6 +716,7 @@ pub mod pallet {
 			let kappa = fp!(1);
 
 			Self {
+				cool_down_period_sec: 604800, // 7 days
 				tokenomic_parameters: TokenomicParams {
 					pha_rate: pha_rate.to_bits(),
 					rho: rho.to_bits(),
@@ -737,6 +739,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
+			CoolDownPeriod::<T>::put(self.cool_down_period_sec as u64);
 			TokenomicParameters::<T>::put(self.tokenomic_parameters.clone());
 			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
