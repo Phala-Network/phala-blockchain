@@ -764,7 +764,6 @@ fn save_secret_keys(
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
