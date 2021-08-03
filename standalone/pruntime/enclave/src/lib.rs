@@ -823,7 +823,6 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
     let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
