@@ -156,7 +156,7 @@ pub mod pallet {
 	pub(super) type WorkerBindings<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
 
-	/// The cool down period (in ms)
+	/// The cool down period (in sec)
 	#[pallet::storage]
 	#[pallet::getter(fn cool_down_period)]
 	pub(super) type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
