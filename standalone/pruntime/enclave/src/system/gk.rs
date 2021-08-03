@@ -21,10 +21,9 @@ use crate::{
 };
 
 use crate::std::convert::TryInto;
-use crate::std::io::{Read, Write};
-// use crate::std::sgxfs::SgxFile;
-use crate::std::fs::File as SgxFile; // TODO.kevin: !!!!!!!!!! 
 use crate::std::vec::Vec;
+use sgx_tstd::io::{Read, Write};
+use sgx_tstd::sgxfs::SgxFile;
 use msg_trait::MessageChannel;
 use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};

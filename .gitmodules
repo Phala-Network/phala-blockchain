@@ -3,7 +3,7 @@
 	url = https://github.com/paritytech/substrate.git
 [submodule "teaclave-sgx-sdk"]
 	path = teaclave-sgx-sdk
-	url = https://github.com/apache/incubator-teaclave-sgx-sdk.git
+	url =  https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git
 [submodule "standalone/pruntime/enclave-api/proto"]
 	path = standalone/pruntime/enclave-api/proto
 	url = https://github.com/Phala-Network/prpc-protos.git

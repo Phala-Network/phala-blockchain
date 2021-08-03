@@ -31,8 +31,8 @@ use crate::std::prelude::v1::*;
 use crate::std::ptr;
 use crate::std::str;
 use crate::std::string::String;
-use crate::std::sync::Mutex as SgxMutex; // TODO.kevin: take back SgxMutex?
 use crate::std::vec::Vec;
+use sgx_tstd::sync::SgxMutex;
 
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
