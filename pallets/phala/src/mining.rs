@@ -202,33 +202,31 @@ pub mod pallet {
 	/// if the worker is force unbound. A re-bind of a worker will reset the mining state.
 	#[pallet::storage]
 	#[pallet::getter(fn miners)]
-	pub(super) type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
+	pub type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
 
 	/// The bound worker for a miner account
 	#[pallet::storage]
-	pub(super) type MinerBindings<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, WorkerPublicKey>;
+	pub type MinerBindings<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, WorkerPublicKey>;
 
 	/// The bound miner account for a worker
 	#[pallet::storage]
-	pub(super) type WorkerBindings<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
+	pub type WorkerBindings<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
 
 	/// The cool down period (in sec)
 	#[pallet::storage]
 	#[pallet::getter(fn cool_down_period)]
-	pub(super) type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
+	pub type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
 
 	/// The next id to assign to a mining session
 	#[pallet::storage]
-	pub(super) type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
+	pub type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
 
 	/// The stakes of miner accounts.
 	///
 	/// Only presents for mining and cooling down miners.
 	#[pallet::storage]
 	#[pallet::getter(fn stakes)]
-	pub(super) type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
