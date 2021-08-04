@@ -24,7 +24,7 @@ dependencies = [
  "hex",
  "hex-literal",
  "http_req",
- "itertools 0.8.2",
+ "itertools",
  "lazy_static",
  "libc",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -970,15 +970,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "276ec31bcb4a9ee45f58bec6f9ec700ae4cf4f4f8f2fa7e06cb406bd5ffdd770"
 dependencies = [
  "num-traits",
-]
-
-[[package]]
-name = "itertools"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f56a2d0bc861f9165be4eb3442afd3c236d8a98afd426f65d92324ae1091a484"
-dependencies = [
- "either",
 ]
 
 [[package]]
@@ -1956,7 +1947,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "600d2f334aa05acb02a755e217ef1ab6dea4d51b58b7846588b747edec04efba"
 dependencies = [
  "anyhow",
- "itertools 0.10.1",
+ "itertools",
  "proc-macro2",
  "quote",
  "syn",
@@ -3306,7 +3297,7 @@ checksum = "85e60b0d1b5f99db2556934e21937020776a5d31520bf169e851ac44e6420214"
 [[package]]
 name = "yasna"
 version = "0.4.0"
-source = "git+https://github.com/kvinwang/yasna.rs?branch=phala#53ad4d64f112995c7bded0373e67e339ee30146b"
+source = "git+https://github.com/Phala-Network/yasna.rs?branch=phala#53ad4d64f112995c7bded0373e67e339ee30146b"
 dependencies = [
  "bit-vec",
  "chrono",

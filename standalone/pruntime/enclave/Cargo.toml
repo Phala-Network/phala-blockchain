@@ -31,7 +31,7 @@ ring        = "0.16.20"
 rust-crypto = "0.2.36"
 rand        = "0.7.3"
 regex       = "1.5.4"
-yasna       = { git = "https://github.com/kvinwang/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
+yasna       = { git = "https://github.com/Phala-Network/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
 rustls      = { version = "0.19.1", features = ["dangerous_configuration"] }
 webpki      = { version = "0.21", features = ["std"] }
 http_req    = { git = "https://github.com/mesalock-linux/http_req-sgx", features = ["rust-tls"]}
@@ -46,7 +46,7 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 hex-literal = "0.3"
 anyhow = { version = "1.0", default-features = false }
 bit-vec = { version = "0.6.3", default-features = false }
-itertools = { version = "0.8", default-features = false }
+itertools = { version = "0.10.1", default-features = false }
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
 
 trie-storage = { path = "../../../crates/trie-storage", default-features = false }

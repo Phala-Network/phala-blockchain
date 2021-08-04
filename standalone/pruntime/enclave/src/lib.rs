@@ -920,6 +920,7 @@ pub extern "C" fn ecall_init() -> sgx_status_t {
 
     benchmark::reset_iteration_counter();
 
+    info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS
 }
 

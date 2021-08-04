@@ -25,8 +25,6 @@ macro_rules! not_allowed {
     }};
 }
 
-assert_eq_size!(libc::iovec, sgx_libc::iovec);
-
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: size_t) -> c_int {
     unsafe {
@@ -44,18 +42,43 @@ pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: 
 }
 
 #[no_mangle]
-pub extern "C" fn write(fd: c_int, buf: *const c_void, count: size_t) -> ssize_t {
-    unsafe { ocall::write(fd, buf, count) }
+pub extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
+    if fd != 0 {
+        not_allowed!()
+    } else {
+        unsafe { ocall::read(fd, buf, count) }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t {
-    unsafe { ocall::readv(fd, iov as _, iovcnt) }
+    assert_eq_size!(libc::iovec, sgx_libc::iovec);
+
+    if fd != 0 {
+        not_allowed!()
+    } else {
+        unsafe { ocall::readv(fd, iov as _, iovcnt) }
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn write(fd: c_int, buf: *const c_void, count: size_t) -> ssize_t {
+    if !matches!(fd, 1 | 2) {
+        not_allowed!()
+    } else {
+        unsafe { ocall::write(fd, buf, count) }
+    }
 }
 
 #[no_mangle]
 pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t {
-    unsafe { ocall::writev(fd, iov as _, iovcnt) }
+    assert_eq_size!(libc::iovec, sgx_libc::iovec);
+
+    if !matches!(fd, 1 | 2) {
+        not_allowed!()
+    } else {
+        unsafe { ocall::writev(fd, iov as _, iovcnt) }
+    }
 }
 
 #[no_mangle]
@@ -133,13 +156,8 @@ pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec
 }
 
 #[no_mangle]
-pub extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
-    unsafe { ocall::read(fd, buf, count) }
-}
-
-#[no_mangle]
-pub extern "C" fn close(fd: c_int) -> c_int {
-    unsafe { ocall::close(fd) }
+pub extern "C" fn close(_fd: c_int) -> c_int {
+    not_allowed!()
 }
 
 #[no_mangle]
@@ -173,11 +191,7 @@ pub extern "C" fn dlsym(_handle: *const c_void, symbol: *const c_char) -> *const
 
 #[no_mangle]
 pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
-    // The ocall returns a host space ptr which can not be used directly.
-    // unsafe {
-    //     ocall::getenv(name)
-    // }
-
+    // The enclave does not allowed to access environment variables, so return an NULL.
     core::ptr::null()
 }
 
@@ -188,7 +202,7 @@ pub extern "C" fn open64(_path: *const c_char, _oflag: c_int, _mode: c_int) -> c
 }
 
 #[no_mangle]
-pub extern "C" fn isatty() -> c_int {
+pub extern "C" fn isatty(_fd: c_int) -> c_int {
     0
 }
 
@@ -210,17 +224,6 @@ pub unsafe extern "C" fn ioctl(fd: c_int, request: c_ulong, mut args: ...) -> c_
             not_allowed!()
         }
     }
-}
-
-#[no_mangle]
-pub extern "C" fn readlink(path: *const c_char, buf: *mut c_char, bufsz: size_t) -> ssize_t {
-    unsafe { ocall::readlink(path, buf, bufsz) }
-}
-
-#[no_mangle]
-pub extern "C" fn fstat64(fildes: c_int, buf: *mut libc::stat64) -> c_int {
-    assert_eq_size!(libc::stat64, sgx_libc::stat64);
-    unsafe { ocall::fstat64(fildes, buf as _) }
 }
 
 #[no_mangle]
@@ -248,6 +251,19 @@ pub extern "C" fn mmap(
 
 #[no_mangle]
 pub extern "C" fn munmap(_addr: *mut c_void, _len: size_t) -> c_int {
+    not_allowed!()
+}
+
+#[no_mangle]
+pub extern "C" fn readlink(_path: *const c_char, _buf: *mut c_char, _bufsz: size_t) -> ssize_t {
+    // unsafe { ocall::readlink(path, buf, bufsz) }
+    not_allowed!()
+}
+
+#[no_mangle]
+pub extern "C" fn fstat64(_fildes: c_int, _buf: *mut libc::stat64) -> c_int {
+    // assert_eq_size!(libc::stat64, sgx_libc::stat64);
+    // unsafe { ocall::fstat64(fildes, buf as _) }
     not_allowed!()
 }
 
