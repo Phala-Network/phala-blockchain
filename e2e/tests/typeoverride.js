@@ -2,7 +2,7 @@ const types = {
     "Address": "MultiAddress",
     "LookupSource": "MultiAddress",
     "RawSolution": "RawSolutionWith24",
-    "ChainId": "u8",
+    "BridgeChainId": "u8",
     "ResourceId": "[u8; 32]",
     "TokenId": "u256",
     "DepositNonce": "u64",
