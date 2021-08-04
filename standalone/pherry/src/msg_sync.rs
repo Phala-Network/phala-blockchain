@@ -1,6 +1,7 @@
 use anyhow::Result;
 use core::marker::PhantomData;
 use log::{error, info};
+use std::time::Duration;
 
 use crate::chain_client::fetch_mq_ingress_seq;
 
@@ -45,20 +46,22 @@ impl<'a> MsgSync<'a> {
                 continue;
             }
             let min_seq = fetch_mq_ingress_seq(self.client, sender.clone()).await?;
+
             for message in messages {
                 if message.sequence < min_seq {
                     info!("{} has been submitted. Skipping...", message.sequence);
                     continue;
                 }
-                info!(
-                    "Submitting message: sender={:?} seq={} dest={}",
+                let msg_info = format!(
+                    "sender={:?} seq={} dest={}",
                     sender,
                     message.sequence,
                     String::from_utf8_lossy(&message.message.destination.path()[..])
                 );
-                let ret = self
+                info!("Submitting message: {}", msg_info);
+                let extrinsic = self
                     .client
-                    .submit(
+                    .create_signed(
                         runtimes::phala_mq::SyncOffchainMessageCall {
                             _runtime: PhantomData,
                             message,
@@ -66,11 +69,32 @@ impl<'a> MsgSync<'a> {
                         self.signer,
                     )
                     .await;
-                if let Err(err) = ret {
-                    error!("Failed to submit tx: {:?}", err);
-                    // TODO: Should we fail early?
-                }
                 self.signer.increment_nonce();
+                match extrinsic {
+                    Ok(extrinsic) => {
+                        let client = self.client.clone();
+                        tokio::spawn(async move {
+                            const TIMEOUT: u64 = 120;
+                            let fut = client.submit_extrinsic(extrinsic);
+                            let result =
+                                tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
+                            match result {
+                                Err(_) => {
+                                    error!("Submit message timed out: {}", msg_info);
+                                }
+                                Ok(Err(err)) => {
+                                    error!("Error submitting message {}: {:?}", msg_info, err);
+                                }
+                                Ok(Ok(hash)) => {
+                                    info!("Message submited: {} xt-hash={:?}", msg_info, hash);
+                                }
+                            }
+                        });
+                    }
+                    Err(err) => {
+                        panic!("Failed to sign the call: {:?}", err);
+                    }
+                }
             }
         }
         Ok(())
