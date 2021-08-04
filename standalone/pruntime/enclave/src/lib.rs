@@ -42,11 +42,7 @@ use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 use serde_cbor;
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
-
-use http_req::{
-    request::{Method, Request},
-    uri::Uri,
-};
+use http_req::request::{Method, Request};
 
 // use pink::InkModule;
 
@@ -67,7 +63,6 @@ use phala_crypto::{
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::{MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo};
-use std::convert::TryFrom;
 
 mod benchmark;
 mod cert;
@@ -303,6 +298,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
+
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid)
         .parse()
         .expect("Invalid IAS URI");
@@ -500,8 +496,6 @@ pub fn create_attestation_report(
     };
 
     let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
-    // TODO.kevin: is it OK to replace with thread_rng?
-    // let mut os_rng = os::SgxRng::new().unwrap();
     let mut os_rng = rand::thread_rng();
     os_rng.fill_bytes(&mut quote_nonce.rand);
     info!("rand finished");
