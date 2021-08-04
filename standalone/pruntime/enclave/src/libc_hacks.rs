@@ -75,7 +75,7 @@ pub unsafe extern "C" fn syscall(num: libc::c_long, mut args: ...) -> libc::c_lo
         let flags = args.arg::<c_uint>();
         return getrandom(buf, buflen, flags) as _;
     }
-    println!("syscall num={}", num);
+    eprintln!("unsupported syscall({})", num);
     loop {}
 }
 
@@ -95,17 +95,16 @@ pub extern "C" fn pthread_mutexattr_settype(
     _attr: *mut libc::pthread_mutexattr_t,
     typ: c_int,
 ) -> c_int {
-    const PTHREAD_MUTEX_NORMALTYPE: c_int = 0;
-    // TODO.kevin: sgx mutex only support normal mutex, but the stdout() requires REENTRANT type.
-    // assert_eq!(typ, PTHREAD_MUTEX_NORMALTYPE);
+    // sgx pthread_mutex only support normal mutex, but the stdout() requires PTHREAD_MUTEX_RECURSIVE type.
+    // assert_eq!(typ, libc::PTHREAD_MUTEX_NORMAL);
 
     static RE: AtomicU16 = AtomicU16::new(0);
 
-    if typ != PTHREAD_MUTEX_NORMALTYPE {
-        // workaround for stdout(), stderr(), stdin()
+    if typ != libc::PTHREAD_MUTEX_NORMAL {
+        // workaround for stdout(), stderr() and stdin()
         let count = RE.fetch_add(1, Ordering::Relaxed);
         if count > 3 {
-            panic!("only PTHREAD_MUTEX_NORMALTYPE supported");
+            panic!("only PTHREAD_MUTEX_NORMAL supported");
         }
     }
 
@@ -242,6 +241,8 @@ pub extern "C" fn mmap(
     _fd: c_int,
     _offset: libc::off_t,
 ) -> *mut c_void {
+    // On success, mmap() returns a pointer to the mapped area.  On error, the value MAP_FAILED (that is, (void *) -1) is returned,
+    // and errno is set to indicate the cause of the error.
     not_allowed!()
 }
 
