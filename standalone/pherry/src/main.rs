@@ -575,10 +575,14 @@ async fn sync_parachain_header(
     let mut para_headers = Vec::new();
     for b in next_headernum..=para_fin_block_number {
         let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
-        let hash = paraclient
-            .block_hash(Some(num))
-            .await?
-            .ok_or(Error::BlockHashNotFound)?;
+        let hash = paraclient.block_hash(Some(num)).await?;
+        let hash = match hash {
+            Some(hash) => hash,
+            None => {
+                info!("Hash not found for block {}, fetch it next turn", b);
+                return Ok(next_headernum - 1);
+            }
+        };
         let header = paraclient
             .header(Some(hash))
             .await?
