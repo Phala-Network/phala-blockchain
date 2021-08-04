@@ -86,7 +86,7 @@ impl<'a> MsgSync<'a> {
                                     error!("Error submitting message {}: {:?}", msg_info, err);
                                 }
                                 Ok(Ok(hash)) => {
-                                    info!("Message submited: {} hash={:?}", msg_info, hash);
+                                    info!("Message submited: {} xt-hash={:?}", msg_info, hash);
                                 }
                             }
                         });
