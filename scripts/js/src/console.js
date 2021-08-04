@@ -4,7 +4,7 @@ const { program } = require('commander');
 const axios = require('axios').default;
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
-const phalaTypes = require('@phala/typedefs').latest;
+const phalaTypes = require('@phala/typedefs').khalaDev;
 
 function run(afn) {
     function runner(...args) {
@@ -18,6 +18,10 @@ function run(afn) {
 
 function rand() {
     return (Math.random() * 65536) | 0;
+}
+
+function normalizeHex(str) {
+    return str.startsWith('0x') ? str : '0x' + str;
 }
 
 class PRuntimeApi {
@@ -74,20 +78,28 @@ async function substrateApi() {
     return api;
 }
 
+function printObject(obj, depth=3, getter=true) {
+    if (program.opts().json) {
+        console.log(JSON.stringify(obj, undefined, 2));
+    } else {
+        console.dir(obj, {depth, getter});
+    }
+}
+
 const CONTRACT_PDIEM = 5;
 
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
-    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944');
+    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--json', 'output regular json', false);
 
 // Blockchain operations
 
 program
-    .command('push-command <contract-id> <plain-command>')
-    .description('push a unencrypted command to a confidential contract', {
-        'contract-id': 'confidential contract id (number)',
-        'plain-command': 'the plain command payload (string or json, depending on the definition)',
-    })
+    .command('push-command')
+    .description('push a unencrypted command to a confidential contract')
+    .argument('<contract-id>', 'confidential contract id (number)')
+    .argument('<plain-command>', 'the plain command payload (string or json, depending on the definition)')
     .option('-s, --suri <suri>', 'specify sender\'s privkey', process.env.PRIVKEY || '//Alice')
     .action(run(async (contractId, plainCommand, options) => {
         const api = await substrateApi();
@@ -118,7 +130,7 @@ program
 
         const timestampDelta = now - blockTs;
 
-        console.log({
+        printObject({
             hash: hash.toJSON(),
             blockTs,
             timestampDelta,
@@ -131,17 +143,46 @@ program
     }));
 
 program
-    .command('free-balance <account>')
-    .description('get the firee blance of an account', {
-        'account': 'the account to lookup'
-    })
+    .command('free-balance')
+    .description('get the firee blance of an account')
+    .argument('<account>', 'the account to lookup')
     .action(run (async (account) => {
         const api = await substrateApi();
         const accountData = await api.query.system.account(account);
         const freeBalance = accountData.data.free.toString();
         console.log(freeBalance);
         return 0;
-    }))
+    }));
+
+program
+    .command('inspect-worker')
+    .description('get the mining related info with the worker public key')
+    .argument('<worker-key>', 'the worker public key in hex')
+    .action(run (async (workerKey) => {
+        workerKey = normalizeHex(workerKey);
+
+        const api = await substrateApi();
+        let [workerInfo, miner, pid] = await Promise.all([
+            api.query.phalaRegistry.workers(workerKey),
+            api.query.phalaMining.workerBindings(workerKey),
+            api.query.phalaStakePool.workerAssignments(workerKey),
+        ]);
+        workerInfo = workerInfo.unwrapOr();
+        miner = miner.unwrapOr();
+        pid = pid.unwrapOr();
+
+        const minerInfo = miner ? await api.query.phalaMining.miners(miner) : undefined;
+        const poolInfo = pid ? await api.query.phalaStakePool.stakePools(pid) : undefined;
+
+        const toObj = x => x ? (x.unwrapOr ? x.unwrapOr(undefined) : x).toJSON() : undefined;
+        printObject({
+            workerInfo: toObj(workerInfo),
+            miner: toObj(miner),
+            pid: toObj(pid),
+            minerInfo: toObj(minerInfo),
+            poolInfo: toObj(poolInfo),
+        });
+    }));
 
 // pRuntime operations
 
@@ -150,15 +191,14 @@ program
     .description('get the running status')
     .action(run(async () => {
         const pr = pruntimeApi();
-        console.log(await pr.req('get_info'));
+        printObject(await pr.req('get_info'));
     }));
 
 program
-    .command('query <contract-id> <plain-query>')
-    .description('send a query to a confidential contract via pRuntime directly (anonymously)', {
-        'contract-id': 'confidential contract id (number)',
-        'plain-command': 'the plain query payload (string or json, depending on the definition)',
-    })
+    .command('query')
+    .description('send a query to a confidential contract via pRuntime directly (anonymously)')
+    .argument('<contract-id>', 'confidential contract id (number)')
+    .argument('<plain-query>', 'the plain query payload (string or json, depending on the definition)')
     .action(run(async (contractId, plainQuery) => {
         const pr = pruntimeApi();
         const cid = parseInt(contractId);
@@ -186,11 +226,10 @@ program
     }));
 
 program
-    .command('pdiem-new-account <seq> <suri>')
-    .description('create a new diem subaccount for deposit', {
-        seq: 'the sequence id of the VASP account',
-        suri: 'the SURI of the sender Substrate account (sr25519)'
-    })
+    .command('pdiem-new-account')
+    .description('create a new diem subaccount for deposit')
+    .argument('<seq>', 'the sequence id of the VASP account')
+    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
     .action(run(async (seq, suri) => {
         const api = await substrateApi();
         const seqNumber = parseInt(seq);
@@ -211,12 +250,11 @@ program
     }));
 
 program
-    .command('pdiem-withdraw <dest> <amount> <suri>')
-    .description('create a new diem subaccount for deposit', {
-        dest: 'the withdrawal destination Diem account',
-        amount: 'the sequence id of the VASP account',
-        suri: 'the SURI of the sender Substrate account (sr25519)'
-    })
+    .command('pdiem-withdraw')
+    .description('create a new diem subaccount for deposit')
+    .argument('<dest>', 'the withdrawal destination Diem account')
+    .argument('<amount>', 'the sequence id of the VASP account')
+    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
     .action(run(async (dest, amount, suri) => {
         if (dest.toLowerCase().startsWith('0x')) {
             throw new Error('<dest> must not start with "0x"');
@@ -243,10 +281,9 @@ program
 // Utilities
 
 program
-    .command('verify <input>')
-    .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)', {
-        input: 'the raw input data'
-    })
+    .command('verify')
+    .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)')
+    .argument('<input>', 'the raw input data')
     .action(run(async (input) => {
         input = input.trim();
         const keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
