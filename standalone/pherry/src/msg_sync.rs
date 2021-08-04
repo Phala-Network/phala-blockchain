@@ -80,7 +80,7 @@ impl<'a> MsgSync<'a> {
                                 tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
                             match result {
                                 Err(_) => {
-                                    error!("Submit message {} timed out", msg_info);
+                                    error!("Submit message timed out: {}", msg_info);
                                 }
                                 Ok(Err(err)) => {
                                     error!("Error submitting message {}: {:?}", msg_info, err);
