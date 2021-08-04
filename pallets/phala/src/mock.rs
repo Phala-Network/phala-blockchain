@@ -1,6 +1,9 @@
 use crate::{mining, mq, registry, stakepool};
 
-use frame_support::{parameter_types, traits::GenesisBuild};
+use frame_support::{
+	parameter_types,
+	traits::{GenesisBuild, OnFinalize, OnInitialize},
+};
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use phala_types::messaging::Message;
@@ -110,6 +113,7 @@ impl mining::Config for Test {
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
+	type OnStopped = PhalaStakePool;
 }
 
 impl stakepool::Config for Test {
@@ -226,4 +230,19 @@ pub fn elapse_seconds(sec: u64) {
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
 	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
+}
+
+pub fn teleport_to_block(n: u64) {
+	let now = System::block_number();
+	PhalaStakePool::on_finalize(now);
+	PhalaMining::on_finalize(now);
+	PhalaRegistry::on_finalize(now);
+	PhalaMq::on_finalize(now);
+	System::on_finalize(now);
+	System::set_block_number(n);
+	System::on_initialize(System::block_number());
+	PhalaMq::on_initialize(System::block_number());
+	PhalaRegistry::on_initialize(System::block_number());
+	PhalaMining::on_initialize(System::block_number());
+	PhalaStakePool::on_initialize(System::block_number());
 }

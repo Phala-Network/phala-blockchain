@@ -27,6 +27,7 @@ pub mod pallet {
 
 	use crate::balance_convert::FixedPointConvert;
 	use fixed::types::U64F64 as FixedPoint;
+	use fixed_macro::types::U64F64 as fp;
 	use fixed_sqrt::FixedSqrt;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
@@ -101,6 +102,27 @@ pub mod pallet {
 		stats: MinerStats,
 	}
 
+	impl MinerInfo {
+		/// Calculates the final final returned and slashed stake
+		fn calc_final_stake<Balance>(&self, orig_stake: Balance) -> (Balance, Balance)
+		where
+			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+		{
+			// Calcualte remaining stake
+			let v = FixedPoint::from_bits(self.v);
+			let ve = FixedPoint::from_bits(self.ve);
+			let return_rate = (v / ve).min(fp!(1));
+			// If we consider kappa as a panelty of frequent exit:
+			// 	let tokenomic = Self::tokenomic();
+			// 	let returned = return_rate * orig_stake.to_fixed() * tokenomic.kappa();
+			let returned = return_rate * orig_stake.to_fixed();
+			// Convert to Balance
+			let returned = FixedPointConvert::from_fixed(&returned);
+			let slashed = orig_stake - returned;
+			(returned, slashed)
+		}
+	}
+
 	pub trait OnReward {
 		fn on_reward(settle: &Vec<SettleInfo>) {}
 	}
@@ -117,7 +139,17 @@ pub mod pallet {
 		/// returned
 		///
 		/// When called, it's not guaranteed there's still a worker associated to the miner.
-		fn on_reclaim(worker: &AccountId, orig_stake: Balance, slashed: Balance) {}
+		fn on_reclaim(miner: &AccountId, orig_stake: Balance, slashed: Balance) {}
+
+		// Using miner account as the identity here is necessary because at this point the worker
+		// may be already unbound.
+	}
+
+	pub trait OnStopped<Balance> {
+		/// Called with a miner is stopped and can already calculate the final slash and stake.
+		///
+		/// It guarantees the number will be the same as the parameters in OnReclaim
+		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
@@ -142,6 +174,7 @@ pub mod pallet {
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
+		type OnStopped: OnStopped<BalanceOf<Self>>;
 	}
 
 	#[pallet::pallet]
@@ -276,7 +309,8 @@ pub mod pallet {
 
 		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
 		///
-		/// Note: anyone can trigger cleanup
+		/// Anyone can reclaim.
+		///
 		/// Requires:
 		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
 		#[pallet::weight(0)]
@@ -288,18 +322,8 @@ pub mod pallet {
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
 
-			// Calcualte remaining stake
-			let v = FixedPoint::from_bits(miner_info.v);
-			let ve = FixedPoint::from_bits(miner_info.ve);
-			let return_rate = (v / ve).min(FixedPoint::from_num(1));
 			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
-			// If we consider kappa as a panelty of frequent exit:
-			// 	let tokenomic = Self::tokenomic();
-			// 	let returned = return_rate * orig_stake.to_fixed() * tokenomic.kappa();
-			let returned = return_rate * orig_stake.to_fixed();
-			// Convert to Balance
-			let returned = FixedPointConvert::from_fixed(&returned);
-			let slashed = orig_stake - returned;
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
 
 			T::OnReclaim::on_reclaim(&miner, orig_stake, slashed);
 			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
@@ -550,6 +574,7 @@ pub mod pallet {
 			let force = !miner_info.state.can_unbind();
 			if force {
 				// Force unbinding. Stop the miner first.
+				// Note that `stop_mining` will notify the suscribers with the slashed vaue.
 				Self::stop_mining(miner.clone())?;
 				// TODO: consider the final state sync (could cause slash) when stopping mining
 			}
@@ -631,6 +656,12 @@ pub mod pallet {
 			miner_info.cool_down_start = now;
 			Miners::<T>::insert(&miner, &miner_info);
 			OnlineMiners::<T>::mutate(|v| *v -= 1); // v cannot be 0
+
+			// Calcualte remaining stake (assume there's no more slash after calling `stop_mining`)
+			let orig_stake = Stakes::<T>::get(&miner).unwrap_or_default();
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
+			// Notify the subscriber with the slash prediction
+			T::OnStopped::on_stopped(&worker, orig_stake, slashed);
 
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,

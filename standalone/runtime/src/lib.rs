@@ -1088,6 +1088,7 @@ impl pallet_mining::Config for Runtime {
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
+	type OnStopped = PhalaStakePool;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
