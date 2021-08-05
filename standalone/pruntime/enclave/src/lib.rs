@@ -936,7 +936,7 @@ pub extern "C" fn ecall_init(data_path: *const u8, data_path_len: usize) -> sgx_
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
         }
     };
-    // info!("data path: {}", data_path);
+
     let mut local_state = LOCAL_STATE.lock().unwrap();
     local_state.data_path = String::from(data_path);
 
