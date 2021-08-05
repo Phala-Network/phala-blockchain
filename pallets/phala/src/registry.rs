@@ -377,6 +377,7 @@ pub mod pallet {
 						}
 						_ => {
 							GatekeeperMasterPubkey::<T>::put(master_pubkey);
+							Self::push_message(GatekeeperEvent::MasterPubkeyAvailable);
 						}
 					}
 				}

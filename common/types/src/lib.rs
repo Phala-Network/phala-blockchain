@@ -292,6 +292,7 @@ pub mod messaging {
     pub enum GatekeeperEvent {
         Registered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
+        MasterPubkeyAvailable,
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
     }
@@ -386,8 +387,8 @@ pub mod messaging {
         pub rig_b: U64F64Bits,
         pub re: U64F64Bits,
         pub k: U64F64Bits,
-		// Slash calculation
-		pub kappa: U64F64Bits,
+        // Slash calculation
+        pub kappa: U64F64Bits,
     }
 }
 

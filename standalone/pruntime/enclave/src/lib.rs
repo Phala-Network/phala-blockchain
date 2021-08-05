@@ -70,7 +70,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo};
+use phala_types::WorkerRegistrationInfo;
 
 mod benchmark;
 mod cert;
@@ -85,7 +85,7 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
@@ -175,6 +175,7 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    data_path: String,
     runtime_info: Option<InitRuntimeResponse>,
 }
 
@@ -251,6 +252,7 @@ lazy_static! {
             ecdh_key: None,
             machine_id: [0; 16],
             dev_mode: false,
+            data_path: String::new(),
             runtime_info: None,
         })
     };
@@ -921,10 +923,22 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_init() -> sgx_status_t {
+pub extern "C" fn ecall_init(data_path: *const u8, data_path_len: usize) -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
+
+    let data_path = unsafe { std::slice::from_raw_parts(data_path, data_path_len) };
+    let data_path = match std::str::from_utf8(data_path) {
+        Ok(data_path) => data_path,
+        Err(e) => {
+            error!("ecall_init: invalid data path: {}", e);
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+    };
+
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    local_state.data_path = String::from(data_path);
 
     sgx_status_t::SGX_SUCCESS
 }
@@ -1317,37 +1331,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
 fn test(_param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
-}
-
-mod gatekeeper {
-    use super::*;
-
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or(Vec::new());
-
-        gatekeepers.contains(pubkey)
-    }
-
-    #[allow(dead_code)]
-    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
-        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage
-            .get(&key)
-            .map(|v| {
-                Some(
-                    MasterPublicKey::decode(&mut &v[..])
-                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
-                )
-            })
-            .unwrap_or(None)
-    }
 }
 
 #[cfg(feature = "tests")]

@@ -254,7 +254,7 @@ pub fn testnet_genesis(
 			workers: vec![
 				(dev_sr25519_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
-			gatekeepers: vec![dev_sr25519_pubkey],
+			gatekeepers: Vec::new(),
 			benchmark_duration: 1,
 		},
 		false => PhalaRegistryConfig {
