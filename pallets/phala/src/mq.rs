@@ -20,9 +20,9 @@ pub mod pallet {
 	use sp_std::vec::Vec;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		// config
+	pub trait Config: frame_system::Config + crate::registry::Config {
 		type QueueNotifyConfig: QueueNotifyConfig;
+		type CallMatcher: CallMatcher<Self>;
 	}
 
 	#[pallet::pallet]
@@ -158,6 +158,13 @@ pub mod pallet {
 	}
 	impl QueueNotifyConfig for () {}
 
+	/// Needs an extrenal helper struct to extract MqCall from all callables
+	pub trait CallMatcher<T: Config> {
+		fn match_call(call: &T::Call) -> Option<&Call<T>>
+		where
+			<T as frame_system::Config>::AccountId: IntoH256;
+	}
+
 	pub trait IntoH256 {
 		fn into_h256(self) -> H256;
 	}
@@ -203,3 +210,7 @@ pub mod pallet {
 		}
 	}
 }
+
+/// Provides `SignedExtension` to check message sequence.
+mod check_seq;
+pub use check_seq::CheckMqSequence;

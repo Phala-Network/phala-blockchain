@@ -33,7 +33,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		// Pallets to test
-		PhalaMq: mq::{Pallet},
+		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
@@ -101,6 +101,17 @@ pub const CENTS: Balance = DOLLARS / 100;
 
 impl mq::Config for Test {
 	type QueueNotifyConfig = ();
+	type CallMatcher = MqCallMatcher;
+}
+
+pub struct MqCallMatcher;
+impl mq::CallMatcher<Test> for MqCallMatcher {
+	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+		match call {
+			Call::PhalaMq(mq_call) => Some(mq_call),
+			_ => None,
+		}
+	}
 }
 
 impl registry::Config for Test {
