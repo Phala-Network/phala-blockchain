@@ -34,6 +34,10 @@ enum Cli {
         #[structopt(short)]
         hex_data: String,
     },
+    DecodeMqPayload {
+        destination: String,
+        hex_data: String,
+    },
     EncodeLotterySetAdmin {
         admin: String,
         number: u64,
@@ -111,6 +115,13 @@ fn main() {
                 _ => {}
             }
         }
+        Cli::DecodeMqPayload {
+            destination,
+            hex_data,
+        } => {
+            let data = decode_hex(&hex_data);
+            decode_mq_payload(destination.as_bytes(), &data);
+        }
         Cli::EncodeLotterySetAdmin { admin, number } => {
             use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
             println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
@@ -168,4 +179,47 @@ fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
     let message = T::decode(&mut data.as_slice());
     println!("Decode: {:?}", message);
     message.unwrap()
+}
+
+type AccountId = sp_runtime::AccountId32;
+type Balance = u128;
+
+// TODO(h4x): move it to a separate crate to share the code
+fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
+    use phala_types::messaging::*;
+    fn try_print<T: BindTopic + Decode + std::fmt::Debug>(
+        destination: &[u8],
+        payload: &[u8],
+    ) -> Result<(), ()> {
+        if T::TOPIC == destination {
+            let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
+            println!("{:?}", msg);
+            return Ok(());
+        }
+        Err(())
+    }
+    macro_rules! try_decode_with_types {
+        ($($msg: ty,)+) => {
+            $(if try_print::<$msg>(destination, payload).is_ok() { return; })+
+        }
+    }
+
+    try_decode_with_types!(
+        Lottery,
+        LotteryCommand,
+        BalanceEvent<AccountId, Balance>,
+        BalanceCommand<AccountId, Balance>,
+        // BalanceTransfer<AccountId, Balance>,
+        AssetCommand<AccountId, Balance>,
+        Web3AnalyticsCommand,
+        DiemCommand,
+        // KittyEvent<AccountId, Hash>,
+        SystemEvent,
+        MiningReportEvent,
+        MiningInfoUpdateEvent<u32>,
+        GatekeeperEvent,
+        phala_pallets::registry::RegistryEvent,
+    );
+
+    println!("Cannot decode.");
 }

@@ -1413,6 +1413,7 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-crypto",
+ "phala-pallets",
  "phala-types",
  "sp-runtime",
  "structopt",
