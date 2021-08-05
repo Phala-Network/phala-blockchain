@@ -167,45 +167,7 @@ pub mod pallet {
 			let now = <T as registry::Config>::UnixTime::now()
 				.as_secs()
 				.saturated_into::<u64>();
-
-			let mut t = WithdrawalTimestamps::<T>::get();
-			// has waiting withdraw request
-			if !t.is_empty() {
-				// we just handle timeout request every block
-				while let Some(start_time) = t.front().cloned() {
-					if now - start_time <= T::InsurancePeriod::get().saturated_into::<u64>() {
-						break;
-					}
-					let pools = WithdrawalQueuedPools::<T>::take(start_time)
-						.expect("Pool list must exist; qed.");
-					for &pid in pools.iter() {
-						let pool_info =
-							Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-						// if we check the pool withdraw_queue here, we don't have to remove a pool from WithdrawalQueuedPools when
-						// a pool has handled their waiting withdraw request before timeout. Compare the IO performance we
-						// think remove pool from WithdrawalQueuedPools would have more resource cost.
-						if !pool_info.withdraw_queue.is_empty() {
-							// the front withdraw always the oldest one
-							if let Some(info) = pool_info.withdraw_queue.front() {
-								if (now - info.start_time)
-									> T::InsurancePeriod::get().saturated_into::<u64>()
-								{
-									// stop all worker in this pool
-									// TODO: only stop running workers?
-									for worker in pool_info.workers {
-										let miner: T::AccountId = pool_sub_account(pid, &worker);
-										// TODO: avoid stop mining multiple times
-										let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
-									}
-								}
-							}
-						}
-					}
-					// pop front timestamp
-					t.pop_front();
-				}
-				WithdrawalTimestamps::<T>::put(&t);
-			}
+			Self::maybe_force_withdraw(now);
 		}
 	}
 
@@ -233,6 +195,7 @@ pub mod pallet {
 					total_shares: Zero::zero(),
 					total_stake: Zero::zero(),
 					free_stake: Zero::zero(),
+					releasing_stake: Zero::zero(),
 					workers: vec![],
 					withdraw_queue: VecDeque::new(),
 				},
@@ -331,15 +294,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Destroies a stake pool
-		///
-		/// Requires:
-		/// 1. The sender is the owner
-		/// 2. All the miners are stopped
-		#[pallet::weight(0)]
-		pub fn destroy(origin: OriginFor<T>, id: u64) -> DispatchResult {
-			panic!("unimplemented")
-		}
+		// /// Destroies a stake pool
+		// ///
+		// /// Requires:
+		// /// 1. The sender is the owner
+		// /// 2. All the miners are stopped
+		// #[pallet::weight(0)]
+		// pub fn destroy(origin: OriginFor<T>, id: u64) -> DispatchResult {
+		// 	panic!("unimplemented")
+		// }
 
 		/// Sets the hard cap of the pool
 		///
@@ -553,7 +516,7 @@ pub mod pallet {
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
 			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
-			pool_info.free_stake = pool_info.free_stake.saturating_sub(stake);
+			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
 			Ok(())
 		}
@@ -579,7 +542,7 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			// TODO: handle slashed amount
+			// Mining::stop_mining will notify us how much it will release by `on_stopped`
 			<mining::pallet::Pallet<T>>::stop_mining(miner)?;
 
 			Ok(())
@@ -588,6 +551,7 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T>
 	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Adds up the newly received reward to `reward_acc`
@@ -782,10 +746,44 @@ pub mod pallet {
 				_ => (),
 			}
 		}
+
+		/// Tries to enforce expired withdraw requests
+		///
+		/// If the
+		fn maybe_force_withdraw(now: u64) {
+			let mut t = WithdrawalTimestamps::<T>::get();
+			if t.is_empty() {
+				return;
+			}
+			// Handle timeout requests at every block
+			let grace_period = T::InsurancePeriod::get().saturated_into::<u64>();
+			while let Some(start_time) = t.front().cloned() {
+				if now - start_time <= grace_period {
+					break;
+				}
+				let pools = WithdrawalQueuedPools::<T>::take(start_time)
+					.expect("Pool list must exist; qed.");
+				for &pid in pools.iter() {
+					let pool = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+					if pool.has_expired_withdrawal(now, grace_period) {
+						// Force shutdown all miners
+						for worker in pool.workers {
+							let miner: T::AccountId = pool_sub_account(pid, &worker);
+							// TODO: avoid stop mining multiple times?
+							let _ = <mining::pallet::Pallet<T>>::stop_mining(miner);
+						}
+					}
+				}
+				// pop front timestamp
+				t.pop_front();
+			}
+			WithdrawalTimestamps::<T>::put(&t);
+		}
 	}
 
 	impl<T: Config> mining::OnReward for Pallet<T>
 	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		/// Called when gk send new payout information.
@@ -807,7 +805,7 @@ pub mod pallet {
 
 	impl<T: Config> mining::OnUnbound for Pallet<T>
 	where
-		T: mining::Config,
+		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn on_unbound(worker: &WorkerPublicKey, _force: bool) {
@@ -817,16 +815,20 @@ pub mod pallet {
 			// Warning: when using Mining & StakePool pallets together, here we assume all the
 			// miners are only registered by StakePool. So we don't bother to double check if the
 			// worker exists.
+
+			// In case of slash, `Mining::stop_mining()` will notify us a slash happened and we do
+			// bookkeeping stuff (i.e. updating releasing_stake), and eventually the slash will
+			// be enacted at `on_reclaim`.
 			Self::remove_worker_from_pool(worker);
 		}
 	}
 
 	impl<T: Config> mining::OnReclaim<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
-		T: mining::Config,
+		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
-		/// Called when worker was cleanuped.
+		/// Called when worker was reclaimed.
 		///
 		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
 		/// reset to zero.
@@ -844,15 +846,37 @@ pub mod pallet {
 			}
 
 			// with the worker been cleaned, whose stake now are free
-			pool_info.free_stake = pool_info.free_stake.saturating_add(returned);
+			debug_assert!(
+				pool_info.releasing_stake >= returned,
+				"More return then expected"
+			);
+			pool_info.free_stake.saturating_accrue(returned);
+			pool_info.releasing_stake.saturating_reduce(returned);
 
 			Self::try_process_withdraw_queue(&mut pool_info);
 			StakePools::<T>::insert(&pid, &pool_info);
 		}
 	}
 
+	impl<T: Config> mining::OnStopped<BalanceOf<T>> for Pallet<T>
+	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
+		BalanceOf<T>: FixedPointConvert + Display,
+	{
+		/// Called when a worker is stopped and there is releasing stake
+		fn on_stopped(worker: &WorkerPublicKey, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
+			let pid = WorkerAssignments::<T>::get(worker)
+				.expect("Stopping workers have assignment; qed.");
+			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+			let returned = orig_stake - slashed;
+			pool_info.releasing_stake.saturating_accrue(returned);
+			StakePools::<T>::insert(pid, pool_info);
+		}
+	}
+
 	impl<T: Config> Ledger<T::AccountId, BalanceOf<T>> for Pallet<T>
 	where
+		T: mining::Config<Currency = <T as Config>::Currency>,
 		BalanceOf<T>: FixedPointConvert + Display,
 	{
 		fn ledger_accrue(who: &T::AccountId, amount: BalanceOf<T>) {
@@ -886,7 +910,7 @@ pub mod pallet {
 			.unwrap_or_default()
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId: Default, Balance> {
 		/// Pool ID
 		pid: u64,
@@ -906,6 +930,8 @@ pub mod pallet {
 		total_stake: Balance,
 		/// Total free stake (unused)
 		free_stake: Balance,
+		/// Releasing stake (will be unlocked after worker reclaiming)
+		releasing_stake: Balance,
 		/// Bound workers
 		workers: Vec<WorkerPublicKey>,
 		/// The queue of withdraw requests
@@ -1063,6 +1089,36 @@ pub mod pallet {
 		fn remove_worker(&mut self, worker: &WorkerPublicKey) {
 			self.workers.retain(|w| w != worker);
 		}
+
+		/// Returns if the pool has expired withdrawal requests
+		fn has_expired_withdrawal(&self, now: u64, grace_period: u64) -> bool {
+			debug_assert!(
+				self.free_stake == Zero::zero(),
+				"We really don't want to have free stake and withdraw requests at the same time"
+			);
+			// If we check the pool withdraw_queue here, we don't have to remove a pool from
+			// WithdrawalQueuedPools when a pool has handled their waiting withdraw requests before
+			// timeout. Compare the IO performance we think removing pool from
+			// WithdrawalQueuedPools would have more resource cost.
+
+			// If the pool is bankrupt, or there's no share, we just skip this pool.
+			let price = match self.share_price() {
+				Some(price) if price != fp!(0) => price,
+				_ => return false,
+			};
+			let mut budget = self.free_stake + self.releasing_stake;
+			for request in &self.withdraw_queue {
+				let amount = bmul(request.shares, &price);
+				if amount > budget {
+					// Run out of budget, let's check if the request is still in the grace period
+					return now - request.start_time > grace_period;
+				} else {
+					// Otherwise we allocate some budget to virtually fulfill the request
+					budget -= amount;
+				}
+			}
+			false
+		}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
@@ -1096,9 +1152,9 @@ pub mod pallet {
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, elapse_cool_down, new_test_ext, set_block_1, setup_workers,
-			setup_workers_linked_operators, take_events, worker_pubkey, Balance, BlockNumber,
-			Event as TestEvent, Origin, Test, DOLLARS,
+			ecdh_pubkey, elapse_cool_down, elapse_seconds, new_test_ext, set_block_1,
+			setup_workers, setup_workers_linked_operators, take_events, teleport_to_block,
+			worker_pubkey, Balance, BlockNumber, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
 		use crate::mock::{
@@ -1142,6 +1198,7 @@ pub mod pallet {
 						total_shares: 0,
 						total_stake: 0,
 						free_stake: 0,
+						releasing_stake: 0,
 						workers: Vec::new(),
 						withdraw_queue: VecDeque::new(),
 					})
@@ -1814,7 +1871,7 @@ pub mod pallet {
 
 		#[test]
 		fn test_withdraw() {
-			use crate::mining::pallet::OnReclaim;
+			use crate::mining::pallet::{OnReclaim, OnStopped};
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(2);
@@ -1939,6 +1996,7 @@ pub mod pallet {
 				// Trigger a force clear by `on_reclaim()`, releasing 100 PHA stake to partially
 				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
+				PhalaStakePool::on_stopped(&worker_pubkey(2), 100 * DOLLARS, 0);
 				PhalaStakePool::on_reclaim(&sub_account2, 100 * DOLLARS, 0);
 				assert_eq!(
 					take_events().as_slice(),
@@ -1958,6 +2016,7 @@ pub mod pallet {
 				// Trigger another force clear with 100 PHA slashed, releasing all 400 PHA stake
 				// (100 slashed & 300 free), fulfilling stakers' requests.
 				let _ = take_events();
+				PhalaStakePool::on_stopped(&worker_pubkey(1), 400 * DOLLARS, 100 * DOLLARS);
 				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS, 100 * DOLLARS);
 				assert_eq!(
 					take_events().as_slice(),
@@ -1983,6 +2042,131 @@ pub mod pallet {
 				assert_eq!(staker2.shares, 300 * DOLLARS);
 				assert_eq!(Balances::locks(1), vec![]);
 				assert_eq!(Balances::locks(2), vec![the_lock(225 * DOLLARS)]);
+			});
+		}
+
+		#[test]
+		fn test_pool_has_expired_withdraw() {
+			// Default pool setup
+			let mut pool: PoolInfo<u64, Balance> = Default::default();
+			pool.total_shares = 1000 * DOLLARS;
+			pool.total_stake = 900 * DOLLARS; // 90% stake returned
+			pool.withdraw_queue.push_back(WithdrawInfo {
+				user: 1,
+				shares: 100 * DOLLARS,
+				start_time: 0,
+			});
+			pool.withdraw_queue.push_back(WithdrawInfo {
+				user: 2,
+				shares: 200 * DOLLARS,
+				start_time: 100,
+			});
+			pool.withdraw_queue.push_back(WithdrawInfo {
+				user: 3,
+				shares: 400 * DOLLARS,
+				start_time: 200,
+			});
+			// No releasing stake
+			let pool1 = PoolInfo::<u64, Balance> {
+				releasing_stake: 0,
+				..pool.clone()
+			};
+			assert!(!pool1.has_expired_withdrawal(0, 100), "All in grace period");
+			assert!(
+				!pool1.has_expired_withdrawal(100, 100),
+				"Still all in grace period"
+			);
+			assert!(
+				pool1.has_expired_withdrawal(101, 100),
+				"First withdraw request expired"
+			);
+			// Releaing stake to cover the first request
+			let pool2 = PoolInfo::<u64, Balance> {
+				releasing_stake: 90 * DOLLARS,
+				..pool.clone()
+			};
+			assert!(
+				!pool2.has_expired_withdrawal(101, 100),
+				"First withdraw request fulfilled"
+			);
+			assert!(
+				pool2.has_expired_withdrawal(201, 100),
+				"Second withdraw request expired"
+			);
+			let pool3 = PoolInfo::<u64, Balance> {
+				releasing_stake: 630 * DOLLARS - 10,
+				..pool.clone()
+			};
+			assert!(
+				pool3.has_expired_withdrawal(1000, 100),
+				"No enought releasing stake to fulfill all"
+			);
+			let pool4 = PoolInfo::<u64, Balance> {
+				releasing_stake: 630 * DOLLARS,
+				..pool.clone()
+			};
+			assert!(!pool4.has_expired_withdrawal(1000, 100), "Enough stake");
+		}
+
+		#[test]
+		fn test_force_withdraw() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
+
+				// Stake 1000 PHA, and start two miners with 400 & 100 PHA as stake
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					900 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					900 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					900 * DOLLARS
+				));
+				// Now: 100 already withdrawl, 800 in queue
+				// Then we make the withdraw request expired.
+				let grace_period = <Test as Config>::InsurancePeriod::get().saturated_into::<u64>();
+				elapse_seconds(grace_period + 1);
+				teleport_to_block(2);
+				// Check stake releasing
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.releasing_stake, 900 * DOLLARS);
+				assert_eq!(pool.total_stake, 900 * DOLLARS);
+				let user2 = PhalaStakePool::pool_stakers(&(0, 2)).unwrap();
+				assert_eq!(user2.locked, 800 * DOLLARS);
+				assert_eq!(user2.shares, 800 * DOLLARS);
+				// Check worker is shutting down
+				let miner = PhalaMining::miners(sub_account1).unwrap();
+				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
+				// Reclaim, triggering the return of the stake
+				elapse_cool_down();
+				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				// Check worker is is reclaimed
+				let miner = PhalaMining::miners(sub_account1).unwrap();
+				assert_eq!(miner.state, mining::MinerState::Ready);
+				// Check settled
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.releasing_stake, 0);
+				assert_eq!(pool.total_stake, 100 * DOLLARS);
+				let user2 = PhalaStakePool::pool_stakers(&(0, 2)).unwrap();
+				assert_eq!(user2.locked, 0);
+				assert_eq!(user2.shares, 0);
+				assert_eq!(Balances::locks(2), vec![]);
 			});
 		}
 
@@ -2173,6 +2357,17 @@ pub mod pallet {
 				assert_eq!(StakeLedger::<Test>::get(1).unwrap(), 0);
 				assert!(Balances::locks(1).is_empty());
 				assert!(Balances::locks(2).is_empty());
+				// Remove worker from the pools
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker1.clone()
+				));
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker2.clone()
+				));
 			});
 		}
 
