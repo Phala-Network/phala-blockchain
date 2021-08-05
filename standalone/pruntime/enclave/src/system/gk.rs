@@ -293,24 +293,19 @@ where
             return;
         }
 
-        if block_number - self.last_random_block != VRF_INTERVAL {
-            // wait for random number syncing
-            return;
-        }
-
         if let Some(master_key) = &self.master_key {
             let random_number =
                 next_random_number(master_key, block_number, self.last_random_number);
-            info!(
-                "Gatekeeper: emit random number {} in block {}",
-                hex::encode(&random_number),
-                block_number
-            );
             if self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
                 random_number,
                 self.last_random_number,
             )) {
+                info!(
+                    "Gatekeeper: emit random number {} in block {}",
+                    hex::encode(&random_number),
+                    block_number
+                );
                 self.last_random_block = block_number;
                 self.last_random_number = random_number;
             }
