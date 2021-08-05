@@ -125,6 +125,7 @@ impl mq::Config for Test {
 
 impl reg::Config for Test {
 	type Event = Event;
+	type AttestationValidator = reg::IasValidator;
 	type UnixTime = Timestamp;
 }
 
