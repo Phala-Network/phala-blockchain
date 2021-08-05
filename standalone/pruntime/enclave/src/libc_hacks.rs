@@ -191,7 +191,7 @@ pub extern "C" fn dlsym(_handle: *const c_void, symbol: *const c_char) -> *const
 
 #[no_mangle]
 pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
-    // The enclave does not allowed to access environment variables, so return an NULL.
+    // The enclave is not allowed to access environment variables, so return a NULL.
     core::ptr::null()
 }
 
@@ -234,6 +234,8 @@ pub extern "C" fn pthread_atfork(
 ) -> c_int {
     not_allowed!()
 }
+
+// mmap, munmap, readlink, fstat64 are required by the stacktrace.
 
 #[no_mangle]
 pub extern "C" fn mmap(
