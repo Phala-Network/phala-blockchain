@@ -573,7 +573,7 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 		fs.mkdirSync(workDir);
 		const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
 		filesToCopy.forEach(f =>
-			fs.symlinkSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
+			fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
 		);
 	}
 	return new Process([
