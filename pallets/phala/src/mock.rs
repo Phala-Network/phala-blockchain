@@ -100,7 +100,7 @@ pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
 
 impl mq::Config for Test {
-	type QueueNotifyConfig = ();
+	type QueueNotifyConfig = msg_routing::MockMessageRouteConfig;
 }
 
 impl registry::Config for Test {
@@ -142,6 +142,49 @@ impl AttestationValidator for MockValidator {
 			report_data: [0u8; 64],
 			confidence_level: 128u8,
 		})
+	}
+}
+
+mod msg_routing {
+	use crate::mq;
+	use codec::Decode;
+	use frame_support::dispatch::{DispatchError, DispatchResult};
+	use phala_types::messaging::{BindTopic, DecodedMessage, Message};
+
+	fn try_dispatch<Msg, Func>(func: Func, message: &Message) -> DispatchResult
+	where
+		Msg: Decode + BindTopic,
+		Func: Fn(DecodedMessage<Msg>) -> DispatchResult,
+	{
+		if message.destination.path() == Msg::TOPIC {
+			let msg: DecodedMessage<Msg> = message
+				.decode()
+				.ok_or(DispatchError::Other("MessageCodecError"))?;
+			return (func)(msg);
+		}
+		Ok(())
+	}
+
+	pub struct MockMessageRouteConfig;
+	impl mq::QueueNotifyConfig for MockMessageRouteConfig {
+		/// Handles an incoming message
+		fn on_message_received(message: &Message) -> DispatchResult {
+			use super::*;
+			macro_rules! route_handlers {
+				($($handler: path,)+) => {
+					$(try_dispatch($handler, message)?;)+
+				}
+			}
+
+			route_handlers! {
+				PhalaRegistry::on_message_received,
+				PhalaMining::on_gk_message_received,
+				PhalaMining::on_mining_message_received,
+				// BridgeTransfer::on_message_received,
+				// KittyStorage::on_message_received,
+			};
+			Ok(())
+		}
 	}
 }
 

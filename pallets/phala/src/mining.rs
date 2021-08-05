@@ -868,7 +868,7 @@ pub mod pallet {
 			worker_pubkey, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
-		use crate::mock::{PhalaMining, PhalaRegistry, System};
+		use crate::mock::{PhalaMining, PhalaMq, PhalaRegistry, System};
 
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::{assert_noop, assert_ok};
@@ -1048,7 +1048,7 @@ pub mod pallet {
 
 		#[test]
 		fn test_benchmark_report() {
-			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
+			use phala_types::messaging::{Message, MessageOrigin, MiningReportEvent, Topic};
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(1);
@@ -1061,18 +1061,16 @@ pub mod pallet {
 
 				// 110% boost
 				elapse_seconds(100);
-				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
-					MiningReportEvent,
-				> {
-					sender: MessageOrigin::Worker(worker_pubkey(1)),
-					destination: Topic::new(*b"phala/mining/report"),
-					payload: MiningReportEvent::Heartbeat {
+				PhalaMq::dispatch_message(Message::new(
+					MessageOrigin::Worker(worker_pubkey(1)),
+					Topic::new(*b"phala/mining/report"),
+					Encode::encode(&MiningReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 0,
 						challenge_time: 0,
 						iterations: 11000,
-					},
-				}));
+					}),
+				));
 				let miner = PhalaMining::miners(1).unwrap();
 				assert_eq!(
 					miner.benchmark,
@@ -1086,18 +1084,16 @@ pub mod pallet {
 
 				// 150% boost (capped)
 				elapse_seconds(100);
-				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
-					MiningReportEvent,
-				> {
-					sender: MessageOrigin::Worker(worker_pubkey(1)),
-					destination: Topic::new(*b"phala/mining/report"),
-					payload: MiningReportEvent::Heartbeat {
+				PhalaMq::dispatch_message(Message::new(
+					MessageOrigin::Worker(worker_pubkey(1)),
+					Topic::new(*b"phala/mining/report"),
+					Encode::encode(&MiningReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 0,
 						challenge_time: 0,
 						iterations: 11000 + 15000,
-					},
-				}));
+					}),
+				));
 				let miner = PhalaMining::miners(1).unwrap();
 				assert_eq!(
 					miner.benchmark,
