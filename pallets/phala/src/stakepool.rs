@@ -57,50 +57,47 @@ pub mod pallet {
 	/// Mapping from pool id to PoolInfo
 	#[pallet::storage]
 	#[pallet::getter(fn stake_pools)]
-	pub(super) type StakePools<T: Config> =
+	pub type StakePools<T: Config> =
 		StorageMap<_, Twox64Concat, u64, PoolInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// Mapping from (pid, staker) to UserStakeInfo
 	#[pallet::storage]
 	#[pallet::getter(fn pool_stakers)]
-	pub(super) type PoolStakers<T: Config> =
+	pub type PoolStakers<T: Config> =
 		StorageMap<_, Twox64Concat, (u64, T::AccountId), UserStakeInfo<T::AccountId, BalanceOf<T>>>;
 
 	/// The number of total pools
 	#[pallet::storage]
 	#[pallet::getter(fn pool_count)]
-	pub(super) type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
+	pub type PoolCount<T> = StorageValue<_, u64, ValueQuery>;
 
 	/// Mapping from workers to the pool they belong to
 	///
 	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
 	#[pallet::storage]
-	pub(super) type WorkerAssignments<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
+	pub type WorkerAssignments<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
 
 	/// Mapping a miner sub-account to the pool it belongs to.
 	///
 	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
 	#[pallet::storage]
-	pub(super) type SubAccountAssignments<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, u64>;
+	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
 	/// Mapping staker to it's the balance locked in all pools
 	#[pallet::storage]
 	#[pallet::getter(fn stake_ledger)]
-	pub(super) type StakeLedger<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub type StakeLedger<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	/// Mapping from the block timestamp to pools that has withdrawal requests queued in that block
 	#[pallet::storage]
 	#[pallet::getter(fn withdrawal_queued_pools)]
-	pub(super) type WithdrawalQueuedPools<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u64>>;
+	pub type WithdrawalQueuedPools<T: Config> = StorageMap<_, Twox64Concat, u64, Vec<u64>>;
 
 	/// Queue that contains all block's timestamp, in that block contains the waiting withdraw reqeust.
 	/// This queue has a max size of (T::InsurancePeriod * 8) bytes
 	#[pallet::storage]
 	#[pallet::getter(fn withdrawal_timestamps)]
-	pub(super) type WithdrawalTimestamps<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
+	pub type WithdrawalTimestamps<T> = StorageValue<_, VecDeque<u64>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
