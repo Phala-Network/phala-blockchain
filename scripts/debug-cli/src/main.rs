@@ -120,7 +120,7 @@ fn main() {
             hex_data,
         } => {
             let data = decode_hex(&hex_data);
-            decode_mq_payload(&destination, &data);
+            decode_mq_payload(destination.as_bytes(), &data);
         }
         Cli::EncodeLotterySetAdmin { admin, number } => {
             use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
@@ -184,13 +184,14 @@ fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
 type AccountId = sp_runtime::AccountId32;
 type Balance = u128;
 
-fn decode_mq_payload(destination: &str, payload: &[u8]) {
+// TODO(h4x): move it to a separate crate to share the code
+fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
     use phala_types::messaging::*;
     fn try_print<T: BindTopic + Decode + std::fmt::Debug>(
-        destination: &str,
+        destination: &[u8],
         payload: &[u8],
     ) -> Result<(), ()> {
-        if T::TOPIC == destination.as_bytes() {
+        if T::TOPIC == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
             println!("{:?}", msg);
             return Ok(());
