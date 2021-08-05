@@ -1075,6 +1075,7 @@ parameter_types! {
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
+	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
 }
 impl pallet_mq::Config for Runtime {

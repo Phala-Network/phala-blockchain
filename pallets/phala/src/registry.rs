@@ -14,8 +14,10 @@ pub mod pallet {
 		vec,
 	};
 
-	use crate::attestation::{Attestation, AttestationValidator, Error as AttestationError};
+	use crate::attestation::{AttestationValidator, Error as AttestationError};
 	use crate::mq::MessageOriginInfo;
+	// Re-export
+	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
 		messaging::{

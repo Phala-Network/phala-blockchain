@@ -45,7 +45,7 @@ pub struct IasFields {
 }
 
 /// Attestation validator implementation for IAS
-struct IasValidator;
+pub struct IasValidator;
 impl AttestationValidator for IasValidator {
 	fn validate(
 		attestation: &Attestation,
