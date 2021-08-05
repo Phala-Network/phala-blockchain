@@ -175,6 +175,7 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    data_path: String,
     runtime_info: Option<InitRuntimeResponse>,
 }
 
@@ -251,6 +252,7 @@ lazy_static! {
             ecdh_key: None,
             machine_id: [0; 16],
             dev_mode: false,
+            data_path: String::new(),
             runtime_info: None,
         })
     };
@@ -921,10 +923,22 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_init() -> sgx_status_t {
+pub extern "C" fn ecall_init(data_path: *const u8, data_path_len: usize) -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
+
+    let data_path = unsafe { std::slice::from_raw_parts(data_path, data_path_len) };
+    let data_path = match std::str::from_utf8(data_path) {
+        Ok(data_path) => data_path,
+        Err(e) => {
+            error!("ecall_init: invalid data path: {}", e);
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+    };
+    // info!("data path: {}", data_path);
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    local_state.data_path = String::from(data_path);
 
     sgx_status_t::SGX_SUCCESS
 }

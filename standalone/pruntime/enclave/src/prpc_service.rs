@@ -72,7 +72,9 @@ fn prpc_request(
         Err(e) => {
             let (code, err) = match e {
                 Error::NotFound => (404, ProtoError::new("Method Not Found")),
-                Error::DecodeError(err) => (400, ProtoError::new(format!("DecodeError({:?})", err))),
+                Error::DecodeError(err) => {
+                    (400, ProtoError::new(format!("DecodeError({:?})", err)))
+                }
                 Error::AppError(msg) => (500, ProtoError::new(msg)),
             };
             (code, prpc::codec::encode_message_to_vec(&err))
@@ -370,7 +372,12 @@ pub fn init_runtime(
 
     // Re-init some contracts because they require the identity key
     let mut system_state = SYSTEM_STATE.lock().unwrap();
-    *system_state = Some(system::System::new(&id_pair, &send_mq, &mut recv_mq));
+    *system_state = Some(system::System::new(
+        &id_pair,
+        &send_mq,
+        &mut recv_mq,
+        local_state.data_path.clone(),
+    ));
     drop(system_state);
 
     let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =

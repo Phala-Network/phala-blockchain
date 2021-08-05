@@ -107,7 +107,8 @@ extern {
     ) -> sgx_status_t;
 
     fn ecall_init(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t
+        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        data_path: *const u8, data_path_len: usize
     ) -> sgx_status_t;
 
     fn ecall_bench_run(
@@ -567,8 +568,13 @@ fn main() {
 
     let eid = get_eid();
     let mut retval = sgx_status_t::SGX_SUCCESS;
+    let executable = env::current_exe().unwrap();
+    let path = executable.parent().unwrap();
+    let data_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH);
+    let data_path_str = String::from(data_path.to_str().unwrap());
+    let data_path_byte = data_path_str.as_bytes();
     let result = unsafe {
-        ecall_init(eid, &mut retval)
+        ecall_init(eid, &mut retval, data_path_byte.as_ptr(), data_path_byte.len())
     };
 
     if result != sgx_status_t::SGX_SUCCESS {
