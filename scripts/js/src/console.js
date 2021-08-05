@@ -2,9 +2,14 @@ require('dotenv').config();
 
 const { program } = require('commander');
 const axios = require('axios').default;
+const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const phalaTypes = require('@phala/typedefs').khalaDev;
+
+const { FixedPointConverter } = require('./utils/fixedUtils');
+const tokenomic  = require('./utils/tokenomic');
+const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 
 function run(afn) {
     function runner(...args) {
@@ -18,10 +23,6 @@ function run(afn) {
 
 function rand() {
     return (Math.random() * 65536) | 0;
-}
-
-function normalizeHex(str) {
-    return str.startsWith('0x') ? str : '0x' + str;
 }
 
 class PRuntimeApi {
@@ -94,8 +95,11 @@ program
     .option('--json', 'output regular json', false);
 
 // Blockchain operations
+const chain = program
+    .command('chain')
+    .description('blockchain actions');
 
-program
+chain
     .command('push-command')
     .description('push a unencrypted command to a confidential contract')
     .argument('<contract-id>', 'confidential contract id (number)')
@@ -116,8 +120,8 @@ program
         console.log(r.toHuman());
     }));
 
-program
-    .command('chain-sync-state')
+chain
+    .command('sync-state')
     .description('show the chain status; returns 0 if it\'s in sync')
     .action(run(async () => {
         const api = await substrateApi();
@@ -142,7 +146,7 @@ program
         return timestampDelta <= 50 * 60 * 1000 ? 0 : -1;
     }));
 
-program
+chain
     .command('free-balance')
     .description('get the firee blance of an account')
     .argument('<account>', 'the account to lookup')
@@ -154,7 +158,7 @@ program
         return 0;
     }));
 
-program
+chain
     .command('inspect-worker')
     .description('get the mining related info with the worker public key')
     .argument('<worker-key>', 'the worker public key in hex')
@@ -184,9 +188,33 @@ program
         });
     }));
 
-// pRuntime operations
+chain
+    .command('get-tokenomic')
+    .description('read the tokenomic parameters from the blockchain')
+    .action(run(async () => {
+        const api = await substrateApi();
+        const p = await tokenomic.readFromChain(api);
+        printObject(p);
+    }));
 
-program
+chain
+    .command('encode-update-tokenomic')
+    .argument('<json>', 'tokenomic parameter json file path')
+    .description('encode a call to update tokenomic parameters')
+    .action(run(async (path) => {
+        const p = loadJson(path);
+        const api = await substrateApi();
+        const typedP = tokenomic.humanToTyped(api, p);
+        const call = tokenomic.createUpdateCall(api, typedP);
+        console.log(call.toHex());
+    }));
+
+// pRuntime operations
+const pruntime = program
+    .command('pruntime')
+    .description('pRuntime commands');
+
+pruntime
     .command('get-info')
     .description('get the running status')
     .action(run(async () => {
@@ -194,7 +222,7 @@ program
         printObject(await pr.req('get_info'));
     }));
 
-program
+pruntime
     .command('query')
     .description('send a query to a confidential contract via pRuntime directly (anonymously)')
     .argument('<contract-id>', 'confidential contract id (number)')
@@ -208,25 +236,28 @@ program
     }))
 
 // pDiem related
+const pdiem = program
+    .command('pdiem')
+    .description('pDiem commands');
 
-program
-    .command('pdiem-balances')
+pdiem
+    .command('balances')
     .description('get a list of the account info and balances')
     .action(run(async () => {
         const pr = pruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'AccountData'), {depth: 3});
     }));
 
-program
-    .command('pdiem-tx')
+pdiem
+    .command('tx')
     .description('get a list of the verified transactions')
     .action(run(async () => {
         const pr = pruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'VerifiedTransactions'), {depth: 3});
     }));
 
-program
-    .command('pdiem-new-account')
+pdiem
+    .command('new-account')
     .description('create a new diem subaccount for deposit')
     .argument('<seq>', 'the sequence id of the VASP account')
     .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
@@ -249,8 +280,8 @@ program
         console.log(r.toHuman());
     }));
 
-program
-    .command('pdiem-withdraw')
+pdiem
+    .command('withdraw')
     .description('create a new diem subaccount for deposit')
     .argument('<dest>', 'the withdrawal destination Diem account')
     .argument('<amount>', 'the sequence id of the VASP account')
@@ -280,7 +311,12 @@ program
 
 // Utilities
 
-program
+const utils = program
+    .command('utils')
+    .description('utility functions');
+
+
+utils
     .command('verify')
     .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)')
     .argument('<input>', 'the raw input data')
@@ -305,7 +341,26 @@ program
         } catch {}
         console.log('Cannot decode the input');
         return -1;
-    }))
+    }));
 
+utils
+    .command('fp-encode')
+    .description('encode a (U64F64) fixed point to bits')
+    .argument('<fp>', 'fixed point to encode')
+    .action(fp => {
+        const decFp = new Decimal(fp);
+        const fpc = new FixedPointConverter();
+        console.log(fpc.toBits(decFp).toString());
+    });
+
+utils
+    .command('fp-decode')
+    .description('decode a (U64F64) fixed point bits to the number')
+    .argument('<bits>', 'bits to decode')
+    .action(bits => {
+        const bnBits = praseBn(bits);
+        const fpc = new FixedPointConverter();
+        console.log(fpc.fromBits(bnBits).toString());
+    });
 
 program.parse(process.argv);
