@@ -79,10 +79,11 @@ const types = {
         "payoutCommission": "Option<Permill>",
         "ownerReward": "Balance",
         "cap": "Option<Balance>",
-        "poolAcc": "Balance",
+        "rewardAcc": "u128",
         "totalShares": "Balance",
         "totalStake": "Balance",
         "freeStake": "Balance",
+        "releasingStake": "Balance",
         "workers": "Vec<WorkerPublicKey>",
         "withdrawQueue": "Vec<WithdrawInfo>"
     },
@@ -114,7 +115,7 @@ const types = {
         "pInstant": "u32",
         "iterations": "u64",
         "miningStartTime": "u64",
-        "updated_at": "u64"
+        "updatedAt": "u64"
     },
     "MinerState": {
         "_enum": {
@@ -122,7 +123,7 @@ const types = {
             "MiningIdle":null,
             "MiningActive":null,
             "MiningUnresponsive":null,
-            "MiningCollingDown":null
+            "MiningCoolingDown":null
         }
     },
     "MinerStats": {
@@ -136,8 +137,9 @@ const types = {
         "_enum": {
             "Registered": "NewGatekeeperEvent",
             "DispatchMasterKey": "DispatchMasterKeyEvent",
+            "MasterPubkeyAvailable": null,
             "NewRandomNumber": "RandomNumberEvent",
-            "UpdateTokenomic": "TokenomicParameters"
+            "TokenomicParametersChanged": "TokenomicParameters"
         }
     },
     "NewGatekeeperEvent": {
