@@ -15,7 +15,7 @@ use phala_mq::{
 };
 use phala_types::{
     messaging::{HeartbeatChallenge, MiningReportEvent, SystemEvent, WorkerEvent},
-    WorkerPublicKey,
+    MasterPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
@@ -438,7 +438,7 @@ impl System {
         // if pRuntime possesses master key but is not registered on chain
         // TODO.shelven: this does not hold after we enable master key rotation
         if self.gatekeeper.possess_master_key()
-            || crate::gatekeeper::is_gatekeeper(&self.worker_state.pubkey, block.storage)
+            || chain_state::is_gatekeeper(&self.worker_state.pubkey, block.storage)
         {
             self.gatekeeper.process_messages(block);
 
@@ -509,6 +509,40 @@ pub enum Response {
         encoded_egress_b64: String,
     },
     Error(#[serde(with = "serde_anyhow")] anyhow::Error),
+}
+
+pub mod chain_state {
+    use super::*;
+    use crate::light_validation::utils::storage_prefix;
+    use crate::storage::Storage;
+    use parity_scale_codec::Decode;
+
+    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
+        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
+        let gatekeepers = chain_storage
+            .get(&key)
+            .map(|v| {
+                Vec::<WorkerPublicKey>::decode(&mut &v[..])
+                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
+            })
+            .unwrap_or(Vec::new());
+
+        gatekeepers.contains(pubkey)
+    }
+
+    #[allow(dead_code)]
+    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
+        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
+        chain_storage
+            .get(&key)
+            .map(|v| {
+                Some(
+                    MasterPublicKey::decode(&mut &v[..])
+                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
+                )
+            })
+            .unwrap_or(None)
+    }
 }
 
 pub mod serde_anyhow {

@@ -1,4 +1,4 @@
-use super::{TypedReceiver, WorkerState};
+use super::{chain_state, TypedReceiver, WorkerState};
 use chain::pallet_registry::RegistryEvent;
 use phala_crypto::{
     aead, ecdh,
@@ -91,8 +91,9 @@ pub(super) struct Gatekeeper<MsgChan> {
     identity_key: sr25519::Pair,
     master_key: Option<sr25519::Pair>,
     registered_on_chain: bool,
+    master_pubkey_on_chain: bool,
     send_mq: MessageSendQueue,
-    egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
+    gk_egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
     worker_egress: Sr25519MessageChannel,
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -119,8 +120,9 @@ where
             identity_key,
             master_key: None,
             registered_on_chain: false,
+            master_pubkey_on_chain: false,
             send_mq,
-            egress: None,
+            gk_egress: None,
             worker_egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -132,17 +134,12 @@ where
         }
     }
 
-    /// Returns the master public key
-    pub fn master_public_key(&self) -> Option<sr25519::Public> {
-        self.master_key.as_ref().map(|k| k.public())
-    }
-
     pub fn is_registered_on_chain(&self) -> bool {
         self.registered_on_chain
     }
 
-    pub fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
-        self.egress
+    fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
+        self.gk_egress
             .as_mut()
             .expect("gk should work after acquiring master key; qed.")
             .set_dummy(dummy);
@@ -165,6 +162,11 @@ where
         self.master_key.is_some()
     }
 
+    /// Returns the master public key
+    pub fn master_public_key(&self) -> Option<sr25519::Public> {
+        self.master_key.as_ref().map(|k| k.public())
+    }
+
     pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
             self.master_key = Some(master_key.clone());
@@ -175,12 +177,12 @@ where
             }
 
             // init gatekeeper egress dynamically with master key
-            if self.egress.is_none() {
+            if self.gk_egress.is_none() {
                 let gk_egress =
                     MsgChan::create(&self.send_mq, MessageOrigin::Gatekeeper, master_key);
                 // by default, gk_egress is set to dummy mode until it is registered on chain
                 gk_egress.set_dummy(true);
-                self.egress = Some(gk_egress);
+                self.gk_egress = Some(gk_egress);
             }
         } else if let Some(my_master_key) = &self.master_key {
             // TODO.shelven: remove this assertion after we enable master key rotation
@@ -250,11 +252,17 @@ where
         self.set_master_key(sr25519::Pair::restore_from_secret_key(&secret), false);
     }
 
-    pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) {
-        self.egress
-            .as_ref()
-            .expect("gk should work after acquiring master key; qed.")
-            .push_message(message)
+    pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) -> bool {
+        if self.master_pubkey_on_chain {
+            self.gk_egress
+                .as_ref()
+                .expect("gk should work after acquiring master key; qed.")
+                .push_message(message)
+        } else {
+            info!("Gatekeeper: skip message sending for no master pubkey on chain");
+        }
+
+        self.master_pubkey_on_chain
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -298,14 +306,14 @@ where
                 hex::encode(&random_number),
                 block_number
             );
-            self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
+            if self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
                 block_number,
                 random_number,
                 self.last_random_number,
-            ));
-
-            self.last_random_block = block_number;
-            self.last_random_number = random_number;
+            )) {
+                self.last_random_block = block_number;
+                self.last_random_number = random_number;
+            }
         }
     }
 }
@@ -585,6 +593,9 @@ where
             GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
                 self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
             }
+            GatekeeperEvent::MasterPubkeyAvailable => {
+                self.state.master_pubkey_on_chain = true;
+            }
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }
@@ -607,7 +618,7 @@ where
         }
 
         // double check the new gatekeeper is valid on chain
-        if !crate::gatekeeper::is_gatekeeper(&event.pubkey, self.block.storage) {
+        if !chain_state::is_gatekeeper(&event.pubkey, self.block.storage) {
             error!("Fatal error: Invalid gatekeeper registration {:?}", event);
             panic!("GK state poisoned");
         }
@@ -649,18 +660,20 @@ where
                 let mut data = master_key.dump_secret_key().to_vec();
 
                 match aead::encrypt(&iv, &secret, &mut data) {
-                    Ok(_) => self.state.push_gatekeeper_message(
-                        GatekeeperEvent::dispatch_master_key_event(
-                            event.pubkey.clone(),
-                            my_ecdh_key
-                                .public()
-                                .as_ref()
-                                .try_into()
-                                .expect("should never fail given pubkey with correct length"),
-                            data,
-                            iv,
-                        ),
-                    ),
+                    Ok(_) => {
+                        self.state.push_gatekeeper_message(
+                            GatekeeperEvent::dispatch_master_key_event(
+                                event.pubkey.clone(),
+                                my_ecdh_key
+                                    .public()
+                                    .as_ref()
+                                    .try_into()
+                                    .expect("should never fail given pubkey with correct length"),
+                                data,
+                                iv,
+                            ),
+                        );
+                    }
                     Err(e) => error!("Failed to encrypt master key: {:?}", e),
                 }
             }

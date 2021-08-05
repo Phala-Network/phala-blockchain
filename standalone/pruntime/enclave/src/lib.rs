@@ -70,7 +70,7 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo};
+use phala_types::WorkerRegistrationInfo;
 
 mod benchmark;
 mod cert;
@@ -85,7 +85,7 @@ mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ContractId, ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
@@ -1317,37 +1317,6 @@ fn query(q: types::SignedQuery) -> Result<Value, Value> {
 
 fn test(_param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
-}
-
-mod gatekeeper {
-    use super::*;
-
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or(Vec::new());
-
-        gatekeepers.contains(pubkey)
-    }
-
-    #[allow(dead_code)]
-    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
-        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage
-            .get(&key)
-            .map(|v| {
-                Some(
-                    MasterPublicKey::decode(&mut &v[..])
-                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
-                )
-            })
-            .unwrap_or(None)
-    }
 }
 
 #[cfg(feature = "tests")]
