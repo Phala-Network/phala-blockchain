@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./typeoverride');
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
-const { checkUntil, skipSlowTest } = require('../utils');
+const { checkUntil, skipSlowTest, sleep } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
@@ -109,6 +109,47 @@ describe('A full stack', function () {
 	});
 
 	describe('Gatekeeper', () => {
+		it('pre-mines blocks', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				return info.blocknum > 10;
+			}, 10 * 6000), 'not enough blocks mined');
+		});
+
+		it('can be registered as first gatekeeper', async function () {
+			// Register worker1 as Gatekeeper
+			const info = await pruntime[0].getInfo();
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.forceRegisterWorker(
+						hex(info.public_key),
+						hex(info.ecdh_public_key),
+						null,
+					)
+				),
+				alice,
+			);
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+				),
+				alice,
+			);
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				return info.registered;
+			}, 4 * 6000), 'not registered in time');
+
+			// Check if the role is Gatekeeper
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+				return gatekeepers.includes(hex(info.public_key));
+			}, 4 * 6000), 'not registered as gatekeeper');
+		});
+
 		it('finishes master pubkey upload', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const master_pubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
@@ -116,7 +157,7 @@ describe('A full stack', function () {
 			}, 4 * 6000), 'master pubkey not uploaded');
 		});
 
-		it('can be registered', async function () {
+		it('can be registered as second gatekeeper', async function () {
 			// Register worker1 as Gatekeeper
 			const info = await pruntime[1].getInfo();
 			await assert.txAccepted(
@@ -170,6 +211,13 @@ describe('A full stack', function () {
 			}, 1000))
 
 			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
+		});
+
+		it('post-mines blocks', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				return info.blocknum > 25;
+			}, 20 * 6000), 'not enough blocks mined');
 		});
 	});
 
