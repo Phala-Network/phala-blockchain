@@ -175,6 +175,7 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    skip_ra: bool,
     data_path: String,
     runtime_info: Option<InitRuntimeResponse>,
 }
@@ -252,6 +253,7 @@ lazy_static! {
             ecdh_key: None,
             machine_id: [0; 16],
             dev_mode: false,
+            skip_ra: false,
             data_path: String::new(),
             runtime_info: None,
         })

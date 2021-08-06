@@ -684,6 +684,19 @@ async fn register_worker(
     Ok(())
 }
 
+async fn try_register_worker(
+    pr: &PrClient,
+    paraclient: &XtClient,
+    signer: &mut SrSigner,
+) -> Result<()> {
+    let info = pr.get_runtime_info(()).await?;
+    if let Some(attestation) = info.attestation {
+        info!("Registering worker...");
+        register_worker(&paraclient, info.runtime_info, attestation, signer).await?;
+    }
+    Ok(())
+}
+
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
 async fn wait_until_synced(client: &XtClient) -> Result<()> {
@@ -744,12 +757,10 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    let mut pending_register_info: Option<(prpc::Attestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.get_info(()).await?;
     if !args.no_init {
-        let runtime_info;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
             let operator = match args.operator {
@@ -760,7 +771,7 @@ async fn bridge(args: Args) -> Result<()> {
                     Some(parsed_operator)
                 }
             };
-            runtime_info = init_runtime(
+            let runtime_info = init_runtime(
                 &client,
                 &paraclient,
                 &pr,
@@ -785,10 +796,9 @@ async fn bridge(args: Args) -> Result<()> {
             })
             .await
             .ok();
+            info!("runtime_info: {:?}", runtime_info);
         } else {
-            info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = pr.get_runtime_info(()).await?;
-
+            info!("pRuntime already initialized.");
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
             pruntime_initialized = true;
@@ -803,16 +813,10 @@ async fn bridge(args: Args) -> Result<()> {
             .await
             .ok();
         }
-        info!("runtime_info: {:?}", runtime_info);
-        if let Some(attestation) = runtime_info.attestation {
-            pending_register_info = Some((attestation, runtime_info.runtime_info));
-        }
     }
 
     if args.no_sync {
-        if let Some((attestation, encoded_runtime_info)) = pending_register_info {
-            register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer).await?;
-        }
+        try_register_worker(&pr, &paraclient, &mut signer).await?;
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -916,10 +920,8 @@ async fn bridge(args: Args) -> Result<()> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
-            if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
-                info!("Registering worker");
-                register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer)
-                    .await?;
+            if !initial_sync_finished {
+                try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
