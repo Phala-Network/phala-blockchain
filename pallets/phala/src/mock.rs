@@ -1,4 +1,7 @@
-use crate::{mining, mq, registry, stakepool};
+use crate::{
+	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
+	mining, mq, registry, stakepool,
+};
 
 use frame_support::{
 	parameter_types,
@@ -102,6 +105,7 @@ impl mq::Config for Test {
 
 impl registry::Config for Test {
 	type Event = Event;
+	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 }
 
@@ -121,6 +125,24 @@ impl stakepool::Config for Test {
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type InsurancePeriod = MiningInsurancePeriod;
+}
+
+pub struct MockValidator;
+impl AttestationValidator for MockValidator {
+	fn validate(
+		_attestation: &Attestation,
+		_user_data_hash: &[u8; 32],
+		_now: u64,
+	) -> Result<IasFields, AttestationError> {
+		Ok(IasFields {
+			mr_enclave: [0u8; 32],
+			mr_signer: [0u8; 32],
+			isv_prod_id: [0u8; 2],
+			isv_svn: [0u8; 2],
+			report_data: [0u8; 64],
+			confidence_level: 128u8,
+		})
+	}
 }
 
 // This function basically just builds a genesis storage key/value store according to

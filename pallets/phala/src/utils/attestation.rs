@@ -1,10 +1,29 @@
 use crate::constants::*;
 
+use codec::{Decode, Encode};
 use sp_std::{
 	borrow::ToOwned,
 	convert::{TryFrom, TryInto},
 	vec::Vec,
 };
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+pub enum Attestation {
+	SgxIas {
+		ra_report: Vec<u8>,
+		signature: Vec<u8>,
+		raw_signing_cert: Vec<u8>,
+	},
+}
+
+pub trait AttestationValidator {
+	/// Validates the attestation as well as the user data hash it commits to.
+	fn validate(
+		attestation: &Attestation,
+		user_data_hash: &[u8; 32],
+		now: u64,
+	) -> Result<IasFields, Error>;
+}
 
 pub enum Error {
 	InvalidIASSigningCert,
@@ -13,6 +32,7 @@ pub enum Error {
 	BadIASReport,
 	OutdatedIASReport,
 	UnknownQuoteBodyFormat,
+	InvalidUserDataHash,
 }
 
 pub struct IasFields {
@@ -22,6 +42,30 @@ pub struct IasFields {
 	pub isv_svn: [u8; 2],
 	pub report_data: [u8; 64],
 	pub confidence_level: u8,
+}
+
+/// Attestation validator implementation for IAS
+pub struct IasValidator;
+impl AttestationValidator for IasValidator {
+	fn validate(
+		attestation: &Attestation,
+		user_data_hash: &[u8; 32],
+		now: u64,
+	) -> Result<IasFields, Error> {
+		let fields = match attestation {
+			Attestation::SgxIas {
+				ra_report,
+				signature,
+				raw_signing_cert,
+			} => validate_ias_report(&ra_report, &signature, &raw_signing_cert, now),
+		}?;
+		let commit = &fields.report_data[..32];
+		if commit != user_data_hash {
+			Err(Error::InvalidUserDataHash)
+		} else {
+			Ok(fields)
+		}
+	}
 }
 
 pub fn validate_ias_report(

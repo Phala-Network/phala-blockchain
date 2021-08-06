@@ -14,8 +14,10 @@ pub mod pallet {
 		vec,
 	};
 
-	use crate::attestation::{validate_ias_report, Error as AttestationError};
+	use crate::attestation::{AttestationValidator, Error as AttestationError};
 	use crate::mq::MessageOriginInfo;
+	// Re-export
+	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
 		messaging::{
@@ -37,6 +39,7 @@ pub mod pallet {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
 
 		type UnixTime: UnixTime;
+		type AttestationValidator: AttestationValidator;
 	}
 
 	#[pallet::pallet]
@@ -222,16 +225,11 @@ pub mod pallet {
 			attestation: Attestation,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
-			// Validate RA report
+			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
-			let fields = match attestation {
-				Attestation::SgxIas {
-					ra_report,
-					signature,
-					raw_signing_cert,
-				} => validate_ias_report(&ra_report, &signature, &raw_signing_cert, now)
-					.map_err(Into::<Error<T>>::into)?,
-			};
+			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
+			let fields = T::AttestationValidator::validate(&attestation, &runtime_info_hash, now)
+				.map_err(Into::<Error<T>>::into)?;
 			// Validate fields
 
 			// TODO(h4x): Add back mrenclave whitelist check
@@ -239,20 +237,16 @@ pub mod pallet {
 			// let t_mrenclave = Self::extend_mrenclave(&fields.mr_enclave, &fields.mr_signer, &fields.isv_prod_id, &fields.isv_svn);
 			// ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 
-			// Validate pruntime_info
-			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
-			let commit = &fields.report_data[..32];
-			ensure!(
-				&runtime_info_hash == commit,
-				Error::<T>::InvalidRuntimeInfoHash
-			);
+			// TODO(h4x): Validate genesis block hash
+
 			// Update the registry
 			let pubkey = pruntime_info.pubkey.clone();
 			Workers::<T>::mutate(pubkey.clone(), |v| {
 				match v {
 					Some(worker_info) => {
-						// Case 1 - Refresh the RA report and redo benchmark
+						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
 						worker_info.last_updated = now;
+						worker_info.operator = pruntime_info.operator;
 						Self::push_message(SystemEvent::new_worker_event(
 							pubkey.clone(),
 							WorkerEvent::Registered(messaging::WorkerInfo {
@@ -475,15 +469,6 @@ pub mod pallet {
 		type Config = T;
 	}
 
-	#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
-	pub enum Attestation {
-		SgxIas {
-			ra_report: Vec<u8>,
-			signature: Vec<u8>,
-			raw_signing_cert: Vec<u8>,
-		},
-	}
-
 	#[derive(Encode, Decode, Default, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
@@ -509,7 +494,69 @@ pub mod pallet {
 				AttestationError::BadIASReport => Self::BadIASReport,
 				AttestationError::OutdatedIASReport => Self::OutdatedIASReport,
 				AttestationError::UnknownQuoteBodyFormat => Self::UnknownQuoteBodyFormat,
+				AttestationError::InvalidUserDataHash => Self::InvalidRuntimeInfoHash,
 			}
+		}
+	}
+
+	#[cfg(test)]
+	mod test {
+		use frame_support::{assert_noop, assert_ok};
+
+		use super::*;
+		use crate::mock::{
+			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, worker_pubkey, Origin, Test,
+		};
+		// Pallets
+		use crate::mock::PhalaRegistry;
+
+		#[test]
+		fn test_register_worker() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				// New registration
+				assert_ok!(PhalaRegistry::register_worker(
+					Origin::signed(1),
+					WorkerRegistrationInfo::<u64> {
+						version: 1,
+						machine_id: Default::default(),
+						pubkey: worker_pubkey(1),
+						ecdh_pubkey: ecdh_pubkey(1),
+						genesis_block_hash: Default::default(),
+						features: vec![4, 1],
+						operator: Some(1),
+					},
+					Attestation::SgxIas {
+						ra_report: Vec::new(),
+						signature: Vec::new(),
+						raw_signing_cert: Vec::new(),
+					},
+				));
+				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
+				assert_eq!(worker.operator, Some(1));
+				// Refreshed validator
+				elapse_seconds(100);
+				assert_ok!(PhalaRegistry::register_worker(
+					Origin::signed(1),
+					WorkerRegistrationInfo::<u64> {
+						version: 1,
+						machine_id: Default::default(),
+						pubkey: worker_pubkey(1),
+						ecdh_pubkey: ecdh_pubkey(1),
+						genesis_block_hash: Default::default(),
+						features: vec![4, 1],
+						operator: Some(2),
+					},
+					Attestation::SgxIas {
+						ra_report: Vec::new(),
+						signature: Vec::new(),
+						raw_signing_cert: Vec::new(),
+					},
+				));
+				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
+				assert_eq!(worker.last_updated, 100);
+				assert_eq!(worker.operator, Some(2));
+			});
 		}
 	}
 }
