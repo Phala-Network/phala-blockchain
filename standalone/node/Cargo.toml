@@ -111,6 +111,8 @@ wasm-bindgen-futures = { version = "0.4.18", optional = true }
 browser-utils = { package = "substrate-browser-utils", path = "../../substrate/utils/browser", optional = true }
 libp2p-wasm-ext = { version = "0.28", features = ["websocket"], optional = true }
 
+phala-pallets = { path = "../../pallets/phala" }
+
 [target.'cfg(target_arch="x86_64")'.dependencies]
 node-executor = { version = "2.0.0", path = "../executor", features = [ "wasmtime" ] }
 sc-cli = { optional = true, path = "../../substrate/client/cli", features = [ "wasmtime" ] }

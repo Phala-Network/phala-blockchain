@@ -806,6 +806,7 @@ mod tests {
 				let check_era = frame_system::CheckEra::from(Era::Immortal);
 				let check_nonce = frame_system::CheckNonce::from(index);
 				let check_weight = frame_system::CheckWeight::new();
+				let check_mq_sequence = phala_pallets::mq::CheckMqSequence::new();
 				let payment = pallet_transaction_payment::ChargeTransactionPayment::from(0);
 				let extra = (
 					check_spec_version,
@@ -814,12 +815,13 @@ mod tests {
 					check_era,
 					check_nonce,
 					check_weight,
+					check_mq_sequence,
 					payment,
 				);
 				let raw_payload = SignedPayload::from_raw(
 					function,
 					extra,
-					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), ())
+					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), (), ())
 				);
 				let signature = raw_payload.using_encoded(|payload|	{
 					signer.sign(payload)

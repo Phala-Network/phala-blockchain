@@ -120,7 +120,18 @@ impl Config for Test {
 }
 
 impl mq::Config for Test {
+	type CallMatcher = MqCallMatcher;
 	type QueueNotifyConfig = ();
+}
+
+pub struct MqCallMatcher;
+impl mq::CallMatcher<Test> for MqCallMatcher {
+	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+		match call {
+			Call::PhalaMq(mq_call) => Some(mq_call),
+			_ => None,
+		}
+	}
 }
 
 impl reg::Config for Test {

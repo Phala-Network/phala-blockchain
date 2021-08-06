@@ -5786,6 +5786,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "phala-node-runtime",
+ "phala-pallets",
  "platforms",
  "rand 0.7.3",
  "regex",
