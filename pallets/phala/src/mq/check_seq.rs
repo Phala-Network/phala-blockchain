@@ -7,7 +7,7 @@ use sp_runtime::transaction_validity::{
 	InvalidTransaction, TransactionLongevity, TransactionValidity, TransactionValidityError,
 	ValidTransaction,
 };
-use sp_std::{marker::PhantomData, vec};
+use sp_std::marker::PhantomData;
 
 /// Requires a message queue message must has correct sequence id.
 ///
@@ -97,22 +97,10 @@ where
 		if sequence < expected_seq {
 			return InvalidTransaction::Stale.into();
 		}
-		// Otherwise build a dependency graph based on (sender, sequence), hoping that it can be
-		// included later
-		let provides = vec![Encode::encode(&(sender, sequence))];
-		let requires = if sequence > expected_seq {
-			vec![Encode::encode(&(sender, sequence - 1))]
-		} else {
-			vec![]
-		};
-
-		Ok(ValidTransaction {
-			priority: 0,
-			requires,
-			provides,
-			longevity: TransactionLongevity::max_value(),
-			propagate: true,
-		})
+		// Otherwise, in theory we could build a dependency graph based on (sender, sequence),
+		// but it may introduce circle dependency in the graph, conflicting with the deps built
+		// by other extensions (e.g. CheckNonce). So we just return ValidTransaction instead.
+		Ok(ValidTransaction::default())
 	}
 }
 
