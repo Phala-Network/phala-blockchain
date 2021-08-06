@@ -308,37 +308,6 @@ pub fn init_runtime(
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
-    let encoded_runtime_info = runtime_info.encode();
-    let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
-
-    info!("Encoded runtime info");
-    info!("{:?}", hex::encode(&encoded_runtime_info));
-
-    // Produce remote attestation report
-    let mut attestation: Option<Attestation> = None;
-    if !skip_ra {
-        let (attn_report, sig, cert) = match create_attestation_report(
-            &runtime_info_hash,
-            sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
-        ) {
-            Ok(r) => r,
-            Err(e) => {
-                error!("Error in create_attestation_report: {:?}", e);
-                return Err(from_display("Error while connecting to IAS"));
-            }
-        };
-
-        attestation = Some(Attestation {
-            version: 1,
-            provider: "SGX".to_string(),
-            payload: Some(AttestationReport {
-                report: attn_report,
-                signature: base64::decode(sig).map_err(from_display)?,
-                signing_cert: base64::decode_config(cert, base64::STANDARD)
-                    .map_err(from_display)?,
-            }),
-        });
-    }
 
     // Initialize bridge
     let next_headernum = genesis.block_header.number + 1;
@@ -447,21 +416,69 @@ pub fn init_runtime(
         genesis_block_hash,
         ecdsa_pk,
         ecdh_pubkey,
-        attestation,
+        None,
     );
+    local_state.skip_ra = skip_ra;
     local_state.runtime_info = Some(resp.clone());
     local_state.initialized = true;
     Ok(resp)
 }
 
 pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
-    let resp = LOCAL_STATE
-        .lock()
-        .unwrap()
+    let mut state = LOCAL_STATE.lock().unwrap();
+
+    let skip_ra = state.skip_ra;
+
+    let mut cached_resp = state
         .runtime_info
-        .clone()
+        .as_mut()
         .ok_or_else(|| from_display("Uninitiated runtime info"))?;
-    Ok(resp)
+
+    if !skip_ra {
+        if let Some(cached_attestation) = &cached_resp.attestation {
+            const MAX_ATTESTATION_AGE: u64 = 60 * 60;
+            if now() > cached_attestation.timestamp + MAX_ATTESTATION_AGE {
+                cached_resp.attestation = None;
+            }
+        }
+        if cached_resp.attestation.is_none() {
+            let encoded_runtime_info = cached_resp.runtime_info.encode();
+            let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
+            info!("Encoded runtime info");
+            info!("{:?}", hex::encode(&encoded_runtime_info));
+            let (attn_report, sig, cert) = match create_attestation_report(
+                &runtime_info_hash,
+                sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
+            ) {
+                Ok(r) => r,
+                Err(e) => {
+                    error!("Error in create_attestation_report: {:?}", e);
+                    return Err(from_display("Error while connecting to IAS"));
+                }
+            };
+
+            cached_resp.attestation = Some(Attestation {
+                version: 1,
+                provider: "SGX".to_string(),
+                payload: Some(AttestationReport {
+                    report: attn_report,
+                    signature: base64::decode(sig).map_err(from_display)?,
+                    signing_cert: base64::decode_config(cert, base64::STANDARD)
+                        .map_err(from_display)?,
+                }),
+                timestamp: now(),
+            });
+        }
+    }
+    Ok(cached_resp.clone())
+}
+
+fn now() -> u64 {
+    use crate::std::time::SystemTime;
+    let now = SystemTime::now()
+        .duration_since(SystemTime::UNIX_EPOCH)
+        .unwrap();
+    now.as_secs()
 }
 
 // Drop latest messages if needed to fit in size.
