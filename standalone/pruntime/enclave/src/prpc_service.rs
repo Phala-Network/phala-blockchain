@@ -442,10 +442,10 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
             }
         }
         if cached_resp.attestation.is_none() {
-            let encoded_runtime_info = cached_resp.runtime_info.encode();
-            let runtime_info_hash = sp_core::hashing::blake2_256(&encoded_runtime_info);
+            // We hash the encoded bytes directly
+            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.runtime_info);
             info!("Encoded runtime info");
-            info!("{:?}", hex::encode(&encoded_runtime_info));
+            info!("{:?}", hex::encode(&cached_resp.runtime_info));
             let (attn_report, sig, cert) = match create_attestation_report(
                 &runtime_info_hash,
                 sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
