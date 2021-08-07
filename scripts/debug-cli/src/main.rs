@@ -26,6 +26,9 @@ enum Cli {
         #[structopt(short)]
         b64_data: String,
     },
+    DecodeEgressMessages {
+        b64_data: String,
+    },
     DecodeSignedMessage {
         #[structopt(short)]
         hex_data: String,
@@ -95,6 +98,11 @@ fn main() {
                 enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
+        }
+        Cli::DecodeEgressMessages { b64_data } => {
+            let data = decode_b64(&argument_or_stdin(&b64_data));
+            let messages = enclave_api::prpc::EgressMessages::decode(&mut data.as_slice());
+            println!("Decoded: {:?}", messages);
         }
         Cli::DecodeSignedMessage { hex_data } => {
             use phala_types::messaging::SignedMessage;
@@ -179,6 +187,24 @@ fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
     let message = T::decode(&mut data.as_slice());
     println!("Decode: {:?}", message);
     message.unwrap()
+}
+
+fn decode_b64(b64_str: &str) -> Vec<u8> {
+    base64::decode(b64_str.trim()).expect("Failed to decode b64_data")
+}
+
+fn argument_or_stdin(arg: &str) -> String {
+    use std::io::Read;
+    if arg == "-" {
+        let mut buffer = String::new();
+        let mut stdin = std::io::stdin();
+        stdin
+            .read_to_string(&mut buffer)
+            .expect("Failed to read from stdin");
+        buffer
+    } else {
+        arg.to_string()
+    }
 }
 
 type AccountId = sp_runtime::AccountId32;
