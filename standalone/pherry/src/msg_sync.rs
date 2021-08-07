@@ -32,7 +32,11 @@ impl<'a> MsgSync<'a> {
 
     pub async fn maybe_sync_mq_egress(&mut self) -> Result<()> {
         // Send the query
-        let messages = self.pr.get_egress_messages(()).await?.messages_decoded()?;
+        let messages = self
+            .pr
+            .get_egress_messages(())
+            .await?
+            .decode_encoded_messages()?;
 
         // No pending message. We are done.
         if messages.is_empty() {

@@ -1164,9 +1164,9 @@ fn get_info_json() -> Result<Value, Value> {
 }
 
 fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Value> {
-    let genesis_block_hash = info.genesis_block_hash_decoded().map_err(display)?;
-    let public_key = info.public_key_decoded().map_err(display)?;
-    let ecdh_public_key = info.ecdh_public_key_decoded().map_err(display)?;
+    let genesis_block_hash = info.decode_encoded_genesis_block_hash().map_err(display)?;
+    let public_key = info.decode_encoded_public_key().map_err(display)?;
+    let ecdh_public_key = info.decode_encoded_ecdh_public_key().map_err(display)?;
 
     let genesis_block_hash_hex = hex::encode(genesis_block_hash);
     let ecdsa_hex_pk = hex::encode(public_key);
@@ -1186,7 +1186,7 @@ fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Va
     });
 
     Ok(InitRuntimeResp {
-        encoded_runtime_info: info.runtime_info,
+        encoded_runtime_info: info.encoded_runtime_info,
         genesis_block_hash: genesis_block_hash_hex,
         public_key: ecdsa_hex_pk,
         ecdh_public_key: ecdh_hex_pk,
