@@ -223,6 +223,20 @@ pruntime
     }));
 
 pruntime
+    .command('req')
+    .description('send a request to pruntime')
+    .argument('<method>', 'the method name')
+    .option('--body', 'a json request body', '')
+    .action(run(async (method, opt) => {
+        const pr = pruntimeApi();
+        let body;
+        if (opt.body) {
+            body = JSON.parse(opt.body);
+        }
+        printObject(await pr.req(method, body ? body : {}));
+    }))
+
+pruntime
     .command('query')
     .description('send a query to a confidential contract via pRuntime directly (anonymously)')
     .argument('<contract-id>', 'confidential contract id (number)')
