@@ -443,9 +443,9 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
         }
         if cached_resp.attestation.is_none() {
             // We hash the encoded bytes directly
-            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.runtime_info);
+            let runtime_info_hash = sp_core::hashing::blake2_256(&cached_resp.encoded_runtime_info);
             info!("Encoded runtime info");
-            info!("{:?}", hex::encode(&cached_resp.runtime_info));
+            info!("{:?}", hex::encode(&cached_resp.encoded_runtime_info));
             let (attn_report, sig, cert) = match create_attestation_report(
                 &runtime_info_hash,
                 sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE,
@@ -521,20 +521,20 @@ impl PhactoryApi for RpcService {
 
     /// Sync the parent chain header
     fn sync_header(&self, request: HeadersToSync) -> RpcResult<SyncedTo> {
-        let headers = request.headers_decoded()?;
-        let authority_set_change = request.authority_set_change_decoded()?;
+        let headers = request.decode_encoded_headers()?;
+        let authority_set_change = request.decode_encoded_authority_set_change()?;
         sync_header(headers, authority_set_change)
     }
 
     /// Sync the parachain header
     fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
-        let headers = request.headers_decoded()?;
+        let headers = request.decode_encoded_headers()?;
         sync_para_header(headers, request.proof)
     }
 
     /// Dispatch blocks (Sync storage changes)"
     fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
-        let blocks = request.blocks_decoded()?;
+        let blocks = request.decode_encoded_blocks()?;
         dispatch_block(blocks)
     }
 
@@ -542,9 +542,9 @@ impl PhactoryApi for RpcService {
         init_runtime(
             request.skip_ra,
             request.is_parachain,
-            request.genesis_info_decoded()?,
-            request.genesis_state_decoded()?,
-            request.operator_decoded()?,
+            request.decode_encoded_genesis_info()?,
+            request.decode_encoded_genesis_state()?,
+            request.decode_encoded_operator()?,
             request.debug_set_key,
         )
     }

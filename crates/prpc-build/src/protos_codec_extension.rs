@@ -140,7 +140,7 @@ impl<'a> CodeGenerator<'a> {
             match name.as_str() {
                 "scale" => {
                     buf.push_str(&format!(
-                        "pub fn {}_decoded(&self) -> Result<{}, ScaleDecodeError> {{\n",
+                        "pub fn decode_{}(&self) -> Result<{}, ScaleDecodeError> {{\n",
                         field.name(),
                         ty
                     ));
@@ -208,7 +208,7 @@ impl<'a> CodeGenerator<'a> {
                 self.path.push(idx as i32);
                 buf.push_str(&format!(
                     "{}: {},\n",
-                    field.name(),
+                    self.typed_field_name(&field),
                     self.resolve_decoded_type(&field)
                 ));
                 self.path.pop();
@@ -224,10 +224,14 @@ impl<'a> CodeGenerator<'a> {
                         buf.push_str(&format!(
                             "{}: {}.map(|x| x.encode()),\n",
                             field.name(),
-                            field.name()
+                            self.typed_field_name(&field),
                         ));
                     } else {
-                        buf.push_str(&format!("{}: {}.encode(),\n", field.name(), field.name()));
+                        buf.push_str(&format!(
+                            "{}: {}.encode(),\n",
+                            field.name(),
+                            self.typed_field_name(&field)
+                        ));
                     }
                 } else {
                     buf.push_str(&format!("{},\n", field.name()));
@@ -287,6 +291,19 @@ impl<'a> CodeGenerator<'a> {
         match field.r#type() {
             Type::Message => true,
             _ => self.syntax == Syntax::Proto2,
+        }
+    }
+
+    fn typed_field_name<'f>(&self, field: &'f FieldDescriptorProto) -> &'f str {
+        let encode_prefix = "encoded_";
+        let field_name = field.name();
+        if self.codec_decoration().is_some()
+            && field_name.starts_with(encode_prefix)
+            && field_name.len() > encode_prefix.len()
+        {
+            &field_name[encode_prefix.len()..]
+        } else {
+            field_name
         }
     }
 

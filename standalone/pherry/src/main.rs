@@ -692,7 +692,7 @@ async fn try_register_worker(
     let info = pr.get_runtime_info(()).await?;
     if let Some(attestation) = info.attestation {
         info!("Registering worker...");
-        register_worker(&paraclient, info.runtime_info, attestation, signer).await?;
+        register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
     }
     Ok(())
 }
