@@ -1,4 +1,4 @@
-name: Build
+name: Build and Test
 
 on:
   push:
@@ -10,7 +10,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  build-core-blockchain:
+    name: build-core-blockchain
     runs-on: ubuntu-20.04
     steps:
     - name: Install latest nightly
@@ -19,17 +20,147 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - name: Install llvm-10
-      run: sudo apt-get install llvm-10 clang-10
+    - name: Install System Level Dependencies
+      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
-    - name: Build
+        
+    - name: Build core blockchain
       run: cargo build --verbose --release
-    - name: Save binaries
-      uses: actions/upload-artifact@v1
+    - name: Save core-blockchain binaries
+      uses: actions/upload-artifact@v2
       with:
-        name: binaries
-        path: target/release/phala-node
-    - name: Tests
+        name: core-blockchain-binaries
+        path: ./target/release/phala-node
+    - name: Save pherry binaries
+      uses: actions/upload-artifact@v2
+      with:
+        name: pherry-binaries
+        path: ./target/release/pherry
+        
+  build-pruntime:
+    name: build-pruntime
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly-2021-05-11
+          override: true
+          target: wasm32-unknown-unknown
+    - name: Install System Level Dependencies
+      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+    - name: Download Intel SGX SDK
+      run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
+    - name: Install Intel SGX SDK
+      run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - name: Setup Node.js environment
+      uses: actions/setup-node@v2.4.0
+      with:
+        node-version: 14.x
+    - name: Install yarn 2
+      run: sudo npm install -g yarn && yarn set version berry
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    
+    - name: Build pRuntime
+      run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make
+    - name: Save pruntime binaries [./bin/app]
+      uses: actions/upload-artifact@v2
+      with:
+        name: pruntime-binaries-app
+        path: ./standalone/pruntime/bin/app
+    - name: Save pruntime binaries [./bin/enclave.signed.so]
+      uses: actions/upload-artifact@v2
+      with:
+        name: pruntime-binaries-enclave
+        path: ./standalone/pruntime/bin/enclave.signed.so
+    - name: Save pruntime binaries [./bin/Rocket.toml]
+      uses: actions/upload-artifact@v2
+      with:
+        name: pruntime-binaries-rocket
+        path: ./standalone/pruntime/bin/Rocket.toml
+  
+  e2e-test:
+    name: e2e-test
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly-2021-05-11
+          override: true
+          target: wasm32-unknown-unknown
+    - name: Install System Level Dependencies
+      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+    - name: Download Intel SGX SDK
+      run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
+    - name: Install Intel SGX SDK
+      run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - name: Setup Node.js environment
+      uses: actions/setup-node@v2.4.0
+      with:
+        node-version: 14.x
+    - name: Install yarn 2
+      run: sudo npm install -g yarn && yarn set version berry
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    
+    - name: Remove folders
+      run: rm -rf ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
+    - name: Download core-blockchain binaries
+      uses: actions/download-artifact@v2.0.10
+      with:
+        name: core-blockchain-binaries
+        path: ./target/release
+    - name: Download pherry binaries
+      uses: actions/download-artifact@v2.0.10
+      with:
+        name: pherry-binaries
+        path: ./target/release
+    - name: Download pruntime binaries app
+      uses: actions/download-artifact@v2.0.10
+      with:
+        name: pruntime-binaries-app
+        path: ./standalone/pruntime/bin
+    - name: Download pruntime binaries enclave
+      uses: actions/download-artifact@v2.0.10
+      with:
+        name: pruntime-binaries-enclave
+        path: ./standalone/pruntime/bin
+    - name: Download pruntime binaries rocket
+      uses: actions/download-artifact@v2.0.10
+      with:
+        name: pruntime-binaries-rocket
+        path: ./standalone/pruntime/bin
+    - name: Change permission
+      run: chmod 777 ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
+    
+    - name: E2E Tests
+      run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
+    needs: [build-core-blockchain, build-pruntime]
+    
+      
+  cargo-tests:
+    name: cargo-tests
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Install latest nightly
+      uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly-2021-05-11
+          override: true
+          target: wasm32-unknown-unknown
+    - name: Install System Level Dependencies
+      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    
+    - name: Cargo Tests
       run: cargo test --verbose --workspace  --exclude node-executor --exclude phala-node
+    
+  
