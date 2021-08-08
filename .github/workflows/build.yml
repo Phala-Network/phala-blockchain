@@ -11,7 +11,7 @@ env:
 
 jobs:
   build-core-blockchain:
-    name: build-core-blockchain
+    name: Build core blockchain
     runs-on: ubuntu-20.04
     steps:
     - name: Install latest nightly
@@ -20,8 +20,7 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - name: Install System Level Dependencies
-      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+    - uses: .github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
@@ -40,7 +39,7 @@ jobs:
         path: ./target/release/pherry
         
   build-pruntime:
-    name: build-pruntime
+    name: Build pruntime
     runs-on: ubuntu-20.04
     steps:
     - name: Install latest nightly
@@ -49,12 +48,7 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - name: Install System Level Dependencies
-      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
-    - name: Download Intel SGX SDK
-      run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
-    - name: Install Intel SGX SDK
-      run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - uses: .github/actions/install_toolchain@v1
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
       with:
@@ -84,7 +78,7 @@ jobs:
         path: ./standalone/pruntime/bin/Rocket.toml
   
   e2e-test:
-    name: e2e-test
+    name: Run E2E tests
     runs-on: ubuntu-20.04
     steps:
     - name: Install latest nightly
@@ -93,12 +87,7 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - name: Install System Level Dependencies
-      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
-    - name: Download Intel SGX SDK
-      run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
-    - name: Install Intel SGX SDK
-      run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - uses: .github/actions/install_toolchain@v1
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
       with:
@@ -139,13 +128,13 @@ jobs:
     - name: Change permission
       run: chmod 777 ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
     
-    - name: E2E Tests
+    - name: Run E2E tests
       run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
     needs: [build-core-blockchain, build-pruntime]
     
       
   cargo-tests:
-    name: cargo-tests
+    name: Run cargo tests
     runs-on: ubuntu-20.04
     steps:
     - name: Install latest nightly
@@ -154,13 +143,12 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - name: Install System Level Dependencies
-      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+    - uses: .github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
     
-    - name: Cargo Tests
+    - name: Run cargo tests
       run: cargo test --verbose --workspace  --exclude node-executor --exclude phala-node
     
   
