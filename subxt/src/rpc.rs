@@ -423,6 +423,14 @@ impl<T: Runtime> Rpc<T> {
         Ok(self.client.request("system_syncState", &[]).await?)
     }
 
+    /// Fetch account next nonce
+    pub async fn system_account_next_index(
+        &self, account: &T::AccountId
+    ) -> Result<T::Index, Error> {
+        let params = &[to_json_value(account)?];
+        Ok(self.client.request("system_accountNextIndex", params).await?)
+    }
+
     /// Get a header
     pub async fn header(
         &self,

@@ -54,7 +54,7 @@ pub trait System {
     /// transactions associated with a sender account.
     type Index: Parameter
         + Member
-        + MaybeSerialize
+        + MaybeSerializeDeserialize
         + Debug
         + Default
         + MaybeDisplay
