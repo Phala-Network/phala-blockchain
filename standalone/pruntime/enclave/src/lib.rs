@@ -38,7 +38,7 @@ use crate::std::string::String;
 use crate::std::sync::SgxMutex;
 use crate::std::vec::Vec;
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 use core::convert::TryInto;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
