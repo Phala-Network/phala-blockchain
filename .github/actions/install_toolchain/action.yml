@@ -5,5 +5,5 @@ runs:
       shell: bash
     - run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
       shell: bash
-    - run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
       shell: bash
