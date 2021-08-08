@@ -20,10 +20,10 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
+    - uses: ./.github/actions/install_toolchain@v1
         
     - name: Build core blockchain
       run: cargo build --verbose --release
@@ -48,6 +48,9 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
     - uses: ./.github/actions/install_toolchain@v1
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
@@ -55,9 +58,6 @@ jobs:
         node-version: 14.x
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
     
     - name: Build pRuntime
       run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make
@@ -87,6 +87,9 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
     - uses: ./.github/actions/install_toolchain@v1
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
@@ -94,9 +97,6 @@ jobs:
         node-version: 14.x
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
     
     - name: Remove folders
       run: rm -rf ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
@@ -143,10 +143,10 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
+    - uses: ./.github/actions/install_toolchain@v1
     
     - name: Run cargo tests
       run: cargo test --verbose --workspace  --exclude node-executor --exclude phala-node
