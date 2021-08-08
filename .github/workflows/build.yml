@@ -49,12 +49,6 @@ jobs:
       with:
         submodules: 'true'
     - uses: ./.github/actions/install_toolchain
-    - name: Setup Node.js environment
-      uses: actions/setup-node@v2.4.0
-      with:
-        node-version: 14.x
-    - name: Install yarn 2
-      run: sudo npm install -g yarn && yarn set version berry
     
     - name: Build pRuntime
       run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make
