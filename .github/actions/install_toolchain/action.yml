@@ -1,9 +1,9 @@
 runs:
   using: "composite"
   steps: 
-    - name: Install System Level Dependencies
-      run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
-    - name: Download Intel SGX SDK
-      run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
-    - name: Install Intel SGX SDK
-      run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin
+    - run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
+      shell: bash
+    - run: wget https://download.01.org/intel-sgx/sgx-linux/2.12/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.12.100.3.bin
+      shell: bash
+    - run: chmod +x ./sgx_linux_x64_sdk_2.12.100.3.bin && echo -e 'no\n/opt/intel' | sudo ./sgx_linux_x64_sdk_2.12.100.3.bin
+      shell: bash

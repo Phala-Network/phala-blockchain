@@ -20,10 +20,10 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
+    - uses: ./.github/actions/install_toolchain
         
     - name: Build core blockchain
       run: cargo build --verbose --release
@@ -31,13 +31,10 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: core-blockchain-binaries
-        path: ./target/release/phala-node
-    - name: Save pherry binaries
-      uses: actions/upload-artifact@v2
-      with:
-        name: pherry-binaries
-        path: ./target/release/pherry
-        
+        path: | 
+          ./target/release/phala-node
+          ./target/release/pherry  
+    
   build-pruntime:
     name: Build pruntime
     runs-on: ubuntu-20.04
@@ -48,34 +45,27 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/install_toolchain
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
       with:
         node-version: 14.x
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
     
     - name: Build pRuntime
       run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make
-    - name: Save pruntime binaries [./bin/app]
+    - name: Save pruntime binaries
       uses: actions/upload-artifact@v2
       with:
-        name: pruntime-binaries-app
-        path: ./standalone/pruntime/bin/app
-    - name: Save pruntime binaries [./bin/enclave.signed.so]
-      uses: actions/upload-artifact@v2
-      with:
-        name: pruntime-binaries-enclave
-        path: ./standalone/pruntime/bin/enclave.signed.so
-    - name: Save pruntime binaries [./bin/Rocket.toml]
-      uses: actions/upload-artifact@v2
-      with:
-        name: pruntime-binaries-rocket
-        path: ./standalone/pruntime/bin/Rocket.toml
+        name: pruntime-binaries
+        path: | 
+          ./standalone/pruntime/bin/app
+          ./standalone/pruntime/bin/enclave.signed.so
+          ./standalone/pruntime/bin/Rocket.toml
   
   e2e-test:
     name: Run E2E tests
@@ -87,16 +77,16 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
+    - uses: actions/checkout@v2
+      with:
+        submodules: 'true'
+    - uses: ./.github/actions/install_toolchain
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
       with:
         node-version: 14.x
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
-    - uses: actions/checkout@v2
-      with:
-        submodules: 'true'
     
     - name: Remove folders
       run: rm -rf ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
@@ -105,26 +95,12 @@ jobs:
       with:
         name: core-blockchain-binaries
         path: ./target/release
-    - name: Download pherry binaries
+    - name: Download pruntime binaries
       uses: actions/download-artifact@v2.0.10
       with:
-        name: pherry-binaries
-        path: ./target/release
-    - name: Download pruntime binaries app
-      uses: actions/download-artifact@v2.0.10
-      with:
-        name: pruntime-binaries-app
+        name: pruntime-binaries
         path: ./standalone/pruntime/bin
-    - name: Download pruntime binaries enclave
-      uses: actions/download-artifact@v2.0.10
-      with:
-        name: pruntime-binaries-enclave
-        path: ./standalone/pruntime/bin
-    - name: Download pruntime binaries rocket
-      uses: actions/download-artifact@v2.0.10
-      with:
-        name: pruntime-binaries-rocket
-        path: ./standalone/pruntime/bin
+   
     - name: Change permission
       run: chmod 777 ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
     
@@ -143,10 +119,10 @@ jobs:
           toolchain: nightly-2021-05-11
           override: true
           target: wasm32-unknown-unknown
-    - uses: ./.github/actions/install_toolchain@v1
     - uses: actions/checkout@v2
       with:
         submodules: 'true'
+    - uses: ./.github/actions/install_toolchain
     
     - name: Run cargo tests
       run: cargo test --verbose --workspace  --exclude node-executor --exclude phala-node
