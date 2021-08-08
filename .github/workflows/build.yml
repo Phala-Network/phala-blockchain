@@ -88,8 +88,6 @@ jobs:
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
     
-    - name: Remove folders
-      run: rm -rf ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/app ./standalone/pruntime/bin/enclave.signed.so ./standalone/pruntime/bin/Rocket.toml
     - name: Download core-blockchain binaries
       uses: actions/download-artifact@v2.0.10
       with:
