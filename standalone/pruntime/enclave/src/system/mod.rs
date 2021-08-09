@@ -339,7 +339,7 @@ pub struct System {
     worker_state: WorkerState,
     gatekeeper: gk::Gatekeeper<Sr25519MessageChannel>,
 
-    data_path: String,
+    sealing_path: String,
 }
 
 impl System {
@@ -347,7 +347,7 @@ impl System {
         pair: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        data_path: String,
+        sealing_path: String,
     ) -> Self {
         let pubkey = pair.clone().public();
         let sender = MessageOrigin::Worker(pubkey.clone());
@@ -357,7 +357,7 @@ impl System {
             recv_mq,
             send_mq.clone(),
             send_mq.channel(sender.clone(), pair.clone()),
-            data_path.clone(),
+            sealing_path.clone(),
         );
         gatekeeper.try_unseal_master_key();
 
@@ -367,7 +367,7 @@ impl System {
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
             gatekeeper: gatekeeper,
-            data_path: data_path.clone(),
+            sealing_path: sealing_path.clone(),
         }
     }
 

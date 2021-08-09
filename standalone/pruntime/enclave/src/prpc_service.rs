@@ -375,7 +375,7 @@ pub fn init_runtime(
         &id_pair,
         &send_mq,
         &mut recv_mq,
-        local_state.data_path.clone(),
+        local_state.sealing_path.clone(),
     ));
     drop(system_state);
 

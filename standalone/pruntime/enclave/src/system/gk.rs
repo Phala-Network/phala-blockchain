@@ -107,7 +107,7 @@ pub(super) struct Gatekeeper<MsgChan> {
 
     tokenomic_params: tokenomic::Params,
 
-    data_path: String,
+    sealing_path: String,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -119,7 +119,7 @@ where
         recv_mq: &mut MessageDispatcher,
         send_mq: MessageSendQueue,
         worker_egress: Sr25519MessageChannel,
-        data_path: String,
+        sealing_path: String,
     ) -> Self {
         Self {
             identity_key,
@@ -136,7 +136,7 @@ where
             last_random_number: [0_u8; 32],
             last_random_block: 0,
             tokenomic_params: tokenomic::test_params(),
-            data_path,
+            sealing_path,
         }
     }
 
@@ -197,7 +197,7 @@ where
     }
 
     pub fn master_key_file_path(&self) -> PathBuf {
-        PathBuf::from(&self.data_path).join(MASTER_KEY_FILE)
+        PathBuf::from(&self.sealing_path).join(MASTER_KEY_FILE)
     }
 
     /// Seal master key seed with signature to ensure integrity

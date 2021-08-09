@@ -176,7 +176,7 @@ struct LocalState {
     machine_id: [u8; 16],
     dev_mode: bool,
     skip_ra: bool,
-    data_path: String,
+    sealing_path: String,
     runtime_info: Option<InitRuntimeResponse>,
 }
 
@@ -254,7 +254,7 @@ lazy_static! {
             machine_id: [0; 16],
             dev_mode: false,
             skip_ra: false,
-            data_path: String::new(),
+            sealing_path: String::new(),
             runtime_info: None,
         })
     };
@@ -926,14 +926,14 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_init(data_path: *const u8, data_path_len: usize) -> sgx_status_t {
+pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
 
-    let data_path = unsafe { std::slice::from_raw_parts(data_path, data_path_len) };
-    let data_path = match std::str::from_utf8(data_path) {
-        Ok(data_path) => data_path,
+    let sealing_path = unsafe { std::slice::from_raw_parts(sealing_path, sealing_path_len) };
+    let sealing_path = match std::str::from_utf8(sealing_path) {
+        Ok(sealing_path) => sealing_path,
         Err(e) => {
             error!("ecall_init: invalid data path: {}", e);
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
@@ -941,7 +941,7 @@ pub extern "C" fn ecall_init(data_path: *const u8, data_path_len: usize) -> sgx_
     };
 
     let mut local_state = LOCAL_STATE.lock().unwrap();
-    local_state.data_path = String::from(data_path);
+    local_state.sealing_path = String::from(sealing_path);
 
     sgx_status_t::SGX_SUCCESS
 }
