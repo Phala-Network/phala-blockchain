@@ -549,12 +549,11 @@ where
                             worker.tokenomic.confidence_level = info.confidence_level;
                         }
                         WorkerEvent::BenchStart { .. } => {}
-                        WorkerEvent::BenchScore(score) => {
-                            worker.tokenomic.p_bench = FixedPoint::from_num(*score);
-                        }
+                        WorkerEvent::BenchScore(_) => {}
                         WorkerEvent::MiningStart {
                             session_id: _, // Aready recorded by the state machine.
                             init_v,
+                            init_p,
                         } => {
                             let v = FixedPoint::from_bits(*init_v);
                             let prev = worker.tokenomic;
@@ -567,8 +566,8 @@ where
                                 v_update_at: self.block.now_ms,
                                 iteration_last: 0,
                                 challenge_time_last: self.block.now_ms,
-                                p_bench: prev.p_bench,
-                                p_instant: prev.p_bench,
+                                p_bench: init_p,
+                                p_instant: init_p,
                                 confidence_level: prev.confidence_level,
                             };
                         }
