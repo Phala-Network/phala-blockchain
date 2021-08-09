@@ -87,23 +87,17 @@ impl WorkerInfo {
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
-    master_key: Option<sr25519::Pair>,
+    master_key: sr25519::Pair,
     registered_on_chain: bool,
-    master_pubkey_on_chain: bool,
-    send_mq: MessageSendQueue,
-    gk_egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
-    worker_egress: Sr25519MessageChannel,
+    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
-    last_random_block: chain::BlockNumber,
 
     tokenomic_params: tokenomic::Params,
-
-    sealing_path: String,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -111,26 +105,20 @@ where
     MsgChan: MessageChannel,
 {
     pub fn new(
+        master_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
-        send_mq: MessageSendQueue,
-        worker_egress: Sr25519MessageChannel,
-        sealing_path: String,
+        egress: Sr25519MessageChannel,
     ) -> Self {
         Self {
-            master_key: None,
+            master_key: master_key,
             registered_on_chain: false,
-            master_pubkey_on_chain: false,
-            send_mq,
-            gk_egress: None,
-            worker_egress,
+            egress: egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             last_random_number: [0_u8; 32],
-            last_random_block: 0,
             tokenomic_params: tokenomic::test_params(),
-            sealing_path,
         }
     }
 
@@ -138,46 +126,17 @@ where
         self.registered_on_chain
     }
 
-    fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
-        self.gk_egress
-            .as_mut()
-            .expect("gk should work after acquiring master key; qed.")
-            .set_dummy(dummy);
-    }
-
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
         self.registered_on_chain = true;
-        self.set_gatekeeper_egress_dummy(false);
+        self.egress.set_dummy(false);
     }
 
     #[allow(dead_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.registered_on_chain = false;
-        self.set_gatekeeper_egress_dummy(true);
-    }
-
-    pub fn possess_master_key(&self) -> bool {
-        self.master_key.is_some()
-    }
-
-    /// Returns the master public key
-    pub fn master_public_key(&self) -> Option<sr25519::Public> {
-        self.master_key.as_ref().map(|k| k.public())
-    }
-
-    pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) -> bool {
-        if self.master_pubkey_on_chain {
-            self.gk_egress
-                .as_ref()
-                .expect("gk should work after acquiring master key; qed.")
-                .push_message(message)
-        } else {
-            info!("Gatekeeper: skip message sending for no master pubkey on chain");
-        }
-
-        self.master_pubkey_on_chain
+        self.egress.set_dummy(true);
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -199,7 +158,7 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.push_gatekeeper_message(report);
+            self.egress.push_message(report);
         }
     }
 
@@ -211,19 +170,17 @@ where
         if let Some(master_key) = &self.master_key {
             let random_number =
                 next_random_number(master_key, block_number, self.last_random_number);
-            if self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
+            info!(
+                "Gatekeeper: emit random number {} in block {}",
+                hex::encode(&random_number),
+                block_number
+            );
+            self.egress.push_message(GatekeeperEvent::new_random_number(
                 block_number,
                 random_number,
                 self.last_random_number,
-            )) {
-                info!(
-                    "Gatekeeper: emit random number {} in block {}",
-                    hex::encode(&random_number),
-                    block_number
-                );
-                self.last_random_block = block_number;
-                self.last_random_number = random_number;
-            }
+            ));
+            self.last_random_number = random_number;
         }
     }
 }
@@ -496,15 +453,15 @@ where
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
-            GatekeeperEvent::Registered(new_gatekeeper_event) => {
-                self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
-            }
-            GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
-                self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
-            }
-            GatekeeperEvent::MasterPubkeyAvailable => {
-                self.state.master_pubkey_on_chain = true;
-            }
+            // GatekeeperEvent::Registered(new_gatekeeper_event) => {
+            //     self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
+            // }
+            // GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
+            //     self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
+            // }
+            // GatekeeperEvent::MasterPubkeyAvailable => {
+            //     self.state.master_pubkey_on_chain = true;
+            // }
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }

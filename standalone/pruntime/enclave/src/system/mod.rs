@@ -607,8 +607,9 @@ impl System {
 
                 match aead::encrypt(&iv, &secret, &mut data) {
                     Ok(_) => {
-                        self.state.push_gatekeeper_message(
-                            GatekeeperEvent::dispatch_master_key_event(
+                        self.state
+                            .egress
+                            .push_message(GatekeeperEvent::dispatch_master_key_event(
                                 event.pubkey.clone(),
                                 my_ecdh_key
                                     .public()
@@ -617,8 +618,7 @@ impl System {
                                     .expect("should never fail given pubkey with correct length"),
                                 data,
                                 iv,
-                            ),
-                        );
+                            ));
                     }
                     Err(e) => error!("Failed to encrypt master key: {:?}", e),
                 }
