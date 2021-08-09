@@ -520,7 +520,7 @@ fn rocket() -> rocket::Rocket {
             dump_states, load_states,
             sync_header, dispatch_block, query,
             get_runtime_info, get_egress_messages, test_ink,
-            sync_para_header,
+            sync_para_header, sync_combined_headers,
             ]);
 
     if *ENABLE_KICK_API {
