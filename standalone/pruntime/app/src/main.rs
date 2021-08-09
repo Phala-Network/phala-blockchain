@@ -426,6 +426,7 @@ proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
 proxy_bin!("/bin_api/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER);
 proxy_bin!("/bin_api/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK);
 proxy_bin!("/bin_api/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER);
+proxy_bin!("/bin_api/sync_combined_headers", sync_combined_headers, actions::BIN_ACTION_SYNC_COMBINED_HEADERS);
 
 #[post("/kick")]
 fn kick() {

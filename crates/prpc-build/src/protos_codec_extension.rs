@@ -141,7 +141,7 @@ impl<'a> CodeGenerator<'a> {
                 "scale" => {
                     buf.push_str(&format!(
                         "pub fn decode_{}(&self) -> Result<{}, ScaleDecodeError> {{\n",
-                        field.name(),
+                        self.typed_field_name(&field),
                         ty
                     ));
                     if optional {
