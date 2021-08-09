@@ -96,7 +96,7 @@ pub(super) struct Gatekeeper<MsgChan> {
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
-
+    // Tokenomic
     tokenomic_params: tokenomic::Params,
 }
 
@@ -109,6 +109,8 @@ where
         recv_mq: &mut MessageDispatcher,
         egress: Sr25519MessageChannel,
     ) -> Self {
+        egress.set_dummy(true);
+
         Self {
             master_key: master_key,
             registered_on_chain: false,
