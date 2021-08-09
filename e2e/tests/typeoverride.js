@@ -114,6 +114,7 @@ const types = {
     },
     "Benchmark": {
         "pInstant": "u32",
+        "pInit": "u32",
         "iterations": "u64",
         "miningStartTime": "u64",
         "updatedAt": "u64"

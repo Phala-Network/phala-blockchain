@@ -151,10 +151,7 @@ impl WorkerState {
                             info!("My benchmark score is {}", score);
                         }
                     }
-                    MiningStart {
-                        session_id,
-                        init_v: _,
-                    } => {
+                    MiningStart { session_id, .. } => {
                         self.mining_state = Some(MiningInfo {
                             session_id,
                             state: Mining,

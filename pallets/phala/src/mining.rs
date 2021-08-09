@@ -59,6 +59,7 @@ pub mod pallet {
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
+		p_init: u32,
 		p_instant: u32,
 		iterations: u64,
 		mining_start_time: u64,
@@ -67,12 +68,7 @@ pub mod pallet {
 
 	impl Benchmark {
 		/// Records the latest benchmark status snapshot and updates `p_instant`
-		fn update(
-			&mut self,
-			updated_at: u64,
-			iterations: u64,
-			initial_score: u32,
-		) -> Result<(), ()> {
+		fn update(&mut self, updated_at: u64, iterations: u64) -> Result<(), ()> {
 			if updated_at <= self.updated_at || iterations <= self.iterations {
 				return Err(());
 			}
@@ -84,7 +80,7 @@ pub mod pallet {
 			// 1. Normalize to iterations in 6 sec
 			// 2. Cap it to 120% `initial_score`
 			let p_instant = (delta_iter * 6 / delta_ts) as u32;
-			self.p_instant = p_instant.min(initial_score * 12 / 10);
+			self.p_instant = p_instant.min(self.p_init * 12 / 10);
 			Ok(())
 		}
 	}
@@ -433,13 +429,10 @@ pub mod pallet {
 						let mut miner_info = Self::miners(&miner).expect("Bound miner; qed.");
 						let worker =
 							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
-						let initial_score = worker
-							.initial_score
-							.expect("Mining worker has benchmark; qed.");
 						let now = Self::now_sec();
 						miner_info
 							.benchmark
-							.update(now, iterations, initial_score)
+							.update(now, iterations)
 							.expect("Benchmark report must be valid; qed.");
 						Miners::<T>::insert(&miner, miner_info);
 					}
@@ -544,6 +537,7 @@ pub mod pallet {
 					v: 0,
 					v_updated_at: now,
 					benchmark: Benchmark {
+						p_init: 0u32,
 						p_instant: 0u32,
 						iterations: 0u64,
 						mining_start_time: now,
@@ -618,6 +612,7 @@ pub mod pallet {
 					info.ve = ve.to_bits();
 					info.v = ve.to_bits();
 					info.v_updated_at = now;
+					info.benchmark.p_init = p;
 				}
 			});
 			OnlineMiners::<T>::mutate(|v| *v += 1);
@@ -629,6 +624,7 @@ pub mod pallet {
 				WorkerEvent::MiningStart {
 					session_id: session_id,
 					init_v: ve.to_bits(),
+					init_p: p,
 				},
 			));
 			Self::deposit_event(Event::<T>::MinerStarted(miner));
@@ -1055,6 +1051,7 @@ pub mod pallet {
 				// 100 iters per sec
 				PhalaRegistry::internal_set_benchmark(&worker_pubkey(1), Some(600));
 				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				assert_ok!(PhalaMining::start_mining(1, 3000 * DOLLARS));
 				// Though only the mining workers can send heartbeat, but we don't enforce it in
 				// the pallet, but just by pRuntime. Therefore we can directly throw a heartbeat
 				// response to test benchmark report.
@@ -1077,6 +1074,7 @@ pub mod pallet {
 				assert_eq!(
 					miner.benchmark,
 					Benchmark {
+						p_init: 600,
 						p_instant: 660,
 						iterations: 11000,
 						mining_start_time: 0,
@@ -1102,6 +1100,7 @@ pub mod pallet {
 				assert_eq!(
 					miner.benchmark,
 					Benchmark {
+						p_init: 600,
 						p_instant: 720,
 						iterations: 26000,
 						mining_start_time: 0,
