@@ -329,45 +329,44 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
+/// Master key filepath
+pub const MASTER_KEY_FILE: &str = "master_key.seal";
+
 pub struct System {
+    // Configuration
+    sealing_path: String,
     // Transaction
     receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
+    send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
     ingress: TypedReceiver<Event>,
-
+    // Worker
     worker_state: WorkerState,
-    gatekeeper: gk::Gatekeeper<Sr25519MessageChannel>,
-
-    sealing_path: String,
+    // Gatekeeper
+    master_key: Option<sr25519::Pair>,
+    gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
 
 impl System {
     pub fn new(
-        pair: &sr25519::Pair,
+        sealing_path: String,
+        identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        sealing_path: String,
     ) -> Self {
-        let pubkey = pair.clone().public();
+        let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey.clone());
 
-        let mut gatekeeper = gk::Gatekeeper::new(
-            pair.clone(),
-            recv_mq,
-            send_mq.clone(),
-            send_mq.channel(sender.clone(), pair.clone()),
-            sealing_path.clone(),
-        );
-        gatekeeper.try_unseal_master_key();
-
         System {
+            sealing_path: sealing_path.clone(),
             receipts: Default::default(),
-            egress: send_mq.channel(sender, pair.clone()),
+            send_mq: send_mq.clone(),
+            egress: send_mq.channel(sender, identity_key.clone()),
             ingress: recv_mq.subscribe_bound(),
             worker_state: WorkerState::new(pubkey.clone()),
-            gatekeeper: gatekeeper,
-            sealing_path: sealing_path.clone(),
+            master_key: None,
+            gatekeeper: None,
         }
     }
 
@@ -409,6 +408,105 @@ impl System {
             Err(error) => Response::Error(error),
             Ok(resp) => resp,
         }
+    }
+
+    pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
+        if self.master_key.is_none() {
+            self.master_key = Some(master_key.clone());
+            self.seal_master_key();
+
+            if need_restart {
+                panic!("Received master key, please restart pRuntime and pherry");
+            }
+
+            // init gatekeeper egress dynamically with master key
+            if self.gk_egress.is_none() {
+                let gk_egress =
+                    MsgChan::create(&self.send_mq, MessageOrigin::Gatekeeper, master_key);
+                // by default, gk_egress is set to dummy mode until it is registered on chain
+                gk_egress.set_dummy(true);
+                self.gk_egress = Some(gk_egress);
+            }
+        } else if let Some(my_master_key) = &self.master_key {
+            // TODO.shelven: remove this assertion after we enable master key rotation
+            assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
+        }
+    }
+
+    pub fn master_key_file_path(&self) -> PathBuf {
+        PathBuf::from(&self.sealing_path).join(MASTER_KEY_FILE)
+    }
+
+    /// Seal master key seed with signature to ensure integrity
+    pub fn seal_master_key(&self) {
+        if let Some(master_key) = &self.master_key {
+            let secret = master_key.dump_secret_key();
+            let sig = self.identity_key.sign_data(&secret);
+
+            // TODO(shelven): use serialization rather than manual concat.
+            let mut buf = Vec::new();
+            buf.extend_from_slice(&secret);
+            buf.extend_from_slice(sig.as_ref());
+
+            let filepath = self.master_key_file_path();
+            info!(
+                "Gatekeeper: seal master key to {}",
+                filepath.as_path().display()
+            );
+            let mut file = SgxFile::create(filepath)
+                .unwrap_or_else(|e| panic!("Create master key file failed: {:?}", e));
+            file.write_all(&buf)
+                .unwrap_or_else(|e| panic!("Seal master key failed: {:?}", e));
+        }
+    }
+
+    /// Unseal local master key seed and verify signature
+    ///
+    /// This function could panic a lot.
+    pub fn try_unseal_master_key(&mut self) {
+        let filepath = self.master_key_file_path();
+        info!(
+            "Gatekeeper: unseal master key from {}",
+            filepath.as_path().display()
+        );
+        let mut file = match SgxFile::open(filepath) {
+            Ok(file) => file,
+            Err(e) => {
+                error!("Open master key file failed: {:?}", e);
+                return;
+            }
+        };
+
+        let mut secret = [0_u8; SECRET_KEY_LENGTH];
+        let mut sig = [0_u8; SIGNATURE_BYTES];
+
+        let n = file
+            .read(secret.as_mut())
+            .unwrap_or_else(|e| panic!("Read master key failed: {:?}", e));
+        if n < SECRET_KEY_LENGTH {
+            panic!(
+                "Unexpected sealed secret key length {}, expected {}",
+                n, SECRET_KEY_LENGTH
+            );
+        }
+
+        let n = file
+            .read(sig.as_mut())
+            .unwrap_or_else(|e| panic!("Read master key sig failed: {:?}", e));
+        if n < SIGNATURE_BYTES {
+            panic!(
+                "Unexpected sealed seed sig length {}, expected {}",
+                n, SIGNATURE_BYTES
+            );
+        }
+
+        assert!(
+            self.identity_key
+                .verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret),
+            "Broken sealed master key"
+        );
+
+        self.set_master_key(sr25519::Pair::restore_from_secret_key(&secret), false);
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo) -> anyhow::Result<()> {
@@ -453,6 +551,121 @@ impl System {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
         Ok(())
+    }
+
+    /// Monitor the getakeeper registeration event to:
+    ///
+    /// 1. Generate the master key if this is the first gatekeeper;
+    /// 2. Dispatch the master key to newly-registered gatekeepers;
+    fn process_new_gatekeeper_event(&mut self, origin: MessageOrigin, event: NewGatekeeperEvent) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        // double check the new gatekeeper is valid on chain
+        if !chain_state::is_gatekeeper(&event.pubkey, self.block.storage) {
+            error!("Fatal error: Invalid gatekeeper registration {:?}", event);
+            panic!("GK state poisoned");
+        }
+
+        let my_pubkey = self.state.identity_key.public();
+        if event.gatekeeper_count == 1 {
+            if my_pubkey == event.pubkey && self.state.master_key.is_none() {
+                info!("Gatekeeper: generate master key as the first gatekeeper");
+                // generate master key as the first gatekeeper
+                // no need to restart
+                self.state.set_master_key(crate::new_sr25519_key(), false);
+            }
+
+            // upload the master key on chain
+            // noted that every gk should execute this to ensure the state consistency of egress seq
+            if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: upload master key on chain");
+                let master_pubkey = RegistryEvent::MasterPubkey {
+                    master_pubkey: master_key.public(),
+                };
+                // master key should be uploaded as worker
+                self.state.worker_egress.send(&master_pubkey);
+            }
+        } else {
+            // dispatch the master key to the newly-registered gatekeeper using master key
+            // if this pRuntime is the newly-registered gatekeeper himself,
+            // its egress is still in dummy mode since we will tick the state later
+            if let Some(master_key) = &self.state.master_key {
+                info!("Gatekeeper: try dispatch master key");
+                let derived_key = master_key
+                    .derive_sr25519_pair(&[&crate::generate_random_info()])
+                    .expect("should not fail with valid info");
+                let my_ecdh_key = derived_key
+                    .derive_ecdh_key()
+                    .expect("ecdh key derivation should never failed with valid master key");
+                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                    .expect("should never fail with valid ecdh key");
+                let iv = aead::generate_iv(&self.state.last_random_number);
+                let mut data = master_key.dump_secret_key().to_vec();
+
+                match aead::encrypt(&iv, &secret, &mut data) {
+                    Ok(_) => {
+                        self.state.push_gatekeeper_message(
+                            GatekeeperEvent::dispatch_master_key_event(
+                                event.pubkey.clone(),
+                                my_ecdh_key
+                                    .public()
+                                    .as_ref()
+                                    .try_into()
+                                    .expect("should never fail given pubkey with correct length"),
+                                data,
+                                iv,
+                            ),
+                        );
+                    }
+                    Err(e) => error!("Failed to encrypt master key: {:?}", e),
+                }
+            }
+        }
+
+        // tick the registration state and enable message sending
+        // for the newly-registered gatekeeper, NewGatekeeperEvent comes before DispatchMasterKeyEvent
+        // so it's necessary to check the existence of master key here
+        if self.state.possess_master_key() && my_pubkey == event.pubkey {
+            self.state.register_on_chain();
+        }
+    }
+
+    /// Process encrypted master key from mq
+    fn process_dispatch_master_key_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: DispatchMasterKeyEvent,
+    ) {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        };
+
+        let my_pubkey = self.state.identity_key.public();
+        if my_pubkey == event.dest {
+            let my_ecdh_key = self
+                .state
+                .identity_key
+                .derive_ecdh_key()
+                .expect("Should never failed with valid identity key; qed.");
+            // info!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
+            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
+                .expect("Should never failed with valid ecdh key; qed.");
+
+            let mut master_key_buff = event.encrypted_master_key.clone();
+            let master_key = match aead::decrypt(&event.iv, &secret, &mut master_key_buff[..]) {
+                Err(e) => panic!("Failed to decrypt dispatched master key: {:?}", e),
+                Ok(k) => k,
+            };
+
+            let master_pair = sr25519::Pair::from_seed_slice(&master_key)
+                .expect("Master key seed must be correct; qed.");
+            info!("Gatekeeper: successfully decrypt received master key, prepare to reboot");
+            self.state.set_master_key(master_pair, true);
+        }
     }
 
     pub fn is_registered(&self) -> bool {
