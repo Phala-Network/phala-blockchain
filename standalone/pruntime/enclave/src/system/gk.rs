@@ -566,8 +566,8 @@ where
                                 v_update_at: self.block.now_ms,
                                 iteration_last: 0,
                                 challenge_time_last: self.block.now_ms,
-                                p_bench: init_p,
-                                p_instant: init_p,
+                                p_bench: FixedPoint::from_num(*init_p),
+                                p_instant: FixedPoint::from_num(*init_p),
                                 confidence_level: prev.confidence_level,
                             };
                         }
