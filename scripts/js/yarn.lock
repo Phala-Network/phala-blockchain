@@ -340,10 +340,10 @@
   dependencies:
     "@open-web3/orml-type-definitions" "0.9.4-22"
 
-"@phala/typedefs@^0.2.10":
-  version "0.2.10"
-  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.10.tgz#2bd13e1c13c9d6f0f78d0102af31dfcf584d1ae2"
-  integrity sha512-RC4p4mzKBwlELjS5W5prBV6pEiL+vB8uc+QW8/OMfZIjwDVdnpv1TgsY6dFM1gFGyrQZnkBUb/2NIGcyo/YwlQ==
+"@phala/typedefs@^0.2.11":
+  version "0.2.11"
+  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.11.tgz#b44c240a1199c6e507f6b3105d4baecca55810bb"
+  integrity sha512-8BYV00FMtIj9ZUmnonyLgMeNUOxUoe3RV3a+hmRkCfpD5nY9a4XIc9jAhMkEDaYf7uKkRaK6wFAkQYRIJqDBvQ==
 
 "@polkadot/api-derive@5.3.2", "@polkadot/api-derive@^5.2.1":
   version "5.3.2"
