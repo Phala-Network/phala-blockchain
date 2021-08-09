@@ -60,7 +60,7 @@ use enclave_api::storage_sync::{
 };
 use enclave_api::{
     actions::*,
-    blocks::{self, SyncParachainHeaderReq},
+    blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };
 
 use phala_crypto::{
@@ -736,6 +736,7 @@ fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
     match action {
         BIN_ACTION_SYNC_HEADER => sync_header(load_scale(input)?),
         BIN_ACTION_SYNC_PARA_HEADER => sync_para_header(load_scale(input)?),
+        BIN_ACTION_SYNC_COMBINED_HEADERS => sync_combined_headers(load_scale(input)?),
         BIN_ACTION_DISPATCH_BLOCK => dispatch_block(load_scale(input)?),
         _ => unknown(),
     }
@@ -1047,6 +1048,20 @@ fn sync_header(input: blocks::SyncHeaderReq) -> Result<Value, Value> {
 fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
     let resp = prpc_service::sync_para_header(input.headers, input.proof).map_err(display)?;
     Ok(json!({ "synced_to": resp.synced_to }))
+}
+
+fn sync_combined_headers(input: SyncCombinedHeadersReq) -> Result<Value, Value> {
+    let resp = prpc_service::sync_combined_headers(
+        input.relaychain_headers,
+        input.authority_set_change,
+        input.parachain_headers,
+        input.proof,
+    )
+    .map_err(display)?;
+    Ok(json!({
+        "relaychain_synced_to": resp.relaychain_synced_to,
+        "parachain_synced_to": resp.parachain_synced_to,
+    }))
 }
 
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {

@@ -29,6 +29,7 @@ pub mod actions {
     pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START + 0;
     pub const BIN_ACTION_DISPATCH_BLOCK: u8 = BIN_ACTION_START + 1;
     pub const BIN_ACTION_SYNC_HEADER: u8 = BIN_ACTION_START + 2;
+    pub const BIN_ACTION_SYNC_COMBINED_HEADERS: u8 = BIN_ACTION_START + 3;
 }
 
 pub mod blocks {
@@ -123,6 +124,14 @@ pub mod blocks {
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
+        pub proof: StorageProof,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct SyncCombinedHeadersReq {
+        pub relaychain_headers: Vec<HeaderToSync>,
+        pub authority_set_change: Option<AuthoritySetChange>,
+        pub parachain_headers: Headers,
         pub proof: StorageProof,
     }
 

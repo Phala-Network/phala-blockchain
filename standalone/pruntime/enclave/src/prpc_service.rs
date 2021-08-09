@@ -3,9 +3,9 @@ use enclave_api::blocks;
 use enclave_api::prpc::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Attestation, AttestationReport, Blocks, EgressMessages, GatekeeperRole, GatekeeperStatus,
-    GetEgressMessagesResponse, HeadersToSync, InitRuntimeRequest, InitRuntimeResponse,
-    ParaHeadersToSync, PhactoryInfo, SyncedTo,
+    Attestation, AttestationReport, Blocks, CombinedHeadersToSync, EgressMessages, GatekeeperRole,
+    GatekeeperStatus, GetEgressMessagesResponse, HeadersSyncedTo, HeadersToSync,
+    InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -198,6 +198,36 @@ pub fn sync_para_header(
 
     Ok(SyncedTo {
         synced_to: last_header,
+    })
+}
+
+/// Sync a combined batch of relaychain & parachain headers
+/// NOTE:
+///   - The two latest headers MUST be aligned with each other by the `Para.Heads` read from the relaychain storage.
+///   - The operation is not guarenteed to be atomical. If the parachain header is rejected, the already synced relaychain
+///     headers will keep it's progress.
+pub fn sync_combined_headers(
+    relaychain_headers: Vec<blocks::HeaderToSync>,
+    authority_set_change: Option<blocks::AuthoritySetChange>,
+    parachain_headers: blocks::Headers,
+    proof: blocks::StorageProof,
+) -> RpcResult<HeadersSyncedTo> {
+    let relaychain_synced_to = sync_header(relaychain_headers, authority_set_change)?.synced_to;
+    let parachain_synced_to = if parachain_headers.is_empty() {
+        STATE
+            .lock()
+            .unwrap()
+            .as_ref()
+            .ok_or(from_display("Runtime not initialized"))?
+            .storage_synchronizer
+            .counters()
+            .next_para_header_number - 1
+    } else {
+        sync_para_header(parachain_headers, proof)?.synced_to
+    };
+    Ok(HeadersSyncedTo {
+        relaychain_synced_to,
+        parachain_synced_to,
     })
 }
 
@@ -557,5 +587,17 @@ impl PhactoryApi for RpcService {
         // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
         assert!(self.output_buf_len >= 1024);
         get_egress_messages(self.output_buf_len - 1024).map(GetEgressMessagesResponse::new)
+    }
+
+    fn sync_combined_headers(
+        &self,
+        request: CombinedHeadersToSync,
+    ) -> Result<HeadersSyncedTo, prpc::server::Error> {
+        sync_combined_headers(
+            request.decode_relaychain_headers()?,
+            request.decode_authority_set_change()?,
+            request.decode_parachain_headers()?,
+            request.proof,
+        )
     }
 }
