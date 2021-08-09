@@ -4,8 +4,9 @@ use log::{error, info};
 use std::time::Duration;
 
 use crate::chain_client::fetch_mq_ingress_seq;
+use subxt::Signer;
 
-use super::{runtimes, update_signer_nonce, PrClient, SrSigner, XtClient};
+use super::{chain_client::update_signer_nonce, runtimes, PrClient, SrSigner, XtClient};
 
 /// Hold everything needed to sync some egress messages back to the blockchain
 pub struct MsgSync<'a> {
@@ -57,10 +58,11 @@ impl<'a> MsgSync<'a> {
                     continue;
                 }
                 let msg_info = format!(
-                    "sender={:?} seq={} dest={}",
+                    "sender={:?} seq={} dest={} nonce={:?}",
                     sender,
                     message.sequence,
-                    String::from_utf8_lossy(&message.message.destination.path()[..])
+                    String::from_utf8_lossy(&message.message.destination.path()[..]),
+                    self.signer.nonce()
                 );
                 info!("Submitting message: {}", msg_info);
                 let extrinsic = self

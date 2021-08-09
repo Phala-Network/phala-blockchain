@@ -1,30 +1,41 @@
-use anyhow::{anyhow, Result};
-use codec::Encode;
-use sp_core::{storage::StorageKey, twox_128, twox_64};
-use phala_types::{messaging::MessageOrigin};
-use enclave_api::blocks::{StorageProof, ParaId};
 use super::runtimes;
-
 use super::XtClient;
-use crate::{Error, types::{Hash, utils::raw_proof}};
-use trie_storage::ser::StorageChanges;
-use rpc_ext::MakeInto as _;
+use crate::{
+    types::{utils::raw_proof, Hash},
+    Error,
+};
+use anyhow::{anyhow, Result};
 use codec::Decode;
+use codec::Encode;
+use enclave_api::blocks::{ParaId, StorageProof};
+use phala_types::messaging::MessageOrigin;
+use rpc_ext::MakeInto as _;
+use sp_core::{storage::StorageKey, twox_128, twox_64};
+use subxt::Signer;
+use trie_storage::ser::StorageChanges;
+
+type SrSigner = subxt::PairSigner<super::Runtime, sp_core::sr25519::Pair>;
 
 /// Gets a single storage item
-pub  async fn get_storage(
-    client: &XtClient, hash: Option<Hash>, storage_key: StorageKey
-) -> Result<Option<Vec<u8>>>
-{
+
+pub async fn get_storage(
+    client: &XtClient,
+    hash: Option<Hash>,
+    storage_key: StorageKey,
+) -> Result<Option<Vec<u8>>> {
     let storage = client.rpc.storage(&storage_key, hash).await?;
     Ok(storage.map(|data| (&data.0[..]).to_vec()))
 }
 
 /// Gets a storage proof for a single storage item
-pub async fn read_proof(client: &XtClient, hash: Option<Hash>, storage_key: StorageKey)
--> Result<StorageProof>
-{
-    client.read_proof(vec![storage_key], hash).await
+pub async fn read_proof(
+    client: &XtClient,
+    hash: Option<Hash>,
+    storage_key: StorageKey,
+) -> Result<StorageProof> {
+    client
+        .read_proof(vec![storage_key], hash)
+        .await
         .map(raw_proof)
         .map_err(Into::into)
 }
@@ -64,10 +75,17 @@ pub fn paras_heads_key(para_id: &ParaId) -> StorageKey {
     StorageKey(storage_map_key_vec("Paras", "Heads", &para_id.encode()))
 }
 
-pub fn get_parachain_heads(
-    head: Vec<u8>,
-) -> Result<Vec<u8>, Error> {
+pub fn get_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
     Decode::decode(&mut head.as_slice()).or(Err(Error::FailedToDecode))
+}
+
+/// Updates the nonce from the mempool
+pub async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<()> {
+    let account_id = signer.account_id().clone();
+    let nonce = client.account_nonce(&account_id).await?;
+    signer.set_nonce(nonce);
+    log::info!("Fetch account {} nonce={}", account_id, nonce);
+    Ok(())
 }
 
 // Utility functions

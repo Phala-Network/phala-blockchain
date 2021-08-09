@@ -13,7 +13,6 @@ use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
-use subxt::{system::AccountStoreExt, Signer};
 
 mod chain_client;
 mod error;
@@ -151,6 +150,13 @@ struct Args {
 
     #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
+
+    #[structopt(
+        default_value = "5000",
+        long,
+        help = "(Debug only) Set the wait block duration in ms"
+    )]
+    dev_wait_block_ms: u64,
 }
 
 struct BlockSyncState {
@@ -594,16 +600,6 @@ async fn sync_parachain_header(
     Ok(r.synced_to)
 }
 
-/// Updates the nonce from the blockchain (system.account)
-async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<()> {
-    // TODO: try to fetch the pending txs from mempool for a more accurate nonce
-    let account_id = signer.account_id();
-    let nonce = client.account(account_id, None).await?.nonce;
-    let local_nonce = signer.nonce();
-    signer.set_nonce(cmp::max(nonce, local_nonce.unwrap_or(0)));
-    Ok(())
-}
-
 async fn init_runtime(
     client: &XtClient,
     paraclient: &XtClient,
@@ -674,7 +670,7 @@ async fn register_worker(
             raw_signing_cert: payload.signing_cert,
         },
     };
-    update_signer_nonce(paraclient, signer).await?;
+    chain_client::update_signer_nonce(paraclient, signer).await?;
     let ret = paraclient.watch(call, signer).await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
@@ -943,7 +939,7 @@ async fn bridge(args: Args) -> Result<()> {
         }
         if synced_blocks == 0 {
             info!("Waiting for new blocks");
-            sleep(Duration::from_millis(5000)).await;
+            sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
         }
     }
