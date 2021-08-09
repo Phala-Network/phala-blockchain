@@ -37,7 +37,7 @@ impl<'a> MsgSync<'a> {
             .pr
             .get_egress_messages(())
             .await?
-            .decode_encoded_messages()?;
+            .decode_messages()?;
 
         // No pending message. We are done.
         if messages.is_empty() {
