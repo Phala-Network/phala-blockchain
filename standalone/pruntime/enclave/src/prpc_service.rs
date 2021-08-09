@@ -521,20 +521,20 @@ impl PhactoryApi for RpcService {
 
     /// Sync the parent chain header
     fn sync_header(&self, request: HeadersToSync) -> RpcResult<SyncedTo> {
-        let headers = request.decode_encoded_headers()?;
-        let authority_set_change = request.decode_encoded_authority_set_change()?;
+        let headers = request.decode_headers()?;
+        let authority_set_change = request.decode_authority_set_change()?;
         sync_header(headers, authority_set_change)
     }
 
     /// Sync the parachain header
     fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
-        let headers = request.decode_encoded_headers()?;
+        let headers = request.decode_headers()?;
         sync_para_header(headers, request.proof)
     }
 
     /// Dispatch blocks (Sync storage changes)"
     fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
-        let blocks = request.decode_encoded_blocks()?;
+        let blocks = request.decode_blocks()?;
         dispatch_block(blocks)
     }
 
@@ -542,9 +542,9 @@ impl PhactoryApi for RpcService {
         init_runtime(
             request.skip_ra,
             request.is_parachain,
-            request.decode_encoded_genesis_info()?,
-            request.decode_encoded_genesis_state()?,
-            request.decode_encoded_operator()?,
+            request.decode_genesis_info()?,
+            request.decode_genesis_state()?,
+            request.decode_operator()?,
             request.debug_set_key,
         )
     }
