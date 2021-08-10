@@ -1,33 +1,22 @@
-use super::{chain_state, TypedReceiver, WorkerState};
-use chain::pallet_registry::RegistryEvent;
-use phala_crypto::{
-    aead, ecdh,
-    sr25519::{Persistence, Signing, KDF, SECRET_KEY_LENGTH, SIGNATURE_BYTES},
-};
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, Sr25519MessageChannel};
+use super::{TypedReceiver, WorkerState};
+use phala_crypto::sr25519::{Persistence, KDF};
+use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
-        MiningReportEvent, NewGatekeeperEvent, RandomNumber, RandomNumberEvent, SettleInfo,
-        SystemEvent, WorkerEvent, WorkerEventWithKey,
+        GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
+        RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
-use sp_core::{hashing, sr25519, Pair};
+use sp_core::{hashing, sr25519};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
     types::BlockInfo,
 };
 
-use crate::std::convert::TryInto;
-use crate::std::io::{Read, Write};
-use crate::std::path::PathBuf;
-use crate::std::sgxfs::SgxFile;
-use crate::std::string::String;
 use crate::std::vec::Vec;
 use msg_trait::MessageChannel;
-use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
@@ -88,7 +77,6 @@ impl WorkerInfo {
 // to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
-    registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -107,13 +95,12 @@ where
     pub fn new(
         master_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
-        egress: Sr25519MessageChannel,
+        egress: MsgChan,
     ) -> Self {
         egress.set_dummy(true);
 
         Self {
             master_key: master_key,
-            registered_on_chain: false,
             egress: egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -124,20 +111,14 @@ where
         }
     }
 
-    pub fn is_registered_on_chain(&self) -> bool {
-        self.registered_on_chain
-    }
-
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
-        self.registered_on_chain = true;
         self.egress.set_dummy(false);
     }
 
     #[allow(dead_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
-        self.registered_on_chain = false;
         self.egress.set_dummy(true);
     }
 
@@ -169,21 +150,19 @@ where
             return;
         }
 
-        if let Some(master_key) = &self.master_key {
-            let random_number =
-                next_random_number(master_key, block_number, self.last_random_number);
-            info!(
-                "Gatekeeper: emit random number {} in block {}",
-                hex::encode(&random_number),
-                block_number
-            );
-            self.egress.push_message(GatekeeperEvent::new_random_number(
-                block_number,
-                random_number,
-                self.last_random_number,
-            ));
-            self.last_random_number = random_number;
-        }
+        let random_number =
+            next_random_number(&self.master_key, block_number, self.last_random_number);
+        info!(
+            "Gatekeeper: emit random number {} in block {}",
+            hex::encode(&random_number),
+            block_number
+        );
+        self.egress.push_message(GatekeeperEvent::new_random_number(
+            block_number,
+            random_number,
+            self.last_random_number,
+        ));
+        self.last_random_number = random_number;
     }
 }
 
@@ -455,15 +434,6 @@ where
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
-            // GatekeeperEvent::Registered(new_gatekeeper_event) => {
-            //     self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
-            // }
-            // GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
-            //     self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
-            // }
-            // GatekeeperEvent::MasterPubkeyAvailable => {
-            //     self.state.master_pubkey_on_chain = true;
-            // }
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }
@@ -482,14 +452,15 @@ where
             return;
         };
 
-        if let Some(master_key) = &self.state.master_key {
-            let expect_random =
-                next_random_number(master_key, event.block_number, event.last_random_number);
-            // instead of checking the origin, we directly verify the random to avoid access storage
-            if expect_random != event.random_number {
-                error!("Fatal error: Expect random number {:?}", expect_random);
-                panic!("GK state poisoned");
-            }
+        let expect_random = next_random_number(
+            &self.state.master_key,
+            event.block_number,
+            event.last_random_number,
+        );
+        // instead of checking the origin, we directly verify the random to avoid access storage
+        if expect_random != event.random_number {
+            error!("Fatal error: Expect random number {:?}", expect_random);
+            panic!("GK state poisoned");
         }
     }
 }
@@ -648,33 +619,20 @@ mod tokenomic {
 
 mod msg_trait {
     use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, MessageSendQueue, SenderId};
+    use phala_mq::{BindTopic, MessageSigner};
 
     pub trait MessageChannel {
         fn push_message<M: Encode + BindTopic>(&self, message: M);
         fn set_dummy(&self, dummy: bool);
-        fn create(
-            send_mq: &MessageSendQueue,
-            sender: SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self;
     }
 
-    impl MessageChannel for phala_mq::MessageChannel<sp_core::sr25519::Pair> {
+    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             self.send(&message);
         }
 
         fn set_dummy(&self, dummy: bool) {
             self.set_dummy(dummy);
-        }
-
-        fn create(
-            send_mq: &MessageSendQueue,
-            sender: SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self {
-            send_mq.channel(sender, signer)
         }
     }
 }

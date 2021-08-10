@@ -19,8 +19,7 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::EcdhPublicKey;
-    use super::WorkerPublicKey;
+    use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -295,7 +294,7 @@ pub mod messaging {
     pub enum MasterKeyEvent {
         GatekeeperRegistered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
-        MasterPubkeyOnChain(MasterPubkeyOnChain),
+        MasterPubkeyOnChain(MasterPubkeyEvent),
     }
 
     impl MasterKeyEvent {
@@ -326,7 +325,7 @@ pub mod messaging {
         }
 
         pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> MasterKeyEvent {
-            MasterKeyEvent::MasterPubkeyOnChain(MasterPubkeyOnChain { master_pubkey })
+            MasterKeyEvent::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
         }
     }
 
@@ -354,7 +353,7 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub struct MasterPubkeyOnChain {
+    pub struct MasterPubkeyEvent {
         pub master_pubkey: MasterPublicKey,
     }
 
