@@ -1410,6 +1410,7 @@ version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
  "enclave-api",
+ "frame-support",
  "hex",
  "parity-scale-codec",
  "phala-crypto",

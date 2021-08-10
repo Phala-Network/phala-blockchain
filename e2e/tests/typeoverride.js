@@ -100,7 +100,7 @@ const types = {
         "lastUpdated": "u64",
         "operator": "Option<AccountId>",
         "confidenceLevel": "u8",
-        "intialScore": "Option<u32>",
+        "initialScore": "Option<u32>",
         "features": "Vec<u32>"
     },
     "MinerInfo": {

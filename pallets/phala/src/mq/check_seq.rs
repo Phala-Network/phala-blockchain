@@ -4,8 +4,7 @@ use codec::{Decode, Encode};
 use frame_support::weights::DispatchInfo;
 use sp_runtime::traits::{DispatchInfoOf, Dispatchable, SignedExtension};
 use sp_runtime::transaction_validity::{
-	InvalidTransaction, TransactionLongevity, TransactionValidity, TransactionValidityError,
-	ValidTransaction,
+	InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
 };
 use sp_std::marker::PhantomData;
 
