@@ -786,17 +786,22 @@ pub mod pallet {
 		/// Default tokenoic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
+			let block_sec = 12;
+			let hour_sec = 3600;
+			let day_sec = 24 * hour_sec;
+			let year_sec = 365 * day_sec;
+
 			let pha_rate = fp!(1);
-			let rho = fp!(1.00000099985); // hourly: 1.00020,  1.0002 ** (1/300)
-			let slash_rate = fp!(0.001) / 300; // hourly rate: 0.001, convert to per-block rate
-			let budget_per_sec = fp!(720000) / 24 / 3600;
+			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
+			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
+			let budget_per_block = fp!(720000) * block_sec / day_sec;
 			let v_max = fp!(30000);
-			let cost_k = fp!(0.0415625) / 3600 / 24 / 365; // annual 0.0415625, convert to per sec
-			let cost_b = fp!(88.59375) / 3600 / 24 / 365; // annual 88.59375, convert to per sec
+			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
+			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
 			let heartbeat_window = 10; // 10 blocks
-			let rig_k = fp!(0.3);
-			let rig_b = fp!(0);
-			let re = fp!(1.5);
+			let rig_k = fp!(0.3) / pha_rate;
+			let rig_b = fp!(0) / pha_rate;
+			let re = fp!(1.3);
 			let k = fp!(100);
 			let kappa = fp!(1);
 
@@ -805,7 +810,7 @@ pub mod pallet {
 				tokenomic_parameters: TokenomicParams {
 					pha_rate: pha_rate.to_bits(),
 					rho: rho.to_bits(),
-					budget_per_sec: budget_per_sec.to_bits(),
+					budget_per_block: budget_per_block.to_bits(),
 					v_max: v_max.to_bits(),
 					cost_k: cost_k.to_bits(),
 					cost_b: cost_b.to_bits(),
@@ -1002,23 +1007,23 @@ pub mod pallet {
 				// Ve for different confidence level
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1819.99999999999999998694)
+					fp!(1612.0000000000000000247)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1754.9999999999999999723)
+					fp!(1572.9999999999999999877)
 				);
 				// Rig cost estimation
 				assert_eq!(tokenomic.rig_cost(500), fp!(150.0000000000000000054));
@@ -1031,13 +1036,16 @@ pub mod pallet {
 				let slash_rate = FixedPoint::from_bits(tokenomic.params.slash_rate);
 				let slash_decay = FixedPoint::from_num(1) - slash_rate;
 				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fp!(0.9990004981683704595));
+				// rho per hour
+				let rho = FixedPoint::from_bits(tokenomic.params.rho);
+				assert_eq!(pow(rho, HOUR_BLOCKS), fp!(1.00019999999998037056));
 				// Budget per day
-				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
-				assert_eq!(budger_per_sec * 3600 * 24, fp!(719999.99999999999999843875));
+				let budger_per_block = FixedPoint::from_bits(tokenomic.params.budget_per_block);
+				assert_eq!(budger_per_block * 3600 * 24 / 12, fp!(720000));
 				// Cost estimation per year
 				assert_eq!(
-					tokenomic.op_cost(2000) * 3600 * 24 * 365,
-					fp!(171.71874999890369452304)
+					tokenomic.op_cost(2000) / 12 * 3600 * 24 * 365,
+					fp!(171.71874999975847951583)
 				);
 			});
 		}
