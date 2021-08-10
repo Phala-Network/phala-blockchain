@@ -17,6 +17,8 @@ pub struct BlockInfo<'a> {
     pub now_ms: u64,
     /// The storage snapshot after this block executed.
     pub storage: &'a crate::Storage,
+    /// The message queue
+    pub recv_mq: &'a mut phala_mq::MessageDispatcher,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

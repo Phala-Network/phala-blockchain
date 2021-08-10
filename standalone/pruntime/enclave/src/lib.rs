@@ -1116,12 +1116,13 @@ fn handle_inbound_messages(
         state.recv_mq.dispatch(message);
     }
 
-    let _guard = scopeguard::guard(&mut state.recv_mq, |mq| {
+    let guard = scopeguard::guard(&mut state.recv_mq, |mq| {
         let n_unhandled = mq.clear();
         if n_unhandled > 0 {
             warn!("There are {} unhandled messages dropped", n_unhandled);
         }
     });
+    drop(guard);
 
     let now_ms = state
         .chain_storage
@@ -1129,13 +1130,15 @@ fn handle_inbound_messages(
         .ok_or(error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
-    let block = BlockInfo {
+    let recv_mq = &mut state.recv_mq;
+    let mut block = BlockInfo {
         block_number,
         now_ms,
         storage,
+        recv_mq,
     };
 
-    if let Err(e) = system.process_messages(&block) {
+    if let Err(e) = system.process_messages(&mut block) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
