@@ -393,10 +393,7 @@ pub mod pallet {
 			);
 			let free = <T as Config>::Currency::free_balance(&who);
 			let locked = Self::ledger_query(&who);
-			ensure!(
-				free - locked >= a,
-				Error::<T>::InsufficientBalance
-			);
+			ensure!(free - locked >= a, Error::<T>::InsufficientBalance);
 
 			let mut pool_info = Self::ensure_pool(pid)?;
 			if let Some(cap) = pool_info.cap {
