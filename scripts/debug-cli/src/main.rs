@@ -55,6 +55,9 @@ enum Cli {
     EcdhKey {
         privkey: String,
     },
+    InspectPalletId {
+        pallet_id: String,
+    }
 }
 
 fn main() {
@@ -169,6 +172,13 @@ fn main() {
                     .unwrap();
             println!("Pubkey: {}", hex::encode(pair.public()));
             println!("Privkey: {}", hex::encode(pair.secret()));
+        }
+        Cli::InspectPalletId { pallet_id } => {
+            use sp_runtime::traits::AccountIdConversion;
+            let pallet_id_array: [u8; 8] = pallet_id.as_bytes().try_into().expect("Bad length");
+            let id = frame_support::PalletId(pallet_id_array);
+            let account: AccountId = id.into_account();
+            println!("Pallet account: {}", account);
         }
     }
 }
