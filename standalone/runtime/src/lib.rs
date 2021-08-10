@@ -1071,7 +1071,7 @@ parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
 	pub const MinMiningStaking: Balance = 1 * PHAS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningInsurancePeriod: BlockNumber = 3 * DAYS;
+	pub const MiningGracePeriod: BlockNumber = 3 * DAYS;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1097,7 +1097,7 @@ impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
-	type InsurancePeriod = MiningInsurancePeriod;
+	type GracePeriod = MiningGracePeriod;
 }
 
 construct_runtime!(
