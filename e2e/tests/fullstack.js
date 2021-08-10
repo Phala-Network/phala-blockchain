@@ -103,7 +103,7 @@ describe('A full stack', function () {
 			}
 			assert.isTrue(await checkUntil(async () => {
 				const workerInfo = await api.query.phalaRegistry.workers(workerKey);
-				return workerInfo.unwrap().intialScore.isSome;
+				return workerInfo.unwrap().initialScore.isSome;
 			}, 3 * 6000), 'benchmark timeout');
 		});
 	});
