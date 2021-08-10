@@ -1540,7 +1540,11 @@ pub mod pallet {
 				);
 				// Stake more than account1 has
 				assert_noop!(
-					PhalaStakePool::contribute(Origin::signed(1), 0, Balances::free_balance(1) + 1,),
+					PhalaStakePool::contribute(
+						Origin::signed(1),
+						0,
+						Balances::usable_balance(1) + 1
+					),
 					Error::<Test>::InsufficientBalance,
 				);
 			});
