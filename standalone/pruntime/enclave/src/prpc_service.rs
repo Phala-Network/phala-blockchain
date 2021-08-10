@@ -1,11 +1,9 @@
 use super::*;
 use enclave_api::blocks;
 use enclave_api::prpc::{
+    self as pb,
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Attestation, AttestationReport, Blocks, CombinedHeadersToSync, EgressMessages, GatekeeperRole,
-    GatekeeperStatus, GetEgressMessagesResponse, HeadersSyncedTo, HeadersToSync,
-    InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
 
 type RpcResult<T> = Result<T, RpcError>;
@@ -84,7 +82,7 @@ fn prpc_request(
     (code, data)
 }
 
-pub fn get_info() -> PhactoryInfo {
+pub fn get_info() -> pb::PhactoryInfo {
     let local_state = LOCAL_STATE.lock().unwrap();
 
     let initialized = local_state.initialized;
@@ -120,8 +118,8 @@ pub fn get_info() -> PhactoryInfo {
             Some(system) => (system.is_registered(), system.gatekeeper_status()),
             None => (
                 false,
-                GatekeeperStatus {
-                    role: GatekeeperRole::None.into(),
+                pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
                     master_public_key: Default::default(),
                 },
             ),
@@ -129,7 +127,7 @@ pub fn get_info() -> PhactoryInfo {
     };
     let score = benchmark::score();
 
-    PhactoryInfo {
+    pb::PhactoryInfo {
         initialized,
         registered,
         gatekeeper: Some(gatekeeper_status),
@@ -149,7 +147,7 @@ pub fn get_info() -> PhactoryInfo {
 pub fn sync_header(
     headers: Vec<blocks::HeaderToSync>,
     authority_set_change: Option<blocks::AuthoritySetChange>,
-) -> RpcResult<SyncedTo> {
+) -> RpcResult<pb::SyncedTo> {
     info!(
         "sync_header from={:?} to={:?}",
         headers.first().map(|h| h.header.number),
@@ -164,7 +162,7 @@ pub fn sync_header(
         .sync_header(headers, authority_set_change)
         .map_err(from_display)?;
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_header,
     })
 }
@@ -172,7 +170,7 @@ pub fn sync_header(
 pub fn sync_para_header(
     headers: blocks::Headers,
     proof: blocks::StorageProof,
-) -> RpcResult<SyncedTo> {
+) -> RpcResult<pb::SyncedTo> {
     info!(
         "sync_para_header from={:?} to={:?}",
         headers.first().map(|h| h.number),
@@ -196,7 +194,7 @@ pub fn sync_para_header(
         .sync_parachain_header(headers, proof, &storage_key)
         .map_err(from_display)?;
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_header,
     })
 }
@@ -211,7 +209,7 @@ pub fn sync_combined_headers(
     authority_set_change: Option<blocks::AuthoritySetChange>,
     parachain_headers: blocks::Headers,
     proof: blocks::StorageProof,
-) -> RpcResult<HeadersSyncedTo> {
+) -> RpcResult<pb::HeadersSyncedTo> {
     let relaychain_synced_to = sync_header(relaychain_headers, authority_set_change)?.synced_to;
     let parachain_synced_to = if parachain_headers.is_empty() {
         STATE
@@ -221,17 +219,18 @@ pub fn sync_combined_headers(
             .ok_or(from_display("Runtime not initialized"))?
             .storage_synchronizer
             .counters()
-            .next_para_header_number - 1
+            .next_para_header_number
+            - 1
     } else {
         sync_para_header(parachain_headers, proof)?.synced_to
     };
-    Ok(HeadersSyncedTo {
+    Ok(pb::HeadersSyncedTo {
         relaychain_synced_to,
         parachain_synced_to,
     })
 }
 
-pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<SyncedTo> {
+pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<pb::SyncedTo> {
     info!(
         "dispatch_block from={:?} to={:?}",
         blocks.first().map(|h| h.block_header.number),
@@ -255,7 +254,7 @@ pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<
         last_block = block.block_header.number;
     }
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_block,
     })
 }
@@ -267,7 +266,7 @@ pub fn init_runtime(
     genesis_state: blocks::StorageState,
     operator: Option<chain::AccountId>,
     debug_set_key: ::core::option::Option<Vec<u8>>,
-) -> RpcResult<InitRuntimeResponse> {
+) -> RpcResult<pb::InitRuntimeResponse> {
     let mut local_state = LOCAL_STATE.lock().unwrap();
 
     if local_state.initialized {
@@ -441,7 +440,7 @@ pub fn init_runtime(
 
     *state = Some(runtime_state);
 
-    let resp = InitRuntimeResponse::new(
+    let resp = pb::InitRuntimeResponse::new(
         runtime_info,
         genesis_block_hash,
         ecdsa_pk,
@@ -454,7 +453,7 @@ pub fn init_runtime(
     Ok(resp)
 }
 
-pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
+pub fn get_runtime_info() -> RpcResult<pb::InitRuntimeResponse> {
     let mut state = LOCAL_STATE.lock().unwrap();
 
     let skip_ra = state.skip_ra;
@@ -487,10 +486,10 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
                 }
             };
 
-            cached_resp.attestation = Some(Attestation {
+            cached_resp.attestation = Some(pb::Attestation {
                 version: 1,
                 provider: "SGX".to_string(),
-                payload: Some(AttestationReport {
+                payload: Some(pb::AttestationReport {
                     report: attn_report,
                     signature: base64::decode(sig).map_err(from_display)?,
                     signing_cert: base64::decode_config(cert, base64::STANDARD)
@@ -512,7 +511,7 @@ fn now() -> u64 {
 }
 
 // Drop latest messages if needed to fit in size.
-fn fit_size(mut messages: EgressMessages, size: usize) -> EgressMessages {
+fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages {
     while messages.encoded_size() > size {
         for (_, queue) in messages.iter_mut() {
             if queue.pop().is_some() {
@@ -527,7 +526,7 @@ fn fit_size(mut messages: EgressMessages, size: usize) -> EgressMessages {
     messages
 }
 
-pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<EgressMessages> {
+pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<pb::EgressMessages> {
     let messages: Vec<_> = STATE
         .lock()
         .unwrap()
@@ -545,30 +544,42 @@ pub struct RpcService {
 /// A server that process all RPCs.
 impl PhactoryApi for RpcService {
     /// Get basic information about Phactory state.
-    fn get_info(&self, _request: ()) -> RpcResult<PhactoryInfo> {
+    fn get_info(&self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(get_info())
     }
 
     /// Sync the parent chain header
-    fn sync_header(&self, request: HeadersToSync) -> RpcResult<SyncedTo> {
+    fn sync_header(&self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         let authority_set_change = request.decode_authority_set_change()?;
         sync_header(headers, authority_set_change)
     }
 
     /// Sync the parachain header
-    fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
+    fn sync_para_header(&self, request: pb::ParaHeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         sync_para_header(headers, request.proof)
     }
 
+    fn sync_combined_headers(
+        &self,
+        request: pb::CombinedHeadersToSync,
+    ) -> Result<pb::HeadersSyncedTo, prpc::server::Error> {
+        sync_combined_headers(
+            request.decode_relaychain_headers()?,
+            request.decode_authority_set_change()?,
+            request.decode_parachain_headers()?,
+            request.proof,
+        )
+    }
+
     /// Dispatch blocks (Sync storage changes)"
-    fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
+    fn dispatch_blocks(&self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
         dispatch_block(blocks)
     }
 
-    fn init_runtime(&self, request: InitRuntimeRequest) -> RpcResult<InitRuntimeResponse> {
+    fn init_runtime(&self, request: pb::InitRuntimeRequest) -> RpcResult<pb::InitRuntimeResponse> {
         init_runtime(
             request.skip_ra,
             request.is_parachain,
@@ -579,25 +590,13 @@ impl PhactoryApi for RpcService {
         )
     }
 
-    fn get_runtime_info(&self, _: ()) -> RpcResult<InitRuntimeResponse> {
+    fn get_runtime_info(&self, _: ()) -> RpcResult<pb::InitRuntimeResponse> {
         get_runtime_info()
     }
 
-    fn get_egress_messages(&self, _: ()) -> RpcResult<GetEgressMessagesResponse> {
+    fn get_egress_messages(&self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
         // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
         assert!(self.output_buf_len >= 1024);
-        get_egress_messages(self.output_buf_len - 1024).map(GetEgressMessagesResponse::new)
-    }
-
-    fn sync_combined_headers(
-        &self,
-        request: CombinedHeadersToSync,
-    ) -> Result<HeadersSyncedTo, prpc::server::Error> {
-        sync_combined_headers(
-            request.decode_relaychain_headers()?,
-            request.decode_authority_set_change()?,
-            request.decode_parachain_headers()?,
-            request.proof,
-        )
+        get_egress_messages(self.output_buf_len - 1024).map(pb::GetEgressMessagesResponse::new)
     }
 }
