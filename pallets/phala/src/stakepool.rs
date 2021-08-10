@@ -391,8 +391,10 @@ pub mod pallet {
 				a >= T::MinContribution::get(),
 				Error::<T>::InsufficientContribution
 			);
+			let free = <T as Config>::Currency::free_balance(&who);
+			let locked = Self::ledger_query(&who);
 			ensure!(
-				<T as Config>::Currency::free_balance(&who) >= a,
+				free - locked >= a,
 				Error::<T>::InsufficientBalance
 			);
 
@@ -1472,7 +1474,7 @@ pub mod pallet {
 				));
 				// Exceed the cap
 				assert_noop!(
-					PhalaStakePool::contribute(Origin::signed(1), 0, 900 * DOLLARS),
+					PhalaStakePool::contribute(Origin::signed(2), 0, 900 * DOLLARS),
 					Error::<Test>::StakeExceedsCapacity,
 				);
 			});
@@ -2190,6 +2192,22 @@ pub mod pallet {
 				assert_eq!(user2.locked, 0);
 				assert_eq!(user2.shares, 0);
 				assert_eq!(Balances::locks(2), vec![]);
+			});
+		}
+
+		#[test]
+		fn issue_388_double_stake() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+
+				let balance = Balances::usable_balance(&1);
+				assert_ok!(PhalaStakePool::contribute(Origin::signed(1), 0, balance));
+				assert_noop!(
+					PhalaStakePool::contribute(Origin::signed(1), 0, balance),
+					Error::<Test>::InsufficientBalance
+				);
 			});
 		}
 
