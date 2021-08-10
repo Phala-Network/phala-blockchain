@@ -29,7 +29,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
-use crate::msg_channel::PeelingReceiver;
+use crate::secret_channel::PeelingReceiver;
 use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
@@ -77,7 +77,7 @@ mod cert;
 mod contracts;
 mod cryptography;
 mod light_validation;
-mod msg_channel;
+mod secret_channel;
 mod prpc_service;
 mod rpc_types;
 mod storage;
