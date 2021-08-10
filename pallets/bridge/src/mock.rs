@@ -93,7 +93,7 @@ impl Config for Test {
 	type Event = Event;
 	type BridgeCommitteeOrigin = frame_system::EnsureRoot<Self::AccountId>;
 	type Proposal = Call;
-	type ChainId = TestChainId;
+	type BridgeChainId = TestChainId;
 	type ProposalLifetime = ProposalLifetime;
 }
 
@@ -120,7 +120,7 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 }
 
 pub fn new_test_ext_initialized(
-	src_id: ChainId,
+	src_id: BridgeChainId,
 	r_id: ResourceId,
 	resource: Vec<u8>,
 ) -> sp_io::TestExternalities {
