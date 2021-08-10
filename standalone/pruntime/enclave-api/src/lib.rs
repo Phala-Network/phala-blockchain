@@ -1,13 +1,15 @@
 #![no_std]
 extern crate alloc;
 
+pub mod crypto;
+
 mod proto_generated;
 
 pub mod prpc {
-    use alloc::vec::Vec;
     pub use crate::proto_generated::*;
-    pub use prpc::{client, server, Message};
+    use alloc::vec::Vec;
     use phala_types::messaging::{MessageOrigin, SignedMessage};
+    pub use prpc::{client, server, Message};
     pub type EgressMessages = Vec<(MessageOrigin, Vec<SignedMessage>)>;
 
     pub const SIG_LEN: usize = 64;
