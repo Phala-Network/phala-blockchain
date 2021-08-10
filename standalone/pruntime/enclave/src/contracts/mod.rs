@@ -1,6 +1,6 @@
 use crate::error_msg;
-use crate::msg_channel::osp::{
-    storage_prefix_for_topic_pubkey, KeyPair, OspMq, Peeler, PeelingReceiver,
+use crate::msg_channel::{
+    storage_prefix_for_topic_pubkey, KeyPair, SecretMq, Peeler, PeelingReceiver,
 };
 use crate::std::fmt::Debug;
 use crate::std::string::String;
@@ -175,7 +175,7 @@ mod support {
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
-        osp_mq: OspMq<'a>,
+        secret_mq: SecretMq<'a>,
     }
 
     impl NativeContext<'_> {
@@ -321,11 +321,11 @@ mod support {
             let storage = env.block.storage;
             let key_map =
                 |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
-            let osp_mq = OspMq::new(&self.ecdh_key, &self.send_mq, &key_map);
+            let secret_mq = SecretMq::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
                 block: env.block,
                 mq: &self.send_mq,
-                osp_mq,
+                secret_mq,
             };
             loop {
                 let ok = phala_mq::select! {

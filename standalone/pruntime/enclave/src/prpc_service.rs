@@ -305,8 +305,10 @@ pub fn init_runtime(
     let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
+    let local_ecdh_key = local_state.ecdh_key.as_ref().cloned().expect("ECDH key must be initialized; qed.");
+
     // derive ecdh key
-    let ecdh_pubkey = phala_types::EcdhPublicKey(local_state.ecdh_key.as_ref().unwrap().public());
+    let ecdh_pubkey = phala_types::EcdhPublicKey(local_ecdh_key.public());
     let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
@@ -395,7 +397,7 @@ pub fn init_runtime(
                     mq,
                     cmd_mq,
                     evt_mq,
-                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
+                    local_ecdh_key.clone(),
                 ));
                 other_contracts.insert($id, wrapped);
             }};

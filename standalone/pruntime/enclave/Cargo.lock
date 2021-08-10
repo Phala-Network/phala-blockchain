@@ -751,6 +751,7 @@ dependencies = [
  "derive_more",
  "frame-system",
  "parity-scale-codec 2.2.0",
+ "phala-crypto",
  "phala-node-runtime",
  "phala-types",
  "prost",
