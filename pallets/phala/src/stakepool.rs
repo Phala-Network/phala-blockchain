@@ -585,14 +585,14 @@ pub mod pallet {
 		/// the data.
 		///
 		/// Requires:
-		/// 1. The user's pending reward is already settled.
-		/// 2. The user's pending slash is already settled.
-		/// 3. The pool must has shares and stake (or it can cause division by zero error)
+		/// 1. The user's pending slash is already settled.
+		/// 2. The pool must has shares and stake (or it can cause division by zero error)
 		fn try_withdraw(
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			user_info: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
 			shares: BalanceOf<T>,
 		) {
+			pool_info.settle_user_pending_reward(user_info);
 			let free_shares = match pool_info.share_price() {
 				Some(price) if price != fp!(0) => bdiv(pool_info.free_stake, &price),
 				// LOL, 100% slashed. We allow to withdraw all any number of shares with zero token
@@ -960,6 +960,7 @@ pub mod pallet {
 		/// even bother to deal with.
 		fn add_stake(&mut self, user: &mut UserStakeInfo<AccountId, Balance>, amount: Balance) {
 			self.assert_slash_clean(user);
+			self.assert_reward_clean(user);
 			// Calcuate shares to add
 			let shares = match self.share_price() {
 				Some(price) if price != fp!(0) => bdiv(amount, &price),
@@ -990,6 +991,7 @@ pub mod pallet {
 			shares: Balance,
 		) -> Option<Balance> {
 			self.assert_slash_clean(user);
+			self.assert_reward_clean(user);
 			let total_shares = self.total_shares.checked_sub(&shares)?;
 			let price = self.share_price()?;
 			let amount = bmul(shares, &price);
@@ -1003,6 +1005,7 @@ pub mod pallet {
 			self.total_shares = total_shares;
 			user.shares = user_shares;
 			user.locked = user_locked;
+			self.reset_pending_reward(user);
 			Some(amount)
 		}
 
@@ -1020,7 +1023,7 @@ pub mod pallet {
 			self.total_stake.saturating_reduce(amount);
 		}
 
-		/// Asserts there's no dirty slash (in debue profile only)
+		/// Asserts there's no dirty slash (in debug profile only)
 		///
 		/// This could be probalematic if the fixed point precision is not handled correctly.
 		/// However since here we check the exact same condition as we set in `settle_slash`, it
@@ -1032,6 +1035,16 @@ pub mod pallet {
 				"There shouldn't be any dirty slash (user shares = {}, price = {:?}, user locked = {}, delta = {})",
 				user.shares, self.share_price(), user.locked,
 				bmul(user.shares, &self.share_price().unwrap()) - user.locked
+			);
+		}
+
+		/// Asserts there's no pending reward (in debug profile only)
+		fn assert_reward_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
+			debug_assert!(
+				self.pending_reward(user) == Zero::zero(),
+				"The pending reward should be zero (user share = {}, user debt = {}, accumulator = {:?}, delta = {}))",
+				user.shares, user.reward_debt, self.reward_acc,
+				self.pending_reward(user)
 			);
 		}
 
