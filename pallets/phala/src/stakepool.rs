@@ -48,8 +48,10 @@ pub mod pallet {
 		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
 		#[pallet::constant]
 		type MinContribution: Get<BalanceOf<Self>>;
+
+		/// The grace period for force withdraw request, in seconds.
 		#[pallet::constant]
-		type GracePeriod: Get<Self::BlockNumber>;
+		type GracePeriod: Get<u64>;
 	}
 
 	#[pallet::pallet]
@@ -767,7 +769,7 @@ pub mod pallet {
 				return;
 			}
 			// Handle timeout requests at every block
-			let grace_period = T::GracePeriod::get().saturated_into::<u64>();
+			let grace_period = T::GracePeriod::get();
 			while let Some(start_time) = t.front().cloned() {
 				if now - start_time <= grace_period {
 					break;
@@ -2168,7 +2170,7 @@ pub mod pallet {
 				));
 				// Now: 100 already withdrawl, 800 in queue
 				// Then we make the withdraw request expired.
-				let grace_period = <Test as Config>::GracePeriod::get().saturated_into::<u64>();
+				let grace_period = <Test as Config>::GracePeriod::get();
 				elapse_seconds(grace_period + 1);
 				teleport_to_block(2);
 				// Check stake releasing

@@ -47,7 +47,7 @@ parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = 12;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningGracePeriod: u64 = 7 * DAYS;
+	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::AllowAll;
@@ -94,8 +94,6 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-pub const HOURS: BlockNumber = 600;
-pub const DAYS: BlockNumber = HOURS * 24;
 pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
 

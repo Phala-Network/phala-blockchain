@@ -1071,7 +1071,7 @@ parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
 	pub const MinMiningStaking: Balance = 1 * PHAS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningGracePeriod: BlockNumber = 3 * DAYS;
+	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 }
 
 impl pallet_registry::Config for Runtime {
