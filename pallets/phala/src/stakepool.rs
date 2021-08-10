@@ -544,6 +544,19 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		/// Helper function to trigger reclaiming for a worker in a pool.
+		#[pallet::weight(0)]
+		pub fn relcaim_pool_worker(
+			origin: OriginFor<T>,
+			pid: u64,
+			worker: WorkerPublicKey,
+		) -> DispatchResult {
+			ensure_signed(origin.clone())?;
+			Self::ensure_pool(pid)?;
+			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
+			mining::Pallet::<T>::reclaim(origin, sub_account)
+		}
 	}
 
 	impl<T: Config> Pallet<T>
