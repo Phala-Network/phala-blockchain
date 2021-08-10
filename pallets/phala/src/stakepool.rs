@@ -153,6 +153,7 @@ pub mod pallet {
 		/// In this case, no more funds can be contributed to the pool until all the pending slash
 		/// has been resolved.
 		PoolBankrupt,
+		NoRewardToClaim,
 	}
 
 	type BalanceOf<T> =
@@ -356,7 +357,7 @@ pub mod pallet {
 		/// Claims all the pending rewards of the sender and send to the `target`
 		///
 		/// Requires:
-		/// 1. The sender is the owner
+		/// 1. The sender is a pool owner or staker
 		#[pallet::weight(0)]
 		pub fn claim_rewards(
 			origin: OriginFor<T>,
@@ -364,18 +365,29 @@ pub mod pallet {
 			target: T::AccountId,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let info_key = (pid.clone(), who.clone());
-			let mut user_info =
-				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
-			let pool_info = Self::ensure_pool(pid)?;
-
+			let mut pool_info = Self::ensure_pool(pid)?;
+			let mut rewards = BalanceOf::<T>::zero();
+			// Add pool owner's reward if applicable
+			if who == pool_info.owner {
+				rewards += pool_info.owner_reward;
+				pool_info.owner_reward = Zero::zero();
+			}
 			// Settle the pending reward, and calculate the rewards belong to user
-			pool_info.settle_user_pending_reward(&mut user_info);
-			let rewards = user_info.available_rewards;
-			user_info.available_rewards = Zero::zero();
+			let info_key = (pid.clone(), who.clone());
+			let mut user_info = Self::pool_stakers(&info_key);
+			if let Some(ref mut user_info) = user_info {
+				pool_info.settle_user_pending_reward(user_info);
+				rewards += user_info.available_rewards;
+				user_info.available_rewards = Zero::zero();
+			}
+			ensure!(rewards > Zero::zero(), Error::<T>::NoRewardToClaim);
 			mining::Pallet::<T>::withdraw_subsidy_pool(&target, rewards)
 				.or(Err(Error::<T>::InternalSubsidyPoolCannotWithdraw))?;
-			PoolStakers::<T>::insert(&info_key, &user_info);
+			// Update ledger
+			StakePools::<T>::insert(pid, &pool_info);
+			if let Some(user_info) = user_info {
+				PoolStakers::<T>::insert(&info_key, &user_info);
+			}
 			Self::deposit_event(Event::<T>::RewardsWithdrawn(pid, who, rewards));
 
 			Ok(())
@@ -2212,6 +2224,54 @@ pub mod pallet {
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(1), 0, balance),
 					Error::<Test>::InsufficientBalance
+				);
+			});
+		}
+
+		#[test]
+		fn test_pool_owner_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]);
+
+				assert_ok!(PhalaStakePool::set_payout_pref(
+					Origin::signed(1),
+					0,
+					Permill::from_percent(50)
+				));
+				// Staker2 contribute 1000 PHA and start mining
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1000 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1000 * DOLLARS
+				));
+				// Mined 100 PHA
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(100).to_bits(),
+				}]);
+				// Both owner and staker2 can claim 50 PHA
+				let _ = take_events();
+				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
+				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(2), 0, 2));
+				let ev = take_events();
+				assert_matches!(
+					ev.as_slice(),
+					[
+						TestEvent::Balances(pallet_balances::Event::Transfer(_, 1, 50000000000000)),
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 50000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Transfer(_, 2, 49999999999999)),
+						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 2, 49999999999999))
+					]
 				);
 			});
 		}
