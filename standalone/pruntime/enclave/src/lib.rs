@@ -29,7 +29,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
-use crate::msg_channel::osp::{KeyPair, PeelingReceiver};
+use crate::msg_channel::PeelingReceiver;
 use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
@@ -839,6 +839,7 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 
+// TODO.kevin: Move to enclave-api when the std ready.
 fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
