@@ -588,21 +588,17 @@ impl System {
                 let iv = crate::generate_random_iv();
                 let mut data = master_key.dump_secret_key().to_vec();
 
-                match aead::encrypt(&iv, &secret, &mut data) {
-                    Ok(_) => {
-                        self.egress.send(&MasterKeyEvent::dispatch_master_key_event(
-                            event.pubkey.clone(),
-                            my_ecdh_key
-                                .public()
-                                .as_ref()
-                                .try_into()
-                                .expect("should never fail given pubkey with correct length"),
-                            data,
-                            iv,
-                        ));
-                    }
-                    Err(e) => error!("Failed to encrypt master key: {:?}", e),
-                }
+                aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+                self.egress.send(&MasterKeyEvent::dispatch_master_key_event(
+                    event.pubkey.clone(),
+                    my_ecdh_key
+                        .public()
+                        .as_ref()
+                        .try_into()
+                        .expect("should never fail given pubkey with correct length"),
+                    data,
+                    iv,
+                ));
             }
         }
 
@@ -644,10 +640,8 @@ impl System {
                 .expect("Should never failed with valid ecdh key; qed.");
 
             let mut master_key_buff = event.encrypted_master_key.clone();
-            let master_key = match aead::decrypt(&event.iv, &secret, &mut master_key_buff[..]) {
-                Err(e) => panic!("Failed to decrypt dispatched master key: {:?}", e),
-                Ok(k) => k,
-            };
+            let master_key = aead::decrypt(&event.iv, &secret, &mut master_key_buff[..])
+                .expect("Failed to decrypt dispatched master key");
 
             let master_pair = sr25519::Pair::from_seed_slice(&master_key)
                 .expect("Master key seed must be correct; qed.");
