@@ -556,12 +556,9 @@ impl System {
                 info!("Gatekeeper: generate master key as the first gatekeeper");
                 // generate master key as the first gatekeeper
                 // no need to restart
-                self.set_master_key(crate::new_sr25519_key(), false);
-            }
-
-            // upload the master key on chain
-            // noted that every gk should execute this to ensure the state consistency of egress seq
-            if let Some(master_key) = &self.master_key {
+                let master_key = crate::new_sr25519_key();
+                self.set_master_key(master_key.clone(), false);
+                // upload the master key on chain via worker egress
                 info!(
                     "Gatekeeper: upload master key {} on chain",
                     hex::encode(master_key.public())
