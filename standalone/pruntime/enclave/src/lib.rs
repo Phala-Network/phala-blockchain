@@ -44,7 +44,7 @@ use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Serialize};
 use serde_cbor;
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};

@@ -28,12 +28,6 @@ pub mod woothee;
 
 pub use phala_types::contract::*;
 
-pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
-    use core::convert::TryFrom;
-    let bytes = hex::decode(accid_hex).map_err(Error::msg)?;
-    chain::AccountId::try_from(bytes.as_slice()).map_err(|_| Error::msg("Bad account id"))
-}
-
 // TODO.kevin: the wrapper is no longer needed.
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Encode, Decode)]
 pub struct AccountIdWrapper(pub chain::AccountId);

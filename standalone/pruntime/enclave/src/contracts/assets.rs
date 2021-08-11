@@ -1,7 +1,7 @@
 use crate::std::string::{String, ToString};
 use crate::std::vec::Vec;
 use anyhow::Result;
-use core::{fmt, str};
+use core::fmt;
 use log::info;
 use phala_mq::MessageOrigin;
 use parity_scale_codec::{Encode, Decode};

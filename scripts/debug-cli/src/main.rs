@@ -134,8 +134,7 @@ fn main() {
             decode_mq_payload(destination.as_bytes(), &data);
         }
         Cli::EncodeLotterySetAdmin { admin, number } => {
-            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
-            println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
+            use phala_types::messaging::{LotteryCommand, PushCommand};
             let payload = PushCommand {
                 command: LotteryCommand::SetAdmin { new_admin: admin },
                 number,
@@ -149,8 +148,7 @@ fn main() {
             p0,
             p1,
         } => {
-            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
-            println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
+            use phala_types::messaging::{LotteryCommand, PushCommand};
             let mut txid_buf: [u8; 32] = Default::default();
             hex::decode_to_slice(txid, &mut txid_buf).unwrap();
             let payload = PushCommand {
@@ -227,7 +225,7 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         destination: &[u8],
         payload: &[u8],
     ) -> Result<(), ()> {
-        if T::TOPIC == destination {
+        if &T::topic() == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
             println!("{:?}", msg);
             return Ok(());
@@ -241,14 +239,14 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
     }
 
     try_decode_with_types!(
-        Lottery,
-        LotteryCommand,
-        BalanceEvent<AccountId, Balance>,
-        BalanceCommand<AccountId, Balance>,
+        //Lottery,
+        //LotteryCommand,
+        //BalanceEvent<AccountId, Balance>,
+        //BalanceCommand<AccountId, Balance>,
         // BalanceTransfer<AccountId, Balance>,
-        AssetCommand<AccountId, Balance>,
-        Web3AnalyticsCommand,
-        DiemCommand,
+        //AssetCommand<AccountId, Balance>,
+        //Web3AnalyticsCommand,
+        //DiemCommand,
         // KittyEvent<AccountId, Hash>,
         SystemEvent,
         MiningReportEvent,
