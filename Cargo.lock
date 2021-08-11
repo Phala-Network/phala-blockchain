@@ -1606,6 +1606,8 @@ dependencies = [
  "derive_more",
  "frame-system",
  "parity-scale-codec",
+ "phala-crypto",
+ "phala-mq",
  "phala-node-runtime",
  "phala-types",
  "prost 0.8.0",

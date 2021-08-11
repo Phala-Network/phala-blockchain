@@ -2,34 +2,30 @@ use crate::std::string::String;
 use crate::std::vec::Vec;
 use anyhow::{Context, Result};
 use core::fmt;
-use serde::{Deserialize, Serialize};
 
 use parity_scale_codec::{Decode, Encode};
 use sp_core::crypto::Pair;
 
 pub mod aead;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct AeadCipher {
     pub iv_b64: String,
     pub cipher_b64: String,
     pub pubkey_b64: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Origin {
     pub origin: String,
     pub sig_b64: String,
     pub sig_type: SignatureType,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum SignatureType {
-    #[serde(rename = "ed25519")]
     Ed25519,
-    #[serde(rename = "sr25519")]
     Sr25519,
-    #[serde(rename = "ecdsa")]
     Ecdsa,
 }
 

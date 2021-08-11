@@ -15,10 +15,9 @@ use crate::std::{
 use anyhow::Result;
 use lazy_static;
 use log::error;
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Encode, Decode};
 use phala_mq::{Sr25519MessageChannel as MessageChannel, MessageOrigin};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use serde::{Deserialize, Serialize};
 use sp_core::{crypto::Pair, sr25519, hashing::blake2_256, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
 
@@ -63,12 +62,12 @@ impl core::fmt::Debug for BtcLottery {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     InvalidRequest,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     GetAllRounds,
     GetRoundInfo { round_id: u32 },
@@ -76,7 +75,10 @@ pub enum Request {
     QueryUtxo { round_id: u32 },
     GetSignedTx { round_id: u32 },
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+type AddressString = String;
+
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     GetAllRounds {
         round_id: u32,
@@ -89,13 +91,13 @@ pub enum Response {
         prize_addr: Vec<String>,
     },
     QueryUtxo {
-        utxo: BTreeMap<Address, (Txid, u32, u64)>,
+        utxo: Vec<(AddressString, (Txid, u32, u64))>,
     },
     GetSignedTx {
         tx_set: Vec<Vec<u8>>,
     },
     PendingLotteryEgress {
-        length: usize,
+        length: u64,
         lottery_queue_b64: String,
     },
     Error(Error),
@@ -421,12 +423,15 @@ impl contracts::NativeContract for BtcLottery {
             }
             Request::QueryUtxo { round_id } => {
                 if self.utxo.contains_key(&round_id) {
-                    Response::QueryUtxo {
-                        utxo: self
+                    let utxo = self
                             .utxo
                             .get(&round_id)
                             .expect("round_id is known in the utxo set; qed")
-                            .clone(),
+                            .iter()
+                            .map(|(addr, utxo)| (addr.to_string(), *utxo))
+                            .collect();
+                    Response::QueryUtxo {
+                        utxo,
                     }
                 } else {
                     Response::Error(Error::InvalidRequest)

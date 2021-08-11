@@ -23,6 +23,7 @@ derive_more = "0.99.16"
 prpc = { path = "../../../crates/prpc" }
 prost = { version = "0.8.0", default-features = false }
 phala-crypto = { path = "../../../crates/crypto" }
+phala-mq = { path = "../../../crates/phala-mq" }
 
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build", optional = true }

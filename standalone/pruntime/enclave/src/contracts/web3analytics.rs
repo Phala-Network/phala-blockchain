@@ -8,7 +8,7 @@ use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Encode, Decode};
 
 use crate::contracts;
 use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
@@ -26,7 +26,7 @@ const WEEK_IN_SECONDS: u32 = 7 * DAY_IN_SECONDS;
 const KEY: &[u8] =
     &hex_literal::hex!("290c3c5d812a4ba7ce33adf09598a462692a615beb6c80fdafb3f9e3bbef8bc6");
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct PageView {
     id: String,
     sid: Sid,
@@ -40,7 +40,7 @@ pub struct PageView {
     created_at: Timestamp,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OnlineUser {
     sid: Sid,
     cid_count: String,
@@ -48,7 +48,7 @@ pub struct OnlineUser {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct HourlyPageViewStat {
     sid: Sid,
     pv_count: String,
@@ -57,7 +57,7 @@ pub struct HourlyPageViewStat {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklySite {
     sid: Sid,
     path: String,
@@ -65,7 +65,7 @@ pub struct WeeklySite {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyDevice {
     sid: Sid,
     device: String,
@@ -73,20 +73,20 @@ pub struct WeeklyDevice {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyClient {
     sid: Sid,
     cids: Vec<String>,
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct SiteClient {
     sid: Sid,
     cids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct HourlyStat {
     hourly_page_view_stats: Vec<HourlyPageViewStat>,
     site_clients: Vec<SiteClient>,
@@ -109,7 +109,7 @@ impl HourlyStat {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct DailyStat {
     stats: Vec<HourlyPageViewStat>,
 }
@@ -123,7 +123,7 @@ impl DailyStat {
 }
 
 // contract
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -138,7 +138,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     SetPageView {
         page_views: Vec<PageView>,
@@ -176,7 +176,7 @@ pub enum Request {
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     SetPageView {
         page_view_count: u32,
@@ -212,10 +212,10 @@ pub enum Response {
         skip_stat: bool,
     },
 
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,
@@ -227,7 +227,6 @@ pub struct Web3Analytics {
     total_stat: HourlyPageViewStat,
 
     key: Vec<u8>,
-    #[serde(skip)]
     parser: woothee::parser::Parser,
 
     no_tracking: BTreeMap<AccountIdWrapper, bool>,
@@ -1034,7 +1033,7 @@ impl contracts::NativeContract for Web3Analytics {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }

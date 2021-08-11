@@ -1,10 +1,10 @@
-use crate::std::string::String;
+use crate::std::string::{String, ToString};
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::{fmt, str};
 use log::info;
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Encode, Decode};
 use std::collections::BTreeMap;
 
 use super::{NativeContext, TransactionStatus};
@@ -17,40 +17,37 @@ type Command = AssetCommand<chain::AccountId, chain::Balance>;
 
 extern crate runtime as chain;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct AssetMetadata {
     owner: AccountIdWrapper,
-    #[serde(with = "super::serde_balance")]
     total_supply: u128,
     symbol: String,
     id: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct AssetMetadataBalance {
     metadata: AssetMetadata,
-    #[serde(with = "super::serde_balance")]
     balance: chain::Balance,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct Assets {
     next_id: u32,
     assets: BTreeMap<u32, BTreeMap<AccountIdWrapper, chain::Balance>>,
     metadata: BTreeMap<u32, AssetMetadata>,
     history: BTreeMap<AccountIdWrapper, Vec<AssetsTx>>,
 }
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct AssetsTx {
     txref: TxRef,
     asset_id: u32,
     from: AccountIdWrapper,
     to: AccountIdWrapper,
-    #[serde(with = "super::serde_balance")]
     amount: chain::Balance,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -65,7 +62,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     Balance {
         id: AssetId,
@@ -82,14 +79,12 @@ pub enum Request {
         available_only: bool,
     },
 }
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     Balance {
-        #[serde(with = "super::serde_balance")]
         balance: chain::Balance,
     },
     TotalSupply {
-        #[serde(with = "super::serde_balance")]
         total_issuance: chain::Balance,
     },
     Metadata {
@@ -101,7 +96,7 @@ pub enum Response {
     ListAssets {
         assets: Vec<AssetMetadataBalance>,
     },
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
 impl Assets {
@@ -323,7 +318,7 @@ impl contracts::NativeContract for Assets {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }

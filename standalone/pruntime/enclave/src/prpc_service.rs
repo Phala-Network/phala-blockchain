@@ -1,10 +1,10 @@
 use super::*;
-use enclave_api::blocks;
-use enclave_api::prpc::{
-    self as pb,
+use enclave_api::{blocks, contract, crypto, prpc as pb};
+use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
+use contract::long_id;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -74,6 +74,7 @@ fn prpc_request(
                     (400, ProtoError::new(format!("DecodeError({:?})", err)))
                 }
                 Error::AppError(msg) => (500, ProtoError::new(msg)),
+                Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
             };
             (code, prpc::codec::encode_message_to_vec(&err))
         }
@@ -305,7 +306,11 @@ pub fn init_runtime(
     let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
-    let local_ecdh_key = local_state.ecdh_key.as_ref().cloned().expect("ECDH key must be initialized; qed.");
+    let local_ecdh_key = local_state
+        .ecdh_key
+        .as_ref()
+        .cloned()
+        .expect("ECDH key must be initialized; qed.");
 
     // derive ecdh key
     let ecdh_pubkey = phala_types::EcdhPublicKey(local_ecdh_key.public());
@@ -380,7 +385,7 @@ pub fn init_runtime(
     ));
     drop(system_state);
 
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
+    let mut contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
         Default::default();
 
     if local_state.dev_mode {
@@ -390,6 +395,8 @@ pub fn init_runtime(
             ($id: expr, $inner: expr) => {{
                 let sender = MessageOrigin::native_contract($id);
                 let mq = send_mq.channel(sender, id_pair.clone());
+                // TODO.kevin: use real contract key
+                let contract_key = local_ecdh_key.clone();
                 let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
                 let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
@@ -399,13 +406,13 @@ pub fn init_runtime(
                     evt_mq,
                     local_ecdh_key.clone(),
                 ));
-                other_contracts.insert($id, wrapped);
+                contracts.insert(long_id($id), wrapped);
             }};
         }
 
         install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
         install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
         install_contract!(
             contracts::SUBSTRATE_KITTIES,
             contracts::substrate_kitties::SubstrateKitties::new()
@@ -425,7 +432,7 @@ pub fn init_runtime(
     }
 
     let mut runtime_state = RuntimeState {
-        contracts: other_contracts,
+        contracts,
         send_mq,
         recv_mq,
         storage_synchronizer,
@@ -539,6 +546,76 @@ pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<pb::EgressMessage
     Ok(fit_size(messages, output_buf_len))
 }
 
+fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQueryResponse> {
+    // Validate signature
+    if let Some(origin) = &request.signature {
+        if !origin.verify(&request.encoded_encrypted_data) {
+            return Err(from_display("Verifying signature failed"));
+        }
+        info!("Verifying signature passed!");
+    }
+    let ecdh_key = LOCAL_STATE
+        .lock()
+        .unwrap()
+        .ecdh_key
+        .clone()
+        .ok_or_else(|| from_display("No ECDH key"))?;
+
+    // Decrypt data
+    let encrypted_req = request.decode_encrypted_data()?;
+    let data = encrypted_req.decrypt(&ecdh_key).map_err(from_debug)?;
+
+    // Decode head
+    let mut data_cursor = &data[..];
+    let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
+    let data_cursor = data_cursor;
+
+    // Origin
+    let accid_origin = match request.signature.as_ref() {
+        Some(sig) => {
+            use core::convert::TryFrom;
+            let accid = chain::AccountId::try_from(sig.origin.as_slice())
+                .map_err(|_| from_display("Bad account id"))?;
+            Some(accid)
+        }
+        None => None,
+    };
+
+    // Dispatch
+    let ref_origin = accid_origin.as_ref();
+
+    let res = if head.id == long_id(SYSTEM) {
+        let mut guard = SYSTEM_STATE.lock().unwrap();
+        let system_state = guard
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let response = system_state.handle_query(ref_origin, types::deopaque_query(data_cursor)?);
+        response.encode()
+    } else {
+        let mut state = STATE.lock().unwrap();
+        let state = state.as_mut().ok_or_else(|| from_display("Runtime not initialized"))?;
+        let contract = state
+            .contracts
+            .get_mut(&head.id)
+            .ok_or_else(|| from_display("Contract not found"))?;
+        let response = contract.handle_query(ref_origin, data_cursor)?;
+        response
+    };
+
+    // Encode response
+    let response = contract::ContractQueryResponse {
+        nonce: head.nonce,
+        result: contract::Data(res)
+    };
+    let response_data = response.encode();
+
+    // Encrypt
+    let encrypted_resp = crypto::EncryptedData::encrypt(&ecdh_key, &encrypted_req.pubkey, crate::generate_random_iv(), &response_data)
+        .map_err(from_debug)?;
+
+    Ok(pb::ContractQueryResponse::new(encrypted_resp))
+}
+
 pub struct RpcService {
     output_buf_len: usize,
 }
@@ -605,7 +682,7 @@ impl PhactoryApi for RpcService {
     fn contract_query(
         &self,
         request: pb::ContractQueryRequest,
-    ) -> Result<pb::EncryptedData, prpc::server::Error> {
-        todo!("TODO.kevin")
+    ) -> RpcResult<pb::ContractQueryResponse> {
+        contract_query(request)
     }
 }

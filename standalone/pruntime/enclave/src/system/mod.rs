@@ -6,7 +6,6 @@ use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
@@ -27,10 +26,11 @@ use phala_types::{
     MasterPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use parity_scale_codec::{Encode, Decode};
 
 pub type CommandIndex = u64;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum TransactionStatus {
     Ok,
     BadInput,
@@ -64,12 +64,8 @@ pub enum TransactionStatus {
     TransferringNotAllowed,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct TransactionReceipt {
-    #[serde(
-        serialize_with = "crate::se_to_b64",
-        deserialize_with = "crate::de_from_b64"
-    )]
     pub account: MessageOrigin,
     pub block_num: chain::BlockNumber,
     pub contract_id: u32,
@@ -416,7 +412,7 @@ impl System {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }
@@ -676,7 +672,7 @@ impl System {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     TxHashNotFound,
@@ -693,21 +689,17 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     QueryReceipt { command_index: CommandIndex },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     QueryReceipt {
         receipt: TransactionReceipt,
     },
-    GetWorkerEgress {
-        length: usize,
-        encoded_egress_b64: String,
-    },
-    Error(#[serde(with = "serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
 pub mod chain_state {
@@ -741,27 +733,6 @@ pub mod chain_state {
                 )
             })
             .unwrap_or(None)
-    }
-}
-
-pub mod serde_anyhow {
-    use crate::std::string::{String, ToString};
-    use anyhow::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(value: &Error, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = value.to_string();
-        String::serialize(&s, serializer)
-    }
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Error, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(Error::msg(s))
     }
 }
 

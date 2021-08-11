@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use parity_scale_codec::{Decode, Encode};
 
+use crate::prpc::{Signature, SignatureType};
 pub use phala_crypto::{aead, ecdh, CryptoError};
 
 #[derive(Clone, Encode, Decode)]
@@ -33,4 +34,34 @@ impl EncryptedData {
             data,
         })
     }
+}
+
+impl Signature {
+    pub fn verify(&self, msg: &[u8]) -> bool {
+        let sig_type = match SignatureType::from_i32(self.signature_type) {
+            Some(val) => val,
+            None => {
+                return false;
+            }
+        };
+
+        match sig_type {
+            SignatureType::Ed25519 => {
+                verify::<sp_core::ed25519::Pair>(&self.origin, &self.signature, msg)
+            }
+            SignatureType::Sr25519 => {
+                verify::<sp_core::sr25519::Pair>(&self.origin, &self.signature, msg)
+            }
+            SignatureType::Ecdsa => {
+                verify::<sp_core::ecdsa::Pair>(&self.origin, &self.signature, msg)
+            }
+        }
+    }
+}
+
+fn verify<T>(pubkey: &[u8], sig: &[u8], msg: &[u8]) -> bool
+where
+    T: sp_core::crypto::Pair,
+{
+    T::verify_weak(sig, msg, pubkey)
 }

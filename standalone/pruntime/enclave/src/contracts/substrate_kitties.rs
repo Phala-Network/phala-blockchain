@@ -1,5 +1,3 @@
-use serde::{Deserialize, Serialize};
-
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
 use crate::TransactionStatus;
@@ -40,7 +38,7 @@ lazy_static! {
 }
 
 /// SubstrateKitties contract states.
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct SubstrateKitties {
     schrodingers: BTreeMap<String, Vec<u8>>,
     /// Use Vec<u8> to represent kitty id
@@ -65,13 +63,13 @@ impl core::fmt::Debug for SubstrateKitties {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct BlindBox {
     // Use String to store the U256 type ID, preventing the Serialize implementation
     blind_box_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct Kitty {
     id: Vec<u8>,
 }
@@ -90,14 +88,14 @@ pub enum Command {
 }
 
 /// The errors that the contract could throw for some queries
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
 }
 
 /// Query requests. The end users can only query the contract states by sending requests.
 /// Queries are not supposed to write to the contract states.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     /// Users can require to see the blind boxes list
     ObserveBox,
@@ -110,7 +108,7 @@ pub enum Request {
 }
 
 /// Query responses.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     ObserveBox {
         blind_box: BTreeMap<String, BlindBox>,
