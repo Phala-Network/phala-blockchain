@@ -1,19 +1,17 @@
 use crate::std::collections::BTreeMap;
-use crate::std::string::String;
+use crate::std::string::{String, ToString};
 use crate::std::vec::Vec;
 use std::collections::btree_map::Entry::{Occupied, Vacant};
 
 use anyhow::Result;
 use core::{fmt, str};
 use log::{error, info};
-use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
 use crate::TransactionStatus;
 
 //diem type
-use crate::std::string::ToString;
 use core::convert::TryFrom;
 use diem_crypto::hash::CryptoHash;
 use diem_types::account_address::{AccountAddress, HashAccountAddress};
@@ -56,13 +54,13 @@ const ALICE_ADDRESS: &str = "D4F0C053205BA934BB2AC0C4E8479E77";
 
 const ALICE_PHALA: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
-#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
+#[derive(Clone, Encode, Decode, Debug, PartialEq)]
 pub struct Amount {
     pub amount: u64,
     pub currency: String,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct AccountInfo {
     pub address: AccountAddress,
     pub authentication_key: Option<Vec<u8>>,
@@ -72,7 +70,7 @@ pub struct AccountInfo {
     pub balances: Vec<Amount>,
 }
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct TransactionWithProof {
     transaction_bytes: Vec<u8>,
 
@@ -87,7 +85,7 @@ pub struct TransactionWithProof {
     version: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     Other(String),
 }
@@ -100,7 +98,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     /// Gets all the verified transactions, in hex hash string
     VerifiedTransactions,
@@ -112,7 +110,7 @@ pub enum Request {
     AccountData,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     /// The response with all the the transaction hash verified successfully by the light client
     VerifiedTransactions {
@@ -128,10 +126,10 @@ pub enum Response {
         data: Vec<AccountData>,
     },
     /// Some other errors
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct TransactionData {
     sequence: u64,
     address: Vec<u8>,
@@ -139,7 +137,7 @@ pub struct TransactionData {
     new_account: bool,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Encode, Decode)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct PendingTransaction {
     sequence: u64,
     amount: u64,
@@ -147,7 +145,7 @@ pub struct PendingTransaction {
     raw_tx: Vec<u8>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Encode, Decode)]
 pub struct Account {
     address: AccountAddress,
     //#[serde(skip)]
@@ -159,7 +157,7 @@ pub struct Account {
     is_child: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Encode, Decode)]
 pub struct AccountData {
     is_vasp: bool,
     address: AccountAddress,
@@ -169,13 +167,12 @@ pub struct AccountData {
     locked: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct State {
     queue_seq: u64,
     account_address: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
 pub struct Diem {
     chain_id: u8,
     account_info: Vec<AccountInfo>,
@@ -964,7 +961,7 @@ impl contracts::NativeContract for Diem {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }

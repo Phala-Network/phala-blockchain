@@ -4,7 +4,6 @@ use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use csv_core::{ReadRecordResult, Reader};
 use log::info;
-use serde::{Deserialize, Serialize};
 
 use crate::contracts;
 use crate::types::TxRef;
@@ -22,13 +21,13 @@ pub enum Command {
     OpenOrder(OrderDetails),
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OrderDetails {
     item_id: ItemId,
     query_link: String,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct ItemDetails {
     pub name: String,
     pub category: String,
@@ -38,14 +37,14 @@ pub struct ItemDetails {
     pub dataset_preview: String,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum PricePolicy {
     PerRow { price: chain::Balance },
 }
 
 // item
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Item {
     id: ItemId,
     txref: TxRef,
@@ -55,7 +54,7 @@ pub struct Item {
 
 // order
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Order {
     id: OrderId,
     txref: TxRef,
@@ -64,7 +63,7 @@ pub struct Order {
     state: OrderState, // maybe shouldn't serialize this
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OrderState {
     data_ready: bool,
     query_ready: bool,
@@ -75,7 +74,7 @@ pub struct OrderState {
 
 // contract
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     GetItems,
     GetOrders,
@@ -83,7 +82,7 @@ pub enum Request {
     Get(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     GetItems { items: Vec<Item> },
     GetOrders { orders: Vec<Order> },
@@ -91,11 +90,10 @@ pub enum Response {
     Get(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct DataPlaza {
     items: Vec<Item>,
     orders: Vec<Order>,
-    #[serde(skip)]
     dataset: HashMap<String, Vec<u8>>,
 }
 

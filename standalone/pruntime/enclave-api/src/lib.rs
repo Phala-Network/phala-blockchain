@@ -2,6 +2,7 @@
 extern crate alloc;
 
 pub mod crypto;
+pub mod contract;
 
 mod proto_generated;
 
@@ -21,7 +22,6 @@ pub mod actions {
     pub const ACTION_GET_INFO: u8 = 2;
     pub const ACTION_DUMP_STATES: u8 = 3;
     pub const ACTION_LOAD_STATES: u8 = 4;
-    pub const ACTION_QUERY: u8 = 6;
     // Reserved: 8, 9
     pub const ACTION_GET_RUNTIME_INFO: u8 = 10;
     pub const ACTION_GET_EGRESS_MESSAGES: u8 = 23;

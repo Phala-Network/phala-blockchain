@@ -752,6 +752,7 @@ dependencies = [
  "frame-system",
  "parity-scale-codec 2.2.0",
  "phala-crypto",
+ "phala-mq",
  "phala-node-runtime",
  "phala-types",
  "prost",

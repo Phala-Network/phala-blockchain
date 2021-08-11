@@ -6,6 +6,8 @@ use parity_scale_codec::{Decode, Encode};
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
+pub type ContractId = H256;
+pub type AccountId = H256;
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
@@ -15,11 +17,11 @@ pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     Pallet(Vec<u8>),
     /// A confidential contract
-    Contract(H256),
+    Contract(ContractId),
     /// A pRuntime worker
     Worker(sp_core::sr25519::Public),
     /// A user
-    AccountId(H256),
+    AccountId(AccountId),
     /// A remote location (parachain, etc.)
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
@@ -36,7 +38,7 @@ impl Hash for MessageOrigin {
 impl MessageOrigin {
     /// Builds a new native confidential contract `MessageOrigin`
     pub fn native_contract(id: u32) -> Self {
-        Self::Contract(H256::from_low_u64_be(id as u64))
+        Self::Contract(ContractId::from_low_u64_be(id as u64))
     }
 
     /// Returns if the origin is located off-chain

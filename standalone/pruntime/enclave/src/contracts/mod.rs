@@ -1,6 +1,6 @@
 use crate::error_msg;
-use crate::msg_channel::{
-    storage_prefix_for_topic_pubkey, KeyPair, SecretMq, Peeler, PeelingReceiver,
+use crate::secret_channel::{
+    storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMq,
 };
 use crate::std::fmt::Debug;
 use crate::std::string::String;
@@ -10,15 +10,11 @@ use crate::system::TransactionReceipt;
 use super::TransactionStatus;
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
-use core::{fmt, str};
+use core::str;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{BindTopic, MessageOrigin, Sr25519MessageChannel as MessageChannel};
 use phala_types::messaging::PushCommand;
 
-use serde::{
-    de::{self, DeserializeOwned, Visitor},
-    Deserialize, Deserializer, Serialize, Serializer,
-};
 use sp_core::H256;
 use sp_runtime_interface::pass_by::PassByInner as _;
 
@@ -26,7 +22,7 @@ pub mod assets;
 pub mod balances;
 pub mod btc_lottery;
 pub mod data_plaza;
-pub mod diem;
+// pub mod diem;
 pub mod substrate_kitties;
 pub mod web3analytics;
 pub mod woothee;
@@ -47,50 +43,7 @@ pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     chain::AccountId::try_from(bytes.as_slice()).map_err(|_| Error::msg("Bad account id"))
 }
 
-/// Serde moduele to serialize or deserialize Balance
-pub mod serde_balance {
-    use crate::std::str::FromStr;
-    use crate::std::string::{String, ToString};
-    use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(value: &chain::Balance, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = value.to_string();
-        String::serialize(&s, serializer)
-    }
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<chain::Balance, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        chain::Balance::from_str(&s).map_err(de::Error::custom)
-    }
-}
-
-/// Serde module to serialize or deserialize anyhow Errors
-pub mod serde_anyhow {
-    use crate::std::string::{String, ToString};
-    use anyhow::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(value: &Error, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = value.to_string();
-        String::serialize(&s, serializer)
-    }
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Error, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(Error::msg(s))
-    }
-}
-
+// TODO.kevin: the wrapper is no longer needed.
 #[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Encode, Decode)]
 pub struct AccountIdWrapper(pub chain::AccountId);
 
@@ -116,49 +69,6 @@ impl AccountIdWrapper {
 impl From<H256> for AccountIdWrapper {
     fn from(hash: H256) -> Self {
         Self((*hash.inner()).into())
-    }
-}
-
-impl Serialize for AccountIdWrapper {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let data_hex = self.to_string();
-        serializer.serialize_str(&data_hex)
-    }
-}
-
-impl<'de> Deserialize<'de> for AccountIdWrapper {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        deserializer.deserialize_str(AcidVisitor)
-    }
-}
-
-struct AcidVisitor;
-
-impl<'de> Visitor<'de> for AcidVisitor {
-    type Value = AccountIdWrapper;
-
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        formatter.write_str("AccountID is the hex of [u8;32]")
-    }
-
-    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
-    where
-        E: de::Error,
-    {
-        if v.len() == 64 {
-            let bytes =
-                hex::decode(v).map_err(|e| E::custom(format!("Cannot decode hex: {}", e)))?;
-            AccountIdWrapper::try_from(&bytes)
-                .map_err(|_| E::custom("Unknown error creating AccountIdWrapper"))
-        } else {
-            Err(E::custom(format!("AccountId hex length wrong: {}", v)))
-        }
     }
 }
 
@@ -197,8 +107,8 @@ mod support {
     pub trait NativeContract {
         type Cmd: Decode + BindTopic + Debug;
         type Event: Decode + BindTopic + Debug;
-        type QReq: Serialize + DeserializeOwned + Debug;
-        type QResp: Serialize + DeserializeOwned + Debug;
+        type QReq: Decode + Debug;
+        type QResp: Encode + Debug;
 
         fn id(&self) -> ContractId;
         fn handle_command(
@@ -241,8 +151,8 @@ mod support {
         Event: Decode + BindTopic + Debug,
         EventWrp: Decode + BindTopic + Debug,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
-        QReq: Serialize + DeserializeOwned + Debug,
-        QResp: Serialize + DeserializeOwned + Debug,
+        QReq: Decode + Debug,
+        QResp: Encode + Debug,
         Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
     {
         contract: Con,
@@ -261,8 +171,8 @@ mod support {
         Event: Decode + BindTopic + Debug,
         EventWrp: Decode + BindTopic + Debug,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
-        QReq: Serialize + DeserializeOwned + Debug,
-        QResp: Serialize + DeserializeOwned + Debug,
+        QReq: Decode + Debug,
+        QResp: Encode + Debug,
         Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
         PushCommand<Cmd>: Decode + BindTopic + Debug,
     {
@@ -292,8 +202,8 @@ mod support {
         Event: Decode + BindTopic + Debug + Send + Sync,
         EventWrp: Decode + BindTopic + Debug + Send + Sync,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event> + Send + Sync,
-        QReq: Serialize + DeserializeOwned + Debug,
-        QResp: Serialize + DeserializeOwned + Debug,
+        QReq: Decode + Debug,
+        QResp: Encode + Debug,
         Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
         PushCommand<Cmd>: Decode + BindTopic + Debug,
     {
@@ -306,15 +216,8 @@ mod support {
             origin: Option<&runtime::AccountId>,
             req: OpaqueQuery,
         ) -> Result<OpaqueReply, OpaqueError> {
-            serde_json::to_value(
-                self.contract.handle_query(
-                    origin,
-                    deopaque_query(req)
-                        .map_err(|_| error_msg("Malformed request"))?
-                        .request,
-                ),
-            )
-            .map_err(|_| error_msg("serde_json serilize failed"))
+            let response = self.contract.handle_query(origin, deopaque_query(req)?);
+            Ok(response.encode())
         }
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {

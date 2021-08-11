@@ -1,11 +1,11 @@
 use crate::std::collections::BTreeMap;
-use crate::std::string::String;
+use crate::std::string::{String, ToString};
 
 use anyhow::Result;
-use core::{fmt, str};
+use core::fmt;
 use log::info;
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Encode, Decode};
 
 use crate::contracts;
 use crate::contracts::{AccountIdWrapper, NativeContext};
@@ -22,7 +22,7 @@ pub struct Balances {
     accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -37,23 +37,21 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     FreeBalance { account: AccountIdWrapper },
     TotalIssuance,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     FreeBalance {
-        #[serde(with = "super::serde_balance")]
         balance: chain::Balance,
     },
     TotalIssuance {
-        #[serde(with = "super::serde_balance")]
         total_issuance: chain::Balance,
     },
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
 impl Balances {
@@ -173,7 +171,7 @@ impl contracts::NativeContract for Balances {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }
