@@ -327,10 +327,11 @@ where
                     // case5: Unresponsive, successful heartbeat.
                 } else {
                     // case2: Idle, successful heartbeat, report to pallet
-                    let payout = worker_info.tokenomic.update_v_heartbeat(
+                    let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.state.tokenomic_params,
                         self.sum_share,
                         self.block.now_ms,
+                        self.block.block_number,
                     );
 
                     // NOTE: keep the reporting order (vs the one while mining stop).
@@ -338,6 +339,7 @@ where
                         pubkey: worker_pubkey.clone(),
                         v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
+                        treasury: treasury.to_bits(),
                     })
                 }
             }
@@ -397,6 +399,7 @@ where
                                 v,
                                 v_last: v,
                                 v_update_at: self.block.now_ms,
+                                v_update_block: self.block.block_number,
                                 iteration_last: 0,
                                 challenge_time_last: self.block.now_ms,
                                 p_bench: FixedPoint::from_num(*init_p),
@@ -420,6 +423,7 @@ where
                                 pubkey: worker.state.pubkey.clone(),
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
+                                treasury: 0,
                             })
                         }
                         WorkerEvent::MiningEnterUnresponsive => {}
@@ -483,12 +487,9 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 
 mod tokenomic {
     pub use fixed::types::U64F64 as FixedPoint;
+    use fixed_macro::types::U64F64 as fp;
     use fixed_sqrt::FixedSqrt as _;
     use phala_types::messaging::TokenomicParameters;
-
-    pub fn fp(n: u64) -> FixedPoint {
-        FixedPoint::from_num(n)
-    }
 
     fn square(v: FixedPoint) -> FixedPoint {
         v * v
@@ -496,10 +497,10 @@ mod tokenomic {
 
     fn conf_score(level: u8) -> FixedPoint {
         match level {
-            1 | 2 | 3 | 128 => fp(1),
-            4 => fp(8) / 10,
-            5 => fp(7) / 10,
-            _ => fp(0),
+            1 | 2 | 3 | 128 => fp!(1),
+            4 => fp!(0.8),
+            5 => fp!(0.7),
+            _ => fp!(0),
         }
     }
 
@@ -508,6 +509,7 @@ mod tokenomic {
         pub v: FixedPoint,
         pub v_last: FixedPoint,
         pub v_update_at: u64,
+        pub v_update_block: u32,
         pub iteration_last: u64,
         pub challenge_time_last: u64,
         pub p_bench: FixedPoint,
@@ -517,26 +519,30 @@ mod tokenomic {
 
     #[derive(Debug)]
     pub struct Params {
-        pha_rate: FixedPoint,
         rho: FixedPoint,
         slash_rate: FixedPoint,
-        budget_per_sec: FixedPoint,
+        budget_per_block: FixedPoint,
         v_max: FixedPoint,
         cost_k: FixedPoint,
         cost_b: FixedPoint,
+        treasury_ration: FixedPoint,
+        payout_ration: FixedPoint,
         pub heartbeat_window: u32,
     }
 
     impl From<TokenomicParameters> for Params {
         fn from(params: TokenomicParameters) -> Self {
+            let treasury_ration = FixedPoint::from_bits(params.treasury_ratio);
+            let payout_ration = fp!(1) - treasury_ration;
             Params {
-                pha_rate: FixedPoint::from_bits(params.pha_rate),
                 rho: FixedPoint::from_bits(params.rho),
                 slash_rate: FixedPoint::from_bits(params.slash_rate),
-                budget_per_sec: FixedPoint::from_bits(params.budget_per_sec),
+                budget_per_block: FixedPoint::from_bits(params.budget_per_block),
                 v_max: FixedPoint::from_bits(params.v_max),
                 cost_k: FixedPoint::from_bits(params.cost_k),
                 cost_b: FixedPoint::from_bits(params.cost_b),
+                treasury_ration,
+                payout_ration,
                 heartbeat_window: params.heartbeat_window,
             }
         }
@@ -544,28 +550,28 @@ mod tokenomic {
 
     pub fn test_params() -> Params {
         Params {
-            pha_rate: fp(1),
-            rho: fp(100000099985) / 100000000000, // hourly: 1.00020, 1.0002 ** (1/300)
-            slash_rate: fp(1) / 1000 / 300,       // hourly rate: 0.001, convert to per-block rate
-            budget_per_sec: fp(1000),
-            v_max: fp(30000),
-            cost_k: fp(287) / 10000 / 300, // 0.0287
-            cost_b: fp(15) / 300,
-            heartbeat_window: 10, // 10 blocks
+            rho: fp!(1.000000666600231),
+            slash_rate: fp!(0.0000033333333333333240063),
+            budget_per_block: fp!(100),
+            v_max: fp!(30000),
+            cost_k: fp!(0.000000015815258751856933056),
+            cost_b: fp!(0.000033711472602739674283),
+            treasury_ration: fp!(0.2),
+            payout_ration: fp!(0.8),
+            heartbeat_window: 10,
         }
     }
 
     impl TokenomicInfo {
         /// case1: Idle, no event
         pub fn update_v_idle(&mut self, params: &Params) {
-            let cost_idle =
-                (params.cost_k * self.p_bench + params.cost_b) / params.pha_rate / fp(365);
-            let perf_multiplier = if self.p_bench == fp(0) {
-                fp(1)
+            let cost_idle = params.cost_k * self.p_bench + params.cost_b;
+            let perf_multiplier = if self.p_bench == fp!(0) {
+                fp!(1)
             } else {
                 self.p_instant / self.p_bench
             };
-            let v = self.v + perf_multiplier * ((params.rho - fp(1)) * self.v + cost_idle);
+            let v = self.v + perf_multiplier * ((params.rho - fp!(1)) * self.v + cost_idle);
             self.v = v.min(params.v_max);
         }
 
@@ -576,25 +582,33 @@ mod tokenomic {
             params: &Params,
             sum_share: FixedPoint,
             now_ms: u64,
-        ) -> FixedPoint {
-            if sum_share == fp(0) {
-                return fp(0);
+            block_number: u32,
+        ) -> (FixedPoint, FixedPoint) {
+            const NO_UPDATE: (FixedPoint, FixedPoint) = (fp!(0), fp!(0));
+            if sum_share == fp!(0) {
+                return NO_UPDATE;
             }
             if self.v < self.v_last {
-                return fp(0);
+                return NO_UPDATE;
             }
-            if now_ms <= self.v_update_at {
+            if block_number <= self.v_update_block {
                 // May receive more than one heartbeat for a single worker in a single block.
-                return fp(0);
+                return NO_UPDATE;
             }
             let dv = self.v - self.v_last;
-            let dt = fp(now_ms - self.v_update_at) / 1000;
-            let budget = params.budget_per_sec * dt;
-            let w = dv.max(fp(0)).min(self.share() / sum_share * budget);
-            self.v -= w;
+            let blocks = FixedPoint::from_num(block_number - self.v_update_block);
+            let budget = self.share() / sum_share * params.budget_per_block * blocks;
+            let to_payout = budget * params.payout_ration;
+            let to_treasury = budget * params.treasury_ration;
+
+            let actual_payout = dv.max(fp!(0)).min(to_payout); // w
+            let actual_treasury = (actual_payout / to_payout) * to_treasury;
+
+            self.v -= actual_payout;
             self.v_last = self.v;
             self.v_update_at = now_ms;
-            w
+            self.v_update_block = block_number;
+            (actual_payout, actual_treasury)
         }
 
         pub fn update_v_slash(&mut self, params: &Params) {
@@ -602,7 +616,7 @@ mod tokenomic {
         }
 
         pub fn share(&self) -> FixedPoint {
-            (square(self.v) + square(fp(2) * self.p_instant * conf_score(self.confidence_level)))
+            (square(self.v) + square(fp!(2) * self.p_instant * conf_score(self.confidence_level)))
                 .sqrt()
         }
 
@@ -610,9 +624,9 @@ mod tokenomic {
             if now <= self.challenge_time_last {
                 return;
             }
-            let dt = fp(now - self.challenge_time_last) / 1000;
-            let p = fp(iterations - self.iteration_last) / dt * 6; // 6s iterations
-            self.p_instant = p.min(self.p_bench * fp(12) / fp(10));
+            let dt = FixedPoint::from_num(now - self.challenge_time_last) / 1000;
+            let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
+            self.p_instant = p.min(self.p_bench * fp!(1.2));
         }
     }
 }
@@ -639,8 +653,9 @@ mod msg_trait {
 
 #[cfg(feature = "tests")]
 pub mod tests {
-    use super::{msg_trait::MessageChannel, tokenomic::fp, BlockInfo, Gatekeeper};
+    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, Gatekeeper};
     use crate::std::{cell::RefCell, vec::Vec};
+    use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
     use phala_types::{messaging as msg, WorkerPublicKey};
@@ -804,7 +819,7 @@ pub mod tests {
     }
 
     fn block_ts(block_number: chain::BlockNumber) -> u64 {
-        block_number as u64 * 6000
+        block_number as u64 * 12000
     }
 
     pub fn run_all_tests() {
@@ -815,7 +830,7 @@ pub mod tests {
         gk_should_slash_and_report_offline_workers_case3();
         gk_should_slash_offline_workers_sliently_case4();
         gk_should_report_recovered_workers_case5();
-        show_v_computing();
+        check_tokenomic_numerics();
     }
 
     fn gk_should_be_able_to_observe_worker_states() {
@@ -838,7 +853,7 @@ pub mod tests {
             worker1.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
-                init_p: 1,
+                init_p: 100,
             });
             r.gk.process_messages(block);
         });
@@ -870,7 +885,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
-                init_p: 1,
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -892,7 +907,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 2,
                 init_v: 1,
-                init_p: 1,
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -963,8 +978,8 @@ pub mod tests {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(1).to_bits(),
-                init_p: 1,
+                init_v: fp!(1).to_bits(),
+                init_p: 100,
             });
             r.gk.process_messages(block);
         });
@@ -1027,8 +1042,8 @@ pub mod tests {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(1).to_bits(),
-                init_p: 1,
+                init_v: fp!(1).to_bits(),
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1080,8 +1095,8 @@ pub mod tests {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(1).to_bits(),
-                init_p: 1,
+                init_v: fp!(1).to_bits(),
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1160,8 +1175,8 @@ pub mod tests {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(1).to_bits(),
-                init_p: 1,
+                init_v: fp!(1).to_bits(),
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1232,8 +1247,8 @@ pub mod tests {
             let mut worker0 = r.for_worker(0);
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(1).to_bits(),
-                init_p: 1,
+                init_v: fp!(1).to_bits(),
+                init_p: 100,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1282,7 +1297,7 @@ pub mod tests {
         }
     }
 
-    fn show_v_computing() {
+    fn check_tokenomic_numerics() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
 
@@ -1302,46 +1317,67 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
-                init_v: fp(3000).to_bits(),
-                init_p: 1,
+                init_v: fp!(3000).to_bits(),
+                init_p: 100,
             });
             r.gk.process_messages(block);
         });
+        assert!(r.get_worker(0).state.mining_state.is_some());
+        assert_eq!(r.get_worker(0).tokenomic.p_bench, fp!(100));
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(3000.00203509369147797934));
 
-        info!("init v = {}", r.get_worker(0).tokenomic.v);
-
-        // Reward
+        // V increment for one day
         for _ in 0..3600 * 24 / 12 {
             block_number += 1;
             with_block(block_number, |block| {
                 r.gk.process_messages(block);
             });
         }
-        info!("mined v = {}", r.get_worker(0).tokenomic.v);
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(3014.6899337932040476463));
 
-        // Pay out
+        // Payout
         block_number += 1;
         r.for_worker(0).challenge();
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
-
-        r.for_worker(0).heartbeat(1, block_number, 100000);
+        // Check heartbeat updates
+        assert_eq!(r.get_worker(0).tokenomic.challenge_time_last, 24000);
+        assert_eq!(r.get_worker(0).tokenomic.iteration_last, 0);
+        r.for_worker(0)
+            .heartbeat(1, block_number, (110 * 7200 * 12 / 6) as u64);
         block_number += 1;
         with_block(block_number, |block| {
             r.gk.process_messages(block);
         });
-        info!("after payed out v = {}", r.get_worker(0).tokenomic.v);
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(3000));
+        assert_eq!(
+            r.get_worker(0).tokenomic.p_instant,
+            fp!(109.96945292974173840575)
+        );
+        // Payout settlement has correct treasury split
+        let report = r.gk.egress.drain_mining_info_update_event();
+        assert_eq!(
+            FixedPoint::from_bits(report[0].settle[0].payout),
+            fp!(14.69197867920878555043)
+        );
+        assert_eq!(
+            FixedPoint::from_bits(report[0].settle[0].treasury),
+            fp!(3.6729946698021946595)
+        );
 
-        // Slash
+        // Slash 0.1% (1hr + 10 blocks challenge window)
+        let _ = r.gk.egress.drain_mining_info_update_event();
         r.for_worker(0).challenge();
-
-        for _ in 0..3600 * 24 / 12 {
+        for _ in 0..=3600 / 12 + 10 {
             block_number += 1;
             with_block(block_number, |block| {
                 r.gk.process_messages(block);
             });
         }
-        info!("slashed v = {}", r.get_worker(0).tokenomic.v);
+        assert!(r.get_worker(0).unresponsive);
+        let report = r.gk.egress.drain_mining_info_update_event();
+        assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
     }
 }

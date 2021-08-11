@@ -5,10 +5,11 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::KeepAlive, Randomness, UnixTime},
+		traits::{Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, UnixTime},
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
@@ -171,6 +172,8 @@ pub mod pallet {
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
 		type OnStopped: OnStopped<BalanceOf<Self>>;
+		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
+		// Let the StakePool to take over the slash events.
 	}
 
 	#[pallet::pallet]
@@ -227,28 +230,26 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [period]
+		/// Cool down expiration changed. \[period\]
 		CoolDownExpirationChanged(u64),
-		/// [miner]
+		/// Miner starts mining. \[miner\]
 		MinerStarted(T::AccountId),
-		/// [miner]
+		/// Miner stops mining. \[miner\]
 		MinerStopped(T::AccountId),
-		/// [miner, original_stake, slashed]
+		/// Miner is reclaimed, with its slash settled. \[miner, original_stake, slashed\]
 		MinerReclaimed(T::AccountId, BalanceOf<T>, BalanceOf<T>),
-		/// [miner, worker]
+		/// Miner & worker are bound. \[miner, worker\]
 		MinerBound(T::AccountId, WorkerPublicKey),
-		/// [miner, worker]
+		/// Miner & worker are unbound. \[miner, worker\]
 		MinerUnbound(T::AccountId, WorkerPublicKey),
-		/// [miner]
+		/// Miner enters unresponsive state. \[miner\]
 		MinerEnterUnresponsive(T::AccountId),
-		/// [miner]
+		/// Miner returns to responsive state \[miner\]
 		MinerExitUnresponive(T::AccountId),
-		/// [miner, v, payout]
+		/// Miner settled successfully. \[miner, v, payout\]
 		MinerSettled(T::AccountId, u128, u128),
-		/// [miner, amount]
-		_MinerStaked(T::AccountId, BalanceOf<T>),
-		/// [miner, amount]
-		_MinerWithdrew(T::AccountId, BalanceOf<T>),
+		/// Some internal error happened when settling a miner's ledger. \[worker\]
+		InternalErrorMinerSettleFailed(WorkerPublicKey),
 	}
 
 	#[pallet::error]
@@ -271,6 +272,10 @@ pub mod pallet {
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
+		<T as frame_system::Config>::AccountId,
+	>>::NegativeImbalance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -475,21 +480,39 @@ pub mod pallet {
 				}
 
 				for info in &event.settle {
-					if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
-						debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
-						miner_info.v = info.v; // in bits
-						miner_info.v_updated_at = now;
-						miner_info.stats.on_reward(info.payout);
-						Miners::<T>::insert(&account, &miner_info);
-						Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
-					}
+					// Do not crash here
+					match Self::try_handle_settle(info, now) {
+						Err(_) => Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
+							info.pubkey,
+						)),
+						_ => (),
+					};
 				}
 
 				T::OnReward::on_reward(&event.settle);
 			}
 
+			Ok(())
+		}
+
+		/// Tries to handle settlement of a miner.
+		///
+		/// We really don't want to crash the interrupt the message processing. So when there's an
+		/// error we return it, and let the caller to handle it gracefully.
+		fn try_handle_settle(info: &SettleInfo, now: u64) -> DispatchResult {
+			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
+				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+				debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
+				miner_info.v = info.v; // in bits
+				miner_info.v_updated_at = now;
+				miner_info.stats.on_reward(info.payout);
+				Miners::<T>::insert(&account, &miner_info);
+				// Handle treasury deposit
+				let treasury_deposit = FixedPointConvert::from_bits(info.treasury);
+				let imbalance = Self::withdraw_imbalance_from_subsidy_pool(treasury_deposit)?;
+				T::OnTreasurySettled::on_unbalanced(imbalance);
+				Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
+			}
 			Ok(())
 		}
 
@@ -685,6 +708,18 @@ pub mod pallet {
 			T::Currency::transfer(&wallet, &target, value, KeepAlive)
 		}
 
+		pub fn withdraw_imbalance_from_subsidy_pool(
+			value: BalanceOf<T>,
+		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
+			let wallet = Self::account_id();
+			T::Currency::withdraw(
+				&wallet,
+				value,
+				WithdrawReasons::TRANSFER,
+				frame_support::traits::ExistenceRequirement::AllowDeath,
+			)
+		}
+
 		fn tokenomic() -> Tokenomic<T> {
 			let params =
 				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
@@ -798,6 +833,7 @@ pub mod pallet {
 			let v_max = fp!(30000);
 			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
 			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
+			let treasury_ratio = fp!(0.2);
 			let heartbeat_window = 10; // 10 blocks
 			let rig_k = fp!(0.3) / pha_rate;
 			let rig_b = fp!(0) / pha_rate;
@@ -815,6 +851,7 @@ pub mod pallet {
 					cost_k: cost_k.to_bits(),
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
+					treasury_ratio: treasury_ratio.to_bits(),
 					heartbeat_window: 10,
 					rig_k: rig_k.to_bits(),
 					rig_b: rig_b.to_bits(),
