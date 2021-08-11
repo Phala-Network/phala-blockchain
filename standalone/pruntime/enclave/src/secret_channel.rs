@@ -37,7 +37,7 @@ mod sender {
             to: impl Into<Path>,
             remote_pubkey: &ecdh::EcdhPublicKey,
         ) {
-            let mut data = message.encode();
+            let data = message.encode();
             let iv = crate::generate_random_iv();
             let payload = EncryptedData::encrypt(self.key, &remote_pubkey, iv, &data)
                 .expect("Encrypt message failed?");
@@ -49,17 +49,16 @@ mod sender {
             message: &M,
             remote_pubkey: &ecdh::EcdhPublicKey,
         ) {
-            self.sendto(message, <M as BindTopic>::TOPIC, remote_pubkey)
+            self.sendto(message, <M as BindTopic>::topic(), remote_pubkey)
         }
     }
 }
 
 mod receiver {
-    use crate::std::string::ToString;
     use core::marker::PhantomData;
     use enclave_api::crypto::{ecdh, EncryptedData};
     use parity_scale_codec::Decode;
-    use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
+    use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
 
     pub trait Peeler {
         type Wrp;

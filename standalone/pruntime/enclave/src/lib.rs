@@ -68,7 +68,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue, ContractId};
+use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::WorkerRegistrationInfo;
 
@@ -77,9 +77,9 @@ mod cert;
 mod contracts;
 mod cryptography;
 mod light_validation;
-mod secret_channel;
 mod prpc_service;
 mod rpc_types;
+mod secret_channel;
 mod storage;
 mod system;
 mod types;
@@ -1087,13 +1087,11 @@ fn handle_inbound_messages(
                 }
             }};
         }
-        match &message.destination.path()[..] {
-            SystemEvent::TOPIC => {
-                log_message!(message, SystemEvent);
-            }
-            _ => {
-                info!("mq dispatching message: {:?}", message);
-            }
+        // TODO.kevin: reuse codes in debug-cli
+        if message.destination.path() == &SystemEvent::topic() {
+            log_message!(message, SystemEvent);
+        } else {
+            info!("mq dispatching message: {:?}", message);
         }
         state.recv_mq.dispatch(message);
     }

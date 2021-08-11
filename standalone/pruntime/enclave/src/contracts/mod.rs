@@ -1,4 +1,3 @@
-use crate::error_msg;
 use crate::secret_channel::{
     storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMq,
 };
@@ -12,7 +11,7 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use core::str;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BindTopic, MessageOrigin, Sr25519MessageChannel as MessageChannel};
+use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
 use phala_types::messaging::PushCommand;
 
 use sp_core::H256;
@@ -27,15 +26,7 @@ pub mod substrate_kitties;
 pub mod web3analytics;
 pub mod woothee;
 
-pub type ContractId = u32;
-pub const SYSTEM: ContractId = 0;
-pub const DATA_PLAZA: ContractId = 1;
-pub const BALANCES: ContractId = 2;
-pub const ASSETS: ContractId = 3;
-pub const WEB3_ANALYTICS: ContractId = 4;
-pub const DIEM: ContractId = 5;
-pub const SUBSTRATE_KITTIES: ContractId = 6;
-pub const BTC_LOTTERY: ContractId = 7;
+pub use phala_types::contract::*;
 
 pub fn account_id_from_hex(accid_hex: &String) -> Result<chain::AccountId> {
     use core::convert::TryFrom;
@@ -105,12 +96,12 @@ mod support {
     }
 
     pub trait NativeContract {
-        type Cmd: Decode + BindTopic + Debug;
-        type Event: Decode + BindTopic + Debug;
+        type Cmd: Decode + Debug;
+        type Event: Decode + Debug;
         type QReq: Decode + Debug;
         type QResp: Encode + Debug;
 
-        fn id(&self) -> ContractId;
+        fn id(&self) -> ContractId32;
         fn handle_command(
             &mut self,
             _context: &NativeContext,
@@ -145,11 +136,11 @@ mod support {
         QResp,
     >
     where
-        Cmd: Decode + BindTopic + Debug,
-        CmdWrp: Decode + BindTopic + Debug,
+        Cmd: Decode + Debug,
+        CmdWrp: Decode + Debug,
         CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
-        Event: Decode + BindTopic + Debug,
-        EventWrp: Decode + BindTopic + Debug,
+        Event: Decode + Debug,
+        EventWrp: Decode + Debug,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
@@ -165,16 +156,16 @@ mod support {
     impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
         NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
     where
-        Cmd: Decode + BindTopic + Debug,
-        CmdWrp: Decode + BindTopic + Debug,
+        Cmd: Decode + Debug,
+        CmdWrp: Decode + Debug,
         CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
-        Event: Decode + BindTopic + Debug,
-        EventWrp: Decode + BindTopic + Debug,
+        Event: Decode + Debug,
+        EventWrp: Decode + Debug,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
         Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
-        PushCommand<Cmd>: Decode + BindTopic + Debug,
+        PushCommand<Cmd>: Decode + Debug,
     {
         pub fn new(
             contract: Con,
@@ -196,19 +187,19 @@ mod support {
     impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp> Contract
         for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
     where
-        Cmd: Decode + BindTopic + Debug + Send + Sync,
-        CmdWrp: Decode + BindTopic + Debug + Send + Sync,
+        Cmd: Decode + Debug + Send + Sync,
+        CmdWrp: Decode + Debug + Send + Sync,
         CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>> + Send + Sync,
-        Event: Decode + BindTopic + Debug + Send + Sync,
-        EventWrp: Decode + BindTopic + Debug + Send + Sync,
+        Event: Decode + Debug + Send + Sync,
+        EventWrp: Decode + Debug + Send + Sync,
         EventPlr: Peeler<Wrp = EventWrp, Msg = Event> + Send + Sync,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
         Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
-        PushCommand<Cmd>: Decode + BindTopic + Debug,
+        PushCommand<Cmd>: Decode + Debug,
     {
         fn id(&self) -> ContractId {
-            self.contract.id()
+            id256(self.contract.id())
         }
 
         fn handle_query(

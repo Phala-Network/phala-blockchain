@@ -6,7 +6,7 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
+	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage, Path};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
 
@@ -109,13 +109,17 @@ pub mod pallet {
 			}
 		}
 
-		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
-			let message = Message::new(sender, M::TOPIC, payload.encode());
+		pub fn push_message_to<M: Encode>(topic: impl Into<Path>, sender: MessageOrigin, payload: M) {
+			let message = Message::new(sender, topic, payload.encode());
 			Self::dispatch_message(message);
 		}
 
+		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+			Self::push_message_to(M::topic(), sender, payload)
+		}
+
 		pub fn queue_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
-			let message = Message::new(sender, M::TOPIC, payload.encode());
+			let message = Message::new(sender, M::topic(), payload.encode());
 			QueuedOutboundMessage::<T>::append(message);
 		}
 	}
@@ -193,6 +197,10 @@ pub mod pallet {
 
 		fn push_message(payload: impl Encode + BindTopic) {
 			Pallet::<Self::Config>::push_bound_message(Self::message_origin(), payload);
+		}
+
+		fn push_message_to(topic: impl Into<Path>, payload: impl Encode) {
+			Pallet::<Self::Config>::push_message_to(topic, Self::message_origin(), payload);
 		}
 
 		/// Enqueues a message to push in the beginning of the next block

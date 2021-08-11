@@ -180,10 +180,6 @@ impl<T: Config> Module<T> {
 
 		Ok(())
 	}
-
-	fn push_message(message: impl Encode + BindTopic) {
-		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), message)
-	}
 }
 
 impl<T: Config> Module<T> {

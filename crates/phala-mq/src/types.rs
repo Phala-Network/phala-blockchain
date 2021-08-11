@@ -135,23 +135,29 @@ impl From<Topic> for Path {
 
 /// Messages implementing BindTopic can be sent without giving the destination.
 pub trait BindTopic {
-    const TOPIC: &'static [u8];
+    fn topic() -> Path;
 }
 
 impl BindTopic for () {
-    const TOPIC: &'static [u8] = b"";
+    fn topic() -> Path {
+        Vec::new()
+    }
 }
 
 #[macro_export]
 macro_rules! bind_topic {
     ($t: ident, $path: expr) => {
         impl $crate::types::BindTopic for $t {
-            const TOPIC: &'static [u8] = $path;
+            fn topic() -> Vec<u8> {
+                $path.to_vec()
+            }
         }
     };
     ($t: ident<$($gt: ident),+>, $path: expr) => {
         impl<$($gt),+> $crate::types::BindTopic for $t<$($gt),+> {
-            const TOPIC: &'static [u8] = $path;
+            fn topic() -> Vec<u8> {
+                $path.to_vec()
+            }
         }
     }
 }

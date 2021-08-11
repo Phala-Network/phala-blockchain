@@ -5958,8 +5958,10 @@ dependencies = [
 name = "phala-types"
 version = "0.3.0"
 dependencies = [
+ "hex",
  "parity-scale-codec",
  "phala-mq",
+ "prpc",
  "serde 1.0.127",
  "sp-core",
  "sp-runtime",

@@ -14,9 +14,10 @@ use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
 };
+use parity_scale_codec::{Decode, Encode};
 use phala_mq::{
-    MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError,
-    TypedReceiver,
+    ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
+    TypedReceiveError, TypedReceiver,
 };
 use phala_types::{
     messaging::{
@@ -26,7 +27,6 @@ use phala_types::{
     MasterPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-use parity_scale_codec::{Encode, Decode};
 
 pub type CommandIndex = u64;
 
@@ -68,7 +68,7 @@ pub enum TransactionStatus {
 pub struct TransactionReceipt {
     pub account: MessageOrigin,
     pub block_num: chain::BlockNumber,
-    pub contract_id: u32,
+    pub contract_id: ContractId,
     pub status: TransactionStatus,
 }
 
@@ -696,9 +696,7 @@ pub enum Request {
 
 #[derive(Encode, Decode, Debug)]
 pub enum Response {
-    QueryReceipt {
-        receipt: TransactionReceipt,
-    },
+    QueryReceipt { receipt: TransactionReceipt },
     Error(String),
 }
 
