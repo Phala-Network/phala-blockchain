@@ -708,14 +708,6 @@ pub mod tests {
         }
 
         fn set_dummy(&self, _dummy: bool) {}
-
-        fn create(
-            send_mq: &phala_mq::MessageSendQueue,
-            sender: phala_mq::SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self {
-            panic!("We don't need this")
-        }
     }
 
     struct Roles {
@@ -801,10 +793,12 @@ pub mod tests {
     fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
         // GK never use the storage ATM.
         let storage = crate::Storage::default();
+        let mut mq = phala_mq::MessageDispatcher::new();
         let block = BlockInfo {
             block_number,
             now_ms: block_ts(block_number),
             storage: &storage,
+            recv_mq: &mut mq,
         };
         call(&block);
     }
@@ -844,6 +838,7 @@ pub mod tests {
             worker1.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });
@@ -875,6 +870,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -896,6 +892,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 2,
                 init_v: 1,
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -967,6 +964,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });
@@ -1030,6 +1028,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1082,6 +1081,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1161,6 +1161,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1232,6 +1233,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1301,6 +1303,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(3000).to_bits(),
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });
