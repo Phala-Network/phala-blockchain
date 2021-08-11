@@ -1116,13 +1116,12 @@ fn handle_inbound_messages(
         state.recv_mq.dispatch(message);
     }
 
-    let guard = scopeguard::guard(&mut state.recv_mq, |mq| {
+    let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
         let n_unhandled = mq.clear();
         if n_unhandled > 0 {
             warn!("There are {} unhandled messages dropped", n_unhandled);
         }
     });
-    drop(guard);
 
     let now_ms = state
         .chain_storage
@@ -1130,7 +1129,7 @@ fn handle_inbound_messages(
         .ok_or(error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
-    let recv_mq = &mut state.recv_mq;
+    let recv_mq = &mut *guard;
     let mut block = BlockInfo {
         block_number,
         now_ms,
