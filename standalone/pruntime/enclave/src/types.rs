@@ -2,7 +2,7 @@ use crate::std::fmt::Debug;
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
-use enclave_api::contract::ContractQueryError;
+use phala_types::contract::ContractQueryError;
 use parity_scale_codec::{Decode, Encode};
 
 extern crate runtime as chain;

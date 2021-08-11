@@ -10,7 +10,7 @@ where
     Msg: Decode + BindTopic,
     Func: Fn(DecodedMessage<Msg>) -> DispatchResult,
 {
-    if message.destination.path() == Msg::TOPIC {
+    if message.destination.path() == &Msg::topic() {
         let msg: DecodedMessage<Msg> = message
             .decode()
             .ok_or(DispatchError::Other("MessageCodecError"))?;

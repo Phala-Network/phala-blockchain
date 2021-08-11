@@ -118,7 +118,7 @@ impl contracts::NativeContract for Assets {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::ASSETS
     }
 

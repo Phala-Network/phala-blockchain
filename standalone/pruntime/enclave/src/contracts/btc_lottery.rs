@@ -324,7 +324,7 @@ impl contracts::NativeContract for BtcLottery {
     type QResp = Response;
 
     // Returns the contract id
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::BTC_LOTTERY
     }
 

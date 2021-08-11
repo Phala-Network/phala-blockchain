@@ -69,7 +69,7 @@ impl contracts::NativeContract for Balances {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::BALANCES
     }
 

@@ -2,7 +2,6 @@
 extern crate alloc;
 
 pub mod crypto;
-pub mod contract;
 
 mod proto_generated;
 

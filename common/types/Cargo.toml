@@ -5,6 +5,7 @@ authors = ["h4x3rotab <h4x3rotab@gmail.com>"]
 edition = "2018"
 
 [dependencies]
+hex = { version = "0.4", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["full"] }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
@@ -12,6 +13,7 @@ sp-runtime = { default-features = false, path = "../../substrate/primitives/runt
 
 trie-storage = { path = "../../crates/trie-storage", default-features = false, optional = true  }
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
+prpc = { path = "../../crates/prpc", default-features = false }
 
 [features]
 default = ["std", "pruntime", "enable_serde"]

@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+pub mod contract;
+
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::convert::{TryFrom, TryInto};
@@ -30,7 +32,9 @@ pub mod messaging {
     }
 
     impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
-        const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
+        fn topic() -> Path {
+            <Cmd as BindTopic>::topic()
+        }
     }
 
     // TODO.kevin:
@@ -51,7 +55,6 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(LotteryCommand, b"phala/lottery/command");
     #[derive(Encode, Decode, Debug)]
     pub enum LotteryCommand {
         SubmitUtxo {
@@ -68,13 +71,11 @@ pub mod messaging {
 
     // Messages for Balances
 
-    bind_topic!(BalanceEvent<AccountId, Balance>, b"phala/balances/event");
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum BalanceEvent<AccountId, Balance> {
         TransferToTee(AccountId, Balance),
     }
 
-    bind_topic!(BalanceCommand<AccountId, Balance>, b"phala/balances/command");
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum BalanceCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
@@ -90,7 +91,6 @@ pub mod messaging {
 
     // Messages for Assets
 
-    bind_topic!(AssetCommand<AccountId, Balance>, b"phala/assets/command");
     #[derive(Encode, Decode, Debug)]
     pub enum AssetCommand<AccountId, Balance> {
         Issue {
@@ -111,7 +111,6 @@ pub mod messaging {
 
     // Messages for Web3Analytics
 
-    bind_topic!(Web3AnalyticsCommand, b"phala/web3analytics/command");
     #[derive(Encode, Decode, Debug)]
     pub enum Web3AnalyticsCommand {
         SetConfiguration { skip_stat: bool },
@@ -119,7 +118,6 @@ pub mod messaging {
 
     // Messages for diem
 
-    bind_topic!(DiemCommand, b"phala/diem/command");
     #[derive(Encode, Decode, Debug)]
     pub enum DiemCommand {
         /// Sets the whitelisted accounts, in bcs encoded base64
@@ -153,10 +151,17 @@ pub mod messaging {
 
     // Messages for Kitties
 
-    bind_topic!(KittyEvent<AccountId, Hash>, b"phala/kitties/event");
+    // TODO.kevin: introduce a new trait `ContractEvent` to constraint Rust codes
     #[derive(Encode, Decode, Debug)]
     pub enum KittyEvent<AccountId, Hash> {
         Created(AccountId, Hash),
+    }
+
+    impl<AccountId, Hash> BindTopic for KittyEvent<AccountId, Hash> {
+        fn topic() -> Path {
+            use crate::contract::{event_topic, SUBSTRATE_KITTIES, id256};
+            event_topic(id256(SUBSTRATE_KITTIES))
+        }
     }
 
     bind_topic!(KittyTransfer<AccountId>, b"^phala/kitties/transfer");

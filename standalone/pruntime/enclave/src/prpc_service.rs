@@ -1,10 +1,10 @@
 use super::*;
-use enclave_api::{blocks, contract, crypto, prpc as pb};
+use enclave_api::{blocks, crypto, prpc as pb};
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use contract::long_id;
+use phala_types::contract;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -393,12 +393,20 @@ pub fn init_runtime(
 
         macro_rules! install_contract {
             ($id: expr, $inner: expr) => {{
+                let contract_id = contract::id256($id);
                 let sender = MessageOrigin::native_contract($id);
                 let mq = send_mq.channel(sender, id_pair.clone());
                 // TODO.kevin: use real contract key
                 let contract_key = local_ecdh_key.clone();
-                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                let cmd_mq = PeelingReceiver::new_secret(
+                    recv_mq
+                        .subscribe(contract::command_topic(contract_id))
+                        .into(),
+                    contract_key,
+                );
+                let evt_mq = PeelingReceiver::new_plain(
+                    recv_mq.subscribe(contract::event_topic(contract_id)).into(),
+                );
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
                     $inner,
                     mq,
@@ -406,7 +414,7 @@ pub fn init_runtime(
                     evt_mq,
                     local_ecdh_key.clone(),
                 ));
-                contracts.insert(long_id($id), wrapped);
+                contracts.insert(contract_id, wrapped);
             }};
         }
 
@@ -584,7 +592,7 @@ fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQu
     // Dispatch
     let ref_origin = accid_origin.as_ref();
 
-    let res = if head.id == long_id(SYSTEM) {
+    let res = if head.id == contract::id256(SYSTEM) {
         let mut guard = SYSTEM_STATE.lock().unwrap();
         let system_state = guard
             .as_mut()
@@ -593,7 +601,9 @@ fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQu
         response.encode()
     } else {
         let mut state = STATE.lock().unwrap();
-        let state = state.as_mut().ok_or_else(|| from_display("Runtime not initialized"))?;
+        let state = state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
         let contract = state
             .contracts
             .get_mut(&head.id)
@@ -605,13 +615,18 @@ fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQu
     // Encode response
     let response = contract::ContractQueryResponse {
         nonce: head.nonce,
-        result: contract::Data(res)
+        result: contract::Data(res),
     };
     let response_data = response.encode();
 
     // Encrypt
-    let encrypted_resp = crypto::EncryptedData::encrypt(&ecdh_key, &encrypted_req.pubkey, crate::generate_random_iv(), &response_data)
-        .map_err(from_debug)?;
+    let encrypted_resp = crypto::EncryptedData::encrypt(
+        &ecdh_key,
+        &encrypted_req.pubkey,
+        crate::generate_random_iv(),
+        &response_data,
+    )
+    .map_err(from_debug)?;
 
     Ok(pb::ContractQueryResponse::new(encrypted_resp))
 }

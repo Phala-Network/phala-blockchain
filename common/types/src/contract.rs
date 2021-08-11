@@ -1,9 +1,19 @@
-pub use crate::prpc::{Signature, SignatureType};
-
 use alloc::string::String;
 use alloc::vec::Vec;
-use parity_scale_codec::{Decode, Encode};
-use phala_mq::ContractId;
+use alloc::format;
+use codec::{Decode, Encode};
+
+pub use phala_mq::ContractId;
+
+pub type ContractId32 = u32;
+pub const SYSTEM: ContractId32 = 0;
+pub const DATA_PLAZA: ContractId32 = 1;
+pub const BALANCES: ContractId32 = 2;
+pub const ASSETS: ContractId32 = 3;
+pub const WEB3_ANALYTICS: ContractId32 = 4;
+pub const DIEM: ContractId32 = 5;
+pub const SUBSTRATE_KITTIES: ContractId32 = 6;
+pub const BTC_LOTTERY: ContractId32 = 7;
 
 /// Contract query request parameters.
 #[derive(Encode, Decode)]
@@ -37,8 +47,7 @@ impl Encode for Data {
     fn size_hint(&self) -> usize {
         self.0.len()
     }
-
-    fn encode_to<T: parity_scale_codec::Output + ?Sized>(&self, dest: &mut T) {
+    fn encode_to<T: codec::Output + ?Sized>(&self, dest: &mut T) {
         dest.write(&self.0)
     }
 }
@@ -62,6 +71,14 @@ impl From<ContractQueryError> for prpc::server::Error {
     }
 }
 
-pub fn long_id(id: u32) -> ContractId {
+pub fn id256(id: u32) -> ContractId {
     ContractId::from_low_u64_be(id as u64)
+}
+
+pub fn command_topic(id: ContractId) -> Vec<u8> {
+    format!("phala/contract/{}/command", hex::encode(&id)).as_bytes().to_vec()
+}
+
+pub fn event_topic(id: ContractId) -> Vec<u8> {
+    format!("phala/contract/{}/event", hex::encode(&id)).as_bytes().to_vec()
 }

@@ -258,7 +258,7 @@ impl contracts::NativeContract for DataPlaza {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::DATA_PLAZA
     }
 

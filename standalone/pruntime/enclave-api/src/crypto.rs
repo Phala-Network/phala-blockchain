@@ -4,7 +4,7 @@ use parity_scale_codec::{Decode, Encode};
 use crate::prpc::{Signature, SignatureType};
 pub use phala_crypto::{aead, ecdh, CryptoError};
 
-#[derive(Clone, Encode, Decode)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct EncryptedData {
     pub iv: aead::IV,
     pub pubkey: ecdh::EcdhPublicKey,
