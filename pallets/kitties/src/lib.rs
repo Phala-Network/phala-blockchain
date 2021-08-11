@@ -10,7 +10,7 @@ use pallet_balances as balances;
 use sp_runtime::{DispatchResult, traits::{AccountIdConversion, Hash, Zero}};
 use sp_std::prelude::*;
 use phala_pallets::pallet_mq::{self, MessageOriginInfo};
-use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, DecodedMessage, MessageOrigin};
+use phala_types::messaging::{KittyEvent, KittyTransfer, DecodedMessage, MessageOrigin};
 
 const PALLET_ID: PalletId = PalletId(*b"Kitty!!!");
 #[derive(Encode, Decode, Default, Debug, Clone, PartialEq)]
