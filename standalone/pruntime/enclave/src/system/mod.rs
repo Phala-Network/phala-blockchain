@@ -569,6 +569,8 @@ impl System {
                 self.egress.send(&master_pubkey);
             }
         } else {
+            // TODO(shelven): move this logic to GK, and send the message on behalf of GK
+
             // dispatch the master key to the newly-registered gatekeeper using master key
             // if this pRuntime is the newly-registered gatekeeper himself,
             // its egress is still in dummy mode since we will tick the state later
