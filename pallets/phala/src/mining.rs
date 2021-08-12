@@ -268,6 +268,7 @@ pub mod pallet {
 		CoolDownNotReady,
 		InsufficientStake,
 		TooMuchStake,
+		InternalErrorBadTokenomicParameters,
 	}
 
 	type BalanceOf<T> =
@@ -618,7 +619,7 @@ pub mod pallet {
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			let tokenomic = Self::tokenomic();
+			let tokenomic = Self::tokenomic()?;
 			let min_stake = tokenomic.minimal_stake(p);
 			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 
@@ -720,10 +721,10 @@ pub mod pallet {
 			)
 		}
 
-		fn tokenomic() -> Tokenomic<T> {
-			let params =
-				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
-			Tokenomic::<T>::new(params)
+		fn tokenomic() -> Result<Tokenomic<T>, Error<T>> {
+			let params = TokenomicParameters::<T>::get()
+				.ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
+			Ok(Tokenomic::<T>::new(params))
 		}
 
 		fn now_sec() -> u64 {
