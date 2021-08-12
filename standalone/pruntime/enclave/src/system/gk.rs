@@ -1379,5 +1379,7 @@ pub mod tests {
         let report = r.gk.egress.drain_mining_info_update_event();
         assert_eq!(report[0].offline, vec![r.workers[0].clone()]);
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
+
+        // TODO(hangyin): also check miner reconnection and V recovery
     }
 }
