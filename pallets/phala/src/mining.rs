@@ -9,7 +9,10 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, UnixTime},
+		traits::{
+			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
+			UnixTime,
+		},
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
@@ -59,13 +62,14 @@ pub mod pallet {
 			// we still have to make sure the slashed V is periodically updated on the blockchain.
 			matches!(
 				self,
-				MinerState::MiningIdle
-				| MinerState::MiningActive
-				| MinerState::MiningUnresponsive
+				MinerState::MiningIdle | MinerState::MiningActive | MinerState::MiningUnresponsive
 			)
 		}
 		fn is_mining(&self) -> bool {
-			matches!(self, MinerState::MiningIdle | MinerState::MiningUnresponsive)
+			matches!(
+				self,
+				MinerState::MiningIdle | MinerState::MiningUnresponsive
+			)
 		}
 	}
 
@@ -187,8 +191,11 @@ pub mod pallet {
 		// Let the StakePool to take over the slash events.
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// Tokenomic parameters used by Gatekeepers to compute the V promote.
@@ -398,9 +405,21 @@ pub mod pallet {
 		fn on_finalize(_n: T::BlockNumber) {
 			Self::heartbeat_challenge();
 		}
+
+		fn on_runtime_upgrade() -> Weight {
+			let mut w = 0;
+			let old = Self::on_chain_storage_version();
+			w += T::DbWeight::get().reads(1);
+
+			if old == 0 {
+				w += migrations::initialize::<T>();
+				STORAGE_VERSION.put::<super::Pallet<T>>();
+				w += T::DbWeight::get().writes(1);
+			}
+			w
+		}
 	}
 
-	// - Properly handle heartbeat message.
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert,
@@ -891,6 +910,56 @@ pub mod pallet {
 			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
 			));
+		}
+	}
+
+	mod migrations {
+		use super::{Config, CoolDownPeriod, TokenomicParameters};
+		use fixed_macro::types::U64F64 as fp;
+		use frame_support::pallet_prelude::*;
+
+		use phala_types::messaging::TokenomicParameters as TokenomicParams;
+
+		pub fn initialize<T: Config>() -> Weight {
+			log::info!("phala_pallet::mining: initialize()");
+			let block_sec = 12;
+			let hour_sec = 3600;
+			let day_sec = 24 * hour_sec;
+			let year_sec = 365 * day_sec;
+			// Initialize with Khala tokenomic parameters
+			let pha_rate = fp!(0.84);
+			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
+			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
+			let budget_per_block = fp!(60000) * block_sec / day_sec;
+			let v_max = fp!(30000);
+			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
+			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
+			let treasury_ratio = fp!(0.2);
+			let heartbeat_window = 10; // 10 blocks
+			let rig_k = fp!(0.3) / pha_rate;
+			let rig_b = fp!(0) / pha_rate;
+			let re = fp!(1.5);
+			let k = fp!(50);
+			let kappa = fp!(1);
+			// Write storage
+			CoolDownPeriod::<T>::put(604800); // 7 days
+			TokenomicParameters::<T>::put(TokenomicParams {
+				pha_rate: pha_rate.to_bits(),
+				rho: rho.to_bits(),
+				budget_per_block: budget_per_block.to_bits(),
+				v_max: v_max.to_bits(),
+				cost_k: cost_k.to_bits(),
+				cost_b: cost_b.to_bits(),
+				slash_rate: slash_rate.to_bits(),
+				treasury_ratio: treasury_ratio.to_bits(),
+				heartbeat_window: 10,
+				rig_k: rig_k.to_bits(),
+				rig_b: rig_b.to_bits(),
+				re: re.to_bits(),
+				k: k.to_bits(),
+				kappa: kappa.to_bits(),
+			});
+			T::DbWeight::get().writes(2)
 		}
 	}
 
