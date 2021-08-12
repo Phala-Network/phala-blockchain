@@ -475,10 +475,7 @@ pub mod pallet {
 	}
 
 	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
-	where
-		T: crate::mq::Config,
-	{
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
 		fn on_runtime_upgrade() -> Weight {
 			let mut w = 0;
 			let old = Self::on_chain_storage_version();
@@ -497,10 +494,7 @@ pub mod pallet {
 		use super::{BenchmarkDuration, Config};
 		use frame_support::pallet_prelude::*;
 
-		pub fn initialize<T>() -> Weight
-		where
-			T: Config + crate::mq::Config,
-		{
+		pub fn initialize<T: Config>() -> Weight {
 			log::info!("phala_pallet::registry: initialize()");
 			BenchmarkDuration::<T>::put(50);
 			T::DbWeight::get().writes(1)
