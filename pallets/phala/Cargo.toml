@@ -22,6 +22,7 @@ sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core"}
 sp-application-crypto = { default-features = false, path = "../../substrate/primitives/application-crypto" }
 frame-benchmarking = { default-features = false, path = "../../substrate/frame/benchmarking", optional = true }
+node-primitives = { version = "2.0.0", default-features = false, path = "../../substrate/bin/node/primitives" }
 log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
@@ -59,6 +60,7 @@ std = [
     "pallet-balances/std",
     "log/std",
 	"phala-types/enable_serde",
+    "node-primitives/std",
 ]
 runtime-benchmarks = [
     "frame-benchmarking"
