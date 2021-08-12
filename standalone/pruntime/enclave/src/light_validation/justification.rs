@@ -155,7 +155,9 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
                 self.round,
                 set_id,
                 &mut buf,
-            ).is_err() {
+            )
+            .is_err()
+            {
                 return Err(anyhow::Error::msg(ClientError::BadJustification(
                     "invalid signature for precommit in grandpa justification".to_string(),
                 )));

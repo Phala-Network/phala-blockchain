@@ -9,12 +9,15 @@ use log::info;
 
 use chain::pallet_registry::RegistryEvent;
 pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
+use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
 };
-use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError, TypedReceiver};
+use phala_mq::{
+    BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
+    TypedReceiveError, TypedReceiver,
+};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, HeartbeatChallenge, MasterKeyEvent, MiningReportEvent,

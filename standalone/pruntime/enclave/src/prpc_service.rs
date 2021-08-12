@@ -87,10 +87,7 @@ pub fn get_info() -> pb::PhactoryInfo {
     let local_state = LOCAL_STATE.lock().unwrap();
 
     let initialized = local_state.initialized;
-    let genesis_block_hash = local_state
-        .genesis_block_hash
-        .as_ref()
-        .map(hex::encode);
+    let genesis_block_hash = local_state.genesis_block_hash.as_ref().map(hex::encode);
     let public_key = local_state
         .identity_key
         .as_ref()
@@ -288,8 +285,7 @@ pub fn init_runtime(
         init_secret_keys(&mut local_state, genesis_block_hash, Some(priv_key))
             .map_err(from_display)?;
     } else {
-        init_secret_keys(&mut local_state, genesis_block_hash, None)
-            .map_err(from_display)?;
+        init_secret_keys(&mut local_state, genesis_block_hash, None).map_err(from_display)?;
     }
 
     if !skip_ra && local_state.dev_mode {
