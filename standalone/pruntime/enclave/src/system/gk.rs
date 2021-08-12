@@ -1,42 +1,28 @@
-use super::{chain_state, TypedReceiver, WorkerState};
-use chain::pallet_registry::RegistryEvent;
-use phala_crypto::{
-    aead, ecdh,
-    sr25519::{Persistence, Signing, KDF, SECRET_KEY_LENGTH, SIGNATURE_BYTES},
-};
-use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue, Sr25519MessageChannel};
+use super::{TypedReceiver, WorkerState};
+use phala_crypto::sr25519::{Persistence, KDF};
+use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent,
-        MiningReportEvent, NewGatekeeperEvent, RandomNumber, RandomNumberEvent, SettleInfo,
-        SystemEvent, WorkerEvent, WorkerEventWithKey,
+        GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
+        RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     WorkerPublicKey,
 };
-use sp_core::{hashing, sr25519, Pair};
+use sp_core::{hashing, sr25519};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
     types::BlockInfo,
 };
 
-use crate::std::convert::TryInto;
-use crate::std::io::{Read, Write};
-use crate::std::path::PathBuf;
-use crate::std::sgxfs::SgxFile;
-use crate::std::string::String;
 use crate::std::vec::Vec;
 use msg_trait::MessageChannel;
-use parity_scale_codec::Encode;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
 ///
 /// WARNING: this interval need to be large enough considering the latency of mq
 const VRF_INTERVAL: u32 = 5;
-
-/// Master key filepath
-pub const MASTER_KEY_FILE: &str = "master_key.seal";
 
 // pesudo_random_number = blake2_256(last_random_number, block_number, derived_master_key)
 //
@@ -90,24 +76,16 @@ impl WorkerInfo {
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
-    identity_key: sr25519::Pair,
-    master_key: Option<sr25519::Pair>,
-    registered_on_chain: bool,
-    master_pubkey_on_chain: bool,
-    send_mq: MessageSendQueue,
-    gk_egress: Option<MsgChan>, // TODO.kevin: syncing the egress state while migrating.
-    worker_egress: Sr25519MessageChannel,
+    master_key: sr25519::Pair,
+    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
-    last_random_block: chain::BlockNumber,
-
+    // Tokenomic
     tokenomic_params: tokenomic::Params,
-
-    data_path: String,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -115,174 +93,33 @@ where
     MsgChan: MessageChannel,
 {
     pub fn new(
-        identity_key: sr25519::Pair,
+        master_key: sr25519::Pair,
         recv_mq: &mut MessageDispatcher,
-        send_mq: MessageSendQueue,
-        worker_egress: Sr25519MessageChannel,
-        data_path: String,
+        egress: MsgChan,
     ) -> Self {
+        egress.set_dummy(true);
+
         Self {
-            identity_key,
-            master_key: None,
-            registered_on_chain: false,
-            master_pubkey_on_chain: false,
-            send_mq,
-            gk_egress: None,
-            worker_egress,
+            master_key: master_key,
+            egress: egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             last_random_number: [0_u8; 32],
-            last_random_block: 0,
             tokenomic_params: tokenomic::test_params(),
-            data_path,
         }
-    }
-
-    pub fn is_registered_on_chain(&self) -> bool {
-        self.registered_on_chain
-    }
-
-    fn set_gatekeeper_egress_dummy(&mut self, dummy: bool) {
-        self.gk_egress
-            .as_mut()
-            .expect("gk should work after acquiring master key; qed.")
-            .set_dummy(dummy);
     }
 
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
-        self.registered_on_chain = true;
-        self.set_gatekeeper_egress_dummy(false);
+        self.egress.set_dummy(false);
     }
 
     #[allow(dead_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
-        self.registered_on_chain = false;
-        self.set_gatekeeper_egress_dummy(true);
-    }
-
-    pub fn possess_master_key(&self) -> bool {
-        self.master_key.is_some()
-    }
-
-    /// Returns the master public key
-    pub fn master_public_key(&self) -> Option<sr25519::Public> {
-        self.master_key.as_ref().map(|k| k.public())
-    }
-
-    pub fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
-        if self.master_key.is_none() {
-            self.master_key = Some(master_key.clone());
-            self.seal_master_key();
-
-            if need_restart {
-                panic!("Received master key, please restart pRuntime and pherry");
-            }
-
-            // init gatekeeper egress dynamically with master key
-            if self.gk_egress.is_none() {
-                let gk_egress =
-                    MsgChan::create(&self.send_mq, MessageOrigin::Gatekeeper, master_key);
-                // by default, gk_egress is set to dummy mode until it is registered on chain
-                gk_egress.set_dummy(true);
-                self.gk_egress = Some(gk_egress);
-            }
-        } else if let Some(my_master_key) = &self.master_key {
-            // TODO.shelven: remove this assertion after we enable master key rotation
-            assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
-        }
-    }
-
-    pub fn master_key_file_path(&self) -> PathBuf {
-        PathBuf::from(&self.data_path).join(MASTER_KEY_FILE)
-    }
-
-    /// Seal master key seed with signature to ensure integrity
-    pub fn seal_master_key(&self) {
-        if let Some(master_key) = &self.master_key {
-            let secret = master_key.dump_secret_key();
-            let sig = self.identity_key.sign_data(&secret);
-
-            // TODO(shelven): use serialization rather than manual concat.
-            let mut buf = Vec::new();
-            buf.extend_from_slice(&secret);
-            buf.extend_from_slice(sig.as_ref());
-
-            let filepath = self.master_key_file_path();
-            info!(
-                "Gatekeeper: seal master key to {}",
-                filepath.as_path().display()
-            );
-            let mut file = SgxFile::create(filepath)
-                .unwrap_or_else(|e| panic!("Create master key file failed: {:?}", e));
-            file.write_all(&buf)
-                .unwrap_or_else(|e| panic!("Seal master key failed: {:?}", e));
-        }
-    }
-
-    /// Unseal local master key seed and verify signature
-    ///
-    /// This function could panic a lot.
-    pub fn try_unseal_master_key(&mut self) {
-        let filepath = self.master_key_file_path();
-        info!(
-            "Gatekeeper: unseal master key from {}",
-            filepath.as_path().display()
-        );
-        let mut file = match SgxFile::open(filepath) {
-            Ok(file) => file,
-            Err(e) => {
-                error!("Open master key file failed: {:?}", e);
-                return;
-            }
-        };
-
-        let mut secret = [0_u8; SECRET_KEY_LENGTH];
-        let mut sig = [0_u8; SIGNATURE_BYTES];
-
-        let n = file
-            .read(secret.as_mut())
-            .unwrap_or_else(|e| panic!("Read master key failed: {:?}", e));
-        if n < SECRET_KEY_LENGTH {
-            panic!(
-                "Unexpected sealed secret key length {}, expected {}",
-                n, SECRET_KEY_LENGTH
-            );
-        }
-
-        let n = file
-            .read(sig.as_mut())
-            .unwrap_or_else(|e| panic!("Read master key sig failed: {:?}", e));
-        if n < SIGNATURE_BYTES {
-            panic!(
-                "Unexpected sealed seed sig length {}, expected {}",
-                n, SIGNATURE_BYTES
-            );
-        }
-
-        assert!(
-            self.identity_key
-                .verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret),
-            "Broken sealed master key"
-        );
-
-        self.set_master_key(sr25519::Pair::restore_from_secret_key(&secret), false);
-    }
-
-    pub fn push_gatekeeper_message(&self, message: impl Encode + BindTopic) -> bool {
-        if self.master_pubkey_on_chain {
-            self.gk_egress
-                .as_ref()
-                .expect("gk should work after acquiring master key; qed.")
-                .push_message(message)
-        } else {
-            info!("Gatekeeper: skip message sending for no master pubkey on chain");
-        }
-
-        self.master_pubkey_on_chain
+        self.egress.set_dummy(true);
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -304,7 +141,7 @@ where
         let report = processor.report;
 
         if !report.is_empty() {
-            self.push_gatekeeper_message(report);
+            self.egress.push_message(report);
         }
     }
 
@@ -313,23 +150,19 @@ where
             return;
         }
 
-        if let Some(master_key) = &self.master_key {
-            let random_number =
-                next_random_number(master_key, block_number, self.last_random_number);
-            if self.push_gatekeeper_message(GatekeeperEvent::new_random_number(
-                block_number,
-                random_number,
-                self.last_random_number,
-            )) {
-                info!(
-                    "Gatekeeper: emit random number {} in block {}",
-                    hex::encode(&random_number),
-                    block_number
-                );
-                self.last_random_block = block_number;
-                self.last_random_number = random_number;
-            }
-        }
+        let random_number =
+            next_random_number(&self.master_key, block_number, self.last_random_number);
+        info!(
+            "Gatekeeper: emit random number {} in block {}",
+            hex::encode(&random_number),
+            block_number
+        );
+        self.egress.push_message(GatekeeperEvent::new_random_number(
+            block_number,
+            random_number,
+            self.last_random_number,
+        ));
+        self.last_random_number = random_number;
     }
 }
 
@@ -601,15 +434,6 @@ where
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
-            GatekeeperEvent::Registered(new_gatekeeper_event) => {
-                self.process_new_gatekeeper_event(origin, new_gatekeeper_event)
-            }
-            GatekeeperEvent::DispatchMasterKey(dispatch_master_key_event) => {
-                self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
-            }
-            GatekeeperEvent::MasterPubkeyAvailable => {
-                self.state.master_pubkey_on_chain = true;
-            }
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }
@@ -621,121 +445,6 @@ where
         }
     }
 
-    /// Monitor the getakeeper registeration event to:
-    ///
-    /// 1. Generate the master key if this is the first gatekeeper;
-    /// 2. Dispatch the master key to newly-registered gatekeepers;
-    fn process_new_gatekeeper_event(&mut self, origin: MessageOrigin, event: NewGatekeeperEvent) {
-        if !origin.is_pallet() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        }
-
-        // double check the new gatekeeper is valid on chain
-        if !chain_state::is_gatekeeper(&event.pubkey, self.block.storage) {
-            error!("Fatal error: Invalid gatekeeper registration {:?}", event);
-            panic!("GK state poisoned");
-        }
-
-        let my_pubkey = self.state.identity_key.public();
-        if event.gatekeeper_count == 1 {
-            if my_pubkey == event.pubkey && self.state.master_key.is_none() {
-                info!("Gatekeeper: generate master key as the first gatekeeper");
-                // generate master key as the first gatekeeper
-                // no need to restart
-                self.state.set_master_key(crate::new_sr25519_key(), false);
-            }
-
-            // upload the master key on chain
-            // noted that every gk should execute this to ensure the state consistency of egress seq
-            if let Some(master_key) = &self.state.master_key {
-                info!("Gatekeeper: upload master key on chain");
-                let master_pubkey = RegistryEvent::MasterPubkey {
-                    master_pubkey: master_key.public(),
-                };
-                // master key should be uploaded as worker
-                self.state.worker_egress.send(&master_pubkey);
-            }
-        } else {
-            // dispatch the master key to the newly-registered gatekeeper using master key
-            // if this pRuntime is the newly-registered gatekeeper himself,
-            // its egress is still in dummy mode since we will tick the state later
-            if let Some(master_key) = &self.state.master_key {
-                info!("Gatekeeper: try dispatch master key");
-                let derived_key = master_key
-                    .derive_sr25519_pair(&[&crate::generate_random_info()])
-                    .expect("should not fail with valid info");
-                let my_ecdh_key = derived_key
-                    .derive_ecdh_key()
-                    .expect("ecdh key derivation should never failed with valid master key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                    .expect("should never fail with valid ecdh key");
-                let iv = aead::generate_iv(&self.state.last_random_number);
-                let mut data = master_key.dump_secret_key().to_vec();
-
-                match aead::encrypt(&iv, &secret, &mut data) {
-                    Ok(_) => {
-                        self.state.push_gatekeeper_message(
-                            GatekeeperEvent::dispatch_master_key_event(
-                                event.pubkey.clone(),
-                                my_ecdh_key
-                                    .public()
-                                    .as_ref()
-                                    .try_into()
-                                    .expect("should never fail given pubkey with correct length"),
-                                data,
-                                iv,
-                            ),
-                        );
-                    }
-                    Err(e) => error!("Failed to encrypt master key: {:?}", e),
-                }
-            }
-        }
-
-        // tick the registration state and enable message sending
-        // for the newly-registered gatekeeper, NewGatekeeperEvent comes before DispatchMasterKeyEvent
-        // so it's necessary to check the existence of master key here
-        if self.state.possess_master_key() && my_pubkey == event.pubkey {
-            self.state.register_on_chain();
-        }
-    }
-
-    /// Process encrypted master key from mq
-    fn process_dispatch_master_key_event(
-        &mut self,
-        origin: MessageOrigin,
-        event: DispatchMasterKeyEvent,
-    ) {
-        if !origin.is_gatekeeper() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        };
-
-        let my_pubkey = self.state.identity_key.public();
-        if my_pubkey == event.dest {
-            let my_ecdh_key = self
-                .state
-                .identity_key
-                .derive_ecdh_key()
-                .expect("Should never failed with valid identity key; qed.");
-            // info!("PUBKEY TO AGREE: {}", hex::encode(event.ecdh_pubkey.0));
-            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                .expect("Should never failed with valid ecdh key; qed.");
-
-            let mut master_key_buff = event.encrypted_master_key.clone();
-            let master_key = match aead::decrypt(&event.iv, &secret, &mut master_key_buff[..]) {
-                Err(e) => panic!("Failed to decrypt dispatched master key: {:?}", e),
-                Ok(k) => k,
-            };
-
-            let master_pair = sr25519::Pair::from_seed_slice(&master_key)
-                .expect("Master key seed must be correct; qed.");
-            info!("Gatekeeper: successfully decrypt received master key, prepare to reboot");
-            self.state.set_master_key(master_pair, true);
-        }
-    }
-
     /// Verify on-chain random number
     fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
         if !origin.is_gatekeeper() {
@@ -743,14 +452,15 @@ where
             return;
         };
 
-        if let Some(master_key) = &self.state.master_key {
-            let expect_random =
-                next_random_number(master_key, event.block_number, event.last_random_number);
-            // instead of checking the origin, we directly verify the random to avoid access storage
-            if expect_random != event.random_number {
-                error!("Fatal error: Expect random number {:?}", expect_random);
-                panic!("GK state poisoned");
-            }
+        let expect_random = next_random_number(
+            &self.state.master_key,
+            event.block_number,
+            event.last_random_number,
+        );
+        // instead of checking the origin, we directly verify the random to avoid access storage
+        if expect_random != event.random_number {
+            error!("Fatal error: Expect random number {:?}", expect_random);
+            panic!("GK state poisoned");
         }
     }
 }
@@ -909,33 +619,20 @@ mod tokenomic {
 
 mod msg_trait {
     use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, MessageSendQueue, SenderId};
+    use phala_mq::{BindTopic, MessageSigner};
 
     pub trait MessageChannel {
         fn push_message<M: Encode + BindTopic>(&self, message: M);
         fn set_dummy(&self, dummy: bool);
-        fn create(
-            send_mq: &MessageSendQueue,
-            sender: SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self;
     }
 
-    impl MessageChannel for phala_mq::MessageChannel<sp_core::sr25519::Pair> {
+    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             self.send(&message);
         }
 
         fn set_dummy(&self, dummy: bool) {
             self.set_dummy(dummy);
-        }
-
-        fn create(
-            send_mq: &MessageSendQueue,
-            sender: SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self {
-            send_mq.channel(sender, signer)
         }
     }
 }
@@ -1011,14 +708,6 @@ pub mod tests {
         }
 
         fn set_dummy(&self, _dummy: bool) {}
-
-        fn create(
-            send_mq: &phala_mq::MessageSendQueue,
-            sender: phala_mq::SenderId,
-            signer: sp_core::sr25519::Pair,
-        ) -> Self {
-            panic!("We don't need this")
-        }
     }
 
     struct Roles {
@@ -1104,10 +793,12 @@ pub mod tests {
     fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
         // GK never use the storage ATM.
         let storage = crate::Storage::default();
+        let mut mq = phala_mq::MessageDispatcher::new();
         let block = BlockInfo {
             block_number,
             now_ms: block_ts(block_number),
             storage: &storage,
+            recv_mq: &mut mq,
         };
         call(&block);
     }
@@ -1147,6 +838,7 @@ pub mod tests {
             worker1.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });
@@ -1178,6 +870,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: 1,
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1199,6 +892,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 2,
                 init_v: 1,
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1270,6 +964,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });
@@ -1333,6 +1028,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1385,6 +1081,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1464,6 +1161,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1535,6 +1233,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(1).to_bits(),
+                init_p: 1,
             });
             worker0.challenge();
             r.gk.process_messages(block);
@@ -1604,6 +1303,7 @@ pub mod tests {
             worker0.pallet_say(msg::WorkerEvent::MiningStart {
                 session_id: 1,
                 init_v: fp(3000).to_bits(),
+                init_p: 1,
             });
             r.gk.process_messages(block);
         });

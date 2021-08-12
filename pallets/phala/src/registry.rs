@@ -21,7 +21,7 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
+			self, bind_topic, DecodedMessage, MasterKeyEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
@@ -193,7 +193,7 @@ pub mod pallet {
 				gatekeepers.push(gatekeeper.clone());
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
-				Self::push_message(GatekeeperEvent::gatekeeper_registered(
+				Self::push_message(MasterKeyEvent::gatekeeper_registered(
 					gatekeeper,
 					worker_info.ecdh_pubkey,
 					gatekeeper_count,
@@ -371,7 +371,9 @@ pub mod pallet {
 						}
 						_ => {
 							GatekeeperMasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(GatekeeperEvent::MasterPubkeyAvailable);
+							Self::push_message(MasterKeyEvent::master_pubkey_on_chain(
+								master_pubkey,
+							));
 						}
 					}
 				}
@@ -453,7 +455,7 @@ pub mod pallet {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;
 						Gatekeeper::<T>::put(gatekeepers.clone());
-						Pallet::<T>::queue_message(GatekeeperEvent::gatekeeper_registered(
+						Pallet::<T>::queue_message(MasterKeyEvent::gatekeeper_registered(
 							gatekeeper.clone(),
 							worker_info.ecdh_pubkey,
 							gatekeeper_count,

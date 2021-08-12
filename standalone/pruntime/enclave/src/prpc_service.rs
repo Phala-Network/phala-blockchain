@@ -372,10 +372,10 @@ pub fn init_runtime(
     // Re-init some contracts because they require the identity key
     let mut system_state = SYSTEM_STATE.lock().unwrap();
     *system_state = Some(system::System::new(
+        local_state.sealing_path.clone(),
         &id_pair,
         &send_mq,
         &mut recv_mq,
-        local_state.data_path.clone(),
     ));
     drop(system_state);
 
