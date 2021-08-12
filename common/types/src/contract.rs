@@ -15,7 +15,7 @@ pub const DIEM: ContractId32 = 5;
 pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 
-/// Contract query request parameters.
+/// Contract query request parameters, to be encrypted.
 #[derive(Encode, Decode, Debug)]
 pub struct ContractQuery<Data> {
     pub head: ContractQueryHead,
@@ -23,7 +23,7 @@ pub struct ContractQuery<Data> {
     pub data: Data,
 }
 
-/// Contract query request parameters.
+/// Contract query head
 #[derive(Encode, Decode, Debug)]
 pub struct ContractQueryHead {
     /// The contract id.
@@ -32,7 +32,7 @@ pub struct ContractQueryHead {
     pub nonce: [u8; 32],
 }
 
-/// Contract query request parameters.
+/// Contract query response, to be encrypted.
 #[derive(Encode, Decode, Debug)]
 pub struct ContractQueryResponse<Data> {
     /// The nonce from the client.
