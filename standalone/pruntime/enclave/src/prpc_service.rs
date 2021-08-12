@@ -90,7 +90,7 @@ pub fn get_info() -> pb::PhactoryInfo {
     let genesis_block_hash = local_state
         .genesis_block_hash
         .as_ref()
-        .map(|hash| hex::encode(hash));
+        .map(hex::encode);
     let public_key = local_state
         .identity_key
         .as_ref()
@@ -158,7 +158,7 @@ pub fn sync_header(
         .lock()
         .unwrap()
         .as_mut()
-        .ok_or(from_display("Runtime not initialized"))?
+        .ok_or_else(|| from_display("Runtime not initialized"))?
         .storage_synchronizer
         .sync_header(headers, authority_set_change)
         .map_err(from_display)?;
@@ -180,12 +180,12 @@ pub fn sync_para_header(
     let mut guard = STATE.lock().unwrap();
     let state = guard
         .as_mut()
-        .ok_or(from_display("Runtime not initialized"))?;
+        .ok_or_else(|| from_display("Runtime not initialized"))?;
 
     let para_id = state
         .chain_storage
         .para_id()
-        .ok_or(from_display("No para_id"))?;
+        .ok_or_else(|| from_display("No para_id"))?;
 
     let storage_key =
         light_validation::utils::storage_map_prefix_twox_64_concat(b"Paras", b"Heads", &para_id);
@@ -217,7 +217,7 @@ pub fn sync_combined_headers(
             .lock()
             .unwrap()
             .as_ref()
-            .ok_or(from_display("Runtime not initialized"))?
+            .ok_or_else(|| from_display("Runtime not initialized"))?
             .storage_synchronizer
             .counters()
             .next_para_header_number
@@ -241,7 +241,7 @@ pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<
     let mut state = STATE.lock().unwrap();
     let state = state
         .as_mut()
-        .ok_or(from_display("Runtime not initialized"))?;
+        .ok_or_else(|| from_display("Runtime not initialized"))?;
 
     let mut last_block = 0;
     for block in blocks.into_iter() {
@@ -279,16 +279,16 @@ pub fn init_runtime(
 
     // load identity
     if let Some(raw_key) = debug_set_key {
-        if skip_ra == false {
+        if !skip_ra {
             return Err(from_display(
                 "RA is disallowed when debug_set_key is enabled",
             ));
         }
         let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-        init_secret_keys(&mut local_state, genesis_block_hash.clone(), Some(priv_key))
+        init_secret_keys(&mut local_state, genesis_block_hash, Some(priv_key))
             .map_err(from_display)?;
     } else {
-        init_secret_keys(&mut local_state, genesis_block_hash.clone(), None)
+        init_secret_keys(&mut local_state, genesis_block_hash, None)
             .map_err(from_display)?;
     }
 
@@ -337,10 +337,10 @@ pub fn init_runtime(
     // Build WorkerRegistrationInfo
     let runtime_info = WorkerRegistrationInfo::<chain::AccountId> {
         version: VERSION,
-        machine_id: local_state.machine_id.clone(),
-        pubkey: ecdsa_pk.clone(),
+        machine_id: local_state.machine_id,
+        pubkey: ecdsa_pk,
         ecdh_pubkey: ecdh_pubkey.clone(),
-        genesis_block_hash: genesis_block_hash,
+        genesis_block_hash,
         features: vec![cpu_core_num, cpu_feature_level],
         operator,
     };
@@ -605,8 +605,7 @@ fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQu
             .contracts
             .get_mut(&head.id)
             .ok_or_else(|| from_display("Contract not found"))?;
-        let response = contract.handle_query(ref_origin, data_cursor)?;
-        response
+        contract.handle_query(ref_origin, data_cursor)?
     };
 
     // Encode response

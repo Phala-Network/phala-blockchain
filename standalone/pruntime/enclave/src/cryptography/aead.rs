@@ -11,7 +11,7 @@ fn load_key(raw: &[u8]) -> ring::aead::LessSafeKey {
 
 // Encrypts the data in-place and appends a 128bit auth tag
 pub fn encrypt(iv: &IV, secret: &[u8], in_out: &mut Vec<u8>) {
-    let nonce = ring::aead::Nonce::assume_unique_for_key(iv.clone());
+    let nonce = ring::aead::Nonce::assume_unique_for_key(*iv);
     let key = load_key(secret);
 
     key.seal_in_place_append_tag(nonce, ring::aead::Aad::empty(), in_out)

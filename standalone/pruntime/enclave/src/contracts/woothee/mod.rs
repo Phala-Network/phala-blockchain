@@ -19,4 +19,5 @@
 
 pub mod dataset;
 pub mod parser;
+#[allow(clippy::module_inception)]
 pub mod woothee;

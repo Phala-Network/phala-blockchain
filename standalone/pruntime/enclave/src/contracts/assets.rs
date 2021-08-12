@@ -131,24 +131,24 @@ impl contracts::NativeContract for Assets {
                 let o = origin.account()?;
                 info!("Issue: [{}] -> [{}]: {}", hex::encode(&o), symbol, total);
 
-                if let None = self
+                if !self
                     .metadata
                     .iter()
-                    .find(|(_, metadatum)| metadatum.symbol == symbol)
+                    .any(|(_, metadatum)| metadatum.symbol == symbol)
                 {
                     let mut accounts = BTreeMap::<AccountId, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
                     let id = self.next_id;
                     let metadatum = AssetMetadata {
-                        owner: o.clone(),
+                        owner: o,
                         total_supply: total,
                         symbol,
                         id,
                     };
 
                     self.metadata.insert(id, metadatum);
-                    self.assets.insert(id.clone(), accounts);
+                    self.assets.insert(id, accounts);
                     self.next_id += 1;
 
                     Ok(())
@@ -214,7 +214,7 @@ impl contracts::NativeContract for Assets {
                             }
                             if is_tracked(&dest) {
                                 let slot = self.history.entry(dest).or_default();
-                                slot.push(tx.clone());
+                                slot.push(tx);
                                 info!(" pushed history (dest)");
                             }
 
@@ -272,7 +272,7 @@ impl contracts::NativeContract for Assets {
                         .history
                         .get(&account)
                         .cloned()
-                        .unwrap_or(Default::default());
+                        .unwrap_or_default();
                     Ok(Response::History { history: tx_list })
                 }
                 Request::ListAssets { available_only } => {

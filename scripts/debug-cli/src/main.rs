@@ -177,7 +177,7 @@ fn argument_or_stdin(arg: &str) -> String {
 }
 
 type AccountId = sp_runtime::AccountId32;
-type Balance = u128;
+// type Balance = u128;
 
 // TODO(h4x): move it to a separate crate to share the code
 fn decode_mq_payload(destination: &[u8], payload: &[u8]) {

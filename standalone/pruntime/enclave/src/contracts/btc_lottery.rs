@@ -38,7 +38,7 @@ use phala_types::messaging::{
 use super::NativeContext;
 
 type SequenceType = u64;
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
+const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
 lazy_static! {
     // 10000...000, used to tell if this is a NFT
@@ -164,7 +164,7 @@ impl BtcLottery {
             info!("new_round: n round_token: {}", round_token.len());
             let mut lottery_token = BTreeMap::<String, PrivateKey>::new();
             let raw_seed = blake2_256(&Encode::encode(&(secret.to_raw_vec(), round_id)));
-            let mut r: StdRng = SeedableRng::from_seed(raw_seed.clone());
+            let mut r: StdRng = SeedableRng::from_seed(raw_seed);
             let sample = round_token
                 .iter()
                 .choose_multiple(&mut r, winner_count as usize);
@@ -173,7 +173,7 @@ impl BtcLottery {
             let mut address_set = Vec::new();
             let mut salt = round_id * 10000;
             for winner_id in sample {
-                let raw_data = (raw_seed.clone(), salt);
+                let raw_data = (raw_seed, salt);
                 let seed = blake2_256(&Encode::encode(&raw_data));
                 let sk = match ExtendedPrivKey::new_master(Network::Bitcoin, &seed) {
                     Ok(e) => e.private_key,
