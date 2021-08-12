@@ -19,8 +19,7 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::EcdhPublicKey;
-    use super::WorkerPublicKey;
+    use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -287,29 +286,25 @@ pub mod messaging {
         pub pubkey: WorkerPublicKey,
         pub v: U64F64Bits,
         pub payout: U64F64Bits,
+        pub treasury: U64F64Bits,
     }
 
-    // Messages: Gatekeeper
-    bind_topic!(GatekeeperEvent, b"phala/gatekeeper/event");
+    // Messages: Master key dispatch
+    bind_topic!(MasterKeyEvent, b"phala/masterkey/event");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub enum GatekeeperEvent {
-        Registered(NewGatekeeperEvent),
+    pub enum MasterKeyEvent {
+        GatekeeperRegistered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
-        MasterPubkeyAvailable,
-        NewRandomNumber(RandomNumberEvent),
-        TokenomicParametersChanged(TokenomicParameters),
+        MasterPubkeyOnChain(MasterPubkeyEvent),
     }
 
-    // Walkaround for heavy dep on phala-crypto
-    type AeadIV = [u8; 12];
-
-    impl GatekeeperEvent {
+    impl MasterKeyEvent {
         pub fn gatekeeper_registered(
             pubkey: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             gatekeeper_count: u32,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::Registered(NewGatekeeperEvent {
+        ) -> MasterKeyEvent {
+            MasterKeyEvent::GatekeeperRegistered(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
                 gatekeeper_count,
@@ -321,8 +316,8 @@ pub mod messaging {
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::DispatchMasterKey(DispatchMasterKeyEvent {
+        ) -> MasterKeyEvent {
+            MasterKeyEvent::DispatchMasterKey(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
                 encrypted_master_key,
@@ -330,16 +325,8 @@ pub mod messaging {
             })
         }
 
-        pub fn new_random_number(
-            block_number: u32,
-            random_number: RandomNumber,
-            last_random_number: RandomNumber,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::NewRandomNumber(RandomNumberEvent {
-                block_number,
-                random_number,
-                last_random_number,
-            })
+        pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> MasterKeyEvent {
+            MasterKeyEvent::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
         }
     }
 
@@ -353,6 +340,7 @@ pub mod messaging {
         pub gatekeeper_count: u32,
     }
 
+    type AeadIV = [u8; 12];
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct DispatchMasterKeyEvent {
         /// The target to dispatch master key
@@ -363,6 +351,33 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct MasterPubkeyEvent {
+        pub master_pubkey: MasterPublicKey,
+    }
+
+    // Messages: Gatekeeper
+    bind_topic!(GatekeeperEvent, b"phala/gatekeeper/event");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub enum GatekeeperEvent {
+        NewRandomNumber(RandomNumberEvent),
+        TokenomicParametersChanged(TokenomicParameters),
+    }
+
+    impl GatekeeperEvent {
+        pub fn new_random_number(
+            block_number: u32,
+            random_number: RandomNumber,
+            last_random_number: RandomNumber,
+        ) -> GatekeeperEvent {
+            GatekeeperEvent::NewRandomNumber(RandomNumberEvent {
+                block_number,
+                random_number,
+                last_random_number,
+            })
+        }
     }
 
     pub type RandomNumber = [u8; 32];
@@ -379,11 +394,13 @@ pub mod messaging {
         // V calculation
         pub pha_rate: U64F64Bits,
         pub rho: U64F64Bits,
-        pub budget_per_sec: U64F64Bits,
+        pub budget_per_block: U64F64Bits,
         pub v_max: U64F64Bits,
         pub cost_k: U64F64Bits,
         pub cost_b: U64F64Bits,
         pub slash_rate: U64F64Bits,
+        // Payout
+        pub treasury_ratio: U64F64Bits,
         pub heartbeat_window: u32,
         // Ve calculation
         pub rig_k: U64F64Bits,

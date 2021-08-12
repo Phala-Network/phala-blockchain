@@ -85,6 +85,7 @@ sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", de
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
+fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro.git" }
 
 # for diem
 bcs = { path = "../../../diem/vendor/bcs", version = "0.1.2" }

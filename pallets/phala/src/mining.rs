@@ -5,10 +5,14 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::KeepAlive, Randomness, UnixTime},
+		traits::{
+			Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, StorageVersion,
+			UnixTime,
+		},
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
@@ -47,12 +51,24 @@ pub mod pallet {
 			matches!(self, MinerState::Ready | MinerState::MiningCoolingDown)
 		}
 		fn can_settle(&self) -> bool {
+			// TODO(hangyin):
+			//
+			// We don't allow a settlement in MiningCoolingDown or Ready. After a miner is stopped,
+			// it's released immediately and the slash is pre-settled (to make sure the force
+			// withdrawal can be processed correctly).
+			//
+			// We have to either figure out how to allow settlement in CoolingDown state, or
+			// complete disable it as we do now. Note that when CoolingDown settle is not allowed,
+			// we still have to make sure the slashed V is periodically updated on the blockchain.
 			matches!(
 				self,
-				MinerState::MiningIdle
-				| MinerState::MiningActive
-				| MinerState::MiningCoolingDown  // TODO: allowed?
-				| MinerState::MiningUnresponsive // TODO: allowed?
+				MinerState::MiningIdle | MinerState::MiningActive | MinerState::MiningUnresponsive
+			)
+		}
+		fn is_mining(&self) -> bool {
+			matches!(
+				self,
+				MinerState::MiningIdle | MinerState::MiningUnresponsive
 			)
 		}
 	}
@@ -171,10 +187,15 @@ pub mod pallet {
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
 		type OnStopped: OnStopped<BalanceOf<Self>>;
+		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
+		// Let the StakePool to take over the slash events.
 	}
+
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// Tokenomic parameters used by Gatekeepers to compute the V promote.
@@ -227,28 +248,26 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [period]
+		/// Cool down expiration changed. \[period\]
 		CoolDownExpirationChanged(u64),
-		/// [miner]
+		/// Miner starts mining. \[miner\]
 		MinerStarted(T::AccountId),
-		/// [miner]
+		/// Miner stops mining. \[miner\]
 		MinerStopped(T::AccountId),
-		/// [miner, original_stake, slashed]
+		/// Miner is reclaimed, with its slash settled. \[miner, original_stake, slashed\]
 		MinerReclaimed(T::AccountId, BalanceOf<T>, BalanceOf<T>),
-		/// [miner, worker]
+		/// Miner & worker are bound. \[miner, worker\]
 		MinerBound(T::AccountId, WorkerPublicKey),
-		/// [miner, worker]
+		/// Miner & worker are unbound. \[miner, worker\]
 		MinerUnbound(T::AccountId, WorkerPublicKey),
-		/// [miner]
+		/// Miner enters unresponsive state. \[miner\]
 		MinerEnterUnresponsive(T::AccountId),
-		/// [miner]
+		/// Miner returns to responsive state \[miner\]
 		MinerExitUnresponive(T::AccountId),
-		/// [miner, v, payout]
+		/// Miner settled successfully. \[miner, v, payout\]
 		MinerSettled(T::AccountId, u128, u128),
-		/// [miner, amount]
-		_MinerStaked(T::AccountId, BalanceOf<T>),
-		/// [miner, amount]
-		_MinerWithdrew(T::AccountId, BalanceOf<T>),
+		/// Some internal error happened when settling a miner's ledger. \[worker\]
+		InternalErrorMinerSettleFailed(WorkerPublicKey),
 	}
 
 	#[pallet::error]
@@ -267,10 +286,15 @@ pub mod pallet {
 		CoolDownNotReady,
 		InsufficientStake,
 		TooMuchStake,
+		InternalErrorBadTokenomicParameters,
 	}
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
+		<T as frame_system::Config>::AccountId,
+	>>::NegativeImbalance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -381,9 +405,21 @@ pub mod pallet {
 		fn on_finalize(_n: T::BlockNumber) {
 			Self::heartbeat_challenge();
 		}
+
+		fn on_runtime_upgrade() -> Weight {
+			let mut w = 0;
+			let old = Self::on_chain_storage_version();
+			w += T::DbWeight::get().reads(1);
+
+			if old == 0 {
+				w += migrations::initialize::<T>();
+				STORAGE_VERSION.put::<super::Pallet<T>>();
+				w += T::DbWeight::get().writes(1);
+			}
+			w
+		}
 	}
 
-	// - Properly handle heartbeat message.
 	impl<T: Config> Pallet<T>
 	where
 		BalanceOf<T>: FixedPointConvert,
@@ -457,6 +493,10 @@ pub mod pallet {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
 							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningUnresponsive;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(account));
@@ -468,6 +508,10 @@ pub mod pallet {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
 							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
@@ -475,21 +519,39 @@ pub mod pallet {
 				}
 
 				for info in &event.settle {
-					if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
-						debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
-						miner_info.v = info.v; // in bits
-						miner_info.v_updated_at = now;
-						miner_info.stats.on_reward(info.payout);
-						Miners::<T>::insert(&account, &miner_info);
-						Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
-					}
+					// Do not crash here
+					match Self::try_handle_settle(info, now) {
+						Err(_) => Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
+							info.pubkey,
+						)),
+						_ => (),
+					};
 				}
 
 				T::OnReward::on_reward(&event.settle);
 			}
 
+			Ok(())
+		}
+
+		/// Tries to handle settlement of a miner.
+		///
+		/// We really don't want to crash the interrupt the message processing. So when there's an
+		/// error we return it, and let the caller to handle it gracefully.
+		fn try_handle_settle(info: &SettleInfo, now: u64) -> DispatchResult {
+			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
+				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+				debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
+				miner_info.v = info.v; // in bits
+				miner_info.v_updated_at = now;
+				miner_info.stats.on_reward(info.payout);
+				Miners::<T>::insert(&account, &miner_info);
+				// Handle treasury deposit
+				let treasury_deposit = FixedPointConvert::from_bits(info.treasury);
+				let imbalance = Self::withdraw_imbalance_from_subsidy_pool(treasury_deposit)?;
+				T::OnTreasurySettled::on_unbalanced(imbalance);
+				Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
+			}
 			Ok(())
 		}
 
@@ -595,7 +657,7 @@ pub mod pallet {
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			let tokenomic = Self::tokenomic();
+			let tokenomic = Self::tokenomic()?;
 			let min_stake = tokenomic.minimal_stake(p);
 			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 
@@ -685,10 +747,22 @@ pub mod pallet {
 			T::Currency::transfer(&wallet, &target, value, KeepAlive)
 		}
 
-		fn tokenomic() -> Tokenomic<T> {
-			let params =
-				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed.");
-			Tokenomic::<T>::new(params)
+		pub fn withdraw_imbalance_from_subsidy_pool(
+			value: BalanceOf<T>,
+		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
+			let wallet = Self::account_id();
+			T::Currency::withdraw(
+				&wallet,
+				value,
+				WithdrawReasons::TRANSFER,
+				frame_support::traits::ExistenceRequirement::AllowDeath,
+			)
+		}
+
+		fn tokenomic() -> Result<Tokenomic<T>, Error<T>> {
+			let params = TokenomicParameters::<T>::get()
+				.ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
+			Ok(Tokenomic::<T>::new(params))
 		}
 
 		fn now_sec() -> u64 {
@@ -786,17 +860,23 @@ pub mod pallet {
 		/// Default tokenoic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
+			let block_sec = 12;
+			let hour_sec = 3600;
+			let day_sec = 24 * hour_sec;
+			let year_sec = 365 * day_sec;
+
 			let pha_rate = fp!(1);
-			let rho = fp!(1.00000099985); // hourly: 1.00020,  1.0002 ** (1/300)
-			let slash_rate = fp!(0.001) / 300; // hourly rate: 0.001, convert to per-block rate
-			let budget_per_sec = fp!(720000) / 24 / 3600;
+			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
+			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
+			let budget_per_block = fp!(720000) * block_sec / day_sec;
 			let v_max = fp!(30000);
-			let cost_k = fp!(0.0415625) / 3600 / 24 / 365; // annual 0.0415625, convert to per sec
-			let cost_b = fp!(88.59375) / 3600 / 24 / 365; // annual 88.59375, convert to per sec
+			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
+			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
+			let treasury_ratio = fp!(0.2);
 			let heartbeat_window = 10; // 10 blocks
-			let rig_k = fp!(0.3);
-			let rig_b = fp!(0);
-			let re = fp!(1.5);
+			let rig_k = fp!(0.3) / pha_rate;
+			let rig_b = fp!(0) / pha_rate;
+			let re = fp!(1.3);
 			let k = fp!(100);
 			let kappa = fp!(1);
 
@@ -805,11 +885,12 @@ pub mod pallet {
 				tokenomic_parameters: TokenomicParams {
 					pha_rate: pha_rate.to_bits(),
 					rho: rho.to_bits(),
-					budget_per_sec: budget_per_sec.to_bits(),
+					budget_per_block: budget_per_block.to_bits(),
 					v_max: v_max.to_bits(),
 					cost_k: cost_k.to_bits(),
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
+					treasury_ratio: treasury_ratio.to_bits(),
 					heartbeat_window: 10,
 					rig_k: rig_k.to_bits(),
 					rig_b: rig_b.to_bits(),
@@ -829,6 +910,56 @@ pub mod pallet {
 			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
 			));
+		}
+	}
+
+	mod migrations {
+		use super::{Config, CoolDownPeriod, TokenomicParameters};
+		use fixed_macro::types::U64F64 as fp;
+		use frame_support::pallet_prelude::*;
+
+		use phala_types::messaging::TokenomicParameters as TokenomicParams;
+
+		pub fn initialize<T: Config>() -> Weight {
+			log::info!("phala_pallet::mining: initialize()");
+			let block_sec = 12;
+			let hour_sec = 3600;
+			let day_sec = 24 * hour_sec;
+			let year_sec = 365 * day_sec;
+			// Initialize with Khala tokenomic parameters
+			let pha_rate = fp!(0.84);
+			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
+			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
+			let budget_per_block = fp!(60000) * block_sec / day_sec;
+			let v_max = fp!(30000);
+			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
+			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
+			let treasury_ratio = fp!(0.2);
+			let heartbeat_window = 10; // 10 blocks
+			let rig_k = fp!(0.3) / pha_rate;
+			let rig_b = fp!(0) / pha_rate;
+			let re = fp!(1.5);
+			let k = fp!(50);
+			let kappa = fp!(1);
+			// Write storage
+			CoolDownPeriod::<T>::put(604800); // 7 days
+			TokenomicParameters::<T>::put(TokenomicParams {
+				pha_rate: pha_rate.to_bits(),
+				rho: rho.to_bits(),
+				budget_per_block: budget_per_block.to_bits(),
+				v_max: v_max.to_bits(),
+				cost_k: cost_k.to_bits(),
+				cost_b: cost_b.to_bits(),
+				slash_rate: slash_rate.to_bits(),
+				treasury_ratio: treasury_ratio.to_bits(),
+				heartbeat_window: 10,
+				rig_k: rig_k.to_bits(),
+				rig_b: rig_b.to_bits(),
+				re: re.to_bits(),
+				k: k.to_bits(),
+				kappa: kappa.to_bits(),
+			});
+			T::DbWeight::get().writes(2)
 		}
 	}
 
@@ -1002,23 +1133,23 @@ pub mod pallet {
 				// Ve for different confidence level
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1819.99999999999999998694)
+					fp!(1612.0000000000000000247)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1754.9999999999999999723)
+					fp!(1572.9999999999999999877)
 				);
 				// Rig cost estimation
 				assert_eq!(tokenomic.rig_cost(500), fp!(150.0000000000000000054));
@@ -1031,13 +1162,16 @@ pub mod pallet {
 				let slash_rate = FixedPoint::from_bits(tokenomic.params.slash_rate);
 				let slash_decay = FixedPoint::from_num(1) - slash_rate;
 				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fp!(0.9990004981683704595));
+				// rho per hour
+				let rho = FixedPoint::from_bits(tokenomic.params.rho);
+				assert_eq!(pow(rho, HOUR_BLOCKS), fp!(1.00019999999998037056));
 				// Budget per day
-				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
-				assert_eq!(budger_per_sec * 3600 * 24, fp!(719999.99999999999999843875));
+				let budger_per_block = FixedPoint::from_bits(tokenomic.params.budget_per_block);
+				assert_eq!(budger_per_block * 3600 * 24 / 12, fp!(720000));
 				// Cost estimation per year
 				assert_eq!(
-					tokenomic.op_cost(2000) * 3600 * 24 * 365,
-					fp!(171.71874999890369452304)
+					tokenomic.op_cost(2000) / 12 * 3600 * 24 * 365,
+					fp!(171.71874999975847951583)
 				);
 			});
 		}

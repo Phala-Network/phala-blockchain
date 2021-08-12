@@ -1092,12 +1092,14 @@ impl pallet_mining::Config for Runtime {
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
+	type OnTreasurySettled = Treasury;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
+	type OnSlashed = Treasury;
 }
 
 construct_runtime!(

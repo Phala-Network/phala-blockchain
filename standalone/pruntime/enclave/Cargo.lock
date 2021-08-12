@@ -21,6 +21,7 @@ dependencies = [
  "env_logger",
  "finality-grandpa",
  "fixed",
+ "fixed-macro",
  "fixed-sqrt",
  "frame-system",
  "hash-db",

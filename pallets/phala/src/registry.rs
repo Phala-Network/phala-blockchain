@@ -4,7 +4,11 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::Encode;
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::UnixTime};
+	use frame_support::{
+		dispatch::DispatchResult,
+		pallet_prelude::*,
+		traits::{StorageVersion, UnixTime},
+	};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
 	use sp_runtime::SaturatedConversion;
@@ -21,7 +25,7 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperEvent, MessageOrigin, SignedMessage,
+			self, bind_topic, DecodedMessage, MasterKeyEvent, MessageOrigin, SignedMessage,
 			SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
@@ -42,8 +46,11 @@ pub mod pallet {
 		type AttestationValidator: AttestationValidator;
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// Gatekeeper pubkey list
@@ -193,7 +200,7 @@ pub mod pallet {
 				gatekeepers.push(gatekeeper.clone());
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
-				Self::push_message(GatekeeperEvent::gatekeeper_registered(
+				Self::push_message(MasterKeyEvent::gatekeeper_registered(
 					gatekeeper,
 					worker_info.ecdh_pubkey,
 					gatekeeper_count,
@@ -371,7 +378,9 @@ pub mod pallet {
 						}
 						_ => {
 							GatekeeperMasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(GatekeeperEvent::MasterPubkeyAvailable);
+							Self::push_message(MasterKeyEvent::master_pubkey_on_chain(
+								master_pubkey,
+							));
 						}
 					}
 				}
@@ -453,7 +462,7 @@ pub mod pallet {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;
 						Gatekeeper::<T>::put(gatekeepers.clone());
-						Pallet::<T>::queue_message(GatekeeperEvent::gatekeeper_registered(
+						Pallet::<T>::queue_message(MasterKeyEvent::gatekeeper_registered(
 							gatekeeper.clone(),
 							worker_info.ecdh_pubkey,
 							gatekeeper_count,
@@ -462,6 +471,33 @@ pub mod pallet {
 					_ => {}
 				}
 			}
+		}
+	}
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_runtime_upgrade() -> Weight {
+			let mut w = 0;
+			let old = Self::on_chain_storage_version();
+			w += T::DbWeight::get().reads(1);
+
+			if old == 0 {
+				w += migrations::initialize::<T>();
+				STORAGE_VERSION.put::<super::Pallet<T>>();
+				w += T::DbWeight::get().writes(1);
+			}
+			w
+		}
+	}
+
+	mod migrations {
+		use super::{BenchmarkDuration, Config};
+		use frame_support::pallet_prelude::*;
+
+		pub fn initialize<T: Config>() -> Weight {
+			log::info!("phala_pallet::registry: initialize()");
+			BenchmarkDuration::<T>::put(50);
+			T::DbWeight::get().writes(1)
 		}
 	}
 
