@@ -1,6 +1,6 @@
+use super::{account_id_from_hex, TransactionError, TransactionResult};
 use crate::chain;
 use crate::contracts::{self, AccountId};
-use super::{TransactionError, TransactionResult, account_id_from_hex};
 
 use crate::std::{
     collections::{
@@ -328,7 +328,12 @@ impl contracts::NativeContract for BtcLottery {
         contracts::BTC_LOTTERY
     }
 
-    fn handle_command(&mut self, context: &NativeContext, origin: MessageOrigin, cmd: Self::Cmd) -> TransactionResult {
+    fn handle_command(
+        &mut self,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
         match cmd {
             Command::PalletCommand(cmd) => self.handle_pallet_command(context, origin, cmd),
             Command::UserCommand(cmd) => self.handle_user_command(context, origin, cmd),
@@ -450,19 +455,28 @@ impl BtcLottery {
         }
     }
 
-    fn handle_pallet_command(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryPalletCommand) -> TransactionResult {
+    fn handle_pallet_command(
+        &mut self,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        ce: LotteryPalletCommand,
+    ) -> TransactionResult {
         if !origin.is_pallet() {
             error!("Received trasfer event from invalid origin: {:?}", origin);
             return Err(TransactionError::BadOrigin);
         }
         info!("Received trasfer event from {:?}", origin);
         match ce {
-            LotteryPalletCommand::NewRound{ round_id, total_count, winner_count } => {
-                Self::new_round(self, context.mq(), round_id, total_count, winner_count)
-            }
-            LotteryPalletCommand::OpenBox { round_id, token_id, btc_address } => {
-                Self::open_lottery(self, context.mq(), round_id, token_id, btc_address)
-            }
+            LotteryPalletCommand::NewRound {
+                round_id,
+                total_count,
+                winner_count,
+            } => Self::new_round(self, context.mq(), round_id, total_count, winner_count),
+            LotteryPalletCommand::OpenBox {
+                round_id,
+                token_id,
+                btc_address,
+            } => Self::open_lottery(self, context.mq(), round_id, token_id, btc_address),
         }
         Ok(())
     }

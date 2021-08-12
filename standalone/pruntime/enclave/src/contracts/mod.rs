@@ -5,12 +5,12 @@ use crate::std::fmt::Debug;
 use crate::system::System;
 use std::convert::TryFrom as _;
 
-use crate::system::{TransactionResult, TransactionError};
+use crate::system::{TransactionError, TransactionResult};
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
+use chain::AccountId;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
-use chain::AccountId;
 
 pub mod assets;
 pub mod balances;
@@ -87,14 +87,7 @@ mod support {
         ) -> Self::QResp;
     }
 
-    pub struct NativeCompatContract<
-        Con,
-        Cmd,
-        CmdWrp,
-        CmdPlr,
-        QReq,
-        QResp,
-    >
+    pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
     where
         Cmd: Decode + Debug,
         CmdWrp: Decode + Debug,

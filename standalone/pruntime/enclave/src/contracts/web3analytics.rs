@@ -8,8 +8,8 @@ use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
+use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
-use parity_scale_codec::{Encode, Decode};
 
 use crate::contracts;
 use phala_types::messaging::Web3AnalyticsCommand as Command;
@@ -697,9 +697,8 @@ impl Web3Analytics {
         while first_date <= last_date {
             for sid in sids.clone() {
                 if daily_map.contains_key(&(sid.clone(), first_date)) {
-                    let (pv_count, cid_count, avg_duration) = daily_map
-                        .get(&(sid.clone(), first_date))
-                        .unwrap();
+                    let (pv_count, cid_count, avg_duration) =
+                        daily_map.get(&(sid.clone(), first_date)).unwrap();
                     let ds = HourlyPageViewStat {
                         sid,
                         pv_count: if self.encrypted {
