@@ -48,13 +48,24 @@ pub mod pallet {
 			matches!(self, MinerState::Ready | MinerState::MiningCoolingDown)
 		}
 		fn can_settle(&self) -> bool {
+			// TODO(hangyin):
+			//
+			// We don't allow a settlement in MiningCoolingDown or Ready. After a mienr is stopped,
+			// it's relesed immediately and the slash is pre-settled (to make sure the force
+			// withdrawal can be processed correctly).
+			//
+			// We have to either figure out how to allow settlement in CoolingDown state, or
+			// complete disable it as we do now. Note that when CoolingDown settle is not allowed,
+			// we still have to make sure the slashed V is periodically updated on the blockchain.
 			matches!(
 				self,
 				MinerState::MiningIdle
 				| MinerState::MiningActive
-				| MinerState::MiningCoolingDown  // TODO: allowed?
-				| MinerState::MiningUnresponsive // TODO: allowed?
+				| MinerState::MiningUnresponsive
 			)
+		}
+		fn is_mining(&self) -> bool {
+			matches!(self, MinerState::MiningIdle | MinerState::MiningUnresponsive)
 		}
 	}
 
@@ -463,6 +474,10 @@ pub mod pallet {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
 							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningUnresponsive;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(account));
@@ -474,6 +489,10 @@ pub mod pallet {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
 							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
