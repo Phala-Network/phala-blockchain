@@ -198,15 +198,23 @@ chain
     }));
 
 chain
-    .command('encode-update-tokenomic')
+    .command('update-tokenomic')
     .argument('<json>', 'tokenomic parameter json file path')
-    .description('encode a call to update tokenomic parameters')
-    .action(run(async (path) => {
+    .description('create a call to update tokenomic parameters and optionally send a sudo tx')
+    .option('-s, --suri <suri>', 'specify sender\'s privkey', process.env.PRIVKEY || '//Alice')
+    .action(run(async (path, options) => {
         const p = loadJson(path);
         const api = await substrateApi();
         const typedP = tokenomic.humanToTyped(api, p);
         const call = tokenomic.createUpdateCall(api, typedP);
         console.log(call.toHex());
+
+        if (options.suri) {
+            const keyring = new Keyring({ type: 'sr25519' });
+            const pair = keyring.addFromUri(options.suri);
+            let result = await api.tx.sudo.sudo(call).signAndSend(pair, {nonce: -1});
+            console.log('Transaction result', result.toJSON());
+        }
     }));
 
 // pRuntime operations

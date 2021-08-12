@@ -286,6 +286,7 @@ pub mod messaging {
         pub pubkey: WorkerPublicKey,
         pub v: U64F64Bits,
         pub payout: U64F64Bits,
+        pub treasury: U64F64Bits,
     }
 
     // Messages: Master key dispatch
@@ -393,11 +394,13 @@ pub mod messaging {
         // V calculation
         pub pha_rate: U64F64Bits,
         pub rho: U64F64Bits,
-        pub budget_per_sec: U64F64Bits,
+        pub budget_per_block: U64F64Bits,
         pub v_max: U64F64Bits,
         pub cost_k: U64F64Bits,
         pub cost_b: U64F64Bits,
         pub slash_rate: U64F64Bits,
+        // Payout
+        pub treasury_ratio: U64F64Bits,
         pub heartbeat_window: u32,
         // Ve calculation
         pub rig_k: U64F64Bits,

@@ -15,7 +15,9 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, LockIdentifier, LockableCurrency, UnixTime, WithdrawReasons},
+		traits::{
+			Currency, LockIdentifier, LockableCurrency, OnUnbalanced, UnixTime, WithdrawReasons,
+		},
 	};
 	use frame_system::pallet_prelude::*;
 	use sp_runtime::{
@@ -52,6 +54,9 @@ pub mod pallet {
 		/// The grace period for force withdraw request, in seconds.
 		#[pallet::constant]
 		type GracePeriod: Get<u64>;
+
+		/// The handler to absorb the slashed amount.
+		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
 
 	#[pallet::pallet]
@@ -158,6 +163,10 @@ pub mod pallet {
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
+		<T as frame_system::Config>::AccountId,
+	>>::NegativeImbalance;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
@@ -760,7 +769,8 @@ pub mod pallet {
 		) {
 			match pool.settle_slash(user) {
 				Some(slashed) if slashed > Zero::zero() => {
-					<T as Config>::Currency::slash(&user.user, slashed);
+					let (imbalance, _remaining) = <T as Config>::Currency::slash(&user.user, slashed);
+					T::OnSlashed::on_unbalanced(imbalance);
 					Self::ledger_reduce(&user.user, slashed);
 					Self::deposit_event(Event::<T>::SlashSettled(
 						pool.pid,
@@ -1594,7 +1604,7 @@ pub mod pallet {
 				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
 				let miner = PhalaMining::miners(sub_account1).unwrap();
 				let ve = FixedPoint::from_bits(miner.ve);
-				assert_eq!(ve, fp!(750.45));
+				assert_eq!(ve, fp!(650.3900000000000000054));
 				// Simulate a slash of 50%
 				let _ = take_events();
 				simulate_v_update(1, (ve / 2).to_bits());
@@ -1616,12 +1626,12 @@ pub mod pallet {
 						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _))
 					]
 					if FixedPoint::from_bits(*v) == ve / 2
-						&& *slashed == 250000000000001
+						&& *slashed == 250000000000000
 				);
 				// Settle the pending slash
 				let _ = take_events();
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.total_stake, 249999999999999);
+				assert_eq!(pool.total_stake, 250000000000000);
 				let mut staker1 = PhalaStakePool::pool_stakers((0, 1)).unwrap();
 				let mut staker2 = PhalaStakePool::pool_stakers((0, 2)).unwrap();
 				PhalaStakePool::maybe_settle_slash(&pool, &mut staker1);
@@ -1633,17 +1643,17 @@ pub mod pallet {
 				assert_eq!(
 					ev,
 					vec![
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000001)),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000001)),
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000000)),
 					]
 				);
 				// Check slash settled. Remaining: 50 PHA, 200 PHA
-				assert_eq!(PhalaStakePool::stake_ledger(1), Some(49999999999999));
-				assert_eq!(PhalaStakePool::stake_ledger(2), Some(199999999999999));
-				assert_eq!(Balances::locks(1), vec![the_lock(49999999999999)]);
-				assert_eq!(Balances::locks(2), vec![the_lock(199999999999999)]);
-				assert_eq!(Balances::free_balance(1), 949999999999999);
-				assert_eq!(Balances::free_balance(2), 1799999999999999);
+				assert_eq!(PhalaStakePool::stake_ledger(1), Some(50000000000000));
+				assert_eq!(PhalaStakePool::stake_ledger(2), Some(200000000000000));
+				assert_eq!(Balances::locks(1), vec![the_lock(50000000000000)]);
+				assert_eq!(Balances::locks(2), vec![the_lock(200000000000000)]);
+				assert_eq!(Balances::free_balance(1), 950000000000000);
+				assert_eq!(Balances::free_balance(2), 1800000000000000);
 				// Account3 contributes 250 PHA. Now: 50 : 200 : 250
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(3),
@@ -1675,11 +1685,11 @@ pub mod pallet {
 					[
 						TestEvent::PhalaMining(mining::Event::MinerSettled(_, _, 0)),
 						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000001)),
+						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000000)),
 						TestEvent::PhalaMining(mining::Event::MinerReclaimed(
 							_,
 							500000000000000,
-							250000000000001
+							250000000000000
 						)),
 					]
 				);
@@ -1709,10 +1719,10 @@ pub mod pallet {
 					vec![
 						// Account1: ~25 PHA remaining
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 25000000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 24999999999999)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 25000000000000)),
 						// Account2: ~100 PHA remaining
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 100000000000000)),
-						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 99999999999999)),
+						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 100000000000000)),
 						// Account1: ~125 PHA remaining
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
@@ -1784,6 +1794,7 @@ pub mod pallet {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
 					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
 				}]);
 				// Should result in 100, 400 PHA pending reward for staker1 & 2
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -1818,6 +1829,7 @@ pub mod pallet {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
 					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
 				}]);
 				// Should result in 100, 800 PHA pending reward for staker1 & 2
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -1849,6 +1861,7 @@ pub mod pallet {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
 					payout: FixedPoint::from_num(800).to_bits(),
+					treasury: 0,
 				}]);
 				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
@@ -1897,6 +1910,7 @@ pub mod pallet {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
 					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
 				}]);
 				assert_ok!(Balances::set_balance(
 					Origin::root(),
@@ -2258,6 +2272,7 @@ pub mod pallet {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
 					payout: FixedPoint::from_num(100).to_bits(),
+					treasury: 0,
 				}]);
 				// Both owner and staker2 can claim 50 PHA
 				let _ = take_events();
@@ -2521,6 +2536,7 @@ pub mod pallet {
 						pubkey: worker_pubkey(worker),
 						v: v_bits,
 						payout: 0,
+						treasury: 0,
 					}],
 				},
 			}));

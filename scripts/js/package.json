@@ -10,7 +10,7 @@
     "dependencies": {
         "@acala-network/api": "^2.0.1",
         "@acala-network/types": "^2.0.1",
-        "@phala/typedefs": "^0.2.11",
+        "@phala/typedefs": "^0.2.14",
         "@polkadot/api": "^5.3.2",
         "@polkadot/typegen": "^5.3.2",
         "@polkadot/util": "^7.1.1",
