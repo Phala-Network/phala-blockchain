@@ -45,7 +45,6 @@ use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use serde::{de, Deserialize, Serialize};
-use serde_cbor;
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
 
@@ -153,9 +152,9 @@ extern "C" {
 }
 
 pub const VERSION: u32 = 1;
-pub const IAS_HOST: &'static str = env!("IAS_HOST");
-pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
-pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
+pub const IAS_HOST: &str = env!("IAS_HOST");
+pub const IAS_SIGRL_ENDPOINT: &str = env!("IAS_SIGRL_ENDPOINT");
+pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
 struct RuntimeState {
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
@@ -326,7 +325,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     }
 
     if res.content_len() != None && res.content_len() != Some(0) {
-        let res_body = res_body_buffer.clone();
+        let res_body = res_body_buffer;
         let encoded_sigrl = str::from_utf8(&res_body).unwrap();
         info!("Base64-encoded SigRL: {:?}", encoded_sigrl);
 
@@ -419,7 +418,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
 }
 
 fn as_u32_le(array: &[u8; 4]) -> u32 {
-    ((array[0] as u32) << 0)
+    (array[0] as u32)
         + ((array[1] as u32) << 8)
         + ((array[2] as u32) << 16)
         + ((array[3] as u32) << 24)
@@ -507,7 +506,7 @@ pub fn create_attestation_report(
     //       7. [out]p_qe_report need further check
     //       8. [out]p_quote
     //       9. quote_size
-    let (p_sigrl, sigrl_len) = if sigrl_vec.len() == 0 {
+    let (p_sigrl, sigrl_len) = if sigrl_vec.is_empty() {
         (ptr::null(), 0)
     } else {
         (sigrl_vec.as_ptr(), sigrl_vec.len() as u32)
@@ -621,6 +620,7 @@ fn generate_seal_key() -> [u8; 16] {
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
     let input_value: serde_json::value::Value = serde_json::from_slice(input_slice).unwrap();
@@ -630,6 +630,7 @@ pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_handle(
     action: u8,
     input_ptr: *const u8,
@@ -722,7 +723,7 @@ fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
     }
 }
 
-const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
+const SEAL_DATA_BUF_MAX_LEN: usize = 2048_usize;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct PersistentRuntimeData {
@@ -899,7 +900,7 @@ fn init_secret_keys(
     local_state.genesis_block_hash = Some(genesis_block_hash);
     local_state.identity_key = Some(sr25519_sk);
     local_state.ecdh_key = Some(ecdh_key);
-    local_state.machine_id = machine_id.clone();
+    local_state.machine_id = machine_id;
     local_state.dev_mode = data.dev_mode;
 
     info!("Init done.");
@@ -907,6 +908,7 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
     env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
@@ -1058,7 +1060,7 @@ fn handle_inbound_messages(
     let messages = state
         .chain_storage
         .mq_messages()
-        .or(Err(error_msg("Can not get mq messages from storage")))?;
+        .map_err(|_| error_msg("Can not get mq messages from storage"))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system
@@ -1105,7 +1107,7 @@ fn handle_inbound_messages(
     let now_ms = state
         .chain_storage
         .timestamp_now()
-        .ok_or(error_msg("No timestamp found in block"))?;
+        .ok_or_else(|| error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
     let recv_mq = &mut *guard;
@@ -1198,34 +1200,35 @@ fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
 fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     info!("=======Begin Ink Contract Test=======");
 
-    let mut testcases = Vec::new();
-    testcases.push(TestContract {
-        name: String::from("flipper"),
-        code: include_bytes!("res/flipper.wasm").to_vec(),
-        initial_data: vec![248, 30, 126, 26, 0],
-        txs: vec![
-            vec![205, 228, 239, 169], // flip()
-            vec![109, 76, 230, 60],   // get()
-        ],
-    });
-    testcases.push(TestContract {
-        name: String::from("EIP20Token"),
-        code: include_bytes!("res/EIP20Token.wasm").to_vec(),
-        initial_data: vec![134, 23, 49, 213],
-        txs: vec![
-            vec![
-                102, 136, 227, 5, 128, 150, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 84, 101, 115, 116, 84, 111, 107, 101, 110,
-                2, 8, 84, 84,
-            ], // eip20 (initialAmount: u256, tokenName: String, decimalUnits: u8, tokenSymbol: String)
-            vec![
-                106, 70, 115, 148, 142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126, 37,
-                252, 82, 135, 97, 54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242, 106, 72,
-                210, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0,
-            ], // transfer (to: AccountId, value: u256)
-        ],
-    });
+    let testcases = vec![
+        TestContract {
+            name: String::from("flipper"),
+            code: include_bytes!("res/flipper.wasm").to_vec(),
+            initial_data: vec![248, 30, 126, 26, 0],
+            txs: vec![
+                vec![205, 228, 239, 169], // flip()
+                vec![109, 76, 230, 60],   // get()
+            ],
+        },
+        TestContract {
+            name: String::from("EIP20Token"),
+            code: include_bytes!("res/EIP20Token.wasm").to_vec(),
+            initial_data: vec![134, 23, 49, 213],
+            txs: vec![
+                vec![
+                    102, 136, 227, 5, 128, 150, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 84, 101, 115, 116, 84, 111, 107,
+                    101, 110, 2, 8, 84, 84,
+                ], // eip20 (initialAmount: u256, tokenName: String, decimalUnits: u8, tokenSymbol: String)
+                vec![
+                    106, 70, 115, 148, 142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126,
+                    37, 252, 82, 135, 97, 54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242,
+                    106, 72, 210, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ], // transfer (to: AccountId, value: u256)
+            ],
+        },
+    ];
 
     for t in testcases {
         let mut driver = InkModule::new();

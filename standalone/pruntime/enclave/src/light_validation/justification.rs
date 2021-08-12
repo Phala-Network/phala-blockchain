@@ -148,14 +148,14 @@ impl<Block: BlockT<Hash = H256>> GrandpaJustification<Block> {
         let mut buf = Vec::new();
         let mut visited_hashes = HashSet::new();
         for signed in self.commit.precommits.iter() {
-            if let Err(_) = communication::check_message_sig_with_buffer::<Block>(
+            if communication::check_message_sig_with_buffer::<Block>(
                 &finality_grandpa::Message::Precommit(signed.precommit.clone()),
                 &signed.id,
                 &signed.signature,
                 self.round,
                 set_id,
                 &mut buf,
-            ) {
+            ).is_err() {
                 return Err(anyhow::Error::msg(ClientError::BadJustification(
                     "invalid signature for precommit in grandpa justification".to_string(),
                 )));

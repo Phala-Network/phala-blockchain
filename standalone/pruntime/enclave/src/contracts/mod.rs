@@ -46,6 +46,7 @@ mod support {
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
+        #[allow(unused)] // TODO.kevin: remove this.
         secret_mq: SecretMessageChannel<'a>,
     }
 
@@ -160,7 +161,7 @@ mod support {
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {
             let storage = env.block.storage;
-            let key_map = |topic: &phala_mq::Path| {
+            let key_map = |topic: &[u8]| {
                 // TODO.kevin: query contract pubkey for contract topic's when the feature in GK is available.
                 storage
                     .get(&storage_prefix_for_topic_pubkey(topic))
