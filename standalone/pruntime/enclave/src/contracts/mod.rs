@@ -59,6 +59,8 @@ impl From<H256> for AccountIdWrapper {
 
 pub use support::*;
 mod support {
+    use core::convert::TryInto;
+
     use super::*;
     use crate::types::BlockInfo;
 
@@ -207,8 +209,13 @@ mod support {
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {
             let storage = env.block.storage;
-            let key_map =
-                |topic: &phala_mq::Path| storage.get(&storage_prefix_for_topic_pubkey(topic));
+            let key_map = |topic: &phala_mq::Path| {
+                // TODO.kevin: query contract pubkey for contract topic's when the feature in GK is available.
+                storage
+                    .get(&storage_prefix_for_topic_pubkey(topic))
+                    .map(|v| v.try_into().ok())
+                    .flatten()
+            };
             let secret_mq = SecretMq::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
                 block: env.block,

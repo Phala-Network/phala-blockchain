@@ -14,8 +14,8 @@ extern crate runtime as chain;
 
 use phala_types::messaging::{BalanceCommand, BalanceEvent, BalanceTransfer, PushCommand};
 
-type Command = BalanceCommand<chain::AccountId, chain::Balance>;
-type Event = BalanceEvent<chain::AccountId, chain::Balance>;
+pub type Command = BalanceCommand<chain::AccountId, chain::Balance>;
+pub type Event = BalanceEvent<chain::AccountId, chain::Balance>;
 
 pub struct Balances {
     total_issuance: chain::Balance,

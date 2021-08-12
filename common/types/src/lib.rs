@@ -82,6 +82,16 @@ pub mod messaging {
         TransferToChain { dest: AccountId, value: Balance },
     }
 
+    impl<AccountId, Balance> BalanceCommand<AccountId, Balance> {
+        pub fn transfer(dest: AccountId, value: Balance) -> Self {
+            Self::Transfer { dest, value }
+        }
+
+        pub fn transfer_to_chain(dest: AccountId, value: Balance) -> Self {
+            Self::TransferToChain { dest, value }
+        }
+    }
+
     bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
     #[derive(Encode, Decode)]
     pub struct BalanceTransfer<AccountId, Balance> {
