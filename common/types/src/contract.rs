@@ -16,7 +16,7 @@ pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 
 /// Contract query request parameters.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Debug)]
 pub struct ContractQuery<Data> {
     pub head: ContractQueryHead,
     /// The request data.
@@ -24,7 +24,7 @@ pub struct ContractQuery<Data> {
 }
 
 /// Contract query request parameters.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Debug)]
 pub struct ContractQueryHead {
     /// The contract id.
     pub id: ContractId,
@@ -33,7 +33,7 @@ pub struct ContractQueryHead {
 }
 
 /// Contract query request parameters.
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Debug)]
 pub struct ContractQueryResponse<Data> {
     /// The nonce from the client.
     pub nonce: [u8; 32],

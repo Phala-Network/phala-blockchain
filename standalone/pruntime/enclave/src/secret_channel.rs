@@ -15,26 +15,26 @@ mod sender {
     pub struct SecretMq<'a> {
         key: &'a KeyPair,
         mq: &'a Sr25519MessageChannel,
-        key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+        key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
     }
 
     impl<'a> SecretMq<'a> {
         pub fn new(
             key: &'a KeyPair,
             mq: &'a Sr25519MessageChannel,
-            key_map: &'a dyn Fn(&Path) -> Option<Vec<u8>>,
+            key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
         ) -> Self {
             SecretMq { key, mq, key_map }
         }
 
-        pub fn get_pubkey(&self, topic: &Path) -> Option<Vec<u8>> {
+        pub fn pubkey_for_topic(&self, topic: &Path) -> Option<ecdh::EcdhPublicKey> {
             (self.key_map)(topic)
         }
 
         pub fn sendto<M: Encode>(
             &self,
-            message: &M,
             to: impl Into<Path>,
+            message: &M,
             remote_pubkey: &ecdh::EcdhPublicKey,
         ) {
             let data = message.encode();
@@ -49,7 +49,7 @@ mod sender {
             message: &M,
             remote_pubkey: &ecdh::EcdhPublicKey,
         ) {
-            self.sendto(message, <M as BindTopic>::topic(), remote_pubkey)
+            self.sendto(<M as BindTopic>::topic(), message, remote_pubkey)
         }
     }
 }
