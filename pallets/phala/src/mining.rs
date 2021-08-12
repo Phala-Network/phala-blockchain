@@ -50,8 +50,8 @@ pub mod pallet {
 		fn can_settle(&self) -> bool {
 			// TODO(hangyin):
 			//
-			// We don't allow a settlement in MiningCoolingDown or Ready. After a mienr is stopped,
-			// it's relesed immediately and the slash is pre-settled (to make sure the force
+			// We don't allow a settlement in MiningCoolingDown or Ready. After a miner is stopped,
+			// it's released immediately and the slash is pre-settled (to make sure the force
 			// withdrawal can be processed correctly).
 			//
 			// We have to either figure out how to allow settlement in CoolingDown state, or
