@@ -1,5 +1,5 @@
 use crate::secret_channel::{
-    storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMq,
+    storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
 };
 use crate::std::fmt::Debug;
 use crate::std::string::String;
@@ -72,7 +72,7 @@ mod support {
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
-        secret_mq: SecretMq<'a>,
+        secret_mq: SecretMessageChannel<'a>,
     }
 
     impl NativeContext<'_> {
@@ -216,7 +216,7 @@ mod support {
                     .map(|v| v.try_into().ok())
                     .flatten()
             };
-            let secret_mq = SecretMq::new(&self.ecdh_key, &self.send_mq, &key_map);
+            let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq, &key_map);
             let context = NativeContext {
                 block: env.block,
                 mq: &self.send_mq,

@@ -12,19 +12,19 @@ mod sender {
 
     pub type KeyPair = ecdh::EcdhKey;
 
-    pub struct SecretMq<'a> {
+    pub struct SecretMessageChannel<'a> {
         key: &'a KeyPair,
         mq: &'a Sr25519MessageChannel,
         key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
     }
 
-    impl<'a> SecretMq<'a> {
+    impl<'a> SecretMessageChannel<'a> {
         pub fn new(
             key: &'a KeyPair,
             mq: &'a Sr25519MessageChannel,
             key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
         ) -> Self {
-            SecretMq { key, mq, key_map }
+            SecretMessageChannel { key, mq, key_map }
         }
 
         pub fn pubkey_for_topic(&self, topic: &Path) -> Option<ecdh::EcdhPublicKey> {
