@@ -3,9 +3,16 @@ pub use sender::*;
 
 use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
 use crate::std::vec::Vec;
+use enclave_api::crypto::EncryptedData;
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Encode, Decode, Debug)]
+pub enum Payload<T> {
+    Plain(T),
+    Encrypted(EncryptedData),
+}
 
 mod sender {
-    use crate::std::vec::Vec;
     use enclave_api::crypto::{ecdh, EncryptedData};
     use parity_scale_codec::Encode;
     use phala_mq::{BindTopic, Path, Sr25519MessageChannel};
@@ -35,19 +42,24 @@ mod sender {
             &self,
             to: impl Into<Path>,
             message: &M,
-            remote_pubkey: &ecdh::EcdhPublicKey,
+            remote_pubkey: Option<&ecdh::EcdhPublicKey>,
         ) {
             let data = message.encode();
-            let iv = crate::generate_random_iv();
-            let payload = EncryptedData::encrypt(self.key, &remote_pubkey, iv, &data)
-                .expect("Encrypt message failed?");
+            let payload = if let Some(remote_pubkey) = remote_pubkey {
+                let iv = crate::generate_random_iv();
+                let data = EncryptedData::encrypt(self.key, &remote_pubkey, iv, &data)
+                    .expect("Encrypt message failed?");
+                super::Payload::Encrypted(data)
+            } else {
+                super::Payload::Plain(message)
+            };
             self.mq.send_data(payload.encode(), to)
         }
 
         pub fn send<M: Encode + BindTopic>(
             &self,
             message: &M,
-            remote_pubkey: &ecdh::EcdhPublicKey,
+            remote_pubkey: Option<&ecdh::EcdhPublicKey>,
         ) {
             self.sendto(<M as BindTopic>::topic(), message, remote_pubkey)
         }
@@ -55,8 +67,9 @@ mod sender {
 }
 
 mod receiver {
+    use super::Payload;
     use core::marker::PhantomData;
-    use enclave_api::crypto::{ecdh, EncryptedData};
+    use enclave_api::crypto::ecdh;
     use parity_scale_codec::Decode;
     use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
 
@@ -91,15 +104,20 @@ mod receiver {
     }
 
     impl<T: Decode> Peeler for SecretPeeler<T> {
-        type Wrp = EncryptedData;
+        type Wrp = Payload<T>;
         type Msg = T;
         fn peel(&self, msg: Self::Wrp) -> Result<Self::Msg, anyhow::Error> {
-            let data = msg
-                .decrypt(&self.ecdh_key)
-                .map_err(|err| anyhow::anyhow!("SecretPeeler decrypt message failed: {:?}", err))?;
-            let msg = Decode::decode(&mut &data[..])
-                .map_err(|_| anyhow::anyhow!("SCALE decode decrypted data failed"))?;
-            Ok(msg)
+            match msg {
+                Payload::Plain(msg) => Ok(msg),
+                Payload::Encrypted(msg) => {
+                    let data = msg.decrypt(&self.ecdh_key).map_err(|err| {
+                        anyhow::anyhow!("SecretPeeler decrypt message failed: {:?}", err)
+                    })?;
+                    let msg = Decode::decode(&mut &data[..])
+                        .map_err(|_| anyhow::anyhow!("SCALE decode decrypted data failed"))?;
+                    Ok(msg)
+                }
+            }
         }
     }
 
