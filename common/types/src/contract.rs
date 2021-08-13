@@ -3,7 +3,7 @@ use alloc::vec::Vec;
 use alloc::format;
 use codec::{Decode, Encode};
 
-pub use phala_mq::ContractId;
+pub use phala_mq::{contract_id256 as id256, ContractId};
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;
@@ -71,14 +71,6 @@ impl From<ContractQueryError> for prpc::server::Error {
     }
 }
 
-pub fn id256(id: u32) -> ContractId {
-    ContractId::from_low_u64_be(id as u64)
-}
-
 pub fn command_topic(id: ContractId) -> Vec<u8> {
     format!("phala/contract/{}/command", hex::encode(&id)).as_bytes().to_vec()
-}
-
-pub fn event_topic(id: ContractId) -> Vec<u8> {
-    format!("phala/contract/{}/event", hex::encode(&id)).as_bytes().to_vec()
 }

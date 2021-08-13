@@ -9,6 +9,10 @@ pub type SenderId = MessageOrigin;
 pub type ContractId = H256;
 pub type AccountId = H256;
 
+pub fn contract_id256(id: u32) -> ContractId {
+    ContractId::from_low_u64_be(id as u64)
+}
+
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
@@ -38,7 +42,7 @@ impl Hash for MessageOrigin {
 impl MessageOrigin {
     /// Builds a new native confidential contract `MessageOrigin`
     pub fn native_contract(id: u32) -> Self {
-        Self::Contract(ContractId::from_low_u64_be(id as u64))
+        Self::Contract(contract_id256(id))
     }
 
     /// Returns if the origin is located off-chain
@@ -55,7 +59,17 @@ impl MessageOrigin {
     pub fn is_gatekeeper(&self) -> bool {
         matches!(self, Self::Gatekeeper)
     }
+
+    /// Returns the account id if the origin is from a user, or `Err(BadOrigin)` otherwise
+    pub fn account(self) -> Result<AccountId, BadOrigin> {
+        match self {
+            Self::AccountId(account_id) => Ok(account_id),
+            _ => Err(BadOrigin),
+        }
+    }
 }
+
+pub struct BadOrigin;
 
 /// The topic in the message queue, indicating a group of destination message receivers.
 ///
@@ -144,6 +158,11 @@ impl BindTopic for () {
     }
 }
 
+/// Indicates the type is a contract command
+pub trait ContractCommand {
+    fn contract_id() -> ContractId;
+}
+
 #[macro_export]
 macro_rules! bind_topic {
     ($t: ident, $path: expr) => {
@@ -157,6 +176,24 @@ macro_rules! bind_topic {
         impl<$($gt),+> $crate::types::BindTopic for $t<$($gt),+> {
             fn topic() -> Vec<u8> {
                 $path.to_vec()
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! bind_contract32 {
+    ($t: ident, $id: expr) => {
+        impl $crate::types::ContractCommand for $t {
+            fn contract_id() -> $crate::types::ContractId {
+                $crate::types::contract_id256($id)
+            }
+        }
+    };
+    ($t: ident<$($gt: ident),+>, $id: expr) => {
+        impl<$($gt),+> $crate::types::ContractCommand for $t<$($gt),+> {
+            fn contract_id() -> $crate::types::ContractId  {
+                $crate::types::contract_id256($id)
             }
         }
     }

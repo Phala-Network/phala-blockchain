@@ -404,14 +404,10 @@ pub fn init_runtime(
                         .into(),
                     contract_key,
                 );
-                let evt_mq = PeelingReceiver::new_plain(
-                    recv_mq.subscribe(contract::event_topic(contract_id)).into(),
-                );
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
                     $inner,
                     mq,
                     cmd_mq,
-                    evt_mq,
                     local_ecdh_key.clone(),
                 ));
                 contracts.insert(contract_id, wrapped);

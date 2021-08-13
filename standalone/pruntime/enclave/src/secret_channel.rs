@@ -128,6 +128,7 @@ mod receiver {
     }
 
     impl<Msg, Wrp> PeelingReceiver<Msg, Wrp, PlainPeeler<Msg>> {
+        #[allow(unused)]
         pub fn new_plain(receiver: TypedReceiver<Wrp>) -> Self {
             PeelingReceiver {
                 receiver,

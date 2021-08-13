@@ -6,7 +6,6 @@ use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;
-use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
 pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
@@ -15,10 +14,7 @@ use phala_crypto::{
     sr25519::{Persistence, KDF},
 };
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{
-    ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
-    TypedReceiveError, TypedReceiver,
-};
+use phala_mq::{BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError, TypedReceiver};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, HeartbeatChallenge, MasterKeyEvent, MiningReportEvent,
@@ -28,11 +24,10 @@ use phala_types::{
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-pub type CommandIndex = u64;
+pub type TransactionResult = Result<(), TransactionError>;
 
 #[derive(Encode, Decode, Debug, Clone)]
-pub enum TransactionStatus {
-    Ok,
+pub enum TransactionError {
     BadInput,
     BadOrigin,
     // general
@@ -64,12 +59,10 @@ pub enum TransactionStatus {
     TransferringNotAllowed,
 }
 
-#[derive(Encode, Decode, Debug, Clone)]
-pub struct TransactionReceipt {
-    pub account: MessageOrigin,
-    pub block_num: chain::BlockNumber,
-    pub contract_id: ContractId,
-    pub status: TransactionStatus,
+impl From<BadOrigin> for TransactionError {
+    fn from(_: BadOrigin) -> TransactionError {
+        TransactionError::BadOrigin
+    }
 }
 
 #[derive(Debug)]
@@ -335,8 +328,6 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 pub struct System {
     // Configuration
     sealing_path: String,
-    // Transaction
-    receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
@@ -364,7 +355,6 @@ impl System {
 
         System {
             sealing_path: sealing_path.clone(),
-            receipts: Default::default(),
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
@@ -377,44 +367,12 @@ impl System {
         }
     }
 
-    pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
-        self.receipts.insert(command_index, tr);
-    }
-
-    pub fn get_receipt(&self, command_index: CommandIndex) -> Option<&TransactionReceipt> {
-        self.receipts.get(&command_index)
-    }
-
     pub fn handle_query(
         &mut self,
-        accid_origin: Option<&chain::AccountId>,
-        req: Request,
+        _accid_origin: Option<&chain::AccountId>,
+        _req: Request,
     ) -> Response {
-        let inner = || -> Result<Response> {
-            match req {
-                Request::QueryReceipt { command_index } => match self.get_receipt(command_index) {
-                    Some(receipt) => {
-                        let origin =
-                            accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
-                        let origin: [u8; 32] = *origin.as_ref();
-                        if receipt.account == MessageOrigin::AccountId(origin.into()) {
-                            Ok(Response::QueryReceipt {
-                                receipt: receipt.clone(),
-                            })
-                        } else {
-                            Err(anyhow::Error::msg(Error::NotAuthorized))
-                        }
-                    }
-                    None => Err(anyhow::Error::msg(Error::Other(String::from(
-                        "Transaction hash not found",
-                    )))),
-                },
-            }
-        };
-        match inner() {
-            Err(error) => Response::Error(error.to_string()),
-            Ok(resp) => resp,
-        }
+        Response::Error("Unreachable!".to_string())
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
@@ -690,13 +648,10 @@ impl fmt::Display for Error {
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
-pub enum Request {
-    QueryReceipt { command_index: CommandIndex },
-}
+pub enum Request {}
 
 #[derive(Encode, Decode, Debug)]
 pub enum Response {
-    QueryReceipt { receipt: TransactionReceipt },
     Error(String),
 }
 

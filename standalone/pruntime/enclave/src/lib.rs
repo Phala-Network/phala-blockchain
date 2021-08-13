@@ -89,7 +89,6 @@ use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
-use system::TransactionStatus;
 use types::BlockInfo;
 use types::Error;
 
