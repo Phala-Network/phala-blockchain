@@ -6,7 +6,7 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage, Path};
+	use phala_types::messaging::{BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
 
@@ -201,6 +201,13 @@ pub mod pallet {
 
 		fn push_message_to(topic: impl Into<Path>, payload: impl Encode) {
 			Pallet::<Self::Config>::push_message_to(topic, Self::message_origin(), payload);
+		}
+
+		fn push_command<Cmd: ContractCommand + Encode>(command: Cmd) {
+			use phala_types::contract::command_topic;
+			let topic = command_topic(Cmd::contract_id());
+			let message = CommandPayload::Plain(command);
+			Self::push_message_to(topic, message);
 		}
 
 		/// Enqueues a message to push in the beginning of the next block

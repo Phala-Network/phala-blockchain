@@ -7,11 +7,10 @@ use phala_mq::MessageOrigin;
 use parity_scale_codec::{Encode, Decode};
 use std::collections::BTreeMap;
 
-use super::{NativeContext, TransactionStatus};
+use super::{NativeContext, TransactionResult, TransactionError};
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::types::TxRef;
-use phala_types::messaging::{AssetCommand, AssetId, PushCommand};
+use phala_types::messaging::{AssetCommand, AssetId};
 
 type Command = AssetCommand<chain::AccountId, chain::Balance>;
 
@@ -40,7 +39,7 @@ pub struct Assets {
 }
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct AssetsTx {
-    txref: TxRef,
+    index: u64,
     asset_id: u32,
     from: AccountIdWrapper,
     to: AccountIdWrapper,
@@ -114,7 +113,6 @@ impl Assets {
 
 impl contracts::NativeContract for Assets {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
@@ -124,18 +122,13 @@ impl contracts::NativeContract for Assets {
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
+        _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        match cmd {
             Command::Issue { symbol, total } => {
-                let o = AccountIdWrapper::from(origin);
+                let o = AccountIdWrapper::from(origin.account()?);
                 info!("Issue: [{}] -> [{}]: {}", o.to_string(), symbol, total);
 
                 if let None = self
@@ -158,29 +151,29 @@ impl contracts::NativeContract for Assets {
                     self.assets.insert(id.clone(), accounts);
                     self.next_id += 1;
 
-                    TransactionStatus::Ok
+                    Ok(())
                 } else {
-                    TransactionStatus::SymbolExist
+                    Err(TransactionError::SymbolExist)
                 }
             }
             Command::Destroy { id } => {
-                let o = AccountIdWrapper::from(origin);
+                let o = AccountIdWrapper::from(origin.account()?);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
                     if metadatum.owner.to_string() == o.to_string() {
                         self.metadata.remove(&id);
                         self.assets.remove(&id);
 
-                        TransactionStatus::Ok
+                        Ok(())
                     } else {
-                        TransactionStatus::NotAssetOwner
+                        Err(TransactionError::NotAssetOwner)
                     }
                 } else {
-                    TransactionStatus::AssetIdNotFound
+                    Err(TransactionError::AssetIdNotFound)
                 }
             }
-            Command::Transfer { id, dest, value } => {
-                let o = AccountIdWrapper::from(origin);
+            Command::Transfer { id, dest, value, index } => {
+                let o = AccountIdWrapper::from(origin.account()?);
                 let dest = AccountIdWrapper(dest);
 
                 if let Some(metadatum) = self.metadata.get(&id) {
@@ -208,12 +201,8 @@ impl contracts::NativeContract for Assets {
                             info!("   src: {:>20} -> {:>20}", src0, src0 - value);
                             info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
-                            let txref = TxRef {
-                                blocknum: context.block.block_number,
-                                index: cmd.number,
-                            };
                             let tx = AssetsTx {
-                                txref,
+                                index,
                                 asset_id: id,
                                 from: o.clone(),
                                 to: dest.clone(),
@@ -230,15 +219,15 @@ impl contracts::NativeContract for Assets {
                                 info!(" pushed history (dest)");
                             }
 
-                            TransactionStatus::Ok
+                            Ok(())
                         } else {
-                            TransactionStatus::InsufficientBalance
+                            Err(TransactionError::InsufficientBalance)
                         }
                     } else {
-                        TransactionStatus::NoBalance
+                        Err(TransactionError::NoBalance)
                     }
                 } else {
-                    TransactionStatus::AssetIdNotFound
+                    Err(TransactionError::AssetIdNotFound)
                 }
             }
         }

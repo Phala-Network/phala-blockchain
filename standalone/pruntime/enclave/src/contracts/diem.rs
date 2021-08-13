@@ -9,7 +9,7 @@ use log::{error, info};
 
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::TransactionStatus;
+use crate::TransactionResult;
 
 //diem type
 use core::convert::TryFrom;
@@ -525,19 +525,19 @@ impl contracts::NativeContract for Diem {
         _context: &NativeContext,
         origin: MessageOrigin,
         cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
+    ) -> TransactionResult {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
+            _ => return Err(TransactionError::BadOrigin),
         };
 
-        match cmd.command {
+        match cmd {
             Command::AccountInfo { account_info_b64 } => {
                 info!("command account_info_b64:{:?}", account_info_b64);
                 if let Ok(account_data) = base64::decode(&account_info_b64) {
                     let account_info: AccountInfo = match bcs::from_bytes(&account_data) {
                         Ok(result) => result,
-                        Err(_) => return TransactionStatus::BadAccountInfo,
+                        Err(_) => return Err(TransactionError::BadAccountInfo),
                     };
                     info!("account_info:{:?}", account_info);
                     let exist = self
@@ -548,9 +548,9 @@ impl contracts::NativeContract for Diem {
                         self.account_info.push(account_info);
                     }
                     info!("add account_ok");
-                    TransactionStatus::Ok
+                    Ok(())
                 } else {
-                    TransactionStatus::BadAccountInfo
+                    Err(TransactionError::BadAccountInfo)
                 }
             }
             Command::SetTrustedState {
@@ -562,7 +562,7 @@ impl contracts::NativeContract for Diem {
                     trusted_state_b64, chain_id
                 );
                 if chain_id != NamedChain::TESTNET.id() && chain_id != NamedChain::TESTING.id() {
-                    return TransactionStatus::BadChainId;
+                    return Err(TransactionError::BadChainId);
                 }
 
                 if self.chain_id == CHAIN_ID_UNINITIALIZED {
@@ -573,14 +573,14 @@ impl contracts::NativeContract for Diem {
 
                 // Only initialize TrustedState once
                 if self.init_trusted_state.is_some() {
-                    return TransactionStatus::Ok;
+                    return Ok(());
                 }
                 match parse_trusted_state(&trusted_state_b64) {
                     Ok(trusted_state) => {
                         self.init_trusted_state = Some(trusted_state.clone());
                         self.trusted_state = Some(trusted_state);
                         info!("init trusted state OK");
-                        TransactionStatus::Ok
+                        Ok(())
                     }
                     Err(code) => code,
                 }
@@ -596,13 +596,13 @@ impl contracts::NativeContract for Diem {
                 info!("epoch_change_proof_b64: {:?}", epoch_change_proof_b64);
                 let ledger_info_with_signatures_data =
                     base64::decode(ledger_info_with_signatures_b64)
-                        .or(Err(TransactionStatus::BadTrustedStateData))
+                        .or(Err(Err(TransactionError::BadTrustedStateData)))
                         .expect("Bad trusted state data");
                 let ledger_info_with_signatures: LedgerInfoWithSignatures =
                     bcs::from_bytes(&ledger_info_with_signatures_data)
                         .expect("Unable to parse ledger info");
                 let epoch_change_proof_data = base64::decode(epoch_change_proof_b64)
-                    .or(Err(TransactionStatus::BadEpochChangedProofData))
+                    .or(Err(Err(TransactionError::BadEpochChangedProofData)))
                     .expect("Bad epoch changed proof data");
                 let epoch_change_proof: EpochChangeProof =
                     bcs::from_bytes(&epoch_change_proof_data)
@@ -620,9 +620,9 @@ impl contracts::NativeContract for Diem {
                         .commit_info()
                         .timestamp_usecs();
 
-                    TransactionStatus::Ok
+                    Ok(())
                 } else {
-                    TransactionStatus::FailedToVerify
+                    Err(TransactionError::FailedToVerify)
                 }
             }
             Command::VerifyTransaction {
@@ -640,7 +640,7 @@ impl contracts::NativeContract for Diem {
                     if !self.account_info.iter().any(|x| x.address == address) {
                         error!("not a contract's account address");
 
-                        return TransactionStatus::InvalidAccount;
+                        return Err(TransactionError::InvalidAccount);
                     }
 
                     let proof_data =
@@ -648,7 +648,7 @@ impl contracts::NativeContract for Diem {
                     let transaction_with_proof: TransactionWithProof =
                         match bcs::from_bytes(&proof_data) {
                             Ok(result) => result,
-                            Err(_) => return TransactionStatus::BadTransactionWithProof,
+                            Err(_) => return Err(TransactionError::BadTransactionWithProof),
                         };
                     info!("transaction_with_proof:{:?}", transaction_with_proof);
 
@@ -658,7 +658,7 @@ impl contracts::NativeContract for Diem {
                         address,
                     ) {
                         Ok(result) => result,
-                        Err(_) => return TransactionStatus::FailedToGetTransaction,
+                        Err(_) => return Err(TransactionError::FailedToGetTransaction),
                     };
 
                     let mut transactions: Vec<Transaction> = self
@@ -677,7 +677,7 @@ impl contracts::NativeContract for Diem {
                         && self.verified.get(&tx_hash).unwrap() == &true
                     {
                         info!("transaction has been verified:{:}", self.verified.len());
-                        return TransactionStatus::Ok;
+                        return Ok(());
                     }
 
                     if tx_hash
@@ -687,7 +687,7 @@ impl contracts::NativeContract for Diem {
                             .to_hex()
                     {
                         error!("transaction hash doesn't match");
-                        return TransactionStatus::FailedToVerify;
+                        return Err(TransactionError::FailedToVerify);
                     }
 
                     if let Ok(_) = self.verify_trusted_state(transaction_with_proof.clone()) {
@@ -700,29 +700,29 @@ impl contracts::NativeContract for Diem {
                             if let Ok(_) =
                                 self.maybe_update_balance(&transaction, account_address, address)
                             {
-                                TransactionStatus::Ok
+                                Ok(())
                             } else {
-                                TransactionStatus::FailedToCalculateBalance
+                                Err(TransactionError::FailedToCalculateBalance)
                             }
                         } else {
-                            TransactionStatus::FailedToVerify
+                            Err(TransactionError::FailedToVerify)
                         }
                     } else {
-                        TransactionStatus::FailedToVerify
+                        Err(TransactionError::FailedToVerify)
                     }
                 } else {
-                    TransactionStatus::InvalidAccount
+                    Err(TransactionError::InvalidAccount)
                 }
             }
             Command::NewAccount { seq_number } => {
-                let o = AccountIdWrapper::from(origin);
+                let o = AccountIdWrapper::from(origin.account()?);
                 info!("NewAccount {:}, seq_number:{:}", o.to_string(), seq_number);
 
                 let alice =
                     AccountIdWrapper::from_hex(ALICE_PHALA).expect("Bad init master account");
                 if o == alice {
                     error!("Alice can't execute NewAccount command");
-                    return TransactionStatus::InvalidAccount;
+                    return Err(TransactionError::InvalidAccount);
                 }
 
                 let alice_account = self
@@ -787,10 +787,10 @@ impl contracts::NativeContract for Diem {
                 self.address.insert(receiver_address.to_string(), o);
                 self.account_address.push(receiver_address.to_string());
 
-                TransactionStatus::Ok
+                Ok(())
             }
             Command::TransferXUS { to, amount } => {
-                let o = AccountIdWrapper::from(origin);
+                let o = AccountIdWrapper::from(origin.account()?);
                 info!(
                     "TransferXUS from: {:}, to: {:}, amount: {:}",
                     o.to_string(),
@@ -801,11 +801,11 @@ impl contracts::NativeContract for Diem {
                 if let Some(sender_account) = self.accounts.get_mut(&o) {
                     if !sender_account.is_child {
                         error!("Not Allowed");
-                        return TransactionStatus::TransferringNotAllowed;
+                        return Err(TransactionError::TransferringNotAllowed);
                     }
                     if sender_account.free < amount {
                         error!("InsufficientBalance");
-                        return TransactionStatus::InsufficientBalance;
+                        return Err(TransactionError::InsufficientBalance);
                     }
 
                     let timestamp_usecs = self.timestamp_usecs;
@@ -844,7 +844,7 @@ impl contracts::NativeContract for Diem {
                     {
                         if sender_account.address == receiver {
                             error!("Can't fund yourself");
-                            return TransactionStatus::InvalidAccount;
+                            return Err(TransactionError::InvalidAccount);
                         }
 
                         let sequence = account_sequence(
@@ -903,12 +903,12 @@ impl contracts::NativeContract for Diem {
                         info!("pending_transactions:{:?}", self.pending_transactions);
                         info!("accounts:{:?}", self.accounts);
 
-                        TransactionStatus::Ok
+                        Ok(())
                     } else {
-                        TransactionStatus::InvalidAccount
+                        Err(TransactionError::InvalidAccount)
                     }
                 } else {
-                    TransactionStatus::InvalidAccount
+                    Err(TransactionError::InvalidAccount)
                 }
             }
         }
@@ -968,13 +968,13 @@ impl contracts::NativeContract for Diem {
 }
 
 /// Parses a TrustedState from a bcs encoded LedgerInfoWithSignature in base64
-fn parse_trusted_state(trusted_state_b64: &String) -> Result<TrustedState, TransactionStatus> {
+fn parse_trusted_state(trusted_state_b64: &String) -> Result<TrustedState, TransactionResult> {
     let trusted_state_data =
-        base64::decode(trusted_state_b64).or(Err(TransactionStatus::BadTrustedStateData))?;
+        base64::decode(trusted_state_b64).or(Err(Err(TransactionError::BadTrustedStateData)))?;
     let zero_ledger_info_with_sigs: LedgerInfoWithSignatures =
-        bcs::from_bytes(&trusted_state_data).or(Err(TransactionStatus::BadLedgerInfo))?;
+        bcs::from_bytes(&trusted_state_data).or(Err(Err(TransactionError::BadLedgerInfo)))?;
     TrustedState::try_from(zero_ledger_info_with_sigs.ledger_info())
-        .or(Err(TransactionStatus::BadLedgerInfo))
+        .or(Err(Err(TransactionError::BadLedgerInfo)))
 }
 
 impl core::fmt::Debug for Diem {

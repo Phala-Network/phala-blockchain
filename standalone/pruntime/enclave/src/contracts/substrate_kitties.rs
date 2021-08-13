@@ -1,6 +1,6 @@
 use crate::contracts;
 use crate::contracts::AccountIdWrapper;
-use crate::TransactionStatus;
+use super::{TransactionResult, TransactionError};
 use lazy_static;
 use sp_core::hashing::blake2_128;
 use sp_core::H256 as Hash;
@@ -15,10 +15,9 @@ use crate::std::vec::Vec;
 use rand::Rng;
 
 use super::NativeContext;
-use chain::pallet_mq::MessageOriginInfo;
-use phala_types::messaging::{bind_topic, KittyEvent, KittyTransfer, MessageOrigin, PushCommand};
+use phala_types::messaging::{KittiesCommand, KittyTransfer, MessageOrigin};
 
-type Event = KittyEvent<chain::AccountId, chain::Hash>;
+type Command = KittiesCommand<chain::AccountId, chain::Hash>;
 type Transfer = KittyTransfer<chain::AccountId>;
 
 const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
@@ -72,19 +71,6 @@ pub struct BlindBox {
 #[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct Kitty {
     id: Vec<u8>,
-}
-
-bind_topic!(Command, b"phala/kitties/command");
-/// The commands that the contract accepts from the blockchain. Also called transactions.
-/// Commands are supposed to update the states of the contract.
-#[derive(Encode, Decode, Debug)]
-pub enum Command {
-    /// Pack the kitties into the corresponding blind boxes
-    Pack {},
-    /// Transfer the box to another account, need to judge if the sender is the owner
-    Transfer { dest: String, blind_box_id: String },
-    /// Open the specific blind box to get the kitty
-    Open { blind_box_id: String },
 }
 
 /// The errors that the contract could throw for some queries
@@ -150,7 +136,6 @@ impl SubstrateKitties {
 
 impl contracts::NativeContract for SubstrateKitties {
     type Cmd = Command;
-    type Event = Event;
     type QReq = Request;
     type QResp = Response;
 
@@ -164,21 +149,16 @@ impl contracts::NativeContract for SubstrateKitties {
         &mut self,
         context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        match cmd {
             // Handle the `Pack` command
             Command::Pack {} => {
                 // Create corresponding amount of kitties and blind boxes if there are
                 // indeed some kitties that need to be packed
                 if !self.left_kitties.is_empty() {
                     let mut nonce = 1;
-                    let _sender = AccountIdWrapper::from(origin);
+                    let _sender = AccountIdWrapper::from(origin.account()?);
                     // This indicates the token's kind, let's just suppose that 1 represents box,
                     // maybe if we introduce more tokens later, this can be formulated strictly
                     let kind = 1;
@@ -237,16 +217,16 @@ impl contracts::NativeContract for SubstrateKitties {
                     // After this, new kitties are all packed into boxes
                     self.left_kitties.clear();
                 }
-                // Returns TransactionStatus::Ok to indicate a successful transaction
-                TransactionStatus::Ok
+                // Returns Ok(()) to indicate a successful transaction
+                Ok(())
             }
             Command::Transfer { dest, blind_box_id } => {
                 // TODO: check owner & dest not overflow & sender not underflow
-                let sender = AccountIdWrapper::from(origin);
+                let sender = AccountIdWrapper::from(origin.account()?);
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
                 let reciever = match AccountIdWrapper::from_hex(&dest) {
                     Ok(a) => a,
-                    Err(_) => return TransactionStatus::BadInput,
+                    Err(_) => return Err(TransactionError::BadInput),
                 };
                 if sender == original_owner {
                     println!(
@@ -269,11 +249,11 @@ impl contracts::NativeContract for SubstrateKitties {
                     new_owned_list.push(blind_box_id);
                     self.owned_boxes.insert(reciever, new_owned_list);
                 }
-                // Returns TransactionStatus::Ok to indicate a successful transaction
-                TransactionStatus::Ok
+                // Returns Ok(()) to indicate a successful transaction
+                Ok(())
             }
             Command::Open { blind_box_id } => {
-                let sender = AccountIdWrapper::from(origin);
+                let sender = AccountIdWrapper::from(origin.account()?);
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
                 // Open the box if it's legal and not opened yet
                 if sender == original_owner
@@ -294,7 +274,23 @@ impl contracts::NativeContract for SubstrateKitties {
                     self.opend_boxes.push(blind_box_id.clone());
                     context.mq().send(&data);
                 }
-                TransactionStatus::Ok
+                Ok(())
+            }
+            Command::Created(account_id, kitty_id) => {
+                if !origin.is_pallet() {
+                    error!("Received event from unexpected origin: {:?}", origin);
+                    return Err(TransactionError::BadOrigin);
+                }
+                println!("Created Kitty {:?} by default owner: Kitty!!!", kitty_id);
+                let dest = AccountIdWrapper(account_id);
+                println!("   dest: {}", dest.to_string());
+                let new_kitty_id = kitty_id.to_fixed_bytes();
+                let new_kitty = Kitty {
+                    id: new_kitty_id.to_vec(),
+                };
+                self.kitties.insert(new_kitty_id.to_vec(), new_kitty);
+                self.left_kitties.push(new_kitty_id.to_vec());
+                Ok(())
             }
         }
     }
@@ -339,32 +335,6 @@ impl contracts::NativeContract for SubstrateKitties {
         match inner() {
             Err(error) => Response::Error(error),
             Ok(resp) => resp,
-        }
-    }
-
-    fn handle_event(
-        &mut self,
-        _context: &NativeContext,
-        origin: MessageOrigin,
-        event: Self::Event,
-    ) {
-        if origin != chain::KittyStorage::message_origin() {
-            error!("Received event from unexpected origin: {:?}", origin);
-            return;
-        }
-
-        match event {
-            KittyEvent::Created(account_id, kitty_id) => {
-                println!("Created Kitty {:?} by default owner: Kitty!!!", kitty_id);
-                let dest = AccountIdWrapper(account_id);
-                println!("   dest: {}", dest.to_string());
-                let new_kitty_id = kitty_id.to_fixed_bytes();
-                let new_kitty = Kitty {
-                    id: new_kitty_id.to_vec(),
-                };
-                self.kitties.insert(new_kitty_id.to_vec(), new_kitty);
-                self.left_kitties.push(new_kitty_id.to_vec());
-            }
         }
     }
 }

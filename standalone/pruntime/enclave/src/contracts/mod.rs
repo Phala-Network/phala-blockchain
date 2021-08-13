@@ -4,15 +4,13 @@ use crate::secret_channel::{
 use crate::std::fmt::Debug;
 use crate::std::string::String;
 use crate::system::System;
-use crate::system::TransactionReceipt;
 
-use super::TransactionStatus;
+use crate::system::{TransactionResult, TransactionError};
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use core::str;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
-use phala_types::messaging::PushCommand;
 
 use sp_core::H256;
 use sp_runtime_interface::pass_by::PassByInner as _;
@@ -93,7 +91,6 @@ mod support {
 
     pub trait NativeContract {
         type Cmd: Decode + Debug;
-        type Event: Decode + Debug;
         type QReq: Decode + Debug;
         type QResp: Encode + Debug;
 
@@ -102,16 +99,9 @@ mod support {
             &mut self,
             _context: &NativeContext,
             _origin: MessageOrigin,
-            _cmd: PushCommand<Self::Cmd>,
-        ) -> TransactionStatus {
-            TransactionStatus::Ok
-        }
-        fn handle_event(
-            &mut self,
-            _context: &NativeContext,
-            _origin: MessageOrigin,
-            _event: Self::Event,
-        ) {
+            _cmd: Self::Cmd,
+        ) -> TransactionResult {
+            Ok(())
         }
         fn handle_query(
             &mut self,
@@ -125,74 +115,59 @@ mod support {
         Cmd,
         CmdWrp,
         CmdPlr,
-        Event,
-        EventWrp,
-        EventPlr,
         QReq,
         QResp,
     >
     where
         Cmd: Decode + Debug,
         CmdWrp: Decode + Debug,
-        CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
-        Event: Decode + Debug,
-        EventWrp: Decode + Debug,
-        EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
+        CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd>,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
-        Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
+        Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp>,
     {
         contract: Con,
         send_mq: MessageChannel,
-        cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
-        event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+        cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
         ecdh_key: KeyPair,
     }
 
-    impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
-        NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+    impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
+        NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
     where
         Cmd: Decode + Debug,
         CmdWrp: Decode + Debug,
-        CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>>,
-        Event: Decode + Debug,
-        EventWrp: Decode + Debug,
-        EventPlr: Peeler<Wrp = EventWrp, Msg = Event>,
+        CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd>,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
-        Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp>,
-        PushCommand<Cmd>: Decode + Debug,
+        Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp>,
+        Cmd: Decode + Debug,
     {
         pub fn new(
             contract: Con,
             send_mq: MessageChannel,
-            cmd_rcv_mq: PeelingReceiver<PushCommand<Cmd>, CmdWrp, CmdPlr>,
-            event_rcv_mq: PeelingReceiver<Event, EventWrp, EventPlr>,
+            cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
             ecdh_key: KeyPair,
         ) -> Self {
             NativeCompatContract {
                 contract,
                 send_mq,
                 cmd_rcv_mq,
-                event_rcv_mq,
                 ecdh_key,
             }
         }
     }
 
-    impl<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp> Contract
-        for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, Event, EventWrp, EventPlr, QReq, QResp>
+    impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp> Contract
+        for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
     where
         Cmd: Decode + Debug + Send + Sync,
         CmdWrp: Decode + Debug + Send + Sync,
-        CmdPlr: Peeler<Wrp = CmdWrp, Msg = PushCommand<Cmd>> + Send + Sync,
-        Event: Decode + Debug + Send + Sync,
-        EventWrp: Decode + Debug + Send + Sync,
-        EventPlr: Peeler<Wrp = EventWrp, Msg = Event> + Send + Sync,
+        CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd> + Send + Sync,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
-        Con: NativeContract<Cmd = Cmd, Event = Event, QReq = QReq, QResp = QResp> + Send + Sync,
-        PushCommand<Cmd>: Decode + Debug,
+        Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp> + Send + Sync,
+        Cmd: Decode + Debug,
     {
         fn id(&self) -> ContractId {
             id256(self.contract.id())
@@ -226,29 +201,11 @@ mod support {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
                         Ok((_, cmd, origin)) => {
-                            let cmd_number = cmd.number;
-                            let status = self.contract.handle_command(&context, origin.clone(), cmd);
-                            env.system.add_receipt(
-                                cmd_number,
-                                TransactionReceipt {
-                                    account: origin,
-                                    block_num: env.block.block_number,
-                                    contract_id: self.id(),
-                                    status,
-                                },
-                            );
+                            let _status = self.contract.handle_command(&context, origin, cmd);
                         }
                         Err(e) => {
                             error!("Read command failed: {:?}", e);
                         }
-                    },
-                    next_event = self.event_rcv_mq => match next_event {
-                        Ok((_, event, origin)) => {
-                            self.contract.handle_event(&context, origin, event);
-                        }
-                        Err(e) => {
-                            error!("Read event failed: {:?}", e);
-                        },
                     },
                 };
                 if ok.is_none() {

@@ -1,4 +1,4 @@
-use super::{NativeContext, TransactionStatus};
+use super::{NativeContext, TransactionResult};
 use crate::contracts::AccountIdWrapper;
 use crate::cryptography::aead;
 use crate::std::collections::BTreeMap;
@@ -11,7 +11,7 @@ use phala_mq::MessageOrigin;
 use parity_scale_codec::{Encode, Decode};
 
 use crate::contracts;
-use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
+use phala_types::messaging::Web3AnalyticsCommand as Command;
 
 use super::woothee;
 
@@ -893,7 +893,6 @@ impl Web3Analytics {
 
 impl contracts::NativeContract for Web3Analytics {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
@@ -905,16 +904,11 @@ impl contracts::NativeContract for Web3Analytics {
         &mut self,
         _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        let status = match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
-                let o = AccountIdWrapper::from(origin);
+                let o = AccountIdWrapper::from(origin.account()?);
                 log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
 
                 if skip_stat {
@@ -923,7 +917,7 @@ impl contracts::NativeContract for Web3Analytics {
                     self.no_tracking.remove(&o);
                 }
 
-                TransactionStatus::Ok
+                Ok(())
             }
         };
 

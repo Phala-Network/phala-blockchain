@@ -1,4 +1,4 @@
-use super::{NativeContext, TransactionStatus};
+use super::{NativeContext, TransactionResult, TransactionError};
 use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
@@ -6,15 +6,12 @@ use csv_core::{ReadRecordResult, Reader};
 use log::info;
 
 use crate::contracts;
-use crate::types::TxRef;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{bind_topic, MessageOrigin};
-use phala_types::messaging::PushCommand;
+use phala_mq::MessageOrigin;
 
 pub type ItemId = u32;
 pub type OrderId = u32;
 
-bind_topic!(Command, b"phala/data_plaza/command");
 #[derive(Encode, Decode, Debug)]
 pub enum Command {
     List(ItemDetails),
@@ -25,6 +22,7 @@ pub enum Command {
 pub struct OrderDetails {
     item_id: ItemId,
     query_link: String,
+    index: u64,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -35,6 +33,7 @@ pub struct ItemDetails {
     pub price: PricePolicy,
     pub dataset_link: String,
     pub dataset_preview: String,
+    pub index: u64,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -47,7 +46,7 @@ pub enum PricePolicy {
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct Item {
     id: ItemId,
-    txref: TxRef,
+    // txref: TxRef,
     seller: String,
     details: ItemDetails,
 }
@@ -57,7 +56,7 @@ pub struct Item {
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct Order {
     id: OrderId,
-    txref: TxRef,
+    // txref: TxRef,
     buyer: String,
     details: OrderDetails,
     state: OrderState, // maybe shouldn't serialize this
@@ -254,7 +253,6 @@ impl DataPlaza {
 
 impl contracts::NativeContract for DataPlaza {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
@@ -264,35 +262,29 @@ impl contracts::NativeContract for DataPlaza {
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
+        _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
+            _ => return Err(TransactionError::BadOrigin),
         };
 
         let address_hex = hex::encode(origin);
-        let txref = TxRef {
-            blocknum: context.block.block_number,
-            index: cmd.number,
-        };
 
-        let status = match cmd.command {
+        let status = match cmd {
             Command::List(details) => {
                 self.items.push(Item {
                     id: self.items.len() as ItemId,
-                    txref,
                     seller: address_hex,
                     details,
                 });
-                TransactionStatus::Ok
+                Ok(())
             }
             Command::OpenOrder(details) => {
                 self.orders.push(Order {
                     id: self.orders.len() as OrderId,
-                    txref,
                     buyer: address_hex,
                     details,
                     state: OrderState {
@@ -304,7 +296,7 @@ impl contracts::NativeContract for DataPlaza {
                         result_path: String::new(),
                     },
                 });
-                TransactionStatus::Ok
+                Ok(())
             }
         };
 
