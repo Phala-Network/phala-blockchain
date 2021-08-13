@@ -12,10 +12,10 @@ use crate::contracts::{AccountIdWrapper, NativeContext};
 use crate::TransactionStatus;
 extern crate runtime as chain;
 
-use phala_types::messaging::{BalanceCommand, BalanceEvent, BalanceTransfer, PushCommand};
+use phala_types::messaging::{BalancesCommand, BalancesEvent, BalancesTransfer, PushCommand};
 
-pub type Command = BalanceCommand<chain::AccountId, chain::Balance>;
-pub type Event = BalanceEvent<chain::AccountId, chain::Balance>;
+pub type Command = BalancesCommand<chain::AccountId, chain::Balance>;
+pub type Event = BalancesEvent<chain::AccountId, chain::Balance>;
 
 pub struct Balances {
     total_issuance: chain::Balance,
@@ -134,7 +134,7 @@ impl contracts::NativeContract for Balances {
                         self.total_issuance -= value;
                         info!("   src: {:>20} -> {:>20}", src0, src0 - value);
 
-                        let data = BalanceTransfer {
+                        let data = BalancesTransfer {
                             dest,
                             amount: value,
                         };
