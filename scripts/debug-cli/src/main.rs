@@ -241,9 +241,9 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
     try_decode_with_types!(
         //Lottery,
         //LotteryCommand,
-        //BalanceEvent<AccountId, Balance>,
-        //BalanceCommand<AccountId, Balance>,
-        // BalanceTransfer<AccountId, Balance>,
+        //BalancesEvent<AccountId, Balance>,
+        //BalancesCommand<AccountId, Balance>,
+        // BalancesTransfer<AccountId, Balance>,
         //AssetCommand<AccountId, Balance>,
         //Web3AnalyticsCommand,
         //DiemCommand,

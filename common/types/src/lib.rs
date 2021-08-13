@@ -72,17 +72,17 @@ pub mod messaging {
     // Messages for Balances
 
     #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceEvent<AccountId, Balance> {
+    pub enum BalancesEvent<AccountId, Balance> {
         TransferToTee(AccountId, Balance),
     }
 
     #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceCommand<AccountId, Balance> {
+    pub enum BalancesCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
         TransferToChain { dest: AccountId, value: Balance },
     }
 
-    impl<AccountId, Balance> BalanceCommand<AccountId, Balance> {
+    impl<AccountId, Balance> BalancesCommand<AccountId, Balance> {
         pub fn transfer(dest: AccountId, value: Balance) -> Self {
             Self::Transfer { dest, value }
         }
@@ -92,9 +92,9 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
+    bind_topic!(BalancesTransfer<AccountId, Balance>, b"^phala/balances/transfer");
     #[derive(Encode, Decode)]
-    pub struct BalanceTransfer<AccountId, Balance> {
+    pub struct BalancesTransfer<AccountId, Balance> {
         pub dest: AccountId,
         pub amount: Balance,
     }
