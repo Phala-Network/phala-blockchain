@@ -2,18 +2,15 @@ use crate::secret_channel::{
     storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
 };
 use crate::std::fmt::Debug;
-use crate::std::string::String;
 use crate::system::System;
+use std::convert::TryFrom as _;
 
 use crate::system::{TransactionResult, TransactionError};
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
-use core::str;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
-
-use sp_core::H256;
-use sp_runtime_interface::pass_by::PassByInner as _;
+use chain::AccountId;
 
 pub mod assets;
 pub mod balances;
@@ -26,33 +23,12 @@ pub mod woothee;
 
 pub use phala_types::contract::*;
 
-// TODO.kevin: the wrapper is no longer needed.
-#[derive(Default, Debug, Ord, PartialOrd, Eq, PartialEq, Clone, Encode, Decode)]
-pub struct AccountIdWrapper(pub chain::AccountId);
-
-impl AccountIdWrapper {
-    fn try_from(b: &[u8]) -> Result<Self> {
-        let mut a = AccountIdWrapper::default();
-        use core::convert::TryFrom;
-        a.0 = sp_core::crypto::AccountId32::try_from(b)
-            .map_err(|_| Error::msg("Failed to parse AccountId32"))?;
-        Ok(a)
-    }
-    fn from_hex(s: &str) -> Result<Self> {
-        let bytes = hex::decode(s)
-            .map_err(Error::msg)
-            .context("Failed to decode AccountId hex")?;
-        Self::try_from(&bytes)
-    }
-    fn to_string(&self) -> String {
-        hex::encode(&self.0)
-    }
-}
-
-impl From<H256> for AccountIdWrapper {
-    fn from(hash: H256) -> Self {
-        Self((*hash.inner()).into())
-    }
+fn account_id_from_hex(s: &str) -> Result<AccountId> {
+    let bytes = hex::decode(s)
+        .map_err(Error::msg)
+        .context("Failed to decode AccountId hex")?;
+    AccountId::try_from(&bytes[..])
+        .map_err(|err| anyhow::anyhow!("Failed to convert AccountId: {:?}", err))
 }
 
 pub use support::*;
