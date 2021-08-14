@@ -1,6 +1,6 @@
 use crate::chain;
-use crate::contracts::{self, AccountIdWrapper};
-use super::{TransactionResult, TransactionError};
+use crate::contracts::{self, AccountId};
+use super::{TransactionError, TransactionResult, account_id_from_hex};
 
 use crate::std::{
     collections::{
@@ -54,7 +54,7 @@ pub struct BtcLottery {
     secret: Option<sr25519::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
-    admin: AccountIdWrapper,
+    admin: AccountId,
 }
 
 impl core::fmt::Debug for BtcLottery {
@@ -110,7 +110,7 @@ impl BtcLottery {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
-        let admin = AccountIdWrapper::from_hex(ALICE).expect("Bad initial admin hex");
+        let admin = account_id_from_hex(ALICE).expect("Bad initial admin hex");
         BtcLottery {
             round_id: 0,
             token_set,
@@ -421,7 +421,7 @@ impl BtcLottery {
                 address,
                 utxo,
             } => {
-                let sender = AccountIdWrapper(origin);
+                let sender = origin;
                 let btc_address = match Address::from_str(&address) {
                     Ok(e) => e,
                     Err(_) => return Err(TransactionError::BadCommand),
@@ -437,8 +437,8 @@ impl BtcLottery {
             }
             LotteryUserCommand::SetAdmin { new_admin } => {
                 // TODO: listen to some specific privileged account instead of ALICE
-                let sender = AccountIdWrapper(origin);
-                if let Ok(new_admin) = AccountIdWrapper::from_hex(&new_admin) {
+                let sender = origin;
+                if let Ok(new_admin) = account_id_from_hex(&new_admin) {
                     if self.admin == sender {
                         self.admin = new_admin;
                     }

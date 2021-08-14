@@ -8,7 +8,7 @@ use core::{fmt, str};
 use log::{error, info};
 
 use crate::contracts;
-use crate::contracts::AccountIdWrapper;
+use crate::contracts::AccountId;
 use crate::TransactionResult;
 
 //diem type
@@ -161,7 +161,7 @@ pub struct Account {
 pub struct AccountData {
     is_vasp: bool,
     address: AccountAddress,
-    phala_address: AccountIdWrapper,
+    phala_address: AccountId,
     sequence: u64,
     free: u64,
     locked: u64,
@@ -186,8 +186,8 @@ pub struct Diem {
     #[serde(skip)]
     trusted_state: Option<TrustedState>,
 
-    accounts: BTreeMap<AccountIdWrapper, Account>, //Phala => Diem
-    address: BTreeMap<String, AccountIdWrapper>,   // Diem => Phala
+    accounts: BTreeMap<AccountId, Account>, //Phala => Diem
+    address: BTreeMap<String, AccountId>,   // Diem => Phala
     account_address: Vec<String>,                  //Diem string
     pending_transactions: BTreeMap<String, Vec<PendingTransaction>>,
 
@@ -218,11 +218,11 @@ impl Diem {
             is_child: false,
         };
 
-        let alice_addr = AccountIdWrapper::from_hex(ALICE_PHALA).expect("Bad init master account");
-        let mut accounts = BTreeMap::<AccountIdWrapper, Account>::new();
+        let alice_addr = AccountId::from_hex(ALICE_PHALA).expect("Bad init master account");
+        let mut accounts = BTreeMap::<AccountId, Account>::new();
         accounts.insert(alice_addr.clone(), alice_account);
 
-        let mut address = BTreeMap::<String, AccountIdWrapper>::new();
+        let mut address = BTreeMap::<String, AccountId>::new();
         address.insert(ALICE_ADDRESS.to_string(), alice_addr);
 
         let mut account_address: Vec<String> = Vec::new();
@@ -715,11 +715,11 @@ impl contracts::NativeContract for Diem {
                 }
             }
             Command::NewAccount { seq_number } => {
-                let o = AccountIdWrapper::from(origin.account()?);
+                let o = origin.account()?;
                 info!("NewAccount {:}, seq_number:{:}", o.to_string(), seq_number);
 
                 let alice =
-                    AccountIdWrapper::from_hex(ALICE_PHALA).expect("Bad init master account");
+                    AccountId::from_hex(ALICE_PHALA).expect("Bad init master account");
                 if o == alice {
                     error!("Alice can't execute NewAccount command");
                     return Err(TransactionError::InvalidAccount);
@@ -790,7 +790,7 @@ impl contracts::NativeContract for Diem {
                 Ok(())
             }
             Command::TransferXUS { to, amount } => {
-                let o = AccountIdWrapper::from(origin.account()?);
+                let o = origin.account()?;
                 info!(
                     "TransferXUS from: {:}, to: {:}, amount: {:}",
                     o.to_string(),

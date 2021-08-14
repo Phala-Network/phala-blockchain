@@ -8,7 +8,7 @@ use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
 
 use crate::contracts;
-use crate::contracts::{AccountIdWrapper, NativeContext};
+use crate::contracts::{AccountId, NativeContext};
 use super::{TransactionResult, TransactionError};
 extern crate runtime as chain;
 
@@ -18,7 +18,7 @@ pub type Command = BalancesCommand<chain::AccountId, chain::Balance>;
 
 pub struct Balances {
     total_issuance: chain::Balance,
-    accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
+    accounts: BTreeMap<AccountId, chain::Balance>,
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -38,7 +38,7 @@ impl fmt::Display for Error {
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
-    FreeBalance { account: AccountIdWrapper },
+    FreeBalance { account: AccountId },
     TotalIssuance,
 }
 
@@ -75,12 +75,11 @@ impl contracts::NativeContract for Balances {
     ) -> TransactionResult {
         match cmd {
             Command::Transfer { dest, value } => {
-                let o = AccountIdWrapper::from(origin.account()?);
-                let dest = AccountIdWrapper(dest);
+                let o = origin.account()?;
                 info!(
                     "Transfer: [{}] -> [{}]: {}",
-                    o.to_string(),
-                    dest.to_string(),
+                    hex::encode(&o),
+                    hex::encode(&dest),
                     value
                 );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
@@ -108,12 +107,11 @@ impl contracts::NativeContract for Balances {
                 }
             }
             Command::TransferToChain { dest, value } => {
-                let o = AccountIdWrapper::from(origin.account()?);
-                let dest = AccountIdWrapper(dest);
+                let o = origin.account()?;
                 info!(
                     "Transfer to chain: [{}] -> [{}]: {}",
-                    o.to_string(),
-                    dest.to_string(),
+                    hex::encode(&o),
+                    hex::encode(&dest),
                     value
                 );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
@@ -142,8 +140,8 @@ impl contracts::NativeContract for Balances {
                     return Err(TransactionError::BadOrigin);
                 }
                 info!("TransferToTee from :{:?}, {:}", who, amount);
-                let dest = AccountIdWrapper(who);
-                info!("   dest: {}", dest.to_string());
+                let dest = who;
+                info!("   dest: {}", hex::encode(&dest));
                 if let Some(dest_amount) = self.accounts.get_mut(&dest) {
                     let dest_amount0 = *dest_amount;
                     *dest_amount += amount;
@@ -162,7 +160,7 @@ impl contracts::NativeContract for Balances {
         let inner = || -> Result<Response> {
             match req {
                 Request::FreeBalance { account } => {
-                    if origin == None || origin.unwrap() != &account.0 {
+                    if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
                     let mut balance: chain::Balance = 0;

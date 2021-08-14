@@ -1,5 +1,6 @@
+use super::account_id_from_hex;
 use super::{NativeContext, TransactionResult};
-use crate::contracts::AccountIdWrapper;
+use crate::contracts::AccountId;
 use crate::cryptography::aead;
 use crate::std::collections::BTreeMap;
 use crate::std::collections::HashMap;
@@ -172,7 +173,7 @@ pub enum Request {
         count: String,
     },
     GetConfiguration {
-        account: AccountIdWrapper,
+        account: AccountId,
     },
 }
 
@@ -229,7 +230,7 @@ pub struct Web3Analytics {
     key: Vec<u8>,
     parser: woothee::parser::Parser,
 
-    no_tracking: BTreeMap<AccountIdWrapper, bool>,
+    no_tracking: BTreeMap<AccountId, bool>,
 }
 
 impl Web3Analytics {
@@ -247,7 +248,7 @@ impl Web3Analytics {
 
             parser: woothee::parser::Parser::new(),
 
-            no_tracking: BTreeMap::<AccountIdWrapper, bool>::new(),
+            no_tracking: BTreeMap::<AccountId, bool>::new(),
         }
     }
 
@@ -908,8 +909,8 @@ impl contracts::NativeContract for Web3Analytics {
     ) -> TransactionResult {
         let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
-                let o = AccountIdWrapper::from(origin.account()?);
-                log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
+                let o = origin.account()?;
+                log::info!("SetConfiguration: [{}] -> {}", hex::encode(&o), skip_stat);
 
                 if skip_stat {
                     self.no_tracking.insert(o, skip_stat);
@@ -935,7 +936,7 @@ impl contracts::NativeContract for Web3Analytics {
                         if page_view.uid.len() == 64
                             && self
                                 .no_tracking
-                                .contains_key(&AccountIdWrapper::from_hex(&page_view.uid)?)
+                                .contains_key(&account_id_from_hex(&page_view.uid)?)
                         {
                             continue;
                         }
@@ -1014,7 +1015,7 @@ impl contracts::NativeContract for Web3Analytics {
                     })
                 }
                 Request::GetConfiguration { account } => {
-                    if origin == None || origin.unwrap() != &account.0 {
+                    if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
 
