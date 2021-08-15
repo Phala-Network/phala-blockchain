@@ -139,6 +139,11 @@ pub extern "C" fn pthread_mutexattr_destroy(_attr: *mut libc::pthread_mutexattr_
     0
 }
 
+#[no_mangle]
+pub extern "C" fn sched_yield() -> c_int {
+    unsafe { ocall::sched_yield() }
+}
+
 extern "C" {
     fn strerror_r(errnum: c_int, buf: *mut c_char, buflen: size_t) -> c_int;
 }
