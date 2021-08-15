@@ -34,6 +34,7 @@ impl RequestClient for RpcRequest {
         let url = format!("{}/prpc/{}", self.base_url, path);
         let res = reqwest::Client::new()
             .post(url)
+            .header("Connection", "close")
             .body(body)
             .send()
             .await
