@@ -55,14 +55,15 @@ phala-mq = { path = "../../../crates/phala-mq" }
 phala-crypto = { path = "../../../crates/crypto", features = ["getrandom"] }
 prpc = { path = "../../../crates/prpc" }
 
-sp-io                = { path = "../../../substrate/primitives/io", default-features = false, features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
-sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", default-features = false, features = ["disable_target_static_assertions"] }
-sp-runtime           = { path = "../../../substrate/primitives/runtime", default-features = false }
+sp-io                = { path = "../../../substrate/primitives/io", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
+sp-runtime-interface = { path = "../../../substrate/primitives/runtime-interface", features = ["disable_target_static_assertions"] }
+sp-runtime           = { path = "../../../substrate/primitives/runtime" }
+sp-externalities     = { path = "../../../substrate/primitives/externalities" }
 parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive", "full", "chain-error"] }
 scopeguard   = { version = "1.1", default-features = false }
 
 # Phala specific
-runtime = { path = "../../runtime", default-features = false, package = "phala-node-runtime", features = ["native-nostd"] }
+runtime = { path = "../../runtime", package = "phala-node-runtime" }
 phala-pallets = { path = "../../../pallets/phala", default-features = false }
 pallet-kitties = { path = "../../../pallets/kitties", default-features = false }
 bridge-transfer = { package = "pallet-bridge-transfer", path = "../../../pallets/bridge_transfer", default-features = false }
@@ -76,11 +77,11 @@ derive_more = "0.99.0"
 hash-db = { version = "0.15.2", default-features = false }
 num = { package = "num-traits", version = "0.2", default-features = false }
 finality-grandpa = { version = "0.14", default-features = false, features = ["derive-codec"] }
-trie = { package = "sp-trie", path = "../../../substrate/primitives/trie", default-features = false }
-frame-system = { package = "frame-system", path = "../../../substrate/frame/system", default-features = false }
-sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa", default-features = false }
-sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
-sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"]}
+trie = { package = "sp-trie", path = "../../../substrate/primitives/trie" }
+frame-system = { package = "frame-system", path = "../../../substrate/frame/system" }
+sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa" }
+sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto" }
+sp-core = { package = "sp-core", path = "../../../substrate/primitives/core"}
 
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
@@ -92,16 +93,12 @@ fixed-sqrt = "0.2.4"
 # move-core-types = { path = "../../../diem/language/move-core/types", version = "0.1.0" }
 # transaction-builder = { path = "../../../diem/language/transaction-builder", version = "0.1.0"}
 
-# Ink! Runtime
-# pink = { git = "https://github.com/Phala-Network/pink-sgx" }
-
 [features]
 default = [
     "sp-runtime-interface/disable_target_static_assertions",
     "sp-io/disable_panic_handler",
     "sp-io/disable_oom",
     "sp-io/disable_allocator",
-    "runtime/native-nostd"
 ]
 tests = []
 

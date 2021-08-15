@@ -45,6 +45,4 @@ std = [
     "tempdir",
 ]
 
-sgx = [
-    "chain/native-nostd",
-]
+sgx = []
