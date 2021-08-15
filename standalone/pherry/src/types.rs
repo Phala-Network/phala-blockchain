@@ -1,6 +1,6 @@
+use enclave_api::blocks::StorageProof;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
-use enclave_api::blocks::StorageProof;
 
 // Node Runtime
 
