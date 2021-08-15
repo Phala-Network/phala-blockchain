@@ -249,7 +249,10 @@ pub extern "C" fn pthread_atfork(
     _parent: Option<unsafe extern "C" fn()>,
     _child: Option<unsafe extern "C" fn()>,
 ) -> c_int {
-    not_allowed!()
+    // NOTE: The rand crate uses pthread_atfork to track forks, and reseeds on forks detected. Since we don't
+    // allow dynamic thread creating, It's OK to provide a DUMMPY implementation.
+    info!("DUMMPY pthread_atfork called");
+    0
 }
 
 // mmap, munmap, readlink, fstat64 are required by the stacktrace.
