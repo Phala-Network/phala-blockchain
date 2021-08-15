@@ -256,20 +256,37 @@ pub extern "C" fn pthread_atfork(
 
 #[no_mangle]
 pub extern "C" fn mmap(
-    _addr: *mut c_void,
-    _len: size_t,
-    _prot: c_int,
-    _flags: c_int,
-    _fd: c_int,
-    _offset: libc::off_t,
+    addr: *mut c_void,
+    len: size_t,
+    prot: c_int,
+    flags: c_int,
+    fd: c_int,
+    offset: libc::off_t,
 ) -> *mut c_void {
+    // The GlobalAlloc in std uses libc::malloc && libc::memalign to alloc memory, but some third-party crate will call mmap to alloc
+    // page-aligned memory directly. So we implement the alloc feature and delegate it to memalign.
+    if (flags & libc::MAP_ANONYMOUS) != 0 && fd == -1 {
+        lazy_static! {
+            static ref PAGE_SIZE: size_t = unsafe { ocall::sysconf(libc::_SC_PAGESIZE) } as _;
+        }
+        return unsafe { sgx_libc::memalign(*PAGE_SIZE, len) };
+    }
+    info!(
+        "mmap(addr={:?}, len={}, prot={}, flags={}, fd={}, offset={})",
+        addr, len, prot, flags, fd, offset
+    );
     // On success, mmap() returns a pointer to the mapped area.  On error, the value MAP_FAILED (that is, (void *) -1) is returned,
     // and errno is set to indicate the cause of the error.
     not_allowed!()
 }
 
 #[no_mangle]
-pub extern "C" fn munmap(_addr: *mut c_void, _len: size_t) -> c_int {
+pub extern "C" fn munmap(addr: *mut c_void, _len: size_t) -> c_int {
+    if !addr.is_null() {
+        // All addrs should be from sgx_libc::memalign.
+        unsafe { sgx_libc::free(addr) };
+        return 0;
+    }
     not_allowed!()
 }
 
