@@ -391,3 +391,34 @@ mod net {
         b"gai_strerror not supported\0".as_ptr() as _
     }
 }
+
+
+// For debugging
+#[cfg(feature = "libc_placeholders")]
+mod placeholders {
+    #[no_mangle]
+    pub extern "C" fn sigaltstack() {}
+    #[no_mangle]
+    pub extern "C" fn sysconf() {}
+    #[no_mangle]
+    pub extern "C" fn mprotect() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_attr_init() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_attr_setstacksize() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_attr_destroy() {}
+    #[no_mangle]
+    pub extern "C" fn prctl() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_detach() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_getattr_np() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_attr_getguardsize() {}
+    #[no_mangle]
+    pub extern "C" fn pthread_attr_getstack() {}
+    #[no_mangle]
+    pub extern "C" fn sched_getaffinity() {}
+}
+
