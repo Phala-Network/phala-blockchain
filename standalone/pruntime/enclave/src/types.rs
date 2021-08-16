@@ -1,10 +1,9 @@
 use crate::std::fmt::Debug;
-use crate::std::string::String;
+use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
-use crate::cryptography::{AeadCipher, Origin};
+use parity_scale_codec::{Decode, Encode};
+use phala_types::contract::ContractQueryError;
 
 extern crate runtime as chain;
 
@@ -17,47 +16,26 @@ pub struct BlockInfo<'a> {
     pub now_ms: u64,
     /// The storage snapshot after this block executed.
     pub storage: &'a crate::Storage,
+    /// The message queue
+    pub recv_mq: &'a mut phala_mq::MessageDispatcher,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct TxRef {
     pub blocknum: chain::BlockNumber,
     pub index: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Payload {
-    Plain(String),
-    Cipher(AeadCipher),
-}
+// for contracts
+pub type OpaqueQuery<'a> = &'a [u8];
+pub type OpaqueReply = Vec<u8>;
+pub type OpaqueError = ContractQueryError;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SignedQuery {
-    pub query_payload: String,
-    pub origin: Option<Origin>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Query<T> {
-    pub contract_id: u32,
-    pub nonce: u32,
-    pub request: T,
-}
-impl<T> Query<T> where T: Serialize + DeserializeOwned + Debug + Clone {}
-
-pub type OpaqueQuery = Query<serde_json::Value>;
-pub type OpaqueReply = serde_json::Value;
-pub type OpaqueError = serde_json::Value;
-
-pub fn deopaque_query<T>(q: OpaqueQuery) -> Result<Query<T>, Error>
+pub fn deopaque_query<T>(mut data: &[u8]) -> Result<T, ContractQueryError>
 where
-    T: Serialize + DeserializeOwned + Debug,
+    T: Decode + Debug,
 {
-    Ok(Query {
-        contract_id: q.contract_id,
-        nonce: q.nonce,
-        request: serde_json::from_value(q.request).map_err(|_| Error::DecodeError)?,
-    })
+    Decode::decode(&mut data).or(Err(ContractQueryError::DecodeError))
 }
 
 #[derive(Debug)]

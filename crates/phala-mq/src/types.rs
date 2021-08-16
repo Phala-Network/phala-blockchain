@@ -3,9 +3,16 @@ use core::hash::{Hash, Hasher};
 use primitive_types::H256;
 
 use parity_scale_codec::{Decode, Encode};
+use sp_core::crypto::{AccountId32, UncheckedFrom};
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
+pub type ContractId = H256;
+pub type AccountId = H256;
+
+pub fn contract_id256(id: u32) -> ContractId {
+    ContractId::from_low_u64_be(id as u64)
+}
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
@@ -15,11 +22,11 @@ pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     Pallet(Vec<u8>),
     /// A confidential contract
-    Contract(H256),
+    Contract(ContractId),
     /// A pRuntime worker
     Worker(sp_core::sr25519::Public),
     /// A user
-    AccountId(H256),
+    AccountId(AccountId),
     /// A remote location (parachain, etc.)
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
@@ -36,7 +43,7 @@ impl Hash for MessageOrigin {
 impl MessageOrigin {
     /// Builds a new native confidential contract `MessageOrigin`
     pub fn native_contract(id: u32) -> Self {
-        Self::Contract(H256::from_low_u64_be(id as u64))
+        Self::Contract(contract_id256(id))
     }
 
     /// Returns if the origin is located off-chain
@@ -53,7 +60,17 @@ impl MessageOrigin {
     pub fn is_gatekeeper(&self) -> bool {
         matches!(self, Self::Gatekeeper)
     }
+
+    /// Returns the account id if the origin is from a user, or `Err(BadOrigin)` otherwise
+    pub fn account(self) -> Result<AccountId32, BadOrigin> {
+        match self {
+            Self::AccountId(account_id) => Ok(AccountId32::unchecked_from(account_id)),
+            _ => Err(BadOrigin),
+        }
+    }
 }
+
+pub struct BadOrigin;
 
 /// The topic in the message queue, indicating a group of destination message receivers.
 ///
@@ -133,23 +150,52 @@ impl From<Topic> for Path {
 
 /// Messages implementing BindTopic can be sent without giving the destination.
 pub trait BindTopic {
-    const TOPIC: &'static [u8];
+    fn topic() -> Path;
 }
 
 impl BindTopic for () {
-    const TOPIC: &'static [u8] = b"";
+    fn topic() -> Path {
+        Vec::new()
+    }
+}
+
+/// Indicates the type is a contract command
+pub trait ContractCommand {
+    fn contract_id() -> ContractId;
 }
 
 #[macro_export]
 macro_rules! bind_topic {
     ($t: ident, $path: expr) => {
         impl $crate::types::BindTopic for $t {
-            const TOPIC: &'static [u8] = $path;
+            fn topic() -> Vec<u8> {
+                $path.to_vec()
+            }
         }
     };
     ($t: ident<$($gt: ident),+>, $path: expr) => {
         impl<$($gt),+> $crate::types::BindTopic for $t<$($gt),+> {
-            const TOPIC: &'static [u8] = $path;
+            fn topic() -> Vec<u8> {
+                $path.to_vec()
+            }
+        }
+    }
+}
+
+#[macro_export]
+macro_rules! bind_contract32 {
+    ($t: ident, $id: expr) => {
+        impl $crate::types::ContractCommand for $t {
+            fn contract_id() -> $crate::types::ContractId {
+                $crate::types::contract_id256($id)
+            }
+        }
+    };
+    ($t: ident<$($gt: ident),+>, $id: expr) => {
+        impl<$($gt),+> $crate::types::ContractCommand for $t<$($gt),+> {
+            fn contract_id() -> $crate::types::ContractId  {
+                $crate::types::contract_id256($id)
+            }
         }
     }
 }

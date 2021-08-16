@@ -107,7 +107,8 @@ extern {
     ) -> sgx_status_t;
 
     fn ecall_init(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t
+        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        sealing_path: *const u8, sealing_path_len: usize
     ) -> sgx_status_t;
 
     fn ecall_bench_run(
@@ -412,19 +413,19 @@ macro_rules! proxy_bin {
     };
 }
 
-proxy!("/test", test, actions::ACTION_TEST);
-proxy!("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME);
-proxy!("/get_info", get_info, actions::ACTION_GET_INFO);
-proxy!("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO);
-proxy!("/dump_states", dump_states, actions::ACTION_DUMP_STATES);
-proxy!("/load_states", load_states, actions::ACTION_LOAD_STATES);
-proxy!("/query", query, actions::ACTION_QUERY);
-proxy!("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES);
-proxy!("/test_ink", test_ink, actions::ACTION_TEST_INK);
+macro_rules! proxy_routes {
+    ($(($rpc: literal, $name: ident, $num: expr),)+) => {{
+        $(proxy!($rpc, $name, $num);)+
+        routes![$($name),+]
+    }};
+}
 
-proxy_bin!("/bin_api/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER);
-proxy_bin!("/bin_api/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK);
-proxy_bin!("/bin_api/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER);
+macro_rules! proxy_bin_routes {
+    ($(($rpc: literal, $name: ident, $num: expr),)+) => {{
+        $(proxy_bin!($rpc, $name, $num);)+
+        routes![$($name),+]
+    }};
+}
 
 #[post("/kick")]
 fn kick() {
@@ -513,13 +514,22 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
 
 fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
-        .mount("/", routes![
-            test, init_runtime, get_info,
-            dump_states, load_states,
-            sync_header, dispatch_block, query,
-            get_runtime_info, get_egress_messages, test_ink,
-            sync_para_header,
-            ]);
+        .mount("/", proxy_routes![
+            ("/test", test, actions::ACTION_TEST),
+            ("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME),
+            ("/get_info", get_info, actions::ACTION_GET_INFO),
+            ("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO),
+            ("/dump_states", dump_states, actions::ACTION_DUMP_STATES),
+            ("/load_states", load_states, actions::ACTION_LOAD_STATES),
+            ("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES),
+            ("/test_ink", test_ink, actions::ACTION_TEST_INK),
+        ])
+        .mount("/bin_api", proxy_bin_routes![
+            ("/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER),
+            ("/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK),
+            ("/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER),
+            ("/sync_combined_headers", sync_combined_headers, actions::BIN_ACTION_SYNC_COMBINED_HEADERS),
+        ]);
 
     if *ENABLE_KICK_API {
         info!("ENABLE `kick` API");
@@ -567,8 +577,13 @@ fn main() {
 
     let eid = get_eid();
     let mut retval = sgx_status_t::SGX_SUCCESS;
+    let executable = env::current_exe().unwrap();
+    let path = executable.parent().unwrap();
+    let sealing_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH);
+    let sealing_path_str = String::from(sealing_path.to_str().unwrap());
+    let sealing_path_byte = sealing_path_str.as_bytes();
     let result = unsafe {
-        ecall_init(eid, &mut retval)
+        ecall_init(eid, &mut retval, sealing_path_byte.as_ptr(), sealing_path_byte.len())
     };
 
     if result != sgx_status_t::SGX_SUCCESS {

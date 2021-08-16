@@ -43,7 +43,7 @@ impl MessageDispatcher {
     /// Subscribe messages which implementing BindTopic
     /// Returns a TypedReceiver channel end.
     pub fn subscribe_bound<T: Decode + BindTopic>(&mut self) -> TypedReceiver<T> {
-        self.subscribe(<T as BindTopic>::TOPIC).into()
+        self.subscribe(<T as BindTopic>::topic()).into()
     }
 
     /// Dispatch a message.

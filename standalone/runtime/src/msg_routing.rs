@@ -10,7 +10,7 @@ where
     Msg: Decode + BindTopic,
     Func: Fn(DecodedMessage<Msg>) -> DispatchResult,
 {
-    if message.destination.path() == Msg::TOPIC {
+    if message.destination.path() == &Msg::topic() {
         let msg: DecodedMessage<Msg> = message
             .decode()
             .ok_or(DispatchError::Other("MessageCodecError"))?;
@@ -32,6 +32,7 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
         route_handlers! {
             PhalaRegistry::on_message_received,
             PhalaMining::on_gk_message_received,
+            PhalaMining::on_mining_message_received,
             BridgeTransfer::on_message_received,
             // KittyStorage::on_message_received,
         };

@@ -1,13 +1,15 @@
 #![no_std]
 extern crate alloc;
 
+pub mod crypto;
+
 mod proto_generated;
 
 pub mod prpc {
-    use alloc::vec::Vec;
     pub use crate::proto_generated::*;
-    pub use prpc::{client, server, Message};
+    use alloc::vec::Vec;
     use phala_types::messaging::{MessageOrigin, SignedMessage};
+    pub use prpc::{client, server, Message};
     pub type EgressMessages = Vec<(MessageOrigin, Vec<SignedMessage>)>;
 
     pub const SIG_LEN: usize = 64;
@@ -19,7 +21,6 @@ pub mod actions {
     pub const ACTION_GET_INFO: u8 = 2;
     pub const ACTION_DUMP_STATES: u8 = 3;
     pub const ACTION_LOAD_STATES: u8 = 4;
-    pub const ACTION_QUERY: u8 = 6;
     // Reserved: 8, 9
     pub const ACTION_GET_RUNTIME_INFO: u8 = 10;
     pub const ACTION_GET_EGRESS_MESSAGES: u8 = 23;
@@ -29,6 +30,7 @@ pub mod actions {
     pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START + 0;
     pub const BIN_ACTION_DISPATCH_BLOCK: u8 = BIN_ACTION_START + 1;
     pub const BIN_ACTION_SYNC_HEADER: u8 = BIN_ACTION_START + 2;
+    pub const BIN_ACTION_SYNC_COMBINED_HEADERS: u8 = BIN_ACTION_START + 3;
 }
 
 pub mod blocks {
@@ -123,6 +125,14 @@ pub mod blocks {
     #[derive(Encode, Decode, Clone, Debug)]
     pub struct SyncParachainHeaderReq {
         pub headers: Headers,
+        pub proof: StorageProof,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug)]
+    pub struct SyncCombinedHeadersReq {
+        pub relaychain_headers: Vec<HeaderToSync>,
+        pub authority_set_change: Option<AuthoritySetChange>,
+        pub parachain_headers: Headers,
         pub proof: StorageProof,
     }
 

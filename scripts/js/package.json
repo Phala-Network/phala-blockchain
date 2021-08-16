@@ -8,17 +8,18 @@
         "build:all": "rollup -c rollup.config.js src/*.js"
     },
     "dependencies": {
-        "@acala-network/api": "^0.7.3",
-        "@acala-network/types": "^0.7.3",
-        "@phala/typedefs": "^0.2.1",
-        "@polkadot/api": "^4.16.2",
-        "@polkadot/typegen": "^4.16.2",
-        "@polkadot/util": "^6.10.1",
-        "@polkadot/util-crypto": "^6.10.1",
+        "@acala-network/api": "^2.0.1",
+        "@acala-network/types": "^2.0.1",
+        "@phala/typedefs": "^0.2.14",
+        "@polkadot/api": "^5.3.2",
+        "@polkadot/typegen": "^5.3.2",
+        "@polkadot/util": "^7.1.1",
+        "@polkadot/util-crypto": "^7.1.1",
         "axios": "^0.21.1",
         "bn.js": "^5.2.0",
-        "commander": "^7.2.0",
-        "dotenv": "^8.6.0"
+        "commander": "^8.1.0",
+        "decimal.js": "^10.3.1",
+        "dotenv": "^10.0.0"
     },
     "devDependencies": {
         "@rollup/plugin-commonjs": "^19.0.1",

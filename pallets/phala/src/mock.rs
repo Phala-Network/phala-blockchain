@@ -1,6 +1,12 @@
-use crate::{mining, mq, registry, stakepool};
+use crate::{
+	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
+	mining, mq, registry, stakepool,
+};
 
-use frame_support::{parameter_types, traits::GenesisBuild};
+use frame_support::{
+	parameter_types,
+	traits::{GenesisBuild, OnFinalize, OnInitialize},
+};
 use frame_support_test::TestRandomness;
 use frame_system as system;
 use phala_types::messaging::Message;
@@ -14,7 +20,7 @@ pub(crate) type Balance = u128;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
-type BlockNumber = u64;
+pub(crate) type BlockNumber = u64;
 
 // Configure a mock runtime to test the pallet.
 frame_support::construct_runtime!(
@@ -27,7 +33,7 @@ frame_support::construct_runtime!(
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		// Pallets to test
-		PhalaMq: mq::{Pallet},
+		PhalaMq: mq::{Pallet, Call},
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
@@ -41,7 +47,7 @@ parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = 12;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningInsurancePeriod: u64 = 3 * DAYS;
+	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::AllowAll;
@@ -88,17 +94,27 @@ impl pallet_timestamp::Config for Test {
 	type WeightInfo = ();
 }
 
-pub const HOURS: BlockNumber = 600;
-pub const DAYS: BlockNumber = HOURS * 24;
 pub const DOLLARS: Balance = 1_000_000_000_000;
 pub const CENTS: Balance = DOLLARS / 100;
 
 impl mq::Config for Test {
 	type QueueNotifyConfig = ();
+	type CallMatcher = MqCallMatcher;
+}
+
+pub struct MqCallMatcher;
+impl mq::CallMatcher<Test> for MqCallMatcher {
+	fn match_call(call: &Call) -> Option<&mq::Call<Test>> {
+		match call {
+			Call::PhalaMq(mq_call) => Some(mq_call),
+			_ => None,
+		}
+	}
 }
 
 impl registry::Config for Test {
 	type Event = Event;
+	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 }
 
@@ -110,13 +126,34 @@ impl mining::Config for Test {
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
+	type OnStopped = PhalaStakePool;
+	type OnTreasurySettled = ();
 }
 
 impl stakepool::Config for Test {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
-	type InsurancePeriod = MiningInsurancePeriod;
+	type GracePeriod = MiningGracePeriod;
+	type OnSlashed = ();
+}
+
+pub struct MockValidator;
+impl AttestationValidator for MockValidator {
+	fn validate(
+		_attestation: &Attestation,
+		_user_data_hash: &[u8; 32],
+		_now: u64,
+	) -> Result<IasFields, AttestationError> {
+		Ok(IasFields {
+			mr_enclave: [0u8; 32],
+			mr_signer: [0u8; 32],
+			isv_prod_id: [0u8; 2],
+			isv_svn: [0u8; 2],
+			report_data: [0u8; 64],
+			confidence_level: 128u8,
+		})
+	}
 }
 
 // This function basically just builds a genesis storage key/value store according to
@@ -218,7 +255,27 @@ pub fn setup_workers_linked_operators(n: u8) {
 	}
 }
 
+pub fn elapse_seconds(sec: u64) {
+	let now = Timestamp::get();
+	Timestamp::set_timestamp(now + sec * 1000);
+}
+
 pub fn elapse_cool_down() {
 	let now = Timestamp::get();
-	Timestamp::set_timestamp(now + PhalaMining::cool_down_period());
+	Timestamp::set_timestamp(now + PhalaMining::cool_down_period() * 1000);
+}
+
+pub fn teleport_to_block(n: u64) {
+	let now = System::block_number();
+	PhalaStakePool::on_finalize(now);
+	PhalaMining::on_finalize(now);
+	PhalaRegistry::on_finalize(now);
+	PhalaMq::on_finalize(now);
+	System::on_finalize(now);
+	System::set_block_number(n);
+	System::on_initialize(System::block_number());
+	PhalaMq::on_initialize(System::block_number());
+	PhalaRegistry::on_initialize(System::block_number());
+	PhalaMining::on_initialize(System::block_number());
+	PhalaStakePool::on_initialize(System::block_number());
 }

@@ -125,7 +125,7 @@ impl Parser {
 
     pub fn parse<'a>(&self, agent: &'a str) -> Option<WootheeResult<'a>> {
         let mut result = WootheeResult::new();
-        if agent == "" || agent == "-" {
+        if agent.is_empty() || agent == "-" {
             return Some(result);
         }
 

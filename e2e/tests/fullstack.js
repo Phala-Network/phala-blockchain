@@ -12,7 +12,7 @@ const { types, typeAlias } = require('./typeoverride');
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
-const { checkUntil, skipSlowTest } = require('../utils');
+const { checkUntil, skipSlowTest, sleep } = require('../utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
@@ -103,19 +103,62 @@ describe('A full stack', function () {
 			}
 			assert.isTrue(await checkUntil(async () => {
 				const workerInfo = await api.query.phalaRegistry.workers(workerKey);
-				return workerInfo.unwrap().intialScore.isSome;
+				return workerInfo.unwrap().initialScore.isSome;
 			}, 3 * 6000), 'benchmark timeout');
 		});
 	});
 
 	describe('Gatekeeper', () => {
+		it('pre-mines blocks', async function () {
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				return info.blocknum > 10;
+			}, 10 * 6000), 'not enough blocks mined');
+		});
+
+		it('can be registered as first gatekeeper', async function () {
+			// Register worker1 as Gatekeeper
+			const info = await pruntime[0].getInfo();
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.forceRegisterWorker(
+						hex(info.public_key),
+						hex(info.ecdh_public_key),
+						null,
+					)
+				),
+				alice,
+			);
+			await assert.txAccepted(
+				api.tx.sudo.sudo(
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+				),
+				alice,
+			);
+			// Finalization takes 2-3 blocks. So we wait for 3 blocks here.
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				return info.registered;
+			}, 4 * 6000), 'not registered in time');
+
+			// Check if the role is Gatekeeper
+			assert.isTrue(await checkUntil(async () => {
+				const info = await pruntime[0].getInfo();
+				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
+				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
+				return gatekeepers.includes(hex(info.public_key));
+			}, 4 * 6000), 'not registered as gatekeeper');
+		});
+
 		it('finishes master pubkey upload', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const master_pubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
 				return master_pubkey.isSome;
 			}, 4 * 6000), 'master pubkey not uploaded');
 		});
+    });
 
+    describe('Gatekeeper2', () => {
 		it('can be registered', async function () {
 			// Register worker1 as Gatekeeper
 			const info = await pruntime[1].getInfo();
@@ -166,10 +209,21 @@ describe('A full stack', function () {
 		it('becomes active', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[1].getInfo();
-				return info.gatekeeper_role == 2;  // 2: MiningActive in protobuf
+				return info.gatekeeper.role == 2;  // 2: GatekeeperRole.Active in protobuf
 			}, 1000))
 
 			// Step 3: wait a few more blocks and ensure there are no conflicts in gatekeepers' shared mq
+		});
+
+		it('post-mines blocks', async function () {
+            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+            seqStart = seqStart.unwrap().toNumber();
+            assert.isTrue(await checkUntil(async () => {
+                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+                seq = seq.unwrap().toNumber();
+                return seq >= seqStart + 1;
+            }, 500 * 6000), 'ingress stale');
 		});
 	});
 
@@ -469,9 +523,14 @@ class Cluster {
 	}
 
 	_createWorkerProcess(i) {
+        const AVAILBLE_ACCOUNTS = [
+            '//Alice',
+            '//Bob',
+        ];
 		const w = this.workers[i];
+        const gasAccountKey = AVAILBLE_ACCOUNTS[i];
 		const key = '0'.repeat(63) + (i + 1).toString();
-		w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, key, `relayer${i}`);
+		w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
 		w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
 	}
 
@@ -509,14 +568,17 @@ function waitNodeOutput(p) {
 
 
 function newNode(wsPort, tmpPath, name = 'node') {
-	return new Process([
+    const cli = [
 		pathNode, [
 			'--dev',
 			'--base-path=' + path.resolve(tmpPath, 'phala-node'),
 			`--ws-port=${wsPort}`,
 			'--rpc-methods=Unsafe'
 		]
-	], { logPath: `${tmpPath}/${name}.log` });
+	];
+    const cmd = cli.flat().join(' ');
+    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, {encoding: 'utf-8'});
+	return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
 function newPRuntime(teePort, tmpPath, name = 'pruntime') {
@@ -525,7 +587,7 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 		fs.mkdirSync(workDir);
 		const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
 		filesToCopy.forEach(f =>
-			fs.symlinkSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
+			fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
 		);
 	}
 	return new Process([
@@ -541,14 +603,15 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 	], { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newRelayer(wsPort, teePort, tmpPath, key, name = 'relayer') {
+function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
 			'--no-wait',
-			'--mnemonic=//Alice',
+			`--mnemonic=${gasAccountKey}`,
 			`--inject-key=${key}`,
 			`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
-			`--pruntime-endpoint=http://localhost:${teePort}`
+			`--pruntime-endpoint=http://localhost:${teePort}`,
+            '--dev-wait-block-ms=1000',
 		]
 	], { logPath: `${tmpPath}/${name}.log` });
 }

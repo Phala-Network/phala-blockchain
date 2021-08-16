@@ -122,7 +122,6 @@ pub use crate::{
 };
 use crate::{
     frame::system::{
-        AccountStoreExt,
         Phase,
         System,
     },
@@ -539,6 +538,11 @@ impl<T: Runtime> Client<T> {
         Ok(extrinsic::create_unsigned::<T>(call))
     }
 
+    /// Reads the next nonce of an account, considering the pending extrinsics in the txpool
+    pub async fn account_nonce(&self, account: &T::AccountId) -> Result<T::Index, Error> {
+        self.rpc.system_account_next_index(account).await
+    }
+
     /// Creates a signed extrinsic.
     pub async fn create_signed<C: Call<T> + Send + Sync>(
         &self,
@@ -552,7 +556,7 @@ impl<T: Runtime> Client<T> {
         let account_nonce = if let Some(nonce) = signer.nonce() {
             nonce
         } else {
-            self.account(signer.account_id(), None).await?.nonce
+            self.account_nonce(signer.account_id()).await?
         };
         let call = self.encode(call)?;
         let signed = extrinsic::create_signed(

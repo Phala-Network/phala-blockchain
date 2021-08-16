@@ -569,6 +569,7 @@ parameter_types! {
 impl pallet_election_provider_multi_phase::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
+	type EstimateCallFee = TransactionPayment;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SolutionImprovementThreshold = SolutionImprovementThreshold;
@@ -849,6 +850,7 @@ impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for R
 			frame_system::CheckEra::<Runtime>::from(era),
 			frame_system::CheckNonce::<Runtime>::from(nonce),
 			frame_system::CheckWeight::<Runtime>::new(),
+			pallet_mq::CheckMqSequence::<Runtime>::new(),
 			pallet_transaction_payment::ChargeTransactionPayment::<Runtime>::from(tip),
 		);
 		let raw_payload = SignedPayload::new(call, extra)
@@ -1046,29 +1048,40 @@ impl pallet_bridge::Config for Runtime {
 	type Event = Event;
 	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
 	type Proposal = Call;
-	type ChainId = BridgeChainId;
+	type BridgeChainId = BridgeChainId;
 	type ProposalLifetime = ProposalLifetime;
+}
+
+parameter_types! {
+	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
+	pub const BridgeTokenId: [u8; 32] = hex_literal::hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
+	// bridge::derive_resource_id(1, &hashing::blake2_128(b"lottery"))
+	pub const BridgeLotteryId: [u8; 32] = hex_literal::hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
 }
 
 impl pallet_bridge_transfer::Config for Runtime {
 	type Event = Event;
 	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
 	type Currency = Balances;
+	type BridgeTokenId = BridgeTokenId;
+	type BridgeLotteryId = BridgeLotteryId;
 }
 
 parameter_types! {
 	pub const ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
 	pub const MinMiningStaking: Balance = 1 * PHAS;
 	pub const MinContribution: Balance = 1 * CENTS;
-	pub const MiningInsurancePeriod: BlockNumber = 3 * DAYS;
+	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 }
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
+	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
 }
 impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;
+	type CallMatcher = MqCallMatcher;
 }
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
@@ -1078,12 +1091,15 @@ impl pallet_mining::Config for Runtime {
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
 	type OnReclaim = PhalaStakePool;
+	type OnStopped = PhalaStakePool;
+	type OnTreasurySettled = Treasury;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
-	type InsurancePeriod = MiningInsurancePeriod;
+	type GracePeriod = MiningGracePeriod;
+	type OnSlashed = Treasury;
 }
 
 construct_runtime!(
@@ -1128,7 +1144,7 @@ construct_runtime!(
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>},
 		Lottery: pallet_lottery::{Pallet, Call, Storage, Event<T>},
 		ChainBridge: pallet_bridge::{Pallet, Call, Storage, Event<T>},
-		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Config, Storage},
+		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Storage},
 		// Phala new pallets
 		PhalaMq: pallet_mq::{Pallet, Call, Storage},
 		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
@@ -1159,6 +1175,7 @@ pub type SignedExtra = (
 	frame_system::CheckEra<Runtime>,
 	frame_system::CheckNonce<Runtime>,
 	frame_system::CheckWeight<Runtime>,
+	pallet_mq::CheckMqSequence<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1176,6 +1193,16 @@ pub type Executive = frame_executive::Executive<
 	AllPallets,
 	(),
 >;
+
+pub struct MqCallMatcher;
+impl pallet_mq::CallMatcher<Runtime> for MqCallMatcher {
+	fn match_call(call: &Call) -> Option<&pallet_mq::Call<Runtime>> {
+		match call {
+			Call::PhalaMq(mq_call) => Some(mq_call),
+			_ => None,
+		}
+	}
+}
 
 impl_runtime_apis! {
 	impl sp_api::Core<Block> for Runtime {
@@ -1235,6 +1262,10 @@ impl_runtime_apis! {
 	impl fg_primitives::GrandpaApi<Block> for Runtime {
 		fn grandpa_authorities() -> GrandpaAuthorityList {
 			Grandpa::grandpa_authorities()
+		}
+
+		fn current_set_id() -> fg_primitives::SetId {
+			Grandpa::current_set_id()
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
@@ -1363,12 +1394,55 @@ impl_runtime_apis! {
 
 	#[cfg(feature = "runtime-benchmarks")]
 	impl frame_benchmarking::Benchmark<Block> for Runtime {
+		fn benchmark_metadata(extra: bool) -> (
+			Vec<frame_benchmarking::BenchmarkList>,
+			Vec<frame_support::traits::StorageInfo>,
+		) {
+			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_support::traits::StorageInfoTrait;
+
+			// Trying to add benchmarks directly to the Session Pallet caused cyclic dependency
+			// issues. To get around that, we separated the Session benchmarks into its own crate,
+			// which is why we need these two lines below.
+			use pallet_session_benchmarking::Pallet as SessionBench;
+			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use frame_system_benchmarking::Pallet as SystemBench;
+
+			let mut list = Vec::<BenchmarkList>::new();
+
+			list_benchmark!(list, extra, pallet_babe, Babe);
+			list_benchmark!(list, extra, pallet_balances, Balances);
+			list_benchmark!(list, extra, pallet_bounties, Bounties);
+			list_benchmark!(list, extra, pallet_collective, Council);
+			list_benchmark!(list, extra, pallet_democracy, Democracy);
+			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
+			list_benchmark!(list, extra, pallet_elections_phragmen, Elections);
+			list_benchmark!(list, extra, pallet_grandpa, Grandpa);
+			list_benchmark!(list, extra, pallet_identity, Identity);
+			list_benchmark!(list, extra, pallet_im_online, ImOnline);
+			list_benchmark!(list, extra, pallet_indices, Indices);
+			list_benchmark!(list, extra, pallet_lottery, Lottery);
+			list_benchmark!(list, extra, pallet_membership, TechnicalMembership);
+			list_benchmark!(list, extra, pallet_multisig, Multisig);
+			list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
+			list_benchmark!(list, extra, pallet_proxy, Proxy);
+			list_benchmark!(list, extra, pallet_scheduler, Scheduler);
+			list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
+			list_benchmark!(list, extra, pallet_staking, Staking);
+			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
+			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
+			list_benchmark!(list, extra, pallet_tips, Tips);
+			list_benchmark!(list, extra, pallet_treasury, Treasury);
+			list_benchmark!(list, extra, pallet_utility, Utility);
+			list_benchmark!(list, extra, pallet_vesting, Vesting);
+
+			let storage_info = AllPalletsWithSystem::storage_info();
+
+			return (list, storage_info)
+		}
 		fn dispatch_benchmark(
 			config: frame_benchmarking::BenchmarkConfig
-		) -> Result<
-			(Vec<frame_benchmarking::BenchmarkBatch>, Vec<frame_support::traits::StorageInfo>),
-			sp_runtime::RuntimeString,
-		> {
+		) -> Result<Vec<frame_benchmarking::BenchmarkBatch>, sp_runtime::RuntimeString> {
 			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey};
 			use frame_support::traits::StorageInfoTrait;
 
@@ -1397,8 +1471,6 @@ impl_runtime_apis! {
 				// Treasury Account
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
 			];
-
-			let storage_info = AllPalletsWithSystem::storage_info();
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
@@ -1431,7 +1503,7 @@ impl_runtime_apis! {
 			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
 
 			if batches.is_empty() { return Err("Benchmark not found for this pallet.".into()) }
-			Ok((batches, storage_info))
+			Ok(batches)
 		}
 	}
 }

@@ -1,28 +1,19 @@
 pub use self::pallet::*;
 pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
-// #[cfg(test)]
-// mod mock;
-
-// #[cfg(test)]
-// mod tests;
-
-// #[cfg(feature = "runtime-benchmarks")]
-// mod benchmarking;
-
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{BindTopic, Message, MessageOrigin, SignedMessage};
+	use phala_types::messaging::{BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config {
-		// config
+	pub trait Config: frame_system::Config + crate::registry::Config {
 		type QueueNotifyConfig: QueueNotifyConfig;
+		type CallMatcher: CallMatcher<Self>;
 	}
 
 	#[pallet::pallet]
@@ -118,13 +109,17 @@ pub mod pallet {
 			}
 		}
 
-		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
-			let message = Message::new(sender, M::TOPIC, payload.encode());
+		pub fn push_message_to<M: Encode>(topic: impl Into<Path>, sender: MessageOrigin, payload: M) {
+			let message = Message::new(sender, topic, payload.encode());
 			Self::dispatch_message(message);
 		}
 
+		pub fn push_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
+			Self::push_message_to(M::topic(), sender, payload)
+		}
+
 		pub fn queue_bound_message<M: Encode + BindTopic>(sender: MessageOrigin, payload: M) {
-			let message = Message::new(sender, M::TOPIC, payload.encode());
+			let message = Message::new(sender, M::topic(), payload.encode());
 			QueuedOutboundMessage::<T>::append(message);
 		}
 	}
@@ -157,6 +152,13 @@ pub mod pallet {
 		}
 	}
 	impl QueueNotifyConfig for () {}
+
+	/// Needs an extrenal helper struct to extract MqCall from all callables
+	pub trait CallMatcher<T: Config> {
+		fn match_call(call: &T::Call) -> Option<&Call<T>>
+		where
+			<T as frame_system::Config>::AccountId: IntoH256;
+	}
 
 	pub trait IntoH256 {
 		fn into_h256(self) -> H256;
@@ -197,9 +199,24 @@ pub mod pallet {
 			Pallet::<Self::Config>::push_bound_message(Self::message_origin(), payload);
 		}
 
+		fn push_message_to(topic: impl Into<Path>, payload: impl Encode) {
+			Pallet::<Self::Config>::push_message_to(topic, Self::message_origin(), payload);
+		}
+
+		fn push_command<Cmd: ContractCommand + Encode>(command: Cmd) {
+			use phala_types::contract::command_topic;
+			let topic = command_topic(Cmd::contract_id());
+			let message = CommandPayload::Plain(command);
+			Self::push_message_to(topic, message);
+		}
+
 		/// Enqueues a message to push in the beginning of the next block
 		fn queue_message(payload: impl Encode + BindTopic) {
 			Pallet::<Self::Config>::queue_bound_message(Self::message_origin(), payload);
 		}
 	}
 }
+
+/// Provides `SignedExtension` to check message sequence.
+mod check_seq;
+pub use check_seq::CheckMqSequence;

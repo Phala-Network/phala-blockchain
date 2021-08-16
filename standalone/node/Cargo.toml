@@ -80,7 +80,6 @@ sc-service = { default-features = false, path = "../../substrate/client/service"
 sc-tracing = { path = "../../substrate/client/tracing" }
 sc-telemetry = { path = "../../substrate/client/telemetry" }
 sc-authority-discovery = {  path = "../../substrate/client/authority-discovery" }
-sc-finality-grandpa-warp-sync = { path = "../../substrate/client/finality-grandpa-warp-sync", optional = true }
 
 # frame dependencies
 pallet-indices = { path = "../../substrate/frame/indices" }
@@ -112,9 +111,7 @@ wasm-bindgen-futures = { version = "0.4.18", optional = true }
 browser-utils = { package = "substrate-browser-utils", path = "../../substrate/utils/browser", optional = true }
 libp2p-wasm-ext = { version = "0.28", features = ["websocket"], optional = true }
 
-# bridge
-pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
-pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
+phala-pallets = { path = "../../pallets/phala" }
 
 [target.'cfg(target_arch="x86_64")'.dependencies]
 node-executor = { version = "2.0.0", path = "../executor", features = [ "wasmtime" ] }
@@ -166,7 +163,6 @@ cli = [
 	"frame-benchmarking-cli",
 	"substrate-frame-cli",
 	"sc-service/db",
-	"sc-finality-grandpa-warp-sync",
 	"structopt",
 	"substrate-build-script-utils",
 	"try-runtime-cli",

@@ -25,7 +25,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
-use crate::msg_channel::osp::{KeyPair, PeelingReceiver};
+use crate::secret_channel::PeelingReceiver;
 use sgx_tstd::sync::SgxMutex;
 use std::collections::BTreeMap;
 use std::ptr;
@@ -38,8 +38,7 @@ use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
-use serde_cbor;
+use serde::{de, Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
 use http_req::request::{Method, Request};
@@ -52,7 +51,7 @@ use enclave_api::storage_sync::{
 };
 use enclave_api::{
     actions::*,
-    blocks::{self, SyncParachainHeaderReq},
+    blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };
 
 use phala_crypto::{
@@ -60,9 +59,9 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::{MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo};
+use phala_types::WorkerRegistrationInfo;
 
 mod benchmark;
 mod cert;
@@ -70,19 +69,18 @@ mod contracts;
 mod cryptography;
 mod libc_hacks;
 mod light_validation;
-mod msg_channel;
 mod prpc_service;
 mod rpc_types;
+mod secret_channel;
 mod storage;
 mod system;
 mod types;
 mod utils;
 
-use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-use contracts::{ContractId, ExecuteEnv, SYSTEM};
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
+use contracts::{ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
-use system::{GatekeeperRole, TransactionStatus};
 use types::BlockInfo;
 use types::Error;
 
@@ -147,9 +145,9 @@ extern "C" {
 }
 
 pub const VERSION: u32 = 1;
-pub const IAS_HOST: &'static str = env!("IAS_HOST");
-pub const IAS_SIGRL_ENDPOINT: &'static str = env!("IAS_SIGRL_ENDPOINT");
-pub const IAS_REPORT_ENDPOINT: &'static str = env!("IAS_REPORT_ENDPOINT");
+pub const IAS_HOST: &str = env!("IAS_HOST");
+pub const IAS_SIGRL_ENDPOINT: &str = env!("IAS_SIGRL_ENDPOINT");
+pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
 struct RuntimeState {
     contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
@@ -168,6 +166,8 @@ struct LocalState {
     ecdh_key: Option<EcdhKey>,
     machine_id: [u8; 16],
     dev_mode: bool,
+    skip_ra: bool,
+    sealing_path: String,
     runtime_info: Option<InitRuntimeResponse>,
 }
 
@@ -192,24 +192,6 @@ impl RuntimeState {
             sequence
         })
     }
-}
-
-fn se_to_b64<S, V: Encode>(value: &V, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let data = value.encode();
-    let s = base64::encode(data.as_slice());
-    String::serialize(&s, serializer)
-}
-
-fn de_from_b64<'de, D, V: Decode>(deserializer: D) -> Result<V, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    let data = base64::decode(&s).map_err(de::Error::custom)?;
-    V::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
 }
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(
@@ -244,6 +226,8 @@ lazy_static! {
             ecdh_key: None,
             machine_id: [0; 16],
             dev_mode: false,
+            skip_ra: false,
+            sealing_path: String::new(),
             runtime_info: None,
         })
     };
@@ -334,7 +318,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     }
 
     if res.content_len() != None && res.content_len() != Some(0) {
-        let res_body = res_body_buffer.clone();
+        let res_body = res_body_buffer;
         let encoded_sigrl = str::from_utf8(&res_body).unwrap();
         info!("Base64-encoded SigRL: {:?}", encoded_sigrl);
 
@@ -427,7 +411,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
 }
 
 fn as_u32_le(array: &[u8; 4]) -> u32 {
-    ((array[0] as u32) << 0)
+    (array[0] as u32)
         + ((array[1] as u32) << 8)
         + ((array[2] as u32) << 16)
         + ((array[3] as u32) << 24)
@@ -515,7 +499,7 @@ pub fn create_attestation_report(
     //       7. [out]p_qe_report need further check
     //       8. [out]p_quote
     //       9. quote_size
-    let (p_sigrl, sigrl_len) = if sigrl_vec.len() == 0 {
+    let (p_sigrl, sigrl_len) = if sigrl_vec.is_empty() {
         (ptr::null(), 0)
     } else {
         (sigrl_vec.as_ptr(), sigrl_vec.len() as u32)
@@ -629,6 +613,7 @@ fn generate_seal_key() -> [u8; 16] {
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx_status_t {
     let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
     let input_value: serde_json::value::Value = serde_json::from_slice(input_slice).unwrap();
@@ -638,6 +623,7 @@ pub extern "C" fn ecall_set_state(input_ptr: *const u8, input_len: usize) -> sgx
 }
 
 #[no_mangle]
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_handle(
     action: u8,
     input_ptr: *const u8,
@@ -701,7 +687,6 @@ fn handle_json_api(action: u8, input: &[u8], output_buf_len: usize) -> Result<Va
     match action {
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST => test(load_param(input_value)),
-        ACTION_QUERY => query(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -725,12 +710,13 @@ fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
     match action {
         BIN_ACTION_SYNC_HEADER => sync_header(load_scale(input)?),
         BIN_ACTION_SYNC_PARA_HEADER => sync_para_header(load_scale(input)?),
+        BIN_ACTION_SYNC_COMBINED_HEADERS => sync_combined_headers(load_scale(input)?),
         BIN_ACTION_DISPATCH_BLOCK => dispatch_block(load_scale(input)?),
         _ => unknown(),
     }
 }
 
-const SEAL_DATA_BUF_MAX_LEN: usize = 2048 as usize;
+const SEAL_DATA_BUF_MAX_LEN: usize = 2048_usize;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
 struct PersistentRuntimeData {
@@ -757,7 +743,6 @@ fn save_secret_keys(
     let encoded_vec = serde_cbor::to_vec(&data).unwrap();
     let encoded_slice = encoded_vec.as_slice();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     // Seal
     let aad: [u8; 0] = [0_u8; 0];
@@ -816,7 +801,6 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
     let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
     let encoded_slice = unsealed_data.get_decrypt_txt();
     info!("Length of encoded slice: {}", encoded_slice.len());
-    info!("Encoded slice: {:?}", hex::encode(encoded_slice));
 
     serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
@@ -828,6 +812,7 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 
+// TODO.kevin: Move to enclave-api when the std ready.
 fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
@@ -907,7 +892,7 @@ fn init_secret_keys(
     local_state.genesis_block_hash = Some(genesis_block_hash);
     local_state.identity_key = Some(sr25519_sk);
     local_state.ecdh_key = Some(ecdh_key);
-    local_state.machine_id = machine_id.clone();
+    local_state.machine_id = machine_id;
     local_state.dev_mode = data.dev_mode;
 
     info!("Init done.");
@@ -915,10 +900,23 @@ fn init_secret_keys(
 }
 
 #[no_mangle]
-pub extern "C" fn ecall_init() -> sgx_status_t {
+#[allow(clippy::not_unsafe_ptr_arg_deref)]
+pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
+
+    let sealing_path = unsafe { std::slice::from_raw_parts(sealing_path, sealing_path_len) };
+    let sealing_path = match std::str::from_utf8(sealing_path) {
+        Ok(sealing_path) => sealing_path,
+        Err(e) => {
+            error!("ecall_init: invalid data path: {}", e);
+            return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+        }
+    };
+
+    let mut local_state = LOCAL_STATE.lock().unwrap();
+    local_state.sealing_path = String::from(sealing_path);
 
     info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS
@@ -1028,6 +1026,20 @@ fn sync_para_header(input: SyncParachainHeaderReq) -> Result<Value, Value> {
     Ok(json!({ "synced_to": resp.synced_to }))
 }
 
+fn sync_combined_headers(input: SyncCombinedHeadersReq) -> Result<Value, Value> {
+    let resp = prpc_service::sync_combined_headers(
+        input.relaychain_headers,
+        input.authority_set_change,
+        input.parachain_headers,
+        input.proof,
+    )
+    .map_err(display)?;
+    Ok(json!({
+        "relaychain_synced_to": resp.relaychain_synced_to,
+        "parachain_synced_to": resp.parachain_synced_to,
+    }))
+}
+
 fn dispatch_block(input: blocks::DispatchBlockReq) -> Result<Value, Value> {
     let resp = prpc_service::dispatch_block(input.blocks).map_err(display)?;
     Ok(json!({ "dispatched_to": resp.synced_to }))
@@ -1041,7 +1053,7 @@ fn handle_inbound_messages(
     let messages = state
         .chain_storage
         .mq_messages()
-        .or(Err(error_msg("Can not get mq messages from storage")))?;
+        .map_err(|_| error_msg("Can not get mq messages from storage"))?;
 
     let system = &mut SYSTEM_STATE.lock().unwrap();
     let system = system
@@ -1069,18 +1081,16 @@ fn handle_inbound_messages(
                 }
             }};
         }
-        match &message.destination.path()[..] {
-            SystemEvent::TOPIC => {
-                log_message!(message, SystemEvent);
-            }
-            _ => {
-                info!("mq dispatching message: {:?}", message);
-            }
+        // TODO.kevin: reuse codes in debug-cli
+        if message.destination.path() == &SystemEvent::topic() {
+            log_message!(message, SystemEvent);
+        } else {
+            info!("mq dispatching message: {:?}", message);
         }
         state.recv_mq.dispatch(message);
     }
 
-    let _guard = scopeguard::guard(&mut state.recv_mq, |mq| {
+    let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
         let n_unhandled = mq.clear();
         if n_unhandled > 0 {
             warn!("There are {} unhandled messages dropped", n_unhandled);
@@ -1090,16 +1100,18 @@ fn handle_inbound_messages(
     let now_ms = state
         .chain_storage
         .timestamp_now()
-        .ok_or(error_msg("No timestamp found in block"))?;
+        .ok_or_else(|| error_msg("No timestamp found in block"))?;
 
     let storage = &state.chain_storage;
-    let block = BlockInfo {
+    let recv_mq = &mut *guard;
+    let mut block = BlockInfo {
         block_number,
         now_ms,
         storage,
+        recv_mq,
     };
 
-    if let Err(e) = system.process_messages(&block) {
+    if let Err(e) = system.process_messages(&mut block) {
         error!("System process events failed: {:?}", e);
         return Err(error_msg("System process events failed"));
     }
@@ -1118,11 +1130,16 @@ fn handle_inbound_messages(
 
 fn get_info_json() -> Result<Value, Value> {
     let info = prpc_service::get_info();
-    let machin_id = LOCAL_STATE.lock().unwrap().machine_id;
+    let machine_id = LOCAL_STATE.lock().unwrap().machine_id;
+    let machine_id = hex::encode(&machine_id);
+    let gatekeeper = info.gatekeeper.unwrap();
     Ok(json!({
         "initialized": info.initialized,
         "registered": info.registered,
-        "gatekeeper_role": info.gatekeeper_role,
+        "gatekeeper": {
+            "role": gatekeeper.role,
+            "master_public_key": gatekeeper.master_public_key,
+        },
         "genesis_block_hash": info.genesis_block_hash,
         "public_key": info.public_key,
         "ecdh_public_key": info.ecdh_public_key,
@@ -1133,14 +1150,14 @@ fn get_info_json() -> Result<Value, Value> {
         "dev_mode": info.dev_mode,
         "pending_messages": info.pending_messages,
         "score": info.score,
-        "machine_id": machin_id,
+        "machine_id": machine_id,
     }))
 }
 
 fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Value> {
-    let genesis_block_hash = info.genesis_block_hash_decoded().map_err(display)?;
-    let public_key = info.public_key_decoded().map_err(display)?;
-    let ecdh_public_key = info.ecdh_public_key_decoded().map_err(display)?;
+    let genesis_block_hash = info.decode_genesis_block_hash().map_err(display)?;
+    let public_key = info.decode_public_key().map_err(display)?;
+    let ecdh_public_key = info.decode_ecdh_public_key().map_err(display)?;
 
     let genesis_block_hash_hex = hex::encode(genesis_block_hash);
     let ecdsa_hex_pk = hex::encode(public_key);
@@ -1160,7 +1177,7 @@ fn convert_runtime_info(info: InitRuntimeResponse) -> Result<InitRuntimeResp, Va
     });
 
     Ok(InitRuntimeResp {
-        encoded_runtime_info: info.runtime_info,
+        encoded_runtime_info: info.encoded_runtime_info,
         genesis_block_hash: genesis_block_hash_hex,
         public_key: ecdsa_hex_pk,
         ecdh_public_key: ecdh_hex_pk,
@@ -1176,34 +1193,35 @@ fn get_runtime_info(_input: &Map<String, Value>) -> Result<Value, Value> {
 fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     info!("=======Begin Ink Contract Test=======");
 
-    let mut testcases = Vec::new();
-    testcases.push(TestContract {
-        name: String::from("flipper"),
-        code: include_bytes!("res/flipper.wasm").to_vec(),
-        initial_data: vec![248, 30, 126, 26, 0],
-        txs: vec![
-            vec![205, 228, 239, 169], // flip()
-            vec![109, 76, 230, 60],   // get()
-        ],
-    });
-    testcases.push(TestContract {
-        name: String::from("EIP20Token"),
-        code: include_bytes!("res/EIP20Token.wasm").to_vec(),
-        initial_data: vec![134, 23, 49, 213],
-        txs: vec![
-            vec![
-                102, 136, 227, 5, 128, 150, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 84, 101, 115, 116, 84, 111, 107, 101, 110,
-                2, 8, 84, 84,
-            ], // eip20 (initialAmount: u256, tokenName: String, decimalUnits: u8, tokenSymbol: String)
-            vec![
-                106, 70, 115, 148, 142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126, 37,
-                252, 82, 135, 97, 54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242, 106, 72,
-                210, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-                0, 0, 0, 0, 0,
-            ], // transfer (to: AccountId, value: u256)
-        ],
-    });
+    let testcases = vec![
+        TestContract {
+            name: String::from("flipper"),
+            code: include_bytes!("res/flipper.wasm").to_vec(),
+            initial_data: vec![248, 30, 126, 26, 0],
+            txs: vec![
+                vec![205, 228, 239, 169], // flip()
+                vec![109, 76, 230, 60],   // get()
+            ],
+        },
+        TestContract {
+            name: String::from("EIP20Token"),
+            code: include_bytes!("res/EIP20Token.wasm").to_vec(),
+            initial_data: vec![134, 23, 49, 213],
+            txs: vec![
+                vec![
+                    102, 136, 227, 5, 128, 150, 152, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 84, 101, 115, 116, 84, 111, 107,
+                    101, 110, 2, 8, 84, 84,
+                ], // eip20 (initialAmount: u256, tokenName: String, decimalUnits: u8, tokenSymbol: String)
+                vec![
+                    106, 70, 115, 148, 142, 175, 4, 21, 22, 135, 115, 99, 38, 201, 254, 161, 126,
+                    37, 252, 82, 135, 97, 54, 147, 201, 18, 144, 156, 178, 38, 170, 71, 148, 242,
+                    106, 72, 210, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0, 0, 0, 0,
+                ], // transfer (to: AccountId, value: u256)
+            ],
+        },
+    ];
 
     for t in testcases {
         // TODO.kevin:
@@ -1236,109 +1254,8 @@ fn get_egress_messages(output_buf_len: usize) -> Result<Value, Value> {
     }))
 }
 
-fn query(q: types::SignedQuery) -> Result<Value, Value> {
-    let payload_data = q.query_payload.as_bytes();
-    // Validate signature
-    if let Some(origin) = &q.origin {
-        if !origin
-            .verify(payload_data)
-            .map_err(|_| error_msg("Bad signature or origin"))?
-        {
-            return Err(error_msg("Verifying signature failed"));
-        }
-        info!("Verifying signature passed!");
-    }
-    // Load and decrypt if necessary
-    let payload: types::Payload =
-        serde_json::from_slice(payload_data).map_err(|_| error_msg("Failed to decode payload"))?;
-    let msg = {
-        match payload {
-            types::Payload::Plain(data) => data.into_bytes(),
-            types::Payload::Cipher(_cipher) => todo!("not supported"),
-        }
-    };
-    debug!("msg: {}", String::from_utf8_lossy(&msg));
-    let opaque_query: types::OpaqueQuery =
-        serde_json::from_slice(&msg).map_err(|_| error_msg("Malformed request (Query)"))?;
-    // Origin
-    let accid_origin = match q.origin.as_ref() {
-        Some(o) => {
-            let accid =
-                contracts::account_id_from_hex(&o.origin).map_err(|_| error_msg("Bad origin"))?;
-            Some(accid)
-        }
-        None => None,
-    };
-    // Dispatch
-    let ref_origin = accid_origin.as_ref();
-    let res = match opaque_query.contract_id {
-        SYSTEM => {
-            let mut guard = SYSTEM_STATE.lock().unwrap();
-            let system_state = guard
-                .as_mut()
-                .ok_or_else(|| error_msg("Runtime not initialized"))?;
-            serde_json::to_value(
-                system_state.handle_query(
-                    ref_origin,
-                    types::deopaque_query(opaque_query)
-                        .map_err(|_| error_msg("Malformed request (system::Request)"))?
-                        .request,
-                ),
-            )
-            .unwrap()
-        }
-        _ => {
-            let mut state = STATE.lock().unwrap();
-            let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-            let contract = state
-                .contracts
-                .get_mut(&opaque_query.contract_id)
-                .ok_or(error_msg("Contract not found"))?;
-            let response = contract.handle_query(ref_origin, opaque_query)?;
-            response
-        }
-    };
-    // Encrypt response if necessary
-    let res_json = res.to_string();
-    let res_payload = types::Payload::Plain(res_json);
-
-    let res_value = serde_json::to_value(res_payload).unwrap();
-    Ok(res_value)
-}
-
 fn test(_param: TestReq) -> Result<Value, Value> {
     Ok(json!({}))
-}
-
-mod gatekeeper {
-    use super::*;
-
-    pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
-        let key = storage_prefix("PhalaRegistry", "Gatekeeper");
-        let gatekeepers = chain_storage
-            .get(&key)
-            .map(|v| {
-                Vec::<WorkerPublicKey>::decode(&mut &v[..])
-                    .expect("Decode value of Gatekeeper Failed. (This should not happen)")
-            })
-            .unwrap_or(Vec::new());
-
-        gatekeepers.contains(pubkey)
-    }
-
-    #[allow(dead_code)]
-    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
-        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage
-            .get(&key)
-            .map(|v| {
-                Some(
-                    MasterPublicKey::decode(&mut &v[..])
-                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
-                )
-            })
-            .unwrap_or(None)
-    }
 }
 
 #[cfg(feature = "tests")]

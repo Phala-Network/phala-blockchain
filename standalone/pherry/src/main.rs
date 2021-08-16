@@ -13,7 +13,6 @@ use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
-use subxt::{system::AccountStoreExt, Signer};
 
 mod chain_client;
 mod error;
@@ -151,6 +150,13 @@ struct Args {
 
     #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
+
+    #[structopt(
+        default_value = "5000",
+        long,
+        help = "(Debug only) Set the wait block duration in ms"
+    )]
+    dev_wait_block_ms: u64,
 }
 
 struct BlockSyncState {
@@ -575,10 +581,14 @@ async fn sync_parachain_header(
     let mut para_headers = Vec::new();
     for b in next_headernum..=para_fin_block_number {
         let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
-        let hash = paraclient
-            .block_hash(Some(num))
-            .await?
-            .ok_or(Error::BlockHashNotFound)?;
+        let hash = paraclient.block_hash(Some(num)).await?;
+        let hash = match hash {
+            Some(hash) => hash,
+            None => {
+                info!("Hash not found for block {}, fetch it next turn", b);
+                return Ok(next_headernum - 1);
+            }
+        };
         let header = paraclient
             .header(Some(hash))
             .await?
@@ -588,16 +598,6 @@ async fn sync_parachain_header(
     let r = req_sync_para_header(pr, para_headers, header_proof).await?;
     info!("..req_sync_para_header: {:?}", r);
     Ok(r.synced_to)
-}
-
-/// Updates the nonce from the blockchain (system.account)
-async fn update_signer_nonce(client: &XtClient, signer: &mut SrSigner) -> Result<()> {
-    // TODO: try to fetch the pending txs from mempool for a more accurate nonce
-    let account_id = signer.account_id();
-    let nonce = client.account(account_id, None).await?.nonce;
-    let local_nonce = signer.nonce();
-    signer.set_nonce(cmp::max(nonce, local_nonce.unwrap_or(0)));
-    Ok(())
 }
 
 async fn init_runtime(
@@ -670,13 +670,26 @@ async fn register_worker(
             raw_signing_cert: payload.signing_cert,
         },
     };
-    update_signer_nonce(paraclient, signer).await?;
+    chain_client::update_signer_nonce(paraclient, signer).await?;
     let ret = paraclient.watch(call, signer).await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
         return Err(anyhow!(Error::FailedToCallRegisterWorker));
     }
     signer.increment_nonce();
+    Ok(())
+}
+
+async fn try_register_worker(
+    pr: &PrClient,
+    paraclient: &XtClient,
+    signer: &mut SrSigner,
+) -> Result<()> {
+    let info = pr.get_runtime_info(()).await?;
+    if let Some(attestation) = info.attestation {
+        info!("Registering worker...");
+        register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
+    }
     Ok(())
 }
 
@@ -740,12 +753,10 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    let mut pending_register_info: Option<(prpc::Attestation, Vec<u8>)> = None;
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.get_info(()).await?;
     if !args.no_init {
-        let runtime_info;
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
             let operator = match args.operator {
@@ -756,7 +767,7 @@ async fn bridge(args: Args) -> Result<()> {
                     Some(parsed_operator)
                 }
             };
-            runtime_info = init_runtime(
+            let runtime_info = init_runtime(
                 &client,
                 &paraclient,
                 &pr,
@@ -781,10 +792,9 @@ async fn bridge(args: Args) -> Result<()> {
             })
             .await
             .ok();
+            info!("runtime_info: {:?}", runtime_info);
         } else {
-            info!("pRuntime already initialized. Fetching runtime info...");
-            runtime_info = pr.get_runtime_info(()).await?;
-
+            info!("pRuntime already initialized.");
             // STATUS: pruntime_initialized = true
             // STATUS: pruntime_new_init = false
             pruntime_initialized = true;
@@ -799,16 +809,10 @@ async fn bridge(args: Args) -> Result<()> {
             .await
             .ok();
         }
-        info!("runtime_info: {:?}", runtime_info);
-        if let Some(attestation) = runtime_info.attestation {
-            pending_register_info = Some((attestation, runtime_info.runtime_info));
-        }
     }
 
     if args.no_sync {
-        if let Some((attestation, encoded_runtime_info)) = pending_register_info {
-            register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer).await?;
-        }
+        try_register_worker(&pr, &paraclient, &mut signer).await?;
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -912,10 +916,8 @@ async fn bridge(args: Args) -> Result<()> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 {
-            if let Some((attestation, encoded_runtime_info)) = pending_register_info.take() {
-                info!("Registering worker");
-                register_worker(&paraclient, encoded_runtime_info, attestation, &mut signer)
-                    .await?;
+            if !initial_sync_finished {
+                try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
@@ -937,7 +939,7 @@ async fn bridge(args: Args) -> Result<()> {
         }
         if synced_blocks == 0 {
             info!("Waiting for new blocks");
-            sleep(Duration::from_millis(5000)).await;
+            sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
         }
     }

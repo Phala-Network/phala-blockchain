@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+pub mod contract;
+
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::convert::{TryFrom, TryInto};
@@ -19,19 +21,15 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::EcdhPublicKey;
-    use super::WorkerPublicKey;
-    pub use phala_mq::bind_topic;
+    use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
+    pub use phala_mq::{bind_topic, bind_contract32};
     pub use phala_mq::types::*;
+    use crate::contract;
 
+    // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug)]
-    pub struct PushCommand<Cmd> {
-        pub command: Cmd,
-        pub number: u64,
-    }
-
-    impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
-        const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
+    pub enum CommandPayload<T> {
+        Plain(T),
     }
 
     // TODO.kevin:
@@ -52,9 +50,22 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(LotteryCommand, b"phala/lottery/command");
+    #[derive(Encode, Decode, Debug, Clone)]
+    pub enum LotteryPalletCommand {
+        NewRound {
+            round_id: u32,
+            total_count: u32,
+            winner_count: u32,
+        },
+        OpenBox {
+            round_id: u32,
+            token_id: u32,
+            btc_address: Vec<u8>,
+        },
+    }
+
     #[derive(Encode, Decode, Debug)]
-    pub enum LotteryCommand {
+    pub enum LotteryUserCommand {
         SubmitUtxo {
             round_id: u32,
             address: String,
@@ -65,33 +76,59 @@ pub mod messaging {
         },
     }
 
+    bind_contract32!(LotteryCommand, contract::BTC_LOTTERY);
+    #[derive(Encode, Decode, Debug)]
+    pub enum LotteryCommand {
+        UserCommand(LotteryUserCommand),
+        PalletCommand(LotteryPalletCommand),
+    }
+
+    impl LotteryCommand {
+        pub fn open_box(round_id: u32, token_id: u32, btc_address: Vec<u8>) -> Self {
+            Self::PalletCommand(LotteryPalletCommand::OpenBox {
+                round_id, token_id, btc_address,
+            })
+        }
+
+        pub fn new_round(round_id: u32, total_count: u32, winner_count: u32) -> Self {
+            Self::PalletCommand(LotteryPalletCommand::NewRound {
+                round_id, total_count, winner_count,
+            })
+        }
+    }
+
     pub type Txid = [u8; 32];
 
     // Messages for Balances
 
-    bind_topic!(BalanceEvent<AccountId, Balance>, b"phala/balances/event");
+    bind_contract32!(BalancesCommand<AccountId, Balance>, contract::BALANCES);
     #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceEvent<AccountId, Balance> {
-        TransferToTee(AccountId, Balance),
-    }
-
-    bind_topic!(BalanceCommand<AccountId, Balance>, b"phala/balances/command");
-    #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceCommand<AccountId, Balance> {
+    pub enum BalancesCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
         TransferToChain { dest: AccountId, value: Balance },
+        TransferToTee { who: AccountId, amount: Balance },
     }
 
-    bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
+    impl<AccountId, Balance> BalancesCommand<AccountId, Balance> {
+        pub fn transfer(dest: AccountId, value: Balance) -> Self {
+            Self::Transfer { dest, value }
+        }
+
+        pub fn transfer_to_chain(dest: AccountId, value: Balance) -> Self {
+            Self::TransferToChain { dest, value }
+        }
+    }
+
+    bind_topic!(BalancesTransfer<AccountId, Balance>, b"^phala/balances/transfer");
     #[derive(Encode, Decode)]
-    pub struct BalanceTransfer<AccountId, Balance> {
+    pub struct BalancesTransfer<AccountId, Balance> {
         pub dest: AccountId,
         pub amount: Balance,
     }
 
     // Messages for Assets
 
-    bind_topic!(AssetCommand<AccountId, Balance>, b"phala/assets/command");
+    bind_contract32!(AssetCommand<AccountId, Balance>, contract::ASSETS);
     #[derive(Encode, Decode, Debug)]
     pub enum AssetCommand<AccountId, Balance> {
         Issue {
@@ -105,6 +142,7 @@ pub mod messaging {
             id: AssetId,
             dest: AccountId,
             value: Balance,
+            index: u64,
         },
     }
 
@@ -112,7 +150,7 @@ pub mod messaging {
 
     // Messages for Web3Analytics
 
-    bind_topic!(Web3AnalyticsCommand, b"phala/web3analytics/command");
+    bind_contract32!(Web3AnalyticsCommand, contract::WEB3_ANALYTICS);
     #[derive(Encode, Decode, Debug)]
     pub enum Web3AnalyticsCommand {
         SetConfiguration { skip_stat: bool },
@@ -120,7 +158,7 @@ pub mod messaging {
 
     // Messages for diem
 
-    bind_topic!(DiemCommand, b"phala/diem/command");
+    bind_contract32!(DiemCommand, contract::DIEM);
     #[derive(Encode, Decode, Debug)]
     pub enum DiemCommand {
         /// Sets the whitelisted accounts, in bcs encoded base64
@@ -154,9 +192,16 @@ pub mod messaging {
 
     // Messages for Kitties
 
-    bind_topic!(KittyEvent<AccountId, Hash>, b"phala/kitties/event");
+    bind_contract32!(KittiesCommand<AccountId, Hash>, contract::SUBSTRATE_KITTIES);
     #[derive(Encode, Decode, Debug)]
-    pub enum KittyEvent<AccountId, Hash> {
+    pub enum KittiesCommand<AccountId, Hash> {
+        /// Pack the kitties into the corresponding blind boxes
+        Pack {},
+        /// Transfer the box to another account, need to judge if the sender is the owner
+        Transfer { dest: String, blind_box_id: String },
+        /// Open the specific blind box to get the kitty
+        Open { blind_box_id: String },
+        /// Created a new blind box
         Created(AccountId, Hash),
     }
 
@@ -197,7 +242,11 @@ pub mod messaging {
         /// pallet-mining --> worker
         ///  When a miner start to mine, push this message to the worker to start the benchmark task.
         ///   session_id: Generated by pallet. Each mining session should have a unique session_id.
-        MiningStart { session_id: u32, init_v: U64F64Bits },
+        MiningStart {
+            session_id: u32,
+            init_v: U64F64Bits,
+            init_p: u32,
+        },
         /// pallet-mining --> worker
         ///  When a miner entered CoolingDown state, push this message to the worker, so that it can stop the
         ///  benchmark task.
@@ -259,8 +308,7 @@ pub mod messaging {
         pub recovered_to_online: Vec<WorkerPublicKey>,
         /// V update and payout info
         pub settle: Vec<SettleInfo>,
-
-		// NOTE: Take care of the is_empty method when adding fields
+        // NOTE: Take care of the is_empty method when adding fields
     }
 
     impl<BlockNumber> MiningInfoUpdateEvent<BlockNumber> {
@@ -284,28 +332,25 @@ pub mod messaging {
         pub pubkey: WorkerPublicKey,
         pub v: U64F64Bits,
         pub payout: U64F64Bits,
+        pub treasury: U64F64Bits,
     }
 
-    // Messages: Gatekeeper
-    bind_topic!(GatekeeperEvent, b"phala/gatekeeper/event");
+    // Messages: Master key dispatch
+    bind_topic!(MasterKeyEvent, b"phala/masterkey/event");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub enum GatekeeperEvent {
-        Registered(NewGatekeeperEvent),
+    pub enum MasterKeyEvent {
+        GatekeeperRegistered(NewGatekeeperEvent),
         DispatchMasterKey(DispatchMasterKeyEvent),
-        NewRandomNumber(RandomNumberEvent),
-        TokenomicParametersChanged(TokenomicParameters),
+        MasterPubkeyOnChain(MasterPubkeyEvent),
     }
 
-    // Walkaround for heavy dep on phala-crypto
-    type AeadIV = [u8; 12];
-
-    impl GatekeeperEvent {
+    impl MasterKeyEvent {
         pub fn gatekeeper_registered(
             pubkey: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             gatekeeper_count: u32,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::Registered(NewGatekeeperEvent {
+        ) -> MasterKeyEvent {
+            MasterKeyEvent::GatekeeperRegistered(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
                 gatekeeper_count,
@@ -317,8 +362,8 @@ pub mod messaging {
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::DispatchMasterKey(DispatchMasterKeyEvent {
+        ) -> MasterKeyEvent {
+            MasterKeyEvent::DispatchMasterKey(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
                 encrypted_master_key,
@@ -326,16 +371,8 @@ pub mod messaging {
             })
         }
 
-        pub fn new_random_number(
-            block_number: u32,
-            random_number: RandomNumber,
-            last_random_number: RandomNumber,
-        ) -> GatekeeperEvent {
-            GatekeeperEvent::NewRandomNumber(RandomNumberEvent {
-                block_number,
-                random_number,
-                last_random_number,
-            })
+        pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> MasterKeyEvent {
+            MasterKeyEvent::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
         }
     }
 
@@ -349,6 +386,7 @@ pub mod messaging {
         pub gatekeeper_count: u32,
     }
 
+    type AeadIV = [u8; 12];
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub struct DispatchMasterKeyEvent {
         /// The target to dispatch master key
@@ -359,6 +397,33 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct MasterPubkeyEvent {
+        pub master_pubkey: MasterPublicKey,
+    }
+
+    // Messages: Gatekeeper
+    bind_topic!(GatekeeperEvent, b"phala/gatekeeper/event");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub enum GatekeeperEvent {
+        NewRandomNumber(RandomNumberEvent),
+        TokenomicParametersChanged(TokenomicParameters),
+    }
+
+    impl GatekeeperEvent {
+        pub fn new_random_number(
+            block_number: u32,
+            random_number: RandomNumber,
+            last_random_number: RandomNumber,
+        ) -> GatekeeperEvent {
+            GatekeeperEvent::NewRandomNumber(RandomNumberEvent {
+                block_number,
+                random_number,
+                last_random_number,
+            })
+        }
     }
 
     pub type RandomNumber = [u8; 32];
@@ -375,17 +440,21 @@ pub mod messaging {
         // V calculation
         pub pha_rate: U64F64Bits,
         pub rho: U64F64Bits,
-        pub budget_per_sec: U64F64Bits,
+        pub budget_per_block: U64F64Bits,
         pub v_max: U64F64Bits,
         pub cost_k: U64F64Bits,
         pub cost_b: U64F64Bits,
         pub slash_rate: U64F64Bits,
+        // Payout
+        pub treasury_ratio: U64F64Bits,
         pub heartbeat_window: u32,
         // Ve calculation
         pub rig_k: U64F64Bits,
         pub rig_b: U64F64Bits,
         pub re: U64F64Bits,
         pub k: U64F64Bits,
+        // Slash calculation
+        pub kappa: U64F64Bits,
     }
 }
 

@@ -31,7 +31,9 @@ enclave {
             [out] size_t *output_len_ptr
         );
 
-        public sgx_status_t ecall_init();
+        public sgx_status_t ecall_init(
+            [in, size = sealing_path_len] uint8_t *sealing_path, size_t sealing_path_len
+        );
 
         public sgx_status_t ecall_bench_run(uint32_t index);
 

@@ -5,18 +5,19 @@ pub use self::pallet::*;
 pub mod pallet {
 	use crate::mq::{self, MessageOriginInfo};
 	use crate::registry;
+	use frame_support::traits::WithdrawReasons;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::KeepAlive, Randomness, UnixTime},
+		traits::{Currency, ExistenceRequirement::KeepAlive, OnUnbalanced, Randomness, UnixTime},
 		PalletId,
 	};
 	use frame_system::pallet_prelude::*;
 	use phala_types::{
 		messaging::{
 			DecodedMessage, GatekeeperEvent, HeartbeatChallenge, MessageOrigin,
-			MiningInfoUpdateEvent, SettleInfo, SystemEvent, TokenomicParameters as TokenomicParams,
-			WorkerEvent,
+			MiningInfoUpdateEvent, MiningReportEvent, SettleInfo, SystemEvent,
+			TokenomicParameters as TokenomicParams, WorkerEvent,
 		},
 		WorkerPublicKey,
 	};
@@ -27,6 +28,7 @@ pub mod pallet {
 
 	use crate::balance_convert::FixedPointConvert;
 	use fixed::types::U64F64 as FixedPoint;
+	use fixed_macro::types::U64F64 as fp;
 	use fixed_sqrt::FixedSqrt;
 
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
@@ -45,23 +47,88 @@ pub mod pallet {
 		fn can_unbind(&self) -> bool {
 			matches!(self, MinerState::Ready | MinerState::MiningCoolingDown)
 		}
+		fn can_settle(&self) -> bool {
+			// TODO(hangyin):
+			//
+			// We don't allow a settlement in MiningCoolingDown or Ready. After a miner is stopped,
+			// it's released immediately and the slash is pre-settled (to make sure the force
+			// withdrawal can be processed correctly).
+			//
+			// We have to either figure out how to allow settlement in CoolingDown state, or
+			// complete disable it as we do now. Note that when CoolingDown settle is not allowed,
+			// we still have to make sure the slashed V is periodically updated on the blockchain.
+			matches!(
+				self,
+				MinerState::MiningIdle
+				| MinerState::MiningActive
+				| MinerState::MiningUnresponsive
+			)
+		}
+		fn is_mining(&self) -> bool {
+			matches!(self, MinerState::MiningIdle | MinerState::MiningUnresponsive)
+		}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
+		p_init: u32,
+		p_instant: u32,
 		iterations: u64,
 		mining_start_time: u64,
+		updated_at: u64,
+	}
+
+	impl Benchmark {
+		/// Records the latest benchmark status snapshot and updates `p_instant`
+		fn update(&mut self, updated_at: u64, iterations: u64) -> Result<(), ()> {
+			if updated_at <= self.updated_at || iterations <= self.iterations {
+				return Err(());
+			}
+			let delta_iter = iterations - self.iterations;
+			let delta_ts = updated_at - self.updated_at;
+			self.updated_at = updated_at;
+			self.iterations = iterations;
+			// Normalize the instant P value:
+			// 1. Normalize to iterations in 6 sec
+			// 2. Cap it to 120% `initial_score`
+			let p_instant = (delta_iter * 6 / delta_ts) as u32;
+			self.p_instant = p_instant.min(self.p_init * 12 / 10);
+			Ok(())
+		}
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
 		pub state: MinerState,
-		ve: u128,
-		v: u128,
+		/// The intiial V, in U64F64 bits
+		pub ve: u128,
+		/// The last updated V, in U64F64 bits
+		pub v: u128,
 		v_updated_at: u64,
-		p_instant: u64,
 		benchmark: Benchmark,
 		cool_down_start: u64,
+		stats: MinerStats,
+	}
+
+	impl MinerInfo {
+		/// Calculates the final final returned and slashed stake
+		fn calc_final_stake<Balance>(&self, orig_stake: Balance) -> (Balance, Balance)
+		where
+			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
+		{
+			// Calcualte remaining stake
+			let v = FixedPoint::from_bits(self.v);
+			let ve = FixedPoint::from_bits(self.ve);
+			let return_rate = (v / ve).min(fp!(1));
+			// If we consider kappa as a panelty of frequent exit:
+			// 	let tokenomic = Self::tokenomic();
+			// 	let returned = return_rate * orig_stake.to_fixed() * tokenomic.kappa();
+			let returned = return_rate * orig_stake.to_fixed();
+			// Convert to Balance
+			let returned = FixedPointConvert::from_fixed(&returned);
+			let slashed = orig_stake - returned;
+			(returned, slashed)
+		}
 	}
 
 	pub trait OnReward {
@@ -77,15 +144,32 @@ pub mod pallet {
 
 	pub trait OnReclaim<AccountId, Balance> {
 		/// Called when the miner has finished reclaiming and a given amount of the stake should be
-		/// returned.
+		/// returned
 		///
 		/// When called, it's not guaranteed there's still a worker associated to the miner.
-		fn on_reclaim(worker: &AccountId, stake: Balance) {}
+		fn on_reclaim(miner: &AccountId, orig_stake: Balance, slashed: Balance) {}
+
+		// Using miner account as the identity here is necessary because at this point the worker
+		// may be already unbound.
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct WorkerStat<Balance> {
-		total_reward: Balance,
+	pub trait OnStopped<Balance> {
+		/// Called with a miner is stopped and can already calculate the final slash and stake.
+		///
+		/// It guarantees the number will be the same as the parameters in OnReclaim
+		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
+	}
+
+	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+	pub struct MinerStats {
+		total_reward: u128,
+	}
+
+	impl MinerStats {
+		fn on_reward(&mut self, payout_bits: u128) {
+			let payout: u128 = FixedPointConvert::from_bits(payout_bits);
+			self.total_reward += payout;
+		}
 	}
 
 	#[pallet::config]
@@ -98,6 +182,9 @@ pub mod pallet {
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
 		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
+		type OnStopped: OnStopped<BalanceOf<Self>>;
+		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
+		// Let the StakePool to take over the slash events.
 	}
 
 	#[pallet::pallet]
@@ -122,66 +209,58 @@ pub mod pallet {
 	/// The miner state.
 	///
 	/// The miner state is created when a miner is bounded with a worker, but it will be kept even
-	/// if the worker is force unbounded. A re-bind of a worker will reset the mining state.
+	/// if the worker is force unbound. A re-bind of a worker will reset the mining state.
 	#[pallet::storage]
 	#[pallet::getter(fn miners)]
-	pub(super) type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
+	pub type Miners<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, MinerInfo>;
 
 	/// The bound worker for a miner account
 	#[pallet::storage]
-	pub(super) type MinerBindings<T: Config> =
-		StorageMap<_, Twox64Concat, T::AccountId, WorkerPublicKey>;
+	pub type MinerBindings<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, WorkerPublicKey>;
 
 	/// The bound miner account for a worker
 	#[pallet::storage]
-	pub(super) type WorkerBindings<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
+	pub type WorkerBindings<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, T::AccountId>;
 
-	/// The statistics for a worker
-	#[pallet::storage]
-	#[pallet::getter(fn worker_stats)]
-	pub(super) type WorkerStats<T: Config> =
-		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerStat<BalanceOf<T>>>;
-
-	/// The cool down period (in blocks)
+	/// The cool down period (in sec)
 	#[pallet::storage]
 	#[pallet::getter(fn cool_down_period)]
-	pub(super) type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
+	pub type CoolDownPeriod<T> = StorageValue<_, u64, ValueQuery>;
 
 	/// The next id to assign to a mining session
 	#[pallet::storage]
-	pub(super) type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
+	pub type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
 
 	/// The stakes of miner accounts.
 	///
 	/// Only presents for mining and cooling down miners.
 	#[pallet::storage]
 	#[pallet::getter(fn stakes)]
-	pub(super) type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
+	pub type Stakes<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, BalanceOf<T>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [period]
+		/// Cool down expiration changed. \[period\]
 		CoolDownExpirationChanged(u64),
-		/// [miner]
+		/// Miner starts mining. \[miner\]
 		MinerStarted(T::AccountId),
-		/// [miner]
+		/// Miner stops mining. \[miner\]
 		MinerStopped(T::AccountId),
-		/// [miner]
-		MinerReclaimed(T::AccountId),
-		/// [miner, worker]
+		/// Miner is reclaimed, with its slash settled. \[miner, original_stake, slashed\]
+		MinerReclaimed(T::AccountId, BalanceOf<T>, BalanceOf<T>),
+		/// Miner & worker are bound. \[miner, worker\]
 		MinerBound(T::AccountId, WorkerPublicKey),
-		/// [miner, worker]
+		/// Miner & worker are unbound. \[miner, worker\]
 		MinerUnbound(T::AccountId, WorkerPublicKey),
-		/// [miner]
+		/// Miner enters unresponsive state. \[miner\]
 		MinerEnterUnresponsive(T::AccountId),
-		/// [miner]
+		/// Miner returns to responsive state \[miner\]
 		MinerExitUnresponive(T::AccountId),
-		/// [miner, amount]
-		_MinerStaked(T::AccountId, BalanceOf<T>),
-		/// [miner, amount]
-		_MinerWithdrew(T::AccountId, BalanceOf<T>),
+		/// Miner settled successfully. \[miner, v, payout\]
+		MinerSettled(T::AccountId, u128, u128),
+		/// Some internal error happened when settling a miner's ledger. \[worker\]
+		InternalErrorMinerSettleFailed(WorkerPublicKey),
 	}
 
 	#[pallet::error]
@@ -200,10 +279,15 @@ pub mod pallet {
 		CoolDownNotReady,
 		InsufficientStake,
 		TooMuchStake,
+		InternalErrorBadTokenomicParameters,
 	}
 
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+
+	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
+		<T as frame_system::Config>::AccountId,
+	>>::NegativeImbalance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -236,7 +320,8 @@ pub mod pallet {
 
 		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
 		///
-		/// Note: anyone can trigger cleanup
+		/// Anyone can reclaim.
+		///
 		/// Requires:
 		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
 		#[pallet::weight(0)]
@@ -248,10 +333,11 @@ pub mod pallet {
 			miner_info.cool_down_start = 0u64;
 			Miners::<T>::insert(&miner, &miner_info);
 
-			let stake = Stakes::<T>::take(&miner).unwrap_or_default();
-			// TODO: clean up based on V
-			T::OnReclaim::on_reclaim(&miner, stake);
-			Self::deposit_event(Event::<T>::MinerReclaimed(miner));
+			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
+
+			T::OnReclaim::on_reclaim(&miner, orig_stake, slashed);
+			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
 			Ok(())
 		}
 
@@ -291,6 +377,17 @@ pub mod pallet {
 			Self::stop_mining(miner)?;
 			Ok(())
 		}
+
+		/// Updates the tokenomic parameters
+		#[pallet::weight(1)]
+		pub fn update_tokenomic(
+			origin: OriginFor<T>,
+			new_params: TokenomicParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::update_tokenomic_parameters(new_params);
+			Ok(())
+		}
 	}
 
 	#[pallet::hooks]
@@ -328,6 +425,39 @@ pub mod pallet {
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
 		}
 
+		pub fn on_mining_message_received(
+			message: DecodedMessage<MiningReportEvent>,
+		) -> DispatchResult {
+			if let MessageOrigin::Worker(worker) = message.sender {
+				match message.payload {
+					MiningReportEvent::Heartbeat { iterations, .. } => {
+						// Handle with great care!
+						//
+						// In some cases, a message can be delayed, but the worker has been already
+						// unbound or removed (possible?). So when we receive a message, don't
+						// assume the worker is always there and the miner state is complete. So
+						// far it sounds safe to just discard this message, but not interrupt the
+						// entire message queue.
+						//
+						// So we call `ensure_worker_bound` here, and return an error if the worker
+						// is not bound. However if the worker is indeed bound, the rest of the
+						// code assumes the Miners, Workers, and worker score must exist.
+						let miner = Self::ensure_worker_bound(&worker)?;
+						let mut miner_info = Self::miners(&miner).expect("Bound miner; qed.");
+						let worker =
+							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
+						let now = Self::now_sec();
+						miner_info
+							.benchmark
+							.update(now, iterations)
+							.expect("Benchmark report must be valid; qed.");
+						Miners::<T>::insert(&miner, miner_info);
+					}
+				};
+			}
+			Ok(())
+		}
+
 		pub fn on_gk_message_received(
 			message: DecodedMessage<MiningInfoUpdateEvent<T::BlockNumber>>,
 		) -> DispatchResult {
@@ -337,40 +467,46 @@ pub mod pallet {
 
 			let event = message.payload;
 			if !event.is_empty() {
-				let now = <T as registry::Config>::UnixTime::now()
-					.as_secs()
-					.saturated_into::<u64>();
+				let now = Self::now_sec();
 
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningUnresponsive;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(binding_miner));
+						Miners::<T>::insert(&account, &miner_info);
+						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(account));
 					}
 				}
 
 				// worker recovered to online, update bound miner state to idle
 				for worker in event.recovered_to_online {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&worker) {
+					if let Some(account) = WorkerBindings::<T>::get(&worker) {
 						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
+							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						// Skip non-mining miners
+						if !miner_info.state.is_mining() {
+							continue;
+						}
 						miner_info.state = MinerState::MiningIdle;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-						Self::deposit_event(Event::<T>::MinerExitUnresponive(binding_miner));
+						Miners::<T>::insert(&account, &miner_info);
+						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
 					}
 				}
 
-				for info in event.settle.clone() {
-					if let Some(binding_miner) = WorkerBindings::<T>::get(&info.pubkey) {
-						let mut miner_info =
-							Self::miners(&binding_miner).ok_or(Error::<T>::MinerNotFound)?;
-						miner_info.v = info.v; // in bits
-						miner_info.v_updated_at = now;
-						Miners::<T>::insert(&binding_miner, &miner_info);
-					}
+				for info in &event.settle {
+					// Do not crash here
+					match Self::try_handle_settle(info, now) {
+						Err(_) => Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
+							info.pubkey,
+						)),
+						_ => (),
+					};
 				}
 
 				T::OnReward::on_reward(&event.settle);
@@ -379,32 +515,51 @@ pub mod pallet {
 			Ok(())
 		}
 
+		/// Tries to handle settlement of a miner.
+		///
+		/// We really don't want to crash the interrupt the message processing. So when there's an
+		/// error we return it, and let the caller to handle it gracefully.
+		fn try_handle_settle(info: &SettleInfo, now: u64) -> DispatchResult {
+			if let Some(account) = WorkerBindings::<T>::get(&info.pubkey) {
+				let mut miner_info = Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+				debug_assert!(miner_info.state.can_settle(), "Miner cannot settle now");
+				miner_info.v = info.v; // in bits
+				miner_info.v_updated_at = now;
+				miner_info.stats.on_reward(info.payout);
+				Miners::<T>::insert(&account, &miner_info);
+				// Handle treasury deposit
+				let treasury_deposit = FixedPointConvert::from_bits(info.treasury);
+				let imbalance = Self::withdraw_imbalance_from_subsidy_pool(treasury_deposit)?;
+				T::OnTreasurySettled::on_unbalanced(imbalance);
+				Self::deposit_event(Event::<T>::MinerSettled(account, info.v, info.payout));
+			}
+			Ok(())
+		}
+
 		fn can_reclaim(miner_info: &MinerInfo) -> bool {
 			if miner_info.state != MinerState::MiningCoolingDown {
 				return false;
 			}
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 			now - miner_info.cool_down_start >= Self::cool_down_period()
 		}
 
-		/// Binding miner with worker
+		/// Binds a miner to a worker
+		///
+		/// This will bind the miner account to the worker, and then create a `Miners` entry to
+		/// track the mining session in the future. The mining session will exist until ther miner
+		/// and the worker is unbound.
 		///
 		/// Requires:
 		/// 1. The worker is alerady registered
 		/// 2. The worker has an initial benchmark
-		/// 3. The worker is not bounded
+		/// 3. Both the worker and the miner are not bound
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-
-			ensure!(
-				registry::Workers::<T>::contains_key(&pubkey),
-				Error::<T>::WorkerNotRegistered
-			);
-
+			let worker =
+				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
+			// Check the worker has finished the benchmark
+			ensure!(worker.initial_score != None, Error::<T>::BenchmarkMissing);
+			// Check miner and worker not bound
 			ensure!(
 				Self::ensure_miner_bound(&miner).is_err(),
 				Error::<T>::DuplicateBoundMiner
@@ -414,9 +569,9 @@ pub mod pallet {
 				Error::<T>::DuplicateBoundMiner
 			);
 
+			let now = Self::now_sec();
 			MinerBindings::<T>::insert(&miner, &pubkey);
 			WorkerBindings::<T>::insert(&pubkey, &miner);
-
 			Miners::<T>::insert(
 				&miner,
 				MinerInfo {
@@ -424,12 +579,15 @@ pub mod pallet {
 					ve: 0,
 					v: 0,
 					v_updated_at: now,
-					p_instant: 0u64,
 					benchmark: Benchmark {
+						p_init: 0u32,
+						p_instant: 0u32,
 						iterations: 0u64,
 						mining_start_time: now,
+						updated_at: 0u64,
 					},
 					cool_down_start: 0u64,
+					stats: Default::default(),
 				},
 			);
 
@@ -451,6 +609,7 @@ pub mod pallet {
 			let force = !miner_info.state.can_unbind();
 			if force {
 				// Force unbinding. Stop the miner first.
+				// Note that `stop_mining` will notify the suscribers with the slashed vaue.
 				Self::stop_mining(miner.clone())?;
 				// TODO: consider the final state sync (could cause slash) when stopping mining
 			}
@@ -479,9 +638,7 @@ pub mod pallet {
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
 
-			let tokenomic = Tokenomic::<T>::new(
-				TokenomicParameters::<T>::get().expect("TokenomicParameters must exist; qed."),
-			);
+			let tokenomic = Self::tokenomic()?;
 			let min_stake = tokenomic.minimal_stake(p);
 			ensure!(stake >= min_stake, Error::<T>::InsufficientStake);
 
@@ -489,9 +646,7 @@ pub mod pallet {
 			let v_max = tokenomic.v_max();
 			ensure!(ve <= v_max, Error::<T>::TooMuchStake);
 
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 
 			Stakes::<T>::insert(&miner, stake);
 			Miners::<T>::mutate(&miner, |info| {
@@ -500,6 +655,7 @@ pub mod pallet {
 					info.ve = ve.to_bits();
 					info.v = ve.to_bits();
 					info.v_updated_at = now;
+					info.benchmark.p_init = p;
 				}
 			});
 			OnlineMiners::<T>::mutate(|v| *v += 1);
@@ -511,6 +667,7 @@ pub mod pallet {
 				WorkerEvent::MiningStart {
 					session_id: session_id,
 					init_v: ve.to_bits(),
+					init_p: p,
 				},
 			));
 			Self::deposit_event(Event::<T>::MinerStarted(miner));
@@ -531,13 +688,17 @@ pub mod pallet {
 				Error::<T>::MinerNotMining
 			);
 
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
+			let now = Self::now_sec();
 			miner_info.state = MinerState::MiningCoolingDown;
 			miner_info.cool_down_start = now;
 			Miners::<T>::insert(&miner, &miner_info);
 			OnlineMiners::<T>::mutate(|v| *v -= 1); // v cannot be 0
+
+			// Calcualte remaining stake (assume there's no more slash after calling `stop_mining`)
+			let orig_stake = Stakes::<T>::get(&miner).unwrap_or_default();
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
+			// Notify the subscriber with the slash prediction
+			T::OnStopped::on_stopped(&worker, orig_stake, slashed);
 
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
@@ -557,7 +718,6 @@ pub mod pallet {
 			MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)
 		}
 
-		#[allow(unused)]
 		fn update_tokenomic_parameters(params: TokenomicParams) {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
@@ -566,6 +726,30 @@ pub mod pallet {
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
 			let wallet = Self::account_id();
 			T::Currency::transfer(&wallet, &target, value, KeepAlive)
+		}
+
+		pub fn withdraw_imbalance_from_subsidy_pool(
+			value: BalanceOf<T>,
+		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
+			let wallet = Self::account_id();
+			T::Currency::withdraw(
+				&wallet,
+				value,
+				WithdrawReasons::TRANSFER,
+				frame_support::traits::ExistenceRequirement::AllowDeath,
+			)
+		}
+
+		fn tokenomic() -> Result<Tokenomic<T>, Error<T>> {
+			let params = TokenomicParameters::<T>::get()
+				.ok_or(Error::<T>::InternalErrorBadTokenomicParameters)?;
+			Ok(Tokenomic::<T>::new(params))
+		}
+
+		fn now_sec() -> u64 {
+			<T as registry::Config>::UnixTime::now()
+				.as_secs()
+				.saturated_into::<u64>()
 		}
 	}
 
@@ -639,10 +823,16 @@ pub mod pallet {
 				SCORES[0]
 			}
 		}
+
+		/// Gets kappa in FixedPoint
+		fn _kappa(&self) -> FixedPoint {
+			FixedPoint::from_bits(self.params.kappa)
+		}
 	}
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
+		pub cool_down_period_sec: u32,
 		pub tokenomic_parameters: TokenomicParams,
 	}
 
@@ -651,33 +841,43 @@ pub mod pallet {
 		/// Default tokenoic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
+			let block_sec = 12;
+			let hour_sec = 3600;
+			let day_sec = 24 * hour_sec;
+			let year_sec = 365 * day_sec;
+
 			let pha_rate = fp!(1);
-			let rho = fp!(1.00000099985); // hourly: 1.00020,  1.0002 ** (1/300)
-			let slash_rate = fp!(0.001) / 300; // hourly rate: 0.001, convert to per-block rate
-			let budget_per_sec = fp!(720000) / 24 / 3600;
+			let rho = fp!(1.000000666600231); // hourly: 1.00020,  1.0002 ** (1/300) convert to per-block
+			let slash_rate = fp!(0.001) * block_sec / hour_sec; // hourly rate: 0.001, convert to per-block
+			let budget_per_block = fp!(720000) * block_sec / day_sec;
 			let v_max = fp!(30000);
-			let cost_k = fp!(0.0415625) / 3600 / 24 / 365; // annual 0.0415625, convert to per sec
-			let cost_b = fp!(88.59375) / 3600 / 24 / 365; // annual 88.59375, convert to per sec
+			let cost_k = fp!(0.0415625) * block_sec / year_sec / pha_rate; // annual 0.0415625, convert to per-block
+			let cost_b = fp!(88.59375) * block_sec / year_sec / pha_rate; // annual 88.59375, convert to per-block
+			let treasury_ratio = fp!(0.2);
 			let heartbeat_window = 10; // 10 blocks
-			let rig_k = fp!(0.3);
-			let rig_b = fp!(0);
-			let re = fp!(1.5);
+			let rig_k = fp!(0.3) / pha_rate;
+			let rig_b = fp!(0) / pha_rate;
+			let re = fp!(1.3);
 			let k = fp!(100);
+			let kappa = fp!(1);
 
 			Self {
+				cool_down_period_sec: 604800, // 7 days
 				tokenomic_parameters: TokenomicParams {
 					pha_rate: pha_rate.to_bits(),
 					rho: rho.to_bits(),
-					budget_per_sec: budget_per_sec.to_bits(),
+					budget_per_block: budget_per_block.to_bits(),
 					v_max: v_max.to_bits(),
 					cost_k: cost_k.to_bits(),
 					cost_b: cost_b.to_bits(),
 					slash_rate: slash_rate.to_bits(),
+					treasury_ratio: treasury_ratio.to_bits(),
 					heartbeat_window: 10,
 					rig_k: rig_k.to_bits(),
 					rig_b: rig_b.to_bits(),
 					re: re.to_bits(),
 					k: k.to_bits(),
+					kappa: kappa.to_bits(),
 				},
 			}
 		}
@@ -686,6 +886,7 @@ pub mod pallet {
 	#[pallet::genesis_build]
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
+			CoolDownPeriod::<T>::put(self.cool_down_period_sec as u64);
 			TokenomicParameters::<T>::put(self.tokenomic_parameters.clone());
 			Pallet::<T>::queue_message(GatekeeperEvent::TokenomicParametersChanged(
 				self.tokenomic_parameters.clone(),
@@ -721,11 +922,11 @@ pub mod pallet {
 	mod test {
 		use super::*;
 		use crate::mock::{
-			new_test_ext, set_block_1, setup_workers, take_events, take_messages, worker_pubkey,
-			Event as TestEvent, Origin, Test, DOLLARS,
+			elapse_seconds, new_test_ext, set_block_1, setup_workers, take_events, take_messages,
+			worker_pubkey, Event as TestEvent, Origin, Test, DOLLARS,
 		};
 		// Pallets
-		use crate::mock::{PhalaMining, System};
+		use crate::mock::{PhalaMining, PhalaRegistry, System};
 
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::{assert_noop, assert_ok};
@@ -863,23 +1064,23 @@ pub mod pallet {
 				// Ve for different confidence level
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(1950.00000000000000001626)
+					fp!(1690.0000000000000000282)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1819.99999999999999998694)
+					fp!(1612.0000000000000000247)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1754.9999999999999999723)
+					fp!(1572.9999999999999999877)
 				);
 				// Rig cost estimation
 				assert_eq!(tokenomic.rig_cost(500), fp!(150.0000000000000000054));
@@ -892,13 +1093,84 @@ pub mod pallet {
 				let slash_rate = FixedPoint::from_bits(tokenomic.params.slash_rate);
 				let slash_decay = FixedPoint::from_num(1) - slash_rate;
 				assert_eq!(pow(slash_decay, HOUR_BLOCKS), fp!(0.9990004981683704595));
+				// rho per hour
+				let rho = FixedPoint::from_bits(tokenomic.params.rho);
+				assert_eq!(pow(rho, HOUR_BLOCKS), fp!(1.00019999999998037056));
 				// Budget per day
-				let budger_per_sec = FixedPoint::from_bits(tokenomic.params.budget_per_sec);
-				assert_eq!(budger_per_sec * 3600 * 24, fp!(719999.99999999999999843875));
+				let budger_per_block = FixedPoint::from_bits(tokenomic.params.budget_per_block);
+				assert_eq!(budger_per_block * 3600 * 24 / 12, fp!(720000));
 				// Cost estimation per year
 				assert_eq!(
-					tokenomic.op_cost(2000) * 3600 * 24 * 365,
-					fp!(171.71874999890369452304)
+					tokenomic.op_cost(2000) / 12 * 3600 * 24 * 365,
+					fp!(171.71874999975847951583)
+				);
+			});
+		}
+
+		#[test]
+		fn test_benchmark_report() {
+			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				// 100 iters per sec
+				PhalaRegistry::internal_set_benchmark(&worker_pubkey(1), Some(600));
+				assert_ok!(PhalaMining::bind(1, worker_pubkey(1)));
+				assert_ok!(PhalaMining::start_mining(1, 3000 * DOLLARS));
+				// Though only the mining workers can send heartbeat, but we don't enforce it in
+				// the pallet, but just by pRuntime. Therefore we can directly throw a heartbeat
+				// response to test benchmark report.
+
+				// 110% boost
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
+					MiningReportEvent,
+				> {
+					sender: MessageOrigin::Worker(worker_pubkey(1)),
+					destination: Topic::new(*b"phala/mining/report"),
+					payload: MiningReportEvent::Heartbeat {
+						session_id: 0,
+						challenge_block: 0,
+						challenge_time: 0,
+						iterations: 11000,
+					},
+				}));
+				let miner = PhalaMining::miners(1).unwrap();
+				assert_eq!(
+					miner.benchmark,
+					Benchmark {
+						p_init: 600,
+						p_instant: 660,
+						iterations: 11000,
+						mining_start_time: 0,
+						updated_at: 100,
+					}
+				);
+
+				// 150% boost (capped)
+				elapse_seconds(100);
+				assert_ok!(PhalaMining::on_mining_message_received(DecodedMessage::<
+					MiningReportEvent,
+				> {
+					sender: MessageOrigin::Worker(worker_pubkey(1)),
+					destination: Topic::new(*b"phala/mining/report"),
+					payload: MiningReportEvent::Heartbeat {
+						session_id: 0,
+						challenge_block: 0,
+						challenge_time: 0,
+						iterations: 11000 + 15000,
+					},
+				}));
+				let miner = PhalaMining::miners(1).unwrap();
+				assert_eq!(
+					miner.benchmark,
+					Benchmark {
+						p_init: 600,
+						p_instant: 720,
+						iterations: 26000,
+						mining_start_time: 0,
+						updated_at: 200,
+					}
 				);
 			});
 		}

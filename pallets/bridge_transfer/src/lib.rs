@@ -2,7 +2,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 use codec::{Decode, Encode};
-use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath};
+use frame_support::traits::{Currency, EnsureOrigin, ExistenceRequirement::AllowDeath, Get};
 use frame_support::{
 	decl_error, decl_event, decl_module, decl_storage, dispatch::DispatchResult, ensure, fail,
 };
@@ -14,6 +14,8 @@ use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
 use phala_pallets::pallet_mq;
+use phala_types::messaging::LotteryCommand;
+use pallet_mq::MessageOriginInfo;
 
 #[cfg(test)]
 mod mock;
@@ -25,15 +27,6 @@ type ResourceId = bridge::ResourceId;
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
-phala_types::messaging::bind_topic!(LotteryEvent, b"phala/lottery/event");
-#[derive(Decode, Encode, Debug, PartialEq, Eq, Clone)]
-pub enum LotteryEvent {
-	/// Receive command: Newround. [roundId, totalCount, winnerCount]
-	NewRound(u32, u32, u32),
-	/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
-	OpenBox(u32, u32, Vec<u8>),
-}
-
 pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
 
@@ -42,22 +35,14 @@ pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 
 	/// The currency mechanism.
 	type Currency: Currency<Self::AccountId>;
+
+	type BridgeTokenId: Get<ResourceId>;
+	type BridgeLotteryId: Get<ResourceId>;
 }
 
 decl_storage! {
 	trait Store for Module<T: Config> as BridgeTransfer {
-		BridgeTokenId get(fn bridge_tokenid): ResourceId;
-		BridgeLotteryId get(fn bridge_lotteryid): ResourceId;
-		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::ChainId => (BalanceOf<T>, u32);
-	}
-
-	add_extra_genesis {
-		config(bridge_tokenid): ResourceId;
-		config(bridge_lotteryid): ResourceId;
-		build(|config: &GenesisConfig| {
-			BridgeTokenId::put(config.bridge_tokenid);
-			BridgeLotteryId::put(config.bridge_lotteryid);
-		});
+		BridgeFee get(fn bridge_fee): map hasher(opaque_blake2_256) bridge::BridgeChainId => (BalanceOf<T>, u32);
 	}
 }
 
@@ -67,7 +52,7 @@ decl_event! {
 		Balance = BalanceOf<T>,
 	{
 		/// [chainId, min_fee, fee_scale]
-		FeeUpdated(bridge::ChainId, Balance, u32),
+		FeeUpdated(bridge::BridgeChainId, Balance, u32),
 	}
 }
 
@@ -92,7 +77,7 @@ decl_module! {
 
 		/// Change extra bridge transfer fee that user should pay
 		#[weight = 195_000_000]
-		pub fn sudo_change_fee(origin, min_fee: BalanceOf<T>, fee_scale: u32, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn sudo_change_fee(origin, min_fee: BalanceOf<T>, fee_scale: u32, dest_id: bridge::BridgeChainId) -> DispatchResult {
 			ensure_root(origin)?;
 			ensure!(fee_scale <= 1000u32, Error::<T>::InvalidFeeOption);
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
@@ -102,7 +87,7 @@ decl_module! {
 
 		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn force_lottery_output(origin, payload: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn force_lottery_output(origin, payload: Vec<u8>, dest_id: bridge::BridgeChainId) -> DispatchResult {
 			ensure_root(origin)?;
 			let lottery = Lottery::decode(&mut &payload[..])
 				.or(Err(Error::<T>::InvalidPayload))?;
@@ -111,7 +96,7 @@ decl_module! {
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
 		#[weight = 195_000_000]
-		pub fn transfer_native(origin, amount: BalanceOf<T>, recipient: Vec<u8>, dest_id: bridge::ChainId) -> DispatchResult {
+		pub fn transfer_native(origin, amount: BalanceOf<T>, recipient: Vec<u8>, dest_id: bridge::BridgeChainId) -> DispatchResult {
 			let source = ensure_signed(origin)?;
 			ensure!(<bridge::Module<T>>::chain_whitelisted(dest_id), Error::<T>::InvalidTransfer);
 			let bridge_id = <bridge::Module<T>>::account_id();
@@ -125,9 +110,7 @@ decl_module! {
 			};
 			T::Currency::transfer(&source, &bridge_id, (amount + fee).into(), AllowDeath)?;
 
-			let resource_id = Self::bridge_tokenid();
-
-			<bridge::Module<T>>::transfer_fungible(dest_id, resource_id, recipient, U256::from(amount.saturated_into::<u128>()))
+			<bridge::Module<T>>::transfer_fungible(dest_id, T::BridgeTokenId::get(), recipient, U256::from(amount.saturated_into::<u128>()))
 		}
 
 		//
@@ -154,7 +137,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(LotteryEvent::NewRound(
+				Self::push_command(LotteryCommand::new_round(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// totalCount
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..]).map_err(|_| Error::<T>::InvalidCommand)?)	// winnerCount
@@ -171,7 +154,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(LotteryEvent::OpenBox(
+				Self::push_command(LotteryCommand::open_box(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// tokenId
 					metadata[13..].to_vec()						// btcAddress
@@ -186,42 +169,33 @@ decl_module! {
 		#[weight = 0]
 		fn force_lottery_new_round(origin, round_id: u32, total_count: u32, winner_count: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(LotteryEvent::NewRound(round_id, total_count, winner_count));
+			Self::push_command(LotteryCommand::new_round(round_id, total_count, winner_count));
 			Ok(())
 		}
 
 		#[weight = 0]
 		fn force_lottery_open_box(origin, round_id: u32, token_id: u32, btc_address: Vec<u8>) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(LotteryEvent::OpenBox(round_id, token_id, btc_address));
+			Self::push_command(LotteryCommand::open_box(round_id, token_id, btc_address));
 			Ok(())
 		}
 	}
 }
 
-use phala_types::messaging::{BindTopic, Lottery, DecodedMessage, MessageOrigin};
+use phala_types::messaging::{DecodedMessage, Lottery};
 
 impl<T: Config> Module<T> {
-	pub fn lottery_output(payload: &Lottery, dest_id: bridge::ChainId) -> DispatchResult {
+	pub fn lottery_output(payload: &Lottery, dest_id: bridge::BridgeChainId) -> DispatchResult {
 		ensure!(
 			<bridge::Module<T>>::chain_whitelisted(dest_id),
 			Error::<T>::InvalidTransfer
 		);
-		let resource_id = Self::bridge_lotteryid();
 		let metadata: Vec<u8> = payload.encode();
-		<bridge::Module<T>>::transfer_generic(dest_id, resource_id, metadata)
-	}
-
-	fn push_message(payload: impl Encode + BindTopic) {
-		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), payload);
-	}
-
-	pub fn message_origin() -> MessageOrigin {
-		<Self as pallet_mq::MessageOriginInfo>::message_origin()
+		<bridge::Module<T>>::transfer_generic(dest_id, T::BridgeLotteryId::get(), metadata)
 	}
 }
 
-impl<T: Config> pallet_mq::MessageOriginInfo for Module<T> {
+impl<T: Config> MessageOriginInfo for Module<T> {
 	type Config = T;
 }
 

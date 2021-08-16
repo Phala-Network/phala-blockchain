@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, wasm_binary_unwrap, BridgeTransferConfig, KittyStorageConfig,
+	TechnicalCommitteeConfig, wasm_binary_unwrap, KittyStorageConfig,
 	PhalaRegistryConfig,
 };
 use node_runtime::Block;
@@ -38,7 +38,6 @@ use sp_consensus_babe::{AuthorityId as BabeId};
 use pallet_im_online::sr25519::{AuthorityId as ImOnlineId};
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
 use sp_runtime::{Perbill, traits::{Verify, IdentifyAccount}};
-use pallet_bridge;
 
 pub use node_primitives::{AccountId, Balance, Signature};
 pub use node_runtime::GenesisConfig;
@@ -255,7 +254,7 @@ pub fn testnet_genesis(
 			workers: vec![
 				(dev_sr25519_pubkey.clone(), dev_ecdh_pubkey, Some(endowed_accounts[0].clone()))
 			],
-			gatekeepers: vec![dev_sr25519_pubkey],
+			gatekeepers: Vec::new(),
 			benchmark_duration: 1,
 		},
 		false => PhalaRegistryConfig {
@@ -345,10 +344,6 @@ pub fn testnet_genesis(
 			max_members: 999,
 		},
 		vesting: Default::default(),
-		bridge_transfer: BridgeTransferConfig {
-			bridge_tokenid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"PHA")),
-			bridge_lotteryid: pallet_bridge::derive_resource_id(1, &pallet_bridge::hashing::blake2_128(b"lottery")),
-		},
 		phala_registry,
 		phala_mining: Default::default(),
 	}

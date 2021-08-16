@@ -2,9 +2,14 @@ require('dotenv').config();
 
 const { program } = require('commander');
 const axios = require('axios').default;
+const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
-const phalaTypes = require('@phala/typedefs').latest;
+const phalaTypes = require('@phala/typedefs').khalaDev;
+
+const { FixedPointConverter } = require('./utils/fixedUtils');
+const tokenomic  = require('./utils/tokenomic');
+const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 
 function run(afn) {
     function runner(...args) {
@@ -74,20 +79,31 @@ async function substrateApi() {
     return api;
 }
 
+function printObject(obj, depth=3, getter=true) {
+    if (program.opts().json) {
+        console.log(JSON.stringify(obj, undefined, 2));
+    } else {
+        console.dir(obj, {depth, getter});
+    }
+}
+
 const CONTRACT_PDIEM = 5;
 
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
-    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944');
+    .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--json', 'output regular json', false);
 
 // Blockchain operations
+const chain = program
+    .command('chain')
+    .description('blockchain actions');
 
-program
-    .command('push-command <contract-id> <plain-command>')
-    .description('push a unencrypted command to a confidential contract', {
-        'contract-id': 'confidential contract id (number)',
-        'plain-command': 'the plain command payload (string or json, depending on the definition)',
-    })
+chain
+    .command('push-command')
+    .description('push a unencrypted command to a confidential contract')
+    .argument('<contract-id>', 'confidential contract id (number)')
+    .argument('<plain-command>', 'the plain command payload (string or json, depending on the definition)')
     .option('-s, --suri <suri>', 'specify sender\'s privkey', process.env.PRIVKEY || '//Alice')
     .action(run(async (contractId, plainCommand, options) => {
         const api = await substrateApi();
@@ -104,8 +120,8 @@ program
         console.log(r.toHuman());
     }));
 
-program
-    .command('chain-sync-state')
+chain
+    .command('sync-state')
     .description('show the chain status; returns 0 if it\'s in sync')
     .action(run(async () => {
         const api = await substrateApi();
@@ -118,7 +134,7 @@ program
 
         const timestampDelta = now - blockTs;
 
-        console.log({
+        printObject({
             hash: hash.toJSON(),
             blockTs,
             timestampDelta,
@@ -130,35 +146,109 @@ program
         return timestampDelta <= 50 * 60 * 1000 ? 0 : -1;
     }));
 
-program
-    .command('free-balance <account>')
-    .description('get the firee blance of an account', {
-        'account': 'the account to lookup'
-    })
+chain
+    .command('free-balance')
+    .description('get the firee blance of an account')
+    .argument('<account>', 'the account to lookup')
     .action(run (async (account) => {
         const api = await substrateApi();
         const accountData = await api.query.system.account(account);
         const freeBalance = accountData.data.free.toString();
         console.log(freeBalance);
         return 0;
-    }))
+    }));
+
+chain
+    .command('inspect-worker')
+    .description('get the mining related info with the worker public key')
+    .argument('<worker-key>', 'the worker public key in hex')
+    .action(run (async (workerKey) => {
+        workerKey = normalizeHex(workerKey);
+
+        const api = await substrateApi();
+        let [workerInfo, miner, pid] = await Promise.all([
+            api.query.phalaRegistry.workers(workerKey),
+            api.query.phalaMining.workerBindings(workerKey),
+            api.query.phalaStakePool.workerAssignments(workerKey),
+        ]);
+        workerInfo = workerInfo.unwrapOr();
+        miner = miner.unwrapOr();
+        pid = pid.unwrapOr();
+
+        const minerInfo = miner ? await api.query.phalaMining.miners(miner) : undefined;
+        const poolInfo = pid ? await api.query.phalaStakePool.stakePools(pid) : undefined;
+
+        const toObj = x => x ? (x.unwrapOr ? x.unwrapOr(undefined) : x).toJSON() : undefined;
+        printObject({
+            workerInfo: toObj(workerInfo),
+            miner: toObj(miner),
+            pid: toObj(pid),
+            minerInfo: toObj(minerInfo),
+            poolInfo: toObj(poolInfo),
+        });
+    }));
+
+chain
+    .command('get-tokenomic')
+    .description('read the tokenomic parameters from the blockchain')
+    .action(run(async () => {
+        const api = await substrateApi();
+        const p = await tokenomic.readFromChain(api);
+        printObject(p);
+    }));
+
+chain
+    .command('update-tokenomic')
+    .argument('<json>', 'tokenomic parameter json file path')
+    .description('create a call to update tokenomic parameters and optionally send a sudo tx')
+    .option('-s, --suri <suri>', 'specify sender\'s privkey', process.env.PRIVKEY || '//Alice')
+    .action(run(async (path, options) => {
+        const p = loadJson(path);
+        const api = await substrateApi();
+        const typedP = tokenomic.humanToTyped(api, p);
+        const call = tokenomic.createUpdateCall(api, typedP);
+        console.log(call.toHex());
+
+        if (options.suri) {
+            const keyring = new Keyring({ type: 'sr25519' });
+            const pair = keyring.addFromUri(options.suri);
+            let result = await api.tx.sudo.sudo(call).signAndSend(pair, {nonce: -1});
+            console.log('Transaction result', result.toJSON());
+        }
+    }));
 
 // pRuntime operations
+const pruntime = program
+    .command('pruntime')
+    .description('pRuntime commands');
 
-program
+pruntime
     .command('get-info')
     .description('get the running status')
     .action(run(async () => {
         const pr = pruntimeApi();
-        console.log(await pr.req('get_info'));
+        printObject(await pr.req('get_info'));
     }));
 
-program
-    .command('query <contract-id> <plain-query>')
-    .description('send a query to a confidential contract via pRuntime directly (anonymously)', {
-        'contract-id': 'confidential contract id (number)',
-        'plain-command': 'the plain query payload (string or json, depending on the definition)',
-    })
+pruntime
+    .command('req')
+    .description('send a request to pruntime')
+    .argument('<method>', 'the method name')
+    .option('--body', 'a json request body', '')
+    .action(run(async (method, opt) => {
+        const pr = pruntimeApi();
+        let body;
+        if (opt.body) {
+            body = JSON.parse(opt.body);
+        }
+        printObject(await pr.req(method, body ? body : {}));
+    }))
+
+pruntime
+    .command('query')
+    .description('send a query to a confidential contract via pRuntime directly (anonymously)')
+    .argument('<contract-id>', 'confidential contract id (number)')
+    .argument('<plain-query>', 'the plain query payload (string or json, depending on the definition)')
     .action(run(async (contractId, plainQuery) => {
         const pr = pruntimeApi();
         const cid = parseInt(contractId);
@@ -168,29 +258,31 @@ program
     }))
 
 // pDiem related
+const pdiem = program
+    .command('pdiem')
+    .description('pDiem commands');
 
-program
-    .command('pdiem-balances')
+pdiem
+    .command('balances')
     .description('get a list of the account info and balances')
     .action(run(async () => {
         const pr = pruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'AccountData'), {depth: 3});
     }));
 
-program
-    .command('pdiem-tx')
+pdiem
+    .command('tx')
     .description('get a list of the verified transactions')
     .action(run(async () => {
         const pr = pruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'VerifiedTransactions'), {depth: 3});
     }));
 
-program
-    .command('pdiem-new-account <seq> <suri>')
-    .description('create a new diem subaccount for deposit', {
-        seq: 'the sequence id of the VASP account',
-        suri: 'the SURI of the sender Substrate account (sr25519)'
-    })
+pdiem
+    .command('new-account')
+    .description('create a new diem subaccount for deposit')
+    .argument('<seq>', 'the sequence id of the VASP account')
+    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
     .action(run(async (seq, suri) => {
         const api = await substrateApi();
         const seqNumber = parseInt(seq);
@@ -210,13 +302,12 @@ program
         console.log(r.toHuman());
     }));
 
-program
-    .command('pdiem-withdraw <dest> <amount> <suri>')
-    .description('create a new diem subaccount for deposit', {
-        dest: 'the withdrawal destination Diem account',
-        amount: 'the sequence id of the VASP account',
-        suri: 'the SURI of the sender Substrate account (sr25519)'
-    })
+pdiem
+    .command('withdraw')
+    .description('create a new diem subaccount for deposit')
+    .argument('<dest>', 'the withdrawal destination Diem account')
+    .argument('<amount>', 'the sequence id of the VASP account')
+    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
     .action(run(async (dest, amount, suri) => {
         if (dest.toLowerCase().startsWith('0x')) {
             throw new Error('<dest> must not start with "0x"');
@@ -242,11 +333,15 @@ program
 
 // Utilities
 
-program
-    .command('verify <input>')
-    .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)', {
-        input: 'the raw input data'
-    })
+const utils = program
+    .command('utils')
+    .description('utility functions');
+
+
+utils
+    .command('verify')
+    .description('verify some inputs (ss58 address or suri). (return 0 if it\'s valid or else -1)')
+    .argument('<input>', 'the raw input data')
     .action(run(async (input) => {
         input = input.trim();
         const keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
@@ -268,7 +363,26 @@ program
         } catch {}
         console.log('Cannot decode the input');
         return -1;
-    }))
+    }));
 
+utils
+    .command('fp-encode')
+    .description('encode a (U64F64) fixed point to bits')
+    .argument('<fp>', 'fixed point to encode')
+    .action(fp => {
+        const decFp = new Decimal(fp);
+        const fpc = new FixedPointConverter();
+        console.log(fpc.toBits(decFp).toString());
+    });
+
+utils
+    .command('fp-decode')
+    .description('decode a (U64F64) fixed point bits to the number')
+    .argument('<bits>', 'bits to decode')
+    .action(bits => {
+        const bnBits = praseBn(bits);
+        const fpc = new FixedPointConverter();
+        console.log(fpc.fromBits(bnBits).toString());
+    });
 
 program.parse(process.argv);
