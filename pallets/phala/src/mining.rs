@@ -500,6 +500,10 @@ pub mod pallet {
 						miner_info.state = MinerState::MiningUnresponsive;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerEnterUnresponsive(account));
+						Self::push_message(SystemEvent::new_worker_event(
+							worker,
+							WorkerEvent::MiningEnterUnresponsive,
+						));
 					}
 				}
 
@@ -515,6 +519,10 @@ pub mod pallet {
 						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
 						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
+						Self::push_message(SystemEvent::new_worker_event(
+							worker,
+							WorkerEvent::MiningExitUnresponsive,
+						));
 					}
 				}
 
