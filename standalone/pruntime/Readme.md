@@ -17,7 +17,7 @@ The runtime contains the following components:
 - User-pRuntime secure communication channel
   - ECDH (secp256r1) key agreement
   - AEAD-AES-GCM-256 encryption
-- Confiidential contract executor & state manager
+- Confidential contract executor & state manager
 - Restful RPC service
 
 ## Overview
@@ -30,7 +30,7 @@ The runtime contains the following components:
 │   │   └── main.rs             Entry
 ├── docs
 │   └── sgx.md                  SGX Hardware & SDK & Driver configuration guide
-├── enclave                     pRuntime in SGX encalve
+├── enclave                     pRuntime in SGX enclave
 │   ├── Cargo.toml
 │   ├── Makefile
 │   └── src
@@ -58,9 +58,9 @@ The runtime contains the following components:
     └── console.sh              Helper script for debugging
 ```
 
-## Docker bulid
+## Docker build
 
-Plase refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker). It
+Please refer to [plibra-grant-docker](https://github.com/Phala-Network/plibra-grant-docker). It
 includes both the blockchain and pRuntime.
 
 ## Native build
@@ -93,7 +93,7 @@ layout should be:
   - `git submodule update`
 - Run `make` (`SGX_MODE=SW make` for simulation mode if you don't have the hardware)
 - Make sure put `spid.txt` (linkable) and `key.txt` into `bin/`.
-- Run 
+- Run
   - `cd bin`
   - `./app`
 
