@@ -1,7 +1,7 @@
 use frame_support::{
     parameter_types,
     traits::Currency,
-    weights::{constants::WEIGHT_PER_SECOND, Weight},
+    weights::constants::WEIGHT_PER_SECOND,
 };
 use pallet_contracts::{
     chain_extension::{
@@ -15,6 +15,8 @@ use sp_runtime::{
     traits::{BlakeTwo256, Convert, Hash, IdentityLookup},
     AccountId32, Perbill,
 };
+
+pub use frame_support::weights::Weight;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Pink>;
 type Block = frame_system::mocking::MockBlock<Pink>;
@@ -183,4 +185,37 @@ pub mod exec {
         overlay.commit_transaction().expect("BUG: mis-paired transaction");
         r
     }
+}
+
+pub fn contract_test() {
+    use codec::Encode;
+    pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
+    const GAS_LIMIT: Weight = 10_000_000_000;
+
+    let (wasm, code_hash) =
+        compile_wat::<Pink>(include_bytes!("../fixtures/event_size.wat")).unwrap();
+
+    exec::execute_with(|| {
+        let _ = Balances::deposit_creating(&ALICE, 1_000_000);
+        Contracts::instantiate_with_code(
+            Origin::signed(ALICE),
+            30_000,
+            GAS_LIMIT,
+            wasm,
+            vec![],
+            vec![],
+        ).unwrap();
+        let addr = Contracts::contract_address(&ALICE, &code_hash, &[]);
+
+        Contracts::call(
+            Origin::signed(ALICE),
+            addr.clone(),
+            0,
+            GAS_LIMIT * 2,
+            <Pink as Config>::Schedule::get()
+                .limits
+                .payload_len
+                .encode(),
+        ).unwrap();
+    })
 }
