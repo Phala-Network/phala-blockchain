@@ -1,21 +1,25 @@
 use super::{TypedReceiver, WorkerState};
-use phala_crypto::sr25519::{Persistence, KDF};
+use phala_crypto::{
+    aead, ecdh,
+    sr25519::{Persistence, KDF},
+};
 use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
-        RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        GatekeeperEvent, MasterKeyEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
-    WorkerPublicKey,
+    EcdhPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing, sr25519};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
+    std::convert::TryInto,
+    std::vec::Vec,
     types::BlockInfo,
 };
 
-use crate::std::vec::Vec;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -64,19 +68,9 @@ impl WorkerInfo {
     }
 }
 
-// The Gatekeeper's common internal state is consisted of:
-// 1. possessed master key;
-// 2. egress sequence number;
-// 3. worker list;
-// 4. tokenomic params;
-// 5. last random number & last random block;
-//
-// We should ensure the consistency of all the variables above in each block.
-//
-// For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
-// to received messages in the same way.
 pub(super) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
+    master_pubkey_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -101,6 +95,7 @@ where
 
         Self {
             master_key: master_key,
+            master_pubkey_on_chain: false,
             egress: egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -122,7 +117,44 @@ where
         self.egress.set_dummy(true);
     }
 
+    pub fn master_pubkey_uploaded(&mut self) {
+        self.master_pubkey_on_chain = true;
+    }
+
+    pub fn share_master_key(&mut self, pubkey: &WorkerPublicKey, ecdh_pubkey: &EcdhPublicKey) {
+        info!("Gatekeeper: try dispatch master key");
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(&[&crate::generate_random_info()])
+            .expect("should not fail with valid info; qed.");
+        let my_ecdh_key = derived_key
+            .derive_ecdh_key()
+            .expect("ecdh key derivation should never failed with valid master key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("should never fail with valid ecdh key; qed.");
+        let iv = crate::generate_random_iv();
+        let mut data = self.master_key.dump_secret_key().to_vec();
+
+        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+        self.egress
+            .push_message(MasterKeyEvent::dispatch_master_key_event(
+                pubkey.clone(),
+                my_ecdh_key
+                    .public()
+                    .as_ref()
+                    .try_into()
+                    .expect("should never fail given pubkey with correct length; qed;"),
+                data,
+                iv,
+            ));
+    }
+
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        if !self.master_pubkey_on_chain {
+            info!("Gatekeeper: not handle messages for no master pubkey on chain");
+            return;
+        }
+
         let sum_share: FixedPoint = self
             .workers
             .values()
