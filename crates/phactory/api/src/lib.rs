@@ -2,6 +2,7 @@
 extern crate alloc;
 
 pub mod crypto;
+pub mod ecall_args;
 
 mod proto_generated;
 

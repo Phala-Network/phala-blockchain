@@ -57,6 +57,7 @@ use structopt::StructOpt;
 
 use contract_input::ContractInput;
 use phactory_api::{actions, prpc};
+use parity_scale_codec::Encode;
 
 
 #[derive(StructOpt, Debug)]
@@ -107,7 +108,7 @@ extern {
 
     fn ecall_init(
         eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-        sealing_path: *const u8, sealing_path_len: usize
+        args: *const u8, args_len: usize
     ) -> sgx_status_t;
 
     fn ecall_bench_run(
@@ -501,10 +502,16 @@ fn main() {
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
     let sealing_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH);
-    let sealing_path_str = String::from(sealing_path.to_str().unwrap());
-    let sealing_path_byte = sealing_path_str.as_bytes();
+    let sealing_path = String::from(sealing_path.to_str().unwrap());
+    let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
+    let init_args = phactory_api::ecall_args::InitArgs {
+        sealing_path,
+        log_filter,
+    };
+    info!("init_args: {:?}", init_args);
+    let encoded_args = init_args.encode();
     let result = unsafe {
-        ecall_init(eid, &mut retval, sealing_path_byte.as_ptr(), sealing_path_byte.len())
+        ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len())
     };
 
     if result != sgx_status_t::SGX_SUCCESS {

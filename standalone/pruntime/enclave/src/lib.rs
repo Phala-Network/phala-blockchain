@@ -47,23 +47,23 @@ pub extern "C" fn ecall_handle(
 
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
-pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
-    libc_hacks::init();
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
-
-    benchmark::reset_iteration_counter();
-
-    let sealing_path = unsafe { std::slice::from_raw_parts(sealing_path, sealing_path_len) };
-    let sealing_path = match std::str::from_utf8(sealing_path) {
-        Ok(sealing_path) => sealing_path,
-        Err(e) => {
-            error!("ecall_init: invalid data path: {}", e);
+pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
+    use parity_scale_codec::Decode;
+    let mut args_buf = unsafe { std::slice::from_raw_parts(args, args_len) };
+    let args = match phactory_api::ecall_args::InitArgs::decode(&mut args_buf) {
+        Ok(args) => args,
+        Err(err) => {
+            eprintln!("Decode args failed: {:?}", err);
             return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
         }
     };
 
-    APPLICATION.lock().unwrap().set_sealing_path(String::from(sealing_path));
+    APPLICATION.lock().unwrap().set_sealing_path(args.sealing_path);
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter)).init();
+
+    benchmark::reset_iteration_counter();
 
     info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS
