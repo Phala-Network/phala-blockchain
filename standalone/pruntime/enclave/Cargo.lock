@@ -751,6 +751,8 @@ dependencies = [
  "derive_more",
  "frame-system",
  "parity-scale-codec 2.2.0",
+ "phala-crypto",
+ "phala-mq",
  "phala-node-runtime",
  "phala-types",
  "prost",
@@ -2323,8 +2325,10 @@ dependencies = [
 name = "phala-types"
 version = "0.3.0"
 dependencies = [
+ "hex 0.4.3",
  "parity-scale-codec 2.2.0",
  "phala-mq",
+ "prpc",
  "serde 1.0.127",
  "sp-core",
  "sp-runtime",

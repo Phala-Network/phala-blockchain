@@ -1,12 +1,10 @@
 use super::*;
-use enclave_api::blocks;
-use enclave_api::prpc::{
+use enclave_api::{blocks, crypto, prpc as pb};
+use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
-    Attestation, AttestationReport, Blocks, CombinedHeadersToSync, EgressMessages, GatekeeperRole,
-    GatekeeperStatus, GetEgressMessagesResponse, HeadersSyncedTo, HeadersToSync,
-    InitRuntimeRequest, InitRuntimeResponse, ParaHeadersToSync, PhactoryInfo, SyncedTo,
 };
+use phala_types::contract;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -76,6 +74,7 @@ fn prpc_request(
                     (400, ProtoError::new(format!("DecodeError({:?})", err)))
                 }
                 Error::AppError(msg) => (500, ProtoError::new(msg)),
+                Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
             };
             (code, prpc::codec::encode_message_to_vec(&err))
         }
@@ -84,7 +83,7 @@ fn prpc_request(
     (code, data)
 }
 
-pub fn get_info() -> PhactoryInfo {
+pub fn get_info() -> pb::PhactoryInfo {
     let local_state = LOCAL_STATE.lock().unwrap();
 
     let initialized = local_state.initialized;
@@ -120,8 +119,8 @@ pub fn get_info() -> PhactoryInfo {
             Some(system) => (system.is_registered(), system.gatekeeper_status()),
             None => (
                 false,
-                GatekeeperStatus {
-                    role: GatekeeperRole::None.into(),
+                pb::GatekeeperStatus {
+                    role: pb::GatekeeperRole::None.into(),
                     master_public_key: Default::default(),
                 },
             ),
@@ -129,7 +128,7 @@ pub fn get_info() -> PhactoryInfo {
     };
     let score = benchmark::score();
 
-    PhactoryInfo {
+    pb::PhactoryInfo {
         initialized,
         registered,
         gatekeeper: Some(gatekeeper_status),
@@ -149,7 +148,7 @@ pub fn get_info() -> PhactoryInfo {
 pub fn sync_header(
     headers: Vec<blocks::HeaderToSync>,
     authority_set_change: Option<blocks::AuthoritySetChange>,
-) -> RpcResult<SyncedTo> {
+) -> RpcResult<pb::SyncedTo> {
     info!(
         "sync_header from={:?} to={:?}",
         headers.first().map(|h| h.header.number),
@@ -164,7 +163,7 @@ pub fn sync_header(
         .sync_header(headers, authority_set_change)
         .map_err(from_display)?;
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_header,
     })
 }
@@ -172,7 +171,7 @@ pub fn sync_header(
 pub fn sync_para_header(
     headers: blocks::Headers,
     proof: blocks::StorageProof,
-) -> RpcResult<SyncedTo> {
+) -> RpcResult<pb::SyncedTo> {
     info!(
         "sync_para_header from={:?} to={:?}",
         headers.first().map(|h| h.number),
@@ -196,7 +195,7 @@ pub fn sync_para_header(
         .sync_parachain_header(headers, proof, &storage_key)
         .map_err(from_display)?;
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_header,
     })
 }
@@ -211,7 +210,7 @@ pub fn sync_combined_headers(
     authority_set_change: Option<blocks::AuthoritySetChange>,
     parachain_headers: blocks::Headers,
     proof: blocks::StorageProof,
-) -> RpcResult<HeadersSyncedTo> {
+) -> RpcResult<pb::HeadersSyncedTo> {
     let relaychain_synced_to = sync_header(relaychain_headers, authority_set_change)?.synced_to;
     let parachain_synced_to = if parachain_headers.is_empty() {
         STATE
@@ -221,17 +220,18 @@ pub fn sync_combined_headers(
             .ok_or(from_display("Runtime not initialized"))?
             .storage_synchronizer
             .counters()
-            .next_para_header_number - 1
+            .next_para_header_number
+            - 1
     } else {
         sync_para_header(parachain_headers, proof)?.synced_to
     };
-    Ok(HeadersSyncedTo {
+    Ok(pb::HeadersSyncedTo {
         relaychain_synced_to,
         parachain_synced_to,
     })
 }
 
-pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<SyncedTo> {
+pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<pb::SyncedTo> {
     info!(
         "dispatch_block from={:?} to={:?}",
         blocks.first().map(|h| h.block_header.number),
@@ -255,7 +255,7 @@ pub fn dispatch_block(blocks: Vec<blocks::BlockHeaderWithChanges>) -> RpcResult<
         last_block = block.block_header.number;
     }
 
-    Ok(SyncedTo {
+    Ok(pb::SyncedTo {
         synced_to: last_block,
     })
 }
@@ -267,7 +267,7 @@ pub fn init_runtime(
     genesis_state: blocks::StorageState,
     operator: Option<chain::AccountId>,
     debug_set_key: ::core::option::Option<Vec<u8>>,
-) -> RpcResult<InitRuntimeResponse> {
+) -> RpcResult<pb::InitRuntimeResponse> {
     let mut local_state = LOCAL_STATE.lock().unwrap();
 
     if local_state.initialized {
@@ -306,8 +306,14 @@ pub fn init_runtime(
     let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
     info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
+    let local_ecdh_key = local_state
+        .ecdh_key
+        .as_ref()
+        .cloned()
+        .expect("ECDH key must be initialized; qed.");
+
     // derive ecdh key
-    let ecdh_pubkey = phala_types::EcdhPublicKey(local_state.ecdh_key.as_ref().unwrap().public());
+    let ecdh_pubkey = phala_types::EcdhPublicKey(local_ecdh_key.public());
     let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
     info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
@@ -379,7 +385,7 @@ pub fn init_runtime(
     ));
     drop(system_state);
 
-    let mut other_contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
+    let mut contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
         Default::default();
 
     if local_state.dev_mode {
@@ -387,24 +393,31 @@ pub fn init_runtime(
 
         macro_rules! install_contract {
             ($id: expr, $inner: expr) => {{
+                let contract_id = contract::id256($id);
                 let sender = MessageOrigin::native_contract($id);
                 let mq = send_mq.channel(sender, id_pair.clone());
-                let cmd_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
-                let evt_mq = PeelingReceiver::new_plain(recv_mq.subscribe_bound());
+                // TODO.kevin: use real contract key
+                let contract_key = local_ecdh_key.clone();
+                let cmd_mq = PeelingReceiver::new_secret(
+                    recv_mq
+                        .subscribe(contract::command_topic(contract_id))
+                        .into(),
+                    contract_key,
+                );
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
                     $inner,
                     mq,
                     cmd_mq,
-                    evt_mq,
-                    KeyPair::new(local_state.ecdh_key.as_ref().unwrap().clone()),
+                    local_ecdh_key.clone(),
                 ));
-                other_contracts.insert($id, wrapped);
+                contracts.insert(contract_id, wrapped);
             }};
         }
 
         install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
         install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-        install_contract!(contracts::DIEM, contracts::diem::Diem::new());
+        // TODO.kevin:
+        // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
         install_contract!(
             contracts::SUBSTRATE_KITTIES,
             contracts::substrate_kitties::SubstrateKitties::new()
@@ -424,7 +437,7 @@ pub fn init_runtime(
     }
 
     let mut runtime_state = RuntimeState {
-        contracts: other_contracts,
+        contracts,
         send_mq,
         recv_mq,
         storage_synchronizer,
@@ -441,7 +454,7 @@ pub fn init_runtime(
 
     *state = Some(runtime_state);
 
-    let resp = InitRuntimeResponse::new(
+    let resp = pb::InitRuntimeResponse::new(
         runtime_info,
         genesis_block_hash,
         ecdsa_pk,
@@ -454,7 +467,7 @@ pub fn init_runtime(
     Ok(resp)
 }
 
-pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
+pub fn get_runtime_info() -> RpcResult<pb::InitRuntimeResponse> {
     let mut state = LOCAL_STATE.lock().unwrap();
 
     let skip_ra = state.skip_ra;
@@ -487,10 +500,10 @@ pub fn get_runtime_info() -> RpcResult<InitRuntimeResponse> {
                 }
             };
 
-            cached_resp.attestation = Some(Attestation {
+            cached_resp.attestation = Some(pb::Attestation {
                 version: 1,
                 provider: "SGX".to_string(),
-                payload: Some(AttestationReport {
+                payload: Some(pb::AttestationReport {
                     report: attn_report,
                     signature: base64::decode(sig).map_err(from_display)?,
                     signing_cert: base64::decode_config(cert, base64::STANDARD)
@@ -512,7 +525,7 @@ fn now() -> u64 {
 }
 
 // Drop latest messages if needed to fit in size.
-fn fit_size(mut messages: EgressMessages, size: usize) -> EgressMessages {
+fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages {
     while messages.encoded_size() > size {
         for (_, queue) in messages.iter_mut() {
             if queue.pop().is_some() {
@@ -527,7 +540,7 @@ fn fit_size(mut messages: EgressMessages, size: usize) -> EgressMessages {
     messages
 }
 
-pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<EgressMessages> {
+pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<pb::EgressMessages> {
     let messages: Vec<_> = STATE
         .lock()
         .unwrap()
@@ -538,6 +551,83 @@ pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<EgressMessages> {
     Ok(fit_size(messages, output_buf_len))
 }
 
+fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQueryResponse> {
+    // Validate signature
+    if let Some(origin) = &request.signature {
+        if !origin.verify(&request.encoded_encrypted_data) {
+            return Err(from_display("Verifying signature failed"));
+        }
+        info!("Verifying signature passed!");
+    }
+    let ecdh_key = LOCAL_STATE
+        .lock()
+        .unwrap()
+        .ecdh_key
+        .clone()
+        .ok_or_else(|| from_display("No ECDH key"))?;
+
+    // Decrypt data
+    let encrypted_req = request.decode_encrypted_data()?;
+    let data = encrypted_req.decrypt(&ecdh_key).map_err(from_debug)?;
+
+    // Decode head
+    let mut data_cursor = &data[..];
+    let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
+    let data_cursor = data_cursor;
+
+    // Origin
+    let accid_origin = match request.signature.as_ref() {
+        Some(sig) => {
+            use core::convert::TryFrom;
+            let accid = chain::AccountId::try_from(sig.origin.as_slice())
+                .map_err(|_| from_display("Bad account id"))?;
+            Some(accid)
+        }
+        None => None,
+    };
+
+    // Dispatch
+    let ref_origin = accid_origin.as_ref();
+
+    let res = if head.id == contract::id256(SYSTEM) {
+        let mut guard = SYSTEM_STATE.lock().unwrap();
+        let system_state = guard
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let response = system_state.handle_query(ref_origin, types::deopaque_query(data_cursor)?);
+        response.encode()
+    } else {
+        let mut state = STATE.lock().unwrap();
+        let state = state
+            .as_mut()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let contract = state
+            .contracts
+            .get_mut(&head.id)
+            .ok_or_else(|| from_display("Contract not found"))?;
+        let response = contract.handle_query(ref_origin, data_cursor)?;
+        response
+    };
+
+    // Encode response
+    let response = contract::ContractQueryResponse {
+        nonce: head.nonce,
+        result: contract::Data(res),
+    };
+    let response_data = response.encode();
+
+    // Encrypt
+    let encrypted_resp = crypto::EncryptedData::encrypt(
+        &ecdh_key,
+        &encrypted_req.pubkey,
+        crate::generate_random_iv(),
+        &response_data,
+    )
+    .map_err(from_debug)?;
+
+    Ok(pb::ContractQueryResponse::new(encrypted_resp))
+}
+
 pub struct RpcService {
     output_buf_len: usize,
 }
@@ -545,30 +635,42 @@ pub struct RpcService {
 /// A server that process all RPCs.
 impl PhactoryApi for RpcService {
     /// Get basic information about Phactory state.
-    fn get_info(&self, _request: ()) -> RpcResult<PhactoryInfo> {
+    fn get_info(&self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(get_info())
     }
 
     /// Sync the parent chain header
-    fn sync_header(&self, request: HeadersToSync) -> RpcResult<SyncedTo> {
+    fn sync_header(&self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         let authority_set_change = request.decode_authority_set_change()?;
         sync_header(headers, authority_set_change)
     }
 
     /// Sync the parachain header
-    fn sync_para_header(&self, request: ParaHeadersToSync) -> RpcResult<SyncedTo> {
+    fn sync_para_header(&self, request: pb::ParaHeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         sync_para_header(headers, request.proof)
     }
 
+    fn sync_combined_headers(
+        &self,
+        request: pb::CombinedHeadersToSync,
+    ) -> Result<pb::HeadersSyncedTo, prpc::server::Error> {
+        sync_combined_headers(
+            request.decode_relaychain_headers()?,
+            request.decode_authority_set_change()?,
+            request.decode_parachain_headers()?,
+            request.proof,
+        )
+    }
+
     /// Dispatch blocks (Sync storage changes)"
-    fn dispatch_blocks(&self, request: Blocks) -> RpcResult<SyncedTo> {
+    fn dispatch_blocks(&self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
         dispatch_block(blocks)
     }
 
-    fn init_runtime(&self, request: InitRuntimeRequest) -> RpcResult<InitRuntimeResponse> {
+    fn init_runtime(&self, request: pb::InitRuntimeRequest) -> RpcResult<pb::InitRuntimeResponse> {
         init_runtime(
             request.skip_ra,
             request.is_parachain,
@@ -579,25 +681,20 @@ impl PhactoryApi for RpcService {
         )
     }
 
-    fn get_runtime_info(&self, _: ()) -> RpcResult<InitRuntimeResponse> {
+    fn get_runtime_info(&self, _: ()) -> RpcResult<pb::InitRuntimeResponse> {
         get_runtime_info()
     }
 
-    fn get_egress_messages(&self, _: ()) -> RpcResult<GetEgressMessagesResponse> {
+    fn get_egress_messages(&self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
         // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
         assert!(self.output_buf_len >= 1024);
-        get_egress_messages(self.output_buf_len - 1024).map(GetEgressMessagesResponse::new)
+        get_egress_messages(self.output_buf_len - 1024).map(pb::GetEgressMessagesResponse::new)
     }
 
-    fn sync_combined_headers(
+    fn contract_query(
         &self,
-        request: CombinedHeadersToSync,
-    ) -> Result<HeadersSyncedTo, prpc::server::Error> {
-        sync_combined_headers(
-            request.decode_relaychain_headers()?,
-            request.decode_authority_set_change()?,
-            request.decode_parachain_headers()?,
-            request.proof,
-        )
+        request: pb::ContractQueryRequest,
+    ) -> RpcResult<pb::ContractQueryResponse> {
+        contract_query(request)
     }
 }

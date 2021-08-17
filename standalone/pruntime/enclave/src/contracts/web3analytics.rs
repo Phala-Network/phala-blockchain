@@ -1,5 +1,6 @@
-use super::{NativeContext, TransactionStatus};
-use crate::contracts::AccountIdWrapper;
+use super::account_id_from_hex;
+use super::{NativeContext, TransactionResult};
+use crate::contracts::AccountId;
 use crate::cryptography::aead;
 use crate::std::collections::BTreeMap;
 use crate::std::collections::HashMap;
@@ -8,10 +9,10 @@ use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
+use parity_scale_codec::{Encode, Decode};
 
 use crate::contracts;
-use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
+use phala_types::messaging::Web3AnalyticsCommand as Command;
 
 use super::woothee;
 
@@ -26,7 +27,7 @@ const WEEK_IN_SECONDS: u32 = 7 * DAY_IN_SECONDS;
 const KEY: &[u8] =
     &hex_literal::hex!("290c3c5d812a4ba7ce33adf09598a462692a615beb6c80fdafb3f9e3bbef8bc6");
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct PageView {
     id: String,
     sid: Sid,
@@ -40,7 +41,7 @@ pub struct PageView {
     created_at: Timestamp,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OnlineUser {
     sid: Sid,
     cid_count: String,
@@ -48,7 +49,7 @@ pub struct OnlineUser {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct HourlyPageViewStat {
     sid: Sid,
     pv_count: String,
@@ -57,7 +58,7 @@ pub struct HourlyPageViewStat {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklySite {
     sid: Sid,
     path: String,
@@ -65,7 +66,7 @@ pub struct WeeklySite {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyDevice {
     sid: Sid,
     device: String,
@@ -73,20 +74,20 @@ pub struct WeeklyDevice {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyClient {
     sid: Sid,
     cids: Vec<String>,
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct SiteClient {
     sid: Sid,
     cids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct HourlyStat {
     hourly_page_view_stats: Vec<HourlyPageViewStat>,
     site_clients: Vec<SiteClient>,
@@ -109,7 +110,7 @@ impl HourlyStat {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct DailyStat {
     stats: Vec<HourlyPageViewStat>,
 }
@@ -123,7 +124,7 @@ impl DailyStat {
 }
 
 // contract
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -138,7 +139,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     SetPageView {
         page_views: Vec<PageView>,
@@ -172,11 +173,11 @@ pub enum Request {
         count: String,
     },
     GetConfiguration {
-        account: AccountIdWrapper,
+        account: AccountId,
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     SetPageView {
         page_view_count: u32,
@@ -212,10 +213,10 @@ pub enum Response {
         skip_stat: bool,
     },
 
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,
@@ -227,10 +228,9 @@ pub struct Web3Analytics {
     total_stat: HourlyPageViewStat,
 
     key: Vec<u8>,
-    #[serde(skip)]
     parser: woothee::parser::Parser,
 
-    no_tracking: BTreeMap<AccountIdWrapper, bool>,
+    no_tracking: BTreeMap<AccountId, bool>,
 }
 
 impl Web3Analytics {
@@ -248,7 +248,7 @@ impl Web3Analytics {
 
             parser: woothee::parser::Parser::new(),
 
-            no_tracking: BTreeMap::<AccountIdWrapper, bool>::new(),
+            no_tracking: BTreeMap::<AccountId, bool>::new(),
         }
     }
 
@@ -894,11 +894,10 @@ impl Web3Analytics {
 
 impl contracts::NativeContract for Web3Analytics {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::WEB3_ANALYTICS
     }
 
@@ -906,17 +905,12 @@ impl contracts::NativeContract for Web3Analytics {
         &mut self,
         _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        let status = match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
-                let o = AccountIdWrapper::from(origin);
-                log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
+                let o = origin.account()?;
+                log::info!("SetConfiguration: [{}] -> {}", hex::encode(&o), skip_stat);
 
                 if skip_stat {
                     self.no_tracking.insert(o, skip_stat);
@@ -924,7 +918,7 @@ impl contracts::NativeContract for Web3Analytics {
                     self.no_tracking.remove(&o);
                 }
 
-                TransactionStatus::Ok
+                Ok(())
             }
         };
 
@@ -942,7 +936,7 @@ impl contracts::NativeContract for Web3Analytics {
                         if page_view.uid.len() == 64
                             && self
                                 .no_tracking
-                                .contains_key(&AccountIdWrapper::from_hex(&page_view.uid)?)
+                                .contains_key(&account_id_from_hex(&page_view.uid)?)
                         {
                             continue;
                         }
@@ -1021,7 +1015,7 @@ impl contracts::NativeContract for Web3Analytics {
                     })
                 }
                 Request::GetConfiguration { account } => {
-                    if origin == None || origin.unwrap() != &account.0 {
+                    if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
 
@@ -1034,7 +1028,7 @@ impl contracts::NativeContract for Web3Analytics {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }

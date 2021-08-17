@@ -1,6 +1,6 @@
 use crate::chain;
-use crate::contracts::{self, AccountIdWrapper};
-use crate::TransactionStatus;
+use crate::contracts::{self, AccountId};
+use super::{TransactionError, TransactionResult, account_id_from_hex};
 
 use crate::std::{
     collections::{
@@ -15,11 +15,10 @@ use crate::std::{
 use anyhow::Result;
 use lazy_static;
 use log::error;
-use parity_scale_codec::Encode;
-use phala_mq::{Sr25519MessageChannel as MessageChannel, MessageOrigin};
+use parity_scale_codec::{Decode, Encode};
+use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use serde::{Deserialize, Serialize};
-use sp_core::{crypto::Pair, sr25519, hashing::blake2_256, U256};
+use sp_core::{crypto::Pair, hashing::blake2_256, sr25519, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
 
 use bitcoin;
@@ -32,8 +31,9 @@ use bitcoin::util::bip32::ExtendedPrivKey;
 use bitcoin::{Address, PrivateKey, PublicKey, Script, Transaction, Txid as BtcTxid};
 use bitcoin_hashes::Hash as _;
 
-use chain::pallet_bridge_transfer::LotteryEvent;
-use phala_types::messaging::{Lottery, LotteryCommand as Command, PushCommand, Txid};
+use phala_types::messaging::{
+    Lottery, LotteryCommand as Command, LotteryPalletCommand, LotteryUserCommand, Txid,
+};
 
 use super::NativeContext;
 
@@ -50,11 +50,11 @@ pub struct BtcLottery {
     token_set: BTreeMap<u32, Vec<String>>,
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
     tx_set: Vec<Vec<u8>>,
-    sequence: SequenceType,      // Starting from zero
+    sequence: SequenceType,        // Starting from zero
     secret: Option<sr25519::Pair>, // TODO: replace it with a seed.
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
-    admin: AccountIdWrapper,
+    admin: AccountId,
 }
 
 impl core::fmt::Debug for BtcLottery {
@@ -63,12 +63,12 @@ impl core::fmt::Debug for BtcLottery {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     InvalidRequest,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     GetAllRounds,
     GetRoundInfo { round_id: u32 },
@@ -76,7 +76,10 @@ pub enum Request {
     QueryUtxo { round_id: u32 },
     GetSignedTx { round_id: u32 },
 }
-#[derive(Serialize, Deserialize, Debug)]
+
+type AddressString = String;
+
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     GetAllRounds {
         round_id: u32,
@@ -89,13 +92,13 @@ pub enum Response {
         prize_addr: Vec<String>,
     },
     QueryUtxo {
-        utxo: BTreeMap<Address, (Txid, u32, u64)>,
+        utxo: Vec<(AddressString, (Txid, u32, u64))>,
     },
     GetSignedTx {
         tx_set: Vec<Vec<u8>>,
     },
     PendingLotteryEgress {
-        length: usize,
+        length: u64,
         lottery_queue_b64: String,
     },
     Error(Error),
@@ -107,7 +110,7 @@ impl BtcLottery {
         let token_set = BTreeMap::<u32, Vec<String>>::new();
         let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
         let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
-        let admin = AccountIdWrapper::from_hex(ALICE).expect("Bad initial admin hex");
+        let admin = account_id_from_hex(ALICE).expect("Bad initial admin hex");
         BtcLottery {
             round_id: 0,
             token_set,
@@ -317,58 +320,18 @@ impl BtcLottery {
 
 impl contracts::NativeContract for BtcLottery {
     type Cmd = Command;
-    type Event = LotteryEvent;
     type QReq = Request;
     type QResp = Response;
 
     // Returns the contract id
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::BTC_LOTTERY
     }
 
-    fn handle_command(
-        &mut self,
-        _context: &NativeContext,
-        origin: MessageOrigin,
-        cmd: PushCommand<Command>,
-    ) -> TransactionStatus {
-        let origin: chain::AccountId = match origin {
-            MessageOrigin::AccountId(id) => (*id.inner()).into(),
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        match cmd.command {
-            Command::SubmitUtxo {
-                round_id,
-                address,
-                utxo,
-            } => {
-                let sender = AccountIdWrapper(origin);
-                let btc_address = match Address::from_str(&address) {
-                    Ok(e) => e,
-                    Err(_) => return TransactionStatus::BadCommand,
-                };
-                if self.admin == sender {
-                    let round_utxo = match self.utxo.entry(round_id) {
-                        Occupied(_entry) => return TransactionStatus::BadCommand,
-                        Vacant(entry) => entry.insert(Default::default()),
-                    };
-                    round_utxo.insert(btc_address, utxo);
-                }
-                TransactionStatus::Ok
-            }
-            Command::SetAdmin { new_admin } => {
-                // TODO: listen to some specific privileged account instead of ALICE
-                let sender = AccountIdWrapper(origin);
-                if let Ok(new_admin) = AccountIdWrapper::from_hex(&new_admin) {
-                    if self.admin == sender {
-                        self.admin = new_admin;
-                    }
-                    TransactionStatus::Ok
-                } else {
-                    TransactionStatus::InvalidAccount
-                }
-            }
+    fn handle_command(&mut self, context: &NativeContext, origin: MessageOrigin, cmd: Self::Cmd) -> TransactionResult {
+        match cmd {
+            Command::PalletCommand(cmd) => self.handle_pallet_command(context, origin, cmd),
+            Command::UserCommand(cmd) => self.handle_user_command(context, origin, cmd),
         }
     }
 
@@ -421,13 +384,14 @@ impl contracts::NativeContract for BtcLottery {
             }
             Request::QueryUtxo { round_id } => {
                 if self.utxo.contains_key(&round_id) {
-                    Response::QueryUtxo {
-                        utxo: self
-                            .utxo
-                            .get(&round_id)
-                            .expect("round_id is known in the utxo set; qed")
-                            .clone(),
-                    }
+                    let utxo = self
+                        .utxo
+                        .get(&round_id)
+                        .expect("round_id is known in the utxo set; qed")
+                        .iter()
+                        .map(|(addr, utxo)| (addr.to_string(), *utxo))
+                        .collect();
+                    Response::QueryUtxo { utxo }
                 } else {
                     Response::Error(Error::InvalidRequest)
                 }
@@ -437,20 +401,69 @@ impl contracts::NativeContract for BtcLottery {
             },
         }
     }
+}
 
-    fn handle_event(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryEvent) {
-        if origin != chain::BridgeTransfer::message_origin() {
+impl BtcLottery {
+    fn handle_user_command(
+        &mut self,
+        _context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: LotteryUserCommand,
+    ) -> TransactionResult {
+        let origin: chain::AccountId = match origin {
+            MessageOrigin::AccountId(id) => (*id.inner()).into(),
+            _ => return Err(TransactionError::BadOrigin),
+        };
+
+        match cmd {
+            LotteryUserCommand::SubmitUtxo {
+                round_id,
+                address,
+                utxo,
+            } => {
+                let sender = origin;
+                let btc_address = match Address::from_str(&address) {
+                    Ok(e) => e,
+                    Err(_) => return Err(TransactionError::BadCommand),
+                };
+                if self.admin == sender {
+                    let round_utxo = match self.utxo.entry(round_id) {
+                        Occupied(_entry) => return Err(TransactionError::BadCommand),
+                        Vacant(entry) => entry.insert(Default::default()),
+                    };
+                    round_utxo.insert(btc_address, utxo);
+                }
+                Ok(())
+            }
+            LotteryUserCommand::SetAdmin { new_admin } => {
+                // TODO: listen to some specific privileged account instead of ALICE
+                let sender = origin;
+                if let Ok(new_admin) = account_id_from_hex(&new_admin) {
+                    if self.admin == sender {
+                        self.admin = new_admin;
+                    }
+                    Ok(())
+                } else {
+                    Err(TransactionError::InvalidAccount)
+                }
+            }
+        }
+    }
+
+    fn handle_pallet_command(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryPalletCommand) -> TransactionResult {
+        if !origin.is_pallet() {
             error!("Received trasfer event from invalid origin: {:?}", origin);
-            return;
+            return Err(TransactionError::BadOrigin);
         }
         info!("Received trasfer event from {:?}", origin);
         match ce {
-            LotteryEvent::NewRound(round_id, total_count, winner_count) => {
+            LotteryPalletCommand::NewRound{ round_id, total_count, winner_count } => {
                 Self::new_round(self, context.mq(), round_id, total_count, winner_count)
             }
-            LotteryEvent::OpenBox(round_id, token_id, btc_address) => {
+            LotteryPalletCommand::OpenBox { round_id, token_id, btc_address } => {
                 Self::open_lottery(self, context.mq(), round_id, token_id, btc_address)
             }
         }
+        Ok(())
     }
 }

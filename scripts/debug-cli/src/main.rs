@@ -41,17 +41,6 @@ enum Cli {
         destination: String,
         hex_data: String,
     },
-    EncodeLotterySetAdmin {
-        admin: String,
-        number: u64,
-    },
-    EncodeLotteryUtxo {
-        round: u32,
-        address: String,
-        txid: String,
-        p0: u32,
-        p1: u64,
-    },
     EcdhKey {
         privkey: String,
     },
@@ -133,36 +122,6 @@ fn main() {
             let data = decode_hex(&hex_data);
             decode_mq_payload(destination.as_bytes(), &data);
         }
-        Cli::EncodeLotterySetAdmin { admin, number } => {
-            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
-            println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
-            let payload = PushCommand {
-                command: LotteryCommand::SetAdmin { new_admin: admin },
-                number,
-            };
-            println!("payload: 0x{}", hex::encode(payload.encode()));
-        }
-        Cli::EncodeLotteryUtxo {
-            round,
-            address,
-            txid,
-            p0,
-            p1,
-        } => {
-            use phala_types::messaging::{BindTopic, LotteryCommand, PushCommand};
-            println!("destination: 0x{}", hex::encode(LotteryCommand::TOPIC));
-            let mut txid_buf: [u8; 32] = Default::default();
-            hex::decode_to_slice(txid, &mut txid_buf).unwrap();
-            let payload = PushCommand {
-                command: LotteryCommand::SubmitUtxo {
-                    round_id: round,
-                    address,
-                    utxo: (txid_buf, p0, p1),
-                },
-                number: 1,
-            };
-            println!("payload: 0x{}", hex::encode(payload.encode()));
-        }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;
 
@@ -227,7 +186,7 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
         destination: &[u8],
         payload: &[u8],
     ) -> Result<(), ()> {
-        if T::TOPIC == destination {
+        if &T::topic() == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
             println!("{:?}", msg);
             return Ok(());
@@ -241,14 +200,14 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
     }
 
     try_decode_with_types!(
-        Lottery,
-        LotteryCommand,
-        BalanceEvent<AccountId, Balance>,
-        BalanceCommand<AccountId, Balance>,
-        // BalanceTransfer<AccountId, Balance>,
-        AssetCommand<AccountId, Balance>,
-        Web3AnalyticsCommand,
-        DiemCommand,
+        //Lottery,
+        //LotteryCommand,
+        //BalancesEvent<AccountId, Balance>,
+        //BalancesCommand<AccountId, Balance>,
+        // BalancesTransfer<AccountId, Balance>,
+        //AssetCommand<AccountId, Balance>,
+        //Web3AnalyticsCommand,
+        //DiemCommand,
         // KittyEvent<AccountId, Hash>,
         SystemEvent,
         MiningReportEvent,

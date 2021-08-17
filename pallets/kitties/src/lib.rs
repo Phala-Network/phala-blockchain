@@ -10,7 +10,7 @@ use pallet_balances as balances;
 use sp_runtime::{DispatchResult, traits::{AccountIdConversion, Hash, Zero}};
 use sp_std::prelude::*;
 use phala_pallets::pallet_mq::{self, MessageOriginInfo};
-use phala_types::messaging::{BindTopic, KittyEvent, KittyTransfer, DecodedMessage, MessageOrigin};
+use phala_types::messaging::{KittiesCommand, KittyTransfer, DecodedMessage, MessageOrigin};
 
 const PALLET_ID: PalletId = PalletId(*b"Kitty!!!");
 #[derive(Encode, Decode, Default, Debug, Clone, PartialEq)]
@@ -128,7 +128,7 @@ decl_module! {
 
 			<Nonce>::mutate(|n| *n += 1);
 
-			Self::push_message(KittyEvent::Created(sender, random_hash));
+			Self::push_command(KittiesCommand::Created(sender, random_hash));
 
 			Ok(())
 		}
@@ -179,10 +179,6 @@ impl<T: Config> Module<T> {
 		Self::deposit_event(RawEvent::Transferred(sender, to, kitty_id));
 
 		Ok(())
-	}
-
-	fn push_message(message: impl Encode + BindTopic) {
-		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), message)
 	}
 }
 

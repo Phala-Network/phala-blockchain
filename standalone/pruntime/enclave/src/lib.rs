@@ -29,7 +29,7 @@ use sgx_types::marker::ContiguousMemory;
 use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
-use crate::msg_channel::osp::{KeyPair, PeelingReceiver};
+use crate::secret_channel::PeelingReceiver;
 use crate::std::collections::BTreeMap;
 use crate::std::prelude::v1::*;
 use crate::std::ptr;
@@ -44,7 +44,7 @@ use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
-use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
+use serde::{de, Deserialize, Serialize};
 use serde_cbor;
 use serde_json::{Map, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
@@ -68,7 +68,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::WorkerRegistrationInfo;
 
@@ -77,19 +77,18 @@ mod cert;
 mod contracts;
 mod cryptography;
 mod light_validation;
-mod msg_channel;
 mod prpc_service;
 mod rpc_types;
+mod secret_channel;
 mod storage;
 mod system;
 mod types;
 mod utils;
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
-use contracts::{ContractId, ExecuteEnv, SYSTEM};
+use contracts::{ExecuteEnv, SYSTEM};
 use rpc_types::*;
 use storage::{Storage, StorageExt};
-use system::TransactionStatus;
 use types::BlockInfo;
 use types::Error;
 
@@ -201,24 +200,6 @@ impl RuntimeState {
             sequence
         })
     }
-}
-
-fn se_to_b64<S, V: Encode>(value: &V, serializer: S) -> Result<S::Ok, S::Error>
-where
-    S: Serializer,
-{
-    let data = value.encode();
-    let s = base64::encode(data.as_slice());
-    String::serialize(&s, serializer)
-}
-
-fn de_from_b64<'de, D, V: Decode>(deserializer: D) -> Result<V, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    let data = base64::decode(&s).map_err(de::Error::custom)?;
-    V::decode(&mut data.as_slice()).map_err(|_| de::Error::custom("bad data"))
 }
 
 fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(
@@ -712,7 +693,6 @@ fn handle_json_api(action: u8, input: &[u8], output_buf_len: usize) -> Result<Va
     match action {
         ACTION_INIT_RUNTIME => init_runtime(load_param(input_value)),
         ACTION_TEST => test(load_param(input_value)),
-        ACTION_QUERY => query(load_param(input_value)),
         _ => {
             let payload = input_value.as_object().unwrap();
             match action {
@@ -839,6 +819,7 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 
+// TODO.kevin: Move to enclave-api when the std ready.
 fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();
@@ -1105,13 +1086,11 @@ fn handle_inbound_messages(
                 }
             }};
         }
-        match &message.destination.path()[..] {
-            SystemEvent::TOPIC => {
-                log_message!(message, SystemEvent);
-            }
-            _ => {
-                info!("mq dispatching message: {:?}", message);
-            }
+        // TODO.kevin: reuse codes in debug-cli
+        if message.destination.path() == &SystemEvent::topic() {
+            log_message!(message, SystemEvent);
+        } else {
+            info!("mq dispatching message: {:?}", message);
         }
         state.recv_mq.dispatch(message);
     }
@@ -1276,76 +1255,6 @@ fn get_egress_messages(output_buf_len: usize) -> Result<Value, Value> {
     Ok(json!({
         "messages": b64_messages,
     }))
-}
-
-fn query(q: types::SignedQuery) -> Result<Value, Value> {
-    let payload_data = q.query_payload.as_bytes();
-    // Validate signature
-    if let Some(origin) = &q.origin {
-        if !origin
-            .verify(payload_data)
-            .map_err(|_| error_msg("Bad signature or origin"))?
-        {
-            return Err(error_msg("Verifying signature failed"));
-        }
-        info!("Verifying signature passed!");
-    }
-    // Load and decrypt if necessary
-    let payload: types::Payload =
-        serde_json::from_slice(payload_data).map_err(|_| error_msg("Failed to decode payload"))?;
-    let msg = {
-        match payload {
-            types::Payload::Plain(data) => data.into_bytes(),
-            types::Payload::Cipher(_cipher) => todo!("not supported"),
-        }
-    };
-    debug!("msg: {}", String::from_utf8_lossy(&msg));
-    let opaque_query: types::OpaqueQuery =
-        serde_json::from_slice(&msg).map_err(|_| error_msg("Malformed request (Query)"))?;
-    // Origin
-    let accid_origin = match q.origin.as_ref() {
-        Some(o) => {
-            let accid =
-                contracts::account_id_from_hex(&o.origin).map_err(|_| error_msg("Bad origin"))?;
-            Some(accid)
-        }
-        None => None,
-    };
-    // Dispatch
-    let ref_origin = accid_origin.as_ref();
-    let res = match opaque_query.contract_id {
-        SYSTEM => {
-            let mut guard = SYSTEM_STATE.lock().unwrap();
-            let system_state = guard
-                .as_mut()
-                .ok_or_else(|| error_msg("Runtime not initialized"))?;
-            serde_json::to_value(
-                system_state.handle_query(
-                    ref_origin,
-                    types::deopaque_query(opaque_query)
-                        .map_err(|_| error_msg("Malformed request (system::Request)"))?
-                        .request,
-                ),
-            )
-            .unwrap()
-        }
-        _ => {
-            let mut state = STATE.lock().unwrap();
-            let state = state.as_mut().ok_or(error_msg("Runtime not initialized"))?;
-            let contract = state
-                .contracts
-                .get_mut(&opaque_query.contract_id)
-                .ok_or(error_msg("Contract not found"))?;
-            let response = contract.handle_query(ref_origin, opaque_query)?;
-            response
-        }
-    };
-    // Encrypt response if necessary
-    let res_json = res.to_string();
-    let res_payload = types::Payload::Plain(res_json);
-
-    let res_value = serde_json::to_value(res_payload).unwrap();
-    Ok(res_value)
 }
 
 fn test(_param: TestReq) -> Result<Value, Value> {

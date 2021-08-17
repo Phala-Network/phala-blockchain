@@ -1,28 +1,27 @@
 use crate::std::collections::BTreeMap;
-use crate::std::string::String;
+use crate::std::string::{String, ToString};
 
 use anyhow::Result;
-use core::{fmt, str};
+use core::fmt;
 use log::info;
+use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
 
 use crate::contracts;
-use crate::contracts::{AccountIdWrapper, NativeContext};
-use crate::TransactionStatus;
+use crate::contracts::{AccountId, NativeContext};
+use super::{TransactionResult, TransactionError};
 extern crate runtime as chain;
 
-use phala_types::messaging::{BalanceCommand, BalanceEvent, BalanceTransfer, PushCommand};
+use phala_types::messaging::{BalancesCommand, BalancesTransfer};
 
-type Command = BalanceCommand<chain::AccountId, chain::Balance>;
-type Event = BalanceEvent<chain::AccountId, chain::Balance>;
+pub type Command = BalancesCommand<chain::AccountId, chain::Balance>;
 
 pub struct Balances {
     total_issuance: chain::Balance,
-    accounts: BTreeMap<AccountIdWrapper, chain::Balance>,
+    accounts: BTreeMap<AccountId, chain::Balance>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -37,23 +36,17 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
-    FreeBalance { account: AccountIdWrapper },
+    FreeBalance { account: AccountId },
     TotalIssuance,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
-    FreeBalance {
-        #[serde(with = "super::serde_balance")]
-        balance: chain::Balance,
-    },
-    TotalIssuance {
-        #[serde(with = "super::serde_balance")]
-        total_issuance: chain::Balance,
-    },
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    FreeBalance { balance: chain::Balance },
+    TotalIssuance { total_issuance: chain::Balance },
+    Error(String),
 }
 
 impl Balances {
@@ -67,11 +60,10 @@ impl Balances {
 
 impl contracts::NativeContract for Balances {
     type Cmd = Command;
-    type Event = Event;
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::BALANCES
     }
 
@@ -79,21 +71,15 @@ impl contracts::NativeContract for Balances {
         &mut self,
         context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Command>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        let status = match cmd.command {
+        cmd: Command,
+    ) -> TransactionResult {
+        match cmd {
             Command::Transfer { dest, value } => {
-                let o = AccountIdWrapper::from(origin);
-                let dest = AccountIdWrapper(dest);
+                let o = origin.account()?;
                 info!(
                     "Transfer: [{}] -> [{}]: {}",
-                    o.to_string(),
-                    dest.to_string(),
+                    hex::encode(&o),
+                    hex::encode(&dest),
                     value
                 );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
@@ -112,21 +98,20 @@ impl contracts::NativeContract for Balances {
                         info!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
-                        TransactionStatus::Ok
+                        Ok(())
                     } else {
-                        TransactionStatus::InsufficientBalance
+                        Err(TransactionError::InsufficientBalance)
                     }
                 } else {
-                    TransactionStatus::NoBalance
+                    Err(TransactionError::NoBalance)
                 }
             }
             Command::TransferToChain { dest, value } => {
-                let o = AccountIdWrapper::from(origin);
-                let dest = AccountIdWrapper(dest);
+                let o = origin.account()?;
                 info!(
                     "Transfer to chain: [{}] -> [{}]: {}",
-                    o.to_string(),
-                    dest.to_string(),
+                    hex::encode(&o),
+                    hex::encode(&dest),
                     value
                 );
                 if let Some(src_amount) = self.accounts.get_mut(&o) {
@@ -136,29 +121,46 @@ impl contracts::NativeContract for Balances {
                         self.total_issuance -= value;
                         info!("   src: {:>20} -> {:>20}", src0, src0 - value);
 
-                        let data = BalanceTransfer {
+                        let data = BalancesTransfer {
                             dest,
                             amount: value,
                         };
                         context.mq().send(&data);
-                        TransactionStatus::Ok
+                        Ok(())
                     } else {
-                        TransactionStatus::InsufficientBalance
+                        Err(TransactionError::InsufficientBalance)
                     }
                 } else {
-                    TransactionStatus::NoBalance
+                    Err(TransactionError::NoBalance)
                 }
             }
-        };
-
-        status
+            Command::TransferToTee { who, amount } => {
+                if !origin.is_pallet() {
+                    error!("Received event from unexpected origin: {:?}", origin);
+                    return Err(TransactionError::BadOrigin);
+                }
+                info!("TransferToTee from :{:?}, {:}", who, amount);
+                let dest = who;
+                info!("   dest: {}", hex::encode(&dest));
+                if let Some(dest_amount) = self.accounts.get_mut(&dest) {
+                    let dest_amount0 = *dest_amount;
+                    *dest_amount += amount;
+                    info!("   value: {:>20} -> {:>20}", dest_amount0, *dest_amount);
+                } else {
+                    self.accounts.insert(dest, amount);
+                    info!("   value: {:>20} -> {:>20}", 0, amount);
+                }
+                self.total_issuance += amount;
+                Ok(())
+            }
+        }
     }
 
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response> {
             match req {
                 Request::FreeBalance { account } => {
-                    if origin == None || origin.unwrap() != &account.0 {
+                    if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
                     let mut balance: chain::Balance = 0;
@@ -173,36 +175,8 @@ impl contracts::NativeContract for Balances {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
-        }
-    }
-
-    fn handle_event(
-        &mut self,
-        _context: &NativeContext,
-        origin: MessageOrigin,
-        event: Self::Event,
-    ) {
-        if !origin.is_pallet() {
-            error!("Received event from unexpected origin: {:?}", origin);
-            return;
-        }
-        match event {
-            Event::TransferToTee(who, amount) => {
-                info!("TransferToTee from :{:?}, {:}", who, amount);
-                let dest = AccountIdWrapper(who);
-                info!("   dest: {}", dest.to_string());
-                if let Some(dest_amount) = self.accounts.get_mut(&dest) {
-                    let dest_amount0 = *dest_amount;
-                    *dest_amount += amount;
-                    info!("   value: {:>20} -> {:>20}", dest_amount0, *dest_amount);
-                } else {
-                    self.accounts.insert(dest, amount);
-                    info!("   value: {:>20} -> {:>20}", 0, amount);
-                }
-                self.total_issuance += amount;
-            }
         }
     }
 }

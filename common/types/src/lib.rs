@@ -1,6 +1,8 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 
+pub mod contract;
+
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::convert::{TryFrom, TryInto};
@@ -20,17 +22,14 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    pub use phala_mq::bind_topic;
+    pub use phala_mq::{bind_topic, bind_contract32};
     pub use phala_mq::types::*;
+    use crate::contract;
 
+    // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug)]
-    pub struct PushCommand<Cmd> {
-        pub command: Cmd,
-        pub number: u64,
-    }
-
-    impl<Cmd: BindTopic> BindTopic for PushCommand<Cmd> {
-        const TOPIC: &'static [u8] = <Cmd as BindTopic>::TOPIC;
+    pub enum CommandPayload<T> {
+        Plain(T),
     }
 
     // TODO.kevin:
@@ -51,9 +50,22 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(LotteryCommand, b"phala/lottery/command");
+    #[derive(Encode, Decode, Debug, Clone)]
+    pub enum LotteryPalletCommand {
+        NewRound {
+            round_id: u32,
+            total_count: u32,
+            winner_count: u32,
+        },
+        OpenBox {
+            round_id: u32,
+            token_id: u32,
+            btc_address: Vec<u8>,
+        },
+    }
+
     #[derive(Encode, Decode, Debug)]
-    pub enum LotteryCommand {
+    pub enum LotteryUserCommand {
         SubmitUtxo {
             round_id: u32,
             address: String,
@@ -64,33 +76,59 @@ pub mod messaging {
         },
     }
 
+    bind_contract32!(LotteryCommand, contract::BTC_LOTTERY);
+    #[derive(Encode, Decode, Debug)]
+    pub enum LotteryCommand {
+        UserCommand(LotteryUserCommand),
+        PalletCommand(LotteryPalletCommand),
+    }
+
+    impl LotteryCommand {
+        pub fn open_box(round_id: u32, token_id: u32, btc_address: Vec<u8>) -> Self {
+            Self::PalletCommand(LotteryPalletCommand::OpenBox {
+                round_id, token_id, btc_address,
+            })
+        }
+
+        pub fn new_round(round_id: u32, total_count: u32, winner_count: u32) -> Self {
+            Self::PalletCommand(LotteryPalletCommand::NewRound {
+                round_id, total_count, winner_count,
+            })
+        }
+    }
+
     pub type Txid = [u8; 32];
 
     // Messages for Balances
 
-    bind_topic!(BalanceEvent<AccountId, Balance>, b"phala/balances/event");
+    bind_contract32!(BalancesCommand<AccountId, Balance>, contract::BALANCES);
     #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceEvent<AccountId, Balance> {
-        TransferToTee(AccountId, Balance),
-    }
-
-    bind_topic!(BalanceCommand<AccountId, Balance>, b"phala/balances/command");
-    #[derive(Debug, Clone, Encode, Decode)]
-    pub enum BalanceCommand<AccountId, Balance> {
+    pub enum BalancesCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
         TransferToChain { dest: AccountId, value: Balance },
+        TransferToTee { who: AccountId, amount: Balance },
     }
 
-    bind_topic!(BalanceTransfer<AccountId, Balance>, b"^phala/balances/transfer");
+    impl<AccountId, Balance> BalancesCommand<AccountId, Balance> {
+        pub fn transfer(dest: AccountId, value: Balance) -> Self {
+            Self::Transfer { dest, value }
+        }
+
+        pub fn transfer_to_chain(dest: AccountId, value: Balance) -> Self {
+            Self::TransferToChain { dest, value }
+        }
+    }
+
+    bind_topic!(BalancesTransfer<AccountId, Balance>, b"^phala/balances/transfer");
     #[derive(Encode, Decode)]
-    pub struct BalanceTransfer<AccountId, Balance> {
+    pub struct BalancesTransfer<AccountId, Balance> {
         pub dest: AccountId,
         pub amount: Balance,
     }
 
     // Messages for Assets
 
-    bind_topic!(AssetCommand<AccountId, Balance>, b"phala/assets/command");
+    bind_contract32!(AssetCommand<AccountId, Balance>, contract::ASSETS);
     #[derive(Encode, Decode, Debug)]
     pub enum AssetCommand<AccountId, Balance> {
         Issue {
@@ -104,6 +142,7 @@ pub mod messaging {
             id: AssetId,
             dest: AccountId,
             value: Balance,
+            index: u64,
         },
     }
 
@@ -111,7 +150,7 @@ pub mod messaging {
 
     // Messages for Web3Analytics
 
-    bind_topic!(Web3AnalyticsCommand, b"phala/web3analytics/command");
+    bind_contract32!(Web3AnalyticsCommand, contract::WEB3_ANALYTICS);
     #[derive(Encode, Decode, Debug)]
     pub enum Web3AnalyticsCommand {
         SetConfiguration { skip_stat: bool },
@@ -119,7 +158,7 @@ pub mod messaging {
 
     // Messages for diem
 
-    bind_topic!(DiemCommand, b"phala/diem/command");
+    bind_contract32!(DiemCommand, contract::DIEM);
     #[derive(Encode, Decode, Debug)]
     pub enum DiemCommand {
         /// Sets the whitelisted accounts, in bcs encoded base64
@@ -153,9 +192,16 @@ pub mod messaging {
 
     // Messages for Kitties
 
-    bind_topic!(KittyEvent<AccountId, Hash>, b"phala/kitties/event");
+    bind_contract32!(KittiesCommand<AccountId, Hash>, contract::SUBSTRATE_KITTIES);
     #[derive(Encode, Decode, Debug)]
-    pub enum KittyEvent<AccountId, Hash> {
+    pub enum KittiesCommand<AccountId, Hash> {
+        /// Pack the kitties into the corresponding blind boxes
+        Pack {},
+        /// Transfer the box to another account, need to judge if the sender is the owner
+        Transfer { dest: String, blind_box_id: String },
+        /// Open the specific blind box to get the kitty
+        Open { blind_box_id: String },
+        /// Created a new blind box
         Created(AccountId, Hash),
     }
 

@@ -521,7 +521,6 @@ fn rocket() -> rocket::Rocket {
             ("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO),
             ("/dump_states", dump_states, actions::ACTION_DUMP_STATES),
             ("/load_states", load_states, actions::ACTION_LOAD_STATES),
-            ("/query", query, actions::ACTION_QUERY),
             ("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES),
             ("/test_ink", test_ink, actions::ACTION_TEST_INK),
         ])

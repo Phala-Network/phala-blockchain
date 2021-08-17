@@ -14,6 +14,8 @@ use sp_std::convert::TryFrom;
 use sp_std::prelude::*;
 
 use phala_pallets::pallet_mq;
+use phala_types::messaging::LotteryCommand;
+use pallet_mq::MessageOriginInfo;
 
 #[cfg(test)]
 mod mock;
@@ -24,15 +26,6 @@ type ResourceId = bridge::ResourceId;
 
 type BalanceOf<T> =
 	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-phala_types::messaging::bind_topic!(LotteryEvent, b"phala/lottery/event");
-#[derive(Decode, Encode, Debug, PartialEq, Eq, Clone)]
-pub enum LotteryEvent {
-	/// Receive command: Newround. [roundId, totalCount, winnerCount]
-	NewRound(u32, u32, u32),
-	/// Receive commnad: Openbox. [roundId, tokenId, btcAddress]
-	OpenBox(u32, u32, Vec<u8>),
-}
 
 pub trait Config: system::Config + bridge::Config + pallet_mq::Config {
 	type Event: From<Event<Self>> + Into<<Self as frame_system::Config>::Event>;
@@ -144,7 +137,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(LotteryEvent::NewRound(
+				Self::push_command(LotteryCommand::new_round(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// totalCount
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[9..]).map_err(|_| Error::<T>::InvalidCommand)?)	// winnerCount
@@ -161,7 +154,7 @@ decl_module! {
 					Error::<T>::InvalidCommand
 				);
 
-				Self::push_message(LotteryEvent::OpenBox(
+				Self::push_command(LotteryCommand::open_box(
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[1..5]).map_err(|_| Error::<T>::InvalidCommand)?),	// roundId
 					u32::from_be_bytes(<[u8; 4]>::try_from(&metadata[5..9]).map_err(|_| Error::<T>::InvalidCommand)?),	// tokenId
 					metadata[13..].to_vec()						// btcAddress
@@ -176,20 +169,20 @@ decl_module! {
 		#[weight = 0]
 		fn force_lottery_new_round(origin, round_id: u32, total_count: u32, winner_count: u32) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(LotteryEvent::NewRound(round_id, total_count, winner_count));
+			Self::push_command(LotteryCommand::new_round(round_id, total_count, winner_count));
 			Ok(())
 		}
 
 		#[weight = 0]
 		fn force_lottery_open_box(origin, round_id: u32, token_id: u32, btc_address: Vec<u8>) -> DispatchResult {
 			ensure_root(origin)?;
-			Self::push_message(LotteryEvent::OpenBox(round_id, token_id, btc_address));
+			Self::push_command(LotteryCommand::open_box(round_id, token_id, btc_address));
 			Ok(())
 		}
 	}
 }
 
-use phala_types::messaging::{BindTopic, Lottery, DecodedMessage, MessageOrigin};
+use phala_types::messaging::{DecodedMessage, Lottery};
 
 impl<T: Config> Module<T> {
 	pub fn lottery_output(payload: &Lottery, dest_id: bridge::BridgeChainId) -> DispatchResult {
@@ -200,17 +193,9 @@ impl<T: Config> Module<T> {
 		let metadata: Vec<u8> = payload.encode();
 		<bridge::Module<T>>::transfer_generic(dest_id, T::BridgeLotteryId::get(), metadata)
 	}
-
-	fn push_message(payload: impl Encode + BindTopic) {
-		pallet_mq::Pallet::<T>::push_bound_message(Self::message_origin(), payload);
-	}
-
-	pub fn message_origin() -> MessageOrigin {
-		<Self as pallet_mq::MessageOriginInfo>::message_origin()
-	}
 }
 
-impl<T: Config> pallet_mq::MessageOriginInfo for Module<T> {
+impl<T: Config> MessageOriginInfo for Module<T> {
 	type Config = T;
 }
 
