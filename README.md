@@ -14,7 +14,7 @@ Phala Network is a blockchain-based confidential computing cloud. This repo incl
 
 ![](docs/static/phala-design.png)
 
-The **blockchain** is the central compoent of the system. It records commands (confidential contract invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
+The **blockchain** is the central component of the system. It records commands (confidential contract invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
 
 **pherry** (runtime-bridge) is the message relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge).
 
@@ -24,7 +24,7 @@ Related repos:
 
 - [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentations.
 - [apps-ng](https://github.com/Phala-Network/apps-ng): The fontend, with the UI of the Phase Wallet and the Phala confidential contract api sdk. (Will be upgraded to [apps-nng](https://github.com/Phala-Network/apps-nng) soon.)
-- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime. 
+- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime.
 
 ### File structure
 
@@ -40,14 +40,14 @@ Related repos:
 │   └── init.sh
 └───standalone
     ├── node                  Blockchain node
-    ├── pruntime              pRuntime, the Secure Encalve kernel
+    ├── pruntime              pRuntime, the Secure Enclave kernel
     ├── pherry                The message relayer to connect the blockchain and pRuntime
     └── runtime               Phala Substrate Runtime
 ```
 
 ## Docker build
 
-Plase refer to [phala-docker](https://github.com/Phala-Network/phala-docker).
+Please refer to [phala-docker](https://github.com/Phala-Network/phala-docker).
 
 ## Native Build
 
@@ -61,7 +61,7 @@ Plase refer to [phala-docker](https://github.com/Phala-Network/phala-docker).
   curl https://sh.rustup.rs -sSf | sh
   ```
 
-- Substrate dependecies:
+- Substrate dependencies:
 
    ```bash
    git submodule init
@@ -159,5 +159,5 @@ Or a 4-node testnet-poc4 setup:
 CHAIN=poc4 tmuxp load ./scripts/tmuxp/four-nodes.yaml
 ```
 
-[tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convinient tool that can bring up a tmux session
+[tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convenient tool that can bring up a tmux session
 with the preconfigured commands running in panes. To play with tmuxp, it also need a tmux installed.

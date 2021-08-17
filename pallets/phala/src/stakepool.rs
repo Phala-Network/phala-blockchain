@@ -769,7 +769,8 @@ pub mod pallet {
 		) {
 			match pool.settle_slash(user) {
 				Some(slashed) if slashed > Zero::zero() => {
-					let (imbalance, _remaining) = <T as Config>::Currency::slash(&user.user, slashed);
+					let (imbalance, _remaining) =
+						<T as Config>::Currency::slash(&user.user, slashed);
 					T::OnSlashed::on_unbalanced(imbalance);
 					Self::ledger_reduce(&user.user, slashed);
 					Self::deposit_event(Event::<T>::SlashSettled(

@@ -16,7 +16,6 @@ pub mod assets;
 pub mod balances;
 pub mod btc_lottery;
 pub mod data_plaza;
-// TODO.kevin: take it back
 // pub mod diem;
 pub mod substrate_kitties;
 pub mod web3analytics;

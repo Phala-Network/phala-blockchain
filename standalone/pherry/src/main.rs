@@ -176,24 +176,22 @@ async fn get_header_hash(client: &XtClient, h: Option<u32>) -> Result<Hash> {
     Ok(hash)
 }
 
-async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<OpaqueSignedBlock> {
+async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<(OpaqueSignedBlock, Hash)> {
     let hash = get_header_hash(client, h).await?;
-
-    info!("get_block_at: Got block {:?} hash {}", h, hash.to_string());
-
     let block = client
         .block(Some(hash.clone()))
         .await?
         .ok_or(Error::BlockNotFound)?;
 
-    Ok(block)
+    Ok((block, hash))
 }
 
 async fn get_block_without_storage_changes(
     client: &XtClient,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
-    let block = get_block_at(&client, h).await?;
+    let (block, hash) = get_block_at(&client, h).await?;
+    info!("get_block: Got block {:?} hash {}", h, hash.to_string());
     return Ok(BlockWithChanges {
         block,
         storage_changes: Default::default(),
@@ -204,7 +202,12 @@ async fn get_block_with_storage_changes(
     client: &XtClient,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
-    let block = get_block_at(&client, h).await?;
+    let (block, hash) = get_block_at(&client, h).await?;
+    info!(
+        "get_block (w/changes): Got block {:?} hash {}",
+        h,
+        hash.to_string()
+    );
     let hash = block.block.header.hash();
     let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
     return Ok(BlockWithChanges {
@@ -611,7 +614,7 @@ async fn init_runtime(
     is_parachain: bool,
     start_header: BlockNumber,
 ) -> Result<InitRuntimeResponse> {
-    let genesis_block = get_block_at(client, Some(start_header)).await?.block;
+    let genesis_block = get_block_at(client, Some(start_header)).await?.0.block;
     let hash = client
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
             start_header as _,
@@ -698,6 +701,10 @@ const DEV_KEY: &str = "000000000000000000000000000000000000000000000000000000000
 async fn wait_until_synced(client: &XtClient) -> Result<()> {
     loop {
         let state = client.rpc.system_sync_state().await?;
+        info!(
+            "Checking synced: current={} highest={:?}",
+            state.current_block, state.highest_block
+        );
         if let Some(highest) = state.highest_block {
             if highest - state.current_block <= 2 {
                 return Ok(());
@@ -840,7 +847,7 @@ async fn bridge(args: Args) -> Result<()> {
         .await
         .ok();
 
-        let latest_block = get_block_at(&client, None).await?.block;
+        let latest_block = get_block_at(&client, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref b) = sync_state.blocks.first() {
             if b.block.block.header.number >= info.blocknum {
@@ -870,10 +877,16 @@ async fn bridge(args: Args) -> Result<()> {
                 }
             }
         };
-        let batch_end = std::cmp::min(
-            latest_block.header.number,
-            next_block + args.fetch_blocks - 1,
-        );
+
+        let (batch_end, more_blocks) = {
+            let latest = latest_block.header.number;
+            let fetch_limit = next_block + args.fetch_blocks - 1;
+            if fetch_limit < latest {
+                (fetch_limit, true)
+            } else {
+                (latest, false)
+            }
+        };
 
         // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
@@ -915,8 +928,8 @@ async fn bridge(args: Args) -> Result<()> {
         .await?;
 
         // check if pRuntime has already reached the chain tip.
-        if synced_blocks == 0 {
-            if !initial_sync_finished {
+        if synced_blocks == 0 && !more_blocks {
+            if !initial_sync_finished && !args.no_write_back {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
@@ -936,8 +949,7 @@ async fn bridge(args: Args) -> Result<()> {
                 let mut msg_sync = msg_sync::MsgSync::new(&paraclient, &pr, &mut signer);
                 msg_sync.maybe_sync_mq_egress().await?;
             }
-        }
-        if synced_blocks == 0 {
+
             info!("Waiting for new blocks");
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
