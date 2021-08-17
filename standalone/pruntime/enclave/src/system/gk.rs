@@ -100,8 +100,8 @@ where
         egress.set_dummy(true);
 
         Self {
-            master_key: master_key,
-            egress: egress,
+            master_key,
+            egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -240,17 +240,15 @@ where
                     worker_info.unresponsive = false;
                     self.report
                         .recovered_to_online
-                        .push(worker_info.state.pubkey.clone());
+                        .push(worker_info.state.pubkey);
                 }
-            } else {
-                if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                    if self.block.block_number - hb_sent_at
-                        > self.state.tokenomic_params.heartbeat_window
-                    {
-                        // case3: Idle, heartbeat failed
-                        self.report.offline.push(worker_info.state.pubkey.clone());
-                        worker_info.unresponsive = true;
-                    }
+            } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
+                if self.block.block_number - hb_sent_at
+                    > self.state.tokenomic_params.heartbeat_window
+                {
+                    // case3: Idle, heartbeat failed
+                    self.report.offline.push(worker_info.state.pubkey);
+                    worker_info.unresponsive = true;
                 }
             }
 
@@ -336,7 +334,7 @@ where
 
                     // NOTE: keep the reporting order (vs the one while mining stop).
                     self.report.settle.push(SettleInfo {
-                        pubkey: worker_pubkey.clone(),
+                        pubkey: worker_pubkey,
                         v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
                         treasury: treasury.to_bits(),
@@ -361,8 +359,8 @@ where
             let _ = self
                 .state
                 .workers
-                .entry(pubkey.clone())
-                .or_insert_with(|| WorkerInfo::new(pubkey.clone()));
+                .entry(*pubkey)
+                .or_insert_with(|| WorkerInfo::new(*pubkey));
         }
 
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
@@ -420,7 +418,7 @@ where
                             // Just report the final V ATM.
                             // NOTE: keep the reporting order (vs the one while heartbeat).
                             self.report.settle.push(SettleInfo {
-                                pubkey: worker.state.pubkey.clone(),
+                                pubkey: worker.state.pubkey,
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
                                 treasury: 0,

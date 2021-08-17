@@ -1,7 +1,7 @@
+use super::account_id_from_hex;
+use super::{TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::AccountId;
-use super::account_id_from_hex;
-use super::{TransactionResult, TransactionError};
 use lazy_static;
 use sp_core::hashing::blake2_128;
 use sp_core::H256 as Hash;
@@ -21,11 +21,11 @@ use phala_types::messaging::{KittiesCommand, KittyTransfer, MessageOrigin};
 type Command = KittiesCommand<chain::AccountId, chain::Hash>;
 type Transfer = KittyTransfer<chain::AccountId>;
 
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
+const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 // 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-// const BOB: &'static str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
+// const BOB: &str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
 // 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-// const CHARLIE: &'static str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
+// const CHARLIE: &str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
 // 5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y
 
 lazy_static! {
@@ -168,8 +168,8 @@ impl contracts::NativeContract for SubstrateKitties {
                     let token_id: U256 = U256::from(kind) << 128;
                     // Let's just suppose that ALICE owns all the boxes as default, and ALICE can
                     // transfer to anyone that is on the chain
-                    let default_owner = account_id_from_hex(ALICE)
-                        .expect("Admin must has a good address; qed.");
+                    let default_owner =
+                        account_id_from_hex(ALICE).expect("Admin must has a good address; qed.");
                     for (kitty_id, _kitty) in self.kitties.iter() {
                         let mut rng = rand::thread_rng();
                         let seed: [u8; 16] = rng.gen();
@@ -200,11 +200,10 @@ impl contracts::NativeContract for SubstrateKitties {
                                 .balances
                                 .get(&(blind_box_id.clone(), default_owner.clone()))
                             {
-                                Some(_) => self
+                                Some(_) => *self
                                     .balances
                                     .get(&(blind_box_id.clone(), default_owner.clone()))
-                                    .unwrap()
-                                    .clone(),
+                                    .unwrap(),
                                 None => 0,
                             };
                             ft_balance += 1;
@@ -299,37 +298,27 @@ impl contracts::NativeContract for SubstrateKitties {
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response, Error> {
             match req {
-                Request::ObserveBox => {
-                    return Ok(Response::ObserveBox {
-                        blind_box: self.blind_boxes.clone(),
-                    })
-                }
+                Request::ObserveBox => Ok(Response::ObserveBox {
+                    blind_box: self.blind_boxes.clone(),
+                }),
                 Request::ObserveOwnedBox => {
                     let sender = origin.unwrap().clone();
                     let owned_boxes = self.owned_boxes.get(&sender);
                     match owned_boxes {
-                        Some(_) => {
-                            return Ok(Response::ObserveOwnedBox {
-                                owned_box: owned_boxes.unwrap().clone(),
-                            })
-                        }
-                        None => {
-                            return Ok(Response::ObserveOwnedBox {
-                                owned_box: Vec::new(),
-                            })
-                        }
-                    };
+                        Some(_) => Ok(Response::ObserveOwnedBox {
+                            owned_box: owned_boxes.unwrap().clone(),
+                        }),
+                        None => Ok(Response::ObserveOwnedBox {
+                            owned_box: Vec::new(),
+                        }),
+                    }
                 }
-                Request::ObserveLeftKitties => {
-                    return Ok(Response::ObserveLeftKitties {
-                        kitties: self.left_kitties.clone(),
-                    })
-                }
-                Request::OwnerOf { blind_box_id } => {
-                    return Ok(Response::OwnerOf {
-                        owner: self.owner.get(&blind_box_id).unwrap().clone(),
-                    })
-                }
+                Request::ObserveLeftKitties => Ok(Response::ObserveLeftKitties {
+                    kitties: self.left_kitties.clone(),
+                }),
+                Request::OwnerOf { blind_box_id } => Ok(Response::OwnerOf {
+                    owner: self.owner.get(&blind_box_id).unwrap().clone(),
+                }),
             }
         };
         match inner() {

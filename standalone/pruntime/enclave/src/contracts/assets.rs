@@ -3,11 +3,11 @@ use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
 use log::info;
+use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
-use parity_scale_codec::{Encode, Decode};
 use std::collections::BTreeMap;
 
-use super::{NativeContext, TransactionResult, TransactionError};
+use super::{NativeContext, TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::AccountId;
 use phala_types::messaging::{AssetCommand, AssetId};
@@ -63,38 +63,19 @@ impl fmt::Display for Error {
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
-    Balance {
-        id: AssetId,
-        account: AccountId,
-    },
-    TotalSupply {
-        id: AssetId,
-    },
+    Balance { id: AssetId, account: AccountId },
+    TotalSupply { id: AssetId },
     Metadata,
-    History {
-        account: AccountId,
-    },
-    ListAssets {
-        available_only: bool,
-    },
+    History { account: AccountId },
+    ListAssets { available_only: bool },
 }
 #[derive(Encode, Decode, Debug)]
 pub enum Response {
-    Balance {
-        balance: chain::Balance,
-    },
-    TotalSupply {
-        total_issuance: chain::Balance,
-    },
-    Metadata {
-        metadata: Vec<AssetMetadata>,
-    },
-    History {
-        history: Vec<AssetsTx>,
-    },
-    ListAssets {
-        assets: Vec<AssetMetadataBalance>,
-    },
+    Balance { balance: chain::Balance },
+    TotalSupply { total_issuance: chain::Balance },
+    Metadata { metadata: Vec<AssetMetadata> },
+    History { history: Vec<AssetsTx> },
+    ListAssets { assets: Vec<AssetMetadataBalance> },
     Error(String),
 }
 
@@ -131,24 +112,24 @@ impl contracts::NativeContract for Assets {
                 let o = origin.account()?;
                 info!("Issue: [{}] -> [{}]: {}", hex::encode(&o), symbol, total);
 
-                if let None = self
+                if !self
                     .metadata
                     .iter()
-                    .find(|(_, metadatum)| metadatum.symbol == symbol)
+                    .any(|(_, metadatum)| metadatum.symbol == symbol)
                 {
                     let mut accounts = BTreeMap::<AccountId, chain::Balance>::new();
                     accounts.insert(o.clone(), total);
 
                     let id = self.next_id;
                     let metadatum = AssetMetadata {
-                        owner: o.clone(),
+                        owner: o,
                         total_supply: total,
                         symbol,
                         id,
                     };
 
                     self.metadata.insert(id, metadatum);
-                    self.assets.insert(id.clone(), accounts);
+                    self.assets.insert(id, accounts);
                     self.next_id += 1;
 
                     Ok(())
@@ -172,7 +153,12 @@ impl contracts::NativeContract for Assets {
                     Err(TransactionError::AssetIdNotFound)
                 }
             }
-            Command::Transfer { id, dest, value, index } => {
+            Command::Transfer {
+                id,
+                dest,
+                value,
+                index,
+            } => {
                 let o = origin.account()?;
 
                 if let Some(metadatum) = self.metadata.get(&id) {
@@ -214,7 +200,7 @@ impl contracts::NativeContract for Assets {
                             }
                             if is_tracked(&dest) {
                                 let slot = self.history.entry(dest).or_default();
-                                slot.push(tx.clone());
+                                slot.push(tx);
                                 info!(" pushed history (dest)");
                             }
 
@@ -268,11 +254,7 @@ impl contracts::NativeContract for Assets {
                     metadata: self.metadata.values().cloned().collect(),
                 }),
                 Request::History { account } => {
-                    let tx_list = self
-                        .history
-                        .get(&account)
-                        .cloned()
-                        .unwrap_or(Default::default());
+                    let tx_list = self.history.get(&account).cloned().unwrap_or_default();
                     Ok(Response::History { history: tx_list })
                 }
                 Request::ListAssets { available_only } => {

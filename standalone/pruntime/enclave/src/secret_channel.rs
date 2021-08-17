@@ -19,22 +19,24 @@ mod sender {
 
     pub type KeyPair = ecdh::EcdhKey;
 
+    #[allow(unused)] // TODO.kevin: remove this.
     pub struct SecretMessageChannel<'a> {
         key: &'a KeyPair,
         mq: &'a Sr25519MessageChannel,
-        key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
+        key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
     }
 
+    #[allow(unused)] // TODO.kevin: remove this.
     impl<'a> SecretMessageChannel<'a> {
         pub fn new(
             key: &'a KeyPair,
             mq: &'a Sr25519MessageChannel,
-            key_map: &'a dyn Fn(&Path) -> Option<ecdh::EcdhPublicKey>,
+            key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
         ) -> Self {
             SecretMessageChannel { key, mq, key_map }
         }
 
-        pub fn pubkey_for_topic(&self, topic: &Path) -> Option<ecdh::EcdhPublicKey> {
+        pub fn pubkey_for_topic(&self, topic: &[u8]) -> Option<ecdh::EcdhPublicKey> {
             (self.key_map)(topic)
         }
 
@@ -97,7 +99,7 @@ mod receiver {
     impl<T> SecretPeeler<T> {
         pub fn new(ecdh_key: ecdh::EcdhKey) -> Self {
             SecretPeeler {
-                ecdh_key: ecdh_key,
+                ecdh_key,
                 _t: PhantomData,
             }
         }
@@ -174,7 +176,7 @@ mod receiver {
 }
 
 /// Calculates the Substrate storage key prefix for a StorageMap
-pub fn storage_prefix_for_topic_pubkey(topic: &phala_mq::Path) -> Vec<u8> {
+pub fn storage_prefix_for_topic_pubkey(topic: &[u8]) -> Vec<u8> {
     use phala_pallets::pallet_mq::StorageMapTrait as _;
 
     type TopicKey = phala_pallets::pallet_registry::TopicKey<chain::Runtime>;

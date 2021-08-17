@@ -9,12 +9,15 @@ use log::info;
 
 use chain::pallet_registry::RegistryEvent;
 pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
+use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
 };
-use parity_scale_codec::{Decode, Encode};
-use phala_mq::{BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError, TypedReceiver};
+use phala_mq::{
+    BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
+    TypedReceiveError, TypedReceiver,
+};
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, HeartbeatChallenge, MasterKeyEvent, MiningReportEvent,
@@ -350,19 +353,19 @@ impl System {
         recv_mq: &mut MessageDispatcher,
     ) -> Self {
         let pubkey = identity_key.clone().public();
-        let sender = MessageOrigin::Worker(pubkey.clone());
+        let sender = MessageOrigin::Worker(pubkey);
         let master_key = master_key::try_unseal(sealing_path.clone(), identity_key);
 
         System {
-            sealing_path: sealing_path.clone(),
+            sealing_path,
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
             master_key_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
-            worker_state: WorkerState::new(pubkey.clone()),
+            worker_state: WorkerState::new(pubkey),
             registered_on_chain: false,
-            master_key: master_key,
+            master_key,
             gatekeeper: None,
         }
     }
@@ -546,7 +549,7 @@ impl System {
 
                 aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
                 self.egress.send(&MasterKeyEvent::dispatch_master_key_event(
-                    event.pubkey.clone(),
+                    event.pubkey,
                     my_ecdh_key
                         .public()
                         .as_ref()
@@ -669,7 +672,7 @@ pub mod chain_state {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
                     .expect("Decode value of Gatekeeper Failed. (This should not happen)")
             })
-            .unwrap_or(Vec::new());
+            .unwrap_or_default();
 
         gatekeepers.contains(pubkey)
     }

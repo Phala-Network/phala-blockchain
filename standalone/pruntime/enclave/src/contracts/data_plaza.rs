@@ -1,4 +1,4 @@
-use super::{NativeContext, TransactionResult, TransactionError};
+use super::{NativeContext, TransactionError, TransactionResult};
 use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
@@ -109,7 +109,7 @@ impl DataPlaza {
         self.dataset.insert(key, value);
     }
 
-    pub fn get(&self, key: &String) -> Option<&Vec<u8>> {
+    pub fn get(&self, key: &str) -> Option<&Vec<u8>> {
         self.dataset.get(key)
     }
 
@@ -139,7 +139,7 @@ impl DataPlaza {
         }
     }
 
-    fn compute(order: &mut Order, dataset: &Vec<u8>, query: &Vec<u8>) -> Vec<u8> {
+    fn compute(order: &mut Order, dataset: &[u8], query: &[u8]) -> Vec<u8> {
         // process query
         let mut targets = HashSet::<Vec<u8>>::new();
         let mut out = Vec::<u8>::new();
@@ -147,7 +147,7 @@ impl DataPlaza {
         {
             let mut first_line = true;
             let mut rdr = Reader::new();
-            let mut bytes = query.as_slice();
+            let mut bytes = query;
             loop {
                 let mut outbuf = [0; 2048];
                 let mut ends = [0; 128];
@@ -186,7 +186,7 @@ impl DataPlaza {
             let mut idx_phone = 0;
 
             let mut rdr = Reader::new();
-            let mut bytes = dataset.as_slice();
+            let mut bytes = dataset;
             loop {
                 let mut outbuf = [0; 2048];
                 let mut ends = [0; 128];
@@ -273,7 +273,7 @@ impl contracts::NativeContract for DataPlaza {
 
         let address_hex = hex::encode(origin);
 
-        let status = match cmd {
+        match cmd {
             Command::List(details) => {
                 self.items.push(Item {
                     id: self.items.len() as ItemId,
@@ -298,9 +298,7 @@ impl contracts::NativeContract for DataPlaza {
                 });
                 Ok(())
             }
-        };
-
-        status
+        }
     }
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {

@@ -5,12 +5,12 @@ use crate::std::fmt::Debug;
 use crate::system::System;
 use std::convert::TryFrom as _;
 
-use crate::system::{TransactionResult, TransactionError};
+use crate::system::{TransactionError, TransactionResult};
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
+use chain::AccountId;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
-use chain::AccountId;
 
 pub mod assets;
 pub mod balances;
@@ -46,6 +46,7 @@ mod support {
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
         mq: &'a MessageChannel,
+        #[allow(unused)] // TODO.kevin: remove this.
         secret_mq: SecretMessageChannel<'a>,
     }
 
@@ -86,14 +87,7 @@ mod support {
         ) -> Self::QResp;
     }
 
-    pub struct NativeCompatContract<
-        Con,
-        Cmd,
-        CmdWrp,
-        CmdPlr,
-        QReq,
-        QResp,
-    >
+    pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
     where
         Cmd: Decode + Debug,
         CmdWrp: Decode + Debug,
@@ -160,7 +154,7 @@ mod support {
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {
             let storage = env.block.storage;
-            let key_map = |topic: &phala_mq::Path| {
+            let key_map = |topic: &[u8]| {
                 // TODO.kevin: query contract pubkey for contract topic's when the feature in GK is available.
                 storage
                     .get(&storage_prefix_for_topic_pubkey(topic))

@@ -1,6 +1,6 @@
+use super::{account_id_from_hex, TransactionError, TransactionResult};
 use crate::chain;
 use crate::contracts::{self, AccountId};
-use super::{TransactionError, TransactionResult, account_id_from_hex};
 
 use crate::std::{
     collections::{
@@ -38,7 +38,7 @@ use phala_types::messaging::{
 use super::NativeContext;
 
 type SequenceType = u64;
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
+const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 const RBF: u32 = 0xffffffff - 2;
 lazy_static! {
     // 10000...000, used to tell if this is a NFT
@@ -164,7 +164,7 @@ impl BtcLottery {
             info!("new_round: n round_token: {}", round_token.len());
             let mut lottery_token = BTreeMap::<String, PrivateKey>::new();
             let raw_seed = blake2_256(&Encode::encode(&(secret.to_raw_vec(), round_id)));
-            let mut r: StdRng = SeedableRng::from_seed(raw_seed.clone());
+            let mut r: StdRng = SeedableRng::from_seed(raw_seed);
             let sample = round_token
                 .iter()
                 .choose_multiple(&mut r, winner_count as usize);
@@ -173,7 +173,7 @@ impl BtcLottery {
             let mut address_set = Vec::new();
             let mut salt = round_id * 10000;
             for winner_id in sample {
-                let raw_data = (raw_seed.clone(), salt);
+                let raw_data = (raw_seed, salt);
                 let seed = blake2_256(&Encode::encode(&raw_data));
                 let sk = match ExtendedPrivKey::new_master(Network::Bitcoin, &seed) {
                     Ok(e) => e.private_key,
@@ -328,7 +328,12 @@ impl contracts::NativeContract for BtcLottery {
         contracts::BTC_LOTTERY
     }
 
-    fn handle_command(&mut self, context: &NativeContext, origin: MessageOrigin, cmd: Self::Cmd) -> TransactionResult {
+    fn handle_command(
+        &mut self,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
         match cmd {
             Command::PalletCommand(cmd) => self.handle_pallet_command(context, origin, cmd),
             Command::UserCommand(cmd) => self.handle_user_command(context, origin, cmd),
@@ -450,19 +455,28 @@ impl BtcLottery {
         }
     }
 
-    fn handle_pallet_command(&mut self, context: &NativeContext, origin: MessageOrigin, ce: LotteryPalletCommand) -> TransactionResult {
+    fn handle_pallet_command(
+        &mut self,
+        context: &NativeContext,
+        origin: MessageOrigin,
+        ce: LotteryPalletCommand,
+    ) -> TransactionResult {
         if !origin.is_pallet() {
             error!("Received trasfer event from invalid origin: {:?}", origin);
             return Err(TransactionError::BadOrigin);
         }
         info!("Received trasfer event from {:?}", origin);
         match ce {
-            LotteryPalletCommand::NewRound{ round_id, total_count, winner_count } => {
-                Self::new_round(self, context.mq(), round_id, total_count, winner_count)
-            }
-            LotteryPalletCommand::OpenBox { round_id, token_id, btc_address } => {
-                Self::open_lottery(self, context.mq(), round_id, token_id, btc_address)
-            }
+            LotteryPalletCommand::NewRound {
+                round_id,
+                total_count,
+                winner_count,
+            } => Self::new_round(self, context.mq(), round_id, total_count, winner_count),
+            LotteryPalletCommand::OpenBox {
+                round_id,
+                token_id,
+                btc_address,
+            } => Self::open_lottery(self, context.mq(), round_id, token_id, btc_address),
         }
         Ok(())
     }
