@@ -29,7 +29,7 @@ pub struct Cli {
 	#[structopt(flatten)]
 	pub run: RunCmd,
 	#[allow(missing_docs)]
-	#[structopt(long)]
+	#[structopt(long, help = "Custom block duration in milliseconds (only useful with --dev)")]
 	pub block_millisecs: Option<u64>,
 }
 
