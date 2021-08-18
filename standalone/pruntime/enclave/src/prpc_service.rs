@@ -491,8 +491,9 @@ pub fn get_runtime_info() -> RpcResult<pb::InitRuntimeResponse> {
             ) {
                 Ok(r) => r,
                 Err(e) => {
-                    error!("Error in create_attestation_report: {:?}", e);
-                    return Err(from_display("Error while connecting to IAS"));
+                    let message = format!("Failed to create attestation report: {:?}", e);
+                    error!("{}", message);
+                    return Err(from_display(message));
                 }
             };
 
