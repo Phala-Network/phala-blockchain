@@ -111,17 +111,18 @@ pub type IoHandler = jsonrpc_core::IoHandler<sc_rpc::Metadata>;
 /// Instantiate all Full RPC extensions.
 pub fn create_full<C, P, SC, B>(
 	deps: FullDeps<C, P, SC, B>,
-) -> jsonrpc_core::IoHandler<sc_rpc_api::Metadata> where
-	C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore +
-		HeaderMetadata<Block, Error=BlockChainError> + Sync + Send + 'static,
-	C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
-	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
-	C::Api: BabeApi<Block>,
-	C::Api: BlockBuilder<Block>,
-	P: TransactionPool + 'static,
-	SC: SelectChain<Block> +'static,
-	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
-	B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
+) -> Result<jsonrpc_core::IoHandler<sc_rpc_api::Metadata>, Box<dyn std::error::Error + Send + Sync>>
+	where
+		C: ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore +
+			HeaderMetadata<Block, Error=BlockChainError> + Sync + Send + 'static,
+		C::Api: substrate_frame_rpc_system::AccountNonceApi<Block, AccountId, Index>,
+		C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
+		C::Api: BabeApi<Block>,
+		C::Api: BlockBuilder<Block>,
+		P: TransactionPool + 'static,
+		SC: SelectChain<Block> +'static,
+		B: sc_client_api::Backend<Block> + Send + Sync + 'static,
+		B::State: sc_client_api::backend::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
 	use substrate_frame_rpc_system::{FullSystem, SystemApi};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApi};
@@ -191,11 +192,11 @@ pub fn create_full<C, P, SC, B>(
 				shared_authority_set,
 				shared_epoch_changes,
 				deny_unsafe,
-			)
+			)?
 		)
 	);
 
-	io
+	Ok(io)
 }
 
 /// Instantiate all Light RPC extensions.
