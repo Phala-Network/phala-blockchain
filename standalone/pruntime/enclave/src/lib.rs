@@ -456,11 +456,13 @@ pub fn create_attestation_report(
     info!("eg = {:?}", eg);
 
     if res != sgx_status_t::SGX_SUCCESS {
-        return Err(anyhow::Error::msg(res));
+        error!("sgx_init_quote res = {:?}", res);
+        return Err(anyhow::Error::msg(res).context("init quote"));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
-        return Err(anyhow::Error::msg(rt));
+        error!("sgx_init_quote rt = {:?}", rt);
+        return Err(anyhow::Error::msg(rt).context("init quote"));
     }
 
     let eg_num = as_u32_le(&eg);
@@ -540,12 +542,13 @@ pub fn create_attestation_report(
     };
 
     if result != sgx_status_t::SGX_SUCCESS {
-        return Err(anyhow::Error::msg(result));
+        error!("ocall_get_quote result={}", result);
+        return Err(anyhow::Error::msg(result).context("get quote"));
     }
 
     if rt != sgx_status_t::SGX_SUCCESS {
-        error!("ocall_get_quote returned {}", rt);
-        return Err(anyhow::Error::msg(rt));
+        error!("ocall_get_quote rt={}", rt);
+        return Err(anyhow::Error::msg(rt).context("get quote"));
     }
 
     // Added 09-28-2018
@@ -554,7 +557,7 @@ pub fn create_attestation_report(
         Ok(()) => info!("rsgx_verify_report passed!"),
         Err(x) => {
             error!("rsgx_verify_report failed with {:?}", x);
-            return Err(anyhow::Error::msg(x));
+            return Err(anyhow::Error::msg(x).context("verify report"));
         }
     }
 
@@ -564,7 +567,9 @@ pub fn create_attestation_report(
         || ti.attributes.xfrm != qe_report.body.attributes.xfrm
     {
         error!("qe_report does not match current target_info!");
-        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
+        return Err(
+            anyhow::Error::msg("Quote report check failed")
+        );
     }
 
     info!("qe_report check passed");
@@ -594,7 +599,7 @@ pub fn create_attestation_report(
 
     if rhs_hash != lhs_hash {
         error!("Quote is tampered!");
-        return Err(anyhow::Error::msg(sgx_status_t::SGX_ERROR_UNEXPECTED));
+        return Err(anyhow::Error::msg("Quote is tampered"));
     }
 
     let quote_vec: Vec<u8> = return_quote_buf[..quote_len as usize].to_vec();
