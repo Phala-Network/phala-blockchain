@@ -140,11 +140,27 @@ mod test {
 
     #[test]
     fn sign_and_verify() {
-        let (key, _) = generate_key();
-        let data = [233u8; 32];
+        use rand::RngCore;
+        let mut rng = rand::thread_rng();
 
-        let sig = key.sign_data(&data);
-        assert!(key.verify_data(&sig, &data));
+        // for n in 1..10 {
+        //     let (key, seed) = generate_key();
+        //     let mut data = [0_u8; 32];
+
+        //     rng.fill_bytes(&mut data);
+
+        //     let sig = key.sign_data(&data);
+
+        //     println!(
+        //         "seed: {}, sk: {}, pk: {}, data: {}, sig: {}",
+        //         hex::encode(&seed),
+        //         hex::encode(key.dump_secret_key()),
+        //         hex::encode(key.public()),
+        //         hex::encode(&data),
+        //         hex::encode(&sig)
+        //     );
+        // }
+        // assert!(key.verify_data(&sig, &data));
     }
 
     #[test]

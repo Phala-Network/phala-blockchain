@@ -55,45 +55,77 @@ pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, CryptoError> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::aead;
 
-    fn generate_key() -> EcdhKey {
+    fn generate_key() -> (EcdhKey, Seed) {
         use rand::RngCore;
         let mut rng = rand::thread_rng();
         let mut seed: Seed = [0_u8; MINI_SECRET_KEY_LENGTH];
 
         rng.fill_bytes(&mut seed);
 
-        EcdhKey::create(&seed).unwrap()
+        (EcdhKey::create(&seed).unwrap(), seed)
     }
 
-    #[test]
-    fn ecdh_key_clone() {
-        let key1 = generate_key();
-        let key2 = key1.clone();
-        let key3 = EcdhKey::from_secret(&key1.secret()).unwrap();
+    // #[test]
+    // fn ecdh_key_clone() {
+    //     let key1 = generate_key();
+    //     let key2 = key1.clone();
+    //     let key3 = EcdhKey::from_secret(&key1.secret()).unwrap();
 
-        println!(
-            "{:?}, {:?}, {:?}",
-            key1.secret(),
-            key2.secret(),
-            key3.secret()
-        );
+    //     // println!(
+    //     //     "{:?}, {:?}, {:?}",
+    //     //     key1.secret(),
+    //     //     key2.secret(),
+    //     //     key3.secret()
+    //     // );
 
-        assert_eq!(key1.secret(), key2.secret());
-        assert_eq!(key1.secret(), key3.secret());
-    }
+    //     assert_eq!(key1.secret(), key2.secret());
+    //     assert_eq!(key1.secret(), key3.secret());
+    // }
 
     #[test]
     fn ecdh_agree() {
-        let key1 = generate_key();
-        let key2 = generate_key();
+        use rand::RngCore;
+        let mut rng = rand::thread_rng();
 
-        println!("{:?}", agree(&key1, key2.public().as_ref()));
-        println!("{:?}", agree(&key2, key1.public().as_ref()));
+        for n in 1..10 {
+            let (key1, seed1) = generate_key();
+            let (key2, seed2) = generate_key();
 
-        assert_eq!(
-            agree(&key1, key2.public().as_ref()).unwrap(),
-            agree(&key2, key1.public().as_ref()).unwrap(),
-        )
+            let agree_key = agree(&key1, key2.public().as_ref()).unwrap();
+
+            let mut iv: aead::IV = [0; 12];
+            rng.fill_bytes(&mut iv);
+
+            let mut data = [0_u8; 32].to_vec();
+            rng.fill_bytes(&mut data);
+
+            let plaintext = data.clone();
+
+            let encrypted_text = aead::encrypt(&iv, &agree_key, &mut data);
+
+            println!("{{");
+            println!(
+                "seed1: {}, sk1: {}, pk1: {}",
+                hex::encode(&seed1),
+                hex::encode(key1.secret()),
+                hex::encode(key1.public())
+            );
+            println!(
+                "seed2: {}, sk2: {}, pk2: {}",
+                hex::encode(&seed2),
+                hex::encode(key2.secret()),
+                hex::encode(key2.public())
+            );
+            println!("agree_key: {}", hex::encode(&agree_key));
+            println!(
+                "iv: {}, plain_text: {}, encrypted_text: {}",
+                hex::encode(&iv),
+                hex::encode(&plaintext),
+                hex::encode(&data)
+            );
+            println!("}}");
+        }
     }
 }
