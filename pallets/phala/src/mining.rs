@@ -1185,6 +1185,42 @@ pub mod pallet {
 		}
 
 		#[test]
+		fn khala_tokenomics() {
+			new_test_ext().execute_with(|| {
+				migrations::initialize::<Test>();
+				let params = TokenomicParameters::<Test>::get().unwrap();
+				let tokenomic = Tokenomic::<Test>::new(params);
+
+				assert_eq!(tokenomic.minimal_stake(1000), 1581_138830073177);
+
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 1),
+					fp!(2137.7551020408163265763)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 2),
+					fp!(2137.7551020408163265763)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 3),
+					fp!(2137.7551020408163265763)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 4),
+					fp!(1995.23809523809523810696)
+				);
+				assert_eq!(
+					tokenomic.ve(1000 * DOLLARS, 1000, 5),
+					fp!(1923.9795918367346938723)
+				);
+				assert_eq!(
+					tokenomic.ve(5000 * DOLLARS, 2000, 4),
+					fp!(8190.47619047619047614897)
+				);
+			});
+		}
+
+		#[test]
 		fn test_benchmark_report() {
 			use phala_types::messaging::{DecodedMessage, MessageOrigin, MiningReportEvent, Topic};
 			new_test_ext().execute_with(|| {
