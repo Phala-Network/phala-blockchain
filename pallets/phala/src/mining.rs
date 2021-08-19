@@ -84,6 +84,8 @@ pub mod pallet {
 
 	impl Benchmark {
 		/// Records the latest benchmark status snapshot and updates `p_instant`
+		///
+		/// Note: `now` and `challenge_time` are in seconds.
 		fn update(&mut self, now: u64, iterations: u64, challenge_time: u64) -> Result<(), ()> {
 			// `now` must be larger than `challenge_time_last` because it's impossible to report
 			// the heartbeat at the same block with the challenge.
@@ -473,9 +475,10 @@ pub mod pallet {
 						let worker =
 							registry::Workers::<T>::get(&worker).expect("Bound worker; qed.");
 						let now = Self::now_sec();
+						let challenge_time_sec = challenge_time / 1000;
 						miner_info
 							.benchmark
-							.update(now, iterations, challenge_time)
+							.update(now, iterations, challenge_time_sec)
 							.expect("Benchmark report must be valid; qed.");
 						Miners::<T>::insert(&miner, miner_info);
 					}
@@ -1251,7 +1254,7 @@ pub mod pallet {
 					payload: MiningReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 2,
-						challenge_time: 100,
+						challenge_time: 100_000,
 						iterations: 11000,
 					},
 				}));
@@ -1277,7 +1280,7 @@ pub mod pallet {
 					payload: MiningReportEvent::Heartbeat {
 						session_id: 0,
 						challenge_block: 3,
-						challenge_time: 200,
+						challenge_time: 200_000,
 						iterations: 11000 + 15000,
 					},
 				}));
