@@ -79,18 +79,25 @@ pub mod pallet {
 		p_instant: u32,
 		iterations: u64,
 		mining_start_time: u64,
-		updated_at: u64,
+		challenge_time_last: u64,
 	}
 
 	impl Benchmark {
 		/// Records the latest benchmark status snapshot and updates `p_instant`
-		fn update(&mut self, updated_at: u64, iterations: u64) -> Result<(), ()> {
-			if updated_at <= self.updated_at || iterations <= self.iterations {
+		fn update(&mut self, now: u64, iterations: u64, challenge_time: u64) -> Result<(), ()> {
+			// `now` must be larger than `challenge_time_last` because it's impossible to report
+			// the heartbeat at the same block with the challenge.
+			if now <= self.challenge_time_last {
 				return Err(());
 			}
+			// Lower iteration indicates the worker has been restarted. This is acceptable, but we
+			// have to reset the on-chain counter as well (causing a temporary zero p-instant).
+			if iterations < self.iterations {
+				self.iterations = iterations;
+			}
+			let delta_ts = now - self.challenge_time_last;
 			let delta_iter = iterations - self.iterations;
-			let delta_ts = updated_at - self.updated_at;
-			self.updated_at = updated_at;
+			self.challenge_time_last = challenge_time;
 			self.iterations = iterations;
 			// Normalize the instant P value:
 			// 1. Normalize to iterations in 6 sec
@@ -449,7 +456,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			if let MessageOrigin::Worker(worker) = message.sender {
 				match message.payload {
-					MiningReportEvent::Heartbeat { iterations, .. } => {
+					MiningReportEvent::Heartbeat { iterations, challenge_time, .. } => {
 						// Handle with great care!
 						//
 						// In some cases, a message can be delayed, but the worker has been already
@@ -468,7 +475,7 @@ pub mod pallet {
 						let now = Self::now_sec();
 						miner_info
 							.benchmark
-							.update(now, iterations)
+							.update(now, iterations, challenge_time)
 							.expect("Benchmark report must be valid; qed.");
 						Miners::<T>::insert(&miner, miner_info);
 					}
@@ -611,7 +618,7 @@ pub mod pallet {
 						p_instant: 0u32,
 						iterations: 0u64,
 						mining_start_time: now,
-						updated_at: 0u64,
+						challenge_time_last: 0u64,
 					},
 					cool_down_start: 0u64,
 					stats: Default::default(),
@@ -1243,8 +1250,8 @@ pub mod pallet {
 					destination: Topic::new(*b"phala/mining/report"),
 					payload: MiningReportEvent::Heartbeat {
 						session_id: 0,
-						challenge_block: 0,
-						challenge_time: 0,
+						challenge_block: 2,
+						challenge_time: 100,
 						iterations: 11000,
 					},
 				}));
@@ -1256,7 +1263,7 @@ pub mod pallet {
 						p_instant: 660,
 						iterations: 11000,
 						mining_start_time: 0,
-						updated_at: 100,
+						challenge_time_last: 100,
 					}
 				);
 
@@ -1269,8 +1276,8 @@ pub mod pallet {
 					destination: Topic::new(*b"phala/mining/report"),
 					payload: MiningReportEvent::Heartbeat {
 						session_id: 0,
-						challenge_block: 0,
-						challenge_time: 0,
+						challenge_block: 3,
+						challenge_time: 200,
 						iterations: 11000 + 15000,
 					},
 				}));
@@ -1282,9 +1289,38 @@ pub mod pallet {
 						p_instant: 720,
 						iterations: 26000,
 						mining_start_time: 0,
-						updated_at: 200,
+						challenge_time_last: 200,
 					}
 				);
+			});
+		}
+
+		#[test]
+		fn test_benchmark_update() {
+			let mut b = Benchmark {
+				p_init: 100,
+				p_instant: 0,
+				iterations: 0,
+				mining_start_time: 0,
+				challenge_time_last: 0,
+			};
+			// Normal
+			assert!(b.update(100, 1000, 90).is_ok());
+			assert_eq!(b, Benchmark {
+				p_init: 100,
+				p_instant: 60,
+				iterations: 1000,
+				mining_start_time: 0,
+				challenge_time_last: 90,
+			});
+			// Reset counter
+			assert!(b.update(200, 999, 190).is_ok());
+			assert_eq!(b, Benchmark {
+				p_init: 100,
+				p_instant: 0,
+				iterations: 999,
+				mining_start_time: 0,
+				challenge_time_last: 190,
 			});
 		}
 	}
