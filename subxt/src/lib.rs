@@ -548,6 +548,7 @@ impl<T: Runtime> Client<T> {
         &self,
         call: C,
         signer: &(dyn Signer<T> + Send + Sync),
+        config: <T::Extra as SignedExtra<T>>::Config,
     ) -> Result<UncheckedExtrinsic<T>, Error>
     where
         <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
@@ -565,6 +566,7 @@ impl<T: Runtime> Client<T> {
             account_nonce,
             call,
             signer,
+            config,
         )
         .await?;
         Ok(signed)
@@ -603,7 +605,7 @@ impl<T: Runtime> Client<T> {
         <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
-        let extrinsic = self.create_signed(call, signer).await?;
+        let extrinsic = self.create_signed(call, signer, Default::default()).await?;
         self.submit_extrinsic(extrinsic).await
     }
 
@@ -617,7 +619,7 @@ impl<T: Runtime> Client<T> {
         <<T::Extra as SignedExtra<T>>::Extra as SignedExtension>::AdditionalSigned:
             Send + Sync,
     {
-        let extrinsic = self.create_signed(call, signer).await?;
+        let extrinsic = self.create_signed(call, signer, Default::default()).await?;
         self.submit_and_watch_extrinsic(extrinsic).await
     }
 

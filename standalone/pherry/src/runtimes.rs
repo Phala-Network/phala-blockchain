@@ -26,7 +26,6 @@ use sp_runtime::{
 };
 
 use subxt::{
-    extrinsic::DefaultExtra,
     balances::{
         AccountData,
         Balances,

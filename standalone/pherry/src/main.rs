@@ -16,12 +16,12 @@ use sp_rpc::number::NumberOrHex;
 
 mod chain_client;
 mod error;
+mod extra;
 mod msg_sync;
 mod notify_client;
 mod pruntime_client;
 mod runtimes;
 mod types;
-mod extra;
 
 use crate::error::Error;
 use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
@@ -162,9 +162,14 @@ struct Args {
     #[structopt(
         default_value = "0",
         long,
-        help = "Set the charge transaction payment, unit: 1 balance"
+        help = "The charge transaction payment, unit: balance"
     )]
     tip: u64,
+    #[structopt(
+        long,
+        help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
+    )]
+    longevity: Option<u64>,
 }
 
 struct BlockSyncState {
@@ -954,7 +959,8 @@ async fn bridge(args: Args) -> Result<()> {
 
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_write_back {
-                let mut msg_sync = msg_sync::MsgSync::new(&paraclient, &pr, &mut signer);
+                let mut msg_sync =
+                    msg_sync::MsgSync::new(&paraclient, &pr, &mut signer, args.tip, args.longevity);
                 msg_sync.maybe_sync_mq_egress().await?;
             }
 
@@ -977,7 +983,7 @@ fn preprocess_args(args: &mut Args) {
 async fn main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
-    extra::set_tip(args.tip);
+
     let r = bridge(args).await;
     info!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
