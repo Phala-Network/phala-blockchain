@@ -1,8 +1,7 @@
-use serde::{Deserialize, Serialize};
-
+use super::account_id_from_hex;
+use super::{TransactionError, TransactionResult};
 use crate::contracts;
-use crate::contracts::AccountIdWrapper;
-use crate::TransactionStatus;
+use crate::contracts::AccountId;
 use lazy_static;
 use sp_core::hashing::blake2_128;
 use sp_core::H256 as Hash;
@@ -17,17 +16,16 @@ use crate::std::vec::Vec;
 use rand::Rng;
 
 use super::NativeContext;
-use chain::pallet_mq::MessageOriginInfo;
-use phala_types::messaging::{bind_topic, KittyEvent, KittyTransfer, MessageOrigin, PushCommand};
+use phala_types::messaging::{KittiesCommand, KittyTransfer, MessageOrigin};
 
-type Event = KittyEvent<chain::AccountId, chain::Hash>;
+type Command = KittiesCommand<chain::AccountId, chain::Hash>;
 type Transfer = KittyTransfer<chain::AccountId>;
 
-const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
+const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 // 5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY
-// const BOB: &'static str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
+// const BOB: &str = "8eaf04151687736326c9fea17e25fc5287613693c912909cb226aa4794f26a48";
 // 5FHneW46xGXgs5mUiveU4sbTyGBzmstUspZC92UhjJM694ty
-// const CHARLIE: &'static str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
+// const CHARLIE: &str = "90b5ab205c6974c9ea841be688864633dc9ca8a357843eeacf2314649965fe22";
 // 5FLSigC9HGRKVhB9FiEo4Y3koPsNmBmLJbpXg2mp1hXcS59Y
 
 lazy_static! {
@@ -40,19 +38,19 @@ lazy_static! {
 }
 
 /// SubstrateKitties contract states.
-#[derive(Serialize, Deserialize, Default, Clone)]
+#[derive(Default, Clone)]
 pub struct SubstrateKitties {
     schrodingers: BTreeMap<String, Vec<u8>>,
     /// Use Vec<u8> to represent kitty id
     kitties: BTreeMap<Vec<u8>, Kitty>,
     blind_boxes: BTreeMap<String, BlindBox>,
     /// Record the NFT's owner, if we introduce FT later, this field can be moved
-    owner: BTreeMap<String, AccountIdWrapper>,
+    owner: BTreeMap<String, AccountId>,
     /// Record the balance of an account's tokens, the first index is a tuple consists of tokenId and accountId
     /// the second index is the balance, for NFT it's always 1, for FT, it can be any number
-    balances: BTreeMap<(String, AccountIdWrapper), chain::Balance>,
+    balances: BTreeMap<(String, AccountId), chain::Balance>,
     /// Record the boxes list which the owners own
-    owned_boxes: BTreeMap<AccountIdWrapper, Vec<String>>,
+    owned_boxes: BTreeMap<AccountId, Vec<String>>,
     /// Record the boxes the users opened
     opend_boxes: Vec<String>,
     /// This variable records if there are kitties that not in the boxes
@@ -65,39 +63,26 @@ impl core::fmt::Debug for SubstrateKitties {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct BlindBox {
     // Use String to store the U256 type ID, preventing the Serialize implementation
     blind_box_id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct Kitty {
     id: Vec<u8>,
 }
 
-bind_topic!(Command, b"phala/kitties/command");
-/// The commands that the contract accepts from the blockchain. Also called transactions.
-/// Commands are supposed to update the states of the contract.
-#[derive(Encode, Decode, Debug)]
-pub enum Command {
-    /// Pack the kitties into the corresponding blind boxes
-    Pack {},
-    /// Transfer the box to another account, need to judge if the sender is the owner
-    Transfer { dest: String, blind_box_id: String },
-    /// Open the specific blind box to get the kitty
-    Open { blind_box_id: String },
-}
-
 /// The errors that the contract could throw for some queries
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
 }
 
 /// Query requests. The end users can only query the contract states by sending requests.
 /// Queries are not supposed to write to the contract states.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     /// Users can require to see the blind boxes list
     ObserveBox,
@@ -110,7 +95,7 @@ pub enum Request {
 }
 
 /// Query responses.
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     ObserveBox {
         blind_box: BTreeMap<String, BlindBox>,
@@ -122,7 +107,7 @@ pub enum Response {
         kitties: Vec<Vec<u8>>,
     },
     OwnerOf {
-        owner: AccountIdWrapper,
+        owner: AccountId,
     },
     /// Something wrong happened
     Error(Error),
@@ -134,9 +119,9 @@ impl SubstrateKitties {
         let schrodingers = BTreeMap::<String, Vec<u8>>::new();
         let kitties = BTreeMap::<Vec<u8>, Kitty>::new();
         let blind_boxes = BTreeMap::<String, BlindBox>::new();
-        let owner = BTreeMap::<String, AccountIdWrapper>::new();
-        let balances = BTreeMap::<(String, AccountIdWrapper), chain::Balance>::new();
-        let owned_boxes = BTreeMap::<AccountIdWrapper, Vec<String>>::new();
+        let owner = BTreeMap::<String, AccountId>::new();
+        let balances = BTreeMap::<(String, AccountId), chain::Balance>::new();
+        let owned_boxes = BTreeMap::<AccountId, Vec<String>>::new();
         SubstrateKitties {
             schrodingers,
             kitties,
@@ -152,12 +137,11 @@ impl SubstrateKitties {
 
 impl contracts::NativeContract for SubstrateKitties {
     type Cmd = Command;
-    type Event = Event;
     type QReq = Request;
     type QResp = Response;
 
     // Returns the contract id
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::SUBSTRATE_KITTIES
     }
 
@@ -166,21 +150,16 @@ impl contracts::NativeContract for SubstrateKitties {
         &mut self,
         context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        match cmd {
             // Handle the `Pack` command
             Command::Pack {} => {
                 // Create corresponding amount of kitties and blind boxes if there are
                 // indeed some kitties that need to be packed
                 if !self.left_kitties.is_empty() {
                     let mut nonce = 1;
-                    let _sender = AccountIdWrapper::from(origin);
+                    let _sender = origin.account()?;
                     // This indicates the token's kind, let's just suppose that 1 represents box,
                     // maybe if we introduce more tokens later, this can be formulated strictly
                     let kind = 1;
@@ -189,8 +168,8 @@ impl contracts::NativeContract for SubstrateKitties {
                     let token_id: U256 = U256::from(kind) << 128;
                     // Let's just suppose that ALICE owns all the boxes as default, and ALICE can
                     // transfer to anyone that is on the chain
-                    let default_owner = AccountIdWrapper::from_hex(ALICE)
-                        .expect("Admin must has a good address; qed.");
+                    let default_owner =
+                        account_id_from_hex(ALICE).expect("Admin must has a good address; qed.");
                     for (kitty_id, _kitty) in self.kitties.iter() {
                         let mut rng = rand::thread_rng();
                         let seed: [u8; 16] = rng.gen();
@@ -221,11 +200,10 @@ impl contracts::NativeContract for SubstrateKitties {
                                 .balances
                                 .get(&(blind_box_id.clone(), default_owner.clone()))
                             {
-                                Some(_) => self
+                                Some(_) => *self
                                     .balances
                                     .get(&(blind_box_id.clone(), default_owner.clone()))
-                                    .unwrap()
-                                    .clone(),
+                                    .unwrap(),
                                 None => 0,
                             };
                             ft_balance += 1;
@@ -239,21 +217,21 @@ impl contracts::NativeContract for SubstrateKitties {
                     // After this, new kitties are all packed into boxes
                     self.left_kitties.clear();
                 }
-                // Returns TransactionStatus::Ok to indicate a successful transaction
-                TransactionStatus::Ok
+                // Returns Ok(()) to indicate a successful transaction
+                Ok(())
             }
             Command::Transfer { dest, blind_box_id } => {
                 // TODO: check owner & dest not overflow & sender not underflow
-                let sender = AccountIdWrapper::from(origin);
+                let sender = origin.account()?;
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
-                let reciever = match AccountIdWrapper::from_hex(&dest) {
+                let reciever = match account_id_from_hex(&dest) {
                     Ok(a) => a,
-                    Err(_) => return TransactionStatus::BadInput,
+                    Err(_) => return Err(TransactionError::BadInput),
                 };
                 if sender == original_owner {
                     println!(
                         "Transfer: [{}] -> [{}]: {}",
-                        sender.to_string(),
+                        hex::encode(&sender),
                         dest,
                         blind_box_id
                     );
@@ -271,11 +249,11 @@ impl contracts::NativeContract for SubstrateKitties {
                     new_owned_list.push(blind_box_id);
                     self.owned_boxes.insert(reciever, new_owned_list);
                 }
-                // Returns TransactionStatus::Ok to indicate a successful transaction
-                TransactionStatus::Ok
+                // Returns Ok(()) to indicate a successful transaction
+                Ok(())
             }
             Command::Open { blind_box_id } => {
-                let sender = AccountIdWrapper::from(origin);
+                let sender = origin.account()?;
                 let original_owner = self.owner.get(&blind_box_id).unwrap().clone();
                 // Open the box if it's legal and not opened yet
                 if sender == original_owner
@@ -289,84 +267,63 @@ impl contracts::NativeContract for SubstrateKitties {
 
                     // Queue the message to sync the owner transfer info to pallet
                     let data = Transfer {
-                        dest: sender.0,
+                        dest: sender,
                         kitty_id: kitty_id.clone().encode(),
                     };
 
                     self.opend_boxes.push(blind_box_id.clone());
                     context.mq().send(&data);
                 }
-                TransactionStatus::Ok
+                Ok(())
             }
-        }
-    }
-
-    // Handles a direct query and responds to the query. It shouldn't modify the contract states.
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response, Error> {
-            match req {
-                Request::ObserveBox => {
-                    return Ok(Response::ObserveBox {
-                        blind_box: self.blind_boxes.clone(),
-                    })
+            Command::Created(dest, kitty_id) => {
+                if !origin.is_pallet() {
+                    error!("Received event from unexpected origin: {:?}", origin);
+                    return Err(TransactionError::BadOrigin);
                 }
-                Request::ObserveOwnedBox => {
-                    let sender = AccountIdWrapper(_origin.unwrap().clone());
-                    let owned_boxes = self.owned_boxes.get(&sender);
-                    match owned_boxes {
-                        Some(_) => {
-                            return Ok(Response::ObserveOwnedBox {
-                                owned_box: owned_boxes.unwrap().clone(),
-                            })
-                        }
-                        None => {
-                            return Ok(Response::ObserveOwnedBox {
-                                owned_box: Vec::new(),
-                            })
-                        }
-                    };
-                }
-                Request::ObserveLeftKitties => {
-                    return Ok(Response::ObserveLeftKitties {
-                        kitties: self.left_kitties.clone(),
-                    })
-                }
-                Request::OwnerOf { blind_box_id } => {
-                    return Ok(Response::OwnerOf {
-                        owner: self.owner.get(&blind_box_id).unwrap().clone(),
-                    })
-                }
-            }
-        };
-        match inner() {
-            Err(error) => Response::Error(error),
-            Ok(resp) => resp,
-        }
-    }
-
-    fn handle_event(
-        &mut self,
-        _context: &NativeContext,
-        origin: MessageOrigin,
-        event: Self::Event,
-    ) {
-        if origin != chain::KittyStorage::message_origin() {
-            error!("Received event from unexpected origin: {:?}", origin);
-            return;
-        }
-
-        match event {
-            KittyEvent::Created(account_id, kitty_id) => {
                 println!("Created Kitty {:?} by default owner: Kitty!!!", kitty_id);
-                let dest = AccountIdWrapper(account_id);
-                println!("   dest: {}", dest.to_string());
+                println!("   dest: {}", hex::encode(dest));
                 let new_kitty_id = kitty_id.to_fixed_bytes();
                 let new_kitty = Kitty {
                     id: new_kitty_id.to_vec(),
                 };
                 self.kitties.insert(new_kitty_id.to_vec(), new_kitty);
                 self.left_kitties.push(new_kitty_id.to_vec());
+                Ok(())
             }
+        }
+    }
+
+    // Handles a direct query and responds to the query. It shouldn't modify the contract states.
+    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+        let inner = || -> Result<Response, Error> {
+            match req {
+                Request::ObserveBox => Ok(Response::ObserveBox {
+                    blind_box: self.blind_boxes.clone(),
+                }),
+                Request::ObserveOwnedBox => {
+                    let sender = origin.unwrap().clone();
+                    let owned_boxes = self.owned_boxes.get(&sender);
+                    match owned_boxes {
+                        Some(_) => Ok(Response::ObserveOwnedBox {
+                            owned_box: owned_boxes.unwrap().clone(),
+                        }),
+                        None => Ok(Response::ObserveOwnedBox {
+                            owned_box: Vec::new(),
+                        }),
+                    }
+                }
+                Request::ObserveLeftKitties => Ok(Response::ObserveLeftKitties {
+                    kitties: self.left_kitties.clone(),
+                }),
+                Request::OwnerOf { blind_box_id } => Ok(Response::OwnerOf {
+                    owner: self.owner.get(&blind_box_id).unwrap().clone(),
+                }),
+            }
+        };
+        match inner() {
+            Err(error) => Response::Error(error),
+            Ok(resp) => resp,
         }
     }
 }

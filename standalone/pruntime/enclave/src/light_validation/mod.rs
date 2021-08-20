@@ -271,9 +271,9 @@ where
     fn check_validator_set_proof(
         state_root: &T::Hash,
         proof: StorageProof,
-        validator_set: &Vec<(AuthorityId, AuthorityWeight)>,
+        validator_set: &[(AuthorityId, AuthorityWeight)],
     ) -> Result<()> {
-        let checker = <StorageProofChecker<T::Hashing>>::new(*state_root, proof.clone())?;
+        let checker = <StorageProofChecker<T::Hashing>>::new(*state_root, proof)?;
 
         // By encoding the given set we should have an easy way to compare
         // with the stuff we get out of storage via `read_value`

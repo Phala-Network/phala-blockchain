@@ -18,10 +18,8 @@ node-runtime = { package = "phala-node-runtime", path = "../runtime" }
 sc-executor = { path = "../../substrate/client/executor" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-keystore = { path = "../../substrate/primitives/keystore" }
-sp-io = { path = "../../substrate/primitives/io" }
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
 sp-trie = { path = "../../substrate/primitives/trie" }
-trie-root = "0.16.0"
 frame-benchmarking = { path = "../../substrate/frame/benchmarking" }
 
 [dev-dependencies]
@@ -31,18 +29,13 @@ frame-system = { path = "../../substrate/frame/system" }
 # node-testing = { version = "2.0.0", path = "../testing" }
 pallet-balances = { path = "../../substrate/frame/balances" }
 pallet-contracts = { path = "../../substrate/frame/contracts" }
-pallet-grandpa = { path = "../../substrate/frame/grandpa" }
 pallet-im-online = { path = "../../substrate/frame/im-online" }
-pallet-indices = { path = "../../substrate/frame/indices" }
-pallet-session = { path = "../../substrate/frame/session" }
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
-pallet-transaction-payment = { path = "../../substrate/frame/transaction-payment" }
 pallet-treasury = { path = "../../substrate/frame/treasury" }
 sp-application-crypto = { path = "../../substrate/primitives/application-crypto" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
 sp-externalities = { path = "../../substrate/primitives/externalities" }
-substrate-test-client = { path = "../../substrate/test-utils/client" }
 wat = "1.0"
 futures = "0.3.9"
 

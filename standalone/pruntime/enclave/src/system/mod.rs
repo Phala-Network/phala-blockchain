@@ -5,15 +5,14 @@ use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;
-use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
 
 use chain::pallet_registry::RegistryEvent;
 pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
+use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
-    MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel, TypedReceiveError,
-    TypedReceiver,
+    BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
+    TypedReceiveError, TypedReceiver,
 };
 use phala_types::{
     messaging::{
@@ -24,11 +23,10 @@ use phala_types::{
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-pub type CommandIndex = u64;
+pub type TransactionResult = Result<(), TransactionError>;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TransactionStatus {
-    Ok,
+#[derive(Encode, Decode, Debug, Clone)]
+pub enum TransactionError {
     BadInput,
     BadOrigin,
     // general
@@ -60,16 +58,10 @@ pub enum TransactionStatus {
     TransferringNotAllowed,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TransactionReceipt {
-    #[serde(
-        serialize_with = "crate::se_to_b64",
-        deserialize_with = "crate::de_from_b64"
-    )]
-    pub account: MessageOrigin,
-    pub block_num: chain::BlockNumber,
-    pub contract_id: u32,
-    pub status: TransactionStatus,
+impl From<BadOrigin> for TransactionError {
+    fn from(_: BadOrigin) -> TransactionError {
+        TransactionError::BadOrigin
+    }
 }
 
 #[derive(Debug)]
@@ -335,8 +327,6 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 pub struct System {
     // Configuration
     sealing_path: String,
-    // Transaction
-    receipts: BTreeMap<CommandIndex, TransactionReceipt>,
     // Messageing
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
@@ -359,62 +349,29 @@ impl System {
         recv_mq: &mut MessageDispatcher,
     ) -> Self {
         let pubkey = identity_key.clone().public();
-        let sender = MessageOrigin::Worker(pubkey.clone());
+        let sender = MessageOrigin::Worker(pubkey);
         let master_key = master_key::try_unseal(sealing_path.clone(), identity_key);
 
         System {
-            sealing_path: sealing_path.clone(),
-            receipts: Default::default(),
+            sealing_path,
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
             master_key_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
-            worker_state: WorkerState::new(pubkey.clone()),
+            worker_state: WorkerState::new(pubkey),
             registered_on_chain: false,
-            master_key: master_key,
+            master_key,
             gatekeeper: None,
         }
     }
 
-    pub fn add_receipt(&mut self, command_index: CommandIndex, tr: TransactionReceipt) {
-        self.receipts.insert(command_index, tr);
-    }
-
-    pub fn get_receipt(&self, command_index: CommandIndex) -> Option<&TransactionReceipt> {
-        self.receipts.get(&command_index)
-    }
-
     pub fn handle_query(
         &mut self,
-        accid_origin: Option<&chain::AccountId>,
-        req: Request,
+        _accid_origin: Option<&chain::AccountId>,
+        _req: Request,
     ) -> Response {
-        let inner = || -> Result<Response> {
-            match req {
-                Request::QueryReceipt { command_index } => match self.get_receipt(command_index) {
-                    Some(receipt) => {
-                        let origin =
-                            accid_origin.ok_or_else(|| anyhow::Error::msg(Error::NotAuthorized))?;
-                        let origin: [u8; 32] = *origin.as_ref();
-                        if receipt.account == MessageOrigin::AccountId(origin.into()) {
-                            Ok(Response::QueryReceipt {
-                                receipt: receipt.clone(),
-                            })
-                        } else {
-                            Err(anyhow::Error::msg(Error::NotAuthorized))
-                        }
-                    }
-                    None => Err(anyhow::Error::msg(Error::Other(String::from(
-                        "Transaction hash not found",
-                    )))),
-                },
-            }
-        };
-        match inner() {
-            Err(error) => Response::Error(error),
-            Ok(resp) => resp,
-        }
+        Response::Error("Unreachable!".to_string())
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
@@ -631,7 +588,7 @@ impl System {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     TxHashNotFound,
@@ -648,21 +605,12 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Request {
-    QueryReceipt { command_index: CommandIndex },
-}
+#[derive(Encode, Decode, Debug, Clone)]
+pub enum Request {}
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
-    QueryReceipt {
-        receipt: TransactionReceipt,
-    },
-    GetWorkerEgress {
-        length: usize,
-        encoded_egress_b64: String,
-    },
-    Error(#[serde(with = "serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
 pub mod chain_state {
@@ -679,7 +627,7 @@ pub mod chain_state {
                 Vec::<WorkerPublicKey>::decode(&mut &v[..])
                     .expect("Decode value of Gatekeeper Failed. (This should not happen)")
             })
-            .unwrap_or(Vec::new());
+            .unwrap_or_default();
 
         gatekeepers.contains(pubkey)
     }
@@ -696,27 +644,6 @@ pub mod chain_state {
                 )
             })
             .unwrap_or(None)
-    }
-}
-
-pub mod serde_anyhow {
-    use crate::std::string::{String, ToString};
-    use anyhow::Error;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    pub fn serialize<S>(value: &Error, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        let s = value.to_string();
-        String::serialize(&s, serializer)
-    }
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<Error, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let s = String::deserialize(deserializer)?;
-        Ok(Error::msg(s))
     }
 }
 

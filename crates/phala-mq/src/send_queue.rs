@@ -137,7 +137,7 @@ mod msg_channel {
         }
 
         pub fn send<M: Encode + BindTopic>(&self, message: &M) {
-            self.sendto(message, <M as BindTopic>::TOPIC)
+            self.sendto(message, <M as BindTopic>::topic())
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.

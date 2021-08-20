@@ -6,7 +6,6 @@ use sgx_tcrypto::*;
 use sgx_types::*;
 
 use anyhow::Result;
-use base64;
 use bit_vec::BitVec;
 use chrono::prelude::*;
 use chrono::Duration;
@@ -15,12 +14,8 @@ use chrono::Utc as TzUtc;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use num_bigint::BigUint;
-use rustls;
-use serde_json;
 use serde_json::Value;
 use std::io::BufReader;
-use webpki;
-use yasna;
 use yasna::models::ObjectIdentifier;
 
 const CERTEXPIRYDAYS: i64 = 90i64;
@@ -63,9 +58,9 @@ pub fn gen_ecc_cert(
 ) -> Result<(Vec<u8>, Vec<u8>)> {
     // Generate public key bytes since both DER will use it
     let mut pub_key_bytes: Vec<u8> = vec![4];
-    let mut pk_gx = pub_k.gx.clone();
+    let mut pk_gx = pub_k.gx;
     pk_gx.reverse();
-    let mut pk_gy = pub_k.gy.clone();
+    let mut pk_gy = pub_k.gy;
     pk_gy.reverse();
     pub_key_bytes.extend_from_slice(&pk_gx);
     pub_key_bytes.extend_from_slice(&pk_gy);
@@ -167,9 +162,9 @@ pub fn gen_ecc_cert(
             };
             let sig_der = yasna::construct_der(|writer| {
                 writer.write_sequence(|writer| {
-                    let mut sig_x = sig.x.clone();
+                    let mut sig_x = sig.x;
                     sig_x.reverse();
-                    let mut sig_y = sig.y.clone();
+                    let mut sig_y = sig.y;
                     sig_y.reverse();
                     writer.next().write_biguint(&BigUint::from_slice(&sig_x));
                     writer.next().write_biguint(&BigUint::from_slice(&sig_y));
@@ -194,7 +189,7 @@ pub fn gen_ecc_cert(
             let inner_key_der = yasna::construct_der(|writer| {
                 writer.write_sequence(|writer| {
                     writer.next().write_u8(1);
-                    let mut prv_k_r = prv_k.r.clone();
+                    let mut prv_k_r = prv_k.r;
                     prv_k_r.reverse();
                     writer.next().write_bytes(&prv_k_r);
                     writer
@@ -212,7 +207,7 @@ pub fn gen_ecc_cert(
 }
 
 pub fn percent_decode(orig: String) -> String {
-    let v: Vec<&str> = orig.split("%").collect();
+    let v: Vec<&str> = orig.split('%').collect();
     let mut ret = String::new();
     ret.push_str(v[0]);
     if v.len() > 1 {
@@ -288,7 +283,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<()> {
     let ias_ca_core: &[u8] = &ias_ca_stripped[head_len..full_len - tail_len];
     let ias_cert_dec = base64::decode_config(ias_ca_core, base64::STANDARD).unwrap();
 
-    let mut ca_reader = BufReader::new(&IAS_REPORT_CA[..]);
+    let mut ca_reader = BufReader::new(IAS_REPORT_CA);
 
     let mut root_store = rustls::RootCertStore::empty();
     root_store
@@ -301,8 +296,7 @@ pub fn verify_mra_cert(cert_der: &[u8]) -> Result<()> {
         .map(|cert| cert.to_trust_anchor())
         .collect();
 
-    let mut chain: Vec<&[u8]> = Vec::new();
-    chain.push(&ias_cert_dec);
+    let chain = vec![&ias_cert_dec[..]];
 
     let now_func = webpki::Time::try_from(SystemTime::now());
 

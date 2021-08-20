@@ -13,10 +13,7 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
-	use sp_std::{
-		convert::{TryFrom, TryInto},
-		vec,
-	};
+	use sp_std::{convert::TryFrom, vec};
 
 	use crate::attestation::{AttestationValidator, Error as AttestationError};
 	use crate::mq::MessageOriginInfo;
@@ -427,6 +424,7 @@ pub mod pallet {
 		T: crate::mq::Config,
 	{
 		fn build(&self) {
+			use std::convert::TryInto;
 			for (pubkey, ecdh_pubkey, operator) in &self.workers {
 				Workers::<T>::insert(
 					&pubkey,

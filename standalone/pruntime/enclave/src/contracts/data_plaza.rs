@@ -1,34 +1,31 @@
-use super::{NativeContext, TransactionStatus};
+use super::{NativeContext, TransactionError, TransactionResult};
 use crate::std::collections::{HashMap, HashSet};
 use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use csv_core::{ReadRecordResult, Reader};
 use log::info;
-use serde::{Deserialize, Serialize};
 
 use crate::contracts;
-use crate::types::TxRef;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{bind_topic, MessageOrigin};
-use phala_types::messaging::PushCommand;
+use phala_mq::MessageOrigin;
 
 pub type ItemId = u32;
 pub type OrderId = u32;
 
-bind_topic!(Command, b"phala/data_plaza/command");
 #[derive(Encode, Decode, Debug)]
 pub enum Command {
     List(ItemDetails),
     OpenOrder(OrderDetails),
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OrderDetails {
     item_id: ItemId,
     query_link: String,
+    index: u64,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct ItemDetails {
     pub name: String,
     pub category: String,
@@ -36,35 +33,36 @@ pub struct ItemDetails {
     pub price: PricePolicy,
     pub dataset_link: String,
     pub dataset_preview: String,
+    pub index: u64,
 }
 
-#[derive(Serialize, Deserialize, Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum PricePolicy {
     PerRow { price: chain::Balance },
 }
 
 // item
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Item {
     id: ItemId,
-    txref: TxRef,
+    // txref: TxRef,
     seller: String,
     details: ItemDetails,
 }
 
 // order
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Order {
     id: OrderId,
-    txref: TxRef,
+    // txref: TxRef,
     buyer: String,
     details: OrderDetails,
     state: OrderState, // maybe shouldn't serialize this
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OrderState {
     data_ready: bool,
     query_ready: bool,
@@ -75,7 +73,7 @@ pub struct OrderState {
 
 // contract
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     GetItems,
     GetOrders,
@@ -83,7 +81,7 @@ pub enum Request {
     Get(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     GetItems { items: Vec<Item> },
     GetOrders { orders: Vec<Order> },
@@ -91,11 +89,10 @@ pub enum Response {
     Get(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct DataPlaza {
     items: Vec<Item>,
     orders: Vec<Order>,
-    #[serde(skip)]
     dataset: HashMap<String, Vec<u8>>,
 }
 
@@ -112,7 +109,7 @@ impl DataPlaza {
         self.dataset.insert(key, value);
     }
 
-    pub fn get(&self, key: &String) -> Option<&Vec<u8>> {
+    pub fn get(&self, key: &str) -> Option<&Vec<u8>> {
         self.dataset.get(key)
     }
 
@@ -142,7 +139,7 @@ impl DataPlaza {
         }
     }
 
-    fn compute(order: &mut Order, dataset: &Vec<u8>, query: &Vec<u8>) -> Vec<u8> {
+    fn compute(order: &mut Order, dataset: &[u8], query: &[u8]) -> Vec<u8> {
         // process query
         let mut targets = HashSet::<Vec<u8>>::new();
         let mut out = Vec::<u8>::new();
@@ -150,7 +147,7 @@ impl DataPlaza {
         {
             let mut first_line = true;
             let mut rdr = Reader::new();
-            let mut bytes = query.as_slice();
+            let mut bytes = query;
             loop {
                 let mut outbuf = [0; 2048];
                 let mut ends = [0; 128];
@@ -189,7 +186,7 @@ impl DataPlaza {
             let mut idx_phone = 0;
 
             let mut rdr = Reader::new();
-            let mut bytes = dataset.as_slice();
+            let mut bytes = dataset;
             loop {
                 let mut outbuf = [0; 2048];
                 let mut ends = [0; 128];
@@ -256,45 +253,38 @@ impl DataPlaza {
 
 impl contracts::NativeContract for DataPlaza {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::DATA_PLAZA
     }
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
+        _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
+            _ => return Err(TransactionError::BadOrigin),
         };
 
         let address_hex = hex::encode(origin);
-        let txref = TxRef {
-            blocknum: context.block.block_number,
-            index: cmd.number,
-        };
 
-        let status = match cmd.command {
+        match cmd {
             Command::List(details) => {
                 self.items.push(Item {
                     id: self.items.len() as ItemId,
-                    txref,
                     seller: address_hex,
                     details,
                 });
-                TransactionStatus::Ok
+                Ok(())
             }
             Command::OpenOrder(details) => {
                 self.orders.push(Order {
                     id: self.orders.len() as OrderId,
-                    txref,
                     buyer: address_hex,
                     details,
                     state: OrderState {
@@ -306,11 +296,9 @@ impl contracts::NativeContract for DataPlaza {
                         result_path: String::new(),
                     },
                 });
-                TransactionStatus::Ok
+                Ok(())
             }
-        };
-
-        status
+        }
     }
 
     fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {

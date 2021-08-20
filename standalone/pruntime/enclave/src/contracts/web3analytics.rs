@@ -1,5 +1,6 @@
-use super::{NativeContext, TransactionStatus};
-use crate::contracts::AccountIdWrapper;
+use super::account_id_from_hex;
+use super::{NativeContext, TransactionResult};
+use crate::contracts::AccountId;
 use crate::cryptography::aead;
 use crate::std::collections::BTreeMap;
 use crate::std::collections::HashMap;
@@ -7,11 +8,11 @@ use crate::std::prelude::v1::*;
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
+use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
-use serde::{Deserialize, Serialize};
 
 use crate::contracts;
-use phala_types::messaging::{PushCommand, Web3AnalyticsCommand as Command};
+use phala_types::messaging::Web3AnalyticsCommand as Command;
 
 use super::woothee;
 
@@ -26,7 +27,7 @@ const WEEK_IN_SECONDS: u32 = 7 * DAY_IN_SECONDS;
 const KEY: &[u8] =
     &hex_literal::hex!("290c3c5d812a4ba7ce33adf09598a462692a615beb6c80fdafb3f9e3bbef8bc6");
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct PageView {
     id: String,
     sid: Sid,
@@ -40,7 +41,7 @@ pub struct PageView {
     created_at: Timestamp,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct OnlineUser {
     sid: Sid,
     cid_count: String,
@@ -48,7 +49,7 @@ pub struct OnlineUser {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone, Default)]
 pub struct HourlyPageViewStat {
     sid: Sid,
     pv_count: String,
@@ -57,7 +58,7 @@ pub struct HourlyPageViewStat {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklySite {
     sid: Sid,
     path: String,
@@ -65,7 +66,7 @@ pub struct WeeklySite {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyDevice {
     sid: Sid,
     device: String,
@@ -73,20 +74,20 @@ pub struct WeeklyDevice {
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct WeeklyClient {
     sid: Sid,
     cids: Vec<String>,
     timestamp: u32,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct SiteClient {
     sid: Sid,
     cids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct HourlyStat {
     hourly_page_view_stats: Vec<HourlyPageViewStat>,
     site_clients: Vec<SiteClient>,
@@ -109,7 +110,7 @@ impl HourlyStat {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct DailyStat {
     stats: Vec<HourlyPageViewStat>,
 }
@@ -123,7 +124,7 @@ impl DailyStat {
 }
 
 // contract
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
     Other(String),
@@ -138,7 +139,7 @@ impl fmt::Display for Error {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     SetPageView {
         page_views: Vec<PageView>,
@@ -172,11 +173,11 @@ pub enum Request {
         count: String,
     },
     GetConfiguration {
-        account: AccountIdWrapper,
+        account: AccountId,
     },
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub enum Response {
     SetPageView {
         page_view_count: u32,
@@ -212,10 +213,10 @@ pub enum Response {
         skip_stat: bool,
     },
 
-    Error(#[serde(with = "super::serde_anyhow")] anyhow::Error),
+    Error(String),
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Debug)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,
@@ -227,10 +228,9 @@ pub struct Web3Analytics {
     total_stat: HourlyPageViewStat,
 
     key: Vec<u8>,
-    #[serde(skip)]
     parser: woothee::parser::Parser,
 
-    no_tracking: BTreeMap<AccountIdWrapper, bool>,
+    no_tracking: BTreeMap<AccountId, bool>,
 }
 
 impl Web3Analytics {
@@ -248,7 +248,7 @@ impl Web3Analytics {
 
             parser: woothee::parser::Parser::new(),
 
-            no_tracking: BTreeMap::<AccountIdWrapper, bool>::new(),
+            no_tracking: BTreeMap::<AccountId, bool>::new(),
         }
     }
 
@@ -302,7 +302,7 @@ impl Web3Analytics {
 
         self.online_users.clear();
 
-        let mut index = start.clone();
+        let mut index = start;
         while index < end {
             for sid in sids.clone() {
                 if !cid_map.contains_key(&(sid.clone(), index)) {
@@ -383,14 +383,12 @@ impl Web3Analytics {
             let mut tss = Vec::<Timestamp>::new();
             if cid_timestamp_map.contains_key(&(cid.clone(), ca)) {
                 tss = cid_timestamp_map.get(&(cid.clone(), ca)).unwrap().clone();
-                tss.push(pv.created_at);
-            } else {
-                tss.push(pv.created_at);
             }
+            tss.push(pv.created_at);
             cid_timestamp_map.insert((cid.clone(), ca), tss);
 
             if pv_count_map.contains_key(&(pv.sid.clone(), ca)) {
-                let pc = pv_count_map.get(&(pv.sid.clone(), ca)).unwrap().clone();
+                let pc = *pv_count_map.get(&(pv.sid.clone(), ca)).unwrap();
                 pv_count_map.insert((pv.sid.clone(), ca), pc + 1);
             } else {
                 pv_count_map.insert((pv.sid.clone(), ca), 1);
@@ -443,8 +441,8 @@ impl Web3Analytics {
             }
             device_map.insert(pv.sid.clone(), devices);
 
-            let diff = (pv.created_at - start_of_week.clone()) / WEEK_IN_SECONDS;
-            let date_of_week = start_of_week.clone() + diff * WEEK_IN_SECONDS;
+            let diff = (pv.created_at - start_of_week) / WEEK_IN_SECONDS;
+            let date_of_week = start_of_week + diff * WEEK_IN_SECONDS;
             let mut cids = Vec::<String>::new();
             if cid_weekly_map.contains_key(&(pv.sid.clone(), date_of_week)) {
                 cids = cid_weekly_map
@@ -460,20 +458,18 @@ impl Web3Analytics {
             cid_weekly_map.insert((pv.sid.clone(), date_of_week), cids);
 
             if path_weekly_map.contains_key(&(pv.sid.clone(), path.clone(), date_of_week)) {
-                let count = path_weekly_map
+                let count = *path_weekly_map
                     .get(&(pv.sid.clone(), path.clone(), date_of_week))
-                    .unwrap()
-                    .clone();
+                    .unwrap();
                 path_weekly_map.insert((pv.sid.clone(), path.clone(), date_of_week), count + 1);
             } else {
                 path_weekly_map.insert((pv.sid.clone(), path.clone(), date_of_week), 1);
             }
 
             if device_weekly_map.contains_key(&(pv.sid.clone(), device.clone(), date_of_week)) {
-                let count = device_weekly_map
+                let count = *device_weekly_map
                     .get(&(pv.sid.clone(), device.clone(), date_of_week))
-                    .unwrap()
-                    .clone();
+                    .unwrap();
                 device_weekly_map.insert((pv.sid.clone(), device.clone(), date_of_week), count + 1);
             } else {
                 device_weekly_map.insert((pv.sid.clone(), device.clone(), date_of_week), 1);
@@ -546,7 +542,7 @@ impl Web3Analytics {
         self.hourly_stat.site_clients = site_clients;
 
         let mut wcs = Vec::<WeeklyClient>::new();
-        let mut index = start_of_week.clone();
+        let mut index = start_of_week;
         while index < end {
             for sid in sids.clone() {
                 if !cid_weekly_map.contains_key(&(sid.clone(), index)) {
@@ -566,7 +562,7 @@ impl Web3Analytics {
         self.hourly_stat.weekly_clients = wcs;
 
         let mut wss = Vec::<WeeklySite>::new();
-        index = start_of_week.clone();
+        index = start_of_week;
         while index < end {
             for sid in sids.clone() {
                 let paths = path_map.get(&sid).unwrap().clone();
@@ -602,7 +598,7 @@ impl Web3Analytics {
         self.hourly_stat.weekly_sites = wss;
 
         let mut wds = Vec::<WeeklyDevice>::new();
-        index = start_of_week.clone();
+        index = start_of_week;
         while index < end {
             for sid in sids.clone() {
                 let devices = device_map.get(&sid).unwrap().clone();
@@ -676,7 +672,7 @@ impl Web3Analytics {
             let mut hourly_stat_avg_duration = avg_duration.parse::<u32>().unwrap();
             if daily_map.contains_key(&(sid.clone(), ts)) {
                 let (pv_count0, cid_count0, avg_duration0) =
-                    daily_map.get(&(sid.clone(), ts)).unwrap().clone();
+                    *daily_map.get(&(sid.clone(), ts)).unwrap();
                 hourly_stat_pv_count += pv_count0;
                 hourly_stat_cid_count += cid_count0;
                 hourly_stat_avg_duration += avg_duration0;
@@ -700,11 +696,9 @@ impl Web3Analytics {
         let mut dss = Vec::<HourlyPageViewStat>::new();
         while first_date <= last_date {
             for sid in sids.clone() {
-                if daily_map.contains_key(&(sid.clone(), first_date.clone())) {
-                    let (pv_count, cid_count, avg_duration) = daily_map
-                        .get(&(sid.clone(), first_date.clone()))
-                        .unwrap()
-                        .clone();
+                if daily_map.contains_key(&(sid.clone(), first_date)) {
+                    let (pv_count, cid_count, avg_duration) =
+                        daily_map.get(&(sid.clone(), first_date)).unwrap();
                     let ds = HourlyPageViewStat {
                         sid,
                         pv_count: if self.encrypted {
@@ -722,7 +716,7 @@ impl Web3Analytics {
                         } else {
                             avg_duration.to_string()
                         },
-                        timestamp: first_date.clone(),
+                        timestamp: first_date,
                     };
 
                     dss.push(ds);
@@ -880,7 +874,7 @@ impl Web3Analytics {
     }
 
     fn decrypt(&mut self, data: String) -> String {
-        let v: Vec<&str> = data.split("|").collect();
+        let v: Vec<&str> = data.split('|').collect();
         let iv_b64 = v[0];
         let cipher_b64 = v[1];
 
@@ -894,11 +888,10 @@ impl Web3Analytics {
 
 impl contracts::NativeContract for Web3Analytics {
     type Cmd = Command;
-    type Event = ();
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
+    fn id(&self) -> contracts::ContractId32 {
         contracts::WEB3_ANALYTICS
     }
 
@@ -906,17 +899,12 @@ impl contracts::NativeContract for Web3Analytics {
         &mut self,
         _context: &NativeContext,
         origin: MessageOrigin,
-        cmd: PushCommand<Self::Cmd>,
-    ) -> TransactionStatus {
-        let origin = match origin {
-            MessageOrigin::AccountId(acc) => acc,
-            _ => return TransactionStatus::BadOrigin,
-        };
-
-        let status = match cmd.command {
+        cmd: Self::Cmd,
+    ) -> TransactionResult {
+        let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
-                let o = AccountIdWrapper::from(origin);
-                log::info!("SetConfiguration: [{}] -> {}", o.to_string(), skip_stat);
+                let o = origin.account()?;
+                log::info!("SetConfiguration: [{}] -> {}", hex::encode(&o), skip_stat);
 
                 if skip_stat {
                     self.no_tracking.insert(o, skip_stat);
@@ -924,7 +912,7 @@ impl contracts::NativeContract for Web3Analytics {
                     self.no_tracking.remove(&o);
                 }
 
-                TransactionStatus::Ok
+                Ok(())
             }
         };
 
@@ -942,7 +930,7 @@ impl contracts::NativeContract for Web3Analytics {
                         if page_view.uid.len() == 64
                             && self
                                 .no_tracking
-                                .contains_key(&AccountIdWrapper::from_hex(&page_view.uid)?)
+                                .contains_key(&account_id_from_hex(&page_view.uid)?)
                         {
                             continue;
                         }
@@ -1021,7 +1009,7 @@ impl contracts::NativeContract for Web3Analytics {
                     })
                 }
                 Request::GetConfiguration { account } => {
-                    if origin == None || origin.unwrap() != &account.0 {
+                    if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
 
@@ -1034,7 +1022,7 @@ impl contracts::NativeContract for Web3Analytics {
             }
         };
         match inner() {
-            Err(error) => Response::Error(error),
+            Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
     }

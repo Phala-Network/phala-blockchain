@@ -24,6 +24,9 @@ pub mod server {
         DecodeError(DecodeError),
         /// Some error occurred when handling the request
         AppError(String),
+        /// Error for contract query
+        #[display(fmt = "ContractQueryError({})", .0)]
+        ContractQueryError(String),
     }
 
     impl From<DecodeError> for Error {

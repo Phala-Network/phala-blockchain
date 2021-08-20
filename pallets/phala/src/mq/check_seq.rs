@@ -99,7 +99,10 @@ where
 		// Otherwise, in theory we could build a dependency graph based on (sender, sequence),
 		// but it may introduce circle dependency in the graph, conflicting with the deps built
 		// by other extensions (e.g. CheckNonce). So we just return ValidTransaction instead.
-		Ok(ValidTransaction::default())
+		Ok(ValidTransaction {
+			longevity: 20, // 20 blocks ~= 240 seconds
+			..Default::default()
+		})
 	}
 }
 

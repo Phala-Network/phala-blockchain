@@ -94,9 +94,9 @@ where
         egress.set_dummy(true);
 
         Self {
-            master_key: master_key,
+            master_key,
             master_pubkey_on_chain: false,
-            egress: egress,
+            egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -272,17 +272,15 @@ where
                     worker_info.unresponsive = false;
                     self.report
                         .recovered_to_online
-                        .push(worker_info.state.pubkey.clone());
+                        .push(worker_info.state.pubkey);
                 }
-            } else {
-                if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
-                    if self.block.block_number - hb_sent_at
-                        > self.state.tokenomic_params.heartbeat_window
-                    {
-                        // case3: Idle, heartbeat failed
-                        self.report.offline.push(worker_info.state.pubkey.clone());
-                        worker_info.unresponsive = true;
-                    }
+            } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
+                if self.block.block_number - hb_sent_at
+                    > self.state.tokenomic_params.heartbeat_window
+                {
+                    // case3: Idle, heartbeat failed
+                    self.report.offline.push(worker_info.state.pubkey);
+                    worker_info.unresponsive = true;
                 }
             }
 
@@ -368,7 +366,7 @@ where
 
                     // NOTE: keep the reporting order (vs the one while mining stop).
                     self.report.settle.push(SettleInfo {
-                        pubkey: worker_pubkey.clone(),
+                        pubkey: worker_pubkey,
                         v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
                         treasury: treasury.to_bits(),
@@ -393,8 +391,8 @@ where
             let _ = self
                 .state
                 .workers
-                .entry(pubkey.clone())
-                .or_insert_with(|| WorkerInfo::new(pubkey.clone()));
+                .entry(*pubkey)
+                .or_insert_with(|| WorkerInfo::new(*pubkey));
         }
 
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
@@ -452,7 +450,7 @@ where
                             // Just report the final V ATM.
                             // NOTE: keep the reporting order (vs the one while heartbeat).
                             self.report.settle.push(SettleInfo {
-                                pubkey: worker.state.pubkey.clone(),
+                                pubkey: worker.state.pubkey,
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
                                 treasury: 0,
@@ -656,6 +654,9 @@ mod tokenomic {
             if now <= self.challenge_time_last {
                 return;
             }
+            if iterations < self.iteration_last {
+                self.iteration_last = iterations;
+            }
             let dt = FixedPoint::from_num(now - self.challenge_time_last) / 1000;
             let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp!(1.2));
@@ -707,7 +708,7 @@ pub mod tests {
     fn mk_msg<M: Encode + BindTopic>(sender: &MessageOrigin, msg: M) -> Message {
         Message {
             sender: sender.clone(),
-            destination: M::TOPIC.to_vec().into(),
+            destination: M::topic().into(),
             payload: msg.encode(),
         }
     }
@@ -726,7 +727,7 @@ pub mod tests {
             self.drain()
                 .into_iter()
                 .filter_map(|m| {
-                    if &m.destination.path()[..] == M::TOPIC {
+                    if &m.destination.path()[..] == &M::topic() {
                         Decode::decode(&mut &m.payload[..]).ok()
                     } else {
                         None
@@ -748,7 +749,7 @@ pub mod tests {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             let message = Message {
                 sender: MessageOrigin::Gatekeeper,
-                destination: M::TOPIC.to_vec().into(),
+                destination: M::topic().into(),
                 payload: message.encode(),
             };
             self.messages.borrow_mut().push(message);
@@ -863,6 +864,7 @@ pub mod tests {
         gk_should_slash_offline_workers_sliently_case4();
         gk_should_report_recovered_workers_case5();
         check_tokenomic_numerics();
+        test_update_p_instant();
     }
 
     fn gk_should_be_able_to_observe_worker_states() {
@@ -1413,5 +1415,22 @@ pub mod tests {
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check miner reconnection and V recovery
+    }
+
+    fn test_update_p_instant() {
+        let mut info = super::TokenomicInfo {
+            p_bench: fp!(100),
+            ..Default::default()
+        };
+
+        // Normal
+        info.update_p_instant(100_000, 1000);
+        info.challenge_time_last = 90_000;
+        info.iteration_last = 1000;
+        assert_eq!(info.p_instant, fp!(60));
+
+        // Reset
+        info.update_p_instant(200_000, 999);
+        assert_eq!(info.p_instant, fp!(0));
     }
 }
