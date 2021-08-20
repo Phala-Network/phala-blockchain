@@ -1355,6 +1355,7 @@ dependencies = [
  "phala-crypto",
  "phala-pallets",
  "phala-types",
+ "sc-finality-grandpa",
  "sp-runtime",
  "structopt",
 ]

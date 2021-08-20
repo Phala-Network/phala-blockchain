@@ -41,6 +41,9 @@ enum Cli {
         destination: String,
         hex_data: String,
     },
+    DecodeFrnkJustification {
+        hex_data: String,
+    },
     EcdhKey {
         privkey: String,
     },
@@ -122,6 +125,11 @@ fn main() {
             let data = decode_hex(&hex_data);
             decode_mq_payload(destination.as_bytes(), &data);
         }
+        Cli::DecodeFrnkJustification { hex_data } => {
+            let data = decode_hex(&hex_data);
+            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..]).expect("Error decoding FRNK justification");
+            println!("{:?}", j);
+        }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;
 
@@ -177,7 +185,8 @@ fn argument_or_stdin(arg: &str) -> String {
 }
 
 type AccountId = sp_runtime::AccountId32;
-// type Balance = u128;
+type Header = sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>;
+type Block = sp_runtime::generic::Block<Header, sp_runtime::OpaqueExtrinsic>;
 
 // TODO(h4x): move it to a separate crate to share the code
 fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
