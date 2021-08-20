@@ -29,7 +29,7 @@ use node_runtime::{
 	PhalaRegistryConfig,
 };
 use node_runtime::Block;
-use node_runtime::constants::currency::*;
+use node_runtime::constants::{currency::*, time::*};
 use sc_service::ChainType;
 use hex_literal::hex;
 use sc_telemetry::TelemetryEndpoints;
@@ -63,9 +63,50 @@ pub struct Extensions {
 
 /// Specialized `ChainSpec`.
 pub type ChainSpec = sc_service::GenericChainSpec<
-	GenesisConfig,
+	GenesisExt,
 	Extensions,
 >;
+
+/// Extension for the Phala devnet genesis config to support a custom changes to the genesis state.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct GenesisExt {
+	/// The runtime genesis config.
+	runtime_genesis_config: GenesisConfig,
+	/// The block duration in milliseconds.
+	///
+	/// If `None` is supplied, the default value is used.
+	block_milliseconds: Option<u64>,
+}
+
+impl sp_runtime::BuildStorage for GenesisExt {
+	fn assimilate_storage(&self, storage: &mut sp_core::storage::Storage) -> Result<(), String> {
+		sp_state_machine::BasicExternalities::execute_with_storage(storage, || {
+			if let Some(bm) = self.block_milliseconds.as_ref() {
+				MillisecsPerBlock::set(bm);
+				let bm_f = *bm as f64;
+				let secs_per_block: f64 = bm_f / 1000.0;
+				SecsPerBlock::set(&(secs_per_block as u64));
+
+				let minutes = (60.0 / secs_per_block) as u32;
+				let hours = minutes * 60;
+				let days = hours * 24;
+
+				Minutes::set(&minutes);
+				Hours::set(&hours);
+				Days::set(&days);
+
+				SlotDuration::set(bm);
+				EpochDurationInBlocks::set(&hours);
+
+				EpochDurationInSlots::set(&(hours as u64));
+
+				println!("test321");
+			}
+		});
+		self.runtime_genesis_config.assimilate_storage(storage)
+	}
+}
+
 /// Flaming Fir testnet generator
 pub fn flaming_fir_config() -> Result<ChainSpec, String> {
 	ChainSpec::from_json_bytes(&include_bytes!("../res/flaming-fir.json")[..])
@@ -164,7 +205,10 @@ pub fn staging_testnet_config() -> ChainSpec {
 		"Staging Testnet",
 		"staging_testnet",
 		ChainType::Live,
-		staging_testnet_config_genesis,
+		move || GenesisExt {
+			runtime_genesis_config: staging_testnet_config_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Staging telemetry url is valid; qed")),
@@ -368,7 +412,28 @@ pub fn development_config() -> ChainSpec {
 		"Phala Development",
 		"phala_dev",
 		ChainType::Development,
-		development_config_genesis,
+		move || GenesisExt {
+			runtime_genesis_config: development_config_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
+		vec![],
+		None,
+		None,
+		None,
+		Default::default(),
+	)
+}
+
+/// Development config (single validator Alice, custom block duration)
+pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Phala Development",
+		"phala_dev",
+		ChainType::Development,
+		move || GenesisExt {
+			runtime_genesis_config: development_config_genesis(),
+			block_milliseconds: Some(bd)
+		},
 		vec![],
 		None,
 		None,
@@ -403,7 +468,10 @@ pub fn local_testnet_config() -> ChainSpec {
 		"Local Testnet",
 		"local_testnet",
 		ChainType::Local,
-		local_testnet_genesis,
+		move || GenesisExt {
+			runtime_genesis_config: local_testnet_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
 		vec![],
 		None,
 		None,
@@ -497,7 +565,10 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 		"Phala PoC-4",
 		"phala_poc_4",
 		ChainType::Local,
-		phala_testnet_config_genesis,
+		move || GenesisExt {
+			runtime_genesis_config: phala_testnet_config_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
 		boot_nodes,
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Staging telemetry url is valid; qed")),
@@ -536,7 +607,10 @@ pub(crate) mod tests {
 			"Integration Test",
 			"test",
 			ChainType::Development,
-			local_testnet_genesis_instant_single,
+			move || GenesisExt {
+				runtime_genesis_config: local_testnet_genesis_instant_single(),
+				block_milliseconds: Some(MILLISECS_PER_BLOCK)
+			},
 			vec![],
 			None,
 			None,
@@ -551,7 +625,10 @@ pub(crate) mod tests {
 			"Integration Test",
 			"test",
 			ChainType::Development,
-			local_testnet_genesis,
+			move || GenesisExt {
+				runtime_genesis_config: local_testnet_genesis(),
+				block_milliseconds: Some(MILLISECS_PER_BLOCK)
+			},
 			vec![],
 			None,
 			None,
