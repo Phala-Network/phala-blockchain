@@ -21,6 +21,7 @@ mod notify_client;
 mod pruntime_client;
 mod runtimes;
 mod types;
+mod extra;
 
 use crate::error::Error;
 use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
@@ -157,6 +158,13 @@ struct Args {
         help = "(Debug only) Set the wait block duration in ms"
     )]
     dev_wait_block_ms: u64,
+
+    #[structopt(
+        default_value = "0",
+        long,
+        help = "Set the charge transaction payment, unit: 1 balance"
+    )]
+    tip: u64,
 }
 
 struct BlockSyncState {
@@ -969,6 +977,7 @@ fn preprocess_args(args: &mut Args) {
 async fn main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
+    extra::set_tip(args.tip);
     let r = bridge(args).await;
     info!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.
