@@ -39,8 +39,6 @@ bitcoin_hashes = { branch = "0.9.1-sgx", git = "https://github.com/Phala-Network
 
 serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive"] }
 serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
-serde_cbor = { git = "https://github.com/mesalock-linux/cbor-sgx.git" }
-serde_bytes = { git = "https://github.com/mesalock-linux/serde-bytes-sgx.git" }
 
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
 hex-literal = "0.3"
