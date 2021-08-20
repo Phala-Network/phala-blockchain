@@ -12,6 +12,7 @@ structopt = "0.3"
 
 sp-runtime = { path = "../../substrate/primitives/runtime" }
 frame-support = { path = "../../substrate/frame/support" }
+sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 
 phala-types = { path = "../../common/types" }
 phala-pallets = { path = "../../pallets/phala" }
