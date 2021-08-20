@@ -622,6 +622,9 @@ mod tokenomic {
             if now <= self.challenge_time_last {
                 return;
             }
+            if iterations < self.iteration_last {
+                self.iteration_last = iterations;
+            }
             let dt = FixedPoint::from_num(now - self.challenge_time_last) / 1000;
             let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp!(1.2));
@@ -673,7 +676,7 @@ pub mod tests {
     fn mk_msg<M: Encode + BindTopic>(sender: &MessageOrigin, msg: M) -> Message {
         Message {
             sender: sender.clone(),
-            destination: M::TOPIC.to_vec().into(),
+            destination: M::topic().into(),
             payload: msg.encode(),
         }
     }
@@ -692,7 +695,7 @@ pub mod tests {
             self.drain()
                 .into_iter()
                 .filter_map(|m| {
-                    if &m.destination.path()[..] == M::TOPIC {
+                    if &m.destination.path()[..] == &M::topic() {
                         Decode::decode(&mut &m.payload[..]).ok()
                     } else {
                         None
@@ -714,7 +717,7 @@ pub mod tests {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             let message = Message {
                 sender: MessageOrigin::Gatekeeper,
-                destination: M::TOPIC.to_vec().into(),
+                destination: M::topic().into(),
                 payload: message.encode(),
             };
             self.messages.borrow_mut().push(message);
@@ -829,6 +832,7 @@ pub mod tests {
         gk_should_slash_offline_workers_sliently_case4();
         gk_should_report_recovered_workers_case5();
         check_tokenomic_numerics();
+        test_update_p_instant();
     }
 
     fn gk_should_be_able_to_observe_worker_states() {
@@ -1379,5 +1383,22 @@ pub mod tests {
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check miner reconnection and V recovery
+    }
+
+    fn test_update_p_instant() {
+        let mut info = super::TokenomicInfo {
+            p_bench: fp!(100),
+            ..Default::default()
+        };
+
+        // Normal
+        info.update_p_instant(100_000, 1000);
+        info.challenge_time_last = 90_000;
+        info.iteration_last = 1000;
+        assert_eq!(info.p_instant, fp!(60));
+
+        // Reset
+        info.update_p_instant(200_000, 999);
+        assert_eq!(info.p_instant, fp!(0));
     }
 }
