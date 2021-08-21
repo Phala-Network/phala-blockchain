@@ -458,7 +458,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			if let MessageOrigin::Worker(worker) = message.sender {
 				match message.payload {
-					MiningReportEvent::Heartbeat { iterations, challenge_time, .. } => {
+					MiningReportEvent::Heartbeat {
+						iterations,
+						challenge_time,
+						..
+					} => {
 						// Handle with great care!
 						//
 						// In some cases, a message can be delayed, but the worker has been already
@@ -1309,22 +1313,28 @@ pub mod pallet {
 			};
 			// Normal
 			assert!(b.update(100, 1000, 90).is_ok());
-			assert_eq!(b, Benchmark {
-				p_init: 100,
-				p_instant: 60,
-				iterations: 1000,
-				mining_start_time: 0,
-				challenge_time_last: 90,
-			});
+			assert_eq!(
+				b,
+				Benchmark {
+					p_init: 100,
+					p_instant: 60,
+					iterations: 1000,
+					mining_start_time: 0,
+					challenge_time_last: 90,
+				}
+			);
 			// Reset counter
 			assert!(b.update(200, 999, 190).is_ok());
-			assert_eq!(b, Benchmark {
-				p_init: 100,
-				p_instant: 0,
-				iterations: 999,
-				mining_start_time: 0,
-				challenge_time_last: 190,
-			});
+			assert_eq!(
+				b,
+				Benchmark {
+					p_init: 100,
+					p_instant: 0,
+					iterations: 999,
+					mining_start_time: 0,
+					challenge_time_last: 190,
+				}
+			);
 		}
 	}
 }

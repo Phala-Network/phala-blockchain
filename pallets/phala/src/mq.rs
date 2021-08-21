@@ -6,7 +6,9 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
 	use frame_system::pallet_prelude::*;
 
-	use phala_types::messaging::{BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage};
+	use phala_types::messaging::{
+		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage,
+	};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
 
@@ -109,7 +111,11 @@ pub mod pallet {
 			}
 		}
 
-		pub fn push_message_to<M: Encode>(topic: impl Into<Path>, sender: MessageOrigin, payload: M) {
+		pub fn push_message_to<M: Encode>(
+			topic: impl Into<Path>,
+			sender: MessageOrigin,
+			payload: M,
+		) {
 			let message = Message::new(sender, topic, payload.encode());
 			Self::dispatch_message(message);
 		}
