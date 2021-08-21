@@ -1912,6 +1912,53 @@ pub mod pallet {
 		}
 
 		#[test]
+		fn test_late_reward_report() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Simulate no share in the pool.
+				let _ = take_events();
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
+				}]);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNoShare(
+						0,
+						500 * DOLLARS
+					))]
+				);
+				// Simulate the worker is already unbound
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
+				}]);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNotInPool(
+						worker_pubkey(1),
+						500 * DOLLARS
+					))]
+				);
+			});
+		}
+
+		#[test]
 		fn test_drained_subsidy_pool_noop() {
 			use crate::mining::pallet::OnReward;
 			new_test_ext().execute_with(|| {
