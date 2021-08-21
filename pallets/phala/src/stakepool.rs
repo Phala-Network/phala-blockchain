@@ -1941,6 +1941,7 @@ pub mod pallet {
 					0,
 					worker_pubkey(1)
 				));
+				let _ = take_events();
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
 					v: FixedPoint::from_num(1).to_bits(),
