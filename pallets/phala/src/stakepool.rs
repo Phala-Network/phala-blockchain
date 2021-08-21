@@ -111,27 +111,27 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [owner, pid]
+		/// \[owner, pid\]
 		PoolCreated(T::AccountId, u64),
-		/// [pid, commission]. The real commission ratio is commission/1_000_000u32
+		/// The real commission ratio is commission/1_000_000u32. \[pid, commission\]
 		PoolCommissionSet(u64, u32),
-		/// [pid, cap]
+		/// \[pid, cap\]
 		PoolCapacitySet(u64, BalanceOf<T>),
-		/// [pid, worker]
+		/// \[pid, worker\]
 		PoolWorkerAdded(u64, WorkerPublicKey),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		Contribution(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		Withdrawal(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		RewardsWithdrawn(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, amount]
+		/// \[pid, amount\]
 		PoolSlashed(u64, BalanceOf<T>),
-		/// [pid, account, amount]
+		/// \[pid, account, amount\]
 		SlashSettled(u64, T::AccountId, BalanceOf<T>),
-		/// Some reward is dismissed because the worker is no longer bound to a pool.
+		/// Some reward is dismissed because the worker is no longer bound to a pool. \[worker, amount\]
 		RewardDismissedNotInPool(WorkerPublicKey, BalanceOf<T>),
-		/// Some reward is dismissed because the pool doesn't have any share.
+		/// Some reward is dismissed because the pool doesn't have any share. \[pid, amount\]
 		RewardDismissedNoShare(u64, BalanceOf<T>),
 	}
 
