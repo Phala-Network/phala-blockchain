@@ -111,24 +111,28 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		/// [owner, pid]
+		/// \[owner, pid\]
 		PoolCreated(T::AccountId, u64),
-		/// [pid, commission]. The real commission ratio is commission/1_000_000u32
+		/// The real commission ratio is commission/1_000_000u32. \[pid, commission\]
 		PoolCommissionSet(u64, u32),
-		/// [pid, cap]
+		/// \[pid, cap\]
 		PoolCapacitySet(u64, BalanceOf<T>),
-		/// [pid, worker]
+		/// \[pid, worker\]
 		PoolWorkerAdded(u64, WorkerPublicKey),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		Contribution(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		Withdrawal(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, user, amount]
+		/// \[pid, user, amount\]
 		RewardsWithdrawn(u64, T::AccountId, BalanceOf<T>),
-		/// [pid, amount]
+		/// \[pid, amount\]
 		PoolSlashed(u64, BalanceOf<T>),
-		/// [pid, account, amount]
+		/// \[pid, account, amount\]
 		SlashSettled(u64, T::AccountId, BalanceOf<T>),
+		/// Some reward is dismissed because the worker is no longer bound to a pool. \[worker, amount\]
+		RewardDismissedNotInPool(WorkerPublicKey, BalanceOf<T>),
+		/// Some reward is dismissed because the pool doesn't have any share. \[pid, amount\]
+		RewardDismissedNoShare(u64, BalanceOf<T>),
 	}
 
 	#[pallet::error]
@@ -593,7 +597,11 @@ pub mod pallet {
 			pool_info: &mut PoolInfo<T::AccountId, BalanceOf<T>>,
 			rewards: BalanceOf<T>,
 		) {
-			if rewards > Zero::zero() && pool_info.total_shares > Zero::zero() {
+			if rewards > Zero::zero() {
+				if pool_info.total_shares == Zero::zero() {
+					Self::deposit_event(Event::<T>::RewardDismissedNoShare(pool_info.pid, rewards));
+					return;
+				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
 				pool_info.distribute_reward(rewards - commission);
@@ -827,12 +835,20 @@ pub mod pallet {
 		/// would be clear once pool was updated
 		fn on_reward(settle: &Vec<SettleInfo>) {
 			for info in settle {
-				let pid = WorkerAssignments::<T>::get(&info.pubkey)
-					.expect("Mining workers must be in the pool; qed.");
-				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-
 				let payout_fixed = FixedPoint::from_bits(info.payout);
 				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
+
+				let pid = match WorkerAssignments::<T>::get(&info.pubkey) {
+					Some(pid) => pid,
+					None => {
+						Self::deposit_event(Event::<T>::RewardDismissedNotInPool(
+							info.pubkey.clone(),
+							reward,
+						));
+						return;
+					}
+				};
+				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 				Self::handle_pool_new_reward(&mut pool_info, reward);
 				StakePools::<T>::insert(&pid, &pool_info);
 			}
@@ -1892,6 +1908,54 @@ pub mod pallet {
 				assert_eq!(staker1.shares, 0);
 				assert_eq!(staker1.reward_debt, 0);
 				assert_eq!(staker2.shares, 400 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn test_late_reward_report() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Simulate no share in the pool.
+				let _ = take_events();
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
+				}]);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNoShare(
+						0,
+						500 * DOLLARS
+					))]
+				);
+				// Simulate the worker is already unbound
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				let _ = take_events();
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: FixedPoint::from_num(500).to_bits(),
+					treasury: 0,
+				}]);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedNotInPool(
+						worker_pubkey(1),
+						500 * DOLLARS
+					))]
+				);
 			});
 		}
 
