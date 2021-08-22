@@ -100,7 +100,6 @@ where
 		// Otherwise build a dependency graph based on (sender, sequence), hoping that it can be
 		// included later
 		let builder = ValidTransaction::with_tag_prefix("PhalaMqOffchainMessages")
-			.longevity(20) // 20 blocks ~= 240 seconds
 			.and_provides(&(sender, sequence));
 
 		let builder = if sequence > expected_seq {

@@ -11,12 +11,17 @@ use sp_runtime::generic::Era;
 use sp_runtime::traits::SignedExtension;
 use sp_runtime::transaction_validity::TransactionValidityError;
 
-use core::sync::atomic::{AtomicU64, Ordering};
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug)]
+pub struct EraInfo<Hash> {
+    pub period: u64,
+    pub phase: u64,
+    pub birth_hash: Hash,
+}
 
-static TIP: AtomicU64 = AtomicU64::new(0);
-
-pub fn set_tip(tip: u64) {
-    TIP.store(tip, Ordering::Relaxed);
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, Default)]
+pub struct ExtraConfig<Hash> {
+    pub tip: u64,
+    pub era: Option<EraInfo<Hash>>,
 }
 
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Debug)]
@@ -25,6 +30,7 @@ pub struct PhalaExtra<T: System> {
     tx_version: u32,
     nonce: T::Index,
     genesis_hash: T::Hash,
+    config: ExtraConfig<T::Hash>,
 }
 
 impl<T: System + Balances + Clone + Debug + Eq + Send + Sync> SignedExtra<T> for PhalaExtra<T>
@@ -41,28 +47,43 @@ where
         // NOTE: skipped the ZST CheckMqSequence<T> here.
         ChargeTransactionPayment<T>,
     );
+    type Config = ExtraConfig<T::Hash>;
 
-    fn new(spec_version: u32, tx_version: u32, nonce: T::Index, genesis_hash: T::Hash) -> Self {
+    fn new(
+        spec_version: u32,
+        tx_version: u32,
+        nonce: T::Index,
+        genesis_hash: T::Hash,
+        config: Self::Config,
+    ) -> Self {
         PhalaExtra {
             spec_version,
             tx_version,
             nonce,
             genesis_hash,
+            config,
         }
     }
 
     fn extra(&self) -> Self::Extra {
-        let tip = TIP.load(Ordering::Relaxed);
+        let (era, birth_hash) = match self.config.era {
+            None => (Era::Immortal, self.genesis_hash),
+            Some(EraInfo {
+                period,
+                phase,
+                birth_hash,
+            }) => (Era::Mortal(period, phase), birth_hash),
+        };
 
         (
             CheckSpecVersion(PhantomData, self.spec_version),
             CheckTxVersion(PhantomData, self.tx_version),
             CheckGenesis(PhantomData, self.genesis_hash),
-            CheckEra((Era::Immortal, PhantomData), self.genesis_hash),
+            CheckEra((era, PhantomData), birth_hash),
             CheckNonce(self.nonce),
             CheckWeight(PhantomData),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
-            ChargeTransactionPayment(tip.into()),
+            ChargeTransactionPayment(self.config.tip.into()),
         )
     }
 }
