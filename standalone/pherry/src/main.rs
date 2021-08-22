@@ -61,10 +61,16 @@ struct Args {
     no_sync: bool,
 
     #[structopt(
-        long = "no-write-back",
+        long,
         help = "Don't write pRuntime egress data back to Substarte."
     )]
-    no_write_back: bool,
+    no_msg_submit: bool,
+
+    #[structopt(
+        long,
+        help = "Skip registering the worker."
+    )]
+    no_register: bool,
 
     #[structopt(
         long,
@@ -832,7 +838,9 @@ async fn bridge(args: Args) -> Result<()> {
     }
 
     if args.no_sync {
-        try_register_worker(&pr, &paraclient, &mut signer).await?;
+        if !args.no_register {
+            try_register_worker(&pr, &paraclient, &mut signer).await?;
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -942,7 +950,7 @@ async fn bridge(args: Args) -> Result<()> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
-            if !initial_sync_finished && !args.no_write_back {
+            if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
@@ -958,7 +966,7 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
 
             // Now we are idle. Let's try to sync the egress messages.
-            if !args.no_write_back {
+            if !args.no_msg_submit {
                 let mut msg_sync =
                     msg_sync::MsgSync::new(&paraclient, &pr, &mut signer, args.tip, args.longevity);
                 msg_sync.maybe_sync_mq_egress().await?;
