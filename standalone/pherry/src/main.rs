@@ -176,7 +176,7 @@ struct Args {
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
-    longevity: Option<u64>,
+    longevity: u64,
 }
 
 struct BlockSyncState {
@@ -986,6 +986,7 @@ fn preprocess_args(args: &mut Args) {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
     }
+    assert!(args.longevity != 0 && args.longevity < 4, "Option --longevity must be 0 or >= 4.");
 }
 
 #[tokio::main]
