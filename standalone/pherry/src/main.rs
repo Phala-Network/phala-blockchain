@@ -172,6 +172,7 @@ struct Args {
     )]
     tip: u64,
     #[structopt(
+        default_value = "5",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
