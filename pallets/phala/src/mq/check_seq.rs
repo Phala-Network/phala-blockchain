@@ -96,13 +96,19 @@ where
 		if sequence < expected_seq {
 			return InvalidTransaction::Stale.into();
 		}
-		// Otherwise, in theory we could build a dependency graph based on (sender, sequence),
-		// but it may introduce circle dependency in the graph, conflicting with the deps built
-		// by other extensions (e.g. CheckNonce). So we just return ValidTransaction instead.
-		Ok(ValidTransaction {
-			longevity: 20, // 20 blocks ~= 240 seconds
-			..Default::default()
-		})
+
+		// Otherwise build a dependency graph based on (sender, sequence), hoping that it can be
+		// included later
+		let builder = ValidTransaction::with_tag_prefix("PhalaMqOffchainMessages")
+			.and_provides(&(sender, sequence));
+
+		let builder = if sequence > expected_seq {
+			builder.and_requires(&(sender, sequence - 1))
+		} else {
+			builder
+		};
+
+		builder.build()
 	}
 }
 

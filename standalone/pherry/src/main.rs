@@ -16,6 +16,7 @@ use sp_rpc::number::NumberOrHex;
 
 mod chain_client;
 mod error;
+mod extra;
 mod msg_sync;
 mod notify_client;
 mod pruntime_client;
@@ -60,10 +61,16 @@ struct Args {
     no_sync: bool,
 
     #[structopt(
-        long = "no-write-back",
+        long,
         help = "Don't write pRuntime egress data back to Substarte."
     )]
-    no_write_back: bool,
+    no_msg_submit: bool,
+
+    #[structopt(
+        long,
+        help = "Skip registering the worker."
+    )]
+    no_register: bool,
 
     #[structopt(
         long,
@@ -157,6 +164,18 @@ struct Args {
         help = "(Debug only) Set the wait block duration in ms"
     )]
     dev_wait_block_ms: u64,
+
+    #[structopt(
+        default_value = "0",
+        long,
+        help = "The charge transaction payment, unit: balance"
+    )]
+    tip: u64,
+    #[structopt(
+        long,
+        help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
+    )]
+    longevity: Option<u64>,
 }
 
 struct BlockSyncState {
@@ -819,7 +838,9 @@ async fn bridge(args: Args) -> Result<()> {
     }
 
     if args.no_sync {
-        try_register_worker(&pr, &paraclient, &mut signer).await?;
+        if !args.no_register {
+            try_register_worker(&pr, &paraclient, &mut signer).await?;
+        }
         warn!("Block sync disabled.");
         return Ok(());
     }
@@ -929,7 +950,7 @@ async fn bridge(args: Args) -> Result<()> {
 
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
-            if !initial_sync_finished && !args.no_write_back {
+            if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
@@ -945,8 +966,9 @@ async fn bridge(args: Args) -> Result<()> {
             .ok();
 
             // Now we are idle. Let's try to sync the egress messages.
-            if !args.no_write_back {
-                let mut msg_sync = msg_sync::MsgSync::new(&paraclient, &pr, &mut signer);
+            if !args.no_msg_submit {
+                let mut msg_sync =
+                    msg_sync::MsgSync::new(&paraclient, &pr, &mut signer, args.tip, args.longevity);
                 msg_sync.maybe_sync_mq_egress().await?;
             }
 
@@ -969,6 +991,7 @@ fn preprocess_args(args: &mut Args) {
 async fn main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
+
     let r = bridge(args).await;
     info!("bridge() exited with result: {:?}", r);
     // TODO: when got any error, we should wait and retry until it works just like a daemon.

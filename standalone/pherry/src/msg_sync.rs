@@ -1,9 +1,14 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::marker::PhantomData;
 use log::{error, info};
+use sp_core::H256;
 use std::time::Duration;
 
-use crate::chain_client::fetch_mq_ingress_seq;
+use crate::{
+    chain_client::fetch_mq_ingress_seq,
+    extra::{EraInfo, ExtraConfig},
+};
+use sp_runtime::generic::Era;
 use subxt::Signer;
 
 use super::{chain_client::update_signer_nonce, runtimes, PrClient, SrSigner, XtClient};
@@ -18,16 +23,28 @@ pub struct MsgSync<'a> {
     signer: &'a mut SrSigner,
     /// True if the nonce is ever updated from the blockchain during the lifetiem of MsgSync
     nonce_updated: bool,
+    /// Extra transcation fee
+    tip: u64,
+    /// The transection longevity
+    longevity: Option<u64>,
 }
 
 impl<'a> MsgSync<'a> {
     /// Creates a new MsgSync object
-    pub fn new(client: &'a XtClient, pr: &'a PrClient, signer: &'a mut SrSigner) -> Self {
+    pub fn new(
+        client: &'a XtClient,
+        pr: &'a PrClient,
+        signer: &'a mut SrSigner,
+        tip: u64,
+        longevity: Option<u64>,
+    ) -> Self {
         Self {
             client,
             pr,
             signer,
             nonce_updated: false,
+            tip,
+            longevity,
         }
     }
 
@@ -41,6 +58,34 @@ impl<'a> MsgSync<'a> {
         }
 
         self.maybe_update_signer_nonce().await?;
+
+        let era = if let Some(longevity) = self.longevity {
+            let header = self
+                .client
+                .header(<Option<H256>>::None)
+                .await?
+                .ok_or_else(|| anyhow!("No header"))?;
+            let number = header.number as u64;
+            let period = longevity;
+            let phase = number % period;
+            let era = Era::Mortal(period, phase);
+            info!(
+                "update era: block={}, period={}, phase={}, birth={}, death={}",
+                number,
+                period,
+                phase,
+                era.birth(number),
+                era.death(number)
+            );
+            Some(EraInfo {
+                period,
+                phase,
+                birth_hash: header.hash(),
+            })
+        } else {
+            None
+        };
+
 
         for (sender, messages) in messages {
             if messages.is_empty() {
@@ -69,6 +114,10 @@ impl<'a> MsgSync<'a> {
                             message,
                         },
                         self.signer,
+                        ExtraConfig {
+                            tip: self.tip,
+                            era: era.clone(),
+                        },
                     )
                     .await;
                 self.signer.increment_nonce();
