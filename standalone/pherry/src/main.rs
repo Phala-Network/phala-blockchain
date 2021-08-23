@@ -986,8 +986,10 @@ fn preprocess_args(args: &mut Args) {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
     }
-    assert!(args.longevity == 0 || args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
-    assert_eq!(args.longevity.count_ones(), 1, "Option --longevity must be power of two.");
+    if args.longevity > 0 {
+        assert!(args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
+        assert_eq!(args.longevity.count_ones(), 1, "Option --longevity must be power of two.");
+    }
 }
 
 #[tokio::main]
