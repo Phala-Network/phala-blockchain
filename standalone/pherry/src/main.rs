@@ -172,7 +172,7 @@ struct Args {
     )]
     tip: u64,
     #[structopt(
-        default_value = "5",
+        default_value = "4",
         long,
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
@@ -986,7 +986,8 @@ fn preprocess_args(args: &mut Args) {
         args.use_dev_key = true;
         args.mnemonic = String::from("//Alice");
     }
-    assert!(args.longevity != 0 && args.longevity < 4, "Option --longevity must be 0 or >= 4.");
+    assert!(args.longevity == 0 || args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
+    assert_eq!(args.longevity.count_ones(), 1, "Option --longevity must be power of two.");
 }
 
 #[tokio::main]
