@@ -5,7 +5,7 @@ use sp_core::H256;
 use std::time::Duration;
 
 use crate::{
-    chain_client::fetch_mq_ingress_seq,
+    chain_client::mq_next_sequence,
     extra::{EraInfo, ExtraConfig},
 };
 use sp_runtime::generic::Era;
@@ -97,7 +97,9 @@ impl<'a> MsgSync<'a> {
             if messages.is_empty() {
                 continue;
             }
-            let min_seq = fetch_mq_ingress_seq(self.client, sender.clone()).await?;
+            let min_seq = mq_next_sequence(self.client, &sender).await?;
+
+            info!("Next seq for {} is {}", sender, min_seq);
 
             for message in messages {
                 if message.sequence < min_seq {
@@ -105,7 +107,7 @@ impl<'a> MsgSync<'a> {
                     continue;
                 }
                 let msg_info = format!(
-                    "sender={:?} seq={} dest={} nonce={:?}",
+                    "sender={} seq={} dest={} nonce={:?}",
                     sender,
                     message.sequence,
                     String::from_utf8_lossy(&message.message.destination.path()[..]),

@@ -1373,6 +1373,12 @@ impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_mq_runtime_api::MqApi<Block> for Runtime {
+		fn sender_sequence(sender: &phala_types::messaging::MessageOrigin) -> Option<u64> {
+			PhalaMq::offchain_ingress(sender)
+		}
+	}
+
 	impl sp_session::SessionKeys<Block> for Runtime {
 		fn generate_session_keys(seed: Option<Vec<u8>>) -> Vec<u8> {
 			SessionKeys::generate(seed)

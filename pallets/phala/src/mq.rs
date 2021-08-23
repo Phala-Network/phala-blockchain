@@ -128,6 +128,10 @@ pub mod pallet {
 			let message = Message::new(sender, M::topic(), payload.encode());
 			QueuedOutboundMessage::<T>::append(message);
 		}
+
+		pub fn offchain_ingress(sender: &MessageOrigin) -> Option<u64> {
+			OffchainIngress::<T>::get(sender)
+		}
 	}
 
 	#[pallet::hooks]
@@ -225,4 +229,4 @@ pub mod pallet {
 
 /// Provides `SignedExtension` to check message sequence.
 mod check_seq;
-pub use check_seq::CheckMqSequence;
+pub use check_seq::{tag, CheckMqSequence};

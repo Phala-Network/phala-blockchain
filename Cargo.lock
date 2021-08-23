@@ -4930,6 +4930,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-mq-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "phala-mq",
+ "sp-api",
+]
+
+[[package]]
 name = "pallet-multisig"
 version = "4.0.0-dev"
 dependencies = [
@@ -5559,6 +5567,7 @@ name = "phala-mq"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "hex",
  "parity-scale-codec",
  "primitive-types",
  "sp-core",
@@ -5670,6 +5679,7 @@ dependencies = [
  "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
+ "pallet-mq-runtime-api",
  "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",
@@ -6707,12 +6717,19 @@ dependencies = [
 name = "rpc-ext"
 version = "0.1.0"
 dependencies = [
+ "hex",
  "impl-serde",
  "jsonrpc-core 18.0.0",
  "jsonrpc-core-client",
  "jsonrpc-derive",
+ "log",
  "node-rpc",
+ "pallet-mq-runtime-api",
+ "parity-scale-codec",
+ "phala-mq",
+ "phala-pallets",
  "sc-client-api",
+ "sc-transaction-pool-api",
  "serde 1.0.127",
  "sp-api",
  "sp-blockchain",
