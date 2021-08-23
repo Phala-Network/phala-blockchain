@@ -13,6 +13,7 @@ use subxt::Signer;
 
 use super::{chain_client::update_signer_nonce, runtimes, PrClient, SrSigner, XtClient};
 
+// TODO.kevin: This struct is no longer needed. Just use a simple function to do the job.
 /// Hold everything needed to sync some egress messages back to the blockchain
 pub struct MsgSync<'a> {
     /// Subxt client
@@ -27,6 +28,8 @@ pub struct MsgSync<'a> {
     tip: u64,
     /// The transection longevity
     longevity: u64,
+    /// Max number of messages to sync at a time.
+    max_sync_msgs_per_round: u64,
 }
 
 impl<'a> MsgSync<'a> {
@@ -37,6 +40,7 @@ impl<'a> MsgSync<'a> {
         signer: &'a mut SrSigner,
         tip: u64,
         longevity: u64,
+        max_sync_msgs_per_round: u64,
     ) -> Self {
         Self {
             client,
@@ -45,6 +49,7 @@ impl<'a> MsgSync<'a> {
             nonce_updated: false,
             tip,
             longevity,
+            max_sync_msgs_per_round,
         }
     }
 
@@ -86,8 +91,9 @@ impl<'a> MsgSync<'a> {
             None
         };
 
+        let mut sync_msgs_count = 0;
 
-        for (sender, messages) in messages {
+        'sync_outer: for (sender, messages) in messages {
             if messages.is_empty() {
                 continue;
             }
@@ -145,6 +151,11 @@ impl<'a> MsgSync<'a> {
                     Err(err) => {
                         panic!("Failed to sign the call: {:?}", err);
                     }
+                }
+                sync_msgs_count += 1;
+                if sync_msgs_count >= self.max_sync_msgs_per_round {
+                    info!("Synced {} messages, take a break", sync_msgs_count);
+                    break 'sync_outer;
                 }
             }
         }
