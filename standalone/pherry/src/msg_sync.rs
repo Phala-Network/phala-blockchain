@@ -26,7 +26,7 @@ pub struct MsgSync<'a> {
     /// Extra transcation fee
     tip: u64,
     /// The transection longevity
-    longevity: Option<u64>,
+    longevity: u64,
 }
 
 impl<'a> MsgSync<'a> {
@@ -36,7 +36,7 @@ impl<'a> MsgSync<'a> {
         pr: &'a PrClient,
         signer: &'a mut SrSigner,
         tip: u64,
-        longevity: Option<u64>,
+        longevity: u64,
     ) -> Self {
         Self {
             client,
@@ -59,14 +59,14 @@ impl<'a> MsgSync<'a> {
 
         self.maybe_update_signer_nonce().await?;
 
-        let era = if let Some(longevity) = self.longevity {
+        let era = if self.longevity > 0 {
             let header = self
                 .client
                 .header(<Option<H256>>::None)
                 .await?
                 .ok_or_else(|| anyhow!("No header"))?;
             let number = header.number as u64;
-            let period = longevity;
+            let period = self.longevity;
             let phase = number % period;
             let era = Era::Mortal(period, phase);
             info!(
