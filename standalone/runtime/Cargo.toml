@@ -18,6 +18,7 @@ static_assertions = "1.1.0"
 hex-literal = "0.3.1"
 log = { version = "0.4.14", default-features = false }
 phala-types = { default-features = false, path = "../../common/types" }
+pallet-mq-runtime-api = { default-features = false, path = "../../pallets/phala/mq-runtime-api" }
 
 # primitives
 sp-authority-discovery = { default-features = false, path = "../../substrate/primitives/authority-discovery" }
@@ -161,6 +162,7 @@ std = [
 	"phala-pallets/std",
 	"pallet-bridge/std",
 	"pallet-bridge-transfer/std",
+	"pallet-mq-runtime-api/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking",

@@ -11,6 +11,9 @@ use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::fmt::Display;
 use storage_changes::Error as StorageChangesError;
+use mq_seq::Error as MqSeqError;
+use sc_transaction_pool_api::{TransactionPool, InPoolTransaction};
+use pallet_mq_runtime_api::MqApi;
 
 pub use storage_changes::{GetStorageChangesResponse, StorageChanges, MakeInto};
 
@@ -31,29 +34,38 @@ pub trait NodeRpcExtApi<BlockHash> {
         from: BlockHash,
         to: BlockHash,
     ) -> Result<GetStorageChangesResponse, StorageChangesError>;
+
+    /// Return the next mq sequence number for given sender which take the ready transactions in count.
+    #[rpc(name = "pha_getMqNextSequence")]
+    fn get_mq_seq(
+        &self,
+        sender_hex: String,
+    ) -> Result<Option<u64>, MqSeqError>;
 }
 
 /// Stuffs for custom RPC
-struct NodeRpcExt<BE, Block: BlockT, Client> {
+struct NodeRpcExt<BE, Block: BlockT, Client, P> {
     client: Arc<Client>,
     backend: Arc<BE>,
     is_archive_mode: bool,
+    pool: Arc<P>,
     _phantom: PhantomData<Block>,
 }
 
-impl<BE, Block: BlockT, Client> NodeRpcExt<BE, Block, Client> {
-    fn new(client: Arc<Client>, backend: Arc<BE>, is_archive_mode: bool) -> Self {
+impl<BE, Block: BlockT, Client, P> NodeRpcExt<BE, Block, Client, P> {
+    fn new(client: Arc<Client>, backend: Arc<BE>, is_archive_mode: bool, pool: Arc<P>) -> Self {
         Self {
             client,
             backend,
             is_archive_mode,
+            pool,
             _phantom: Default::default(),
         }
     }
 }
 
-impl<BE: 'static, Block: BlockT, Client: 'static> NodeRpcExtApi<Block::Hash>
-    for NodeRpcExt<BE, Block, Client>
+impl<BE: 'static, Block: BlockT, Client: 'static, P> NodeRpcExtApi<Block::Hash>
+    for NodeRpcExt<BE, Block, Client, P>
 where
     BE: Backend<Block>,
     Client: StorageProvider<Block, BE>
@@ -63,8 +75,10 @@ where
         + ProvideRuntimeApi<Block>,
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+	Client::Api: MqApi<Block>,
     Block: BlockT + 'static,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
+    P: TransactionPool + 'static
 {
     fn get_storage_changes(
         &self,
@@ -84,13 +98,21 @@ where
             )
         }
     }
+
+    fn get_mq_seq(
+        &self,
+        sender_hex: String,
+    ) -> Result<Option<u64>, MqSeqError> {
+        mq_seq::get_mq_seq(&*self.client, &self.pool, sender_hex)
+    }
 }
 
-pub fn extend_rpc<Client, BE, Block>(
+pub fn extend_rpc<Client, BE, Block, P>(
     io: &mut IoHandler,
     client: Arc<Client>,
     backend: Arc<BE>,
     is_archive_mode: bool,
+    pool: Arc<P>,
 ) where
     BE: Backend<Block> + 'static,
     Client: StorageProvider<Block, BE>
@@ -102,11 +124,14 @@ pub fn extend_rpc<Client, BE, Block>(
     Block: BlockT + 'static,
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+    Client::Api: MqApi<Block>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
+    P: TransactionPool + 'static,
 {
     io.extend_with(NodeRpcExtApi::to_delegate(NodeRpcExt::new(
         client,
         backend,
         is_archive_mode,
+        pool,
     )));
 }

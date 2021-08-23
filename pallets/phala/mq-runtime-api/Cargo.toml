@@ -1,0 +1,14 @@
+[package]
+name = "pallet-mq-runtime-api"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+sp-api = { default-features = false, path = "../../../substrate/primitives/api"}
+phala-mq = { default-features = false, path = "../../../crates/phala-mq" }
+
+[features]
+default = ["std"]
+std = [
+	"sp-api/std",
+]

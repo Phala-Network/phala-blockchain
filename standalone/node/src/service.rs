@@ -189,7 +189,7 @@ pub fn new_partial(
 			};
 
 			let mut io = node_rpc::create_full(deps)?;
-			rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode);
+			rpc_ext::extend_rpc(&mut io, client.clone(), backend.clone(), is_archive_mode, pool.clone());
 			Ok(io)
 		};
 
