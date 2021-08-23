@@ -60,16 +60,10 @@ struct Args {
     )]
     no_sync: bool,
 
-    #[structopt(
-        long,
-        help = "Don't write pRuntime egress data back to Substarte."
-    )]
+    #[structopt(long, help = "Don't write pRuntime egress data back to Substarte.")]
     no_msg_submit: bool,
 
-    #[structopt(
-        long,
-        help = "Skip registering the worker."
-    )]
+    #[structopt(long, help = "Skip registering the worker.")]
     no_register: bool,
 
     #[structopt(
@@ -177,6 +171,12 @@ struct Args {
         help = "The transaction longevity, should be a power of two between 4 and 65536. unit: block"
     )]
     longevity: u64,
+    #[structopt(
+        default_value = "200",
+        long,
+        help = "Max number of messages to be submitted per-round"
+    )]
+    max_sync_msgs_per_round: u64,
 }
 
 struct BlockSyncState {
@@ -968,8 +968,14 @@ async fn bridge(args: Args) -> Result<()> {
 
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_msg_submit {
-                let mut msg_sync =
-                    msg_sync::MsgSync::new(&paraclient, &pr, &mut signer, args.tip, args.longevity);
+                let mut msg_sync = msg_sync::MsgSync::new(
+                    &paraclient,
+                    &pr,
+                    &mut signer,
+                    args.tip,
+                    args.longevity,
+                    args.max_sync_msgs_per_round,
+                );
                 msg_sync.maybe_sync_mq_egress().await?;
             }
 
