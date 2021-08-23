@@ -70,12 +70,12 @@ pub async fn mq_next_sequence(
 ) -> Result<u64, subxt::Error> {
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
-    let seq: Option<u64> = client
+    let seq: u64 = client
         .rpc
         .client
         .request("pha_getMqNextSequence", &[to_value(sender_hex)?])
         .await?;
-    Ok(seq.unwrap_or(0))
+    Ok(seq)
 }
 
 pub fn paras_heads_key(para_id: &ParaId) -> StorageKey {

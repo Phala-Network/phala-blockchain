@@ -9,8 +9,8 @@ use thiserror::Error;
 pub enum Error {
     #[error("invalid sender")]
     InvalidSender,
-    #[error("sender not found")]
-    SenderNotFound,
+    #[error("{0}")]
+    ApiError(#[from] sp_api::ApiError),
 }
 
 impl From<Error> for jsonrpc_core::Error {
@@ -27,7 +27,7 @@ pub(super) fn get_mq_seq<Client, BE, Block, P>(
     client: &Client,
     pool: &Arc<P>,
     sender_hex: String,
-) -> Result<Option<u64>, Error>
+) -> Result<u64, Error>
 where
     BE: Backend<Block>,
     Client: StorageProvider<Block, BE>
@@ -49,13 +49,7 @@ where
     let best_hash = client.info().best_hash;
     let at = BlockId::hash(best_hash);
 
-    let seq = match api
-        .sender_sequence(&at, &sender)
-        .or(Err(Error::SenderNotFound))?
-    {
-        Some(seq) => seq,
-        None => return Ok(None),
-    };
+    let seq = api.sender_sequence(&at, &sender)?.unwrap_or(0);
 
     log::debug!(target: "rpc-ext", "State seq for {}: {}", sender, seq);
 
@@ -63,7 +57,7 @@ where
     // and find transactions originating from the same sender.
     //
     // Since extrinsics are opaque to us, we look for them using
-    // `provides` tag. And increment the nonce if we find a transaction
+    // `provides` tag. And increment the sequence if we find a transaction
     // that matches the current one.
     let mut current_seq = seq.clone();
     let mut current_tag = tag(&sender, seq);
@@ -81,11 +75,12 @@ where
             if tg == &current_tag {
                 current_seq += 1;
                 current_tag = tag(&sender, current_seq);
+                break;
             }
         }
     }
 
     log::debug!(target: "rpc-ext", "return seq {}", current_seq);
 
-    Ok(Some(current_seq))
+    Ok(current_seq)
 }

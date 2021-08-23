@@ -2,23 +2,23 @@ use std::marker::PhantomData;
 use std::sync::Arc;
 
 use jsonrpc_derive::rpc;
+use mq_seq::Error as MqSeqError;
 use node_rpc::IoHandler;
+use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
 use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
+use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
 use serde::{Deserialize, Serialize};
 use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
 use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
 use std::fmt::Display;
 use storage_changes::Error as StorageChangesError;
-use mq_seq::Error as MqSeqError;
-use sc_transaction_pool_api::{TransactionPool, InPoolTransaction};
-use pallet_mq_runtime_api::MqApi;
 
-pub use storage_changes::{GetStorageChangesResponse, StorageChanges, MakeInto};
+pub use storage_changes::{GetStorageChangesResponse, MakeInto, StorageChanges};
 
-mod storage_changes;
 mod mq_seq;
+mod storage_changes;
 
 /// Base code for all errors.
 const CUSTOM_RPC_ERROR: i64 = 10000;
@@ -37,10 +37,7 @@ pub trait NodeRpcExtApi<BlockHash> {
 
     /// Return the next mq sequence number for given sender which take the ready transactions in count.
     #[rpc(name = "pha_getMqNextSequence")]
-    fn get_mq_seq(
-        &self,
-        sender_hex: String,
-    ) -> Result<Option<u64>, MqSeqError>;
+    fn get_mq_seq(&self, sender_hex: String) -> Result<u64, MqSeqError>;
 }
 
 /// Stuffs for custom RPC
@@ -75,10 +72,10 @@ where
         + ProvideRuntimeApi<Block>,
     Client::Api:
         sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
-	Client::Api: MqApi<Block>,
+    Client::Api: MqApi<Block>,
     Block: BlockT + 'static,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
-    P: TransactionPool + 'static
+    P: TransactionPool + 'static,
 {
     fn get_storage_changes(
         &self,
@@ -99,10 +96,7 @@ where
         }
     }
 
-    fn get_mq_seq(
-        &self,
-        sender_hex: String,
-    ) -> Result<Option<u64>, MqSeqError> {
+    fn get_mq_seq(&self, sender_hex: String) -> Result<u64, MqSeqError> {
         mq_seq::get_mq_seq(&*self.client, &self.pool, sender_hex)
     }
 }
