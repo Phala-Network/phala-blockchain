@@ -22,9 +22,9 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    pub use phala_mq::{bind_topic, bind_contract32};
-    pub use phala_mq::types::*;
     use crate::contract;
+    pub use phala_mq::types::*;
+    pub use phala_mq::{bind_contract32, bind_topic};
 
     // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug)]
@@ -86,13 +86,17 @@ pub mod messaging {
     impl LotteryCommand {
         pub fn open_box(round_id: u32, token_id: u32, btc_address: Vec<u8>) -> Self {
             Self::PalletCommand(LotteryPalletCommand::OpenBox {
-                round_id, token_id, btc_address,
+                round_id,
+                token_id,
+                btc_address,
             })
         }
 
         pub fn new_round(round_id: u32, total_count: u32, winner_count: u32) -> Self {
             Self::PalletCommand(LotteryPalletCommand::NewRound {
-                round_id, total_count, winner_count,
+                round_id,
+                total_count,
+                winner_count,
             })
         }
     }
@@ -216,10 +220,20 @@ pub mod messaging {
     pub type U64F64Bits = u128;
 
     // Messages: System
-    #[derive(Encode, Decode, Debug)]
+    #[derive(Encode, Decode)]
     pub struct WorkerEventWithKey {
         pub pubkey: WorkerPublicKey,
         pub event: WorkerEvent,
+    }
+
+    impl Debug for WorkerEventWithKey {
+        fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+            let pubkey = hex::encode(&self.pubkey.0);
+            f.debug_struct("WorkerEventWithKey")
+                .field("pubkey", &pubkey)
+                .field("event", &self.event)
+                .finish()
+        }
     }
 
     #[derive(Encode, Decode, Debug)]
