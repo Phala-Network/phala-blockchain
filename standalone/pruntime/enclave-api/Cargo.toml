@@ -25,6 +25,12 @@ prost = { version = "0.8.0", default-features = false }
 phala-crypto = { path = "../../../crates/crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
 
+# for pruntime_client
+async-trait = { version = "0.1.51", optional = true }
+anyhow = { version = "1.0.43", optional = true }
+log = { version = "0.4.14", optional = true }
+reqwest = { version = "0.11.4", optional = true }
+
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build", optional = true }
 tera = { version = "1.12.1", optional = true }
@@ -32,7 +38,7 @@ tempdir = { version = "0.3.7", optional = true }
 
 
 [features]
-default = ["std"]
+default = ["std", "pruntime-client"]
 
 std = [
     "serde",
@@ -45,6 +51,13 @@ std = [
     "prpc-build",
     "tera",
     "tempdir",
+]
+
+pruntime-client = [
+    "async-trait",
+    "anyhow",
+    "log",
+    "reqwest",
 ]
 
 sgx = [

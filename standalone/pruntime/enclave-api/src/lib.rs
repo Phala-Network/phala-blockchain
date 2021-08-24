@@ -15,6 +15,9 @@ pub mod prpc {
     pub const SIG_LEN: usize = 64;
 }
 
+#[cfg(feature = "pruntime-client")]
+pub mod pruntime_client;
+
 pub mod actions {
     pub const ACTION_TEST: u8 = 0;
     pub const ACTION_INIT_RUNTIME: u8 = 1;

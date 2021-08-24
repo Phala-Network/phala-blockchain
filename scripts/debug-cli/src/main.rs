@@ -49,6 +49,11 @@ enum Cli {
     },
     InspectPalletId {
         pallet_id: String,
+    },
+    GetWorkerState {
+        #[structopt(long, default_value = "http://localhost:8000")]
+        url: String,
+        pubkey: String,
     }
 }
 
@@ -146,6 +151,20 @@ fn main() {
             let id = frame_support::PalletId(pallet_id_array);
             let account: AccountId = id.into_account();
             println!("Pallet account: {}", account);
+        }
+        Cli::GetWorkerState { url, pubkey } => {
+            use tokio::runtime::Runtime;
+
+            let client = enclave_api::pruntime_client::new_pruntime_client(url);
+            let public_key = hex::decode(pubkey).expect("Failed to decode pubkey");
+
+            let rt  = Runtime::new().unwrap();
+            rt.block_on(async move {
+                match client.get_worker_state(enclave_api::prpc::GetWorkerStateRequest { public_key }).await {
+                    Ok(state) => println!("{:#?}", state),
+                    Err(err) => println!("Error: {:?}", err),
+                }
+            });
         }
     }
 }

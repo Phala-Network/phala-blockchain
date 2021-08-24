@@ -18,3 +18,5 @@ phala-types = { path = "../../common/types" }
 phala-pallets = { path = "../../pallets/phala" }
 enclave-api = { path = "../../standalone/pruntime/enclave-api" }
 phala-crypto = { path = "../../crates/crypto" }
+
+tokio = { version = "1.10.0", features = ["full"] }
