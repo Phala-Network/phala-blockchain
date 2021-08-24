@@ -1,4 +1,4 @@
-use codec::{Decode, Encode};
+use codec::Decode;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
@@ -156,6 +156,7 @@ fn main() {
             use tokio::runtime::Runtime;
 
             let client = enclave_api::pruntime_client::new_pruntime_client(url);
+            let pubkey = pubkey.strip_prefix("0x").unwrap_or(&pubkey);
             let public_key = hex::decode(pubkey).expect("Failed to decode pubkey");
 
             let rt  = Runtime::new().unwrap();

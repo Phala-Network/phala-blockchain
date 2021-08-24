@@ -178,12 +178,11 @@ where
     pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
         let info = self.workers.get(pubkey)?;
         Some(pb::WorkerState {
-            public_key: info.state.pubkey.to_vec(),
             registered: info.state.registered,
+            unresponsive: info.unresponsive,
             bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
                 start_block: state.start_block,
                 start_time: state.start_time,
-                start_iter: state.start_iter,
                 duration: state.duration,
             }),
             mining_state: info
@@ -194,7 +193,6 @@ where
                     session_id: state.session_id,
                     paused: matches!(state.state, super::MiningState::Paused),
                     start_time: state.start_time,
-                    start_iter: state.start_iter,
                 }),
             waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
             last_heartbeat_for_block: info.last_heartbeat_for_block,
