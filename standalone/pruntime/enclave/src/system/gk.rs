@@ -17,9 +17,9 @@ use crate::{
 
 use crate::std::vec::Vec;
 use enclave_api::prpc as pb;
+use log::debug;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
-use log::debug;
 
 /// Block interval to generate pseudo-random on chain
 ///
@@ -265,7 +265,10 @@ where
 
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
-            debug!("block_post_process for worker {}", hex::encode(&worker_info.state.pubkey));
+            debug!(
+                "block_post_process for worker {}",
+                hex::encode(&worker_info.state.pubkey)
+            );
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
             };
@@ -274,13 +277,19 @@ where
                 .on_block_processed(self.block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
-                debug!("Mining already stopped, do nothing.");
+                debug!(
+                    "[{}] Mining already stopped, do nothing.",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 continue;
             }
 
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
-                    debug!("case5: Unresponsive, successful heartbeat.");
+                    debug!(
+                        "[{}] case5: Unresponsive, successful heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     worker_info.unresponsive = false;
                     self.report
                         .recovered_to_online
@@ -292,7 +301,12 @@ where
                 if self.block.block_number - hb_sent_at
                     > self.state.tokenomic_params.heartbeat_window
                 {
-                    debug!("case3: Idle, heartbeat failed, current={} waiting for {}.", self.block.block_number, hb_sent_at);
+                    debug!(
+                        "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
+                        hex::encode(&worker_info.state.pubkey),
+                        self.block.block_number,
+                        hb_sent_at
+                    );
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
                     worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
@@ -302,10 +316,16 @@ where
 
             let params = &self.state.tokenomic_params;
             if worker_info.unresponsive {
-                debug!("case3/case4: Idle, heartbeat failed or Unresponsive, no event");
+                debug!(
+                    "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 worker_info.tokenomic.update_v_slash(&params);
             } else if !worker_info.heartbeat_flag {
-                debug!("case1: Idle, no event");
+                debug!(
+                    "[{}] case1: Idle, no event",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 worker_info.tokenomic.update_v_idle(&params);
             }
         }
@@ -353,12 +373,18 @@ where
                 let mining_state = if let Some(state) = &worker_info.state.mining_state {
                     state
                 } else {
-                    debug!("Mining already stopped, ignore the heartbeat.");
+                    debug!(
+                        "[{}] Mining already stopped, ignore the heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     return;
                 };
 
                 if session_id != mining_state.session_id {
-                    debug!("Heartbeat response to previous mining sessions, ignore it.");
+                    debug!(
+                        "[{}] Heartbeat response to previous mining sessions, ignore it.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     return;
                 }
 
@@ -370,9 +396,12 @@ where
                 tokenomic.iteration_last = iterations;
 
                 if worker_info.unresponsive {
-                    debug!("heartbeat handling case5: Unresponsive, successful heartbeat.");
+                    debug!(
+                        "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                 } else {
-                    debug!("heartbeat handling case2: Idle, successful heartbeat, report to pallet");
+                    debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.state.tokenomic_params,
                         self.sum_share,
@@ -418,7 +447,7 @@ where
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
             };
-            debug!("for worker {}",  hex::encode(&worker_info.state.pubkey));
+            debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, log_on);
