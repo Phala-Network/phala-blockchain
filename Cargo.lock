@@ -1358,6 +1358,7 @@ dependencies = [
  "sc-finality-grandpa",
  "sp-runtime",
  "structopt",
+ "tokio 1.10.0",
 ]
 
 [[package]]
@@ -1542,9 +1543,12 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 name = "enclave-api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
+ "async-trait",
  "base64 0.13.0",
  "derive_more",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "phala-crypto",
  "phala-mq",
@@ -1553,6 +1557,7 @@ dependencies = [
  "prost 0.8.0",
  "prpc",
  "prpc-build",
+ "reqwest",
  "serde 1.0.127",
  "sp-application-crypto",
  "sp-core",

@@ -19,7 +19,6 @@ mod error;
 mod extra;
 mod msg_sync;
 mod notify_client;
-mod pruntime_client;
 mod runtimes;
 mod types;
 
@@ -30,6 +29,7 @@ use enclave_api::blocks::{
     StorageProof,
 };
 use enclave_api::prpc::{self, InitRuntimeResponse};
+use enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;

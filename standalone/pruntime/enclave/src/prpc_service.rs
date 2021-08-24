@@ -4,7 +4,7 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phala_types::contract;
+use phala_types::{contract, WorkerPublicKey};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -692,5 +692,25 @@ impl PhactoryApi for RpcService {
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
         contract_query(request)
+    }
+
+    fn get_worker_state(&self, request: pb::GetWorkerStateRequest) -> RpcResult<pb::WorkerState> {
+        let system = SYSTEM_STATE.lock().unwrap();
+        let system = system
+            .as_ref()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let gk = system
+            .gatekeeper
+            .as_ref()
+            .ok_or_else(|| from_display("Not a gatekeeper"))?;
+        let pubkey: WorkerPublicKey = request
+            .public_key
+            .as_slice()
+            .try_into()
+            .map_err(|_| from_display("Bad public key"))?;
+        let state = gk
+            .worker_state(&pubkey)
+            .ok_or_else(|| from_display("Worker not found"))?;
+        Ok(state)
     }
 }
