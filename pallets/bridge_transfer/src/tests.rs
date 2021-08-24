@@ -2,10 +2,10 @@
 
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeTransfer, Call, Event, Origin, ProposalLifetime, ENDOWED_BALANCE, RELAYER_A,
-	RELAYER_B, RELAYER_C, BridgeLotteryId, BridgeTokenId
+	BridgeLotteryId, BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime,
+	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
 };
-use super::*;
+use super::{bridge, *};
 use frame_support::dispatch::DispatchError;
 use frame_support::{assert_noop, assert_ok};
 
@@ -29,11 +29,13 @@ fn make_transfer_proposal(to: u64, amount: u64) -> Call {
 #[test]
 fn constant_equality() {
 	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
-	let encoded: [u8; 32] = hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
+	let encoded: [u8; 32] =
+		hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
 	assert_eq!(r_id, encoded);
 
 	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"lottery"));
-	let encoded: [u8; 32] = hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
+	let encoded: [u8; 32] =
+		hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
 	assert_eq!(r_id, encoded);
 }
 
@@ -51,7 +53,7 @@ fn lottery_output() {
 		assert_ok!(Bridge::whitelist_chain(Origin::root(), dest_chain.clone()));
 		assert_ok!(BridgeTransfer::lottery_output(&lottery, dest_chain,));
 
-		expect_event(bridge::RawEvent::GenericTransfer(
+		expect_event(bridge::Event::GenericTransfer(
 			dest_chain,
 			1,
 			resource_id,
@@ -82,7 +84,7 @@ fn transfer_native() {
 			dest_chain,
 		));
 
-		expect_event(bridge::RawEvent::FungibleTransfer(
+		expect_event(bridge::Event::FungibleTransfer(
 			dest_chain,
 			1,
 			resource_id,
@@ -218,16 +220,16 @@ fn create_sucessful_transfer_proposal() {
 		);
 
 		assert_events(vec![
-			Event::Bridge(bridge::RawEvent::VoteFor(src_id, prop_id, RELAYER_A)),
-			Event::Bridge(bridge::RawEvent::VoteAgainst(src_id, prop_id, RELAYER_B)),
-			Event::Bridge(bridge::RawEvent::VoteFor(src_id, prop_id, RELAYER_C)),
-			Event::Bridge(bridge::RawEvent::ProposalApproved(src_id, prop_id)),
+			Event::Bridge(bridge::Event::VoteFor(src_id, prop_id, RELAYER_A)),
+			Event::Bridge(bridge::Event::VoteAgainst(src_id, prop_id, RELAYER_B)),
+			Event::Bridge(bridge::Event::VoteFor(src_id, prop_id, RELAYER_C)),
+			Event::Bridge(bridge::Event::ProposalApproved(src_id, prop_id)),
 			Event::Balances(balances::Event::Transfer(
 				Bridge::account_id(),
 				RELAYER_A,
 				10,
 			)),
-			Event::Bridge(bridge::RawEvent::ProposalSucceeded(src_id, prop_id)),
+			Event::Bridge(bridge::Event::ProposalSucceeded(src_id, prop_id)),
 		]);
 	})
 }
