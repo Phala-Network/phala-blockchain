@@ -16,6 +16,7 @@ use crate::{
 };
 
 use crate::std::vec::Vec;
+use enclave_api::prpc as pb;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -50,6 +51,10 @@ struct WorkerInfo {
     unresponsive: bool,
     tokenomic: TokenomicInfo,
     heartbeat_flag: bool,
+    last_heartbeat_for_block: chain::BlockNumber,
+    last_heartbeat_at_block: chain::BlockNumber,
+    last_gk_responsive_event: i32,
+    last_gk_responsive_event_at_block: chain::BlockNumber,
 }
 
 impl WorkerInfo {
@@ -60,6 +65,10 @@ impl WorkerInfo {
             unresponsive: false,
             tokenomic: Default::default(),
             heartbeat_flag: false,
+            last_heartbeat_for_block: 0,
+            last_heartbeat_at_block: 0,
+            last_gk_responsive_event: 0,
+            last_gk_responsive_event_at_block: 0,
         }
     }
 }
@@ -75,7 +84,7 @@ impl WorkerInfo {
 //
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
-pub(super) struct Gatekeeper<MsgChan> {
+pub(crate) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
@@ -164,6 +173,35 @@ where
         ));
         self.last_random_number = random_number;
     }
+
+    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
+        let info = self.workers.get(pubkey)?;
+        Some(pb::WorkerState {
+            public_key: info.state.pubkey.to_vec(),
+            registered: info.state.registered,
+            bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
+                start_block: state.start_block,
+                start_time: state.start_time,
+                start_iter: state.start_iter,
+                duration: state.duration,
+            }),
+            mining_state: info
+                .state
+                .mining_state
+                .as_ref()
+                .map(|state| pb::MiningState {
+                    session_id: state.session_id,
+                    paused: matches!(state.state, super::MiningState::Paused),
+                    start_time: state.start_time,
+                    start_iter: state.start_iter,
+                }),
+            waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
+            last_heartbeat_for_block: info.last_heartbeat_for_block,
+            last_heartbeat_at_block: info.last_heartbeat_at_block,
+            last_gk_responsive_event: info.last_gk_responsive_event,
+            last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
+        })
+    }
 }
 
 struct GKMessageProcesser<'a, MsgChan> {
@@ -241,6 +279,8 @@ where
                     self.report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
+                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::ExitUnresponsive as _;
+                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if self.block.block_number - hb_sent_at
@@ -249,6 +289,8 @@ where
                     // case3: Idle, heartbeat failed
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
+                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
+                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             }
 
@@ -290,6 +332,8 @@ where
                         return;
                     }
                 };
+                worker_info.last_heartbeat_at_block = self.block.block_number;
+                worker_info.last_heartbeat_for_block = challenge_block;
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
                     error!("Fatal error: Unexpected heartbeat {:?}", event);
