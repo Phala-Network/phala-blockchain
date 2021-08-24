@@ -106,9 +106,18 @@ describe('A full stack', function () {
 				return workerInfo.unwrap().initialScore.isSome;
 			}, 3 * 6000), 'benchmark timeout');
 		});
+
+		it('sends command to Balances contract', async function () {
+			await assert.txAccepted(
+				api.tx.phalaRegistry.sendCommandToBalancesContract(),
+				alice
+			);
+			// wait over two blocks for the syncing of command to pRuntime
+			await sleep(4 * 6000);
+		});
 	});
 
-	describe('Gatekeeper', () => {
+	describe.skip('Gatekeeper', () => {
 		it('pre-mines blocks', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
@@ -156,9 +165,9 @@ describe('A full stack', function () {
 				return master_pubkey.isSome;
 			}, 4 * 6000), 'master pubkey not uploaded');
 		});
-    });
+	});
 
-    describe('Gatekeeper2', () => {
+	describe.skip('Gatekeeper2', () => {
 		it('can be registered', async function () {
 			// Register worker1 as Gatekeeper
 			const info = await pruntime[1].getInfo();
@@ -216,14 +225,14 @@ describe('A full stack', function () {
 		});
 
 		it('post-mines blocks', async function () {
-            const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
-            let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
-            seqStart = seqStart.unwrap().toNumber();
-            assert.isTrue(await checkUntil(async () => {
-                let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
-                seq = seq.unwrap().toNumber();
-                return seq >= seqStart + 1;
-            }, 500 * 6000), 'ingress stale');
+			const gatekeeper = api.createType('MessageOrigin', 'Gatekeeper');
+			let seqStart = await api.query.phalaMq.offchainIngress(gatekeeper);
+			seqStart = seqStart.unwrap().toNumber();
+			assert.isTrue(await checkUntil(async () => {
+				let seq = await api.query.phalaMq.offchainIngress(gatekeeper);
+				seq = seq.unwrap().toNumber();
+				return seq >= seqStart + 1;
+			}, 500 * 6000), 'ingress stale');
 		});
 	});
 
@@ -523,12 +532,12 @@ class Cluster {
 	}
 
 	_createWorkerProcess(i) {
-        const AVAILBLE_ACCOUNTS = [
-            '//Alice',
-            '//Bob',
-        ];
+		const AVAILBLE_ACCOUNTS = [
+			'//Alice',
+			'//Bob',
+		];
 		const w = this.workers[i];
-        const gasAccountKey = AVAILBLE_ACCOUNTS[i];
+		const gasAccountKey = AVAILBLE_ACCOUNTS[i];
 		const key = '0'.repeat(63) + (i + 1).toString();
 		w.processRelayer = newRelayer(this.wsPort, w.port, this.tmpPath, gasAccountKey, key, `relayer${i}`);
 		w.processPRuntime = newPRuntime(w.port, this.tmpPath, `pruntime${i}`);
@@ -568,7 +577,7 @@ function waitNodeOutput(p) {
 
 
 function newNode(wsPort, tmpPath, name = 'node') {
-    const cli = [
+	const cli = [
 		pathNode, [
 			'--dev',
 			'--base-path=' + path.resolve(tmpPath, 'phala-node'),
@@ -576,8 +585,8 @@ function newNode(wsPort, tmpPath, name = 'node') {
 			'--rpc-methods=Unsafe'
 		]
 	];
-    const cmd = cli.flat().join(' ');
-    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, {encoding: 'utf-8'});
+	const cmd = cli.flat().join(' ');
+	fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, { encoding: 'utf-8' });
 	return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
@@ -606,12 +615,13 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
 function newRelayer(wsPort, teePort, tmpPath, gasAccountKey, key, name = 'relayer') {
 	return new Process([
 		pathRelayer, [
+			'--dev',
 			'--no-wait',
 			`--mnemonic=${gasAccountKey}`,
 			`--inject-key=${key}`,
 			`--substrate-ws-endpoint=ws://localhost:${wsPort}`,
 			`--pruntime-endpoint=http://localhost:${teePort}`,
-            '--dev-wait-block-ms=1000',
+			'--dev-wait-block-ms=1000',
 		]
 	], { logPath: `${tmpPath}/${name}.log` });
 }

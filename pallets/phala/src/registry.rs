@@ -7,7 +7,7 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{StorageVersion, UnixTime},
+		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
@@ -22,11 +22,14 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, MasterKeyEvent, MessageOrigin, SignedMessage,
-			SystemEvent, WorkerEvent,
+			self, bind_topic, BalancesCommand, DecodedMessage, MasterKeyEvent, MessageOrigin,
+			SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
+
+	type BalanceOf<T> =
+		<<T as Config>::RegCurrency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
 	#[derive(Encode, Decode, Clone, Debug)]
@@ -38,6 +41,7 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type RegCurrency: Currency<Self::AccountId>;
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
@@ -285,6 +289,18 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn send_command_to_balances_contract(origin: OriginFor<T>) -> DispatchResult {
+			let account = ensure_signed(origin)?;
+
+			Self::push_command(BalancesCommand::transfer(
+				account,
+				BalanceOf::<T>::from(100u32),
+			));
+
 			Ok(())
 		}
 	}

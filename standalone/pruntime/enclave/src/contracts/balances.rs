@@ -75,6 +75,8 @@ impl contracts::NativeContract for Balances {
     ) -> TransactionResult {
         match cmd {
             Command::Transfer { dest, value } => {
+                info!("Incoming Transfer command");
+
                 let o = origin.account()?;
                 info!(
                     "Transfer: [{}] -> [{}]: {}",

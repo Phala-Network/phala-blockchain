@@ -386,6 +386,7 @@ pub fn init_runtime(
 
     if local_state.dev_mode {
         // Install contracts when running in dev_mode.
+        info!("Install contracts in dev mode");
 
         macro_rules! install_contract {
             ($id: expr, $inner: expr) => {{
