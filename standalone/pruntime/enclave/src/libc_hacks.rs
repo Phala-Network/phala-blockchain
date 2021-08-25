@@ -43,6 +43,11 @@ fn set_errno(errno: libc::c_int) {
     }
 }
 
+pub fn init() {
+    use std::io;
+    let _ = (io::stdin(), io::stdout(), io::stderr());
+}
+
 #[no_mangle]
 pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: size_t) -> c_int {
     unsafe {

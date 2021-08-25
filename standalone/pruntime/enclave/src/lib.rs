@@ -907,6 +907,8 @@ fn init_secret_keys(
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
+    libc_hacks::init();
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
