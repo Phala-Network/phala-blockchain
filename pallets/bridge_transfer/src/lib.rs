@@ -51,11 +51,6 @@ pub mod pallet {
 		type BridgeLotteryId: Get<ResourceId>;
 	}
 
-	#[pallet::storage]
-	#[pallet::getter(fn bridge_fee)]
-	pub type BridgeFee<T> =
-		StorageMap<_, Blake2_256, bridge::BridgeChainId, (BalanceOf<T>, u32), ValueQuery>;
-
 	#[pallet::event]
 	#[pallet::metadata(BalanceOf<T> = "Balance")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -73,8 +68,10 @@ pub mod pallet {
 		FeeOptionsMissiing,
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+	#[pallet::storage]
+	#[pallet::getter(fn bridge_fee)]
+	pub type BridgeFee<T: Config> =
+		StorageMap<_, Blake2_256, bridge::BridgeChainId, (BalanceOf<T>, u32), ValueQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {

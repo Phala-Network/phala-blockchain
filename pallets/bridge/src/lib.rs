@@ -118,44 +118,6 @@ pub mod pallet {
 		type ProposalLifetime: Get<Self::BlockNumber>;
 	}
 
-	#[pallet::storage]
-	#[pallet::getter(fn chains)]
-	pub type ChainNonces<T> =
-		StorageMap<_, Blake2_256, BridgeChainId, Option<DepositNonce>, ValueQuery>;
-
-	#[pallet::type_value]
-	pub fn DefaultRelayerThresholdValue() -> u32 {
-		DEFAULT_RELAYER_THRESHOLD
-	}
-
-	#[pallet::storage]
-	#[pallet::getter(fn relayer_threshold)]
-	pub type RelayerThreshold<T> = StorageValue<_, u32, ValueQuery, DefaultRelayerThresholdValue>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn relayers)]
-	pub type Relayers<T: Config> = StorageMap<_, Blake2_256, T::AccountId, bool, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn relayer_count)]
-	pub type RelayerCount<T> = StorageValue<_, u32, ValueQuery>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn votes)]
-	pub type Votes<T: Config> = StorageDoubleMap<
-		_,
-		Blake2_256,
-		BridgeChainId,
-		Blake2_256,
-		(DepositNonce, T::Proposal),
-		Option<ProposalVotes<T::AccountId, T::BlockNumber>>,
-		ValueQuery,
-	>;
-
-	#[pallet::storage]
-	#[pallet::getter(fn resources)]
-	pub type Resources<T> = StorageMap<_, Blake2_256, ResourceId, Option<Vec<u8>>, ValueQuery>;
-
 	#[pallet::event]
 	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -229,8 +191,41 @@ pub mod pallet {
 		ProposalExpired,
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
+	#[pallet::storage]
+	#[pallet::getter(fn chains)]
+	pub type ChainNonces<T> = StorageMap<_, Blake2_256, BridgeChainId, DepositNonce>;
+
+	#[pallet::type_value]
+	pub fn DefaultRelayerThresholdValue() -> u32 {
+		DEFAULT_RELAYER_THRESHOLD
+	}
+
+	#[pallet::storage]
+	#[pallet::getter(fn relayer_threshold)]
+	pub type RelayerThreshold<T> = StorageValue<_, u32, ValueQuery, DefaultRelayerThresholdValue>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn relayers)]
+	pub type Relayers<T: Config> = StorageMap<_, Blake2_256, T::AccountId, bool, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn relayer_count)]
+	pub type RelayerCount<T> = StorageValue<_, u32, ValueQuery>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn votes)]
+	pub type Votes<T: Config> = StorageDoubleMap<
+		_,
+		Blake2_256,
+		BridgeChainId,
+		Blake2_256,
+		(DepositNonce, T::Proposal),
+		ProposalVotes<T::AccountId, T::BlockNumber>,
+	>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn resources)]
+	pub type Resources<T> = StorageMap<_, Blake2_256, ResourceId, Vec<u8>>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -415,7 +410,7 @@ pub mod pallet {
 		/// Increments the deposit nonce for the specified chain ID
 		fn bump_nonce(id: BridgeChainId) -> DepositNonce {
 			let nonce = Self::chains(id).unwrap_or_default() + 1;
-			ChainNonces::<T>::insert(id, Some(nonce));
+			ChainNonces::<T>::insert(id, nonce);
 			nonce
 		}
 
@@ -431,7 +426,7 @@ pub mod pallet {
 
 		/// Register a method for a resource Id, enabling associated transfers
 		pub fn register_resource(id: ResourceId, method: Vec<u8>) -> DispatchResult {
-			Resources::<T>::insert(id, Some(method));
+			Resources::<T>::insert(id, method);
 			Ok(())
 		}
 
@@ -450,7 +445,7 @@ pub mod pallet {
 				!Self::chain_whitelisted(id),
 				Error::<T>::ChainAlreadyWhitelisted
 			);
-			ChainNonces::<T>::insert(&id, Some(0));
+			ChainNonces::<T>::insert(&id, 0);
 			Self::deposit_event(Event::ChainWhitelisted(id));
 			Ok(())
 		}
@@ -510,7 +505,7 @@ pub mod pallet {
 				Self::deposit_event(Event::VoteAgainst(src_id, nonce, who.clone()));
 			}
 
-			Votes::<T>::insert(src_id, (nonce, prop.clone()), Some(votes.clone()));
+			Votes::<T>::insert(src_id, (nonce, prop.clone()), votes.clone());
 
 			Ok(())
 		}
@@ -528,7 +523,7 @@ pub mod pallet {
 
 				let status =
 					votes.try_to_complete(RelayerThreshold::<T>::get(), RelayerCount::<T>::get());
-				Votes::<T>::insert(src_id, (nonce, prop.clone()), Some(votes.clone()));
+				Votes::<T>::insert(src_id, (nonce, prop.clone()), votes.clone());
 
 				match status {
 					ProposalStatus::Approved => Self::finalize_execution(src_id, nonce, prop),
