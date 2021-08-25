@@ -22,6 +22,7 @@ members = [
 	"crates/prpc",
 	"crates/prpc-build",
 	"pallets/phala",
+	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"

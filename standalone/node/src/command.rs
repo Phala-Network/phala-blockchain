@@ -50,7 +50,10 @@ impl SubstrateCli for Cli {
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
 		Ok(match id {
-			"dev" => Box::new(chain_spec::development_config()),
+			"dev" => match self.block_millisecs {
+				Some(block_millisecs) => Box::new(chain_spec::development_config_custom_block_duration(block_millisecs)),
+				None => Box::new(chain_spec::development_config()),
+			}
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			"fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
 			"" | "phala" | "phala_testnet" => Box::new(chain_spec::phala_testnet_config()?),

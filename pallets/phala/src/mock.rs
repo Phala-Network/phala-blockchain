@@ -50,7 +50,7 @@ parameter_types! {
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 }
 impl system::Config for Test {
-	type BaseCallFilter = frame_support::traits::AllowAll;
+	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type Origin = Origin;

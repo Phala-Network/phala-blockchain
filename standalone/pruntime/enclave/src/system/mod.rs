@@ -342,7 +342,7 @@ pub struct System {
     // Gatekeeper
     registered_on_chain: bool,
     master_key: Option<sr25519::Pair>,
-    gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
+    pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
 
 impl System {

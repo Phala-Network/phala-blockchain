@@ -41,11 +41,19 @@ enum Cli {
         destination: String,
         hex_data: String,
     },
+    DecodeFrnkJustification {
+        hex_data: String,
+    },
     EcdhKey {
         privkey: String,
     },
     InspectPalletId {
         pallet_id: String,
+    },
+    GetWorkerState {
+        #[structopt(long, default_value = "http://localhost:8000")]
+        url: String,
+        pubkey: String,
     }
 }
 
@@ -122,6 +130,11 @@ fn main() {
             let data = decode_hex(&hex_data);
             decode_mq_payload(destination.as_bytes(), &data);
         }
+        Cli::DecodeFrnkJustification { hex_data } => {
+            let data = decode_hex(&hex_data);
+            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..]).expect("Error decoding FRNK justification");
+            println!("{:?}", j);
+        }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;
 
@@ -138,6 +151,20 @@ fn main() {
             let id = frame_support::PalletId(pallet_id_array);
             let account: AccountId = id.into_account();
             println!("Pallet account: {}", account);
+        }
+        Cli::GetWorkerState { url, pubkey } => {
+            use tokio::runtime::Runtime;
+
+            let client = enclave_api::pruntime_client::new_pruntime_client(url);
+            let public_key = hex::decode(pubkey).expect("Failed to decode pubkey");
+
+            let rt  = Runtime::new().unwrap();
+            rt.block_on(async move {
+                match client.get_worker_state(enclave_api::prpc::GetWorkerStateRequest { public_key }).await {
+                    Ok(state) => println!("{:#?}", state),
+                    Err(err) => println!("Error: {:?}", err),
+                }
+            });
         }
     }
 }
@@ -177,7 +204,8 @@ fn argument_or_stdin(arg: &str) -> String {
 }
 
 type AccountId = sp_runtime::AccountId32;
-// type Balance = u128;
+type Header = sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>;
+type Block = sp_runtime::generic::Block<Header, sp_runtime::OpaqueExtrinsic>;
 
 // TODO(h4x): move it to a separate crate to share the code
 fn decode_mq_payload(destination: &[u8], payload: &[u8]) {

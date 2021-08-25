@@ -13,7 +13,7 @@ echo "----------- starting pruntime ----------"
 source /opt/sgxsdk/environment
 cd /root/prebuilt && ./app -c 1 > /root/pruntime.out 2>&1 &
 
-sleep 6
+sleep 16
 
 echo "----------- starting pherry -------------"
 cd /root/prebuilt && ./pherry --dev --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/pherry.out 2>&1 &

@@ -1,9 +1,11 @@
 use alloc::vec::Vec;
+use alloc::string::String;
 use core::hash::{Hash, Hasher};
 use primitive_types::H256;
 
 use parity_scale_codec::{Decode, Encode};
 use sp_core::crypto::{AccountId32, UncheckedFrom};
+use derive_more::Display;
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
@@ -17,17 +19,22 @@ pub fn contract_id256(id: u32) -> ContractId {
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Display)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
+    #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(&_0)")]
     Pallet(Vec<u8>),
     /// A confidential contract
+    #[display(fmt = "Contract({})", "hex::encode(&_0)")]
     Contract(ContractId),
     /// A pRuntime worker
+    #[display(fmt = "Worker({})", "hex::encode(&_0)")]
     Worker(sp_core::sr25519::Public),
     /// A user
+    #[display(fmt = "AccountId({})", "hex::encode(&_0)")]
     AccountId(AccountId),
     /// A remote location (parachain, etc.)
+    #[display(fmt = "MultiLocation({})", "hex::encode(&_0)")]
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,

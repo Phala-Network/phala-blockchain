@@ -16,7 +16,7 @@ echo "----------- starting pruntime ----------"
 source /opt/sgxsdk/environment
 cd /root/prebuilt && ./app > /root/pruntime.out 2>&1 &
 
-sleep 12 # HW PRuntime start time longer than SW
+sleep 24 # HW PRuntime start time longer than SW
 
 echo "----------- starting pherry -------------"
 cd /root/prebuilt && ./pherry --skip-ra false --mnemonic "//Alice" --pruntime-endpoint "http://localhost:8000" --substrate-ws-endpoint "ws://localhost:9944" > /root/pherry.out 2>&1 &

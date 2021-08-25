@@ -16,6 +16,7 @@ use crate::{
 };
 
 use crate::std::vec::Vec;
+use enclave_api::prpc as pb;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -50,6 +51,10 @@ struct WorkerInfo {
     unresponsive: bool,
     tokenomic: TokenomicInfo,
     heartbeat_flag: bool,
+    last_heartbeat_for_block: chain::BlockNumber,
+    last_heartbeat_at_block: chain::BlockNumber,
+    last_gk_responsive_event: i32,
+    last_gk_responsive_event_at_block: chain::BlockNumber,
 }
 
 impl WorkerInfo {
@@ -60,6 +65,10 @@ impl WorkerInfo {
             unresponsive: false,
             tokenomic: Default::default(),
             heartbeat_flag: false,
+            last_heartbeat_for_block: 0,
+            last_heartbeat_at_block: 0,
+            last_gk_responsive_event: 0,
+            last_gk_responsive_event_at_block: 0,
         }
     }
 }
@@ -75,7 +84,7 @@ impl WorkerInfo {
 //
 // For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
 // to received messages in the same way.
-pub(super) struct Gatekeeper<MsgChan> {
+pub(crate) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
@@ -164,6 +173,35 @@ where
         ));
         self.last_random_number = random_number;
     }
+
+    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
+        let info = self.workers.get(pubkey)?;
+        Some(pb::WorkerState {
+            public_key: info.state.pubkey.to_vec(),
+            registered: info.state.registered,
+            bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
+                start_block: state.start_block,
+                start_time: state.start_time,
+                start_iter: state.start_iter,
+                duration: state.duration,
+            }),
+            mining_state: info
+                .state
+                .mining_state
+                .as_ref()
+                .map(|state| pb::MiningState {
+                    session_id: state.session_id,
+                    paused: matches!(state.state, super::MiningState::Paused),
+                    start_time: state.start_time,
+                    start_iter: state.start_iter,
+                }),
+            waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
+            last_heartbeat_for_block: info.last_heartbeat_for_block,
+            last_heartbeat_at_block: info.last_heartbeat_at_block,
+            last_gk_responsive_event: info.last_gk_responsive_event,
+            last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
+        })
+    }
 }
 
 struct GKMessageProcesser<'a, MsgChan> {
@@ -241,6 +279,8 @@ where
                     self.report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
+                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::ExitUnresponsive as _;
+                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if self.block.block_number - hb_sent_at
@@ -249,6 +289,8 @@ where
                     // case3: Idle, heartbeat failed
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
+                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
+                    worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             }
 
@@ -290,6 +332,8 @@ where
                         return;
                     }
                 };
+                worker_info.last_heartbeat_at_block = self.block.block_number;
+                worker_info.last_heartbeat_for_block = challenge_block;
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
                     error!("Fatal error: Unexpected heartbeat {:?}", event);
@@ -622,6 +666,9 @@ mod tokenomic {
             if now <= self.challenge_time_last {
                 return;
             }
+            if iterations < self.iteration_last {
+                self.iteration_last = iterations;
+            }
             let dt = FixedPoint::from_num(now - self.challenge_time_last) / 1000;
             let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp!(1.2));
@@ -673,7 +720,7 @@ pub mod tests {
     fn mk_msg<M: Encode + BindTopic>(sender: &MessageOrigin, msg: M) -> Message {
         Message {
             sender: sender.clone(),
-            destination: M::TOPIC.to_vec().into(),
+            destination: M::topic().into(),
             payload: msg.encode(),
         }
     }
@@ -692,7 +739,7 @@ pub mod tests {
             self.drain()
                 .into_iter()
                 .filter_map(|m| {
-                    if &m.destination.path()[..] == M::TOPIC {
+                    if &m.destination.path()[..] == &M::topic() {
                         Decode::decode(&mut &m.payload[..]).ok()
                     } else {
                         None
@@ -714,7 +761,7 @@ pub mod tests {
         fn push_message<M: Encode + BindTopic>(&self, message: M) {
             let message = Message {
                 sender: MessageOrigin::Gatekeeper,
-                destination: M::TOPIC.to_vec().into(),
+                destination: M::topic().into(),
                 payload: message.encode(),
             };
             self.messages.borrow_mut().push(message);
@@ -829,6 +876,7 @@ pub mod tests {
         gk_should_slash_offline_workers_sliently_case4();
         gk_should_report_recovered_workers_case5();
         check_tokenomic_numerics();
+        test_update_p_instant();
     }
 
     fn gk_should_be_able_to_observe_worker_states() {
@@ -1379,5 +1427,22 @@ pub mod tests {
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check miner reconnection and V recovery
+    }
+
+    fn test_update_p_instant() {
+        let mut info = super::TokenomicInfo {
+            p_bench: fp!(100),
+            ..Default::default()
+        };
+
+        // Normal
+        info.update_p_instant(100_000, 1000);
+        info.challenge_time_last = 90_000;
+        info.iteration_last = 1000;
+        assert_eq!(info.p_instant, fp!(60));
+
+        // Reset
+        info.update_p_instant(200_000, 999);
+        assert_eq!(info.p_instant, fp!(0));
     }
 }

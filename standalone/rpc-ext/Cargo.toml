@@ -11,10 +11,13 @@ repository = "https://github.com/Phala-Network/phala-blockchain"
 # third-party dependencies
 serde = { version = "1.0.102", features = ["derive"] }
 thiserror = "1.0"
-jsonrpc-derive = "15.1"
-jsonrpc-core = "15.1"
-jsonrpc-core-client = "15.1"
+jsonrpc-derive = "18.0.0"
+jsonrpc-core = "18.0.0"
+jsonrpc-core-client = "18.0.0"
 impl-serde = "0.3"
+log = { version = "0.4.14", default-features = false }
+hex = { version = "0.4.3", default-features = false }
+codec = { package = "parity-scale-codec", version = "2.2" }
 
 # primitives
 sp-runtime = { path = "../../substrate/primitives/runtime" }
@@ -23,6 +26,11 @@ sp-api = { path = "../../substrate/primitives/api" }
 
 # client dependencies
 sc-client-api = { path = "../../substrate/client/api" }
+sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
+
+phala-mq = { path = "../../crates/phala-mq", default-features = false }
+phala-pallets = { path = "../../pallets/phala", default-features = false }
+pallet-mq-runtime-api = { path = "../../pallets/phala/mq-runtime-api", default-features = false }
 
 # node-specific dependencies
 node-rpc = { version = "2.0.0", path = "../rpc" }
