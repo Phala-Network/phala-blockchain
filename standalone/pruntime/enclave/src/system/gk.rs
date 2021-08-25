@@ -264,7 +264,7 @@ where
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
             debug!(
-                "block_post_process for worker {}",
+                "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
             let mut tracker = WorkerSMTracker {
