@@ -210,7 +210,7 @@ pub extern "C" fn close(_fd: c_int) -> c_int {
 }
 
 #[no_mangle]
-pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, _flags: c_uint) -> ssize_t {
+pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, flags: c_uint) -> ssize_t {
     if buflen == 0 {
         return 0;
     }
@@ -220,7 +220,11 @@ pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, _flags: c_uint) ->
     match rv {
         sgx_status_t::SGX_SUCCESS => buflen as _,
         _ => {
-            set_errno(libc::EINTR);
+            if flags & libc::GRND_NONBLOCK != 0 {
+                set_errno(libc::EAGAIN);
+            } else {
+                set_errno(libc::EINTR);
+            }
             -1
         }
     }
