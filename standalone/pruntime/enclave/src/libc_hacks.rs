@@ -277,8 +277,8 @@ pub extern "C" fn pthread_atfork(
     _child: Option<unsafe extern "C" fn()>,
 ) -> c_int {
     // NOTE: The rand crate uses pthread_atfork to track forks, and reseeds on forks detected. Since we don't
-    // allow dynamic thread creating, It's OK to provide a DUMMPY implementation.
-    info!("DUMMPY pthread_atfork called");
+    // allow dynamic thread creating, It's OK to provide a dummy implementation.
+    info!("dummy pthread_atfork called");
     0
 }
 
