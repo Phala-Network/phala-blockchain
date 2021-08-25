@@ -32,9 +32,15 @@ macro_rules! not_allowed {
     };
     ($rv: expr) => {{
         error!("NOT ALLOED TO CALL {}", function!());
-        sgx_libc::set_errno(libc::EPERM);
+        set_errno(libc::EPERM);
         ($rv) as _
     }};
+}
+
+fn set_errno(errno: libc::c_int) {
+    unsafe {
+        libc::__errno_location().write(errno);
+    }
 }
 
 #[no_mangle]
@@ -188,7 +194,7 @@ pub extern "C" fn getrandom(buf: *mut c_void, buflen: size_t, _flags: c_uint) ->
     match rv {
         sgx_status_t::SGX_SUCCESS => buflen as _,
         _ => {
-            sgx_libc::set_errno(libc::EINTR);
+            set_errno(libc::EINTR);
             -1
         }
     }
@@ -422,3 +428,18 @@ mod placeholders {
     pub extern "C" fn sched_getaffinity() {}
 }
 
+#[cfg(feature = "tests")]
+pub(crate) mod tests {
+    use super::*;
+
+    fn test_seterrno() {
+        set_errno(42);
+        unsafe {
+            assert_eq!(libc::__errno_location().read(), 42);
+        }
+    }
+
+    pub(crate) fn test_all() {
+        test_seterrno();
+    }
+}
