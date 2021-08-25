@@ -17,6 +17,7 @@ use crate::{
 
 use crate::std::vec::Vec;
 use enclave_api::prpc as pb;
+use log::debug;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -177,12 +178,11 @@ where
     pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
         let info = self.workers.get(pubkey)?;
         Some(pb::WorkerState {
-            public_key: info.state.pubkey.to_vec(),
             registered: info.state.registered,
+            unresponsive: info.unresponsive,
             bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
                 start_block: state.start_block,
                 start_time: state.start_time,
-                start_iter: state.start_iter,
                 duration: state.duration,
             }),
             mining_state: info
@@ -193,7 +193,6 @@ where
                     session_id: state.session_id,
                     paused: matches!(state.state, super::MiningState::Paused),
                     start_time: state.start_time,
-                    start_iter: state.start_iter,
                 }),
             waiting_heartbeats: info.waiting_heartbeats.iter().copied().collect(),
             last_heartbeat_for_block: info.last_heartbeat_for_block,
@@ -216,11 +215,13 @@ where
     MsgChan: MessageChannel,
 {
     fn process(&mut self) {
+        debug!("Gatekeeper: processing block {}", self.block.block_number);
         self.prepare();
         loop {
             let ok = phala_mq::select! {
                 message = self.state.mining_events => match message {
                     Ok((_, event, origin)) => {
+                        debug!("Processing mining report: {:?}, origin: {}",  event, origin);
                         self.process_mining_report(origin, event);
                     }
                     Err(e) => {
@@ -229,6 +230,7 @@ where
                 },
                 message = self.state.system_events => match message {
                     Ok((_, event, origin)) => {
+                        debug!("Processing system event: {:?}, origin: {}",  event, origin);
                         self.process_system_event(origin, event);
                     }
                     Err(e) => {
@@ -250,6 +252,7 @@ where
             }
         }
         self.block_post_process();
+        debug!("Gatekeeper: processed block {}", self.block.block_number);
     }
 
     fn prepare(&mut self) {
@@ -260,6 +263,10 @@ where
 
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
+            debug!(
+                "[{}] block_post_process",
+                hex::encode(&worker_info.state.pubkey)
+            );
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
             };
@@ -268,13 +275,19 @@ where
                 .on_block_processed(self.block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
-                // Mining already stopped, do nothing.
+                debug!(
+                    "[{}] Mining already stopped, do nothing.",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 continue;
             }
 
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
-                    // case5: Unresponsive, successful heartbeat
+                    debug!(
+                        "[{}] case5: Unresponsive, successful heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     worker_info.unresponsive = false;
                     self.report
                         .recovered_to_online
@@ -286,7 +299,12 @@ where
                 if self.block.block_number - hb_sent_at
                     > self.state.tokenomic_params.heartbeat_window
                 {
-                    // case3: Idle, heartbeat failed
+                    debug!(
+                        "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
+                        hex::encode(&worker_info.state.pubkey),
+                        self.block.block_number,
+                        hb_sent_at
+                    );
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
                     worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
@@ -296,12 +314,16 @@ where
 
             let params = &self.state.tokenomic_params;
             if worker_info.unresponsive {
-                // case3/case4:
-                // Idle, heartbeat failed or
-                // Unresponsive, no event
+                debug!(
+                    "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 worker_info.tokenomic.update_v_slash(&params);
             } else if !worker_info.heartbeat_flag {
-                // case1: Idle, no event
+                debug!(
+                    "[{}] case1: Idle, no event",
+                    hex::encode(&worker_info.state.pubkey)
+                );
                 worker_info.tokenomic.update_v_idle(&params);
             }
         }
@@ -349,12 +371,18 @@ where
                 let mining_state = if let Some(state) = &worker_info.state.mining_state {
                     state
                 } else {
-                    // Mining already stopped, ignore the heartbeat.
+                    debug!(
+                        "[{}] Mining already stopped, ignore the heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     return;
                 };
 
                 if session_id != mining_state.session_id {
-                    // Heartbeat response to previous mining sessions, ignore it.
+                    debug!(
+                        "[{}] Heartbeat response to previous mining sessions, ignore it.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     return;
                 }
 
@@ -366,9 +394,12 @@ where
                 tokenomic.iteration_last = iterations;
 
                 if worker_info.unresponsive {
-                    // case5: Unresponsive, successful heartbeat.
+                    debug!(
+                        "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                 } else {
-                    // case2: Idle, successful heartbeat, report to pallet
+                    debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.state.tokenomic_params,
                         self.sum_share,
@@ -407,15 +438,17 @@ where
                 .or_insert_with(|| WorkerInfo::new(*pubkey));
         }
 
+        let log_on = log::log_enabled!(log::Level::Debug);
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker {
                 waiting_heartbeats: &mut worker_info.waiting_heartbeats,
             };
+            debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
-                .process_event(self.block, &event, &mut tracker, false);
+                .process_event(self.block, &event, &mut tracker, log_on);
         }
 
         match &event {
@@ -523,6 +556,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _challenge_time: u64,
         _iterations: u64,
     ) {
+        debug!("Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
     }
 }

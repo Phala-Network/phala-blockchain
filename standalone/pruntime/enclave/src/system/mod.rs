@@ -168,6 +168,9 @@ impl WorkerState {
                     MiningEnterUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
                             if let Mining = info.state {
+                                if log_on {
+                                    info!("Enter paused");
+                                }
                                 info.state = Paused;
                                 return;
                             }
@@ -182,6 +185,9 @@ impl WorkerState {
                     MiningExitUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
                             if let Paused = info.state {
+                                if log_on {
+                                    info!("Exit paused");
+                                }
                                 info.state = Mining;
                                 return;
                             }
