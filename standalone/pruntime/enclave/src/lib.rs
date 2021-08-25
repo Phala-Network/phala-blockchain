@@ -1266,5 +1266,6 @@ fn test(_param: TestReq) -> Result<Value, Value> {
 #[cfg(feature = "tests")]
 fn run_all_tests() {
     system::run_all_tests();
-    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
+    libc_hacks::tests::test_all();
+    panic!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
 }

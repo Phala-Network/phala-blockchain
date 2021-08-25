@@ -100,10 +100,31 @@ pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t
 }
 
 #[no_mangle]
-pub extern "C" fn getcwd(buf: *mut c_char, size: size_t) -> *mut c_char {
-    // Enclave have no working directory, let's return ""
-    if size > 0 {
-        unsafe { *buf = 0 };
+pub extern "C" fn getcwd(mut buf: *mut c_char, size: size_t) -> *mut c_char {
+    // Enclave have no working directory, let's return "(unreachable)"
+    /*
+    man getcwd:
+       If the current directory is not below the root directory of the current process (e.g., because the process set a new filesystem root  using  chroot(2)  without
+       changing its current directory into the new root), then, since Linux 2.6.36, the returned path will be prefixed with the string "(unreachable)".  Such behavior
+       can also be caused by an unprivileged user by changing the current directory into another mount namespace.  When dealing with  paths  from  untrusted  sources,
+       callers of these functions should consider checking whether the returned path starts with '/' or '(' to avoid misinterpreting an unreachable path as a relative
+       path
+    */
+    let path = b"(unreachable)\0";
+    if size < path.len() {
+        set_errno(libc::ERANGE);
+        return core::ptr::null_mut();
+    }
+    unsafe {
+        if buf.is_null() {
+            buf = sgx_libc::malloc(size) as *mut c_char;
+            if buf.is_null() {
+                set_errno(libc::ENOMEM);
+                return core::ptr::null_mut();
+            }
+        }
+        path.as_ptr()
+            .copy_to_nonoverlapping(buf as *mut u8, path.len());
     }
     return buf;
 }
@@ -398,7 +419,6 @@ mod net {
     }
 }
 
-
 // For debugging
 #[cfg(feature = "libc_placeholders")]
 mod placeholders {
@@ -432,6 +452,13 @@ mod placeholders {
 pub(crate) mod tests {
     use super::*;
 
+    fn test_getcwd() {
+        assert_eq!(
+            std::env::current_dir().unwrap(),
+            std::path::PathBuf::from("(unreachable)")
+        );
+    }
+
     fn test_seterrno() {
         set_errno(42);
         unsafe {
@@ -440,6 +467,7 @@ pub(crate) mod tests {
     }
 
     pub(crate) fn test_all() {
+        test_getcwd();
         test_seterrno();
     }
 }
