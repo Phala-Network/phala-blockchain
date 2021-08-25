@@ -1,4 +1,4 @@
-use codec::{Decode, Encode};
+use codec::Decode;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
@@ -156,7 +156,7 @@ fn main() {
             use tokio::runtime::Runtime;
 
             let client = enclave_api::pruntime_client::new_pruntime_client(url);
-            let public_key = hex::decode(pubkey).expect("Failed to decode pubkey");
+            let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
 
             let rt  = Runtime::new().unwrap();
             rt.block_on(async move {
@@ -169,13 +169,12 @@ fn main() {
     }
 }
 
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
+}
+
 fn decode_hex(hex_str: &str) -> Vec<u8> {
-    let raw_hex = if hex_str.starts_with("0x") {
-        &hex_str[2..]
-    } else {
-        hex_str
-    };
-    hex::decode(raw_hex).expect("Failed to parse hex_data")
+    try_decode_hex(hex_str).expect("Failed to parse hex_data")
 }
 
 fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
