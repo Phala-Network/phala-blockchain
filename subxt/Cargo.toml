@@ -55,7 +55,7 @@ frame-support = { path = "../substrate/frame/support" }
 pallet-indices = { path = "../substrate/frame/indices" }
 pallet-staking = { path = "../substrate/frame/staking" }
 
-rpc-ext = { path = "../standalone/rpc-ext" }
+phala-node-rpc-ext = { path = "../crates/phala-node-rpc-ext" }
 
 [dev-dependencies]
 assert_matches = "1.5.0"

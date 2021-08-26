@@ -1,5 +1,5 @@
 use super::*;
-use enclave_api::{blocks, crypto, prpc as pb};
+use phala_enclave_api::{blocks, crypto, prpc as pb};
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,

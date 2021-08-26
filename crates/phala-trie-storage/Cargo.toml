@@ -1,5 +1,5 @@
 [package]
-name = "trie-storage"
+name = "phala-trie-storage"
 version = "0.1.0"
 edition = "2018"
 authors = ["Phala Network"]

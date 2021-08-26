@@ -10,17 +10,18 @@ exclude = [
 ]
 
 members = [
-	"common/types",
 	"standalone/executor",
 	"standalone/rpc",
-    "standalone/node",
+	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
-	"crates/trie-storage",
+	"crates/phala-trie-storage",
 	"crates/phala-mq",
-	"crates/crypto",
+	"crates/phala-crypto",
 	"crates/prpc",
 	"crates/prpc-build",
+	"crates/phala-node-rpc-ext",
+	"crates/phala-types",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",

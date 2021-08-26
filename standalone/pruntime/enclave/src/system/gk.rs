@@ -16,7 +16,7 @@ use crate::{
 };
 
 use crate::std::vec::Vec;
-use enclave_api::prpc as pb;
+use phala_enclave_api::prpc as pb;
 use log::debug;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};

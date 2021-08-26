@@ -3,7 +3,6 @@ use std::sync::Arc;
 
 use jsonrpc_derive::rpc;
 use mq_seq::Error as MqSeqError;
-use node_rpc::IoHandler;
 use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
 use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
@@ -102,7 +101,7 @@ where
 }
 
 pub fn extend_rpc<Client, BE, Block, P>(
-    io: &mut IoHandler,
+    io: &mut jsonrpc_core::IoHandler<sc_rpc::Metadata>,
     client: Arc<Client>,
     backend: Arc<BE>,
     is_archive_mode: bool,

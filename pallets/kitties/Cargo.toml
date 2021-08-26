@@ -24,7 +24,7 @@ pallet-randomness-collective-flip = { default-features = false, path = "../../su
 
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 phala-pallets = { path = "../phala", default-features = false }
-phala-types = { path = "../../common/types", default-features = false }
+phala-types = { path = "../../crates/phala-types", default-features = false }
 
 [features]
 default = ["std"]

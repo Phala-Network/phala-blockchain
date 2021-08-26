@@ -249,7 +249,7 @@ pub mod parachain_info {
     use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
 
-    pub type ParachainId = enclave_api::blocks::ParaId;
+    pub type ParachainId = phala_enclave_api::blocks::ParaId;
 
     #[module]
     pub trait ParachainInfo: System {}

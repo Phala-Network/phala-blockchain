@@ -44,7 +44,7 @@ log = "0.4.8"
 rand = "0.7.2"
 structopt = { version = "0.3.8", optional = true }
 
-rpc-ext = { path = "../rpc-ext" }
+phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 
 # primitives
 sp-authority-discovery = { path = "../../substrate/primitives/authority-discovery" }
