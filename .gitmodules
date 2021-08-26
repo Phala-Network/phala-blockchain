@@ -5,5 +5,5 @@
 	path = teaclave-sgx-sdk
 	url = https://github.com/Phala-Network/incubator-teaclave-sgx-sdk.git
 [submodule "standalone/pruntime/enclave-api/proto"]
-	path = standalone/pruntime/enclave-api/proto
+	path = crates/phactory/api/proto
 	url = https://github.com/Phala-Network/prpc-protos.git
