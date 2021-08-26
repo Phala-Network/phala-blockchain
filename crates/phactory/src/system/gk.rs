@@ -21,6 +21,7 @@ use crate::{
 };
 
 use phactory_api::prpc as pb;
+use fixed_macro::types::U64F64 as fp;
 use log::debug;
 use msg_trait::MessageChannel;
 use tokenomic::{FixedPoint, TokenomicInfo};
@@ -264,6 +265,11 @@ where
             last_heartbeat_at_block: info.last_heartbeat_at_block,
             last_gk_responsive_event: info.last_gk_responsive_event,
             last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
+            tokenomic_info: if info.state.mining_state.is_some() {
+                Some(info.tokenomic.clone().into())
+            } else {
+                None
+            },
         })
     }
 }
@@ -385,7 +391,7 @@ where
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
-                worker_info.tokenomic.update_v_slash(&params);
+                worker_info.tokenomic.update_v_slash(&params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
                 debug!(
                     "[{}] case1: Idle, no event",
@@ -480,7 +486,7 @@ where
                         v: worker_info.tokenomic.v.to_bits(),
                         payout: payout.to_bits(),
                         treasury: treasury.to_bits(),
-                    })
+                    });
                 }
             }
         }
@@ -539,6 +545,7 @@ where
                             worker.unresponsive = false;
                             worker.tokenomic = TokenomicInfo {
                                 v,
+                                v_init: v,
                                 v_last: v,
                                 v_update_at: self.block.now_ms,
                                 v_update_block: self.block.block_number,
@@ -547,6 +554,15 @@ where
                                 p_bench: FixedPoint::from_num(*init_p),
                                 p_instant: FixedPoint::from_num(*init_p),
                                 confidence_level: prev.confidence_level,
+
+                                last_payout: fp!(0),
+                                last_payout_at_block: 0,
+                                total_payout: fp!(0),
+                                total_payout_count: 0,
+                                last_slash: fp!(0),
+                                last_slash_at_block: 0,
+                                total_slash: fp!(0),
+                                total_slash_count: 0,
                             };
                         }
                         WorkerEvent::MiningStop => {
@@ -586,6 +602,10 @@ where
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
                     self.state.tokenomic_params = params.into();
+                    info!(
+                        "Tokenomic parameter updated: {:#?}",
+                        &self.state.tokenomic_params
+                    );
                 }
             }
         }
@@ -650,6 +670,7 @@ mod tokenomic {
     #[derive(Default, Clone, Copy)]
     pub struct TokenomicInfo {
         pub v: FixedPoint,
+        pub v_init: FixedPoint,
         pub v_last: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
@@ -658,6 +679,40 @@ mod tokenomic {
         pub p_bench: FixedPoint,
         pub p_instant: FixedPoint,
         pub confidence_level: u8,
+
+        pub last_payout: FixedPoint,
+        pub last_payout_at_block: chain::BlockNumber,
+        pub total_payout: FixedPoint,
+        pub total_payout_count: chain::BlockNumber,
+        pub last_slash: FixedPoint,
+        pub last_slash_at_block: chain::BlockNumber,
+        pub total_slash: FixedPoint,
+        pub total_slash_count: chain::BlockNumber,
+    }
+
+    impl From<TokenomicInfo> for super::pb::TokenomicInfo {
+        fn from(info: TokenomicInfo) -> Self {
+            Self {
+                v: info.v.to_string(),
+                v_init: info.v_init.to_string(),
+                v_last: info.v_last.to_string(),
+                v_update_at: info.v_update_at,
+                v_update_block: info.v_update_block,
+                iteration_last: info.iteration_last,
+                challenge_time_last: info.challenge_time_last,
+                p_bench: info.p_bench.to_string(),
+                p_instant: info.p_instant.to_string(),
+                confidence_level: info.confidence_level as _,
+                last_payout: info.last_payout.to_string(),
+                last_payout_at_block: info.last_payout_at_block,
+                last_slash: info.last_slash.to_string(),
+                last_slash_at_block: info.last_slash_at_block,
+                total_payout: info.total_payout.to_string(),
+                total_payout_count: info.total_payout_count,
+                total_slash: info.total_slash.to_string(),
+                total_slash_count: info.total_slash_count,
+            }
+        }
     }
 
     #[derive(Debug)]
@@ -751,12 +806,26 @@ mod tokenomic {
             self.v_last = self.v;
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
+
+            // stats
+            self.last_payout = actual_payout;
+            self.last_payout_at_block = block_number;
+            self.total_payout += actual_payout;
+            self.total_payout_count += 1;
+
             (actual_payout, actual_treasury)
         }
 
-        pub fn update_v_slash(&mut self, params: &Params) {
-            self.v -= self.v * params.slash_rate;
+        pub fn update_v_slash(&mut self, params: &Params, block_number: chain::BlockNumber) {
+            let slash = self.v * params.slash_rate;
+            self.v -= slash;
             self.v_last = self.v;
+
+            // stats
+            self.last_slash = slash;
+            self.last_slash_at_block = block_number;
+            self.total_slash += slash;
+            self.total_slash_count += 1;
         }
 
         pub fn share(&self) -> FixedPoint {
