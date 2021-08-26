@@ -689,6 +689,7 @@ mod tokenomic {
 
         pub fn update_v_slash(&mut self, params: &Params) {
             self.v -= self.v * params.slash_rate;
+            self.v_last = self.v;
         }
 
         pub fn share(&self) -> FixedPoint {
