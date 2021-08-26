@@ -75,6 +75,7 @@ grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/fina
 sc-rpc = { path = "../../substrate/client/rpc" }
 sc-basic-authorship = { path = "../../substrate/client/basic-authorship" }
 sc-service = { default-features = false, path = "../../substrate/client/service" }
+sc-executor = { path = "../../substrate/client/executor" }
 sc-telemetry = { path = "../../substrate/client/telemetry" }
 sc-authority-discovery = { path = "../../substrate/client/authority-discovery" }
 sc-sync-state-rpc = { version = "0.10.0-dev", path = "../../substrate/client/sync-state-rpc" }
@@ -127,11 +128,7 @@ frame-benchmarking-cli = { optional = true, path = "../../substrate/utils/frame/
 substrate-build-script-utils = { optional = true, path = "../../substrate/utils/build-script-utils" }
 substrate-frame-cli = { optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
-
-[build-dependencies.sc-cli]
-package = "sc-cli"
-path = "../../substrate/client/cli"
-optional = true
+sc-cli = { path = "../../substrate/client/cli", optional = true }
 
 [features]
 default = ["cli"]
