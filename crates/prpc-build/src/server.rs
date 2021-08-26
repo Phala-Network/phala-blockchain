@@ -60,7 +60,7 @@ pub fn generate<T: Service>(
                     }
                 }
 
-                pub fn dispatch_request(&self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
+                pub fn dispatch_request(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
                     match path {
                         #methods
                         _ => Err(prpc::server::Error::NotFound),
@@ -110,7 +110,7 @@ fn generate_trait_methods<T: Service>(
             (false, false) => {
                 quote! {
                     #method_doc
-                    fn #name(&self, request: #req_message)
+                    fn #name(&mut self, request: #req_message)
                         -> Result<#res_message, prpc::server::Error>;
                 }
             }
