@@ -29,6 +29,7 @@ anyhow = { version = "1.0", default-features = false }
 thiserror = { version = "1.0", default-features = false }
 bit-vec = { version = "0.6.3", default-features = false }
 itertools = { version = "0.10.1", default-features = false }
+lazy_static = { version = "1.4.0", default-features = false }
 
 trie-storage = { path = "../trie-storage", default-features = false }
 phala-mq = { path = "../phala-mq" }
@@ -49,7 +50,8 @@ phala-pallets = { path = "../../pallets/phala", default-features = false }
 pallet-kitties = { path = "../../pallets/kitties", default-features = false }
 bridge-transfer = { package = "pallet-bridge-transfer", path = "../../pallets/bridge_transfer", default-features = false }
 phala-types = { path = "../../common/types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
-phactory-api = { path = "../phactory-api", default-features = false }
+phactory-api = { path = "./api", default-features = false }
+phactory-pal = { path = "./pal", default-features = false }
 
 csv-core = { version = "0.1.10", default-features = false }
 

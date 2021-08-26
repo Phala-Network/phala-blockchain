@@ -524,7 +524,7 @@ pub struct Score {
     pub features: Vec<u32>,
 }
 
-type MachineId = [u8; 16];
+type MachineId = Vec<u8>;
 pub type Sr25519Signature = sp_core::sr25519::Signature;
 pub type WorkerPublicKey = sp_core::sr25519::Public;
 pub type ContractPublicKey = sp_core::sr25519::Public;

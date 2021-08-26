@@ -45,11 +45,11 @@ use http_req::request::{Method, Request};
 
 // use pink::InkModule;
 
-use phala_enclave_api::prpc::InitRuntimeResponse;
-use phala_enclave_api::storage_sync::{
+use phactory_api::prpc::InitRuntimeResponse;
+use phactory_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
 };
-use phala_enclave_api::{
+use phactory_api::{
     actions::*,
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };
@@ -817,7 +817,7 @@ fn new_sr25519_key() -> sr25519::Pair {
     sr25519::Pair::from_seed(&seed)
 }
 
-// TODO.kevin: Move to enclave-api when the std ready.
+// TODO.kevin: Move to phactory-api when the std ready.
 fn generate_random_iv() -> aead::IV {
     let mut nonce_vec = [0u8; aead::IV_BYTES];
     let rand = ring::rand::SystemRandom::new();

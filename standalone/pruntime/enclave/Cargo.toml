@@ -68,7 +68,7 @@ phala-pallets = { path = "../../../pallets/phala", default-features = false }
 pallet-kitties = { path = "../../../pallets/kitties", default-features = false }
 bridge-transfer = { package = "pallet-bridge-transfer", path = "../../../pallets/bridge_transfer", default-features = false }
 phala-types = { path = "../../../crates/phala-types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
-phala-enclave-api = { path = "../enclave-api", default-features = false, features = ["sgx"] }
+phactory-api = { path = "../../../crates/phactory/api", default-features = false, features = ["sgx"] }
 
 csv-core = { version = "0.1.10", default-features = false }
 

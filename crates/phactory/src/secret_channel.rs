@@ -3,7 +3,7 @@ pub use sender::*;
 
 use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
 use crate::std::vec::Vec;
-use phala_enclave_api::crypto::EncryptedData;
+use phactory_api::crypto::EncryptedData;
 use parity_scale_codec::{Decode, Encode};
 
 #[derive(Encode, Decode, Debug)]
@@ -13,7 +13,7 @@ pub enum Payload<T> {
 }
 
 mod sender {
-    use phala_enclave_api::crypto::{ecdh, EncryptedData};
+    use phactory_api::crypto::{ecdh, EncryptedData};
     use parity_scale_codec::Encode;
     use phala_mq::{BindTopic, Path, Sr25519MessageChannel};
 
@@ -71,7 +71,7 @@ mod sender {
 mod receiver {
     use super::Payload;
     use core::marker::PhantomData;
-    use phala_enclave_api::crypto::ecdh;
+    use phactory_api::crypto::ecdh;
     use parity_scale_codec::Decode;
     use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
 

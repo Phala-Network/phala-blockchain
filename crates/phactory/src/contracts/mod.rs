@@ -2,7 +2,6 @@ use crate::secret_channel::{
     storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
 };
 use crate::std::fmt::Debug;
-use crate::system::System;
 use std::convert::TryFrom as _;
 
 use crate::system::{TransactionError, TransactionResult};
@@ -40,7 +39,6 @@ mod support {
 
     pub struct ExecuteEnv<'a> {
         pub block: &'a BlockInfo<'a>,
-        pub system: &'a mut System,
     }
 
     pub struct NativeContext<'a> {

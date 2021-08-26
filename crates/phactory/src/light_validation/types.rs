@@ -1,1 +1,1 @@
-pub use phala_enclave_api::blocks::{AuthoritySet, AuthoritySetChange};
+pub use phactory_api::blocks::{AuthoritySet, AuthoritySetChange};

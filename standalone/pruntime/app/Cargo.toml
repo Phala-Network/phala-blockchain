@@ -25,7 +25,7 @@ log = "0.4"
 env_logger = "0.8"
 hex = "0.4.2"
 colored = "2"
-phala-enclave-api = { path = "../enclave-api" }
+phactory-api = { path = "../../../crates/phactory/api" }
 parity-scale-codec = { version = "2.2", features = ["full"] }
 
 [dev-dependencies]

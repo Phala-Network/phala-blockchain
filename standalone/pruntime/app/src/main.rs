@@ -21,7 +21,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate phala_enclave_api;
+extern crate phactory_api;
 extern crate structopt;
 extern crate parity_scale_codec;
 
@@ -57,7 +57,7 @@ use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
-use phala_enclave_api::{actions, prpc};
+use phactory_api::{actions, prpc};
 
 
 #[derive(StructOpt, Debug)]

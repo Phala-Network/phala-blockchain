@@ -1,7 +1,7 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
 use crate::std::string::ToString;
 use crate::std::vec::Vec;
-use phala_enclave_api::storage_sync::{BlockValidator, Error as SyncError, Result};
+use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 
 pub use storage_ext::{Storage, StorageExt};
 
@@ -12,7 +12,7 @@ impl BlockValidator for LightValidation<chain::Runtime> {
         header: chain::Header,
         ancestry_proof: Vec<chain::Header>,
         grandpa_proof: Vec<u8>,
-        auhtority_set_change: Option<phala_enclave_api::blocks::AuthoritySetChange>,
+        auhtority_set_change: Option<phactory_api::blocks::AuthoritySetChange>,
     ) -> Result<()> {
         self.submit_finalized_headers(
             bridge_id,
@@ -39,7 +39,7 @@ mod storage_ext {
     use crate::chain;
     use crate::light_validation::utils::storage_prefix;
     use crate::std::vec::Vec;
-    use phala_enclave_api::blocks::ParaId;
+    use phactory_api::blocks::ParaId;
     use log::error;
     use parity_scale_codec::{Decode, Error};
     use phala_mq::Message;

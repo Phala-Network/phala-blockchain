@@ -7,8 +7,9 @@ use anyhow::Result;
 use core::fmt;
 use log::info;
 
+use crate::pal;
 use chain::pallet_registry::RegistryEvent;
-pub use phala_enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{
     aead, ecdh,
@@ -334,7 +335,8 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
-pub struct System {
+pub struct System<Platform> {
+    platform: Platform,
     // Configuration
     sealing_path: String,
     // Messageing
@@ -351,8 +353,9 @@ pub struct System {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
 
-impl System {
+impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
+        platform: Platform,
         sealing_path: String,
         identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
@@ -360,9 +363,10 @@ impl System {
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), identity_key);
+        let master_key = master_key::try_unseal(sealing_path.clone(), identity_key, &platform);
 
         System {
+            platform,
             sealing_path,
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
@@ -438,7 +442,7 @@ impl System {
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
-            master_key::seal(self.sealing_path.clone(), &master_key, &self.identity_key);
+            master_key::seal(self.sealing_path.clone(), &master_key, &self.identity_key, &self.platform);
             self.master_key = Some(master_key);
 
             if need_restart {
