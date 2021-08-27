@@ -22,6 +22,7 @@ class PRuntimeApi {
         }
     }
     async query(contractId, request) {
+        console.log(contractId, request)
         const bodyJson = JSON.stringify({
             contract_id: contractId,
             nonce: rand(),

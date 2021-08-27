@@ -3940,6 +3940,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "maxminddb"
+version = "0.17.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d13fa57adcc4f3aca91e511b3cdaa58ed8cbcbf97f20e342a11218c76e127f51"
+dependencies = [
+ "log",
+ "serde 1.0.127",
+]
+
+[[package]]
 name = "maybe-uninit"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5775,6 +5785,7 @@ dependencies = [
  "futures 0.3.16",
  "hex",
  "log",
+ "maxminddb",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",

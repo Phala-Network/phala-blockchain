@@ -23,7 +23,7 @@ pub mod pallet {
 	use phala_types::{
 		messaging::{
 			self, bind_topic, DecodedMessage, MasterKeyEvent, MessageOrigin, SignedMessage,
-			SystemEvent, WorkerEvent,
+			SystemEvent, WorkerEvent, GeolocationCommand, Coordinate
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
@@ -285,6 +285,18 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn send_geolocation(origin: OriginFor<T>, coordinate: Coordinate) -> DispatchResult {
+			let account = ensure_signed(origin)?;
+
+			Self::push_command(GeolocationCommand::update_geolocation(
+				account,
+				coordinate
+			));
+
 			Ok(())
 		}
 	}

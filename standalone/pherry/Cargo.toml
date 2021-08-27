@@ -41,3 +41,5 @@ phala-pallets = { path = "../../pallets/phala" }
 trie-storage = { path = "../../crates/trie-storage" }
 rpc-ext = { path = "../../standalone/rpc-ext" }
 enclave-api = { path = "../../standalone/pruntime/enclave-api" }
+
+maxminddb = "0.17"

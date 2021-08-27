@@ -20,6 +20,7 @@ pub mod data_plaza;
 pub mod substrate_kitties;
 pub mod web3analytics;
 pub mod woothee;
+pub mod geolocation;
 
 pub use phala_types::contract::*;
 

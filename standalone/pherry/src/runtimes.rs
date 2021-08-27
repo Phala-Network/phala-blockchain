@@ -146,6 +146,7 @@ pub mod grandpa {
 pub mod phala_registry {
     use codec::Encode;
     use phala_types::WorkerRegistrationInfo;
+    use phala_types::messaging::{Coordinate};
     use core::marker::PhantomData;
     use phala_pallets::registry::Attestation;
     use subxt::{module, system::System, Call};
@@ -163,6 +164,12 @@ pub mod phala_registry {
         pub pruntime_info: WorkerRegistrationInfo<T::AccountId>,
         /// The enclave attestation
         pub attestation: Attestation,
+    }
+
+    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    pub struct SendGeolocationCall<T: PhalaRegistry> {
+        pub _runtime: PhantomData<T>,
+        pub coordinate: Coordinate,
     }
 }
 

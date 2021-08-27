@@ -386,6 +386,7 @@ pub fn init_runtime(
 
     if local_state.dev_mode {
         // Install contracts when running in dev_mode.
+        info!("Install contracts in dev mode");
 
         macro_rules! install_contract {
             ($id: expr, $inner: expr) => {{
@@ -430,6 +431,10 @@ pub fn init_runtime(
             contracts::DATA_PLAZA,
             contracts::data_plaza::DataPlaza::new()
         );
+        install_contract!(
+            contracts::GEOLOCATION,
+            contracts::geolocation::Geolocation::new()
+        )
     }
 
     let mut runtime_state = RuntimeState {
