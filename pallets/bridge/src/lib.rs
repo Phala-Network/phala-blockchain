@@ -56,6 +56,20 @@ pub mod pallet {
 		pub expiry: BlockNumber,
 	}
 
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	pub enum TransferType {
+		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
+		NonFungibleTransfer(
+			BridgeChainId,
+			DepositNonce,
+			ResourceId,
+			Vec<u8>,
+			Vec<u8>,
+			Vec<u8>,
+		),
+		GenericTransfer(BridgeChainId, DepositNonce, ResourceId, Vec<u8>),
+	}
+
 	impl<A: PartialEq, B: PartialOrd + Default> ProposalVotes<A, B> {
 		/// Attempts to mark the proposal as approve or rejected.
 		/// Returns true if the status changes from active.
@@ -232,6 +246,19 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn resources)]
 	pub type Resources<T> = StorageMap<_, Blake2_256, ResourceId, Vec<u8>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn bridge_events)]
+	pub type BridgeEvents<T> = StorageValue<_, Vec<TransferType>, ValueQuery>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+		fn on_initialize(_n: T::BlockNumber) -> Weight {
+			// Clear all bridge transfer data
+			BridgeEvents::<T>::kill();
+			0
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -604,6 +631,15 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			let mut t = BridgeEvents::<T>::get();
+			t.push(TransferType::FungibleTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				amount,
+				to.clone(),
+			));
+			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::FungibleTransfer(
 				dest_id,
 				nonce,
@@ -627,6 +663,16 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			let mut t = BridgeEvents::<T>::get();
+			t.push(TransferType::NonFungibleTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				token_id.clone(),
+				to.clone(),
+				metadata.clone(),
+			));
+			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::NonFungibleTransfer(
 				dest_id,
 				nonce,
@@ -649,6 +695,14 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			let mut t = BridgeEvents::<T>::get();
+			t.push(TransferType::GenericTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				metadata.clone(),
+			));
+			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::GenericTransfer(
 				dest_id,
 				nonce,
