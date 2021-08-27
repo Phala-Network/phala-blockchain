@@ -14,6 +14,7 @@ pub const WEB3_ANALYTICS: ContractId32 = 4;
 pub const DIEM: ContractId32 = 5;
 pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
+pub const GEOLOCATION: ContractId32 = 8;
 
 /// Contract query request parameters, to be encrypted.
 #[derive(Encode, Decode, Debug)]

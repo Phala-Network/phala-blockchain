@@ -32,6 +32,8 @@ use phala_enclave_api::prpc::{self, InitRuntimeResponse};
 use phala_enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
+use phala_types::messaging::Coordinate;
+
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
 type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
@@ -674,6 +676,61 @@ async fn init_runtime(
     Ok(resp)
 }
 
+async fn get_geolocation() -> Result<(i32, i32)> {
+    let res = reqwest::get("https://ipinfo.io/ip").await?;
+    if !res.status().is_success() {
+        return Err(anyhow::Error::msg(
+            format!("Cannot get public IP: {}", res.status())
+        ));
+    }
+    let pub_ip = res.text().await?;
+    info!("Public IP address: {}", pub_ip);
+
+    use maxminddb::geoip2;
+    use std::net::IpAddr;
+
+    let geo_db_bytes = include_bytes!("../GeoLite2-City.mmdb");
+    let geo_db_buf: Vec<u8> = geo_db_bytes.to_vec();
+    let reader = maxminddb::Reader::from_source(geo_db_buf).unwrap();
+    let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
+
+    let location = reader.lookup::<geoip2::City>(ip).unwrap().location.unwrap();
+    let latitude = location.latitude.unwrap();
+    let longitude = location.longitude.unwrap();
+    info!("Look-up geolocation: {}, {}", latitude, longitude);
+
+    // Convert f64 to i32 with 4 digits precision
+    Ok(((latitude * 10000f64) as i32, (longitude * 10000f64) as i32))
+}
+
+async fn try_send_geolocation(paraclient: &XtClient, signer: &mut SrSigner) -> Result<()> {
+    // TODO(soptq): Get Geolocation
+    let (latitude, longitude) = match get_geolocation().await {
+        Ok(r) => r,
+        Err(e) => {
+            let message = format!("Failed to retrieve geolocation: {:?}", e);
+            error!("FailedToSendGeolocation: {:?}", message);
+            return Err(anyhow!(Error::FailedToSendGeolocation));
+        }
+    };
+    info!("Rounded geolocation: {}, {}", latitude, longitude);
+    let call = runtimes::phala_registry::SendGeolocationCall {
+        _runtime: PhantomData,
+        coordinate: Coordinate {
+            latitude,
+            longitude,
+        }
+    };
+    chain_client::update_signer_nonce(paraclient, signer).await?;
+    let ret = paraclient.watch(call, signer).await;
+    if ret.is_err() {
+        error!("FailedToSendGeolocation: {:?}", ret);
+        return Err(anyhow!(Error::FailedToSendGeolocation));
+    }
+    signer.increment_nonce();
+    Ok(())
+}
+
 async fn register_worker(
     paraclient: &XtClient,
     encoded_runtime_info: Vec<u8>,
@@ -841,6 +898,7 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
+            try_send_geolocation(&paraclient, &mut signer).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -953,6 +1011,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
+                try_send_geolocation(&paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;

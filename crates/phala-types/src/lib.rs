@@ -216,6 +216,25 @@ pub mod messaging {
         pub kitty_id: Vec<u8>,
     }
 
+    // Messages for Geo Location
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct Coordinate {
+        pub latitude: i32,
+        pub longitude: i32,
+    }
+
+    bind_contract32!(GeolocationCommand<AccoundId>, contract::GEOLOCATION);
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum GeolocationCommand<AccoundId> {
+        UpdateGeolocation { sender: AccoundId, geolocation: Coordinate },
+    }
+
+    impl<AccoundId> GeolocationCommand<AccoundId> {
+        pub fn update_geolocation(sender: AccoundId, geolocation: Coordinate) -> Self {
+            Self::UpdateGeolocation { sender, geolocation }
+        }
+    }
+
     /// A fixed point number with 64 integer bits and 64 fractional bits.
     pub type U64F64Bits = u128;
 
