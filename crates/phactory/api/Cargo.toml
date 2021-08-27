@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2018"
 resolver = "2"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }

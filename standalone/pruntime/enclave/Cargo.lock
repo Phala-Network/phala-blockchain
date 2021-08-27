@@ -8,48 +8,15 @@ version = "0.0.1"
 dependencies = [
  "anyhow",
  "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "bit-vec",
- "bitcoin",
- "bitcoin_hashes",
- "chrono",
- "csv-core",
- "derive_more",
  "env_logger",
- "finality-grandpa",
- "fixed",
- "fixed-macro",
- "fixed-sqrt",
- "frame-system",
- "hash-db",
  "hex",
- "hex-literal",
  "http_req",
- "itertools",
  "lazy_static",
  "libc",
  "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
- "num-bigint 0.4.0",
- "num-traits",
- "pallet-bridge-transfer",
- "pallet-kitties",
- "parity-scale-codec",
- "phactory-api",
- "phala-crypto",
- "phala-mq",
- "phala-node-runtime",
- "phala-pallets",
- "phala-trie-storage",
- "phala-types",
- "prpc",
+ "phactory",
+ "phactory-pal",
  "rand 0.7.3",
- "regex",
- "ring 0.16.20",
- "rust-crypto",
- "rustls 0.19.1",
- "scopeguard",
- "serde",
- "serde_cbor",
- "serde_json",
  "sgx_libc",
  "sgx_tcrypto",
  "sgx_tprotected_fs",
@@ -59,16 +26,6 @@ dependencies = [
  "sgx_tstd",
  "sgx_types",
  "sgx_unwind",
- "sp-application-crypto",
- "sp-core",
- "sp-externalities",
- "sp-finality-grandpa",
- "sp-io",
- "sp-runtime",
- "sp-runtime-interface",
- "sp-trie",
- "webpki 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
- "yasna",
 ]
 
 [[package]]
@@ -127,9 +84,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.42"
+version = "1.0.43"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
+checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
 
 [[package]]
 name = "approx"
@@ -2484,6 +2441,65 @@ dependencies = [
 ]
 
 [[package]]
+name = "phactory"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bit-vec",
+ "bitcoin",
+ "bitcoin_hashes",
+ "chrono",
+ "csv-core",
+ "derive_more",
+ "finality-grandpa",
+ "fixed",
+ "fixed-macro",
+ "fixed-sqrt",
+ "frame-system",
+ "hash-db",
+ "hex",
+ "hex-literal",
+ "itertools",
+ "lazy_static",
+ "log 0.4.14 (registry+https://github.com/rust-lang/crates.io-index)",
+ "num-bigint 0.4.0",
+ "num-traits",
+ "pallet-bridge-transfer",
+ "pallet-kitties",
+ "parity-scale-codec",
+ "phactory-api",
+ "phactory-pal",
+ "phala-crypto",
+ "phala-mq",
+ "phala-node-runtime",
+ "phala-pallets",
+ "phala-trie-storage",
+ "phala-types",
+ "prpc",
+ "rand 0.7.3",
+ "regex",
+ "ring 0.16.20",
+ "rust-crypto",
+ "rustls 0.19.1",
+ "scopeguard",
+ "serde",
+ "serde_cbor",
+ "serde_json",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-externalities",
+ "sp-finality-grandpa",
+ "sp-io",
+ "sp-runtime",
+ "sp-runtime-interface",
+ "sp-trie",
+ "thiserror",
+ "webpki 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
+ "yasna",
+]
+
+[[package]]
 name = "phactory-api"
 version = "0.1.0"
 dependencies = [
@@ -2505,6 +2521,13 @@ dependencies = [
  "sp-runtime",
  "tempdir",
  "tera",
+]
+
+[[package]]
+name = "phactory-pal"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
 ]
 
 [[package]]
