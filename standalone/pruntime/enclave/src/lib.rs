@@ -811,9 +811,9 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
 }
 
 fn new_sr25519_key() -> sr25519::Pair {
-    let mut rng = rand::thread_rng();
+    let rand = ring::rand::SystemRandom::new();
     let mut seed = [0_u8; SEED_BYTES];
-    rng.fill_bytes(&mut seed);
+    rand.fill(&mut seed).unwrap();
     sr25519::Pair::from_seed(&seed)
 }
 
