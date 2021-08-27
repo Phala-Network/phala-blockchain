@@ -319,12 +319,12 @@ pub fn init_runtime(
 
     let mut cpu_feature_level: u32 = 1;
     // Atom doesn't support AVX
-    if is_x86_feature_detected!("avx2") {
+    if sgx_trts::is_x86_feature_detected!("avx2") {
         info!("CPU Support AVX2");
         cpu_feature_level += 1;
 
         // Customer-level Core doesn't support AVX512
-        if is_x86_feature_detected!("avx512f") {
+        if sgx_trts::is_x86_feature_detected!("avx512f") {
             info!("CPU Support AVX512");
             cpu_feature_level += 1;
         }
