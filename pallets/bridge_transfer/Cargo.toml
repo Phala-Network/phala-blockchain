@@ -23,7 +23,7 @@ sp-arithmetic = { default-features = false, path = "../../substrate/primitives/a
 frame-support = { default-features = false, path = "../../substrate/frame/support" }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 
-phala-types = { path = "../../common/types", default-features = false }
+phala-types = { path = "../../crates/phala-types", default-features = false }
 phala-pallets = { path = "../phala", default-features = false }
 pallet-bridge = { path = "../bridge" , default-features = false }
 hex = { version = "0.4", default-features = false }

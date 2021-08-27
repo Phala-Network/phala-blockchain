@@ -24,12 +24,12 @@ mod types;
 
 use crate::error::Error;
 use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
-use enclave_api::blocks::{
+use phala_enclave_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
     StorageProof,
 };
-use enclave_api::prpc::{self, InitRuntimeResponse};
-use enclave_api::pruntime_client;
+use phala_enclave_api::prpc::{self, InitRuntimeResponse};
+use phala_enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;

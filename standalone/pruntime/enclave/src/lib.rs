@@ -45,11 +45,11 @@ use http_req::request::{Method, Request};
 
 // use pink::InkModule;
 
-use enclave_api::prpc::InitRuntimeResponse;
-use enclave_api::storage_sync::{
+use phala_enclave_api::prpc::InitRuntimeResponse;
+use phala_enclave_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
 };
-use enclave_api::{
+use phala_enclave_api::{
     actions::*,
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };

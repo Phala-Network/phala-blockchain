@@ -131,7 +131,6 @@ version = "0.0.1"
 dependencies = [
  "base64 0.12.3",
  "colored",
- "enclave-api",
  "env_logger",
  "hex",
  "hex-literal",
@@ -141,6 +140,7 @@ dependencies = [
  "mio 0.7.13",
  "num_cpus",
  "parity-scale-codec",
+ "phala-enclave-api",
  "ring-compat",
  "rocket",
  "rocket_codegen",
@@ -743,35 +743,6 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
-
-[[package]]
-name = "enclave-api"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "base64 0.13.0",
- "derive_more",
- "frame-system",
- "log 0.4.14",
- "parity-scale-codec",
- "phala-crypto",
- "phala-mq",
- "phala-node-runtime",
- "phala-types",
- "prost",
- "prpc",
- "prpc-build",
- "reqwest",
- "serde",
- "sp-application-crypto",
- "sp-core",
- "sp-finality-grandpa",
- "sp-runtime",
- "tempdir",
- "tera",
- "trie-storage",
-]
 
 [[package]]
 name = "encoding_rs"
@@ -3051,6 +3022,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-enclave-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.13.0",
+ "derive_more",
+ "frame-system",
+ "log 0.4.14",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-mq",
+ "phala-node-runtime",
+ "phala-trie-storage",
+ "phala-types",
+ "prost",
+ "prpc",
+ "prpc-build",
+ "reqwest",
+ "serde",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-runtime",
+ "tempdir",
+ "tera",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
@@ -3161,6 +3161,18 @@ dependencies = [
  "sp-std",
  "untrusted",
  "webpki",
+]
+
+[[package]]
+name = "phala-trie-storage"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-state-machine",
+ "sp-trie",
 ]
 
 [[package]]
@@ -5097,18 +5109,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "652931506d2c1244d7217a70b99f56718a7b4161b37f04e7cd868072a99f68cd"
 dependencies = [
  "hash-db",
-]
-
-[[package]]
-name = "trie-storage"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core",
- "sp-io",
- "sp-state-machine",
- "sp-trie",
 ]
 
 [[package]]

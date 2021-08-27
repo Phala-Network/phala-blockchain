@@ -44,7 +44,7 @@ pub mod blocks {
 
     use sp_core::U256;
     use sp_runtime::{generic::Header, traits::Hash as HashT};
-    pub use trie_storage::ser::StorageChanges;
+    pub use phala_trie_storage::ser::StorageChanges;
 
     pub type StorageProof = Vec<Vec<u8>>;
     pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
@@ -214,7 +214,7 @@ pub mod storage_sync {
     use derive_more::Display;
     use parity_scale_codec::Encode;
 
-    type Storage = trie_storage::TrieStorage<RuntimeHasher>;
+    type Storage = phala_trie_storage::TrieStorage<RuntimeHasher>;
 
     pub type Result<T> = core::result::Result<T, Error>;
 

@@ -26,7 +26,7 @@ log = { version = "0.4.14", default-features = false }
 
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 
-phala-types = { default-features = false, path = "../../common/types" }
+phala-types = { default-features = false, path = "../../crates/phala-types" }
 chrono = { version = "0.4", default-features = false }
 untrusted = { version = "0.7" }
 base64 = { version = "0.11", default-features = false, features = ["alloc"] }

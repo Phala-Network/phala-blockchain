@@ -11,7 +11,7 @@ codec = { package = "parity-scale-codec", version = "2.1", default-features = fa
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
-trie-storage = { path = "../../crates/trie-storage", default-features = false, optional = true  }
+phala-trie-storage = { path = "../../crates/phala-trie-storage", default-features = false, optional = true }
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
 prpc = { path = "../../crates/prpc", default-features = false }
 
@@ -22,7 +22,7 @@ std = [
 	"codec/std",
 	"full_crypto",
 	"sp-runtime/std",
-	"trie-storage/serde",
+	"phala-trie-storage/serde",
 ]
 enable_serde = [
 	"serde/derive",
@@ -30,11 +30,11 @@ enable_serde = [
 ]
 pruntime = [
 	"sp-runtime",
-	"trie-storage",
+	"phala-trie-storage",
 ]
 sgx = [
-    "full_crypto",
+	"full_crypto",
 ]
 full_crypto = [
-    "sp-core/full_crypto",
+	"sp-core/full_crypto",
 ]

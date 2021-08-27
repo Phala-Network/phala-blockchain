@@ -17,7 +17,7 @@ codec = { package = "parity-scale-codec", version = "2.2", default-features = fa
 static_assertions = "1.1.0"
 hex-literal = "0.3.1"
 log = { version = "0.4.14", default-features = false }
-phala-types = { default-features = false, path = "../../common/types" }
+phala-types = { default-features = false, path = "../../crates/phala-types" }
 pallet-mq-runtime-api = { default-features = false, path = "../../pallets/phala/mq-runtime-api" }
 
 # primitives
