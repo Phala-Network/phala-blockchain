@@ -482,8 +482,8 @@ pub fn create_attestation_report(
     };
 
     let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
-    let mut os_rng = rand::thread_rng();
-    os_rng.fill_bytes(&mut quote_nonce.rand);
+    let mut os_rng = ring::rand::SystemRandom::new();
+    os_rng.fill(&mut quote_nonce.rand).unwrap();
     info!("rand finished");
     let mut qe_report = sgx_report_t::default();
     const RET_QUOTE_BUF_LEN: u32 = 2048;
