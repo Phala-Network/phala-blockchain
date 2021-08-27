@@ -300,7 +300,7 @@ dependencies = [
  "async-io",
  "async-lock",
  "async-process",
- "crossbeam-utils 0.8.5",
+ "crossbeam-utils",
  "futures-channel",
  "futures-core",
  "futures-io",
@@ -476,7 +476,7 @@ version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bed554bd50246729a1ec158d08aa3235d1b69d94ad120ebe187e28894787e736"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -485,7 +485,7 @@ version = "1.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b1f45e9417d87227c7a56d22e471c6206462cba514c7590c09aff4cf6d1ddcad"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -661,7 +661,7 @@ dependencies = [
  "lazy_static",
  "memchr",
  "regex-automata",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -737,7 +737,7 @@ version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52d74260d9bf6944e2208aa46841b4b8f0d7ffc0849a06837b2f510337f86b2b"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -746,7 +746,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cbdb825da8a5df079a43676dbe042702f1707b1109f713a01420fbb4cc71fa27"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -759,7 +759,7 @@ dependencies = [
  "cargo-platform",
  "semver 0.11.0",
  "semver-parser 0.10.2",
- "serde 1.0.127",
+ "serde",
  "serde_json",
 ]
 
@@ -995,8 +995,8 @@ dependencies = [
  "gimli 0.24.0",
  "log",
  "regalloc",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "target-lexicon",
 ]
 
@@ -1016,7 +1016,7 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca5b6ffaa87560bebe69a5446449da18090b126037920b0c1c6d5945f72faf6b"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -1025,7 +1025,7 @@ version = "0.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d6b4a8bef04f82e4296782646f733c641d09497df2fabf791323fefaa44c64c"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -1036,7 +1036,7 @@ checksum = "c31b783b351f966fce33e3c03498cb116d16d97a8f9978164a60920bd0d3a99c"
 dependencies = [
  "cranelift-codegen",
  "log",
- "smallvec 1.6.1",
+ "smallvec",
  "target-lexicon",
 ]
 
@@ -1061,8 +1061,8 @@ dependencies = [
  "cranelift-frontend",
  "itertools 0.10.1",
  "log",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "thiserror",
  "wasmparser",
 ]
@@ -1094,9 +1094,9 @@ dependencies = [
  "plotters",
  "rayon",
  "regex",
- "serde 1.0.127",
+ "serde",
  "serde_cbor",
- "serde_derive 1.0.127",
+ "serde_derive",
  "serde_json",
  "tinytemplate",
  "walkdir",
@@ -1119,18 +1119,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06ed27e177f16d65f0f0c22a213e17c696ace5dd64b14258b52f9417ccb52db4"
 dependencies = [
  "cfg-if 1.0.0",
- "crossbeam-utils 0.8.5",
-]
-
-[[package]]
-name = "crossbeam-deque"
-version = "0.7.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c20ff29ded3204c5106278a81a38f4b482636ed4fa1e6cfbeef193291beb29ed"
-dependencies = [
- "crossbeam-epoch 0.8.2",
- "crossbeam-utils 0.7.2",
- "maybe-uninit",
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -1140,23 +1129,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6455c0ca19f0d2fbf751b908d5c55c1f5cbc65e03c4225427254b46890bdde1e"
 dependencies = [
  "cfg-if 1.0.0",
- "crossbeam-epoch 0.9.5",
- "crossbeam-utils 0.8.5",
-]
-
-[[package]]
-name = "crossbeam-epoch"
-version = "0.8.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "058ed274caafc1f60c4997b5fc07bf7dc7cca454af7c6e81edffe5f33f70dace"
-dependencies = [
- "autocfg",
- "cfg-if 0.1.10",
- "crossbeam-utils 0.7.2",
- "lazy_static",
- "maybe-uninit",
- "memoffset 0.5.6",
- "scopeguard",
+ "crossbeam-epoch",
+ "crossbeam-utils",
 ]
 
 [[package]]
@@ -1218,7 +1192,7 @@ dependencies = [
  "csv-core",
  "itoa",
  "ryu",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -1326,16 +1300,17 @@ name = "debug-cli"
 version = "0.1.0"
 dependencies = [
  "base64 0.11.0",
- "enclave-api",
  "frame-support",
  "hex",
  "parity-scale-codec",
  "phala-crypto",
+ "phala-enclave-api",
  "phala-pallets",
  "phala-types",
  "sc-finality-grandpa",
  "sp-runtime",
  "structopt",
+ "tokio",
 ]
 
 [[package]]
@@ -1505,7 +1480,7 @@ dependencies = [
  "curve25519-dalek 3.2.0",
  "ed25519",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
  "sha2 0.9.5",
  "zeroize",
 ]
@@ -1515,31 +1490,6 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
-
-[[package]]
-name = "enclave-api"
-version = "0.1.0"
-dependencies = [
- "base64 0.13.0",
- "derive_more",
- "frame-system",
- "parity-scale-codec",
- "phala-crypto",
- "phala-mq",
- "phala-node-runtime",
- "phala-types",
- "prost 0.8.0",
- "prpc",
- "prpc-build",
- "serde 1.0.127",
- "sp-application-crypto",
- "sp-core",
- "sp-finality-grandpa",
- "sp-runtime",
- "tempdir",
- "tera",
- "trie-storage",
-]
 
 [[package]]
 name = "encoding_rs"
@@ -1620,7 +1570,7 @@ version = "0.3.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3de9ad4541d99dc22b59134e7ff8dc3d6c988c89ecd7324bf10a8362b07a2afa"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -1873,7 +1823,7 @@ dependencies = [
  "sc-client-db",
  "sc-executor",
  "sc-service",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-externalities",
  "sp-keystore",
@@ -1913,7 +1863,7 @@ name = "frame-metadata"
 version = "14.0.0-dev"
 dependencies = [
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-std",
 ]
@@ -1930,8 +1880,8 @@ dependencies = [
  "once_cell",
  "parity-scale-codec",
  "paste",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "sp-arithmetic",
  "sp-core",
  "sp-inherents",
@@ -1985,7 +1935,7 @@ dependencies = [
  "parity-scale-codec",
  "pretty_assertions",
  "rustversion",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -2010,7 +1960,7 @@ dependencies = [
  "frame-support",
  "log",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -2370,8 +2320,8 @@ dependencies = [
  "http",
  "indexmap",
  "slab",
- "tokio 1.10.0",
- "tokio-util 0.6.7",
+ "tokio",
+ "tokio-util",
  "tracing",
 ]
 
@@ -2391,7 +2341,7 @@ dependencies = [
  "pest",
  "pest_derive",
  "quick-error 2.0.1",
- "serde 1.0.127",
+ "serde",
  "serde_json",
 ]
 
@@ -2418,11 +2368,6 @@ checksum = "ab5ef0d4909ef3724cc8cce6ccc8572c5c817592e9285f5464f8e86f8bd3726e"
 dependencies = [
  "ahash",
 ]
-
-[[package]]
-name = "hashbrown_tstd"
-version = "0.9.0"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
 
 [[package]]
 name = "heck"
@@ -2575,7 +2520,7 @@ dependencies = [
  "itoa",
  "pin-project-lite 0.2.7",
  "socket2 0.4.1",
- "tokio 1.10.0",
+ "tokio",
  "tower-service",
  "tracing",
  "want",
@@ -2593,8 +2538,8 @@ dependencies = [
  "log",
  "rustls",
  "rustls-native-certs",
- "tokio 1.10.0",
- "tokio-rustls 0.22.0",
+ "tokio",
+ "tokio-rustls",
  "webpki 0.21.4",
 ]
 
@@ -2607,7 +2552,7 @@ dependencies = [
  "bytes 1.0.1",
  "hyper",
  "native-tls",
- "tokio 1.10.0",
+ "tokio",
  "tokio-native-tls",
 ]
 
@@ -2676,7 +2621,7 @@ version = "0.4.18"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "713f1b139373f96a2e0ce3ac931cd01ee973c3c5dd7c40c0c2efe96ad2b6751d"
 dependencies = [
- "crossbeam-utils 0.8.5",
+ "crossbeam-utils",
  "globset",
  "lazy_static",
  "log",
@@ -2703,7 +2648,7 @@ version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b47ca4d2b6931707a55fce5cf66aff80e2178c8b63bbb4ecb5695cbc870ddf6f"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -2725,7 +2670,7 @@ checksum = "bc633605454125dec4b66843673f01c7df2b89479b32e0ed634e43a91cff62a5"
 dependencies = [
  "autocfg",
  "hashbrown",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -2842,7 +2787,7 @@ dependencies = [
  "jsonrpc-core 18.0.0",
  "jsonrpc-pubsub 18.0.0",
  "log",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "url 1.7.2",
 ]
@@ -2855,8 +2800,8 @@ checksum = "a0747307121ffb9703afd93afbd0fb4f854c38fb873f2c8b90e0e902f27c7b62"
 dependencies = [
  "futures 0.1.31",
  "log",
- "serde 1.0.127",
- "serde_derive 1.0.127",
+ "serde",
+ "serde_derive",
  "serde_json",
 ]
 
@@ -2870,8 +2815,8 @@ dependencies = [
  "futures-executor",
  "futures-util",
  "log",
- "serde 1.0.127",
- "serde_derive 1.0.127",
+ "serde",
+ "serde_derive",
  "serde_json",
 ]
 
@@ -2938,7 +2883,7 @@ dependencies = [
  "log",
  "parking_lot 0.10.2",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -2953,7 +2898,7 @@ dependencies = [
  "log",
  "parking_lot 0.11.1",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -2968,9 +2913,9 @@ dependencies = [
  "jsonrpc-core 18.0.0",
  "lazy_static",
  "log",
- "tokio 1.10.0",
+ "tokio",
  "tokio-stream",
- "tokio-util 0.6.7",
+ "tokio-util",
  "unicase",
 ]
 
@@ -3002,7 +2947,7 @@ dependencies = [
  "jsonrpsee-types 0.2.0",
  "jsonrpsee-utils",
  "log",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "thiserror",
  "url 2.2.2",
@@ -3047,7 +2992,7 @@ dependencies = [
  "futures-util",
  "hyper",
  "log",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "soketto 0.5.0",
  "thiserror",
@@ -3065,7 +3010,7 @@ dependencies = [
  "futures-util",
  "hyper",
  "log",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "soketto 0.6.0",
  "thiserror",
@@ -3096,13 +3041,13 @@ dependencies = [
  "pin-project 1.0.8",
  "rustls",
  "rustls-native-certs",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "soketto 0.5.0",
  "thiserror",
- "tokio 1.10.0",
- "tokio-rustls 0.22.0",
- "tokio-util 0.6.7",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
  "url 2.2.2",
 ]
 
@@ -3120,13 +3065,13 @@ dependencies = [
  "pin-project 1.0.8",
  "rustls",
  "rustls-native-certs",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "soketto 0.6.0",
  "thiserror",
- "tokio 0.2.25",
- "tokio-rustls 0.15.0",
- "tokio-util 0.3.1",
+ "tokio",
+ "tokio-rustls",
+ "tokio-util",
  "url 2.2.2",
 ]
 
@@ -3162,7 +3107,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45a3f58dc069ec0e205a27f5b45920722a46faed802a0541538241af6228f512"
 dependencies = [
  "parity-util-mem",
- "smallvec 1.6.1",
+ "smallvec",
 ]
 
 [[package]]
@@ -3191,7 +3136,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "regex",
  "rocksdb",
- "smallvec 1.6.1",
+ "smallvec",
 ]
 
 [[package]]
@@ -3279,7 +3224,7 @@ dependencies = [
  "multiaddr",
  "parking_lot 0.11.1",
  "pin-project 1.0.8",
- "smallvec 1.6.1",
+ "smallvec",
  "wasm-timer",
 ]
 
@@ -3310,7 +3255,7 @@ dependencies = [
  "ring 0.16.20",
  "rw-stream-sink",
  "sha2 0.9.5",
- "smallvec 1.6.1",
+ "smallvec",
  "thiserror",
  "unsigned-varint 0.7.0",
  "void",
@@ -3338,7 +3283,7 @@ dependencies = [
  "futures 0.3.16",
  "libp2p-core",
  "log",
- "smallvec 1.6.1",
+ "smallvec",
  "trust-dns-resolver",
 ]
 
@@ -3357,7 +3302,7 @@ dependencies = [
  "prost 0.8.0",
  "prost-build 0.8.0",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
 ]
 
 [[package]]
@@ -3381,7 +3326,7 @@ dependencies = [
  "rand 0.7.3",
  "regex",
  "sha2 0.9.5",
- "smallvec 1.6.1",
+ "smallvec",
  "unsigned-varint 0.7.0",
  "wasm-timer",
 ]
@@ -3398,7 +3343,7 @@ dependencies = [
  "log",
  "prost 0.8.0",
  "prost-build 0.8.0",
- "smallvec 1.6.1",
+ "smallvec",
  "wasm-timer",
 ]
 
@@ -3421,7 +3366,7 @@ dependencies = [
  "prost-build 0.8.0",
  "rand 0.7.3",
  "sha2 0.9.5",
- "smallvec 1.6.1",
+ "smallvec",
  "uint",
  "unsigned-varint 0.7.0",
  "void",
@@ -3444,7 +3389,7 @@ dependencies = [
  "libp2p-swarm",
  "log",
  "rand 0.8.4",
- "smallvec 1.6.1",
+ "smallvec",
  "socket2 0.4.1",
  "void",
 ]
@@ -3463,7 +3408,7 @@ dependencies = [
  "nohash-hasher",
  "parking_lot 0.11.1",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
  "unsigned-varint 0.7.0",
 ]
 
@@ -3552,7 +3497,7 @@ dependencies = [
  "prost 0.8.0",
  "prost-build 0.8.0",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
  "unsigned-varint 0.7.0",
  "void",
  "wasm-timer",
@@ -3573,7 +3518,7 @@ dependencies = [
  "lru",
  "minicbor",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
  "unsigned-varint 0.7.0",
  "wasm-timer",
 ]
@@ -3589,7 +3534,7 @@ dependencies = [
  "libp2p-core",
  "log",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
  "void",
  "wasm-timer",
 ]
@@ -3717,7 +3662,7 @@ dependencies = [
  "libsecp256k1-gen-ecmult",
  "libsecp256k1-gen-genmult",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
  "sha2 0.9.5",
  "typenum",
 ]
@@ -3736,7 +3681,7 @@ dependencies = [
  "libsecp256k1-gen-ecmult",
  "libsecp256k1-gen-genmult",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
  "sha2 0.9.5",
  "typenum",
 ]
@@ -3924,14 +3869,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d13fa57adcc4f3aca91e511b3cdaa58ed8cbcbf97f20e342a11218c76e127f51"
 dependencies = [
  "log",
- "serde 1.0.127",
+ "serde",
 ]
-
-[[package]]
-name = "maybe-uninit"
-version = "2.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
 name = "memchr"
@@ -4315,6 +4254,7 @@ dependencies = [
  "parity-scale-codec",
  "sc-cli",
  "sc-client-api",
+ "sc-executor",
  "sc-service",
  "sp-blockchain",
  "sp-core",
@@ -4649,7 +4589,7 @@ dependencies = [
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4670,7 +4610,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
- "serde 1.0.127",
+ "serde",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
@@ -4705,8 +4645,8 @@ dependencies = [
  "pallet-contracts-proc-macro",
  "parity-scale-codec",
  "pwasm-utils",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4721,7 +4661,7 @@ version = "4.0.0-dev"
 dependencies = [
  "bitflags",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-runtime",
  "sp-std",
@@ -4744,7 +4684,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4768,6 +4708,8 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "static_assertions",
+ "strum 0.21.0",
+ "strum_macros 0.21.1",
 ]
 
 [[package]]
@@ -4865,7 +4807,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
- "serde 1.0.127",
+ "serde",
  "sp-io",
  "sp-runtime",
  "sp-std",
@@ -4898,6 +4840,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-mq-runtime-api"
+version = "0.1.0"
+dependencies = [
+ "phala-mq",
+ "sp-api",
+]
+
+[[package]]
 name = "pallet-multisig"
 version = "4.0.0-dev"
 dependencies = [
@@ -4919,7 +4869,7 @@ dependencies = [
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-runtime",
  "sp-staking",
  "sp-std",
@@ -5056,7 +5006,7 @@ dependencies = [
  "pallet-session",
  "parity-scale-codec",
  "rand_chacha 0.2.2",
- "serde 1.0.127",
+ "serde",
  "sp-application-crypto",
  "sp-io",
  "sp-runtime",
@@ -5111,7 +5061,7 @@ dependencies = [
  "frame-system",
  "pallet-treasury",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-runtime",
  "sp-std",
 ]
@@ -5123,8 +5073,8 @@ dependencies = [
  "frame-support",
  "frame-system",
  "parity-scale-codec",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -5167,7 +5117,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "pallet-balances",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-runtime",
  "sp-std",
 ]
@@ -5193,6 +5143,7 @@ dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
+ "log",
  "parity-scale-codec",
  "sp-runtime",
  "sp-std",
@@ -5228,7 +5179,7 @@ dependencies = [
  "byte-slice-cast",
  "impl-trait-for-tuples",
  "parity-scale-codec-derive",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -5259,7 +5210,7 @@ dependencies = [
  "libc",
  "log",
  "rand 0.7.3",
- "tokio 1.10.0",
+ "tokio",
  "winapi 0.3.9",
 ]
 
@@ -5275,7 +5226,7 @@ dependencies = [
  "parity-util-mem-derive",
  "parking_lot 0.11.1",
  "primitive-types",
- "smallvec 1.6.1",
+ "smallvec",
  "winapi 0.3.9",
 ]
 
@@ -5331,17 +5282,6 @@ checksum = "427c3892f9e783d91cc128285287e70a59e206ca452770ece88a76f7a3eddd72"
 
 [[package]]
 name = "parking_lot"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f842b1982eb6c2fe34036a4fbfb06dd185a3f5c8edfaacdf7d1ea10b07de6252"
-dependencies = [
- "lock_api 0.3.4",
- "parking_lot_core 0.6.2",
- "rustc_version 0.2.3",
-]
-
-[[package]]
-name = "parking_lot"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3a704eb390aafdc107b0e392f56a82b668e3a71366993b5340f5833fd62505e"
@@ -5363,21 +5303,6 @@ dependencies = [
 
 [[package]]
 name = "parking_lot_core"
-version = "0.6.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b876b1b9e7ac6e1a74a6da34d25c42e17e8862aa409cbbbdcfc8d86c6f3bc62b"
-dependencies = [
- "cfg-if 0.1.10",
- "cloudabi",
- "libc",
- "redox_syscall 0.1.57",
- "rustc_version 0.2.3",
- "smallvec 0.6.14",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "parking_lot_core"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d58c7c768d4ba344e3e8d72518ac13e259d7c7ade24167003b8488e10b6740a3"
@@ -5386,7 +5311,7 @@ dependencies = [
  "cloudabi",
  "libc",
  "redox_syscall 0.1.57",
- "smallvec 1.6.1",
+ "smallvec",
  "winapi 0.3.9",
 ]
 
@@ -5400,7 +5325,7 @@ dependencies = [
  "instant",
  "libc",
  "redox_syscall 0.2.10",
- "smallvec 1.6.1",
+ "smallvec",
  "winapi 0.3.9",
 ]
 
@@ -5523,10 +5448,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-enclave-api"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "async-trait",
+ "base64 0.13.0",
+ "derive_more",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-mq",
+ "phala-node-runtime",
+ "phala-trie-storage",
+ "phala-types",
+ "prost 0.8.0",
+ "prpc",
+ "prpc-build",
+ "reqwest",
+ "serde",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-runtime",
+ "tempdir",
+ "tera",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "hex",
  "parity-scale-codec",
  "primitive-types",
  "sp-core",
@@ -5554,12 +5509,12 @@ dependencies = [
  "pallet-im-online",
  "pallet-transaction-payment",
  "parity-scale-codec",
+ "phala-node-rpc-ext",
  "phala-node-runtime",
  "phala-pallets",
  "platforms",
  "rand 0.7.3",
  "regex",
- "rpc-ext",
  "sc-authority-discovery",
  "sc-basic-authorship",
  "sc-chain-spec",
@@ -5570,6 +5525,7 @@ dependencies = [
  "sc-consensus-epochs",
  "sc-consensus-slots",
  "sc-consensus-uncles",
+ "sc-executor",
  "sc-finality-grandpa",
  "sc-keystore",
  "sc-network",
@@ -5580,7 +5536,7 @@ dependencies = [
  "sc-telemetry",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "soketto 0.4.2",
  "sp-authority-discovery",
@@ -5602,6 +5558,30 @@ dependencies = [
  "substrate-frame-cli",
  "tempfile",
  "try-runtime-cli",
+]
+
+[[package]]
+name = "phala-node-rpc-ext"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "impl-serde",
+ "jsonrpc-core 18.0.0",
+ "jsonrpc-core-client",
+ "jsonrpc-derive",
+ "log",
+ "pallet-mq-runtime-api",
+ "parity-scale-codec",
+ "phala-mq",
+ "phala-pallets",
+ "sc-client-api",
+ "sc-rpc",
+ "sc-transaction-pool-api",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-runtime",
+ "thiserror",
 ]
 
 [[package]]
@@ -5638,6 +5618,7 @@ dependencies = [
  "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
+ "pallet-mq-runtime-api",
  "pallet-multisig",
  "pallet-offences",
  "pallet-offences-benchmarking",
@@ -5717,17 +5698,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-trie-storage"
+version = "0.1.0"
+dependencies = [
+ "hash256-std-hasher",
+ "hex",
+ "impl-serde",
+ "parity-scale-codec",
+ "serde",
+ "serde_json",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-trie",
+]
+
+[[package]]
 name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
+ "phala-trie-storage",
  "prpc",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-runtime",
- "trie-storage",
 ]
 
 [[package]]
@@ -5737,24 +5736,26 @@ dependencies = [
  "anyhow",
  "async-trait",
  "base64 0.13.0",
- "enclave-api",
  "env_logger 0.9.0",
  "frame-system",
  "futures 0.3.16",
  "hex",
  "log",
+ "maxminddb",
  "pallet-balances",
  "pallet-grandpa",
  "pallet-indices",
  "parity-scale-codec",
+ "phala-enclave-api",
+ "phala-node-rpc-ext",
  "phala-pallets",
+ "phala-trie-storage",
  "phala-types",
  "rand 0.8.4",
  "reqwest",
- "rpc-ext",
  "sc-finality-grandpa",
  "sc-rpc-api",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-finality-grandpa",
@@ -5763,8 +5764,7 @@ dependencies = [
  "sp-runtime",
  "structopt",
  "substrate-subxt",
- "tokio 1.10.0",
- "trie-storage",
+ "tokio",
 ]
 
 [[package]]
@@ -6427,7 +6427,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c06aca804d41dbc8ba42dfd964f0d01334eceb64314b9ecf7c5fad5188a06d90"
 dependencies = [
  "autocfg",
- "crossbeam-deque 0.8.1",
+ "crossbeam-deque",
  "either",
  "rayon-core",
 ]
@@ -6439,8 +6439,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d78120e2c850279833f1dd3582f730c4ab53ed95aeaaaa862a2a5c71b1656d8e"
 dependencies = [
  "crossbeam-channel",
- "crossbeam-deque 0.8.1",
- "crossbeam-utils 0.8.5",
+ "crossbeam-deque",
+ "crossbeam-utils",
  "lazy_static",
  "num_cpus",
 ]
@@ -6507,8 +6507,8 @@ checksum = "571f7f397d61c4755285cd37853fe8e03271c243424a907415909379659381c5"
 dependencies = [
  "log",
  "rustc-hash",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
 ]
 
 [[package]]
@@ -6558,11 +6558,12 @@ dependencies = [
  "jsonrpsee-ws-client 0.3.0",
  "log",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-io",
  "sp-runtime",
+ "sp-version",
 ]
 
 [[package]]
@@ -6597,9 +6598,9 @@ dependencies = [
  "native-tls",
  "percent-encoding 2.1.0",
  "pin-project-lite 0.2.7",
- "serde 1.0.127",
+ "serde",
  "serde_urlencoded",
- "tokio 1.10.0",
+ "tokio",
  "tokio-native-tls",
  "url 2.2.2",
  "wasm-bindgen",
@@ -6669,23 +6670,6 @@ checksum = "ffc936cf8a7ea60c58f030fd36a612a48f440610214dc54bc36431f9ea0c3efb"
 dependencies = [
  "libc",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "rpc-ext"
-version = "0.1.0"
-dependencies = [
- "impl-serde",
- "jsonrpc-core 18.0.0",
- "jsonrpc-core-client",
- "jsonrpc-derive",
- "node-rpc",
- "sc-client-api",
- "serde 1.0.127",
- "sp-api",
- "sp-blockchain",
- "sp-runtime",
- "thiserror",
 ]
 
 [[package]]
@@ -6840,7 +6824,7 @@ dependencies = [
  "libp2p",
  "log",
  "parity-scale-codec",
- "prost 0.7.0",
+ "prost 0.8.0",
  "prost-build 0.7.0",
  "rand 0.7.3",
  "sc-client-api",
@@ -6900,7 +6884,7 @@ dependencies = [
  "sc-chain-spec-derive",
  "sc-network",
  "sc-telemetry",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-runtime",
@@ -6937,7 +6921,7 @@ dependencies = [
  "sc-service",
  "sc-telemetry",
  "sc-tracing",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-blockchain",
  "sp-core",
@@ -6950,7 +6934,7 @@ dependencies = [
  "structopt",
  "thiserror",
  "tiny-bip39",
- "tokio 0.2.25",
+ "tokio",
 ]
 
 [[package]]
@@ -7015,7 +6999,7 @@ dependencies = [
  "log",
  "parking_lot 0.11.1",
  "sc-client-api",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-consensus",
@@ -7051,7 +7035,7 @@ dependencies = [
  "sc-keystore",
  "sc-telemetry",
  "schnorrkel",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-block-builder",
@@ -7081,7 +7065,7 @@ dependencies = [
  "sc-consensus-babe",
  "sc-consensus-epochs",
  "sc-rpc-api",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-blockchain",
@@ -7188,6 +7172,7 @@ dependencies = [
  "parity-scale-codec",
  "sc-allocator",
  "sc-executor-common",
+ "scoped-tls",
  "sp-core",
  "sp-runtime-interface",
  "sp-wasm-interface",
@@ -7264,7 +7249,7 @@ dependencies = [
  "sc-client-api",
  "sc-finality-grandpa",
  "sc-rpc",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-blockchain",
  "sp-core",
@@ -7344,16 +7329,16 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "pin-project 1.0.8",
- "prost 0.7.0",
+ "prost 0.8.0",
  "prost-build 0.7.0",
  "rand 0.7.3",
  "sc-block-builder",
  "sc-client-api",
  "sc-consensus",
  "sc-peerset",
- "serde 1.0.127",
+ "serde",
  "serde_json",
- "smallvec 1.6.1",
+ "smallvec",
  "sp-arithmetic",
  "sp-blockchain",
  "sp-consensus",
@@ -7474,7 +7459,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "sc-chain-spec",
  "sc-transaction-pool-api",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-rpc",
@@ -7533,7 +7518,7 @@ dependencies = [
  "sc-tracing",
  "sc-transaction-pool",
  "sc-transaction-pool-api",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-api",
  "sp-application-crypto",
@@ -7566,7 +7551,6 @@ name = "sc-service-test"
 version = "2.0.0"
 dependencies = [
  "fdlimit",
- "futures 0.1.31",
  "futures 0.3.16",
  "hex-literal",
  "log",
@@ -7595,7 +7579,7 @@ dependencies = [
  "substrate-test-runtime",
  "substrate-test-runtime-client",
  "tempfile",
- "tokio 0.1.22",
+ "tokio",
 ]
 
 [[package]]
@@ -7625,7 +7609,7 @@ dependencies = [
  "sc-consensus-epochs",
  "sc-finality-grandpa",
  "sc-rpc-api",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-blockchain",
  "sp-runtime",
@@ -7643,7 +7627,7 @@ dependencies = [
  "parking_lot 0.11.1",
  "pin-project 1.0.8",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "thiserror",
  "wasm-timer",
@@ -7664,7 +7648,7 @@ dependencies = [
  "sc-client-api",
  "sc-rpc-server",
  "sc-tracing-proc-macro",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -7703,7 +7687,7 @@ dependencies = [
  "retain_mut",
  "sc-client-api",
  "sc-transaction-pool-api",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
@@ -7722,7 +7706,7 @@ dependencies = [
  "derive_more",
  "futures 0.3.16",
  "log",
- "serde 1.0.127",
+ "serde",
  "sp-blockchain",
  "sp-runtime",
  "thiserror",
@@ -7860,7 +7844,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f301af10236f6df4160f7c3f04eec6dbc70ace82d23326abad5edee88801c6b6"
 dependencies = [
  "semver-parser 0.10.2",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -7886,20 +7870,11 @@ dependencies = [
 
 [[package]]
 name = "serde"
-version = "1.0.118"
-source = "git+https://github.com/mesalock-linux/serde-sgx.git#db0226f1d5d70fca6b96af2c285851502204e21c"
-dependencies = [
- "serde_derive 1.0.118",
- "sgx_tstd",
-]
-
-[[package]]
-name = "serde"
 version = "1.0.127"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f03b9878abf6d14e6779d3f24f07b2cfa90352cfec4acc5aab8f1ac7f146fae8"
 dependencies = [
- "serde_derive 1.0.127",
+ "serde_derive",
 ]
 
 [[package]]
@@ -7909,17 +7884,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bef2ebfde456fb76bbcf9f59315333decc4fda0b2b44b420243c11e0f5ec1f5"
 dependencies = [
  "half",
- "serde 1.0.127",
-]
-
-[[package]]
-name = "serde_derive"
-version = "1.0.118"
-source = "git+https://github.com/mesalock-linux/serde-sgx.git#db0226f1d5d70fca6b96af2c285851502204e21c"
-dependencies = [
- "proc-macro2 1.0.28",
- "quote 1.0.9",
- "syn 1.0.74",
+ "serde",
 ]
 
 [[package]]
@@ -7941,7 +7906,7 @@ checksum = "336b10da19a12ad094b59d870ebde26a45402e5b470add4b5fd03c5048a32127"
 dependencies = [
  "itoa",
  "ryu",
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -7953,87 +7918,7 @@ dependencies = [
  "form_urlencoded",
  "itoa",
  "ryu",
- "serde 1.0.127",
-]
-
-[[package]]
-name = "sgx_alloc"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-
-[[package]]
-name = "sgx_backtrace_sys"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "cc",
- "sgx_build_helper",
- "sgx_libc",
-]
-
-[[package]]
-name = "sgx_build_helper"
-version = "0.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-
-[[package]]
-name = "sgx_demangle"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-
-[[package]]
-name = "sgx_libc"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "sgx_types",
-]
-
-[[package]]
-name = "sgx_tprotected_fs"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "sgx_trts",
- "sgx_types",
-]
-
-[[package]]
-name = "sgx_trts"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "sgx_libc",
- "sgx_types",
-]
-
-[[package]]
-name = "sgx_tstd"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "hashbrown_tstd",
- "sgx_alloc",
- "sgx_backtrace_sys",
- "sgx_demangle",
- "sgx_libc",
- "sgx_tprotected_fs",
- "sgx_trts",
- "sgx_types",
- "sgx_unwind",
-]
-
-[[package]]
-name = "sgx_types"
-version = "1.1.3"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-
-[[package]]
-name = "sgx_unwind"
-version = "0.1.1"
-source = "git+https://github.com/apache/teaclave-sgx-sdk.git?rev=v1.1.3#a6a172e652b4db4eaa17e4faa078fda8922abdd0"
-dependencies = [
- "sgx_build_helper",
+ "serde",
 ]
 
 [[package]]
@@ -8176,15 +8061,6 @@ dependencies = [
 
 [[package]]
 name = "smallvec"
-version = "0.6.14"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97fcaeba89edba30f044a10c6a3cc39df9c3f17d7cd829dd1446cab35f890e0"
-dependencies = [
- "maybe-uninit",
-]
-
-[[package]]
-name = "smallvec"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe0f37c9e8f3c5a4a66ad655a93c74daac4ad00c441533bf5c6e7990bb42604e"
@@ -8312,7 +8188,7 @@ name = "sp-application-crypto"
 version = "4.0.0-dev"
 dependencies = [
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-io",
  "sp-std",
@@ -8325,7 +8201,7 @@ dependencies = [
  "integer-sqrt",
  "num-traits",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-debug-derive",
  "sp-std",
  "static_assertions",
@@ -8422,7 +8298,7 @@ dependencies = [
  "async-trait",
  "merlin",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-consensus",
@@ -8483,7 +8359,7 @@ dependencies = [
  "regex",
  "schnorrkel",
  "secrecy",
- "serde 1.0.127",
+ "serde",
  "sha2 0.9.5",
  "sp-debug-derive",
  "sp-externalities",
@@ -8533,7 +8409,7 @@ dependencies = [
  "finality-grandpa",
  "log",
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-core",
@@ -8586,7 +8462,7 @@ dependencies = [
  "lazy_static",
  "sp-core",
  "sp-runtime",
- "strum",
+ "strum 0.20.0",
 ]
 
 [[package]]
@@ -8600,7 +8476,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "schnorrkel",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-externalities",
 ]
@@ -8618,7 +8494,7 @@ name = "sp-npos-elections"
 version = "4.0.0-dev"
 dependencies = [
  "parity-scale-codec",
- "serde 1.0.127",
+ "serde",
  "sp-arithmetic",
  "sp-core",
  "sp-npos-elections-solution-type",
@@ -8656,7 +8532,7 @@ name = "sp-rpc"
 version = "4.0.0-dev"
 dependencies = [
  "rustc-hash",
- "serde 1.0.127",
+ "serde",
  "sp-core",
 ]
 
@@ -8672,7 +8548,7 @@ dependencies = [
  "parity-util-mem",
  "paste",
  "rand 0.7.3",
- "serde 1.0.127",
+ "serde",
  "sp-application-crypto",
  "sp-arithmetic",
  "sp-core",
@@ -8711,6 +8587,7 @@ dependencies = [
 name = "sp-sandbox"
 version = "0.10.0-dev"
 dependencies = [
+ "log",
  "parity-scale-codec",
  "sp-core",
  "sp-io",
@@ -8723,7 +8600,7 @@ dependencies = [
 name = "sp-serializer"
 version = "3.0.0"
 dependencies = [
- "serde 1.0.127",
+ "serde",
  "serde_json",
 ]
 
@@ -8758,7 +8635,7 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.1",
  "rand 0.7.3",
- "smallvec 1.6.1",
+ "smallvec",
  "sp-core",
  "sp-externalities",
  "sp-panic-handler",
@@ -8781,7 +8658,7 @@ dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "ref-cast",
- "serde 1.0.127",
+ "serde",
  "sp-debug-derive",
  "sp-std",
 ]
@@ -8821,7 +8698,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.10.2",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "slog",
  "sp-std",
@@ -8882,7 +8759,7 @@ dependencies = [
  "impl-serde",
  "parity-scale-codec",
  "parity-wasm 0.42.2",
- "serde 1.0.127",
+ "serde",
  "sp-runtime",
  "sp-std",
  "sp-version-proc-macro",
@@ -8982,14 +8859,32 @@ version = "0.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7318c509b5ba57f18533982607f24070a55d353e90d4cae30c467cdb2ad5ac5c"
 dependencies = [
- "strum_macros",
+ "strum_macros 0.20.1",
 ]
+
+[[package]]
+name = "strum"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aaf86bbcfd1fa9670b7a129f64fc0c9fcbbfe4f1bc4210e9e98fe71ffc12cde2"
 
 [[package]]
 name = "strum_macros"
 version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee8bc6b87a5112aeeab1f4a9f7ab634fe6cbefc4850006df31267f4cfb9e3149"
+dependencies = [
+ "heck",
+ "proc-macro2 1.0.28",
+ "quote 1.0.9",
+ "syn 1.0.74",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.21.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d06aaeeee809dbc59eb4556183dd927df67db1540de5be8d3ec0b6636358a5ec"
 dependencies = [
  "heck",
  "proc-macro2 1.0.28",
@@ -9060,7 +8955,7 @@ dependencies = [
  "hyper",
  "log",
  "prometheus",
- "tokio 1.10.0",
+ "tokio",
 ]
 
 [[package]]
@@ -9082,8 +8977,8 @@ dependencies = [
  "pallet-indices",
  "pallet-staking",
  "parity-scale-codec",
- "rpc-ext",
- "serde 1.0.127",
+ "phala-node-rpc-ext",
+ "serde",
  "serde_json",
  "sp-application-crypto",
  "sp-core",
@@ -9125,7 +9020,7 @@ dependencies = [
  "sc-light",
  "sc-offchain",
  "sc-service",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sp-blockchain",
  "sp-consensus",
@@ -9151,7 +9046,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-util-mem",
  "sc-service",
- "serde 1.0.127",
+ "serde",
  "sp-api",
  "sp-application-crypto",
  "sp-block-builder",
@@ -9318,7 +9213,7 @@ dependencies = [
  "pest_derive",
  "rand 0.8.4",
  "regex",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "slug",
  "unic-segment",
@@ -9424,7 +9319,7 @@ version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be4d6b5f19ff7664e8c98d03e2139cb510db9b0a60b55f8e8709b689d939b6bc"
 dependencies = [
- "serde 1.0.127",
+ "serde",
  "serde_json",
 ]
 
@@ -9445,51 +9340,6 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "0.1.22"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a09c0b5bb588872ab2f09afa13ee6e9dac11e10a0ec9e8e3ba39a5a5d530af6"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "mio 0.6.23",
- "num_cpus",
- "tokio-codec",
- "tokio-current-thread",
- "tokio-executor",
- "tokio-fs",
- "tokio-io",
- "tokio-reactor",
- "tokio-sync",
- "tokio-tcp",
- "tokio-threadpool",
- "tokio-timer",
- "tokio-udp",
- "tokio-uds",
-]
-
-[[package]]
-name = "tokio"
-version = "0.2.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6703a273949a90131b290be1fe7b039d0fc884aa1935860dfcbe056f28cd8092"
-dependencies = [
- "bytes 0.5.6",
- "fnv",
- "iovec",
- "lazy_static",
- "libc",
- "mio 0.6.23",
- "mio-uds",
- "num_cpus",
- "pin-project-lite 0.1.12",
- "signal-hook-registry",
- "slab",
- "tokio-macros 0.2.6",
- "winapi 0.3.9",
-]
-
-[[package]]
-name = "tokio"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "01cf844b23c6131f624accf65ce0e4e9956a8bb329400ea5bcc26ae3a5c20b0b"
@@ -9504,72 +9354,8 @@ dependencies = [
  "parking_lot 0.11.1",
  "pin-project-lite 0.2.7",
  "signal-hook-registry",
- "tokio-macros 1.3.0",
+ "tokio-macros",
  "winapi 0.3.9",
-]
-
-[[package]]
-name = "tokio-codec"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25b2998660ba0e70d18684de5d06b70b70a3a747469af9dea7618cc59e75976b"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "tokio-io",
-]
-
-[[package]]
-name = "tokio-current-thread"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1de0e32a83f131e002238d7ccde18211c0a5397f60cbfffcb112868c2e0e20e"
-dependencies = [
- "futures 0.1.31",
- "tokio-executor",
-]
-
-[[package]]
-name = "tokio-executor"
-version = "0.1.10"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fb2d1b8f4548dbf5e1f7818512e9c406860678f29c300cdf0ebac72d1a3a1671"
-dependencies = [
- "crossbeam-utils 0.7.2",
- "futures 0.1.31",
-]
-
-[[package]]
-name = "tokio-fs"
-version = "0.1.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "297a1206e0ca6302a0eed35b700d292b275256f596e2f3fea7729d5e629b6ff4"
-dependencies = [
- "futures 0.1.31",
- "tokio-io",
- "tokio-threadpool",
-]
-
-[[package]]
-name = "tokio-io"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57fc868aae093479e3131e3d165c93b1c7474109d13c90ec0dda2a1bbfff0674"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "log",
-]
-
-[[package]]
-name = "tokio-macros"
-version = "0.2.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e44da00bfc73a25f814cd8d7e57a68a5c31b74b3152a0a1d1f590c97ed06265a"
-dependencies = [
- "proc-macro2 1.0.28",
- "quote 1.0.9",
- "syn 1.0.74",
 ]
 
 [[package]]
@@ -9590,38 +9376,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7d995660bd2b7f8c1568414c1126076c13fbb725c40112dc0120b78eb9b717b"
 dependencies = [
  "native-tls",
- "tokio 1.10.0",
-]
-
-[[package]]
-name = "tokio-reactor"
-version = "0.1.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09bc590ec4ba8ba87652da2068d150dcada2cfa2e07faae270a5e0409aa51351"
-dependencies = [
- "crossbeam-utils 0.7.2",
- "futures 0.1.31",
- "lazy_static",
- "log",
- "mio 0.6.23",
- "num_cpus",
- "parking_lot 0.9.0",
- "slab",
- "tokio-executor",
- "tokio-io",
- "tokio-sync",
-]
-
-[[package]]
-name = "tokio-rustls"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03d15e5669243a45f630a5167d101b942174ca94b615445b2057eace1c818736"
-dependencies = [
- "futures-core",
- "rustls",
- "tokio 0.2.25",
- "webpki 0.21.4",
+ "tokio",
 ]
 
 [[package]]
@@ -9631,7 +9386,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc6844de72e57df1980054b38be3a9f4702aba4858be64dd700181a8a6d0e1b6"
 dependencies = [
  "rustls",
- "tokio 1.10.0",
+ "tokio",
  "webpki 0.21.4",
 ]
 
@@ -9643,108 +9398,7 @@ checksum = "7b2f3f698253f03119ac0102beaa64f67a67e08074d03a22d18784104543727f"
 dependencies = [
  "futures-core",
  "pin-project-lite 0.2.7",
- "tokio 1.10.0",
-]
-
-[[package]]
-name = "tokio-sync"
-version = "0.1.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "edfe50152bc8164fcc456dab7891fa9bf8beaf01c5ee7e1dd43a397c3cf87dee"
-dependencies = [
- "fnv",
- "futures 0.1.31",
-]
-
-[[package]]
-name = "tokio-tcp"
-version = "0.1.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "98df18ed66e3b72e742f185882a9e201892407957e45fbff8da17ae7a7c51f72"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "iovec",
- "mio 0.6.23",
- "tokio-io",
- "tokio-reactor",
-]
-
-[[package]]
-name = "tokio-threadpool"
-version = "0.1.18"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df720b6581784c118f0eb4310796b12b1d242a7eb95f716a8367855325c25f89"
-dependencies = [
- "crossbeam-deque 0.7.4",
- "crossbeam-queue",
- "crossbeam-utils 0.7.2",
- "futures 0.1.31",
- "lazy_static",
- "log",
- "num_cpus",
- "slab",
- "tokio-executor",
-]
-
-[[package]]
-name = "tokio-timer"
-version = "0.2.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "93044f2d313c95ff1cb7809ce9a7a05735b012288a888b62d4434fd58c94f296"
-dependencies = [
- "crossbeam-utils 0.7.2",
- "futures 0.1.31",
- "slab",
- "tokio-executor",
-]
-
-[[package]]
-name = "tokio-udp"
-version = "0.1.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2a0b10e610b39c38b031a2fcab08e4b82f16ece36504988dcbd81dbba650d82"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "log",
- "mio 0.6.23",
- "tokio-codec",
- "tokio-io",
- "tokio-reactor",
-]
-
-[[package]]
-name = "tokio-uds"
-version = "0.2.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ab57a4ac4111c8c9dbcf70779f6fc8bc35ae4b2454809febac840ad19bd7e4e0"
-dependencies = [
- "bytes 0.4.12",
- "futures 0.1.31",
- "iovec",
- "libc",
- "log",
- "mio 0.6.23",
- "mio-uds",
- "tokio-codec",
- "tokio-io",
- "tokio-reactor",
-]
-
-[[package]]
-name = "tokio-util"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "be8242891f2b6cbef26a2d7e8605133c2c554cd35b3e4948ea892d6d68436499"
-dependencies = [
- "bytes 0.5.6",
- "futures-core",
- "futures-io",
- "futures-sink",
- "log",
- "pin-project-lite 0.1.12",
- "tokio 0.2.25",
+ "tokio",
 ]
 
 [[package]]
@@ -9759,7 +9413,7 @@ dependencies = [
  "futures-sink",
  "log",
  "pin-project-lite 0.2.7",
- "tokio 1.10.0",
+ "tokio",
 ]
 
 [[package]]
@@ -9768,7 +9422,7 @@ version = "0.5.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31142970826733df8241ef35dc040ef98c679ab14d7c3e54d827099b3acecaa"
 dependencies = [
- "serde 1.0.127",
+ "serde",
 ]
 
 [[package]]
@@ -9856,7 +9510,7 @@ version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fb65ea441fbb84f9f6748fd496cf7f63ec9af5bca94dd86456978d055e8eb28b"
 dependencies = [
- "serde 1.0.127",
+ "serde",
  "tracing-core",
 ]
 
@@ -9871,10 +9525,10 @@ dependencies = [
  "lazy_static",
  "matchers",
  "regex",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "sharded-slab",
- "smallvec 1.6.1",
+ "smallvec",
  "thread_local",
  "tracing",
  "tracing-core",
@@ -9898,7 +9552,7 @@ dependencies = [
  "hashbrown",
  "log",
  "rustc-hex",
- "smallvec 1.6.1",
+ "smallvec",
 ]
 
 [[package]]
@@ -9908,25 +9562,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "652931506d2c1244d7217a70b99f56718a7b4161b37f04e7cd868072a99f68cd"
 dependencies = [
  "hash-db",
-]
-
-[[package]]
-name = "trie-storage"
-version = "0.1.0"
-dependencies = [
- "hash256-std-hasher",
- "hex",
- "impl-serde",
- "parity-scale-codec",
- "serde 1.0.118",
- "serde 1.0.127",
- "serde_json",
- "sp-application-crypto",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-state-machine",
- "sp-trie",
 ]
 
 [[package]]
@@ -9947,7 +9582,7 @@ dependencies = [
  "lazy_static",
  "log",
  "rand 0.8.4",
- "smallvec 1.6.1",
+ "smallvec",
  "thiserror",
  "tinyvec",
  "url 2.2.2",
@@ -9967,7 +9602,7 @@ dependencies = [
  "lru-cache",
  "parking_lot 0.11.1",
  "resolv-conf",
- "smallvec 1.6.1",
+ "smallvec",
  "thiserror",
  "trust-dns-proto",
 ]
@@ -9989,7 +9624,7 @@ dependencies = [
  "sc-cli",
  "sc-executor",
  "sc-service",
- "serde 1.0.127",
+ "serde",
  "sp-core",
  "sp-keystore",
  "sp-runtime",
@@ -10005,7 +9640,7 @@ checksum = "5bdaf2a1d317f3d58b44b31c7f6436b9b9acafe7bddfeace50897c2b804d7792"
 dependencies = [
  "glob",
  "lazy_static",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "termcolor",
  "toml",
@@ -10311,7 +9946,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b608ecc8f4198fe8680e2ed18eccab5f0cd4caaf3d83516fa5fb2e927fda2586"
 dependencies = [
  "cfg-if 1.0.0",
- "serde 1.0.127",
+ "serde",
  "serde_json",
  "wasm-bindgen-macro",
 ]
@@ -10407,6 +10042,7 @@ dependencies = [
  "downcast-rs",
  "errno",
  "libc",
+ "libm",
  "memory_units",
  "num-rational 0.2.4",
  "num-traits",
@@ -10448,8 +10084,8 @@ dependencies = [
  "psm",
  "region",
  "rustc-demangle",
- "serde 1.0.127",
- "smallvec 1.6.1",
+ "serde",
+ "smallvec",
  "target-lexicon",
  "wasmparser",
  "wasmtime-cache",
@@ -10474,7 +10110,7 @@ dependencies = [
  "file-per-thread-logger",
  "libc",
  "log",
- "serde 1.0.127",
+ "serde",
  "sha2 0.9.5",
  "toml",
  "winapi 0.3.9",
@@ -10526,7 +10162,7 @@ dependencies = [
  "indexmap",
  "log",
  "more-asserts",
- "serde 1.0.127",
+ "serde",
  "thiserror",
  "wasmparser",
 ]
@@ -10551,7 +10187,7 @@ dependencies = [
  "object 0.24.0",
  "rayon",
  "region",
- "serde 1.0.127",
+ "serde",
  "target-lexicon",
  "thiserror",
  "wasmparser",
@@ -10588,7 +10224,7 @@ dependencies = [
  "cfg-if 1.0.0",
  "lazy_static",
  "libc",
- "serde 1.0.127",
+ "serde",
  "target-lexicon",
  "wasmtime-environ",
  "wasmtime-runtime",
@@ -10609,7 +10245,7 @@ dependencies = [
  "libc",
  "log",
  "mach",
- "memoffset 0.6.4",
+ "memoffset",
  "more-asserts",
  "rand 0.8.4",
  "region",

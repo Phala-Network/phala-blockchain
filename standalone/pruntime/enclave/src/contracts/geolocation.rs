@@ -104,7 +104,7 @@ impl contracts::NativeContract for Geolocation {
                     if let Some(data) = self.geolocations.get(&account) {
                         geolocation = data.clone();
                     } else {
-                        return Err(anyhow::Error::msg(Error::Other("no record")));
+                        return Err(anyhow::Error::msg(Error::Other("no record".to_string())));
                     }
                     Ok(Response::GetGeolocation { geolocation })
                 }
