@@ -87,3 +87,6 @@ coverage/
 # JS scripts
 scripts/js/node_modules
 scripts/js/.env
+
+# Geolite Database
+**/pherry/GeoLite2-City.mmdb
