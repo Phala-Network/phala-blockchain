@@ -14,7 +14,6 @@ dependencies = [
  "chrono",
  "csv-core",
  "derive_more",
- "enclave-api",
  "env_logger",
  "finality-grandpa",
  "fixed",
@@ -35,9 +34,11 @@ dependencies = [
  "pallet-kitties",
  "parity-scale-codec",
  "phala-crypto",
+ "phala-enclave-api",
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
+ "phala-trie-storage",
  "phala-types",
  "prpc",
  "rand 0.7.3",
@@ -66,7 +67,6 @@ dependencies = [
  "sp-runtime",
  "sp-runtime-interface",
  "sp-trie",
- "trie-storage",
  "webpki 0.21.4 (registry+https://github.com/rust-lang/crates.io-index)",
  "yasna",
 ]
@@ -633,27 +633,6 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
-
-[[package]]
-name = "enclave-api"
-version = "0.1.0"
-dependencies = [
- "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "derive_more",
- "frame-system",
- "parity-scale-codec",
- "phala-crypto",
- "phala-mq",
- "phala-node-runtime",
- "phala-types",
- "prost",
- "prpc",
- "sp-application-crypto",
- "sp-core",
- "sp-finality-grandpa",
- "sp-runtime",
- "trie-storage",
-]
 
 [[package]]
 name = "enumflags2"
@@ -2327,6 +2306,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-enclave-api"
+version = "0.1.0"
+dependencies = [
+ "base64 0.13.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "derive_more",
+ "frame-system",
+ "parity-scale-codec",
+ "phala-crypto",
+ "phala-mq",
+ "phala-node-runtime",
+ "phala-trie-storage",
+ "phala-types",
+ "prost",
+ "prpc",
+ "sp-application-crypto",
+ "sp-core",
+ "sp-finality-grandpa",
+ "sp-runtime",
+]
+
+[[package]]
 name = "phala-mq"
 version = "0.1.0"
 dependencies = [
@@ -2441,17 +2441,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-trie-storage"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-state-machine",
+ "sp-trie",
+]
+
+[[package]]
 name = "phala-types"
 version = "0.3.0"
 dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
+ "phala-trie-storage",
  "prpc",
  "serde",
  "sp-core",
  "sp-runtime",
- "trie-storage",
 ]
 
 [[package]]
@@ -4164,18 +4176,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "652931506d2c1244d7217a70b99f56718a7b4161b37f04e7cd868072a99f68cd"
 dependencies = [
  "hash-db",
-]
-
-[[package]]
-name = "trie-storage"
-version = "0.1.0"
-dependencies = [
- "parity-scale-codec",
- "serde",
- "sp-core",
- "sp-io",
- "sp-state-machine",
- "sp-trie",
 ]
 
 [[package]]
