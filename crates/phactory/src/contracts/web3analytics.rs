@@ -14,8 +14,6 @@ use phala_mq::MessageOrigin;
 use crate::contracts;
 use phala_types::messaging::Web3AnalyticsCommand as Command;
 
-use super::woothee;
-
 pub type Sid = String;
 pub type Timestamp = u32;
 
@@ -216,7 +214,6 @@ pub enum Response {
     Error(String),
 }
 
-#[derive(Debug)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,

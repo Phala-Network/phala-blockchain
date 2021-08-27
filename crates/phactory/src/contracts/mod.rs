@@ -18,7 +18,6 @@ pub mod data_plaza;
 // pub mod diem;
 pub mod substrate_kitties;
 pub mod web3analytics;
-pub mod woothee;
 
 pub use phala_types::contract::*;
 
