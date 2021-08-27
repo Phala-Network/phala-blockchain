@@ -5,3 +5,4 @@ edition = "2018"
 description = "Platform abstraction layer for Phactory Runtime"
 
 [dependencies]
+anyhow = "1.0.43"

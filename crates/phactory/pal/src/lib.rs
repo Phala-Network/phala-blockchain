@@ -1,15 +1,10 @@
 //! Platform abstraction layer for Trusted Execution Environments
 
-use std::error::Error;
 use std::fmt::Debug;
 use std::path::Path;
 
-pub trait ErrorCode {
-    fn error_code(&self) -> i32 { -1 }
-}
-
-pub trait ErrorType: Error + ErrorCode + Debug {}
-impl<T: Error + ErrorCode + Debug> ErrorType for T {}
+pub trait ErrorType: Debug {}
+impl<T: Debug> ErrorType for T {}
 
 pub trait Sealing {
     type SealError: ErrorType;
@@ -31,3 +26,4 @@ pub trait Machine {
 }
 
 pub trait Platform: Sealing + RA + Machine + Clone {}
+impl<T: Sealing + RA + Machine + Clone> Platform for T {}

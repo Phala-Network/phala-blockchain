@@ -51,12 +51,13 @@ pub mod benchmark;
 mod contracts;
 mod cryptography;
 mod light_validation;
-mod prpc_service;
 mod rpc_types;
 mod secret_channel;
 mod storage;
 mod system;
 mod types;
+mod prpc_service;
+mod bin_api_service;
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ExecuteEnv, SYSTEM};
@@ -123,6 +124,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
     }
 
+    pub fn set_sealing_path(&mut self, path: String) {
+        self.sealing_path = path;
+    }
 
     fn init_secret_keys(
         &self,
@@ -183,39 +187,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         info!("Machine id: {:?}", hex::encode(&self.machine_id));
         info!("Init done.");
         Ok(data)
-    }
-}
-
-// For bin_api
-impl<Platform: pal::Platform> Phactory<Platform> {
-    pub fn bin_sync_header(&mut self, input: blocks::SyncHeaderReq) -> Result<Value, Value> {
-        let resp =
-            self.sync_header(input.headers, input.authority_set_change).map_err(display)?;
-        Ok(json!({ "synced_to": resp.synced_to }))
-    }
-
-    pub fn bin_sync_para_header(&mut self, input: SyncParachainHeaderReq) -> Result<Value, Value> {
-        let resp = self.sync_para_header(input.headers, input.proof).map_err(display)?;
-        Ok(json!({ "synced_to": resp.synced_to }))
-    }
-
-    pub fn bin_sync_combined_headers(&mut self, input: SyncCombinedHeadersReq) -> Result<Value, Value> {
-        let resp = self.sync_combined_headers(
-            input.relaychain_headers,
-            input.authority_set_change,
-            input.parachain_headers,
-            input.proof,
-        )
-        .map_err(display)?;
-        Ok(json!({
-            "relaychain_synced_to": resp.relaychain_synced_to,
-            "parachain_synced_to": resp.parachain_synced_to,
-        }))
-    }
-
-    pub fn bin_dispatch_block(&mut self, input: blocks::DispatchBlockReq) -> Result<Value, Value> {
-        let resp = self.dispatch_block(input.blocks).map_err(display)?;
-        Ok(json!({ "dispatched_to": resp.synced_to }))
     }
 }
 

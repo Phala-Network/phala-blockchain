@@ -6,6 +6,7 @@ use std::{
     ffi::CStr,
     sync::atomic::{AtomicU16, Ordering},
 };
+use log::{error, info};
 
 macro_rules! assert_eq_size {
     ($x:ty, $($xs:ty),+ $(,)?) => {
@@ -305,7 +306,7 @@ pub extern "C" fn mmap(
     // The GlobalAlloc in std uses libc::malloc && libc::memalign to alloc memory, but some third-party crate will call mmap to alloc
     // page-aligned memory directly. So we implement the alloc feature and delegate it to memalign.
     if (flags & libc::MAP_ANONYMOUS) != 0 && fd == -1 {
-        lazy_static! {
+        lazy_static::lazy_static! {
             static ref PAGE_SIZE: size_t = unsafe { ocall::sysconf(libc::_SC_PAGESIZE) } as _;
         }
         return unsafe { sgx_libc::memalign(*PAGE_SIZE, len) };
