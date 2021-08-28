@@ -86,6 +86,7 @@ sp-core = { package = "sp-core", path = "../../../substrate/primitives/core"}
 fixed = "1.9.0"
 fixed-sqrt = "0.2.4"
 fixed-macro = { version = "1.1", default-features = false, git = "https://github.com/kvinwang/fixed-macro.git" }
+ppv-lite86 = { version = "0.2.10", features = ["phala-sgx"] }
 
 # for diem
 # bcs = { path = "../../../diem/vendor/bcs", version = "0.1.2" }
@@ -102,6 +103,9 @@ default = [
     "sp-io/disable_allocator",
 ]
 tests = []
+
+[patch.crates-io]
+ppv-lite86 = { path = "../../../cryptocorrosion-sgx/utils-simd/ppv-lite86/" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 # sgx_alloc = { path = "../../../teaclave-sgx-sdk/sgx_alloc" }
