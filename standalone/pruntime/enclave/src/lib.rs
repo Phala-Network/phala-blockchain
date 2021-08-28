@@ -482,8 +482,8 @@ pub fn create_attestation_report(
     };
 
     let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
-    let mut os_rng = ring::rand::SystemRandom::new();
-    os_rng.fill(&mut quote_nonce.rand).unwrap();
+    let mut os_rng = rand::thread_rng();
+    os_rng.fill_bytes(&mut quote_nonce.rand);
     info!("rand finished");
     let mut qe_report = sgx_report_t::default();
     const RET_QUOTE_BUF_LEN: u32 = 2048;
@@ -811,9 +811,9 @@ fn load_secret_keys() -> Result<PersistentRuntimeData> {
 }
 
 fn new_sr25519_key() -> sr25519::Pair {
-    let rand = ring::rand::SystemRandom::new();
+    let mut rng = rand::thread_rng();
     let mut seed = [0_u8; SEED_BYTES];
-    rand.fill(&mut seed).unwrap();
+    rng.fill_bytes(&mut seed);
     sr25519::Pair::from_seed(&seed)
 }
 
