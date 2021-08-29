@@ -161,7 +161,7 @@ where
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
         if !self.master_pubkey_on_chain {
-            info!("Gatekeeper: not handle messages for no master pubkey on chain");
+            info!("Gatekeeper: not handling the messages because Gatekeeper has not launched on chain");
             return;
         }
 

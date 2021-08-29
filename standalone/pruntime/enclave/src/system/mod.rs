@@ -461,7 +461,10 @@ impl System {
                 self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
             }
             MasterKeyEvent::MasterPubkeyOnChain(_) => {
-                info!("Master pubkey on chain in block {}", block.block_number);
+                info!(
+                    "Gatekeeper launches on chain in block {}",
+                    block.block_number
+                );
                 if let Some(gatekeeper) = &mut self.gatekeeper {
                     gatekeeper.master_pubkey_uploaded();
                 }
@@ -511,6 +514,10 @@ impl System {
             }
 
             if let Some(master_key) = &self.master_key {
+                // The Gatekeeper object is only initialized once the Gatekeeper launch on the blockchain is finished,
+                // and the worker has a master key.
+                // The master key is either already loaded on startup,
+                // or just generated if the worker is the genesis Gatekeeper.
                 assert!(
                     self.gatekeeper.is_none(),
                     "Duplicated gatekeeper initialization"
