@@ -17,7 +17,7 @@ use phala_mq::{
 use phala_types::{
     messaging::{
         DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
     MasterPublicKey, WorkerPublicKey,
 };
@@ -339,6 +339,7 @@ pub struct System {
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
+    key_distribution_events: TypedReceiver<KeyDistribution>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
@@ -366,6 +367,7 @@ impl System {
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
+            key_distribution_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
             registered_on_chain: false,
@@ -419,6 +421,14 @@ impl System {
                         error!("Read message failed: {:?}", e);
                     }
                 },
+                message = self.key_distribution_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_key_distribution_event(block, origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
             };
             if ok.is_none() {
                 // All messages processed
@@ -466,12 +476,19 @@ impl System {
             "Duplicated gatekeeper initialization"
         );
 
-        info!("Init gatekeeper in block {}", block.block_number);
         let gatekeeper = gk::Gatekeeper::new(
-            self.master_key.unwrap().clone(),
-            &mut recv_mq,
-            self.send_mq
-                .channel(MessageOrigin::Gatekeeper, master_key.clone()),
+            self.master_key
+                .as_ref()
+                .expect("checked master key above; qed.")
+                .clone(),
+            recv_mq,
+            self.send_mq.channel(
+                MessageOrigin::Gatekeeper,
+                self.master_key
+                    .as_ref()
+                    .expect("checked master key above; qed.")
+                    .clone(),
+            ),
         );
         self.gatekeeper = Some(gatekeeper);
     }
@@ -540,12 +557,16 @@ impl System {
             self.egress.send(&master_pubkey);
         }
 
-        if let Some(master_key) = &self.master_key {
+        if self.master_key.is_some() {
+            info!("Init gatekeeper in block {}", block.block_number);
             self.init_gatekeeper(&mut block.recv_mq);
         }
 
         if my_pubkey == event.pubkey {
-            self.gatekeeper.unwrap().register_on_chain();
+            self.gatekeeper
+                .as_mut()
+                .expect("gatekeeper must be initializaed here; qed.")
+                .register_on_chain();
             self.registered_on_chain = true;
         }
     }
@@ -554,7 +575,7 @@ impl System {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: GatekeeperLaunch,
+        event: GatekeeperChange,
     ) {
         info!("Incoming gatekeeper change event: {:?}", event);
         match event {
@@ -588,17 +609,31 @@ impl System {
 
         if let Some(gatekeeper) = &mut self.gatekeeper {
             gatekeeper.share_master_key(&event.pubkey, &event.ecdh_pubkey);
-        }
 
-        let my_pubkey = self.identity_key.public();
-        if my_pubkey == event.pubkey {
-            self.gatekeeper.unwrap().register_on_chain();
-            self.registered_on_chain = true;
+            let my_pubkey = self.identity_key.public();
+            if my_pubkey == event.pubkey {
+                gatekeeper.register_on_chain();
+                self.registered_on_chain = true;
+            }
+        }
+    }
+
+    fn process_key_distribution_event(
+        &mut self,
+        _block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: KeyDistribution,
+    ) {
+        info!("Incoming key distribution event: {:?}", event);
+        match event {
+            KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
+                self.process_master_key_distribution(origin, dispatch_master_key_event)
+            }
         }
     }
 
     /// Process encrypted master key from mq
-    fn process_dispatch_master_key_event(
+    fn process_master_key_distribution(
         &mut self,
         origin: MessageOrigin,
         event: DispatchMasterKeyEvent,
