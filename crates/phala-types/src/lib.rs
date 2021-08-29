@@ -388,6 +388,7 @@ pub mod messaging {
 
     // Messages: Gatekeeper change
     bind_topic!(GatekeeperChange, b"phala/gatekeeper/change");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub enum GatekeeperChange {
         GatekeeperRegistered(NewGatekeeperEvent),
     }
@@ -406,6 +407,7 @@ pub mod messaging {
 
     // Messages: Distribution of master key and contract keys
     bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
     pub enum KeyDistribution {
         MasterKeyDistribution(DispatchMasterKeyEvent),
     }
