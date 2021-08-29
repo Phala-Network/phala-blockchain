@@ -80,13 +80,13 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		/// Change extra bridge transfer fee that user should pay
 		#[pallet::weight(195_000_000)]
-		pub fn sudo_change_fee(
+		pub fn change_fee(
 			origin: OriginFor<T>,
 			min_fee: BalanceOf<T>,
 			fee_scale: u32,
 			dest_id: bridge::BridgeChainId,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::BridgeCommitteeOrigin::ensure_origin(origin)?;
 			ensure!(fee_scale <= 1000u32, Error::<T>::InvalidFeeOption);
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
 			Self::deposit_event(Event::FeeUpdated(dest_id, min_fee, fee_scale));
