@@ -17,6 +17,7 @@ pub mod pallet {
 		pallet_prelude::*,
 		traits::{
 			Currency, LockIdentifier, LockableCurrency, OnUnbalanced, UnixTime, WithdrawReasons,
+			StorageVersion,
 		},
 	};
 	use frame_system::pallet_prelude::*;
@@ -59,8 +60,11 @@ pub mod pallet {
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// Mapping from pool id to PoolInfo
