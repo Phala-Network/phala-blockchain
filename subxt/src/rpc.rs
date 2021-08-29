@@ -88,7 +88,7 @@ use crate::{
         SystemEvents,
     },
 };
-use rpc_ext::GetStorageChangesResponse;
+use phala_node_rpc_ext::GetStorageChangesResponse;
 
 pub type ChainBlock<T> =
     SignedBlock<Block<<T as System>::Header, <T as System>::Extrinsic>>;

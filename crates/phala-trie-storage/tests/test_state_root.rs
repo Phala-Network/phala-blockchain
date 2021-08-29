@@ -5,7 +5,7 @@ use sp_trie::trie_types::Layout;
 use sp_trie::TrieConfiguration as _;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use trie_storage::*;
+use phala_trie_storage::*;
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct NativeBlakeTwo256;

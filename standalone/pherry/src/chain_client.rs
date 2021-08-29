@@ -1,4 +1,3 @@
-use super::runtimes;
 use super::XtClient;
 use crate::{
     types::{utils::raw_proof, Hash},
@@ -7,12 +6,13 @@ use crate::{
 use anyhow::{anyhow, Result};
 use codec::Decode;
 use codec::Encode;
-use enclave_api::blocks::{ParaId, StorageProof};
+use phala_enclave_api::blocks::{ParaId, StorageProof};
 use phala_types::messaging::MessageOrigin;
-use rpc_ext::MakeInto as _;
+use phala_node_rpc_ext::MakeInto as _;
+use serde_json::to_value;
 use sp_core::{storage::StorageKey, twox_128, twox_64};
 use subxt::Signer;
-use trie_storage::ser::StorageChanges;
+use phala_trie_storage::ser::StorageChanges;
 
 type SrSigner = subxt::PairSigner<super::Runtime, sp_core::sr25519::Pair>;
 
@@ -63,12 +63,19 @@ pub async fn fetch_genesis_storage(client: &XtClient) -> Result<Vec<(Vec<u8>, Ve
     Ok(storage)
 }
 
-/// Fetch latest sequences for given sender
-pub async fn fetch_mq_ingress_seq(client: &XtClient, sender: MessageOrigin) -> Result<u64> {
-    client
-        .fetch_or_default(&runtimes::phala_mq::OffchainIngressStore::new(sender), None)
-        .await
-        .or(Ok(0))
+/// Fetch best next sequence for given sender considering the txpool
+pub async fn mq_next_sequence(
+    client: &XtClient,
+    sender: &MessageOrigin,
+) -> Result<u64, subxt::Error> {
+    let sender_scl = sender.encode();
+    let sender_hex = hex::encode(sender_scl);
+    let seq: u64 = client
+        .rpc
+        .client
+        .request("pha_getMqNextSequence", &[to_value(sender_hex)?])
+        .await?;
+    Ok(seq)
 }
 
 pub fn paras_heads_key(para_id: &ParaId) -> StorageKey {

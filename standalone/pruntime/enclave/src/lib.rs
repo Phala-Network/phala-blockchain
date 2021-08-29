@@ -1,14 +1,8 @@
-#![crate_name = "enclaveapp"]
-#![crate_type = "staticlib"]
 #![warn(unused_imports)]
 #![warn(unused_extern_crates)]
-#![cfg_attr(not(target_env = "sgx"), no_std)]
-#![cfg_attr(target_env = "sgx", feature(rustc_private))]
 #![feature(bench_black_box)]
-
-#[cfg(not(target_env = "sgx"))]
-#[macro_use]
-extern crate sgx_tstd as std;
+#![feature(panic_unwind)]
+#![feature(c_variadic)]
 
 #[macro_use]
 extern crate serde_json;
@@ -19,7 +13,9 @@ extern crate log;
 
 extern crate runtime as chain;
 
-use sgx_rand::*;
+use std;
+
+use rand::*;
 use sgx_tcrypto::*;
 use sgx_tse::*;
 use sgx_types::*;
@@ -30,13 +26,11 @@ use sgx_types::{sgx_sealed_data_t, sgx_status_t};
 
 use crate::light_validation::LightValidation;
 use crate::secret_channel::PeelingReceiver;
-use crate::std::collections::BTreeMap;
-use crate::std::prelude::v1::*;
-use crate::std::ptr;
-use crate::std::str;
-use crate::std::string::String;
-use crate::std::sync::SgxMutex;
-use crate::std::vec::Vec;
+use sgx_tstd::sync::SgxMutex;
+use std::collections::BTreeMap;
+use std::ptr;
+use std::str;
+use std::time::Duration;
 
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
@@ -51,15 +45,14 @@ use std::path::PathBuf;
 use std::sgxfs::{read as sgx_read, write as sgx_write};
 
 use http_req::request::{Method, Request};
-use std::time::Duration;
 
-use pink::InkModule;
+// use pink::InkModule;
 
-use enclave_api::prpc::InitRuntimeResponse;
-use enclave_api::storage_sync::{
+use phala_enclave_api::prpc::InitRuntimeResponse;
+use phala_enclave_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
 };
-use enclave_api::{
+use phala_enclave_api::{
     actions::*,
     blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };
@@ -77,6 +70,7 @@ mod benchmark;
 mod cert;
 mod contracts;
 mod cryptography;
+mod libc_hacks;
 mod light_validation;
 mod prpc_service;
 mod rpc_types;
@@ -272,7 +266,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
 
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid)
         .parse()
-        .unwrap();
+        .expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Ocp-Apim-Subscription-Key", &ias_key())
@@ -328,7 +322,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
 
     let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT)
         .parse()
-        .unwrap();
+        .expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")
@@ -469,7 +463,7 @@ pub fn create_attestation_report(
     };
 
     let mut quote_nonce = sgx_quote_nonce_t { rand: [0; 16] };
-    let mut os_rng = os::SgxRng::new().unwrap();
+    let mut os_rng = rand::thread_rng();
     os_rng.fill_bytes(&mut quote_nonce.rand);
     info!("rand finished");
     let mut qe_report = sgx_report_t::default();
@@ -762,7 +756,6 @@ fn load_secret_keys(sealing_path: &str) -> Result<PersistentRuntimeData, Error> 
 }
 
 fn new_sr25519_key() -> sr25519::Pair {
-    use rand::RngCore;
     let mut rng = rand::thread_rng();
     let mut seed = [0_u8; SEED_BYTES];
     rng.fill_bytes(&mut seed);
@@ -863,7 +856,9 @@ fn init_secret_keys(
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -> sgx_status_t {
-    env_logger::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    libc_hacks::init();
+
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
     benchmark::reset_iteration_counter();
 
@@ -879,6 +874,7 @@ pub extern "C" fn ecall_init(sealing_path: *const u8, sealing_path_len: usize) -
     let mut local_state = LOCAL_STATE.lock().unwrap();
     local_state.sealing_path = String::from(sealing_path);
 
+    info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS
 }
 
@@ -1184,20 +1180,21 @@ fn test_ink(_input: &Map<String, Value>) -> Result<Value, Value> {
     ];
 
     for t in testcases {
-        let mut driver = InkModule::new();
+        // TODO.kevin:
+        // let mut driver = InkModule::new();
 
-        info!("\n>>> Execute Contract {}", t.name);
+        // info!("\n>>> Execute Contract {}", t.name);
 
-        let contract_key = driver.put_code(t.code).unwrap();
-        info!(">>> Code deplyed to {}", contract_key);
+        // let contract_key = driver.put_code(t.code).unwrap();
+        // info!(">>> Code deplyed to {}", contract_key);
 
-        let result = InkModule::instantiate(contract_key, t.initial_data);
-        info!(">>> Code instantiated with result {:?}", result.unwrap());
+        // let result = InkModule::instantiate(contract_key, t.initial_data);
+        // info!(">>> Code instantiated with result {:?}", result.unwrap());
 
-        for tx in t.txs {
-            let result = InkModule::call(contract_key, tx);
-            info!(">>> Code called with result {:?}", result.unwrap());
-        }
+        // for tx in t.txs {
+        //     let result = InkModule::call(contract_key, tx);
+        //     info!(">>> Code called with result {:?}", result.unwrap());
+        // }
     }
 
     Ok(json!({}))
@@ -1220,5 +1217,6 @@ fn test(_param: TestReq) -> Result<Value, Value> {
 #[cfg(feature = "tests")]
 fn run_all_tests() {
     system::run_all_tests();
-    info!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
+    libc_hacks::tests::test_all();
+    panic!("🎉🎉🎉🎉 All Tests Passed. 🎉🎉🎉🎉");
 }

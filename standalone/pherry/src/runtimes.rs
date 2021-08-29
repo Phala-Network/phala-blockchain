@@ -26,7 +26,6 @@ use sp_runtime::{
 };
 
 use subxt::{
-    extrinsic::DefaultExtra,
     balances::{
         AccountData,
         Balances,
@@ -54,6 +53,8 @@ use subxt::{
     register_default_type_sizes
 };
 
+use crate::extra::PhalaExtra;
+
 /// PhalaNode concrete type definitions compatible with those for kusama, v0.7
 ///
 /// # Note
@@ -64,7 +65,7 @@ pub struct PhalaNodeRuntime;
 
 impl Runtime for PhalaNodeRuntime {
     type Signature = MultiSignature;
-    type Extra = DefaultExtra<Self>;
+    type Extra = PhalaExtra<Self>;
 
     fn register_type_sizes(event_type_registry: &mut EventTypeRegistry<Self>) {
         event_type_registry.with_system();
@@ -248,7 +249,7 @@ pub mod parachain_info {
     use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
 
-    pub type ParachainId = enclave_api::blocks::ParaId;
+    pub type ParachainId = phala_enclave_api::blocks::ParaId;
 
     #[module]
     pub trait ParachainInfo: System {}

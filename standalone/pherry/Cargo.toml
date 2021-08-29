@@ -36,8 +36,8 @@ pallet-indices = { path = "../../substrate/frame/indices" }
 balances = { package = "pallet-balances", path = "../../substrate/frame/balances" }
 sp-keyring = { package = "sp-keyring", path = "../../substrate/primitives/keyring" }
 
-phala-types = { path = "../../common/types" }
+phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
-trie-storage = { path = "../../crates/trie-storage" }
-rpc-ext = { path = "../../standalone/rpc-ext" }
-enclave-api = { path = "../../standalone/pruntime/enclave-api" }
+phala-trie-storage = { path = "../../crates/phala-trie-storage" }
+phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
+phala-enclave-api = { path = "../../standalone/pruntime/enclave-api" }

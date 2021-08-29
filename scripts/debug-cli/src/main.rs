@@ -1,4 +1,4 @@
-use codec::{Decode, Encode};
+use codec::Decode;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
@@ -41,11 +41,19 @@ enum Cli {
         destination: String,
         hex_data: String,
     },
+    DecodeFrnkJustification {
+        hex_data: String,
+    },
     EcdhKey {
         privkey: String,
     },
     InspectPalletId {
         pallet_id: String,
+    },
+    GetWorkerState {
+        #[structopt(long, default_value = "http://localhost:8000")]
+        url: String,
+        pubkey: String,
     }
 }
 
@@ -87,13 +95,13 @@ fn main() {
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
-                enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
+                phala_enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
         }
         Cli::DecodeEgressMessages { b64_data } => {
             let data = decode_b64(&argument_or_stdin(&b64_data));
-            let messages = enclave_api::prpc::EgressMessages::decode(&mut data.as_slice());
+            let messages = phala_enclave_api::prpc::EgressMessages::decode(&mut data.as_slice());
             println!("Decoded: {:?}", messages);
         }
         Cli::DecodeSignedMessage { hex_data } => {
@@ -122,6 +130,11 @@ fn main() {
             let data = decode_hex(&hex_data);
             decode_mq_payload(destination.as_bytes(), &data);
         }
+        Cli::DecodeFrnkJustification { hex_data } => {
+            let data = decode_hex(&hex_data);
+            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..]).expect("Error decoding FRNK justification");
+            println!("{:?}", j);
+        }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;
 
@@ -139,16 +152,29 @@ fn main() {
             let account: AccountId = id.into_account();
             println!("Pallet account: {}", account);
         }
+        Cli::GetWorkerState { url, pubkey } => {
+            use tokio::runtime::Runtime;
+
+            let client = phala_enclave_api::pruntime_client::new_pruntime_client(url);
+            let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
+
+            let rt  = Runtime::new().unwrap();
+            rt.block_on(async move {
+                match client.get_worker_state(phala_enclave_api::prpc::GetWorkerStateRequest { public_key }).await {
+                    Ok(state) => println!("{:#?}", state),
+                    Err(err) => println!("Error: {:?}", err),
+                }
+            });
+        }
     }
 }
 
+fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
+    hex::decode(hex_str.strip_prefix("0x").unwrap_or(hex_str))
+}
+
 fn decode_hex(hex_str: &str) -> Vec<u8> {
-    let raw_hex = if hex_str.starts_with("0x") {
-        &hex_str[2..]
-    } else {
-        hex_str
-    };
-    hex::decode(raw_hex).expect("Failed to parse hex_data")
+    try_decode_hex(hex_str).expect("Failed to parse hex_data")
 }
 
 fn decode_hex_print<T: Decode + Debug>(hex_data: &str) -> T {
@@ -177,7 +203,8 @@ fn argument_or_stdin(arg: &str) -> String {
 }
 
 type AccountId = sp_runtime::AccountId32;
-// type Balance = u128;
+type Header = sp_runtime::generic::Header<u32, sp_runtime::traits::BlakeTwo256>;
+type Block = sp_runtime::generic::Block<Header, sp_runtime::OpaqueExtrinsic>;
 
 // TODO(h4x): move it to a separate crate to share the code
 fn decode_mq_payload(destination: &[u8], payload: &[u8]) {

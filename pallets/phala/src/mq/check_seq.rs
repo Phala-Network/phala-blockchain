@@ -2,11 +2,14 @@ use super::{Call, CallMatcher, Config, IntoH256, OffchainIngress};
 
 use codec::{Decode, Encode};
 use frame_support::weights::DispatchInfo;
+use phala_types::messaging::MessageOrigin;
 use sp_runtime::traits::{DispatchInfoOf, Dispatchable, SignedExtension};
 use sp_runtime::transaction_validity::{
 	InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
 };
 use sp_std::marker::PhantomData;
+use sp_std::vec::Vec;
+use sp_std::vec;
 
 /// Requires a message queue message must has correct sequence id.
 ///
@@ -17,6 +20,10 @@ use sp_std::marker::PhantomData;
 /// will be a sequence of continuous messages to be included in the future block.
 #[derive(Encode, Decode, Clone, Eq, PartialEq)]
 pub struct CheckMqSequence<T>(PhantomData<T>);
+
+pub fn tag(sender: &MessageOrigin, seq: u64) -> Vec<u8> {
+	("PhalaMqOffchainMessages", sender, seq).encode()
+}
 
 impl<T> CheckMqSequence<T> {
 	pub fn new() -> Self {
@@ -96,11 +103,18 @@ where
 		if sequence < expected_seq {
 			return InvalidTransaction::Stale.into();
 		}
-		// Otherwise, in theory we could build a dependency graph based on (sender, sequence),
-		// but it may introduce circle dependency in the graph, conflicting with the deps built
-		// by other extensions (e.g. CheckNonce). So we just return ValidTransaction instead.
+
+		// Otherwise build a dependency graph based on (sender, sequence), hoping that it can be
+		// included later
+		let provides = vec![tag(sender, sequence)];
+		let requires = if sequence > expected_seq {
+			vec![tag(sender, sequence - 1)]
+		} else {
+			vec![]
+		};
 		Ok(ValidTransaction {
-			longevity: 20, // 20 blocks ~= 240 seconds
+			provides,
+			requires,
 			..Default::default()
 		})
 	}

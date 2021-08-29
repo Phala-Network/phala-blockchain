@@ -1,7 +1,10 @@
 use anyhow::Result;
 use log::info;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use alloc::boxed::Box;
 
-use enclave_api::prpc::{
+use crate::prpc::{
     client::{Error as ClientError, RequestClient},
     phactory_api_client::PhactoryApiClient,
     server::ProtoError as ServerError,
@@ -11,7 +14,7 @@ use enclave_api::prpc::{
 pub type PRuntimeClient = PhactoryApiClient<RpcRequest>;
 
 pub fn new_pruntime_client(base_url: String) -> PhactoryApiClient<RpcRequest> {
-    PhactoryApiClient::new(RpcRequest::new(base_url.to_string()))
+    PhactoryApiClient::new(RpcRequest::new(base_url))
 }
 
 pub struct RpcRequest {
@@ -27,11 +30,11 @@ impl RpcRequest {
 #[async_trait::async_trait]
 impl RequestClient for RpcRequest {
     async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, ClientError> {
-        fn from_display(err: impl std::fmt::Display) -> ClientError {
+        fn from_display(err: impl core::fmt::Display) -> ClientError {
             ClientError::RpcError(err.to_string())
         }
 
-        let url = format!("{}/prpc/{}", self.base_url, path);
+        let url = alloc::format!("{}/prpc/{}", self.base_url, path);
         let res = reqwest::Client::new()
             .post(url)
             .header("Connection", "close")

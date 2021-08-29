@@ -1,7 +1,6 @@
-use crate::std::convert::TryInto;
-use crate::std::path::PathBuf;
-use crate::std::prelude::v1::*;
-use crate::std::sgxfs::{read as sgx_read, write as sgx_write};
+use sgx_tstd::path::PathBuf;
+use sgx_tstd::io::{Read, Write};
+use sgx_tstd::sgxfs::{read as sgx_read, write as sgx_write};
 
 use phala_crypto::sr25519::{Persistence, Signature, Signing, Sr25519SecretKey};
 use sp_core::sr25519;

@@ -1,5 +1,5 @@
 [package]
-name = "enclave-api"
+name = "phala-enclave-api"
 version = "0.1.0"
 edition = "2018"
 resolver = "2"
@@ -15,15 +15,21 @@ frame-system = { package = "frame-system", path = "../../../substrate/frame/syst
 sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
 sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
-trie-storage = { path = "../../../crates/trie-storage", default-features = false }
-phala-types = { path = "../../../common/types", default-features = false }
+phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
+phala-types = { path = "../../../crates/phala-types", default-features = false }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
 derive_more = "0.99.16"
 prpc = { path = "../../../crates/prpc" }
 prost = { version = "0.8.0", default-features = false }
-phala-crypto = { path = "../../../crates/crypto" }
+phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
+
+# for pruntime_client
+async-trait = { version = "0.1.51", optional = true }
+anyhow = { version = "1.0.43", optional = true }
+log = { version = "0.4.14", optional = true }
+reqwest = { version = "0.11.4", optional = true }
 
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build", optional = true }
@@ -32,11 +38,11 @@ tempdir = { version = "0.3.7", optional = true }
 
 
 [features]
-default = ["std"]
+default = ["std", "pruntime-client"]
 
 std = [
     "serde",
-    "trie-storage/serde",
+    "phala-trie-storage/serde",
     "sp-core/full_crypto",
     "sp-runtime/std",
     "sp-application-crypto/std",
@@ -47,7 +53,10 @@ std = [
     "tempdir",
 ]
 
-sgx = [
-    "trie-storage/sgx",
-    "chain/native-nostd",
+sgx = []
+pruntime-client = [
+    "async-trait",
+    "anyhow",
+    "log",
+    "reqwest",
 ]

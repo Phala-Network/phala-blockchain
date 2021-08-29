@@ -7,7 +7,7 @@ use core::fmt;
 use log::info;
 
 use chain::pallet_registry::RegistryEvent;
-pub use enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
+pub use phala_enclave_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
@@ -164,6 +164,9 @@ impl WorkerState {
                     MiningEnterUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
                             if let Mining = info.state {
+                                if log_on {
+                                    info!("Enter paused");
+                                }
                                 info.state = Paused;
                                 return;
                             }
@@ -178,6 +181,9 @@ impl WorkerState {
                     MiningExitUnresponsive => {
                         if let Some(info) = &mut self.mining_state {
                             if let Paused = info.state {
+                                if log_on {
+                                    info!("Exit paused");
+                                }
                                 info.state = Mining;
                                 return;
                             }
@@ -338,7 +344,7 @@ pub struct System {
     // Gatekeeper
     registered_on_chain: bool,
     master_key: Option<sr25519::Pair>,
-    gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
+    pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
 
 impl System {
