@@ -68,7 +68,7 @@ pub mod pallet {
 		InvalidCommand,
 		InvalidPayload,
 		InvalidFeeOption,
-		FeeOptionsMissiing,
+		FeeOptionsMissing,
 	}
 
 	#[pallet::storage]
@@ -121,7 +121,7 @@ pub mod pallet {
 			let bridge_id = <bridge::Pallet<T>>::account_id();
 			ensure!(
 				BridgeFee::<T>::contains_key(&dest_id),
-				Error::<T>::FeeOptionsMissiing
+				Error::<T>::FeeOptionsMissing
 			);
 			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
 			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
