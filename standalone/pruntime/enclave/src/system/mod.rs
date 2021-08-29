@@ -16,7 +16,7 @@ use phala_mq::{
 };
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, HeartbeatChallenge, MasterKeyEvent, MiningReportEvent,
+        DispatchMasterKeyEvent, HeartbeatChallenge, GatekeeperLaunch, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
     MasterPublicKey, WorkerPublicKey,
@@ -337,7 +337,7 @@ pub struct System {
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
     system_events: TypedReceiver<SystemEvent>,
-    master_key_events: TypedReceiver<MasterKeyEvent>,
+    master_key_events: TypedReceiver<GatekeeperLaunch>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
@@ -450,17 +450,17 @@ impl System {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: MasterKeyEvent,
+        event: GatekeeperLaunch,
     ) {
         info!("Incoming master key event: {:?}", event);
         match event {
-            MasterKeyEvent::GatekeeperRegistered(new_gatekeeper_event) => {
+            GatekeeperLaunch::FirstGatekeeper(new_gatekeeper_event) => {
                 self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
             }
-            MasterKeyEvent::DispatchMasterKey(dispatch_master_key_event) => {
+            GatekeeperLaunch::DispatchMasterKey(dispatch_master_key_event) => {
                 self.process_dispatch_master_key_event(origin, dispatch_master_key_event)
             }
-            MasterKeyEvent::MasterPubkeyOnChain(_) => {
+            GatekeeperLaunch::MasterPubkeyOnChain(_) => {
                 info!(
                     "Gatekeeper launches on chain in block {}",
                     block.block_number

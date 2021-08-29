@@ -6,7 +6,7 @@ use phala_crypto::{
 use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        GatekeeperEvent, MasterKeyEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        GatekeeperEvent, GatekeeperLaunch, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
         RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
@@ -147,7 +147,7 @@ where
 
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
         self.egress
-            .push_message(MasterKeyEvent::dispatch_master_key_event(
+            .push_message(GatekeeperLaunch::dispatch_master_key_event(
                 pubkey.clone(),
                 my_ecdh_key
                     .public()
