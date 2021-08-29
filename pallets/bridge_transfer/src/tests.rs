@@ -147,7 +147,7 @@ fn transfer() {
 }
 
 #[test]
-fn create_sucessful_transfer_proposal() {
+fn create_successful_transfer_proposal() {
 	new_test_ext().execute_with(|| {
 		let prop_id = 1;
 		let src_id = 1;
