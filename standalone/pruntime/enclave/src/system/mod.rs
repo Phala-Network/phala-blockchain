@@ -16,8 +16,8 @@ use phala_mq::{
 };
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, GatekeeperLaunch, HeartbeatChallenge, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
     MasterPublicKey, WorkerPublicKey,
 };
@@ -338,6 +338,7 @@ pub struct System {
     egress: Sr25519MessageChannel,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
+    gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
@@ -364,6 +365,7 @@ impl System {
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
+            gatekeeper_change_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
             registered_on_chain: false,
@@ -404,6 +406,14 @@ impl System {
                 message = self.gatekeeper_launch_events => match message {
                     Ok((_, event, origin)) => {
                         self.process_gatekeeper_launch_event(block, origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+                message = self.gatekeeper_change_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_change_event(block, origin, event);
                     }
                     Err(e) => {
                         error!("Read message failed: {:?}", e);
@@ -466,7 +476,7 @@ impl System {
         self.gatekeeper = Some(gatekeeper);
     }
 
-    pub fn process_gatekeeper_launch_event(
+    fn process_gatekeeper_launch_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
@@ -528,8 +538,60 @@ impl System {
                 master_pubkey: master_key.public(),
             };
             self.egress.send(&master_pubkey);
+        }
 
+        if let Some(master_key) = &self.master_key {
             self.init_gatekeeper(&mut block.recv_mq);
+        }
+
+        if my_pubkey == event.pubkey {
+            self.gatekeeper.unwrap().register_on_chain();
+            self.registered_on_chain = true;
+        }
+    }
+
+    fn process_gatekeeper_change_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: GatekeeperLaunch,
+    ) {
+        info!("Incoming gatekeeper change event: {:?}", event);
+        match event {
+            GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
+                self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
+            }
+        }
+    }
+
+    /// Share the master key to the newly-registered gatekeeper
+    /// Tick the state if the registered gatekeeper is this worker
+    fn process_new_gatekeeper_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: NewGatekeeperEvent,
+    ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        // double check the registered gatekeeper is valid on chain
+        if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
+            error!(
+                "Fatal error: Invalid first gatekeeper registration {:?}",
+                event
+            );
+            panic!("System state poisoned");
+        }
+
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.share_master_key(&event.pubkey, &event.ecdh_pubkey);
+        }
+
+        let my_pubkey = self.identity_key.public();
+        if my_pubkey == event.pubkey {
             self.gatekeeper.unwrap().register_on_chain();
             self.registered_on_chain = true;
         }
