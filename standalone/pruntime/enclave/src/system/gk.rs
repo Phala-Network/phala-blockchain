@@ -88,6 +88,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
+    iv_seq: u64,
     // Tokenomic
     tokenomic_params: tokenomic::Params,
 }
@@ -112,8 +113,27 @@ where
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             last_random_number: [0_u8; 32],
+            iv_seq: 0,
             tokenomic_params: tokenomic::test_params(),
         }
+    }
+
+    fn generate_iv(&mut self, block_number: chain::BlockNumber) -> aead::IV {
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(&[b"iv_generator"])
+            .expect("should not fail with valid info");
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend(derived_key.dump_secret_key().iter().copied());
+        buf.extend(block_number.to_be_bytes().iter().copied());
+        buf.extend(self.iv_seq.to_be_bytes().iter().copied());
+        self.iv_seq = self.iv_seq + 1;
+
+        let hash = hashing::blake2_256(buf.as_ref());
+        hash[0..12]
+            .try_into()
+            .expect("should never fail given correct length; qed;")
     }
 
     pub fn register_on_chain(&mut self) {
@@ -131,7 +151,12 @@ where
         self.master_pubkey_on_chain = true;
     }
 
-    pub fn share_master_key(&mut self, pubkey: &WorkerPublicKey, ecdh_pubkey: &EcdhPublicKey) {
+    pub fn share_master_key(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
         info!("Gatekeeper: try dispatch master key");
         let derived_key = self
             .master_key
@@ -142,7 +167,7 @@ where
             .expect("ecdh key derivation should never failed with valid master key; qed.");
         let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
             .expect("should never fail with valid ecdh key; qed.");
-        let iv = crate::generate_random_iv();
+        let iv = self.generate_iv(block_number);
         let mut data = self.master_key.dump_secret_key().to_vec();
 
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");

@@ -608,7 +608,7 @@ impl System {
         }
 
         if let Some(gatekeeper) = &mut self.gatekeeper {
-            gatekeeper.share_master_key(&event.pubkey, &event.ecdh_pubkey);
+            gatekeeper.share_master_key(&event.pubkey, &event.ecdh_pubkey, block.block_number);
 
             let my_pubkey = self.identity_key.public();
             if my_pubkey == event.pubkey {
