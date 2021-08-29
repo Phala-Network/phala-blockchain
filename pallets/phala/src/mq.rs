@@ -3,7 +3,12 @@ pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 
 #[frame_support::pallet]
 pub mod pallet {
-	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::PalletInfo};
+	use frame_support::{
+		dispatch::DispatchResult, pallet_prelude::*,
+		traits::{
+			PalletInfo, StorageVersion,
+		}
+	};
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{
@@ -18,8 +23,11 @@ pub mod pallet {
 		type CallMatcher: CallMatcher<Self>;
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	/// The next expected sequence of a ingress message coming from a certain sender (origin)

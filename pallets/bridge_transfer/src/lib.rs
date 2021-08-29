@@ -13,7 +13,7 @@ pub mod pallet {
 	use frame_support::{
 		fail,
 		pallet_prelude::*,
-		traits::{Currency, ExistenceRequirement::AllowDeath},
+		traits::{Currency, ExistenceRequirement::AllowDeath, StorageVersion},
 	};
 	use frame_system::pallet_prelude::*;
 	pub use pallet_bridge as bridge;
@@ -31,8 +31,11 @@ pub mod pallet {
 	type BalanceOf<T> =
 		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]

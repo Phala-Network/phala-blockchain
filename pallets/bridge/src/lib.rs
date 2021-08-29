@@ -12,7 +12,10 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::{Decode, Encode, EncodeLike};
-	pub use frame_support::{pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter};
+	pub use frame_support::{
+		pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter,
+		traits::StorageVersion,
+	};
 	use frame_system::{self as system, pallet_prelude::*};
 	pub use sp_core::U256;
 	use sp_runtime::traits::{AccountIdConversion, Dispatchable};
@@ -95,8 +98,11 @@ pub mod pallet {
 		}
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
