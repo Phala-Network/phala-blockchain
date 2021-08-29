@@ -40,9 +40,9 @@ use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
 use serde::de;
 use serde_json::{Map, Value};
+use sgx_tstd::path::PathBuf;
+use sgx_tstd::sgxfs::{read as sgx_read, write as sgx_write};
 use sp_core::{crypto::Pair, sr25519, H256};
-use std::path::PathBuf;
-use std::sgxfs::{read as sgx_read, write as sgx_write};
 
 use http_req::request::{Method, Request};
 
@@ -541,9 +541,7 @@ pub fn create_attestation_report(
         || ti.attributes.xfrm != qe_report.body.attributes.xfrm
     {
         error!("qe_report does not match current target_info!");
-        return Err(
-            anyhow::Error::msg("Quote report check failed")
-        );
+        return Err(anyhow::Error::msg("Quote report check failed"));
     }
 
     info!("qe_report check passed");
@@ -748,8 +746,7 @@ fn save_secret_keys(
 fn load_secret_keys(sealing_path: &str) -> Result<PersistentRuntimeData, Error> {
     let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
     let data = sgx_read(&filepath).or(Err(Error::PersistentRuntimeNotFound))?;
-    let data: RuntimeDataSeal =
-        Decode::decode(&mut &data[..]).or(Err(Error::DecodeError))?;
+    let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).or(Err(Error::DecodeError))?;
     match data {
         RuntimeDataSeal::V1(data) => Ok(data),
     }

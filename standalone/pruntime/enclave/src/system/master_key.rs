@@ -1,11 +1,12 @@
+use sgx_tstd::convert::TryInto;
 use sgx_tstd::path::PathBuf;
-use sgx_tstd::io::{Read, Write};
+use sgx_tstd::prelude::v1::*;
 use sgx_tstd::sgxfs::{read as sgx_read, write as sgx_write};
 
 use phala_crypto::sr25519::{Persistence, Signature, Signing, Sr25519SecretKey};
 use sp_core::sr25519;
 
-use parity_scale_codec::{Encode, Decode};
+use parity_scale_codec::{Decode, Encode};
 
 /// Master key filepath
 pub const MASTER_KEY_FILE: &str = "master_key.seal";
@@ -18,7 +19,7 @@ struct PersistentMasterKey {
 
 #[derive(Debug, Encode, Decode)]
 enum MasterKeySeal {
-    V1(PersistentMasterKey)
+    V1(PersistentMasterKey),
 }
 
 fn master_key_file_path(sealing_path: String) -> PathBuf {

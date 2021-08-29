@@ -20,10 +20,9 @@ use crate::{
     types::BlockInfo,
 };
 
-use crate::std::vec::Vec;
-use phala_enclave_api::prpc as pb;
 use log::debug;
 use msg_trait::MessageChannel;
+use phala_enclave_api::prpc as pb;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
@@ -325,7 +324,8 @@ where
                     self.report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
-                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::ExitUnresponsive as _;
+                    worker_info.last_gk_responsive_event =
+                        pb::ResponsiveEvent::ExitUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
@@ -340,7 +340,8 @@ where
                     );
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
-                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
+                    worker_info.last_gk_responsive_event =
+                        pb::ResponsiveEvent::EnterUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             }
