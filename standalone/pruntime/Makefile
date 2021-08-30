@@ -186,6 +186,7 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 	$(SGX_ENCLAVE_SIGNER) sign -key $(SGX_SIGN_KEY) -enclave $(RustEnclave_Name) -out $@ -config $(SGX_ENCLAVE_CONFIG)
 	@rm -rf priv
 	@echo "SIGN =>  $@"
+	./check-cpuid.py $@
 
 .PHONY: enclave
 enclave:
@@ -195,6 +196,10 @@ enclave:
 dump:
 	$(SGX_ENCLAVE_SIGNER) dump -enclave $(Signed_RustEnclave_Name) -dumpfile $(Dumped_Signed_RustEnclave_Name)
 	@cat $(Dumped_Signed_RustEnclave_Name)
+
+.PHONY: check-cpuid
+check-cpuid: $(RustEnclave_Name)
+	./check-cpuid.py --show-callers $(RustEnclave_Name)
 
 .PHONY: clean
 clean:
