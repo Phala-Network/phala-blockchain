@@ -28,7 +28,7 @@ use phala_enclave_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
     StorageProof,
 };
-use phala_enclave_api::prpc::{self, InitRuntimeResponse};
+use phala_enclave_api::prpc::{self, InitRuntimeResponse, EchoMessage};
 use phala_enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
@@ -703,8 +703,10 @@ async fn get_geolocation() -> Result<(i32, i32)> {
     Ok(((latitude * 10000f64) as i32, (longitude * 10000f64) as i32))
 }
 
-async fn try_send_geolocation(paraclient: &XtClient, signer: &mut SrSigner) -> Result<()> {
+async fn try_send_geolocation(pr: &PrClient, paraclient: &XtClient, signer: &mut SrSigner) -> Result<()> {
     // TODO(soptq): Get Geolocation
+    let test_echo = pr.echo(EchoMessage{echo_msg: "Test".as_bytes().to_vec()}).await?;
+    info!("{}", String::from_utf8_lossy(&test_echo.echo_msg));
     let (latitude, longitude) = match get_geolocation().await {
         Ok(r) => r,
         Err(e) => {
@@ -767,6 +769,7 @@ async fn try_register_worker(
 ) -> Result<()> {
     let info = pr.get_runtime_info(()).await?;
     if let Some(attestation) = info.attestation {
+        info!("Registering worker...");
         register_worker(&paraclient, info.encoded_runtime_info, attestation, signer).await?;
     }
     Ok(())
@@ -897,7 +900,7 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
-            try_send_geolocation(&paraclient, &mut signer).await?;
+            try_send_geolocation(&pr, &paraclient, &mut signer).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1010,7 +1013,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
-                try_send_geolocation(&paraclient, &mut signer).await?;
+                try_send_geolocation(&pr, &paraclient, &mut signer).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;

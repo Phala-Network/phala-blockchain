@@ -718,4 +718,11 @@ impl PhactoryApi for RpcService {
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)
     }
+
+    fn echo (&self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
+        let echo_msg = request.echo_msg;
+        Ok(
+            pb::EchoMessage{ echo_msg }
+        )
+    }
 }
