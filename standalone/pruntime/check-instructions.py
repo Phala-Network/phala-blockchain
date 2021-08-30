@@ -118,7 +118,7 @@ if __name__ == "__main__":
 
     # These funtions are from the intel sgx-sdk. They exist even in no_std.
     # They might be properly handled by the SDK, so we trust Intel that they are safe.
-    WHILE_LIST = {
+    WHITE_LIST = {
         "cp_is_avx512_extension",
         "cpStopTsc",
         "cpGetCacheSize",
@@ -154,7 +154,7 @@ if __name__ == "__main__":
 
     for inst in ill_instructions:
         for func in checker.functions_using(inst):
-            if demangle(func) in WHILE_LIST:
+            if demangle(func) in WHITE_LIST:
                 continue
             ill_functions.append((func, inst))
 
@@ -180,5 +180,5 @@ if __name__ == "__main__":
         print("")
         sys.exit(1)
     else:
-        print("CPUID safety check OK")
+        print("Instruction safety check OK")
 
