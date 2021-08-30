@@ -344,7 +344,6 @@ pub struct System {
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
     // Gatekeeper
-    registered_on_chain: bool,
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
@@ -370,7 +369,6 @@ impl System {
             key_distribution_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
-            registered_on_chain: false,
             master_key,
             gatekeeper: None,
         }
@@ -567,7 +565,6 @@ impl System {
                 .as_mut()
                 .expect("gatekeeper must be initializaed here; qed.")
                 .register_on_chain();
-            self.registered_on_chain = true;
         }
     }
 
@@ -613,7 +610,6 @@ impl System {
             let my_pubkey = self.identity_key.public();
             if my_pubkey == event.pubkey {
                 gatekeeper.register_on_chain();
-                self.registered_on_chain = true;
             }
         }
     }
@@ -668,7 +664,10 @@ impl System {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
-        let active = self.registered_on_chain;
+        let active = match &self.gatekeeper {
+            Some(gk) => gk.registered_on_chain(),
+            None => false,
+        };
         let has_key = self.master_key.is_some();
         let role = match (has_key, active) {
             (true, true) => GatekeeperRole::Active,

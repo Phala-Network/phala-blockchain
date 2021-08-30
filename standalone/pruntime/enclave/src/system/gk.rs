@@ -81,6 +81,7 @@ impl WorkerInfo {
 pub(crate) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
     master_pubkey_on_chain: bool,
+    registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -107,6 +108,7 @@ where
         Self {
             master_key,
             master_pubkey_on_chain: false,
+            registered_on_chain: false,
             egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
@@ -139,12 +141,18 @@ where
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
         self.egress.set_dummy(false);
+        self.registered_on_chain = true;
     }
 
-    #[allow(dead_code)]
+    #[allow(unused_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.egress.set_dummy(true);
+        self.registered_on_chain = false;
+    }
+
+    pub fn registered_on_chain(&self) -> bool {
+        self.registered_on_chain
     }
 
     pub fn master_pubkey_uploaded(&mut self) {
