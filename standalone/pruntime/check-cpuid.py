@@ -127,18 +127,43 @@ if __name__ == "__main__":
         "cpStartTscp",
         "cp_is_avx_extension",
         "cpStartTsc",
+        "cp_get_pentium_counter",
+        # TODO.kevin: This one using ILL SYSCALL.
+        #   It is introduced by the teaclave/sgx_unwind, might be a bug?
+        "_ULx86_64_sigreturn",
     }
+
+    ill_instructions = [
+        "cpuid",
+        "getsec",
+        "rdpmc",
+        "rdtsc",
+        "rdtscp",
+        "sgdt",
+        "sidt",
+        "sldt",
+        "str",
+        "vmcall",
+        "vmfunc",
+        "syscall",
+        "sysenter",
+        "int",
+    ]
+
     ill_functions = []
-    for func in checker.functions_using("cpuid"):
-        if demangle(func) in WHILE_LIST:
-            continue
-        ill_functions.append(func)
+
+    for inst in ill_instructions:
+        for func in checker.functions_using(inst):
+            if demangle(func) in WHILE_LIST:
+                continue
+            ill_functions.append((func, inst))
+
     if ill_functions:
         print("="*80)
-        print("Error: There are some functions using CPUID which is not allowed in SGX", file=sys.stderr)
+        print("Error: There are some functions using ILL instructons not allowed in SGX", file=sys.stderr)
         print("")
-        for func in ill_functions:
-            print(demangle(func), file=sys.stderr)
+        for func, inst in ill_functions:
+            print(f"{demangle(func)} using {inst}", file=sys.stderr)
         print("")
         print("="*80)
 
@@ -148,7 +173,7 @@ if __name__ == "__main__":
             finder = CallerFinder(args.filename)
             print("="*80)
             print("====== Callers to them =======", file=sys.stderr)
-            for func in ill_functions:
+            for func, inst in ill_functions:
                 finder.print_callers(demangle(func), 12)
                 print("----------")
             print("="*80)
