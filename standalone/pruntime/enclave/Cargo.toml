@@ -38,9 +38,8 @@ http_req    = { git = "https://github.com/mesalock-linux/http_req-sgx", features
 bitcoin     = { version = "0.27.0", features = ["use-serde"]}
 bitcoin_hashes = { version = "0.10.0", default-features = false }
 
-serde = { version = "1.0", features = ["derive"] }
-serde_json = "1.0"
-serde_cbor = "0.11"
+serde = { git = "https://github.com/mesalock-linux/serde-sgx.git", features = ["derive"] }
+serde_json = { git = "https://github.com/mesalock-linux/serde-json-sgx.git" }
 
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
 hex-literal = "0.3"

@@ -32,15 +32,18 @@ use std::ptr;
 use std::str;
 use std::time::Duration;
 
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use core::convert::TryInto;
 use itertools::Itertools;
 use log::{debug, error, info, warn};
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
-use serde::{de, Deserialize, Serialize};
+use serde::de;
 use serde_json::{Map, Value};
+use sgx_tstd::path::PathBuf;
+use sgx_tstd::sgxfs::{read as sgx_read, write as sgx_write};
 use sp_core::{crypto::Pair, sr25519, H256};
+
 use http_req::request::{Method, Request};
 
 // use pink::InkModule;
@@ -191,28 +194,6 @@ impl RuntimeState {
             debug!("purging, sequence = {}", sequence);
             sequence
         })
-    }
-}
-
-fn to_sealed_log_for_slice<T: Copy + ContiguousMemory>(
-    sealed_data: &SgxSealedData<[T]>,
-    sealed_log: *mut u8,
-    sealed_log_size: u32,
-) -> Option<*mut sgx_sealed_data_t> {
-    unsafe {
-        sealed_data.to_raw_sealed_data_t(sealed_log as *mut sgx_sealed_data_t, sealed_log_size)
-    }
-}
-
-fn from_sealed_log_for_slice<'a, T: Copy + ContiguousMemory>(
-    sealed_log: *mut u8,
-    sealed_log_size: u32,
-) -> Option<SgxSealedData<'a, [T]>> {
-    unsafe {
-        SgxSealedData::<[T]>::from_raw_sealed_data_t(
-            sealed_log as *mut sgx_sealed_data_t,
-            sealed_log_size,
-        )
     }
 }
 
@@ -560,9 +541,7 @@ pub fn create_attestation_report(
         || ti.attributes.xfrm != qe_report.body.attributes.xfrm
     {
         error!("qe_report does not match current target_info!");
-        return Err(
-            anyhow::Error::msg("Quote report check failed")
-        );
+        return Err(anyhow::Error::msg("Quote report check failed"));
     }
 
     info!("qe_report check passed");
@@ -721,9 +700,10 @@ fn handle_scale_api(action: u8, input: &[u8]) -> Result<Value, Value> {
     }
 }
 
-const SEAL_DATA_BUF_MAX_LEN: usize = 2048_usize;
+/// Master key filepath
+pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 
-#[derive(Serialize, Deserialize, Clone, Default, Debug)]
+#[derive(Encode, Decode, Clone, Default, Debug)]
 struct PersistentRuntimeData {
     version: u32,
     genesis_block_hash: String,
@@ -731,10 +711,16 @@ struct PersistentRuntimeData {
     dev_mode: bool,
 }
 
+#[derive(Encode, Decode, Clone, Debug)]
+enum RuntimeDataSeal {
+    V1(PersistentRuntimeData),
+}
+
 fn save_secret_keys(
     genesis_block_hash: H256,
     sr25519_sk: sr25519::Pair,
     dev_mode: bool,
+    sealing_path: &str,
 ) -> Result<PersistentRuntimeData> {
     // Put in PresistentRuntimeData
     let serialized_sk = sr25519_sk.dump_secret_key();
@@ -745,69 +731,25 @@ fn save_secret_keys(
         sk: hex::encode(&serialized_sk),
         dev_mode,
     };
-    let encoded_vec = serde_cbor::to_vec(&data).unwrap();
-    let encoded_slice = encoded_vec.as_slice();
-    info!("Length of encoded slice: {}", encoded_slice.len());
-
-    // Seal
-    let aad: [u8; 0] = [0_u8; 0];
-    let sealed_data =
-        SgxSealedData::<[u8]>::seal_data(&aad, encoded_slice).map_err(anyhow::Error::msg)?;
-
-    let mut return_output_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
-    let output_len: usize = return_output_buf.len();
-
-    let output_slice = &mut return_output_buf;
-    let output_ptr = output_slice.as_mut_ptr();
-
-    let opt = to_sealed_log_for_slice(&sealed_data, output_ptr, output_len as u32);
-    if opt.is_none() {
-        return Err(anyhow::Error::msg(
-            sgx_status_t::SGX_ERROR_INVALID_PARAMETER,
-        ));
+    {
+        let data = RuntimeDataSeal::V1(data.clone());
+        let encoded_vec = data.encode();
+        info!("Length of encoded slice: {}", encoded_vec.len());
+        let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+        sgx_write(&filepath, &encoded_vec)
+            .map_err(|err| anyhow!("Failed to write runtime sealed data: {}", err))?;
+        info!("Persistent Runtime Data saved");
     }
-
-    // TODO: check retval and result
-    let mut _retval = sgx_status_t::SGX_SUCCESS;
-    let _result = unsafe { ocall_save_persistent_data(&mut _retval, output_ptr, output_len) };
-    info!("Persistent Runtime Data saved");
     Ok(data)
 }
 
-fn load_secret_keys() -> Result<PersistentRuntimeData> {
-    // Try load persisted sealed data
-    let mut sealed_data_buf = vec![0; SEAL_DATA_BUF_MAX_LEN].into_boxed_slice();
-    let mut sealed_data_len: usize = 0;
-    let sealed_data_slice = &mut sealed_data_buf;
-    let sealed_data_ptr = sealed_data_slice.as_mut_ptr();
-    let sealed_data_len_ptr = &mut sealed_data_len as *mut usize;
-
-    let mut retval = sgx_status_t::SGX_SUCCESS;
-    let load_result = unsafe {
-        ocall_load_persistent_data(
-            &mut retval,
-            sealed_data_ptr,
-            sealed_data_len_ptr,
-            SEAL_DATA_BUF_MAX_LEN,
-        )
-    };
-    if load_result != sgx_status_t::SGX_SUCCESS || sealed_data_len == 0 {
-        return Err(anyhow::Error::msg(Error::PersistentRuntimeNotFound));
+fn load_secret_keys(sealing_path: &str) -> Result<PersistentRuntimeData, Error> {
+    let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+    let data = sgx_read(&filepath).or(Err(Error::PersistentRuntimeNotFound))?;
+    let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).or(Err(Error::DecodeError))?;
+    match data {
+        RuntimeDataSeal::V1(data) => Ok(data),
     }
-
-    let opt = from_sealed_log_for_slice::<u8>(sealed_data_ptr, sealed_data_len as u32);
-    let sealed_data = match opt {
-        Some(x) => x,
-        None => {
-            panic!("Sealed data corrupted or outdated, please delete it.")
-        }
-    };
-
-    let unsealed_data = sealed_data.unseal_data().map_err(anyhow::Error::msg)?;
-    let encoded_slice = unsealed_data.get_decrypt_txt();
-    info!("Length of encoded slice: {}", encoded_slice.len());
-
-    serde_cbor::from_slice(encoded_slice).map_err(|_| anyhow::Error::msg(Error::DecodeError))
 }
 
 fn new_sr25519_key() -> sr25519::Pair {
@@ -838,22 +780,26 @@ fn init_secret_keys(
     predefined_identity_key: Option<sr25519::Pair>,
 ) -> Result<PersistentRuntimeData> {
     let data = if let Some(sr25519_sk) = predefined_identity_key {
-        save_secret_keys(genesis_block_hash, sr25519_sk, true)?
+        save_secret_keys(
+            genesis_block_hash,
+            sr25519_sk,
+            true,
+            &local_state.sealing_path,
+        )?
     } else {
-        match load_secret_keys() {
+        match load_secret_keys(&local_state.sealing_path) {
             Ok(data) => data,
-            Err(e)
-                if e.is::<Error>()
-                    && matches!(
-                        e.downcast_ref::<Error>().unwrap(),
-                        Error::PersistentRuntimeNotFound
-                    ) =>
-            {
+            Err(Error::PersistentRuntimeNotFound) => {
                 warn!("Persistent data not found.");
                 let sr25519_sk = new_sr25519_key();
-                save_secret_keys(genesis_block_hash, sr25519_sk, false)?
+                save_secret_keys(
+                    genesis_block_hash,
+                    sr25519_sk,
+                    false,
+                    &local_state.sealing_path,
+                )?
             }
-            other_err => return other_err,
+            Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
         }
     };
 

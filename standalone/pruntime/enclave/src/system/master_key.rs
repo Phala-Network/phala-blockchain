@@ -1,12 +1,26 @@
+use sgx_tstd::convert::TryInto;
 use sgx_tstd::path::PathBuf;
-use sgx_tstd::io::{Read, Write};
-use sgx_tstd::sgxfs::SgxFile;
+use sgx_tstd::prelude::v1::*;
+use sgx_tstd::sgxfs::{read as sgx_read, write as sgx_write};
 
-use phala_crypto::sr25519::{Persistence, Signing, SECRET_KEY_LENGTH, SIGNATURE_BYTES};
+use phala_crypto::sr25519::{Persistence, Signature, Signing, Sr25519SecretKey};
 use sp_core::sr25519;
+
+use parity_scale_codec::{Decode, Encode};
 
 /// Master key filepath
 pub const MASTER_KEY_FILE: &str = "master_key.seal";
+
+#[derive(Debug, Encode, Decode, Clone)]
+struct PersistentMasterKey {
+    secret_vec: Vec<u8>,
+    signature_vec: Vec<u8>,
+}
+
+#[derive(Debug, Encode, Decode)]
+enum MasterKeySeal {
+    V1(PersistentMasterKey),
+}
 
 fn master_key_file_path(sealing_path: String) -> PathBuf {
     PathBuf::from(&sealing_path).join(MASTER_KEY_FILE)
@@ -15,18 +29,16 @@ fn master_key_file_path(sealing_path: String) -> PathBuf {
 /// Seal master key seed with signature to ensure integrity
 pub fn seal(sealing_path: String, master_key: &sr25519::Pair, identity_key: &sr25519::Pair) {
     let secret = master_key.dump_secret_key();
-    let sig = identity_key.sign_data(&secret);
+    let signature_vec = identity_key.sign_data(&secret).0.to_vec();
+    let secret_vec = secret.to_vec();
 
-    // TODO(shelven): use serialization rather than manual concat.
-    let mut buf = Vec::new();
-    buf.extend_from_slice(&secret);
-    buf.extend_from_slice(sig.as_ref());
-
+    let data = MasterKeySeal::V1(PersistentMasterKey {
+        secret_vec,
+        signature_vec,
+    });
     let filepath = master_key_file_path(sealing_path);
     info!("Seal master key to {}", filepath.as_path().display());
-    let mut file = SgxFile::create(filepath)
-        .unwrap_or_else(|e| panic!("Create master key file failed: {:?}", e));
-    file.write_all(&buf)
+    sgx_write(&filepath, &data.encode())
         .unwrap_or_else(|e| panic!("Seal master key failed: {:?}", e));
 }
 
@@ -36,39 +48,33 @@ pub fn seal(sealing_path: String, master_key: &sr25519::Pair, identity_key: &sr2
 pub fn try_unseal(sealing_path: String, identity_key: &sr25519::Pair) -> Option<sr25519::Pair> {
     let filepath = master_key_file_path(sealing_path);
     info!("Unseal master key from {}", filepath.as_path().display());
-    let mut file = match SgxFile::open(filepath) {
-        Ok(file) => file,
+    let sealed_data = match sgx_read(&filepath) {
+        Ok(data) => data,
         Err(e) => {
             warn!("Failed to unseal saved master key: {:?}", e);
             return None;
         }
     };
 
-    let mut secret = [0_u8; SECRET_KEY_LENGTH];
-    let mut sig = [0_u8; SIGNATURE_BYTES];
+    let versioned_data = MasterKeySeal::decode(&mut &sealed_data[..])
+        .unwrap_or_else(|e| panic!("Failed to unseal saved master key: {:?}", e));
 
-    let n = file
-        .read(secret.as_mut())
-        .unwrap_or_else(|e| panic!("Read master key failed: {:?}", e));
-    if n < SECRET_KEY_LENGTH {
-        panic!(
-            "Unexpected sealed secret key length {}, expected {}",
-            n, SECRET_KEY_LENGTH
-        );
-    }
+    let data = match versioned_data {
+        MasterKeySeal::V1(data) => data,
+    };
 
-    let n = file
-        .read(sig.as_mut())
-        .unwrap_or_else(|e| panic!("Read master key sig failed: {:?}", e));
-    if n < SIGNATURE_BYTES {
-        panic!(
-            "Unexpected sealed seed sig length {}, expected {}",
-            n, SIGNATURE_BYTES
-        );
-    }
+    let secret: Sr25519SecretKey = data
+        .secret_vec
+        .try_into()
+        .unwrap_or_else(|e| panic!("Unseal master key failed: {:?}", e));
+    let signature: [u8; 64] = data
+        .signature_vec
+        .try_into()
+        .unwrap_or_else(|e| panic!("Unseal signature failed: {:?}", e));
+    let signature = Signature::from_raw(signature);
 
     assert!(
-        identity_key.verify_data(&phala_crypto::sr25519::Signature::from_raw(sig), &secret),
+        identity_key.verify_data(&signature, &secret),
         "Broken sealed master key"
     );
 
