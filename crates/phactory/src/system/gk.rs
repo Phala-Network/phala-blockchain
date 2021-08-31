@@ -20,7 +20,6 @@ use crate::{
     types::BlockInfo,
 };
 
-use crate::std::vec::Vec;
 use phactory_api::prpc as pb;
 use log::debug;
 use msg_trait::MessageChannel;

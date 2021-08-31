@@ -8,8 +8,8 @@
 extern crate log;
 #[macro_use]
 extern crate lazy_static;
-extern crate runtime as chain;
 extern crate phactory_pal as pal;
+extern crate runtime as chain;
 
 use std;
 
@@ -18,23 +18,22 @@ use rand::*;
 use crate::light_validation::LightValidation;
 use crate::secret_channel::PeelingReceiver;
 use std::collections::BTreeMap;
+use std::path::PathBuf;
 use std::str;
 
-use anyhow::Result;
+use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
 use parity_scale_codec::{Decode, Encode};
 use ring::rand::SecureRandom;
-use serde_json::{Value, json};
+use serde_json::{json, Value};
 use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
+use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
 use phactory_api::prpc::InitRuntimeResponse;
 use phactory_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
-};
-use phactory_api::{
-    blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq},
 };
 
 use phala_crypto::{
@@ -48,16 +47,16 @@ use phala_types::WorkerRegistrationInfo;
 
 pub mod benchmark;
 
+mod bin_api_service;
 mod contracts;
 mod cryptography;
 mod light_validation;
+mod prpc_service;
 mod rpc_types;
 mod secret_channel;
 mod storage;
 mod system;
 mod types;
-mod prpc_service;
-mod bin_api_service;
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ExecuteEnv, SYSTEM};
@@ -98,6 +97,37 @@ impl RuntimeState {
     }
 }
 
+/// Master key filepath
+pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
+
+#[derive(Encode, Decode, Clone, Debug)]
+struct PersistentRuntimeData {
+    version: u32,
+    genesis_block_hash: H256,
+    sk: Sr25519SecretKey,
+    dev_mode: bool,
+}
+
+impl PersistentRuntimeData {
+    pub fn decode_keys(&self) -> (sr25519::Pair, EcdhKey) {
+        // load identity
+        let identity_sk = sr25519::Pair::restore_from_secret_key(&self.sk);
+        info!("Identity pubkey: {:?}", hex::encode(&identity_sk.public()));
+
+        // derive ecdh key
+        let ecdh_key = identity_sk
+            .derive_ecdh_key()
+            .expect("Unable to derive ecdh key");
+        info!("ECDH pubkey: {:?}", hex::encode(&ecdh_key.public()));
+        (identity_sk, ecdh_key)
+    }
+}
+
+#[derive(Encode, Decode, Clone, Debug)]
+enum RuntimeDataSeal {
+    V1(PersistentRuntimeData),
+}
+
 pub struct Phactory<Platform> {
     platform: Platform,
     sealing_path: String,
@@ -128,95 +158,78 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.sealing_path = path;
     }
 
-    fn init_secret_keys(
+    fn init_runtime_data(
         &self,
         genesis_block_hash: H256,
         predefined_identity_key: Option<sr25519::Pair>,
     ) -> Result<PersistentRuntimeData> {
-        let data = if let Some(sr25519_sk) = predefined_identity_key {
-            save_secret_keys(genesis_block_hash, sr25519_sk, true)?
+        let data = if let Some(identity_sk) = predefined_identity_key {
+            self.save_runtime_data(genesis_block_hash, identity_sk, true)?
         } else {
-            match load_secret_keys() {
+            match self.load_runtime_data() {
                 Ok(data) => data,
-                Err(e)
-                    if e.is::<Error>()
-                        && matches!(
-                            e.downcast_ref::<Error>().unwrap(),
-                            Error::PersistentRuntimeNotFound
-                        ) =>
-                {
+                Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
-                    let sr25519_sk = new_sr25519_key();
-                    save_secret_keys(genesis_block_hash, sr25519_sk, false)?
+                    let identity_sk = new_sr25519_key();
+                    self.save_runtime_data(genesis_block_hash, identity_sk, false)?
                 }
-                other_err => return other_err,
+                Err(err) => return Err(anyhow!("Failed to load persistent data: {}", err)),
             }
         };
 
         // check genesis block hash
-        let saved_genesis_block_hash: [u8; 32] = hex::decode(&data.genesis_block_hash)
-            .expect("Unable to decode genesis block hash hex")
-            .as_slice()
-            .try_into()
-            .expect("slice with incorrect length");
-        let saved_genesis_block_hash = H256::from(saved_genesis_block_hash);
-        if genesis_block_hash != saved_genesis_block_hash {
+        if genesis_block_hash != data.genesis_block_hash {
             panic!(
                 "Genesis block hash mismatches with saved keys, expected {}",
-                saved_genesis_block_hash
+                data.genesis_block_hash
             );
         }
-
-        // load identity
-        let sr25519_raw_key: Sr25519SecretKey = hex::decode(&data.sk)
-            .expect("Unable to decode identity key hex")
-            .as_slice()
-            .try_into()
-            .expect("slice with incorrect length");
-
-        let sr25519_sk = sr25519::Pair::restore_from_secret_key(&sr25519_raw_key);
-        info!("Identity pubkey: {:?}", hex::encode(&sr25519_sk.public()));
-
-        // derive ecdh key
-        let ecdh_key = sr25519_sk
-            .derive_ecdh_key()
-            .expect("Unable to derive ecdh key");
-        let ecdh_hex_pk = hex::encode(ecdh_key.public().as_ref());
-        info!("ECDH pubkey: {:?}", ecdh_hex_pk);
-
         info!("Machine id: {:?}", hex::encode(&self.machine_id));
         info!("Init done.");
         Ok(data)
     }
-}
 
-struct PersistentRuntimeData {
-    genesis_block_hash: String,
-    sk: String,
-    dev_mode: bool,
-}
+    fn save_runtime_data(
+        &self,
+        genesis_block_hash: H256,
+        sr25519_sk: sr25519::Pair,
+        dev_mode: bool,
+    ) -> Result<PersistentRuntimeData> {
+        // Put in PresistentRuntimeData
+        let sk = sr25519_sk.dump_secret_key();
 
-impl PersistentRuntimeData {
-    pub fn identity_key(&self) -> sr25519::Pair {
-        todo!("")
+        let data = PersistentRuntimeData {
+            version: 1,
+            genesis_block_hash,
+            sk,
+            dev_mode,
+        };
+        {
+            let data = RuntimeDataSeal::V1(data.clone());
+            let encoded_vec = data.encode();
+            info!("Length of encoded slice: {}", encoded_vec.len());
+            let filepath = PathBuf::from(&self.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+            self.platform
+                .seal_data(filepath, &encoded_vec)
+                .map_err(Into::into)
+                .context("Seal runtime data")?;
+            info!("Persistent Runtime Data saved");
+        }
+        Ok(data)
     }
-    pub fn ecdh_key(&self) -> EcdhKey {
-        todo!("")
+
+    fn load_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
+        let filepath = PathBuf::from(&self.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+        let data = self
+            .platform
+            .unseal_data(filepath)
+            .map_err(Into::into)?
+            .ok_or(Error::PersistentRuntimeNotFound)?;
+        let data: RuntimeDataSeal = Decode::decode(&mut &data[..]).map_err(Error::DecodeError)?;
+        match data {
+            RuntimeDataSeal::V1(data) => Ok(data),
+        }
     }
-}
-
-fn save_secret_keys(
-    _genesis_block_hash: H256,
-    _sr25519_sk: sr25519::Pair,
-    _dev_mode: bool,
-) -> Result<PersistentRuntimeData> {
-    // TODO.kevin: save secret key to disk
-    todo!()
-}
-
-fn load_secret_keys() -> Result<PersistentRuntimeData> {
-    // TODO.kevin: load secret key from disk
-    todo!()
 }
 
 fn new_sr25519_key() -> sr25519::Pair {

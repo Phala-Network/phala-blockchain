@@ -2,8 +2,9 @@ use crate::std::fmt::Debug;
 use crate::std::vec::Vec;
 use anyhow::Result;
 use core::fmt;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use phala_types::contract::ContractQueryError;
+use thiserror::Error;
 
 extern crate runtime as chain;
 
@@ -38,17 +39,10 @@ where
     Decode::decode(&mut data).or(Err(ContractQueryError::DecodeError))
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
+#[error("{:?}", self)]
 pub enum Error {
-    DecodeError,
+    IoError(#[from] anyhow::Error),
+    DecodeError(#[from] CodecError),
     PersistentRuntimeNotFound,
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::DecodeError => write!(f, "decode error"),
-            Error::PersistentRuntimeNotFound => write!(f, "persistent runtime not found"),
-        }
-    }
 }

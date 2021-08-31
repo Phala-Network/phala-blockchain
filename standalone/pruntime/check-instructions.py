@@ -116,9 +116,9 @@ if __name__ == "__main__":
 
     checker = Checker(args.filename)
 
-    # These funtions are from the intel sgx-sdk. They exist even in no_std.
-    # They might be properly handled by the SDK, so we trust Intel that they are safe.
     WHITE_LIST = {
+        # These funtions are from the intel sgx-sdk. They exist even in no_std.
+        # They might be properly handled by the SDK, so we trust Intel that they are safe.
         "cp_is_avx512_extension",
         "cpStopTsc",
         "cpGetCacheSize",
@@ -128,7 +128,8 @@ if __name__ == "__main__":
         "cp_is_avx_extension",
         "cpStartTsc",
         "cp_get_pentium_counter",
-        # TODO.kevin: This one using ILL SYSCALL.
+        "_ZL10arch_prctlim",
+        # TODO.kevin: This one uses SYSCALL.
         #   It is introduced by the teaclave/sgx_unwind, might be a bug?
         "_ULx86_64_sigreturn",
     }

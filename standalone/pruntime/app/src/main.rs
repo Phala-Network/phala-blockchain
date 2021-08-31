@@ -42,7 +42,6 @@ use colored::Colorize;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-use std::fs;
 use std::path;
 use std::str;
 use std::sync::RwLock;

@@ -242,10 +242,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 ));
             }
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
-            self.init_secret_keys(genesis_block_hash, Some(priv_key))
+            self.init_runtime_data(genesis_block_hash, Some(priv_key))
                 .map_err(from_display)?
         } else {
-            self.init_secret_keys(genesis_block_hash, None)
+            self.init_runtime_data(genesis_block_hash, None)
                 .map_err(from_display)?
         };
         self.dev_mode = rt_data.dev_mode;
@@ -257,13 +257,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             ));
         }
 
-        let identity_key = rt_data.identity_key();
+        let (identity_key, local_ecdh_key) = rt_data.decode_keys();
 
         let ecdsa_pk = identity_key.public();
         let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
         info!("Identity pubkey: {:?}", ecdsa_hex_pk);
-
-        let local_ecdh_key = rt_data.ecdh_key();
 
         // derive ecdh key
         let ecdh_pubkey = phala_types::EcdhPublicKey(local_ecdh_key.public());

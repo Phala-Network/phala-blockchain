@@ -3,8 +3,8 @@
 use std::fmt::Debug;
 use std::path::Path;
 
-pub trait ErrorType: Debug {}
-impl<T: Debug> ErrorType for T {}
+pub trait ErrorType: Debug + Into<anyhow::Error> {}
+impl<T: Debug + Into<anyhow::Error>> ErrorType for T {}
 
 pub trait Sealing {
     type SealError: ErrorType;

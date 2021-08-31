@@ -1,10 +1,25 @@
-use crate::pal::Sealing;
-use phala_crypto::sr25519::{Persistence, Signing, SECRET_KEY_LENGTH, SIGNATURE_BYTES};
-use sp_core::sr25519;
 use std::path::PathBuf;
+
+use parity_scale_codec::{Decode, Encode};
+use sp_core::sr25519;
+
+use phala_crypto::sr25519::{Persistence, Signature, Signing, Sr25519SecretKey};
+
+use crate::pal::Sealing;
 
 /// Master key filepath
 pub const MASTER_KEY_FILE: &str = "master_key.seal";
+
+#[derive(Debug, Encode, Decode, Clone)]
+struct PersistentMasterKey {
+    secret: Sr25519SecretKey,
+    signature: Signature,
+}
+
+#[derive(Debug, Encode, Decode)]
+enum MasterKeySeal {
+    V1(PersistentMasterKey),
+}
 
 fn master_key_file_path(sealing_path: String) -> PathBuf {
     PathBuf::from(&sealing_path).join(MASTER_KEY_FILE)
@@ -18,17 +33,12 @@ pub fn seal(
     sys: &impl Sealing,
 ) {
     let secret = master_key.dump_secret_key();
-    let sig = identity_key.sign_data(&secret);
+    let signature = identity_key.sign_data(&secret);
 
-    // TODO(shelven): use serialization rather than manual concat.
-    let mut buf = Vec::new();
-    buf.extend_from_slice(&secret);
-    buf.extend_from_slice(sig.as_ref());
-
+    let data = MasterKeySeal::V1(PersistentMasterKey { secret, signature });
     let filepath = master_key_file_path(sealing_path);
     info!("Seal master key to {}", filepath.as_path().display());
-
-    sys.seal_data(filepath, &buf)
+    sys.seal_data(filepath, &data.encode())
         .expect("Seal master key failed");
 }
 
@@ -42,18 +52,28 @@ pub fn try_unseal(
 ) -> Option<sr25519::Pair> {
     let filepath = master_key_file_path(sealing_path);
     info!("Unseal master key from {}", filepath.as_path().display());
-
-    let mut secret = [0_u8; SECRET_KEY_LENGTH];
-    let mut sig = [0_u8; SIGNATURE_BYTES];
-
-    let data = sys.unseal_data(filepath).expect("Unseal master key failed");
-    let data = match data {
+    let sealed_data = match sys
+        .unseal_data(&filepath)
+        .expect("Unseal master key failed")
+    {
         Some(data) => data,
         None => {
-            info!("No sealed master key");
+            warn!("No sealed master key");
             return None;
         }
     };
 
-    todo!("Load secret");
+    let versioned_data =
+        MasterKeySeal::decode(&mut &sealed_data[..]).expect("Failed to decode sealed master key");
+
+    let data = match versioned_data {
+        MasterKeySeal::V1(data) => data,
+    };
+
+    assert!(
+        identity_key.verify_data(&data.signature, &data.secret),
+        "Broken sealed master key"
+    );
+
+    Some(sr25519::Pair::restore_from_secret_key(&data.secret))
 }
