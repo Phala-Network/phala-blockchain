@@ -6,7 +6,6 @@ const { ApiPromise, WsProvider } = require('@polkadot/api');
 const phala_typedefs = require('@phala/typedefs').phalaDev;
 
 const getTransferEvents = async (api, blockHash) => {
-    // console.log(`api.query = ${JSON.stringify(api.query, null, 4)}`);
     return (await api.query.chainBridge.bridgeEvents.at(blockHash)).toJSON();
 }
 
