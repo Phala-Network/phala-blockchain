@@ -1,7 +1,6 @@
 mod gk;
 mod master_key;
 
-use crate::std::convert::TryInto;
 use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
@@ -11,18 +10,15 @@ use crate::pal;
 use chain::pallet_registry::RegistryEvent;
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
-use phala_crypto::{
-    aead, ecdh,
-    sr25519::{Persistence, KDF},
-};
+use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
     BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
     TypedReceiveError, TypedReceiver,
 };
 use phala_types::{
     messaging::{
-        DispatchMasterKeyEvent, HeartbeatChallenge, MasterKeyEvent, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
+        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
     MasterPublicKey, WorkerPublicKey,
 };
@@ -343,12 +339,13 @@ pub struct System<Platform> {
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
     system_events: TypedReceiver<SystemEvent>,
-    master_key_events: TypedReceiver<MasterKeyEvent>,
+    gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
+    gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
+    key_distribution_events: TypedReceiver<KeyDistribution>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
     // Gatekeeper
-    registered_on_chain: bool,
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 }
@@ -371,10 +368,11 @@ impl<Platform: pal::Platform> System<Platform> {
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
-            master_key_events: recv_mq.subscribe_bound(),
+            gatekeeper_launch_events: recv_mq.subscribe_bound(),
+            gatekeeper_change_events: recv_mq.subscribe_bound(),
+            key_distribution_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
-            registered_on_chain: false,
             master_key,
             gatekeeper: None,
         }
@@ -409,9 +407,25 @@ impl<Platform: pal::Platform> System<Platform> {
                         }
                     }
                 },
-                message = self.master_key_events => match message {
+                message = self.gatekeeper_launch_events => match message {
                     Ok((_, event, origin)) => {
-                        self.process_master_key_event(block, origin, event);
+                        self.process_gatekeeper_launch_event(block, origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+                message = self.gatekeeper_change_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_change_event(block, origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+                message = self.key_distribution_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_key_distribution_event(block, origin, event);
                     }
                     Err(e) => {
                         error!("Read message failed: {:?}", e);
@@ -454,54 +468,60 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn process_master_key_event(
+    fn init_gatekeeper(&mut self, recv_mq: &mut MessageDispatcher) {
+        assert!(
+            self.master_key.is_some(),
+            "Gatekeeper initialization without master key"
+        );
+        assert!(
+            self.gatekeeper.is_none(),
+            "Duplicated gatekeeper initialization"
+        );
+
+        let gatekeeper = gk::Gatekeeper::new(
+            self.master_key
+                .as_ref()
+                .expect("checked master key above; qed.")
+                .clone(),
+            recv_mq,
+            self.send_mq.channel(
+                MessageOrigin::Gatekeeper,
+                self.master_key
+                    .as_ref()
+                    .expect("checked master key above; qed.")
+                    .clone(),
+            ),
+        );
+        self.gatekeeper = Some(gatekeeper);
+    }
+
+    fn process_gatekeeper_launch_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: MasterKeyEvent,
+        event: GatekeeperLaunch,
     ) {
-        info!("Incoming master key event: {:?}", event);
+        info!("Incoming gatekeeper launch event: {:?}", event);
         match event {
-            MasterKeyEvent::GatekeeperRegistered(new_gatekeeper_event) => {
-                self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
+            GatekeeperLaunch::FirstGatekeeper(new_gatekeeper_event) => {
+                self.process_first_gatekeeper_event(block, origin, new_gatekeeper_event)
             }
-            MasterKeyEvent::DispatchMasterKey(dispatch_master_key_event) => {
-                self.process_dispatch_master_key_event(block, origin, dispatch_master_key_event)
-            }
-            MasterKeyEvent::MasterPubkeyOnChain(master_pubkey_event) => {
-                if let Some(master_key) = &self.master_key {
-                    assert!(
-                        master_key.public() == master_pubkey_event.master_pubkey,
-                        "Master key mismatches"
-                    );
-                    assert!(
-                        self.gatekeeper.is_none(),
-                        "Duplicated gatekeeper initialization"
-                    );
-
-                    info!("Init gatekeeper");
-                    let mut gatekeeper = gk::Gatekeeper::new(
-                        master_key.clone(),
-                        &mut block.recv_mq,
-                        self.send_mq
-                            .channel(MessageOrigin::Gatekeeper, master_key.clone()),
-                    );
-                    if self.registered_on_chain {
-                        gatekeeper.register_on_chain();
-                    }
-                    self.gatekeeper = Some(gatekeeper);
+            GatekeeperLaunch::MasterPubkeyOnChain(_) => {
+                info!(
+                    "Gatekeeper launches on chain in block {}",
+                    block.block_number
+                );
+                if let Some(gatekeeper) = &mut self.gatekeeper {
+                    gatekeeper.master_pubkey_uploaded();
                 }
             }
         }
     }
 
-    /// Monitor the getakeeper registeration event to:
-    ///
-    /// 1. Generate the master key if this is the first gatekeeper;
-    /// 2. Dispatch the master key to newly-registered gatekeepers;
-    fn process_new_gatekeeper_event(
+    /// Generate the master key if this is the first gatekeeper
+    fn process_first_gatekeeper_event(
         &mut self,
-        block: &BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
         event: NewGatekeeperEvent,
     ) {
@@ -510,94 +530,118 @@ impl<Platform: pal::Platform> System<Platform> {
             return;
         }
 
-        // double check the new gatekeeper is valid on chain
+        // double check the first gatekeeper is valid on chain
         if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
-            error!("Fatal error: Invalid gatekeeper registration {:?}", event);
+            error!(
+                "Fatal error: Invalid first gatekeeper registration {:?}",
+                event
+            );
             panic!("System state poisoned");
         }
 
         let my_pubkey = self.identity_key.public();
-        // gatekeeper genesis period
-        if event.gatekeeper_count == 1 {
-            if my_pubkey == event.pubkey && self.master_key.is_none() {
-                info!("Gatekeeper: generate master key as the first gatekeeper");
-                // generate master key as the first gatekeeper
-                // no need to restart
-                let master_key = crate::new_sr25519_key();
-                self.set_master_key(master_key.clone(), false);
-                // upload the master key on chain via worker egress
-                info!(
-                    "Gatekeeper: upload master key {} on chain",
-                    hex::encode(master_key.public())
-                );
-                let master_pubkey = RegistryEvent::MasterPubkey {
-                    master_pubkey: master_key.public(),
-                };
-                self.egress.send(&master_pubkey);
-            }
-        } else {
-            // TODO(shelven): move this logic to GK, and send the message on behalf of GK
+        // if the first gatekeeper reboots, it will possess the master key,
+        // and should not re-generate it
+        if my_pubkey == event.pubkey && self.master_key.is_none() {
+            info!("Gatekeeper: generate master key as the first gatekeeper");
+            // generate master key as the first gatekeeper
+            // no need to restart
+            let master_key = crate::new_sr25519_key();
+            self.set_master_key(master_key.clone(), false);
+            // upload the master key on chain via worker egress
+            info!(
+                "Gatekeeper: upload master key {} on chain",
+                hex::encode(master_key.public())
+            );
+            let master_pubkey = RegistryEvent::MasterPubkey {
+                master_pubkey: master_key.public(),
+            };
+            self.egress.send(&master_pubkey);
+        }
 
-            // dispatch the master key to the newly-registered gatekeeper using master key
-            // if this pRuntime is the newly-registered gatekeeper himself,
-            // its egress is still in dummy mode since we will tick the state later
-            if let Some(master_key) = &self.master_key {
-                info!(
-                    "Gatekeeper: try dispatch master key {}",
-                    hex::encode(master_key.public())
-                );
-                let derived_key = master_key
-                    .derive_sr25519_pair(&[&crate::generate_random_info()])
-                    .expect("should not fail with valid info");
-                let my_ecdh_key = derived_key
-                    .derive_ecdh_key()
-                    .expect("ecdh key derivation should never failed with valid master key");
-                let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                    .expect("should never fail with valid ecdh key");
-                let iv = crate::generate_random_iv();
-                let mut data = master_key.dump_secret_key().to_vec();
-
-                aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
-                self.egress.send(&MasterKeyEvent::dispatch_master_key_event(
-                    event.pubkey,
-                    my_ecdh_key
-                        .public()
-                        .as_ref()
-                        .try_into()
-                        .expect("should never fail given pubkey with correct length"),
-                    data,
-                    iv,
-                ));
-            }
+        if self.master_key.is_some() {
+            info!("Init gatekeeper in block {}", block.block_number);
+            self.init_gatekeeper(&mut block.recv_mq);
         }
 
         if my_pubkey == event.pubkey {
-            self.registered_on_chain = true;
-            if let Some(gatekeeper) = &mut self.gatekeeper {
+            self.gatekeeper
+                .as_mut()
+                .expect("gatekeeper must be initializaed here; qed.")
+                .register_on_chain();
+        }
+    }
+
+    fn process_gatekeeper_change_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: GatekeeperChange,
+    ) {
+        info!("Incoming gatekeeper change event: {:?}", event);
+        match event {
+            GatekeeperChange::GatekeeperRegistered(new_gatekeeper_event) => {
+                self.process_new_gatekeeper_event(block, origin, new_gatekeeper_event)
+            }
+        }
+    }
+
+    /// Share the master key to the newly-registered gatekeeper
+    /// Tick the state if the registered gatekeeper is this worker
+    fn process_new_gatekeeper_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: NewGatekeeperEvent,
+    ) {
+        if !origin.is_pallet() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        }
+
+        // double check the registered gatekeeper is valid on chain
+        if !chain_state::is_gatekeeper(&event.pubkey, block.storage) {
+            error!(
+                "Fatal error: Invalid first gatekeeper registration {:?}",
+                event
+            );
+            panic!("System state poisoned");
+        }
+
+        if let Some(gatekeeper) = &mut self.gatekeeper {
+            gatekeeper.share_master_key(&event.pubkey, &event.ecdh_pubkey, block.block_number);
+
+            let my_pubkey = self.identity_key.public();
+            if my_pubkey == event.pubkey {
                 gatekeeper.register_on_chain();
             }
         }
     }
 
-    /// Process encrypted master key from mq
-    fn process_dispatch_master_key_event(
+    fn process_key_distribution_event(
         &mut self,
-        block: &BlockInfo,
+        _block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: KeyDistribution,
+    ) {
+        info!("Incoming key distribution event: {:?}", event);
+        match event {
+            KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
+                self.process_master_key_distribution(origin, dispatch_master_key_event)
+            }
+        }
+    }
+
+    /// Process encrypted master key from mq
+    fn process_master_key_distribution(
+        &mut self,
         origin: MessageOrigin,
         event: DispatchMasterKeyEvent,
     ) {
-        let worker_pubkey = if let MessageOrigin::Worker(pubkey) = origin {
-            pubkey
-        } else {
+        if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return;
         };
-
-        // ensure the message source is a gatekeeper
-        if !chain_state::is_gatekeeper(&worker_pubkey, block.storage) {
-            warn!("Warning: Fake master key dispatch {:?}", event);
-            return;
-        }
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
@@ -624,7 +668,10 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn gatekeeper_status(&self) -> GatekeeperStatus {
-        let active = self.registered_on_chain;
+        let active = match &self.gatekeeper {
+            Some(gk) => gk.registered_on_chain(),
+            None => false,
+        };
         let has_key = self.master_key.is_some();
         let role = match (has_key, active) {
             (true, true) => GatekeeperRole::Active,

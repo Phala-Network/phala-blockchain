@@ -8,9 +8,9 @@ const types = {
     "DepositNonce": "u64",
     "ProposalStatus": {
         "_enum": {
-            "Initiated":null,
-            "Approved":null,
-            "Rejected":null
+            "Initiated": null,
+            "Approved": null,
+            "Rejected": null
         }
     },
     "ProposalVotes": {
@@ -120,11 +120,11 @@ const types = {
     },
     "MinerState": {
         "_enum": {
-            "Ready":null,
-            "MiningIdle":null,
-            "MiningActive":null,
-            "MiningUnresponsive":null,
-            "MiningCoolingDown":null
+            "Ready": null,
+            "MiningIdle": null,
+            "MiningActive": null,
+            "MiningUnresponsive": null,
+            "MiningCoolingDown": null
         }
     },
     "MinerStats": {
@@ -134,11 +134,25 @@ const types = {
         "seed": "U256",
         "onlineTarget": "U256"
     },
+    "KeyDistribution": {
+        "_enum": {
+            "MasterKeyDistribution": "DispatchMasterKeyEvent",
+        }
+    },
+    "GatekeeperLaunch": {
+        "_enum": {
+            "FirstGatekeeper": "NewGatekeeperEvent",
+            "MasterPubkeyOnChain": null,
+        }
+    },
+    "GatekeeperChange": {
+        "_enum": {
+            "GatekeeperRegistered": "NewGatekeeperEvent",
+        }
+    },
     "GatekeeperEvent": {
         "_enum": {
-            "Registered": "NewGatekeeperEvent",
-            "DispatchMasterKey": "DispatchMasterKeyEvent",
-            "MasterPubkeyAvailable": null,
+            // "MasterPubkeyAvailable": null,
             "NewRandomNumber": "RandomNumberEvent",
             "TokenomicParametersChanged": "TokenomicParameters"
         }
@@ -146,7 +160,6 @@ const types = {
     "NewGatekeeperEvent": {
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
-        "gatekeeperCount": "u32"
     },
     "DispatchMasterKeyEvent": {
         "dest": "WorkerPublicKey",

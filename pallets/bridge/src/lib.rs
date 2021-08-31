@@ -12,7 +12,10 @@ pub use pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::{Decode, Encode, EncodeLike};
-	pub use frame_support::{pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter};
+	pub use frame_support::{
+		pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter,
+		traits::StorageVersion,
+	};
 	use frame_system::{self as system, pallet_prelude::*};
 	pub use sp_core::U256;
 	use sp_runtime::traits::{AccountIdConversion, Dispatchable};
@@ -95,8 +98,11 @@ pub mod pallet {
 		}
 	}
 
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -313,7 +319,10 @@ pub mod pallet {
 		/// # <weight>
 		/// - weight of proposed call, regardless of whether execution is performed
 		/// # </weight>
-		#[pallet::weight((call.get_dispatch_info().weight + 195_000_000, call.get_dispatch_info().class, Pays::Yes))]
+		#[pallet::weight({
+			let dispatch_info = call.get_dispatch_info();
+			(dispatch_info.weight + 195_000_000, dispatch_info.class, Pays::Yes)
+		})]
 		pub fn acknowledge_proposal(
 			origin: OriginFor<T>,
 			nonce: DepositNonce,
@@ -370,7 +379,10 @@ pub mod pallet {
 		/// # <weight>
 		/// - weight of proposed call, regardless of whether execution is performed
 		/// # </weight>
-		#[pallet::weight((prop.get_dispatch_info().weight + 195_000_000, prop.get_dispatch_info().class, Pays::Yes))]
+		#[pallet::weight({
+			let dispatch_info = prop.get_dispatch_info();
+			(dispatch_info.weight + 195_000_000, dispatch_info.class, Pays::Yes)
+		})]
 		pub fn eval_vote_state(
 			origin: OriginFor<T>,
 			nonce: DepositNonce,

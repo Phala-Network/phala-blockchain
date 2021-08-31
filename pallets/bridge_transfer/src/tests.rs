@@ -71,7 +71,7 @@ fn transfer_native() {
 		let recipient = vec![99];
 
 		assert_ok!(Bridge::whitelist_chain(Origin::root(), dest_chain.clone()));
-		assert_ok!(BridgeTransfer::sudo_change_fee(
+		assert_ok!(BridgeTransfer::change_fee(
 			Origin::root(),
 			2,
 			2,
@@ -147,7 +147,7 @@ fn transfer() {
 }
 
 #[test]
-fn create_sucessful_transfer_proposal() {
+fn create_successful_transfer_proposal() {
 	new_test_ext().execute_with(|| {
 		let prop_id = 1;
 		let src_id = 1;

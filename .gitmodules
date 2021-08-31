@@ -7,3 +7,6 @@
 [submodule "crates/phactory/api/proto"]
 	path = crates/phactory/api/proto
 	url = https://github.com/Phala-Network/prpc-protos.git
+[submodule "cryptocorrosion-sgx"]
+	path = cryptocorrosion-sgx
+	url = https://github.com/Phala-Network/cryptocorrosion-sgx.git

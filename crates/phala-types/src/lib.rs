@@ -349,44 +349,27 @@ pub mod messaging {
         pub treasury: U64F64Bits,
     }
 
-    // Messages: Master key dispatch
-    bind_topic!(MasterKeyEvent, b"phala/masterkey/event");
+    // Messages: Gatekeeper launch
+    bind_topic!(GatekeeperLaunch, b"phala/gatekeeper/launch");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub enum MasterKeyEvent {
-        GatekeeperRegistered(NewGatekeeperEvent),
-        DispatchMasterKey(DispatchMasterKeyEvent),
+    pub enum GatekeeperLaunch {
+        FirstGatekeeper(NewGatekeeperEvent),
         MasterPubkeyOnChain(MasterPubkeyEvent),
     }
 
-    impl MasterKeyEvent {
-        pub fn gatekeeper_registered(
+    impl GatekeeperLaunch {
+        pub fn first_gatekeeper(
             pubkey: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
-            gatekeeper_count: u32,
-        ) -> MasterKeyEvent {
-            MasterKeyEvent::GatekeeperRegistered(NewGatekeeperEvent {
+        ) -> GatekeeperLaunch {
+            GatekeeperLaunch::FirstGatekeeper(NewGatekeeperEvent {
                 pubkey,
                 ecdh_pubkey,
-                gatekeeper_count,
             })
         }
 
-        pub fn dispatch_master_key_event(
-            dest: WorkerPublicKey,
-            ecdh_pubkey: EcdhPublicKey,
-            encrypted_master_key: Vec<u8>,
-            iv: AeadIV,
-        ) -> MasterKeyEvent {
-            MasterKeyEvent::DispatchMasterKey(DispatchMasterKeyEvent {
-                dest,
-                ecdh_pubkey,
-                encrypted_master_key,
-                iv,
-            })
-        }
-
-        pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> MasterKeyEvent {
-            MasterKeyEvent::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
+        pub fn master_pubkey_on_chain(master_pubkey: MasterPublicKey) -> GatekeeperLaunch {
+            GatekeeperLaunch::MasterPubkeyOnChain(MasterPubkeyEvent { master_pubkey })
         }
     }
 
@@ -396,8 +379,53 @@ pub mod messaging {
         pub pubkey: WorkerPublicKey,
         /// The ecdh public key of registered gatekeeper
         pub ecdh_pubkey: EcdhPublicKey,
-        /// The current number of gatekeepers
-        pub gatekeeper_count: u32,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct MasterPubkeyEvent {
+        pub master_pubkey: MasterPublicKey,
+    }
+
+    // Messages: Gatekeeper change
+    bind_topic!(GatekeeperChange, b"phala/gatekeeper/change");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub enum GatekeeperChange {
+        GatekeeperRegistered(NewGatekeeperEvent),
+    }
+
+    impl GatekeeperChange {
+        pub fn gatekeeper_registered(
+            pubkey: WorkerPublicKey,
+            ecdh_pubkey: EcdhPublicKey,
+        ) -> GatekeeperChange {
+            GatekeeperChange::GatekeeperRegistered(NewGatekeeperEvent {
+                pubkey,
+                ecdh_pubkey,
+            })
+        }
+    }
+
+    // Messages: Distribution of master key and contract keys
+    bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub enum KeyDistribution {
+        MasterKeyDistribution(DispatchMasterKeyEvent),
+    }
+
+    impl KeyDistribution {
+        pub fn master_key_distribution(
+            dest: WorkerPublicKey,
+            ecdh_pubkey: EcdhPublicKey,
+            encrypted_master_key: Vec<u8>,
+            iv: AeadIV,
+        ) -> KeyDistribution {
+            KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
+                dest,
+                ecdh_pubkey,
+                encrypted_master_key,
+                iv,
+            })
+        }
     }
 
     type AeadIV = [u8; 12];
@@ -411,11 +439,6 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
-    }
-
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub struct MasterPubkeyEvent {
-        pub master_pubkey: MasterPublicKey,
     }
 
     // Messages: Gatekeeper

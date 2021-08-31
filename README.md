@@ -98,12 +98,11 @@ the _current_ rustc.
 1. Launch two local dev nodes Alice and Bob:
 
     ```bash
-    ./scripts/console.sh start alice
-    ./scripts/console.sh start bob
+    ./target/release/phala-node --dev --alice
+    ./target/release/phala-node --dev --bob
     ```
 
-    - The datadir is at `$HOME/tmp/(alice|bob)`
-    - Can be purged by `./scripts/console.sh purge`
+    - Can be purged by `./target/release/phala-node purge-chain <args like --dev --alice>`
     - The WebUI can connect to Alice at port 9944.
 
 2. Compile & launch pRuntime
@@ -161,3 +160,8 @@ CHAIN=poc4 tmuxp load ./scripts/tmuxp/four-nodes.yaml
 
 [tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convenient tool that can bring up a tmux session
 with the preconfigured commands running in panes. To play with tmuxp, it also need a tmux installed.
+
+## Other Resources
+
+- [Code Bounty Program](https://forum.phala.network/t/topic/2045)
+- [Responsible Disclosure](./docs/responsible-disclosure.md)

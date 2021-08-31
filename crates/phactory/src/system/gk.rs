@@ -1,17 +1,22 @@
 use super::{TypedReceiver, WorkerState};
-use phala_crypto::sr25519::{Persistence, KDF};
+use phala_crypto::{
+    aead, ecdh,
+    sr25519::{Persistence, KDF},
+};
 use phala_mq::MessageDispatcher;
 use phala_types::{
     messaging::{
-        GatekeeperEvent, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent, RandomNumber,
-        RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
-    WorkerPublicKey,
+    EcdhPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing, sr25519};
 
 use crate::{
     std::collections::{BTreeMap, VecDeque},
+    std::convert::TryInto,
+    std::vec::Vec,
     types::BlockInfo,
 };
 
@@ -74,19 +79,10 @@ impl WorkerInfo {
     }
 }
 
-// The Gatekeeper's common internal state is consisted of:
-// 1. possessed master key;
-// 2. egress sequence number;
-// 3. worker list;
-// 4. tokenomic params;
-// 5. last random number & last random block;
-//
-// We should ensure the consistency of all the variables above in each block.
-//
-// For simplicity, we also ensure that each gatekeeper responds (if registered on chain)
-// to received messages in the same way.
 pub(crate) struct Gatekeeper<MsgChan> {
     master_key: sr25519::Pair,
+    master_pubkey_on_chain: bool,
+    registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -94,6 +90,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
+    iv_seq: u64,
     // Tokenomic
     tokenomic_params: tokenomic::Params,
 }
@@ -111,28 +108,97 @@ where
 
         Self {
             master_key,
+            master_pubkey_on_chain: false,
+            registered_on_chain: false,
             egress,
             gatekeeper_events: recv_mq.subscribe_bound(),
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             last_random_number: [0_u8; 32],
+            iv_seq: 0,
             tokenomic_params: tokenomic::test_params(),
         }
+    }
+
+    fn generate_iv(&mut self, block_number: chain::BlockNumber) -> aead::IV {
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(&[b"iv_generator"])
+            .expect("should not fail with valid info");
+
+        let mut buf: Vec<u8> = Vec::new();
+        buf.extend(derived_key.dump_secret_key().iter().copied());
+        buf.extend(block_number.to_be_bytes().iter().copied());
+        buf.extend(self.iv_seq.to_be_bytes().iter().copied());
+        self.iv_seq = self.iv_seq + 1;
+
+        let hash = hashing::blake2_256(buf.as_ref());
+        hash[0..12]
+            .try_into()
+            .expect("should never fail given correct length; qed;")
     }
 
     pub fn register_on_chain(&mut self) {
         info!("Gatekeeper: register on chain");
         self.egress.set_dummy(false);
+        self.registered_on_chain = true;
     }
 
-    #[allow(dead_code)]
+    #[allow(unused_code)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.egress.set_dummy(true);
+        self.registered_on_chain = false;
+    }
+
+    pub fn registered_on_chain(&self) -> bool {
+        self.registered_on_chain
+    }
+
+    pub fn master_pubkey_uploaded(&mut self) {
+        self.master_pubkey_on_chain = true;
+    }
+
+    pub fn share_master_key(
+        &mut self,
+        pubkey: &WorkerPublicKey,
+        ecdh_pubkey: &EcdhPublicKey,
+        block_number: chain::BlockNumber,
+    ) {
+        info!("Gatekeeper: try dispatch master key");
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(&[&crate::generate_random_info()])
+            .expect("should not fail with valid info; qed.");
+        let my_ecdh_key = derived_key
+            .derive_ecdh_key()
+            .expect("ecdh key derivation should never failed with valid master key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("should never fail with valid ecdh key; qed.");
+        let iv = self.generate_iv(block_number);
+        let mut data = self.master_key.dump_secret_key().to_vec();
+
+        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+        self.egress
+            .push_message(KeyDistribution::master_key_distribution(
+                pubkey.clone(),
+                my_ecdh_key
+                    .public()
+                    .as_ref()
+                    .try_into()
+                    .expect("should never fail given pubkey with correct length; qed;"),
+                data,
+                iv,
+            ));
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        if !self.master_pubkey_on_chain {
+            info!("Gatekeeper: not handling the messages because Gatekeeper has not launched on chain");
+            return;
+        }
+
         let sum_share: FixedPoint = self
             .workers
             .values()
@@ -292,7 +358,8 @@ where
                     self.report
                         .recovered_to_online
                         .push(worker_info.state.pubkey);
-                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::ExitUnresponsive as _;
+                    worker_info.last_gk_responsive_event =
+                        pb::ResponsiveEvent::ExitUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
@@ -307,7 +374,8 @@ where
                     );
                     self.report.offline.push(worker_info.state.pubkey);
                     worker_info.unresponsive = true;
-                    worker_info.last_gk_responsive_event = pb::ResponsiveEvent::EnterUnresponsive as _;
+                    worker_info.last_gk_responsive_event =
+                        pb::ResponsiveEvent::EnterUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
                 }
             }

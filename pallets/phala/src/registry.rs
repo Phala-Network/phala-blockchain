@@ -22,8 +22,8 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, MasterKeyEvent, MessageOrigin, SignedMessage,
-			SystemEvent, WorkerEvent,
+			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
+			SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
@@ -197,11 +197,18 @@ pub mod pallet {
 				gatekeepers.push(gatekeeper.clone());
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
-				Self::push_message(MasterKeyEvent::gatekeeper_registered(
-					gatekeeper,
-					worker_info.ecdh_pubkey,
-					gatekeeper_count,
-				));
+
+				if gatekeeper_count == 1 {
+					Self::push_message(GatekeeperLaunch::first_gatekeeper(
+						gatekeeper,
+						worker_info.ecdh_pubkey,
+					));
+				} else {
+					Self::push_message(GatekeeperChange::gatekeeper_registered(
+						gatekeeper,
+						worker_info.ecdh_pubkey,
+					));
+				}
 			}
 			Ok(())
 		}
@@ -375,7 +382,7 @@ pub mod pallet {
 						}
 						_ => {
 							GatekeeperMasterPubkey::<T>::put(master_pubkey);
-							Self::push_message(MasterKeyEvent::master_pubkey_on_chain(
+							Self::push_message(GatekeeperLaunch::master_pubkey_on_chain(
 								master_pubkey,
 							));
 						}
@@ -460,11 +467,17 @@ pub mod pallet {
 						gatekeepers.push(gatekeeper.clone());
 						let gatekeeper_count = gatekeepers.len() as u32;
 						Gatekeeper::<T>::put(gatekeepers.clone());
-						Pallet::<T>::queue_message(MasterKeyEvent::gatekeeper_registered(
-							gatekeeper.clone(),
-							worker_info.ecdh_pubkey,
-							gatekeeper_count,
-						));
+						if gatekeeper_count == 1 {
+							Pallet::<T>::queue_message(GatekeeperLaunch::first_gatekeeper(
+								gatekeeper.clone(),
+								worker_info.ecdh_pubkey,
+							));
+						} else {
+							Pallet::<T>::queue_message(GatekeeperChange::gatekeeper_registered(
+								gatekeeper.clone(),
+								worker_info.ecdh_pubkey,
+							));
+						}
 					}
 					_ => {}
 				}

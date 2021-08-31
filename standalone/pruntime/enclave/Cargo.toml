@@ -12,7 +12,7 @@ crate-type = ["staticlib"]
 [dependencies]
 libc        = "0.2.98"
 log         = "0.4.14"
-env_logger  = "0.9.0"
+env_logger  = { version = "0.9.0", default-features = false, features = ["termcolor"] }
 base64      = "0.13.0"
 rand        = "0.7.3"
 hex         = "0.4"
@@ -34,6 +34,9 @@ sgx_tprotected_fs = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-
 sgx_libc        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_unwind      = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git" }
 sgx_tstd        = { rev = "v1.1.3", git = "https://github.com/apache/teaclave-sgx-sdk.git", default-features = false, features = ["stdio"] }
+
+[patch.crates-io]
+ppv-lite86 = { path = "../../../cryptocorrosion-sgx/utils-simd/ppv-lite86/" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 # sgx_alloc = { path = "../../../teaclave-sgx-sdk/sgx_alloc" }
