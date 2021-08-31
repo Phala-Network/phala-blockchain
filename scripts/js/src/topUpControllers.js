@@ -20,7 +20,7 @@ const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 const fs = require('fs');
 
-const typedefs = require('@phala/typedefs').latest;
+const typedefs = require('@phala/typedefs').phalaDev;
 const bn1e9 = new BN(10).pow(new BN(9));
 const bn1e12 = new BN(10).pow(new BN(12));
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;

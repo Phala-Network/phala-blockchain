@@ -8,7 +8,7 @@ const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
 const { types, typeAlias } = require('./typeoverride');
 // TODO: fixit
-// const types = require('@phala/typedefs').latest;
+// const types = require('@phala/typedefs').phalaDev;
 
 const { Process, TempDir } = require('../pm');
 const { PRuntimeApi } = require('../pruntime');
