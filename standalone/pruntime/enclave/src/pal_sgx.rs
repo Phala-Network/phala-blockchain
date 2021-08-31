@@ -14,6 +14,7 @@ use sgx_tstd::io::ErrorKind;
 use sgx_tstd::os::unix::prelude::OsStrExt as _;
 use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write};
 use sgx_types::*;
+use std::convert::TryFrom;
 
 use phactory_pal::{Machine, Sealing, RA};
 
@@ -198,8 +199,8 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
 
-    let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid)
-        .parse()
+    let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid);
+    let url = TryFrom::try_from(url.as_str())
         .expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
@@ -254,8 +255,8 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
     let mut res_body_buffer = Vec::new(); //container for body of a response
     let timeout = Some(Duration::from_secs(8));
 
-    let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT)
-        .parse()
+    let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
+    let url = TryFrom::try_from(url.as_str())
         .expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")

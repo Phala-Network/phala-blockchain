@@ -144,7 +144,7 @@ where
         self.registered_on_chain = true;
     }
 
-    #[allow(unused_code)]
+    #[allow(unused)]
     pub fn unregister_on_chain(&mut self) {
         info!("Gatekeeper: unregister on chain");
         self.egress.set_dummy(true);

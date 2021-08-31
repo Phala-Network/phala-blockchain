@@ -5796,6 +5796,7 @@ dependencies = [
  "sp-std",
  "untrusted",
  "webpki 0.22.0",
+ "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -10439,6 +10440,16 @@ version = "0.22.0"
 dependencies = [
  "ring 0.16.20",
  "ring 0.16.20-1",
+ "untrusted",
+]
+
+[[package]]
+name = "webpki"
+version = "0.22.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f095d78192e208183081cc07bc5515ef55216397af48b873e5edcd72637fa1bd"
+dependencies = [
+ "ring 0.16.20",
  "untrusted",
 ]
 

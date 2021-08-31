@@ -343,7 +343,7 @@ pub extern "C" fn fstat64(_fildes: c_int, _buf: *mut libc::stat64) -> c_int {
     not_allowed!()
 }
 
-#[cfg(feature = "net")]
+// #[cfg(feature = "net")]
 mod net {
     use super::*;
 
