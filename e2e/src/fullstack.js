@@ -6,13 +6,13 @@ const fs = require('fs');
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { cryptoWaitReady, mnemonicGenerate } = require('@polkadot/util-crypto');
 
-const { types, typeAlias } = require('./typeoverride');
+const { types, typeAlias } = require('./utils/typeoverride');
 // TODO: fixit
 // const types = require('@phala/typedefs').phalaDev;
 
-const { Process, TempDir } = require('../pm');
-const { PRuntimeApi } = require('../pruntime');
-const { checkUntil, skipSlowTest, sleep } = require('../utils');
+const { Process, TempDir } = require('./utils/pm');
+const { PRuntimeApi } = require('./utils/pruntime');
+const { checkUntil, skipSlowTest } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
@@ -45,6 +45,8 @@ describe('A full stack', function () {
 	});
 
 	after(async function () {
+        // TODO: consider handle the signals and process.on('exit') event:
+        //   https://stackoverflow.com/questions/14031763/doing-a-cleanup-action-just-before-node-js-exits
 		if (api) await api.disconnect();
 		await cluster.kill();
 		if (process.env.KEEP_TEST_FILES != '1') {
@@ -62,11 +64,6 @@ describe('A full stack', function () {
 		}
 	});
 
-	describe.skip('PhalaNode', () => {
-		it('should have Alice registered', async function () {
-		});
-	})
-
 	let workerKey;
 	describe('pRuntime', () => {
 		it('is initialized', async function () {
@@ -76,7 +73,7 @@ describe('A full stack', function () {
 				return info.initialized;
 			}, 1000), 'not initialized in time');
 			// A bit guly. Any better way?
-			workerKey = Uint8Array.from(Buffer.from(info.public_key, 'hex'));
+			workerKey = Uint8Array.from(Buffer.from(info.publicKey, 'hex'));
 		});
 
 		it('can sync block', async function () {
@@ -122,8 +119,8 @@ describe('A full stack', function () {
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
 					api.tx.phalaRegistry.forceRegisterWorker(
-						hex(info.public_key),
-						hex(info.ecdh_public_key),
+						hex(info.publicKey),
+						hex(info.ecdhPublicKey),
 						null,
 					)
 				),
@@ -131,7 +128,7 @@ describe('A full stack', function () {
 			);
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
-					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
 				),
 				alice,
 			);
@@ -146,14 +143,14 @@ describe('A full stack', function () {
 				const info = await pruntime[0].getInfo();
 				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
 				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-				return gatekeepers.includes(hex(info.public_key));
+				return gatekeepers.includes(hex(info.publicKey));
 			}, 4 * 6000), 'not registered as gatekeeper');
 		});
 
 		it('finishes master pubkey upload', async function () {
 			assert.isTrue(await checkUntil(async () => {
-				const master_pubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
-				return master_pubkey.isSome;
+				const masterPubkey = await api.query.phalaRegistry.gatekeeperMasterPubkey();
+				return masterPubkey.isSome;
 			}, 4 * 6000), 'master pubkey not uploaded');
 		});
     });
@@ -165,8 +162,8 @@ describe('A full stack', function () {
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
 					api.tx.phalaRegistry.forceRegisterWorker(
-						hex(info.public_key),
-						hex(info.ecdh_public_key),
+						hex(info.publicKey),
+						hex(info.ecdhPublicKey),
 						null,
 					)
 				),
@@ -174,7 +171,7 @@ describe('A full stack', function () {
 			);
 			await assert.txAccepted(
 				api.tx.sudo.sudo(
-					api.tx.phalaRegistry.registerGatekeeper(hex(info.public_key))
+					api.tx.phalaRegistry.registerGatekeeper(hex(info.publicKey))
 				),
 				alice,
 			);
@@ -189,7 +186,7 @@ describe('A full stack', function () {
 				const info = await pruntime[1].getInfo();
 				const gatekeepers = await api.query.phalaRegistry.gatekeeper();
 				// console.log(`Gatekeepers after registeration: ${gatekeepers}`);
-				return gatekeepers.includes(hex(info.public_key));
+				return gatekeepers.includes(hex(info.publicKey));
 			}, 4 * 6000), 'not registered as gatekeeper');
 		});
 
@@ -571,9 +568,10 @@ function newNode(wsPort, tmpPath, name = 'node') {
     const cli = [
 		pathNode, [
 			'--dev',
+            '--block-millisecs=1000',
 			'--base-path=' + path.resolve(tmpPath, 'phala-node'),
 			`--ws-port=${wsPort}`,
-			'--rpc-methods=Unsafe'
+			'--rpc-methods=Unsafe',
 		]
 	];
     const cmd = cli.flat().join(' ');
