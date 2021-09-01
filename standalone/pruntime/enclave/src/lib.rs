@@ -64,6 +64,9 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter)).init();
 
     benchmark::reset_iteration_counter();
+    if args.init_bench {
+        benchmark::resume();
+    }
 
     info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS

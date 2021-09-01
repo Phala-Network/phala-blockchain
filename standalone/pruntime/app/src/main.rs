@@ -65,7 +65,11 @@ use parity_scale_codec::Encode;
 struct Args {
     /// Number of CPU cores to be used for mining.
     #[structopt(short, long)]
-    cores: Option<u32>
+    cores: Option<u32>,
+
+    /// Run benchmark at startup.
+    #[structopt(long)]
+    init_bench: bool,
 }
 
 
@@ -507,6 +511,7 @@ fn main() {
     let init_args = phactory_api::ecall_args::InitArgs {
         sealing_path,
         log_filter,
+        init_bench: args.init_bench,
     };
     info!("init_args: {:?}", init_args);
     let encoded_args = init_args.encode();

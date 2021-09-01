@@ -10,7 +10,7 @@ const UNIT: usize = 1;
 const MAX_NUM: u128 = 65536 * 128;
 
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
-static PAUSED: AtomicBool = AtomicBool::new(false);
+static PAUSED: AtomicBool = AtomicBool::new(true);
 static SCORE: AtomicU64 = AtomicU64::new(0);
 
 fn is_prime(num: u128) -> bool {
