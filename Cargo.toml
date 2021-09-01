@@ -20,6 +20,7 @@ members = [
 	"crates/phala-crypto",
 	"crates/prpc",
 	"crates/prpc-build",
+	"crates/phala-node-rpc-ext",
 	"crates/phactory",
 	"crates/phactory/api",
 	"crates/phactory/pal",
