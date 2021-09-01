@@ -6,7 +6,7 @@ const { blake2AsU8a } = require('@polkadot/util-crypto');
 const { u8aToHex } = require('@polkadot/util');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs').latest;
+const typedefs = require('@phala/typedefs').phalaDev;
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
 const bn256 = new BN(1).shln(256);
 

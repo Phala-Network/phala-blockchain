@@ -152,7 +152,6 @@ const types = {
     },
     "GatekeeperEvent": {
         "_enum": {
-            // "MasterPubkeyAvailable": null,
             "NewRandomNumber": "RandomNumberEvent",
             "TokenomicParametersChanged": "TokenomicParameters"
         }

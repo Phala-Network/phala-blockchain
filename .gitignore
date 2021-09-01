@@ -87,3 +87,4 @@ coverage/
 # JS scripts
 scripts/js/node_modules
 scripts/js/.env
+yarn-error.log

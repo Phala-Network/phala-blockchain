@@ -3,7 +3,7 @@ require('dotenv').config();
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs').latest;
+const typedefs = require('@phala/typedefs').phalaDev;
 const bn1e12 = new BN(10).pow(new BN(12));
 
 function createTransferXcm(

@@ -8,7 +8,7 @@ const { decodeAddress } = require('@polkadot/keyring');
 const { u8aToHex } = require('@polkadot/util');
 
 
-const typedefs = require('@phala/typedefs').latest;
+const typedefs = require('@phala/typedefs').phalaDev;
 
 
 async function main () {
