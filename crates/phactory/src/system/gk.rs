@@ -798,7 +798,7 @@ mod msg_trait {
     }
 }
 
-#[cfg(feature = "tests")]
+#[cfg(test)]
 pub mod tests {
     use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, Gatekeeper};
     use crate::std::{cell::RefCell, vec::Vec};
@@ -969,18 +969,7 @@ pub mod tests {
         block_number as u64 * 12000
     }
 
-    pub fn run_all_tests() {
-        gk_should_be_able_to_observe_worker_states();
-        gk_should_not_miss_any_heartbeats_cross_session();
-        gk_should_reward_normal_workers_do_not_hit_the_seed_case1();
-        gk_should_report_payout_for_normal_heartbeats_case2();
-        gk_should_slash_and_report_offline_workers_case3();
-        gk_should_slash_offline_workers_sliently_case4();
-        gk_should_report_recovered_workers_case5();
-        check_tokenomic_numerics();
-        test_update_p_instant();
-    }
-
+    #[test]
     fn gk_should_be_able_to_observe_worker_states() {
         let mut r = Roles::test_roles();
 
@@ -1013,6 +1002,7 @@ pub mod tests {
         );
     }
 
+    #[test]
     fn gk_should_not_miss_any_heartbeats_cross_session() {
         let mut r = Roles::test_roles();
 
@@ -1107,6 +1097,7 @@ pub mod tests {
         );
     }
 
+    #[test]
     fn gk_should_reward_normal_workers_do_not_hit_the_seed_case1() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1171,6 +1162,7 @@ pub mod tests {
         );
     }
 
+    #[test]
     fn gk_should_report_payout_for_normal_heartbeats_case2() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1224,6 +1216,7 @@ pub mod tests {
         }
     }
 
+    #[test]
     fn gk_should_slash_and_report_offline_workers_case3() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1304,6 +1297,7 @@ pub mod tests {
         );
     }
 
+    #[test]
     fn gk_should_slash_offline_workers_sliently_case4() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1376,6 +1370,7 @@ pub mod tests {
         );
     }
 
+    #[test]
     fn gk_should_report_recovered_workers_case5() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1445,6 +1440,7 @@ pub mod tests {
         }
     }
 
+    #[test]
     fn check_tokenomic_numerics() {
         let mut r = Roles::test_roles();
         let mut block_number = 1;
@@ -1531,6 +1527,7 @@ pub mod tests {
         // TODO(hangyin): also check miner reconnection and V recovery
     }
 
+    #[test]
     fn test_update_p_instant() {
         let mut info = super::TokenomicInfo {
             p_bench: fp!(100),

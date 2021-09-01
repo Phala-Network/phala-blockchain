@@ -748,8 +748,3 @@ pub mod chain_state {
             .unwrap_or(None)
     }
 }
-
-#[cfg(feature = "tests")]
-pub fn run_all_tests() {
-    gk::tests::run_all_tests();
-}
