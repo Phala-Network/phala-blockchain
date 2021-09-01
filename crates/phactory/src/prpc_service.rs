@@ -57,7 +57,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or_else(|| from_display("Runtime not initialized"))
     }
 
-    fn get_info(&self) -> pb::PhactoryInfo {
+    pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.runtime_info.is_some();
         let state = self.runtime_state.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));

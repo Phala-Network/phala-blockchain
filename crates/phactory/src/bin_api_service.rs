@@ -2,6 +2,31 @@ use super::*;
 
 // For bin_api
 impl<Platform: pal::Platform> Phactory<Platform> {
+    fn get_info_json(&self) -> Result<Value, Value> {
+        let info = self.get_info();
+        let machine_id = hex::encode(&self.machine_id);
+        let gatekeeper = info.gatekeeper.unwrap();
+        Ok(json!({
+            "initialized": info.initialized,
+            "registered": info.registered,
+            "gatekeeper": {
+                "role": gatekeeper.role,
+                "master_public_key": gatekeeper.master_public_key,
+            },
+            "genesis_block_hash": info.genesis_block_hash,
+            "public_key": info.public_key,
+            "ecdh_public_key": info.ecdh_public_key,
+            "headernum": info.headernum,
+            "para_headernum": info.para_headernum,
+            "blocknum": info.blocknum,
+            "state_root": info.state_root,
+            "dev_mode": info.dev_mode,
+            "pending_messages": info.pending_messages,
+            "score": info.score,
+            "machine_id": machine_id,
+        }))
+    }
+
     fn bin_sync_header(&mut self, input: blocks::SyncHeaderReq) -> Result<Value, Value> {
         let resp =
             self.sync_header(input.headers, input.authority_set_change).map_err(display)?;
@@ -40,6 +65,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         match action {
+            ACTION_GET_INFO => self.get_info_json(),
             BIN_ACTION_SYNC_HEADER => self.bin_sync_header(load_scale(input)?),
             BIN_ACTION_SYNC_PARA_HEADER => self.bin_sync_para_header(load_scale(input)?),
             BIN_ACTION_SYNC_COMBINED_HEADERS => self.bin_sync_combined_headers(load_scale(input)?),

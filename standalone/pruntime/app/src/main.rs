@@ -443,14 +443,7 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
 fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount("/", proxy_routes![
-            ("/test", test, actions::ACTION_TEST),
-            ("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME),
             ("/get_info", get_info, actions::ACTION_GET_INFO),
-            ("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO),
-            ("/dump_states", dump_states, actions::ACTION_DUMP_STATES),
-            ("/load_states", load_states, actions::ACTION_LOAD_STATES),
-            ("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES),
-            ("/test_ink", test_ink, actions::ACTION_TEST_INK),
         ])
         .mount("/bin_api", proxy_bin_routes![
             ("/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER),
