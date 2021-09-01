@@ -885,7 +885,8 @@ pub mod tests {
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
             let key = sp_core::sr25519::Pair::from_seed(&[1u8; 32]);
-            let gk = Gatekeeper::new(key, &mut mq, egress);
+            let mut gk = Gatekeeper::new(key, &mut mq, egress);
+            gk.master_pubkey_on_chain = true;
             Roles {
                 mq,
                 gk,
