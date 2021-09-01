@@ -11,6 +11,9 @@ use anyhow::{Context, Error, Result};
 use chain::AccountId;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
+use phala_crypto::ecdh::EcdhPublicKey;
+use phala_types::messaging::CommandPayload;
+use phala_enclave_api::crypto::EncryptedData;
 
 pub mod assets;
 pub mod balances;
@@ -49,16 +52,35 @@ mod support {
         mq: &'a MessageChannel,
         #[allow(unused)] // TODO.kevin: remove this.
         secret_mq: SecretMessageChannel<'a>,
+        contract_key: &'a KeyPair,
     }
 
     impl NativeContext<'_> {
         pub fn mq(&self) -> &MessageChannel {
             self.mq
         }
+
+        pub fn ecdh_decrypt<T>(&self, encrypted_data: Vec<u8>) -> Result<T> where T: Decode {
+            let decoded_encrypted_data = match EncryptedData::decode(&mut &encrypted_data[..]) {
+                Ok(e) => e,
+                Err(_) => return Err(Error::msg("failed to decode encoded encrypted data")),
+            };
+            let encoded_data = match decoded_encrypted_data.decrypt(self.contract_key) {
+                Ok(e) => e,
+                Err(_) => return Err(Error::msg("failed to decrypt encrypted data")),
+            };
+            let data = match T::decode(&mut &encoded_data[..]) {
+                Ok(e) => e,
+                Err(_) => return Err(Error::msg("failed to decode encoded data")),
+            };
+
+            Ok(data)
+        }
     }
 
     pub trait Contract {
         fn id(&self) -> ContractId;
+        fn public_contract_ecdh_key(&self) -> EcdhPublicKey;
         fn handle_query(
             &mut self,
             origin: Option<&chain::AccountId>,
@@ -101,6 +123,7 @@ mod support {
         send_mq: MessageChannel,
         cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
         ecdh_key: KeyPair,
+        contract_ecdh_key: KeyPair,
     }
 
     impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
@@ -119,12 +142,14 @@ mod support {
             send_mq: MessageChannel,
             cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
             ecdh_key: KeyPair,
+            contract_ecdh_key: KeyPair,
         ) -> Self {
             NativeCompatContract {
                 contract,
                 send_mq,
                 cmd_rcv_mq,
                 ecdh_key,
+                contract_ecdh_key,
             }
         }
     }
@@ -142,6 +167,10 @@ mod support {
     {
         fn id(&self) -> ContractId {
             id256(self.contract.id())
+        }
+
+        fn public_contract_ecdh_key(&self) -> EcdhPublicKey {
+            self.contract_ecdh_key.public()
         }
 
         fn handle_query(
@@ -167,6 +196,7 @@ mod support {
                 block: env.block,
                 mq: &self.send_mq,
                 secret_mq,
+                contract_key: &self.contract_ecdh_key,
             };
             loop {
                 let ok = phala_mq::select! {

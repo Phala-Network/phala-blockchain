@@ -218,20 +218,21 @@ pub mod messaging {
 
     // Messages for Geo Location
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub struct Coordinate {
+    pub struct CoordinateInfo {
         pub latitude: i32,
         pub longitude: i32,
+        pub city_name: String,
     }
 
     bind_contract32!(GeolocationCommand<AccoundId>, contract::GEOLOCATION);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum GeolocationCommand<AccoundId> {
-        UpdateGeolocation { sender: AccoundId, geolocation: Coordinate },
+        UpdateGeolocation { sender: AccoundId, encrypted_geolocation_info: Vec<u8> },
     }
 
     impl<AccoundId> GeolocationCommand<AccoundId> {
-        pub fn update_geolocation(sender: AccoundId, geolocation: Coordinate) -> Self {
-            Self::UpdateGeolocation { sender, geolocation }
+        pub fn update_geolocation(sender: AccoundId, encrypted_geolocation_info: Vec<u8>) -> Self {
+            Self::UpdateGeolocation { sender, encrypted_geolocation_info }
         }
     }
 

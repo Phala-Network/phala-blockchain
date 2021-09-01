@@ -399,13 +399,14 @@ pub fn init_runtime(
                     recv_mq
                         .subscribe(contract::command_topic(contract_id))
                         .into(),
-                    contract_key,
+                    contract_key.clone(),
                 );
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
                     $inner,
                     mq,
                     cmd_mq,
                     local_ecdh_key.clone(),
+                    contract_key.clone(),
                 ));
                 contracts.insert(contract_id, wrapped);
             }};
@@ -551,6 +552,39 @@ pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<pb::EgressMessage
         .unwrap_or_default();
     // Prune messages if needed to avoid the OUTPUT BUFFER overflow.
     Ok(fit_size(messages, output_buf_len))
+}
+
+fn get_encrypted_coordinate_info (request: pb::GetEncryptedCoordinateInfoRequest) -> RpcResult<pb::EncryptedCoordinateInfo> {
+    let mut state = STATE.lock().unwrap();
+    let coordinate_info = &request.coordinate_info;
+
+    // contract public ecdh_key
+    let state = state
+        .as_mut()
+        .ok_or_else(|| from_display("Runtime not initialized"))?;
+    let contract = state
+        .contracts
+        .get_mut(&contract::id256(contracts::GEOLOCATION))
+        .ok_or_else(|| from_display("Contract not found"))?;
+    let public_contract_ecdh_key = contract.public_contract_ecdh_key();
+
+    // local ecdh_key
+    let ecdh_key = LOCAL_STATE
+        .lock()
+        .unwrap()
+        .ecdh_key
+        .clone()
+        .ok_or_else(|| from_display("No ECDH key"))?;
+
+    // encrypt
+    let encrypted_coordinate_info = crypto::EncryptedData::encrypt(
+        &ecdh_key,
+        &public_contract_ecdh_key,
+        crate::generate_random_iv(),
+        &coordinate_info,
+    ).map_err(from_debug)?;
+
+    Ok(pb::EncryptedCoordinateInfo::new(encrypted_coordinate_info))
 }
 
 fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQueryResponse> {
@@ -717,6 +751,10 @@ impl PhactoryApi for RpcService {
             .worker_state(&pubkey)
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)
+    }
+
+    fn get_encrypted_coordinate_info (&self, request: pb::GetEncryptedCoordinateInfoRequest) -> RpcResult<pb::EncryptedCoordinateInfo> {
+        get_encrypted_coordinate_info(request)
     }
 
     fn echo (&self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {

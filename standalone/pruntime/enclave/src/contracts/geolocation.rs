@@ -12,13 +12,14 @@ use crate::contracts;
 use crate::contracts::{AccountId, NativeContext};
 extern crate runtime as chain;
 
-use phala_types::messaging::{GeolocationCommand, Coordinate};
+use phala_types::messaging::{GeolocationCommand, CoordinateInfo};
 
 type Command = GeolocationCommand<chain::AccountId>;
 
 
 pub struct Geolocation {
-    geolocations: BTreeMap<AccountId, Coordinate>,
+    geolocation_info: BTreeMap<AccountId, CoordinateInfo>,
+    city_distribution: BTreeMap<String, Vec<AccountId>>,
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -38,19 +39,24 @@ impl fmt::Display for Error {
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
-    GetGeolocation { account: AccountId }
+    GetGeolocationInfo { account: AccountId },
+    GetAvailableCityName {},
+    GetCityDistribution { city_name: String },
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Response {
-    GetGeolocation { geolocation: Coordinate },
+    GetGeolocationInfo { geolocation_info: CoordinateInfo },
+    GetAvailableCityName { city_names: Vec<String> },
+    GetCityDistribution { workers: Vec<AccountId> },
     Error(String),
 }
 
 impl Geolocation {
     pub fn new() -> Self {
         Geolocation {
-            geolocations: BTreeMap::new()
+            geolocation_info: BTreeMap::new(),
+            city_distribution: BTreeMap::new(),
         }
     }
 }
@@ -71,21 +77,56 @@ impl contracts::NativeContract for Geolocation {
         cmd: Command,
     ) -> TransactionResult {
         match cmd {
-            Command::UpdateGeolocation { sender, geolocation } => {
+            Command::UpdateGeolocation { sender, encrypted_geolocation_info } => {
                 if !origin.is_pallet() {
                     error!("Received event from unexpected origin: {:?}", origin);
                     return Err(TransactionError::BadOrigin);
                 }
+                // Decrypt
+                let geolocation_info = match context.ecdh_decrypt::<CoordinateInfo>(encrypted_geolocation_info) {
+                    Ok(e) => e,
+                    Err(_) => return Err(TransactionError::BadInput),
+                };
+
                 info!(
-                    "UpdateGeolocation: [{}] -> <{}, {}>",
+                    "UpdateGeolocation: [{}] -> <{}, {}>, city: {}",
                     hex::encode(&sender),
-                    geolocation.latitude,
-                    geolocation.longitude
+                    geolocation_info.latitude,
+                    geolocation_info.longitude,
+                    geolocation_info.city_name,
                 );
-                if let Some(geo_data) = self.geolocations.get_mut(&sender) {
-                    *geo_data = geolocation;
+
+                // Insert data to geolocation info btreemap
+                if let Some(geo_data) = self.geolocation_info.get_mut(&sender) {
+                    *geo_data = geolocation_info.clone();
+                    if geo_data.city_name != geolocation_info.city_name {
+                        // Remove account id to previous city
+                        if let Some(workers) = self.city_distribution.get_mut(&geo_data.city_name) {
+                            if let Some(pos) = workers.iter().position(|x| *x == sender) {
+                                info!("Remove {} from city {}",
+                                    hex::encode(&sender), geolocation_info.city_name);
+                                workers.remove(pos);
+                            } else {
+                                error!("Cannot locate AccountId. Something is wrong in the geolocation contract's UpdateGeolocation() function");
+                                return Err(TransactionError::UnknownError);
+                            }
+                        } else {
+                            error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
+                            return Err(TransactionError::UnknownError);
+                        }
+                        // Insert account id to new city
+                        info!("Push {} to city {}",
+                            hex::encode(&sender), geolocation_info.city_name);
+                        let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
+                        workers.push(sender);
+                    }
                 } else {
-                    self.geolocations.insert(sender, geolocation);
+                    // newly arrived worker
+                    info!("Push {} to city {}",
+                            hex::encode(&sender), geolocation_info.city_name);
+                    self.geolocation_info.insert(sender.clone(), geolocation_info.clone());
+                    let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
+                    workers.push(sender);
                 };
 
                 Ok(())
@@ -96,17 +137,29 @@ impl contracts::NativeContract for Geolocation {
     fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
         let inner = || -> Result<Response> {
             match req {
-                Request::GetGeolocation { account } => {
+                Request::GetGeolocationInfo { account } => {
                     if origin == None || origin.unwrap() != &account {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
-                    let mut geolocation = Coordinate { latitude: 0, longitude: 0 };
-                    if let Some(data) = self.geolocations.get(&account) {
-                        geolocation = data.clone();
+                    if let Some(data) = self.geolocation_info.get(&account) {
+                        let geolocation_info = data.clone();
+                        Ok(Response::GetGeolocationInfo { geolocation_info })
                     } else {
+                        error!("no record");
                         return Err(anyhow::Error::msg(Error::Other("no record".to_string())));
                     }
-                    Ok(Response::GetGeolocation { geolocation })
+                },
+                Request::GetAvailableCityName {} => {
+                    let city_names: Vec<String> = self.city_distribution.keys().cloned().collect();
+                    Ok(Response::GetAvailableCityName { city_names })
+                },
+                Request::GetCityDistribution { city_name } => {
+                    if let Some(workers) = self.city_distribution.get(&city_name) {
+                        Ok(Response::GetCityDistribution { workers: workers.clone() })
+                    } else {
+                        error!("Unavailable city name provided");
+                        return Err(anyhow::Error::msg(Error::Other("Unavailable city name provided".to_string())));
+                    }
                 }
             }
         };

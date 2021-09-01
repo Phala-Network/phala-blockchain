@@ -8,7 +8,7 @@ use std::time::Duration;
 use structopt::StructOpt;
 use tokio::time::sleep;
 
-use codec::Decode;
+use codec::{Decode, Encode};
 use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
@@ -28,11 +28,12 @@ use phala_enclave_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
     StorageProof,
 };
-use phala_enclave_api::prpc::{self, InitRuntimeResponse, EchoMessage};
+use phala_enclave_api::prpc::{self, InitRuntimeResponse, EchoMessage, GetEncryptedCoordinateInfoRequest};
 use phala_enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
-use phala_types::messaging::Coordinate;
+use phala_types::messaging::CoordinateInfo;
+use log::kv::Source;
 
 type XtClient = subxt::Client<Runtime>;
 type PrClient = pruntime_client::PRuntimeClient;
@@ -676,7 +677,7 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn get_geolocation() -> Result<(i32, i32)> {
+async fn get_geolocation() -> Result<CoordinateInfo> {
     let res = reqwest::get("https://ipinfo.io/ip").await?;
     if !res.status().is_success() {
         return Err(anyhow::Error::msg(
@@ -694,20 +695,39 @@ async fn get_geolocation() -> Result<(i32, i32)> {
     let reader = maxminddb::Reader::from_source(geo_db_buf).unwrap();
     let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
 
-    let location = reader.lookup::<geoip2::City>(ip).unwrap().location.unwrap();
+    let city_general_data: geoip2::City = reader.lookup(ip).unwrap();
+    let region_name;
+    if let Some(city) = city_general_data.city {
+        region_name = *city.names.as_ref().unwrap().get(&"en").unwrap();
+    } else {
+        if let Some(subdivisions) = city_general_data.subdivisions {
+            region_name = *subdivisions[0].names.as_ref().unwrap().get(&"en").unwrap();
+        } else {
+            if let Some(country) = city_general_data.country {
+                region_name = *country.names.as_ref().unwrap().get(&"en").unwrap();
+            } else {
+                region_name = &"NA";
+            }
+        }
+    }
+    let location = city_general_data.location.unwrap();
     let latitude = location.latitude.unwrap();
     let longitude = location.longitude.unwrap();
-    info!("Look-up geolocation: {}, {}", latitude, longitude);
+    info!("Look-up geolocation: {}, {}, {}", latitude, longitude, region_name);
 
     // Convert f64 to i32 with 4 digits precision
-    Ok(((latitude * 10000f64) as i32, (longitude * 10000f64) as i32))
+    Ok(CoordinateInfo {
+        latitude: (latitude * 10000f64) as i32,
+        longitude: (longitude * 10000f64) as i32,
+        city_name: region_name.parse()?,
+    })
 }
 
 async fn try_send_geolocation(pr: &PrClient, paraclient: &XtClient, signer: &mut SrSigner) -> Result<()> {
     // TODO(soptq): Get Geolocation
-    let test_echo = pr.echo(EchoMessage{echo_msg: "Test".as_bytes().to_vec()}).await?;
-    info!("{}", String::from_utf8_lossy(&test_echo.echo_msg));
-    let (latitude, longitude) = match get_geolocation().await {
+    // let test_echo = pr.echo(EchoMessage{echo_msg: "Test".as_bytes().to_vec()}).await?;
+    // info!("{}", String::from_utf8_lossy(&test_echo.echo_msg));
+    let coordinate_info = match get_geolocation().await {
         Ok(r) => r,
         Err(e) => {
             let message = format!("Failed to retrieve geolocation: {:?}", e);
@@ -715,13 +735,15 @@ async fn try_send_geolocation(pr: &PrClient, paraclient: &XtClient, signer: &mut
             return Err(anyhow!(Error::FailedToSendGeolocation));
         }
     };
-    info!("Rounded geolocation: {}, {}", latitude, longitude);
+    let encoded_coordinate_info = coordinate_info.encode();
+    let encrypted_coordinate_info = pr.get_encrypted_coordinate_info(
+        GetEncryptedCoordinateInfoRequest{
+            coordinate_info: encoded_coordinate_info
+        }).await?;
+
     let call = runtimes::phala_registry::SendGeolocationCall {
         _runtime: PhantomData,
-        coordinate: Coordinate {
-            latitude,
-            longitude,
-        }
+        encrypted_coordinate_info: encrypted_coordinate_info.encrypted_coordinate_info,
     };
     chain_client::update_signer_nonce(paraclient, signer).await?;
     let ret = paraclient.watch(call, signer).await;
