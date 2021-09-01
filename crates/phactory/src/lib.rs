@@ -102,7 +102,6 @@ pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
-    version: u32,
     genesis_block_hash: H256,
     sk: Sr25519SecretKey,
     dev_mode: bool,
@@ -199,7 +198,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let sk = sr25519_sk.dump_secret_key();
 
         let data = PersistentRuntimeData {
-            version: 1,
             genesis_block_hash,
             sk,
             dev_mode,
