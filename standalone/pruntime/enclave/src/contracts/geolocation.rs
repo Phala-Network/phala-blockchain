@@ -24,6 +24,7 @@ pub struct Geolocation {
 
 #[derive(Encode, Decode, Debug)]
 pub enum Error {
+    InvalidRequest,
     NotAuthorized,
     Other(String),
 }
@@ -31,6 +32,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Error::InvalidRequest => write!(f, "invalid request"),
             Error::NotAuthorized => write!(f, "not authorized"),
             Error::Other(e) => write!(f, "{}", e),
         }
@@ -134,14 +136,14 @@ impl contracts::NativeContract for Geolocation {
             match req {
                 Request::GetGeolocationInfo { account } => {
                     if origin == None || origin.unwrap() != &account {
-                        return Err(anyhow::Error::msg(Error::NotAuthorized));
+                        Response::Error(Error::NotAuthorized)
                     }
                     if let Some(data) = self.geolocation_info.get(&account) {
                         let geolocation_info = data.clone();
                         Ok(Response::GetGeolocationInfo { geolocation_info })
                     } else {
                         error!("no record");
-                        return Err(anyhow::Error::msg(Error::Other("no record".to_string())));
+                        Response::Error(Error::InvalidRequest)
                     }
                 },
                 Request::GetAvailableCityName {} => {
@@ -153,7 +155,7 @@ impl contracts::NativeContract for Geolocation {
                         Ok(Response::GetCityDistribution { workers: workers.clone() })
                     } else {
                         error!("Unavailable city name provided");
-                        return Err(anyhow::Error::msg(Error::Other("Unavailable city name provided".to_string())));
+                        Response::Error(Error::InvalidRequest)
                     }
                 }
             }
