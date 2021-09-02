@@ -18,13 +18,13 @@ use sp_runtime::{
 
 pub use frame_support::weights::Weight;
 
-type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Pink>;
-type Block = frame_system::mocking::MockBlock<Pink>;
+type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
+type Block = frame_system::mocking::MockBlock<PinkRuntime>;
 type BalanceOf<T> =
     <<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 frame_support::construct_runtime!(
-    pub enum Pink where
+    pub enum PinkRuntime where
         Block = Block,
         NodeBlock = Block,
         UncheckedExtrinsic = UncheckedExtrinsic,
@@ -39,10 +39,10 @@ frame_support::construct_runtime!(
 
 pub struct NullExtension;
 
-impl ChainExtension<Pink> for NullExtension {
+impl ChainExtension<PinkRuntime> for NullExtension {
     fn call<E>(func_id: u32, _env: Environment<E, InitState>) -> ExtensionResult<RetVal>
     where
-        E: Ext<T = Pink>,
+        E: Ext<T = PinkRuntime>,
         <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
         panic!("Unknown func_id: {}", func_id);
@@ -55,7 +55,7 @@ parameter_types! {
         frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
     pub static ExistentialDeposit: u64 = 0;
 }
-impl frame_system::Config for Pink {
+impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = BlockWeights;
     type BlockLength = ();
@@ -81,8 +81,8 @@ impl frame_system::Config for Pink {
     type OnSetCode = ();
 }
 
-impl pallet_randomness_collective_flip::Config for Pink {}
-impl pallet_balances::Config for Pink {
+impl pallet_randomness_collective_flip::Config for PinkRuntime {}
+impl pallet_balances::Config for PinkRuntime {
     type MaxLocks = ();
     type MaxReserves = ();
     type ReserveIdentifier = [u8; 8];
@@ -97,7 +97,7 @@ impl pallet_balances::Config for Pink {
 parameter_types! {
     pub const MinimumPeriod: u64 = 1;
 }
-impl pallet_timestamp::Config for Pink {
+impl pallet_timestamp::Config for PinkRuntime {
     type Moment = u64;
     type OnTimestampSet = ();
     type MinimumPeriod = MinimumPeriod;
@@ -116,17 +116,17 @@ parameter_types! {
     pub const DeletionQueueDepth: u32 = 1024;
     pub const DeletionWeightLimit: Weight = 500_000_000_000;
     pub const MaxCodeSize: u32 = 2 * 1024;
-    pub MySchedule: Schedule<Pink> = <Schedule<Pink>>::default();
+    pub MySchedule: Schedule<PinkRuntime> = <Schedule<PinkRuntime>>::default();
     pub const TransactionByteFee: u64 = 0;
 }
 
-impl Convert<Weight, BalanceOf<Self>> for Pink {
+impl Convert<Weight, BalanceOf<Self>> for PinkRuntime {
     fn convert(w: Weight) -> BalanceOf<Self> {
         w
     }
 }
 
-impl Config for Pink {
+impl Config for PinkRuntime {
     type Time = Timestamp;
     type Randomness = Randomness;
     type Currency = Balances;
@@ -193,7 +193,7 @@ pub fn contract_test() {
     const GAS_LIMIT: Weight = 10_000_000_000;
 
     let (wasm, code_hash) =
-        compile_wat::<Pink>(include_bytes!("../fixtures/event_size.wat")).unwrap();
+        compile_wat::<PinkRuntime>(include_bytes!("../fixtures/event_size.wat")).unwrap();
 
     exec::execute_with(|| {
         let _ = Balances::deposit_creating(&ALICE, 1_000_000);
@@ -212,7 +212,7 @@ pub fn contract_test() {
             addr.clone(),
             0,
             GAS_LIMIT * 2,
-            <Pink as Config>::Schedule::get()
+            <PinkRuntime as Config>::Schedule::get()
                 .limits
                 .payload_len
                 .encode(),
