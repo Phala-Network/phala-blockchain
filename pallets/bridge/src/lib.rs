@@ -13,8 +13,7 @@ pub use pallet::*;
 pub mod pallet {
 	use codec::{Decode, Encode, EncodeLike};
 	pub use frame_support::{
-		pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter,
-		traits::StorageVersion,
+		pallet_prelude::*, traits::StorageVersion, weights::GetDispatchInfo, PalletId, Parameter,
 	};
 	use frame_system::{self as system, pallet_prelude::*};
 	pub use sp_core::U256;
@@ -631,15 +630,13 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
-			let mut t = BridgeEvents::<T>::get();
-			t.push(BridgeEvent::FungibleTransfer(
+			BridgeEvents::<T>::append(BridgeEvent::FungibleTransfer(
 				dest_id,
 				nonce,
 				resource_id,
 				amount,
 				to.clone(),
 			));
-			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::FungibleTransfer(
 				dest_id,
 				nonce,
@@ -663,8 +660,7 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
-			let mut t = BridgeEvents::<T>::get();
-			t.push(BridgeEvent::NonFungibleTransfer(
+			BridgeEvents::<T>::append(BridgeEvent::NonFungibleTransfer(
 				dest_id,
 				nonce,
 				resource_id,
@@ -672,7 +668,6 @@ pub mod pallet {
 				to.clone(),
 				metadata.clone(),
 			));
-			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::NonFungibleTransfer(
 				dest_id,
 				nonce,
@@ -695,14 +690,12 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
-			let mut t = BridgeEvents::<T>::get();
-			t.push(BridgeEvent::GenericTransfer(
+			BridgeEvents::<T>::append(BridgeEvent::GenericTransfer(
 				dest_id,
 				nonce,
 				resource_id,
 				metadata.clone(),
 			));
-			BridgeEvents::<T>::put(&t);
 			Self::deposit_event(Event::GenericTransfer(
 				dest_id,
 				nonce,
