@@ -13,8 +13,7 @@ pub use pallet::*;
 pub mod pallet {
 	use codec::{Decode, Encode, EncodeLike};
 	pub use frame_support::{
-		pallet_prelude::*, weights::GetDispatchInfo, PalletId, Parameter,
-		traits::StorageVersion,
+		pallet_prelude::*, traits::StorageVersion, weights::GetDispatchInfo, PalletId, Parameter,
 	};
 	use frame_system::{self as system, pallet_prelude::*};
 	pub use sp_core::U256;
@@ -54,6 +53,20 @@ pub mod pallet {
 		pub votes_against: Vec<AccountId>,
 		pub status: ProposalStatus,
 		pub expiry: BlockNumber,
+	}
+
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	pub enum BridgeEvent {
+		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
+		NonFungibleTransfer(
+			BridgeChainId,
+			DepositNonce,
+			ResourceId,
+			Vec<u8>,
+			Vec<u8>,
+			Vec<u8>,
+		),
+		GenericTransfer(BridgeChainId, DepositNonce, ResourceId, Vec<u8>),
 	}
 
 	impl<A: PartialEq, B: PartialOrd + Default> ProposalVotes<A, B> {
@@ -98,7 +111,7 @@ pub mod pallet {
 		}
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -232,6 +245,19 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn resources)]
 	pub type Resources<T> = StorageMap<_, Blake2_256, ResourceId, Vec<u8>>;
+
+	#[pallet::storage]
+	#[pallet::getter(fn bridge_events)]
+	pub type BridgeEvents<T> = StorageValue<_, Vec<BridgeEvent>, ValueQuery>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
+		fn on_initialize(_n: T::BlockNumber) -> Weight {
+			// Clear all bridge transfer data
+			BridgeEvents::<T>::kill();
+			0
+		}
+	}
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -604,6 +630,13 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			BridgeEvents::<T>::append(BridgeEvent::FungibleTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				amount,
+				to.clone(),
+			));
 			Self::deposit_event(Event::FungibleTransfer(
 				dest_id,
 				nonce,
@@ -627,6 +660,14 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			BridgeEvents::<T>::append(BridgeEvent::NonFungibleTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				token_id.clone(),
+				to.clone(),
+				metadata.clone(),
+			));
 			Self::deposit_event(Event::NonFungibleTransfer(
 				dest_id,
 				nonce,
@@ -649,6 +690,12 @@ pub mod pallet {
 				Error::<T>::ChainNotWhitelisted
 			);
 			let nonce = Self::bump_nonce(dest_id);
+			BridgeEvents::<T>::append(BridgeEvent::GenericTransfer(
+				dest_id,
+				nonce,
+				resource_id,
+				metadata.clone(),
+			));
 			Self::deposit_event(Event::GenericTransfer(
 				dest_id,
 				nonce,
