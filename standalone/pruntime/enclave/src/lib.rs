@@ -1,5 +1,8 @@
 #![feature(panic_unwind)]
 #![feature(c_variadic)]
+
+use core::sync::atomic::{AtomicU32, Ordering};
+
 use log::{error, warn, info};
 
 use sgx_types::sgx_status_t;
@@ -49,6 +52,11 @@ pub extern "C" fn ecall_handle(
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
 
 pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
+    static INITIALIZED: AtomicU32 = AtomicU32::new(0);
+    if INITIALIZED.fetch_add(1, Ordering::SeqCst) != 0 {
+        panic!("Enclave already initialized.");
+    }
+
     use parity_scale_codec::Decode;
     let mut args_buf = unsafe { std::slice::from_raw_parts(args, args_len) };
     let args = match phactory_api::ecall_args::InitArgs::decode(&mut args_buf) {
