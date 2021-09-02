@@ -13,7 +13,7 @@ const main = async () => {
     const api = await ApiPromise.create({
         provider: new WsProvider(process.env.ENDPOINT),
         types: {...phala_typedefs, ...{
-            TransferType: {
+            BridgeEvent: {
                 _enum: {
                     FungibleTransfer: "(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>)",
                     NonFungibleTransfer: "(BridgeChainId, DepositNonce, ResourceId, Vec<u8>, Vec<u8>, Vec<u8>)",
