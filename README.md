@@ -14,17 +14,11 @@ Phala Network is a blockchain-based confidential computing cloud. This repo incl
 
 ![](docs/static/phala-design.png)
 
-The **blockchain** is the central component of the system. It records commands (confidential contract invocation), serve as the pRuntime registray, runs the native token and on-chain governance modules.
+The **blockchain** is the central component of the system. It records commands (confidential contract invocation), serves as the pRuntime registry, runs the native token and on-chain governance modules.
 
 **pherry** (runtime-bridge) is the message relayer. It connects the blockchain and pRuntime. It passes the block data from the chain to pRuntime and passes pRuntime side effects back to the chain. A multi-client version of the runtime bridge is being developed [here](https://github.com/Phala-Network/runtime-bridge).
 
 **pRuntime** (Phala Network Secure Enclave Runtime) is a runtime to execute confidential smart contracts, based on confidential computing.
-
-Related repos:
-
-- [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentations.
-- [apps-ng](https://github.com/Phala-Network/apps-ng): The fontend, with the UI of the Phase Wallet and the Phala confidential contract api sdk. (Will be upgraded to [apps-nng](https://github.com/Phala-Network/apps-nng) soon.)
-- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime.
 
 ### File structure
 
@@ -33,21 +27,17 @@ Related repos:
 ├── LICENSE
 ├── README.md
 ├── pallets
-│   └── phala                 Phala pallet
+│   └── phala                 Phala pallet
 ├── ring                      Patched ring with wasm support
 ├── scripts
-│   ├── console.sh            Helper script to build & run the blockchain
-│   └── init.sh
+│   ├── console.sh            Helper script to build & run the blockchain
+│   └── init.sh
 └───standalone
     ├── node                  Blockchain node
     ├── pruntime              pRuntime, the Secure Enclave kernel
     ├── pherry                The message relayer to connect the blockchain and pRuntime
     └── runtime               Phala Substrate Runtime
 ```
-
-## Docker build
-
-Please refer to [phala-docker](https://github.com/Phala-Network/phala-docker).
 
 ## Native Build
 
@@ -143,25 +133,15 @@ the _current_ rustc.
     Clone the
     [Web UI for Phala Network](https://github.com/Phala-Network/apps-ng) repository and read its documentation to build and run the WebUI.
 
+## Contribution Resources
 
-## Run with tmuxp
+Sub-pages
 
-You can launch the full stack (semi-automatically) by:
+- [Test](./docs/test.md): How to test the components
 
-```bash
-tmuxp load ./scripts/tmuxp/three-nodes.yaml
-```
+External
 
-Or a 4-node testnet-poc4 setup:
-
-```bash
-CHAIN=poc4 tmuxp load ./scripts/tmuxp/four-nodes.yaml
-```
-
-[tmuxp](https://tmuxp.git-pull.com/en/latest/) is a convenient tool that can bring up a tmux session
-with the preconfigured commands running in panes. To play with tmuxp, it also need a tmux installed.
-
-## Other Resources
-
+- [phala-wiki](https://github.com/Phala-Network/phala-wiki): The technical documentation.
+- [phala-docker](https://github.com/Phala-Network/phala-docker): The production dockerfiles, including the blockchain, pherry, and pRuntime.
 - [Code Bounty Program](https://forum.phala.network/t/topic/2045)
 - [Responsible Disclosure](./docs/responsible-disclosure.md)

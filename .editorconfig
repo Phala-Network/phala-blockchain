@@ -38,3 +38,7 @@ indent_size=4
 [scripts/**]
 indent_style=space
 indent_size=4
+
+[e2e/**.json]
+indent_style=space
+indent_size=2
