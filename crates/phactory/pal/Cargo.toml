@@ -1,0 +1,8 @@
+[package]
+name = "phactory-pal"
+version = "0.1.0"
+edition = "2018"
+description = "Platform abstraction layer for Phactory Runtime"
+
+[dependencies]
+anyhow = "1.0.43"

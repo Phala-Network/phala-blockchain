@@ -6,7 +6,7 @@ use crate::{
 use anyhow::{anyhow, Result};
 use codec::Decode;
 use codec::Encode;
-use phala_enclave_api::blocks::{ParaId, StorageProof};
+use phactory_api::blocks::{ParaId, StorageProof};
 use phala_types::messaging::MessageOrigin;
 use phala_node_rpc_ext::MakeInto as _;
 use serde_json::to_value;

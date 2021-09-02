@@ -1,3 +1,4 @@
+import sys
 import angr
 import rust_demangler
 
@@ -27,18 +28,18 @@ class CallerFinder:
                 result.append((func, demangle(func.name)))
         return result
 
-    def print_callers(self, func, max_depth=3):
+    def print_callers(self, func, max_depth=3, file=sys.stdout):
         printed = set()
         if isinstance(func, str):
             funcs = self.find(func)
             if not funcs:
-                print(f'No function named "{func}"')
+                print(f'No function named "{func}"', file=file)
                 return
             else:
                 func = funcs[0][0]
 
         def print_recursive(printed, func, level, max_depth):
-            print("  " * level + demangle(func.name))
+            print("  " * level + demangle(func.name), file=file)
             if func in printed:
                 return
             printed.add(func)

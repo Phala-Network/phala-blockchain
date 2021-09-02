@@ -40,4 +40,4 @@ phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
 phala-trie-storage = { path = "../../crates/phala-trie-storage" }
 phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
-phala-enclave-api = { path = "../../standalone/pruntime/enclave-api" }
+phactory-api = { path = "../../crates/phactory/api" }

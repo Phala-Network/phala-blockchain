@@ -1,4 +1,4 @@
-use phala_enclave_api::blocks::StorageProof;
+use phactory_api::blocks::StorageProof;
 use serde::{Deserialize, Serialize};
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
 

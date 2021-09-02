@@ -10,6 +10,9 @@
 //! - `mining`: Manages mining lifecycle, reward and slashes
 //! - `stakepool`: Pool for collaboratively mining staking
 
+#[cfg(target_arch = "wasm32")]
+extern crate webpki_wasm as webpki;
+
 // Re-export
 use utils::{accumulator, attestation, balance_convert, constants, fixed_point};
 

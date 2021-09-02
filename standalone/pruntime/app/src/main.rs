@@ -21,7 +21,7 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
-extern crate phala_enclave_api;
+extern crate phactory_api;
 extern crate structopt;
 extern crate parity_scale_codec;
 
@@ -42,7 +42,6 @@ use colored::Colorize;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
-use std::fs;
 use std::path;
 use std::str;
 use std::sync::RwLock;
@@ -57,7 +56,7 @@ use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
-use phala_enclave_api::{actions, prpc};
+use phactory_api::{actions, prpc};
 
 
 #[derive(StructOpt, Debug)]
@@ -252,77 +251,6 @@ fn ocall_get_update_info(
     }
 }
 
-#[no_mangle]
-pub extern "C"
-fn ocall_dump_state(
-    _output_ptr : *mut u8,
-    _output_len_ptr: *mut usize,
-    _output_buf_len: usize
-) -> sgx_status_t {
-    // TODO:
-
-    sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern "C"
-fn ocall_save_persistent_data(
-    input_ptr: *const u8,
-    input_len: usize
-) -> sgx_status_t {
-    let input_slice = unsafe { std::slice::from_raw_parts(input_ptr, input_len) };
-    debug!("Sealed data {:}: {:?}", input_len, hex::encode(input_slice));
-
-    let executable = env::current_exe().unwrap();
-    let path = executable.parent().unwrap();
-    let state_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH).join(ENCLAVE_STATE_FILE);
-    info!("Save seal data to {}", state_path.as_path().to_str().unwrap());
-
-    fs::write(state_path.as_path().to_str().unwrap(), input_slice)
-        .expect("Failed to write persistent data");
-
-    sgx_status_t::SGX_SUCCESS
-}
-
-#[no_mangle]
-pub extern "C"
-fn ocall_load_persistent_data(
-    output_ptr : *mut u8,
-    output_len_ptr: *mut usize,
-    output_buf_len: usize
-) -> sgx_status_t {
-    let executable = env::current_exe().unwrap();
-    let path = executable.parent().unwrap();
-    let state_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH).join(ENCLAVE_STATE_FILE);
-
-    let state = match fs::read(state_path.as_path().to_str().unwrap()) {
-        Ok(data) => data,
-        _ => Vec::<u8>::new()
-    };
-    let state_len = state.len();
-
-    if state_len == 0 {
-        return sgx_status_t::SGX_SUCCESS
-    }
-
-    info!("Loaded sealed data {:}: {:?}", state_len, state);
-
-    unsafe {
-        if state_len <= output_buf_len {
-            std::ptr::copy_nonoverlapping(state.as_ptr(),
-                                          output_ptr,
-                                          state_len);
-        } else {
-            panic!("State too long. Buffer overflow.");
-        }
-        std::ptr::copy_nonoverlapping(&state_len as *const usize,
-                                      output_len_ptr,
-                                      std::mem::size_of_val(&state_len));
-    }
-
-    sgx_status_t::SGX_SUCCESS
-}
-
 fn init_enclave() -> SgxResult<SgxEnclave> {
     let mut launch_token: sgx_launch_token_t = [0; 1024];
     let mut launch_token_updated: i32 = 0;
@@ -515,14 +443,7 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
 fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount("/", proxy_routes![
-            ("/test", test, actions::ACTION_TEST),
-            ("/init_runtime", init_runtime, actions::ACTION_INIT_RUNTIME),
             ("/get_info", get_info, actions::ACTION_GET_INFO),
-            ("/get_runtime_info", get_runtime_info, actions::ACTION_GET_RUNTIME_INFO),
-            ("/dump_states", dump_states, actions::ACTION_DUMP_STATES),
-            ("/load_states", load_states, actions::ACTION_LOAD_STATES),
-            ("/get_egress_messages", get_egress_messages, actions::ACTION_GET_EGRESS_MESSAGES),
-            ("/test_ink", test_ink, actions::ACTION_TEST_INK),
         ])
         .mount("/bin_api", proxy_bin_routes![
             ("/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER),

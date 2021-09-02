@@ -10,6 +10,10 @@ except ImportError:
     print("WARN: rust_demangler not installed, skipping demangle", file=sys.stderr)
 
 
+def error(msg):
+    print(msg, file=sys.stderr)
+
+
 def demangle(name: str):
     try:
         return rust_demangler.demangle(name)
@@ -83,18 +87,18 @@ class Checker:
                 return func.name
         return None
 
-    def print_callers(self, func_name, max_depth=4):
+    def print_callers(self, func_name, max_depth=4, file=sys.stdout):
         graph = self.mk_callgraph()
         printed = set()
 
         func = self.function_like(func_name)
         if func is None:
-            print(f"No function name match {func_name}")
+            print(f"No function name match {func_name}", file=file)
             return
 
         def print_recursive(printed, func, level, max_depth):
-            print("  " * level + demangle(func))
-            print("  " * level + func)
+            print("  " * level + demangle(func), file=file)
+            print("  " * level + func, file=file)
             if func in printed:
                 return
             printed.add(func)
@@ -116,9 +120,9 @@ if __name__ == "__main__":
 
     checker = Checker(args.filename)
 
-    # These funtions are from the intel sgx-sdk. They exist even in no_std.
-    # They might be properly handled by the SDK, so we trust Intel that they are safe.
     WHITE_LIST = {
+        # These funtions are from the intel sgx-sdk. They exist even in no_std.
+        # They might be properly handled by the SDK, so we trust Intel that they are safe.
         "cp_is_avx512_extension",
         "cpStopTsc",
         "cpGetCacheSize",
@@ -128,10 +132,12 @@ if __name__ == "__main__":
         "cp_is_avx_extension",
         "cpStartTsc",
         "cp_get_pentium_counter",
-        # TODO.kevin: This one using ILL SYSCALL.
+        # TODO.kevin: This one uses SYSCALL.
         #   It is introduced by the teaclave/sgx_unwind, might be a bug?
         "_ULx86_64_sigreturn",
     }
+    if os.environ.get("SGX_MODE") == "SW":
+        WHITE_LIST.add("_ZL10arch_prctlim")
 
     ill_instructions = [
         "cpuid",
@@ -159,25 +165,25 @@ if __name__ == "__main__":
             ill_functions.append((func, inst))
 
     if ill_functions:
-        print("="*80)
-        print("Error: There are some functions using ILL instructons not allowed in SGX", file=sys.stderr)
-        print("")
+        error("="*80)
+        error("Error: There are some functions using ILL instructons not allowed in SGX")
+        error("")
         for func, inst in ill_functions:
-            print(f"{demangle(func)} using {inst}", file=sys.stderr)
-        print("")
-        print("="*80)
+            error(f"{demangle(func)} using {inst}")
+        error("")
+        error("="*80)
 
         if args.show_callers:
-            print("====== Parsing callers to them =======", file=sys.stderr)
+            error("====== Parsing callers to them =======")
             from callerfinder import CallerFinder
             finder = CallerFinder(args.filename)
-            print("="*80)
-            print("====== Callers to them =======", file=sys.stderr)
+            error("="*80)
+            error("====== Callers to them =======")
             for func, inst in ill_functions:
-                finder.print_callers(demangle(func), 12)
-                print("----------")
-            print("="*80)
-        print("")
+                finder.print_callers(demangle(func), 12, sys.stderr)
+                error("----------")
+            error("="*80)
+        error("")
         sys.exit(1)
     else:
         print("Instruction safety check OK")

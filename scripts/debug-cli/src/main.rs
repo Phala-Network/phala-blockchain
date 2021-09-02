@@ -95,13 +95,13 @@ fn main() {
         Cli::DecodeBhwe { b64_data } => {
             let data = base64::decode(&b64_data).expect("Failed to decode b64_data");
             let snapshot =
-                phala_enclave_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
+                phactory_api::blocks::BlockHeaderWithChanges::decode(&mut data.as_slice());
 
             println!("Decoded: {:?}", snapshot);
         }
         Cli::DecodeEgressMessages { b64_data } => {
             let data = decode_b64(&argument_or_stdin(&b64_data));
-            let messages = phala_enclave_api::prpc::EgressMessages::decode(&mut data.as_slice());
+            let messages = phactory_api::prpc::EgressMessages::decode(&mut data.as_slice());
             println!("Decoded: {:?}", messages);
         }
         Cli::DecodeSignedMessage { hex_data } => {
@@ -155,12 +155,12 @@ fn main() {
         Cli::GetWorkerState { url, pubkey } => {
             use tokio::runtime::Runtime;
 
-            let client = phala_enclave_api::pruntime_client::new_pruntime_client(url);
+            let client = phactory_api::pruntime_client::new_pruntime_client(url);
             let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
 
             let rt  = Runtime::new().unwrap();
             rt.block_on(async move {
-                match client.get_worker_state(phala_enclave_api::prpc::GetWorkerStateRequest { public_key }).await {
+                match client.get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key }).await {
                     Ok(state) => println!("{:#?}", state),
                     Err(err) => println!("Error: {:?}", err),
                 }
