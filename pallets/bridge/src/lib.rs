@@ -57,7 +57,7 @@ pub mod pallet {
 	}
 
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
-	pub enum TransferType {
+	pub enum BridgeEvent {
 		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
 		NonFungibleTransfer(
 			BridgeChainId,
@@ -249,7 +249,7 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn bridge_events)]
-	pub type BridgeEvents<T> = StorageValue<_, Vec<TransferType>, ValueQuery>;
+	pub type BridgeEvents<T> = StorageValue<_, Vec<BridgeEvent>, ValueQuery>;
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T> {
@@ -632,7 +632,7 @@ pub mod pallet {
 			);
 			let nonce = Self::bump_nonce(dest_id);
 			let mut t = BridgeEvents::<T>::get();
-			t.push(TransferType::FungibleTransfer(
+			t.push(BridgeEvent::FungibleTransfer(
 				dest_id,
 				nonce,
 				resource_id,
@@ -664,7 +664,7 @@ pub mod pallet {
 			);
 			let nonce = Self::bump_nonce(dest_id);
 			let mut t = BridgeEvents::<T>::get();
-			t.push(TransferType::NonFungibleTransfer(
+			t.push(BridgeEvent::NonFungibleTransfer(
 				dest_id,
 				nonce,
 				resource_id,
@@ -696,7 +696,7 @@ pub mod pallet {
 			);
 			let nonce = Self::bump_nonce(dest_id);
 			let mut t = BridgeEvents::<T>::get();
-			t.push(TransferType::GenericTransfer(
+			t.push(BridgeEvent::GenericTransfer(
 				dest_id,
 				nonce,
 				resource_id,
