@@ -19,22 +19,22 @@ pub fn contract_id256(id: u32) -> ContractId {
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Display)]
+#[derive(Encode, Decode, Debug, Clone, Eq, PartialOrd, Ord, Display)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
-    #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(&_0)")]
+    #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
     Pallet(Vec<u8>),
     /// A confidential contract
-    #[display(fmt = "Contract({})", "hex::encode(&_0)")]
+    #[display(fmt = "Contract({})", "hex::encode(_0)")]
     Contract(ContractId),
     /// A pRuntime worker
-    #[display(fmt = "Worker({})", "hex::encode(&_0)")]
+    #[display(fmt = "Worker({})", "hex::encode(_0)")]
     Worker(sp_core::sr25519::Public),
     /// A user
-    #[display(fmt = "AccountId({})", "hex::encode(&_0)")]
+    #[display(fmt = "AccountId({})", "hex::encode(_0)")]
     AccountId(AccountId),
     /// A remote location (parachain, etc.)
-    #[display(fmt = "MultiLocation({})", "hex::encode(&_0)")]
+    #[display(fmt = "MultiLocation({})", "hex::encode(_0)")]
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
@@ -44,6 +44,16 @@ impl Hash for MessageOrigin {
     fn hash<H: Hasher>(&self, state: &mut H) {
         let encoded = Encode::encode(self);
         encoded.hash(state);
+    }
+}
+
+// PartialEq must agree with Hash.
+// See: https://rust-lang.github.io/rust-clippy/master/index.html#derive_hash_xor_eq
+impl PartialEq for MessageOrigin {
+    fn eq(&self, other: &Self) -> bool {
+        let encoded_self = Encode::encode(self);
+        let encoded_other = Encode::encode(other);
+        encoded_self == encoded_other
     }
 }
 

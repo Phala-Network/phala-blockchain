@@ -21,7 +21,7 @@ fn from_debug(e: impl core::fmt::Debug) -> RpcError {
 pub const VERSION: u32 = 1;
 
 fn now() -> u64 {
-    use crate::std::time::SystemTime;
+    use std::time::SystemTime;
     let now = SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
         .unwrap();
@@ -257,14 +257,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             ));
         }
 
-        let (identity_key, local_ecdh_key) = rt_data.decode_keys();
+        let (identity_key, ecdh_key) = rt_data.decode_keys();
 
         let ecdsa_pk = identity_key.public();
         let ecdsa_hex_pk = hex::encode(&ecdsa_pk);
         info!("Identity pubkey: {:?}", ecdsa_hex_pk);
 
         // derive ecdh key
-        let ecdh_pubkey = phala_types::EcdhPublicKey(local_ecdh_key.public());
+        let ecdh_pubkey = phala_types::EcdhPublicKey(ecdh_key.public());
         let ecdh_hex_pk = hex::encode(ecdh_pubkey.0.as_ref());
         info!("ECDH pubkey: {:?}", ecdh_hex_pk);
 
@@ -324,7 +324,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     let sender = MessageOrigin::native_contract($id);
                     let mq = send_mq.channel(sender, id_pair.clone());
                     // TODO.kevin: use real contract key
-                    let contract_key = local_ecdh_key.clone();
+                    let contract_key = ecdh_key.clone();
                     let cmd_mq = PeelingReceiver::new_secret(
                         recv_mq
                             .subscribe(contract::command_topic(contract_id))
@@ -335,7 +335,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                         $inner,
                         mq,
                         cmd_mq,
-                        local_ecdh_key.clone(),
+                        ecdh_key.clone(),
                     ));
                     contracts.insert(contract_id, wrapped);
                 }};
@@ -370,9 +370,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             recv_mq,
             storage_synchronizer,
             chain_storage: Default::default(),
-            genesis_block_hash: genesis_block_hash.clone(),
-            identity_key: identity_key.clone(),
-            ecdh_key: local_ecdh_key.clone(),
+            genesis_block_hash,
+            identity_key,
+            ecdh_key,
         };
 
         // Initialize other states
@@ -531,7 +531,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Ok(pb::ContractQueryResponse::new(encrypted_resp))
     }
 
-    pub fn dispatch_prpc_request(
+    #[allow(unused_unsafe)]
+    pub unsafe fn dispatch_prpc_request(
         &mut self,
         path: *const u8,
         path_len: usize,

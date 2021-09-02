@@ -23,7 +23,7 @@ pub mod actions {
     pub const ACTION_GET_INFO: u8 = 2;
 
     pub const BIN_ACTION_START: u8 = 128;
-    pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START + 0;
+    pub const BIN_ACTION_SYNC_PARA_HEADER: u8 = BIN_ACTION_START;
     pub const BIN_ACTION_DISPATCH_BLOCK: u8 = BIN_ACTION_START + 1;
     pub const BIN_ACTION_SYNC_HEADER: u8 = BIN_ACTION_START + 2;
     pub const BIN_ACTION_SYNC_COMBINED_HEADERS: u8 = BIN_ACTION_START + 3;
@@ -328,20 +328,20 @@ pub mod storage_sync {
             authority_set_change: Option<AuthoritySetChange>,
             state_roots: &mut VecDeque<Hash>,
         ) -> Result<chain::BlockNumber> {
-            let first_header = headers.first().ok_or_else(|| Error::EmptyRequest)?;
+            let first_header = headers.first().ok_or(Error::EmptyRequest)?;
             if first_header.header.number != self.header_number_next {
                 return Err(Error::BlockNumberMismatch);
             }
 
             // Light validation when possible
-            let last_header = headers.last().ok_or_else(|| Error::EmptyRequest)?;
+            let last_header = headers.last().ok_or(Error::EmptyRequest)?;
 
             {
                 // 1. the last header must has justification
                 let justification = last_header
                     .justification
                     .as_ref()
-                    .ok_or_else(|| Error::MissingJustification)?
+                    .ok_or(Error::MissingJustification)?
                     .clone();
                 let last_header = last_header.header.clone();
                 // 2. check header sequence
@@ -400,7 +400,7 @@ pub mod storage_sync {
             if expected_root != &state_root {
                 return Err(Error::StateRootMismatch {
                     block: block.block_header.number,
-                    expected: expected_root.clone(),
+                    expected: *expected_root,
                     actual: state_root,
                 });
             }

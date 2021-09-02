@@ -25,9 +25,9 @@ impl From<FixedPoint> for CodecFixedPoint {
 	}
 }
 
-impl Into<FixedPoint> for CodecFixedPoint {
-	fn into(self) -> FixedPoint {
-		self.0
+impl From<CodecFixedPoint> for FixedPoint {
+	fn from(f: CodecFixedPoint) -> FixedPoint {
+		f.0
 	}
 }
 

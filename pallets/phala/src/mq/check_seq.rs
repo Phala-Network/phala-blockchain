@@ -25,9 +25,15 @@ pub fn tag(sender: &MessageOrigin, seq: u64) -> Vec<u8> {
 	("PhalaMqOffchainMessages", sender, seq).encode()
 }
 
+impl<T> Default for CheckMqSequence<T> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
+
 impl<T> CheckMqSequence<T> {
 	pub fn new() -> Self {
-		Self(Default::default())
+		Default::default()
 	}
 }
 

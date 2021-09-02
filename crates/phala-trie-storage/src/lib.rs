@@ -42,16 +42,15 @@ where
 {
     /// Overwrite all data in the trie DB with given key/value pairs.
     pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
-        let trie_be = core::mem::replace(self, Default::default()).0;
+        let trie_be = core::mem::take(self).0;
         let mut root = Default::default();
         let mut mdb = trie_be.into_storage();
         mdb.clear();
         {
             let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
             for (key, value) in pairs {
-                match trie_db.insert(key.as_ref(), value.as_ref()) {
-                    Err(_) => panic!("Insert item into trie DB should not fail"),
-                    _ => (),
+                if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
+                    panic!("Insert item into trie DB should not fail");
                 }
             }
         }
@@ -59,13 +58,14 @@ where
     }
 
     /// Calculate the new state root given storage changes. Returns the new root and a transaction to apply.
+    #[allow(clippy::ptr_arg)]
     pub fn calc_root_if_changes<'a>(
         &self,
         delta: &'a StorageCollection,
         child_deltas: &'a ChildStorageCollection,
     ) -> (H::Out, MemoryDB<H>) {
         let child_deltas: Vec<(ChildInfo, &StorageCollection)> = child_deltas
-            .into_iter()
+            .iter()
             .map(|(k, v)| {
                 let chinfo = ChildInfo::new_default(k);
                 (chinfo, v)
@@ -90,7 +90,7 @@ where
         self.0.backend_storage_mut().consolidate(transaction);
         // TODO: purge in a lower frequency for better performance.
         self.0.backend_storage_mut().purge();
-        let trie_be = core::mem::replace(self, Default::default()).0;
+        let trie_be = core::mem::take(self).0;
         let _ = core::mem::replace(&mut self.0, TrieBackend::new(trie_be.into_storage(), root));
     }
 

@@ -187,7 +187,7 @@ impl<T: Config> Module<T> {
 		const CONTRACT_ID: u32 = 6;
 
 		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
-			return Err(Error::<T>::NotAllowed)?;
+			return Err(Error::<T>::NotAllowed.into());
 		}
 
 		let data = message.payload;
@@ -196,7 +196,7 @@ impl<T: Config> Module<T> {
 		let new_owner_kitty_id = &data.kitty_id;
 		// Announce the successful execution
 		let kitty_id: T::Hash = Decode::decode(&mut &new_owner_kitty_id[..]).map_err(|_| Error::<T>::InvalidKitty)?;
-		Self::transfer(new_owner.clone(), kitty_id.clone())?;
+		Self::transfer(new_owner.clone(), kitty_id)?;
 		Ok(())
 	}
 }

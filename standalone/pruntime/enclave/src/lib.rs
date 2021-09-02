@@ -102,7 +102,7 @@ pub extern "C" fn ecall_prpc_request(
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
     let mut factory = APPLICATION.lock().unwrap();
-    let (code, data) = factory.dispatch_prpc_request(path, path_len, data, data_len, output_buf_len);
+    let (code, data) = unsafe { factory.dispatch_prpc_request(path, path_len, data, data_len, output_buf_len) };
     let (code, data) = if data.len() > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])

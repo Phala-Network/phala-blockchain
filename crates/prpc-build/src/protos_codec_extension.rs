@@ -46,7 +46,7 @@ impl<'a> CodeGenerator<'a> {
             .location
             .sort_by_key(|location| location.path.clone());
 
-        let syntax = match file.syntax.as_ref().map(String::as_str) {
+        let syntax = match file.syntax.as_deref() {
             None | Some("proto2") => Syntax::Proto2,
             Some("proto3") => Syntax::Proto3,
             Some(s) => panic!("unknown syntax: {}", s),
@@ -219,7 +219,7 @@ impl<'a> CodeGenerator<'a> {
             self.path.push(2);
             for (field, idx) in fields.clone() {
                 self.path.push(idx as i32);
-                if let Some(_) = self.codec_decoration() {
+                if self.codec_decoration().is_some() {
                     if self.optional(&field) {
                         buf.push_str(&format!(
                             "{}: {}.map(|x| x.encode()),\n",
@@ -259,7 +259,7 @@ impl<'a> CodeGenerator<'a> {
 
     fn codec_decoration(&self) -> Option<(String, String)> {
         let comments = self.location().leading_comments();
-        comments.split("\n").find_map(|line| {
+        comments.split('\n').find_map(|line| {
             let line = line.trim_start();
             let parts: Vec<_> = line.split_whitespace().collect();
             match parts[..] {

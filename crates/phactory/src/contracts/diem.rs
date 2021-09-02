@@ -1,6 +1,5 @@
-use crate::std::collections::BTreeMap;
-use crate::std::string::{String, ToString};
-use crate::std::vec::Vec;
+use std::collections::BTreeMap;
+use std::string::ToString;
 use std::collections::btree_map::Entry::{Occupied, Vacant};
 
 use anyhow::Result;
@@ -24,7 +23,6 @@ use diem_types::transaction::{SignedTransaction, Transaction, TransactionPayload
 use diem_types::trusted_state::{TrustedState, TrustedStateChange};
 use move_core_types::transaction_argument::TransactionArgument;
 
-use crate::std::borrow::ToOwned;
 use diem_crypto::{
     ed25519::{Ed25519PrivateKey, Ed25519PublicKey},
     //hash::HashValue,

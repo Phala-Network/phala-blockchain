@@ -1,5 +1,4 @@
-use crate::std::fmt::Debug;
-use crate::std::vec::Vec;
+use std::fmt::Debug;
 use anyhow::Result;
 use parity_scale_codec::{Decode, Encode, Error as CodecError};
 use phala_types::contract::ContractQueryError;
@@ -40,6 +39,7 @@ where
 
 #[derive(Debug, Error)]
 #[error("{:?}", self)]
+#[allow(clippy::enum_variant_names)]
 pub enum Error {
     IoError(#[from] anyhow::Error),
     DecodeError(#[from] CodecError),

@@ -1,6 +1,5 @@
 use crate::light_validation::{storage_proof::StorageProof, LightValidation};
-use crate::std::string::ToString;
-use crate::std::vec::Vec;
+use std::string::ToString;
 use phactory_api::storage_sync::{BlockValidator, Error as SyncError, Result};
 
 pub use storage_ext::{Storage, StorageExt};
@@ -38,7 +37,6 @@ impl BlockValidator for LightValidation<chain::Runtime> {
 mod storage_ext {
     use crate::chain;
     use crate::light_validation::utils::storage_prefix;
-    use crate::std::vec::Vec;
     use phactory_api::blocks::ParaId;
     use log::error;
     use parity_scale_codec::{Decode, Error};

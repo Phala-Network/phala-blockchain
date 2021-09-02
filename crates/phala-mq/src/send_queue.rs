@@ -64,7 +64,7 @@ impl MessageSendQueue {
 
     pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
-        inner.get(sender).map(|x| x.messages.clone()).unwrap_or(Vec::new())
+        inner.get(sender).map(|x| x.messages.clone()).unwrap_or_default()
     }
 
     pub fn count_messages(&self) -> usize {

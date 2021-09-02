@@ -131,7 +131,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			let worker_info = WorkerInfo {
-				pubkey: pubkey.clone(),
+				pubkey,
 				ecdh_pubkey,
 				runtime_version: 0,
 				last_updated: 0,
@@ -194,7 +194,7 @@ pub mod pallet {
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
 					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
-				gatekeepers.push(gatekeeper.clone());
+				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
 
@@ -251,15 +251,15 @@ pub mod pallet {
 			// TODO(h4x): Validate genesis block hash
 
 			// Update the registry
-			let pubkey = pruntime_info.pubkey.clone();
-			Workers::<T>::mutate(pubkey.clone(), |v| {
+			let pubkey = pruntime_info.pubkey;
+			Workers::<T>::mutate(pubkey, |v| {
 				match v {
 					Some(worker_info) => {
 						// Case 1 - Refresh the RA report, optionally update the operator, and redo benchmark
 						worker_info.last_updated = now;
 						worker_info.operator = pruntime_info.operator;
 						Self::push_message(SystemEvent::new_worker_event(
-							pubkey.clone(),
+							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
 								confidence_level: fields.confidence_level,
 							}),
@@ -268,7 +268,7 @@ pub mod pallet {
 					None => {
 						// Case 2 - New worker register
 						*v = Some(WorkerInfo {
-							pubkey: pubkey.clone(),
+							pubkey,
 							ecdh_pubkey: pruntime_info.ecdh_pubkey,
 							runtime_version: pruntime_info.version,
 							last_updated: now,
@@ -278,7 +278,7 @@ pub mod pallet {
 							features: pruntime_info.features,
 						});
 						Self::push_message(SystemEvent::new_worker_event(
-							pubkey.clone(),
+							pubkey,
 							WorkerEvent::Registered(messaging::WorkerInfo {
 								confidence_level: fields.confidence_level,
 							}),
@@ -327,7 +327,7 @@ pub mod pallet {
 				.or(Err(Error::<T>::MalformedSignature))?;
 			let data = message.data_be_signed();
 			ensure!(
-				sp_io::crypto::sr25519_verify(&sig, &data, &pubkey),
+				sp_io::crypto::sr25519_verify(&sig, &data, pubkey),
 				Error::<T>::InvalidSignature
 			);
 			Ok(())
@@ -363,13 +363,13 @@ pub mod pallet {
 					});
 
 					Self::push_message(SystemEvent::new_worker_event(
-						worker_pubkey.clone(),
+						*worker_pubkey,
 						WorkerEvent::BenchScore(score),
 					));
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
-					if !gatekeepers.contains(&worker_pubkey) {
+					if !gatekeepers.contains(worker_pubkey) {
 						return Err(Error::<T>::InvalidGatekeeper.into());
 					}
 
@@ -436,7 +436,7 @@ pub mod pallet {
 				Workers::<T>::insert(
 					&pubkey,
 					&WorkerInfo {
-						pubkey: pubkey.clone(),
+						pubkey: *pubkey,
 						ecdh_pubkey: ecdh_pubkey.as_slice().try_into().expect("Bad ecdh key"),
 						runtime_version: 0,
 						last_updated: 0,
@@ -447,13 +447,13 @@ pub mod pallet {
 					},
 				);
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
-					pubkey.clone(),
+					*pubkey,
 					WorkerEvent::Registered(messaging::WorkerInfo {
 						confidence_level: 128u8,
 					}),
 				));
 				Pallet::<T>::queue_message(SystemEvent::new_worker_event(
-					pubkey.clone(),
+					*pubkey,
 					WorkerEvent::BenchStart {
 						duration: self.benchmark_duration,
 					},
@@ -462,24 +462,21 @@ pub mod pallet {
 			}
 			let mut gatekeepers: Vec<WorkerPublicKey> = Vec::new();
 			for gatekeeper in &self.gatekeepers {
-				match Workers::<T>::try_get(&gatekeeper) {
-					Ok(worker_info) => {
-						gatekeepers.push(gatekeeper.clone());
-						let gatekeeper_count = gatekeepers.len() as u32;
-						Gatekeeper::<T>::put(gatekeepers.clone());
-						if gatekeeper_count == 1 {
-							Pallet::<T>::queue_message(GatekeeperLaunch::first_gatekeeper(
-								gatekeeper.clone(),
-								worker_info.ecdh_pubkey,
-							));
-						} else {
-							Pallet::<T>::queue_message(GatekeeperChange::gatekeeper_registered(
-								gatekeeper.clone(),
-								worker_info.ecdh_pubkey,
-							));
-						}
+				if let Ok(worker_info) = Workers::<T>::try_get(&gatekeeper) {
+					gatekeepers.push(*gatekeeper);
+					let gatekeeper_count = gatekeepers.len() as u32;
+					Gatekeeper::<T>::put(gatekeepers.clone());
+					if gatekeeper_count == 1 {
+						Pallet::<T>::queue_message(GatekeeperLaunch::first_gatekeeper(
+							*gatekeeper,
+							worker_info.ecdh_pubkey,
+						));
+					} else {
+						Pallet::<T>::queue_message(GatekeeperChange::gatekeeper_registered(
+							*gatekeeper,
+							worker_info.ecdh_pubkey,
+						));
 					}
-					_ => {}
 				}
 			}
 		}

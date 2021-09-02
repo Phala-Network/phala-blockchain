@@ -66,6 +66,7 @@ pub fn try_unseal(
     let versioned_data =
         MasterKeySeal::decode(&mut &sealed_data[..]).expect("Failed to decode sealed master key");
 
+    #[allow(clippy::infallible_destructuring_match)]
     let data = match versioned_data {
         MasterKeySeal::V1(data) => data,
     };
