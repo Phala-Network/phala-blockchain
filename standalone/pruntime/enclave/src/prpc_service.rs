@@ -4,7 +4,10 @@ use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
-use phala_types::{contract, WorkerPublicKey};
+use phala_types::{contract, WorkerPublicKey, messaging::{CoordinateInfo, GeolocationCommand}};
+use crate::secret_channel::{
+    PeelingReceiver, SecretMessageChannel,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -406,7 +409,6 @@ pub fn init_runtime(
                     mq,
                     cmd_mq,
                     local_ecdh_key.clone(),
-                    contract_key.clone(),
                 ));
                 contracts.insert(contract_id, wrapped);
             }};
@@ -554,37 +556,53 @@ pub fn get_egress_messages(output_buf_len: usize) -> RpcResult<pb::EgressMessage
     Ok(fit_size(messages, output_buf_len))
 }
 
-fn get_encrypted_coordinate_info (request: pb::GetEncryptedCoordinateInfoRequest) -> RpcResult<pb::EncryptedCoordinateInfo> {
-    let mut state = STATE.lock().unwrap();
-    let coordinate_info = &request.coordinate_info;
-
-    // contract public ecdh_key
-    let state = state
-        .as_mut()
-        .ok_or_else(|| from_display("Runtime not initialized"))?;
-    let contract = state
-        .contracts
-        .get_mut(&contract::id256(contracts::GEOLOCATION))
-        .ok_or_else(|| from_display("Contract not found"))?;
-    let public_contract_ecdh_key = contract.public_contract_ecdh_key();
+fn send_coordinate_info(request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
+    let local_state = LOCAL_STATE.lock().unwrap();
 
     // local ecdh_key
-    let ecdh_key = LOCAL_STATE
-        .lock()
-        .unwrap()
+    let ecdh_key = local_state
         .ecdh_key
         .clone()
         .ok_or_else(|| from_display("No ECDH key"))?;
 
-    // encrypt
-    let encrypted_coordinate_info = crypto::EncryptedData::encrypt(
-        &ecdh_key,
-        &public_contract_ecdh_key,
-        crate::generate_random_iv(),
-        &coordinate_info,
-    ).map_err(from_debug)?;
+    // contract public ecdh_key
+    // TODO: currently assume contract key equals to local ecdh key
+    let public_contract_ecdh_key = ecdh_key.clone().public();
 
-    Ok(pb::EncryptedCoordinateInfo::new(encrypted_coordinate_info))
+    // TODO: fake key map
+    let key_map = |topic: &[u8]| {
+        Some(public_contract_ecdh_key)
+    };
+    let id_pair = local_state
+        .identity_key
+        .clone()
+        .expect("Unexpected ecdsa key error in send_coordinate_info");
+
+    // let sender = MessageOrigin::AccountId(id_pair.public().0.into());
+    let sender = MessageOrigin::Worker(id_pair.public());
+    info!("sender {:#?}", sender);
+    let state = STATE.lock().unwrap();
+    let mq = state.as_ref()
+        .unwrap()
+        .send_mq
+        .channel(sender, id_pair);
+    let secret_mq = SecretMessageChannel::new(&ecdh_key,
+                                              &mq,
+                                              &key_map);
+
+    // encrypt
+    let coordinate_info = CoordinateInfo {
+        latitude: request.latitude,
+        longitude: request.longitude,
+        city_name: request.city_name
+    };
+    let msg = GeolocationCommand::update_geolocation (
+        coordinate_info
+    );
+    secret_mq.sendto(contract::command_topic(contract::id256(contracts::GEOLOCATION)),
+                     &msg, Some(&public_contract_ecdh_key));
+
+    Ok(())
 }
 
 fn contract_query(request: pb::ContractQueryRequest) -> RpcResult<pb::ContractQueryResponse> {
@@ -753,8 +771,8 @@ impl PhactoryApi for RpcService {
         Ok(state)
     }
 
-    fn get_encrypted_coordinate_info (&self, request: pb::GetEncryptedCoordinateInfoRequest) -> RpcResult<pb::EncryptedCoordinateInfo> {
-        get_encrypted_coordinate_info(request)
+    fn send_coordinate_info (&self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
+        send_coordinate_info(request)
     }
 
     fn echo (&self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {

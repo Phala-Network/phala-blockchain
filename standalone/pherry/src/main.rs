@@ -28,7 +28,7 @@ use phala_enclave_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
     StorageProof,
 };
-use phala_enclave_api::prpc::{self, InitRuntimeResponse, EchoMessage, GetEncryptedCoordinateInfoRequest};
+use phala_enclave_api::prpc::{self, InitRuntimeResponse, EchoMessage, SendCoordinateInfoRequest};
 use phala_enclave_api::pruntime_client;
 
 use notify_client::NotifyClient;
@@ -723,7 +723,7 @@ async fn get_geolocation() -> Result<CoordinateInfo> {
     })
 }
 
-async fn try_send_geolocation(pr: &PrClient, paraclient: &XtClient, signer: &mut SrSigner) -> Result<()> {
+async fn try_send_geolocation(pr: &PrClient) -> Result<()> {
     // TODO(soptq): Get Geolocation
     // let test_echo = pr.echo(EchoMessage{echo_msg: "Test".as_bytes().to_vec()}).await?;
     // info!("{}", String::from_utf8_lossy(&test_echo.echo_msg));
@@ -735,23 +735,12 @@ async fn try_send_geolocation(pr: &PrClient, paraclient: &XtClient, signer: &mut
             return Err(anyhow!(Error::FailedToSendGeolocation));
         }
     };
-    let encoded_coordinate_info = coordinate_info.encode();
-    let encrypted_coordinate_info = pr.get_encrypted_coordinate_info(
-        GetEncryptedCoordinateInfoRequest{
-            coordinate_info: encoded_coordinate_info
+    pr.send_coordinate_info(
+        SendCoordinateInfoRequest{
+            latitude: coordinate_info.latitude,
+            longitude: coordinate_info.longitude,
+            city_name: coordinate_info.city_name,
         }).await?;
-
-    let call = runtimes::phala_registry::SendGeolocationCall {
-        _runtime: PhantomData,
-        encrypted_coordinate_info: encrypted_coordinate_info.encrypted_coordinate_info,
-    };
-    chain_client::update_signer_nonce(paraclient, signer).await?;
-    let ret = paraclient.watch(call, signer).await;
-    if ret.is_err() {
-        error!("FailedToSendGeolocation: {:?}", ret);
-        return Err(anyhow!(Error::FailedToSendGeolocation));
-    }
-    signer.increment_nonce();
     Ok(())
 }
 
@@ -922,7 +911,7 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
-            try_send_geolocation(&pr, &paraclient, &mut signer).await?;
+            try_send_geolocation(&pr).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1035,7 +1024,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
-                try_send_geolocation(&pr, &paraclient, &mut signer).await?;
+                try_send_geolocation(&pr).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;

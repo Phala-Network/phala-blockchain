@@ -224,15 +224,15 @@ pub mod messaging {
         pub city_name: String,
     }
 
-    bind_contract32!(GeolocationCommand<AccoundId>, contract::GEOLOCATION);
+    bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
     #[derive(Debug, Clone, Encode, Decode)]
-    pub enum GeolocationCommand<AccoundId> {
-        UpdateGeolocation { sender: AccoundId, encrypted_geolocation_info: Vec<u8> },
+    pub enum GeolocationCommand {
+        UpdateGeolocation { geolocation_info: CoordinateInfo },
     }
 
-    impl<AccoundId> GeolocationCommand<AccoundId> {
-        pub fn update_geolocation(sender: AccoundId, encrypted_geolocation_info: Vec<u8>) -> Self {
-            Self::UpdateGeolocation { sender, encrypted_geolocation_info }
+    impl GeolocationCommand {
+        pub fn update_geolocation(geolocation_info: CoordinateInfo) -> Self {
+            Self::UpdateGeolocation { geolocation_info }
         }
     }
 

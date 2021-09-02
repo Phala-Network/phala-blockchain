@@ -14,7 +14,7 @@ extern crate runtime as chain;
 
 use phala_types::messaging::{GeolocationCommand, CoordinateInfo};
 
-type Command = GeolocationCommand<chain::AccountId>;
+type Command = GeolocationCommand;
 
 
 pub struct Geolocation {
@@ -77,15 +77,10 @@ impl contracts::NativeContract for Geolocation {
         cmd: Command,
     ) -> TransactionResult {
         match cmd {
-            Command::UpdateGeolocation { sender, encrypted_geolocation_info } => {
-                if !origin.is_pallet() {
-                    error!("Received event from unexpected origin: {:?}", origin);
-                    return Err(TransactionError::BadOrigin);
-                }
-                // Decrypt
-                let geolocation_info = match context.ecdh_decrypt::<CoordinateInfo>(encrypted_geolocation_info) {
-                    Ok(e) => e,
-                    Err(_) => return Err(TransactionError::BadInput),
+            Command::UpdateGeolocation { geolocation_info } => {
+                let sender = match &origin {
+                    MessageOrigin::Worker(pubkey) => AccountId::from(*pubkey),
+                    _ => return Err(TransactionError::BadOrigin),
                 };
 
                 info!(

@@ -108,7 +108,7 @@ describe('A full stack', function () {
 		});
 	});
 
-	describe('Gatekeeper', () => {
+	describe.skip('Gatekeeper', () => {
 		it('pre-mines blocks', async function () {
 			assert.isTrue(await checkUntil(async () => {
 				const info = await pruntime[0].getInfo();
