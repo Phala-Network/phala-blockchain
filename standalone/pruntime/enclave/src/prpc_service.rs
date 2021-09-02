@@ -402,7 +402,7 @@ pub fn init_runtime(
                     recv_mq
                         .subscribe(contract::command_topic(contract_id))
                         .into(),
-                    contract_key.clone(),
+                    contract_key,
                 );
                 let wrapped = Box::new(contracts::NativeCompatContract::new(
                     $inner,
