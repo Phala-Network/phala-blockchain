@@ -6,6 +6,7 @@ use core::fmt;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
+use std::convert::TryFrom;
 
 use super::{TransactionResult, TransactionError};
 use crate::contracts;
@@ -44,6 +45,7 @@ pub enum Request {
     GetGeolocationInfo { account: AccountId },
     GetAvailableCityName {},
     GetCityDistribution { city_name: String },
+    GetCityDistributionCount { city_name: String }
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -51,6 +53,7 @@ pub enum Response {
     GetGeolocationInfo { geolocation_info: CoordinateInfo },
     GetAvailableCityName { city_names: Vec<String> },
     GetCityDistribution { workers: Vec<AccountId> },
+    GetCityDistributionCount { count: u32 },
     Error(String),
 }
 
@@ -136,14 +139,14 @@ impl contracts::NativeContract for Geolocation {
             match req {
                 Request::GetGeolocationInfo { account } => {
                     if origin == None || origin.unwrap() != &account {
-                        Response::Error(Error::NotAuthorized)
+                        return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
                     if let Some(data) = self.geolocation_info.get(&account) {
                         let geolocation_info = data.clone();
                         Ok(Response::GetGeolocationInfo { geolocation_info })
                     } else {
                         error!("no record");
-                        Response::Error(Error::InvalidRequest)
+                        return Err(anyhow::Error::msg(Error::InvalidRequest));
                     }
                 },
                 Request::GetAvailableCityName {} => {
@@ -155,7 +158,19 @@ impl contracts::NativeContract for Geolocation {
                         Ok(Response::GetCityDistribution { workers: workers.clone() })
                     } else {
                         error!("Unavailable city name provided");
-                        Response::Error(Error::InvalidRequest)
+                        Err(anyhow::Error::msg(Error::InvalidRequest))
+                    }
+                },
+                Request::GetCityDistributionCount { city_name } => {
+                    if let Some(workers) = self.city_distribution.get(&city_name) {
+                        let count = match u32::try_from(workers.len()) {
+                            Ok(e) => e,
+                            Err(_) => u32::MAX,
+                        };
+                        Ok(Response::GetCityDistributionCount { count })
+                    } else {
+                        error!("Unavailable city name provided");
+                        return Err(anyhow::Error::msg(Error::InvalidRequest));
                     }
                 }
             }
