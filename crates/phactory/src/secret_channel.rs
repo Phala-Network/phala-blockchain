@@ -2,7 +2,6 @@ pub use receiver::*;
 pub use sender::*;
 
 use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
-use crate::std::vec::Vec;
 use phactory_api::crypto::EncryptedData;
 use parity_scale_codec::{Decode, Encode};
 
@@ -49,7 +48,7 @@ mod sender {
             let data = message.encode();
             let payload = if let Some(remote_pubkey) = remote_pubkey {
                 let iv = crate::generate_random_iv();
-                let data = EncryptedData::encrypt(self.key, &remote_pubkey, iv, &data)
+                let data = EncryptedData::encrypt(self.key, remote_pubkey, iv, &data)
                     .expect("Encrypt message failed?");
                 super::Payload::Encrypted(data)
             } else {

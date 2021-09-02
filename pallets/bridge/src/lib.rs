@@ -38,7 +38,7 @@ pub mod pallet {
 		for i in 0..range {
 			r_id[30 - i] = id[range - 1 - i]; // Ensure left padding for eth compatibility
 		}
-		return r_id;
+		r_id
 	}
 
 	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
@@ -78,7 +78,7 @@ pub mod pallet {
 
 		/// Returns true if `who` has voted for or against the proposal
 		fn has_voted(&self, who: &A) -> bool {
-			self.votes_for.contains(&who) || self.votes_against.contains(&who)
+			self.votes_for.contains(who) || self.votes_against.contains(who)
 		}
 
 		/// Return true if the expiry time has been reached
@@ -411,12 +411,12 @@ pub mod pallet {
 
 		/// Asserts if a resource is registered
 		pub fn resource_exists(id: ResourceId) -> bool {
-			return Self::resources(id) != None;
+			Self::resources(id).is_some()
 		}
 
 		/// Checks if a chain exists as a whitelisted destination
 		pub fn chain_whitelisted(id: BridgeChainId) -> bool {
-			return Self::chains(id) != None;
+			Self::chains(id).is_some()
 		}
 
 		/// Increments the deposit nonce for the specified chain ID
@@ -498,9 +498,10 @@ pub mod pallet {
 			let mut votes = match Votes::<T>::get(src_id, (nonce, prop.clone())) {
 				Some(v) => v,
 				None => {
-					let mut v = ProposalVotes::default();
-					v.expiry = now + T::ProposalLifetime::get();
-					v
+					ProposalVotes {
+						expiry: now + T::ProposalLifetime::get(),
+						..Default::default()
+					}
 				}
 			};
 
@@ -511,13 +512,13 @@ pub mod pallet {
 
 			if in_favour {
 				votes.votes_for.push(who.clone());
-				Self::deposit_event(Event::VoteFor(src_id, nonce, who.clone()));
+				Self::deposit_event(Event::VoteFor(src_id, nonce, who));
 			} else {
 				votes.votes_against.push(who.clone());
-				Self::deposit_event(Event::VoteAgainst(src_id, nonce, who.clone()));
+				Self::deposit_event(Event::VoteAgainst(src_id, nonce, who));
 			}
 
-			Votes::<T>::insert(src_id, (nonce, prop.clone()), votes.clone());
+			Votes::<T>::insert(src_id, (nonce, prop), votes);
 
 			Ok(())
 		}
@@ -535,7 +536,7 @@ pub mod pallet {
 
 				let status =
 					votes.try_to_complete(RelayerThreshold::<T>::get(), RelayerCount::<T>::get());
-				Votes::<T>::insert(src_id, (nonce, prop.clone()), votes.clone());
+				Votes::<T>::insert(src_id, (nonce, prop.clone()), votes);
 
 				match status {
 					ProposalStatus::Approved => Self::finalize_execution(src_id, nonce, prop),
@@ -543,7 +544,7 @@ pub mod pallet {
 					_ => Ok(()),
 				}
 			} else {
-				Err(Error::<T>::ProposalDoesNotExist)?
+				Err(Error::<T>::ProposalDoesNotExist.into())
 			}
 		}
 
@@ -571,6 +572,7 @@ pub mod pallet {
 		}
 
 		/// Execute the proposal and signals the result as an event
+		#[allow(clippy::boxed_local)]
 		fn finalize_execution(
 			src_id: BridgeChainId,
 			nonce: DepositNonce,

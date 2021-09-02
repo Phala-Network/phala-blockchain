@@ -1,5 +1,3 @@
-use crate::std;
-
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use log::debug;
 

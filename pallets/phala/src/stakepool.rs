@@ -206,7 +206,7 @@ pub mod pallet {
 			StakePools::<T>::insert(
 				pid,
 				PoolInfo {
-					pid: pid,
+					pid,
 					owner: owner.clone(),
 					payout_commission: None,
 					owner_reward: Zero::zero(),
@@ -269,11 +269,11 @@ pub mod pallet {
 			let miner: T::AccountId = pool_sub_account(pid, &pubkey);
 
 			// bind worker with minner
-			mining::pallet::Pallet::<T>::bind(miner.clone(), pubkey.clone())
+			mining::pallet::Pallet::<T>::bind(miner.clone(), pubkey)
 				.or(Err(Error::<T>::FailedToBindMinerAndWorker))?;
 
 			// update worker vector
-			workers.push(pubkey.clone());
+			workers.push(pubkey);
 			StakePools::<T>::insert(&pid, &pool_info);
 			WorkerAssignments::<T>::insert(&pubkey, pid);
 			SubAccountAssignments::<T>::insert(&miner, pid);
@@ -391,7 +391,7 @@ pub mod pallet {
 				pool_info.owner_reward = Zero::zero();
 			}
 			// Settle the pending reward, and calculate the rewards belong to user
-			let info_key = (pid.clone(), who.clone());
+			let info_key = (pid, who.clone());
 			let mut user_info = Self::pool_stakers(&info_key);
 			if let Some(ref mut user_info) = user_info {
 				pool_info.settle_user_pending_reward(user_info);
@@ -443,7 +443,7 @@ pub mod pallet {
 				Error::<T>::PoolBankrupt
 			);
 
-			let info_key = (pid.clone(), who.clone());
+			let info_key = (pid, who.clone());
 			// Clear the pending reward before adding stake, if applies
 			let mut user_info = match Self::pool_stakers(&info_key) {
 				Some(mut user_info) => {
@@ -486,7 +486,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn withdraw(origin: OriginFor<T>, pid: u64, shares: BalanceOf<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
-			let info_key = (pid.clone(), who.clone());
+			let info_key = (pid, who.clone());
 			let mut user_info =
 				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
 
@@ -503,7 +503,7 @@ pub mod pallet {
 			// if withdraw_queue is not empty, means pool doesn't have free stake now, just add withdraw to queue
 			if !pool_info.withdraw_queue.is_empty() {
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
-					user: who.clone(),
+					user: who,
 					shares,
 					start_time: now,
 				});
@@ -545,7 +545,7 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
+			mining::pallet::Pallet::<T>::start_mining(miner, stake)?;
 			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
 			Ok(())
@@ -681,7 +681,7 @@ pub mod pallet {
 			while pool_info.free_stake > Zero::zero() {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
-					let info_key = (pool_info.pid.clone(), withdraw.user.clone());
+					let info_key = (pool_info.pid, withdraw.user.clone());
 					let mut user_info = Self::pool_stakers(&info_key).unwrap();
 					pool_info.settle_user_pending_reward(&mut user_info);
 					// Try to fulfill the withdraw requests as much as possible
@@ -771,7 +771,7 @@ pub mod pallet {
 			SubAccountAssignments::<T>::remove(sub_account);
 			StakePools::<T>::mutate(pid, |value| {
 				if let Some(pool) = value {
-					pool.remove_worker(&worker);
+					pool.remove_worker(worker);
 				}
 			});
 		}
@@ -838,7 +838,7 @@ pub mod pallet {
 		/// Called when gk send new payout information.
 		/// Append specific miner's reward balance of current round,
 		/// would be clear once pool was updated
-		fn on_reward(settle: &Vec<SettleInfo>) {
+		fn on_reward(settle: &[SettleInfo]) {
 			for info in settle {
 				let payout_fixed = FixedPoint::from_bits(info.payout);
 				let reward = BalanceOf::<T>::from_fixed(&payout_fixed);
@@ -847,7 +847,7 @@ pub mod pallet {
 					Some(pid) => pid,
 					None => {
 						Self::deposit_event(Event::<T>::RewardDismissedNotInPool(
-							info.pubkey.clone(),
+							info.pubkey,
 							reward,
 						));
 						return;

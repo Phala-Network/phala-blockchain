@@ -27,7 +27,6 @@ pub mod pallet {
 	use sp_core::U256;
 	use sp_runtime::{traits::AccountIdConversion, SaturatedConversion};
 	use sp_std::cmp;
-	use sp_std::vec::Vec;
 
 	use crate::balance_convert::FixedPointConvert;
 	use fixed::types::U64F64 as FixedPoint;
@@ -145,7 +144,7 @@ pub mod pallet {
 	}
 
 	pub trait OnReward {
-		fn on_reward(settle: &Vec<SettleInfo>) {}
+		fn on_reward(settle: &[SettleInfo]) {}
 	}
 
 	pub trait OnUnbound {
@@ -543,12 +542,11 @@ pub mod pallet {
 
 				for info in &event.settle {
 					// Do not crash here
-					match Self::try_handle_settle(info, now) {
-						Err(_) => Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
+					if Self::try_handle_settle(info, now).is_err() {
+						Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
 							info.pubkey,
-						)),
-						_ => (),
-					};
+						))
+					}
 				}
 
 				T::OnReward::on_reward(&event.settle);
@@ -657,7 +655,7 @@ pub mod pallet {
 			}
 			MinerBindings::<T>::remove(miner);
 			WorkerBindings::<T>::remove(&worker);
-			Self::deposit_event(Event::<T>::MinerUnbound(miner.clone(), worker.clone()));
+			Self::deposit_event(Event::<T>::MinerUnbound(miner.clone(), worker));
 			if notify {
 				T::OnUnbound::on_unbound(&worker, force);
 			}
@@ -707,7 +705,7 @@ pub mod pallet {
 			Self::push_message(SystemEvent::new_worker_event(
 				worker,
 				WorkerEvent::MiningStart {
-					session_id: session_id,
+					session_id,
 					init_v: ve.to_bits(),
 					init_p: p,
 				},
@@ -767,7 +765,7 @@ pub mod pallet {
 
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
 			let wallet = Self::account_id();
-			T::Currency::transfer(&wallet, &target, value, KeepAlive)
+			T::Currency::transfer(&wallet, target, value, KeepAlive)
 		}
 
 		pub fn withdraw_imbalance_from_subsidy_pool(

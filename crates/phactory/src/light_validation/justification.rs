@@ -14,9 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::std::collections::{HashMap, HashSet};
-use crate::std::string::ToString;
-use crate::std::vec::Vec;
+use std::collections::{HashMap, HashSet};
 
 // #[cfg(test)]
 // use sc_client::Client;
@@ -259,7 +257,6 @@ pub type Commit<Block> = finality_grandpa::Commit<
 >;
 
 mod communication {
-    use crate::std::vec::Vec;
     use anyhow::Result;
     use parity_scale_codec::Encode;
     use sp_core::Pair;

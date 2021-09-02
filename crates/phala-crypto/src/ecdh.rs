@@ -49,7 +49,7 @@ pub fn agree(sk: &EcdhKey, pk: &[u8]) -> Result<Vec<u8>, CryptoError> {
     key.copy_from_slice(&sk.secret()[0..32]);
     let key = Scalar::from_canonical_bytes(key).expect("This should never fail with correct seed");
     let public = PublicKey::from_bytes(pk).or(Err(CryptoError::EcdhInvalidPublicKey))?;
-    Ok((&key * public.as_point()).compress().0.to_vec())
+    Ok((key * public.as_point()).compress().0.to_vec())
 }
 
 #[cfg(test)]

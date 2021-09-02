@@ -9,10 +9,7 @@ use sp_core::U256;
 extern crate runtime as chain;
 use parity_scale_codec::{Decode, Encode};
 
-use crate::std::collections::BTreeMap;
-use crate::std::format;
-use crate::std::string::String;
-use crate::std::vec::Vec;
+use std::collections::BTreeMap;
 use rand::Rng;
 
 use super::NativeContext;
@@ -263,7 +260,7 @@ impl contracts::NativeContract for SubstrateKitties {
                     // Get the kitty based on blind_box_id
                     let kitty_id = self.schrodingers.get(&blind_box_id).unwrap();
 
-                    let kitty_id = Hash::from_slice(&kitty_id);
+                    let kitty_id = Hash::from_slice(kitty_id);
 
                     // Queue the message to sync the owner transfer info to pallet
                     let data = Transfer {

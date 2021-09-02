@@ -57,7 +57,7 @@ impl AttestationValidator for IasValidator {
 				ra_report,
 				signature,
 				raw_signing_cert,
-			} => validate_ias_report(&ra_report, &signature, &raw_signing_cert, now),
+			} => validate_ias_report(ra_report, signature, raw_signing_cert, now),
 		}?;
 		let commit = &fields.report_data[..32];
 		if commit != user_data_hash {
@@ -69,16 +69,16 @@ impl AttestationValidator for IasValidator {
 }
 
 pub fn validate_ias_report(
-	report: &Vec<u8>,
-	signature: &Vec<u8>,
-	raw_signing_cert: &Vec<u8>,
+	report: &[u8],
+	signature: &[u8],
+	raw_signing_cert: &[u8],
 	now: u64,
 ) -> Result<IasFields, Error> {
 	// Validate report
-	let sig_cert = webpki::EndEntityCert::try_from(&raw_signing_cert[..]);
+	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
 	let sig_cert = sig_cert.or(Err(Error::InvalidIASSigningCert))?;
 	let verify_result =
-		sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, &report, &signature);
+		sig_cert.verify_signature(&webpki::RSA_PKCS1_2048_8192_SHA256, report, signature);
 	verify_result.or(Err(Error::InvalidIASSigningCert))?;
 	// Validate certificate
 	let chain: Vec<&[u8]> = Vec::new();
@@ -92,7 +92,7 @@ pub fn validate_ias_report(
 	tls_server_cert_valid.or(Err(Error::InvalidIASSigningCert))?;
 	// Validate related fields
 	let parsed_report: serde_json::Value =
-		serde_json::from_slice(&report).or(Err(Error::InvalidReport))?;
+		serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
 	// Validate time
 	let raw_report_timestamp = parsed_report["timestamp"]
 		.as_str()

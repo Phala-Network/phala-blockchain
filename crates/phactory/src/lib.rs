@@ -11,8 +11,6 @@ extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use std;
-
 use rand::*;
 
 use crate::light_validation::LightValidation;

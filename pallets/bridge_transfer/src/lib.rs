@@ -130,7 +130,7 @@ pub mod pallet {
 			} else {
 				min_fee
 			};
-			T::Currency::transfer(&source, &bridge_id, (amount + fee).into(), AllowDeath)?;
+			T::Currency::transfer(&source, &bridge_id, amount + fee, AllowDeath)?;
 
 			<bridge::Pallet<T>>::transfer_fungible(
 				dest_id,
@@ -153,7 +153,7 @@ pub mod pallet {
 			_rid: ResourceId,
 		) -> DispatchResult {
 			let source = T::BridgeOrigin::ensure_origin(origin)?;
-			<T as Config>::Currency::transfer(&source, &to, amount.into(), AllowDeath)?;
+			<T as Config>::Currency::transfer(&source, &to, amount, AllowDeath)?;
 			Ok(())
 		}
 

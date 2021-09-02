@@ -39,9 +39,8 @@ mod justification;
 pub mod storage_proof;
 mod types;
 
-use crate::std::collections::BTreeMap;
-use crate::std::fmt;
-use crate::std::vec::Vec;
+use std::collections::BTreeMap;
+use std::fmt;
 
 use anyhow::Result;
 use error::JustificationError;
@@ -390,7 +389,6 @@ impl<T: Config> fmt::Debug for BridgeInitInfo<T> {
 }
 
 pub mod utils {
-    use crate::std::vec::Vec;
     use parity_scale_codec::Encode;
 
     /// Gets the prefix of a storage item

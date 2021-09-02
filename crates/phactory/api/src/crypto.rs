@@ -25,7 +25,7 @@ impl EncryptedData {
         iv: aead::IV,
         data: &[u8],
     ) -> Result<Self, CryptoError> {
-        let sk = ecdh::agree(&key, &remote_pubkey[..])?;
+        let sk = ecdh::agree(key, &remote_pubkey[..])?;
         let mut data = data.to_vec();
         aead::encrypt(&iv, &sk, &mut data)?;
         Ok(Self {

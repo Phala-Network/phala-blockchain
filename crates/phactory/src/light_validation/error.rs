@@ -1,4 +1,3 @@
-use crate::std::string::String;
 use derive_more::{Display, From};
 
 /// Substrate Client error

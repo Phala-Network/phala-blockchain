@@ -1,5 +1,4 @@
-use crate::std::string::{String, ToString};
-use crate::std::vec::Vec;
+use std::string::ToString;
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -269,7 +268,7 @@ impl contracts::NativeContract for Assets {
                                 balances.get(&o).filter(|b| **b > 0).map(|b| (id, *b))
                             })
                             .map(|(id, balance)| {
-                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                let metadata = self.metadata.get(id).unwrap().clone();
                                 AssetMetadataBalance { metadata, balance }
                             })
                             .collect()
@@ -277,7 +276,7 @@ impl contracts::NativeContract for Assets {
                         self.assets
                             .iter()
                             .map(|(id, balances)| {
-                                let metadata = self.metadata.get(&id).unwrap().clone();
+                                let metadata = self.metadata.get(id).unwrap().clone();
                                 let balance = *balances.get(&o).unwrap_or(&0);
                                 AssetMetadataBalance { metadata, balance }
                             })

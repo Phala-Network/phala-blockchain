@@ -13,17 +13,17 @@ use phala_types::{
 };
 use sp_core::{hashing, sr25519};
 
-use crate::{
-    std::collections::{BTreeMap, VecDeque},
-    std::convert::TryInto,
-    std::vec::Vec,
-    types::BlockInfo,
+use crate::types::BlockInfo;
+
+use std::{
+    collections::{BTreeMap, VecDeque},
+    convert::TryInto,
 };
 
-use phactory_api::prpc as pb;
 use fixed_macro::types::U64F64 as fp;
 use log::debug;
 use msg_trait::MessageChannel;
+use phactory_api::prpc as pb;
 use tokenomic::{FixedPoint, TokenomicInfo};
 
 /// Block interval to generate pseudo-random on chain
@@ -131,7 +131,7 @@ where
         buf.extend(derived_key.dump_secret_key().iter().copied());
         buf.extend(block_number.to_be_bytes().iter().copied());
         buf.extend(self.iv_seq.to_be_bytes().iter().copied());
-        self.iv_seq = self.iv_seq + 1;
+        self.iv_seq += 1;
 
         let hash = hashing::blake2_256(buf.as_ref());
         hash[0..12]
@@ -182,7 +182,7 @@ where
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
         self.egress
             .push_message(KeyDistribution::master_key_distribution(
-                pubkey.clone(),
+                *pubkey,
                 my_ecdh_key
                     .public()
                     .as_ref()
@@ -391,13 +391,13 @@ where
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
-                worker_info.tokenomic.update_v_slash(&params, self.block.block_number);
+                worker_info.tokenomic.update_v_slash(params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
                 debug!(
                     "[{}] case1: Idle, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
-                worker_info.tokenomic.update_v_idle(&params);
+                worker_info.tokenomic.update_v_idle(params);
             }
         }
     }
@@ -870,11 +870,11 @@ mod msg_trait {
 #[cfg(test)]
 pub mod tests {
     use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, Gatekeeper};
-    use crate::std::{cell::RefCell, vec::Vec};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
     use phala_types::{messaging as msg, WorkerPublicKey};
+    use std::cell::RefCell;
 
     type MiningInfoUpdateEvent = super::MiningInfoUpdateEvent<chain::BlockNumber>;
 

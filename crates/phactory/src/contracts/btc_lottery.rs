@@ -2,14 +2,13 @@ use super::{account_id_from_hex, TransactionError, TransactionResult};
 use crate::chain;
 use crate::contracts::{self, AccountId};
 
-use crate::std::{
+use std::{
     collections::{
         btree_map::Entry::{Occupied, Vacant},
         BTreeMap,
     },
     str::FromStr,
-    string::{String, ToString},
-    vec::Vec,
+    string::ToString,
 };
 
 use anyhow::Result;
@@ -376,7 +375,7 @@ impl contracts::NativeContract for BtcLottery {
                     let mut address_set = Vec::new();
                     for (_, private_key) in temp.iter() {
                         let secp = Secp256k1::new();
-                        let public_key = PublicKey::from_private_key(&secp, &private_key);
+                        let public_key = PublicKey::from_private_key(&secp, private_key);
                         let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
                         address_set.push(prize_addr.to_string());
                     }

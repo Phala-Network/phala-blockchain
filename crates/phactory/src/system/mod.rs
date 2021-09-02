@@ -1,7 +1,7 @@
 mod gk;
 mod master_key;
 
-use crate::{benchmark, std::prelude::v1::*, types::BlockInfo};
+use crate::{benchmark, types::BlockInfo};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -199,7 +199,7 @@ impl WorkerState {
                 }
             }
             SystemEvent::HeartbeatChallenge(seed_info) => {
-                self.handle_heartbeat_challenge(block, &seed_info, callback, log_on);
+                self.handle_heartbeat_challenge(block, seed_info, callback, log_on);
             }
         };
     }
@@ -656,7 +656,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_key = aead::decrypt(&event.iv, &secret, &mut master_key_buff[..])
                 .expect("Failed to decrypt dispatched master key");
 
-            let master_pair = sr25519::Pair::from_seed_slice(&master_key)
+            let master_pair = sr25519::Pair::from_seed_slice(master_key)
                 .expect("Master key seed must be correct; qed.");
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);

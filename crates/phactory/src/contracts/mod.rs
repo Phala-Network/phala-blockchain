@@ -1,7 +1,7 @@
 use crate::secret_channel::{
     storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
 };
-use crate::std::fmt::Debug;
+use std::fmt::Debug;
 use std::convert::TryFrom as _;
 
 use crate::system::{TransactionError, TransactionResult};

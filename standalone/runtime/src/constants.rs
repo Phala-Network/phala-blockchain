@@ -17,6 +17,8 @@
 
 //! A set of constant values used in substrate runtime.
 
+#![allow(clippy::identity_op)]
+
 /// Money matters.
 pub mod currency {
 	use node_primitives::Balance;
