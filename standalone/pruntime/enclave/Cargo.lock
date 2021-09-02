@@ -15,6 +15,7 @@ dependencies = [
  "libc",
  "log",
  "phactory",
+ "phactory-api",
  "phactory-pal",
  "ppv-lite86",
  "rand 0.7.3",
