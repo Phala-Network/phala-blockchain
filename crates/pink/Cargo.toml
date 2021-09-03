@@ -4,6 +4,8 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+sha2 = "0.9.6"
+log = "0.4.14"
 pallet-contracts = { path = "../../substrate/frame/contracts" }
 pallet-contracts-primitives = { path = "../../substrate/frame/contracts/common" }
 pallet-contracts-proc-macro = { path = "../../substrate/frame/contracts/proc-macro" }

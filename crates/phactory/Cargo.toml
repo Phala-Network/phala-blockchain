@@ -37,6 +37,7 @@ phala-mq = { path = "../phala-mq" }
 
 phala-crypto = { path = "../phala-crypto", features = ["getrandom"] }
 prpc = { path = "../prpc" }
+pink = { path = "../pink" }
 
 sp-io                = { path = "../../substrate/primitives/io", features = ["disable_panic_handler", "disable_oom", "disable_allocator"] }
 sp-runtime-interface = { path = "../../substrate/primitives/runtime-interface", features = ["disable_target_static_assertions"] }

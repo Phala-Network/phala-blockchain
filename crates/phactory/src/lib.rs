@@ -143,6 +143,8 @@ pub struct Phactory<Platform> {
 
 impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
+        pink::crypto_hashes_test();
+        pink::contract_test();
         let machine_id = platform.machine_id();
         Phactory {
             platform,
