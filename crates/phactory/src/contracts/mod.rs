@@ -18,6 +18,7 @@ pub mod data_plaza;
 // pub mod diem;
 pub mod substrate_kitties;
 pub mod web3analytics;
+pub mod geolocation;
 
 pub use phala_types::contract::*;
 
@@ -171,7 +172,7 @@ mod support {
                             let _status = self.contract.handle_command(&context, origin, cmd);
                         }
                         Err(e) => {
-                            error!("Read command failed: {:?}", e);
+                            error!("Read command failed [{}]: {:?}", self.id(), e);
                         }
                     },
                 };
