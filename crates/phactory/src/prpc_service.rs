@@ -6,7 +6,11 @@ use pb::{
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
-use phala_types::{contract, WorkerPublicKey};
+use phala_types::{contract, WorkerPublicKey,
+                  messaging::{CoordinateInfo, GeolocationCommand}};
+use crate::secret_channel::{
+    PeelingReceiver, SecretMessageChannel,
+};
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -317,6 +321,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         if self.dev_mode {
             // Install contracts when running in dev_mode.
+            info!("Install contracts in dev mode");
 
             macro_rules! install_contract {
                 ($id: expr, $inner: expr) => {{
@@ -361,6 +366,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             install_contract!(
                 contracts::DATA_PLAZA,
                 contracts::data_plaza::DataPlaza::new()
+            );
+            install_contract!(
+                contracts::GEOLOCATION,
+                contracts::geolocation::Geolocation::new()
             );
         }
 
@@ -461,6 +470,46 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .unwrap_or_default();
         // Prune messages if needed to avoid the OUTPUT BUFFER overflow.
         Ok(fit_size(messages, output_buf_len))
+    }
+
+    fn send_coordinate_info(&mut self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
+        // local ecdh_key
+        let ecdh_key = self.runtime_state()?.ecdh_key.clone();
+        // contract public ecdh_key
+        // TODO: currently assume contract key equals to local ecdh key
+        let public_contract_ecdh_key = ecdh_key.clone().public();
+        // fake key map
+        let key_map = |topic: &[u8]| {
+            Some(public_contract_ecdh_key)
+        };
+        let id_pair = self.runtime_state.as_ref()
+            .unwrap()
+            .identity_key
+            .clone();
+
+        // let sender = MessageOrigin::AccountId(id_pair.public().0.into());
+        let sender = MessageOrigin::Worker(id_pair.public());
+        let mq = self.runtime_state.as_ref()
+            .unwrap()
+            .send_mq
+            .channel(sender, id_pair);
+        let secret_mq = SecretMessageChannel::new(&ecdh_key,
+                                                  &mq,
+                                                  &key_map);
+
+        // encrypt
+        let coordinate_info = CoordinateInfo {
+            latitude: request.latitude,
+            longitude: request.longitude,
+            city_name: request.city_name
+        };
+        let msg = GeolocationCommand::update_geolocation (
+            coordinate_info
+        );
+        secret_mq.sendto(contract::command_topic(contract::id256(contracts::GEOLOCATION)),
+                         &msg, Some(&public_contract_ecdh_key));
+
+        Ok(())
     }
 
     fn contract_query(
@@ -754,5 +803,16 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
             .worker_state(&pubkey)
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)
+    }
+
+    fn send_coordinate_info (&mut self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
+        self.phactory.send_coordinate_info(request)
+    }
+
+    fn echo (&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
+        let echo_msg = request.echo_msg;
+        Ok(
+            pb::EchoMessage{ echo_msg }
+        )
     }
 }

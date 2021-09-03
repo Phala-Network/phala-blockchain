@@ -28,8 +28,9 @@ use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
     StorageProof,
 };
-use phactory_api::prpc::{self, InitRuntimeResponse};
+use phactory_api::prpc::{self, InitRuntimeResponse, SendCoordinateInfoRequest};
 use phactory_api::pruntime_client;
+use phala_types::messaging::CoordinateInfo;
 
 use notify_client::NotifyClient;
 type XtClient = subxt::Client<Runtime>;
@@ -674,6 +675,71 @@ async fn init_runtime(
     Ok(resp)
 }
 
+async fn get_geolocation() -> Result<CoordinateInfo> {
+    let res = reqwest::get("https://ipinfo.io/ip").await?;
+    if !res.status().is_success() {
+        return Err(anyhow::Error::msg(
+            format!("Cannot get public IP: {}", res.status())
+        ));
+    }
+    let pub_ip = res.text().await?;
+    info!("Public IP address: {}", pub_ip);
+
+    use maxminddb::geoip2;
+    use std::net::IpAddr;
+
+    let geo_db_bytes = include_bytes!("../GeoLite2-City.mmdb");
+    let geo_db_buf: Vec<u8> = geo_db_bytes.to_vec();
+    let reader = maxminddb::Reader::from_source(geo_db_buf).unwrap();
+    let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
+
+    let city_general_data: geoip2::City = reader.lookup(ip).unwrap();
+    let region_name;
+    if let Some(city) = city_general_data.city {
+        region_name = *city.names.as_ref().unwrap().get(&"en").unwrap();
+    } else {
+        if let Some(subdivisions) = city_general_data.subdivisions {
+            region_name = *subdivisions[0].names.as_ref().unwrap().get(&"en").unwrap();
+        } else {
+            if let Some(country) = city_general_data.country {
+                region_name = *country.names.as_ref().unwrap().get(&"en").unwrap();
+            } else {
+                region_name = &"NA";
+            }
+        }
+    }
+    let location = city_general_data.location.unwrap();
+    let latitude = location.latitude.unwrap();
+    let longitude = location.longitude.unwrap();
+    info!("Look-up geolocation: {}, {}, {}", latitude, longitude, region_name);
+
+    // Convert f64 to i32 with 4 digits precision
+    Ok(CoordinateInfo {
+        latitude: (latitude * 10000f64) as i32,
+        longitude: (longitude * 10000f64) as i32,
+        city_name: region_name.parse()?,
+    })
+}
+
+async fn try_send_geolocation(pr: &PrClient) -> Result<()> {
+    // TODO(soptq): Get Geolocation
+    let coordinate_info = match get_geolocation().await {
+        Ok(r) => r,
+        Err(e) => {
+            let message = format!("Failed to retrieve geolocation: {:?}", e);
+            error!("FailedToSendGeolocation: {:?}", message);
+            return Err(anyhow!(Error::FailedToSendGeolocation));
+        }
+    };
+    pr.send_coordinate_info(
+        SendCoordinateInfoRequest{
+            latitude: coordinate_info.latitude,
+            longitude: coordinate_info.longitude,
+            city_name: coordinate_info.city_name,
+        }).await?;
+    Ok(())
+}
+
 async fn register_worker(
     paraclient: &XtClient,
     encoded_runtime_info: Vec<u8>,
@@ -841,6 +907,7 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
+            try_send_geolocation(&pr).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -953,6 +1020,7 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
+                try_send_geolocation(&pr).await?;
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
