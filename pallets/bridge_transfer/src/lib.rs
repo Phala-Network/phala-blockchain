@@ -76,6 +76,7 @@ pub mod pallet {
 		InvalidPayload,
 		InvalidFeeOption,
 		FeeOptionsMissing,
+		InsufficientBalance,
 	}
 
 	#[pallet::storage]
@@ -137,6 +138,9 @@ pub mod pallet {
 			} else {
 				min_fee
 			};
+			let free_balance = T::Currency::free_balance(&source);
+			ensure!(free_balance >= (amount + fee), Error::<T>::InsufficientBalance);
+
 			let imbalance = T::Currency::withdraw(
 				&source,
 				fee,

@@ -3,7 +3,7 @@
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
 	BridgeLotteryId, BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime,
-	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
+	Test, ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
 };
 use super::{bridge, *};
 use frame_support::dispatch::DispatchError;
@@ -77,6 +77,17 @@ fn transfer_native() {
 			2,
 			dest_chain.clone()
 		));
+
+		assert_noop!(
+			BridgeTransfer::transfer_native(
+				Origin::signed(RELAYER_A),
+				Balances::free_balance(RELAYER_A),
+				recipient.clone(),
+				dest_chain,
+			),
+			Error::<Test>::InsufficientBalance
+		);
+
 		assert_ok!(BridgeTransfer::transfer_native(
 			Origin::signed(RELAYER_A),
 			amount.clone(),
