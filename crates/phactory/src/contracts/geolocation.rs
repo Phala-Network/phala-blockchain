@@ -17,7 +17,6 @@ use phala_types::messaging::{GeolocationCommand, CoordinateInfo};
 
 type Command = GeolocationCommand;
 
-
 pub struct Geolocation {
     geolocation_info: BTreeMap<AccountId, CoordinateInfo>,
     city_distribution: BTreeMap<String, Vec<AccountId>>,
@@ -88,14 +87,6 @@ impl contracts::NativeContract for Geolocation {
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                info!(
-                    "UpdateGeolocation: [{}] -> <{}, {}>, city: {}",
-                    hex::encode(&sender),
-                    geolocation_info.latitude,
-                    geolocation_info.longitude,
-                    geolocation_info.city_name,
-                );
-
                 // Insert data to geolocation info btreemap
                 if let Some(geo_data) = self.geolocation_info.get_mut(&sender) {
                     *geo_data = geolocation_info.clone();
@@ -103,8 +94,6 @@ impl contracts::NativeContract for Geolocation {
                         // Remove account id to previous city
                         if let Some(workers) = self.city_distribution.get_mut(&geo_data.city_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == sender) {
-                                info!("Remove {} from city {}",
-                                    hex::encode(&sender), geolocation_info.city_name);
                                 workers.remove(pos);
                             } else {
                                 error!("Cannot locate AccountId. Something is wrong in the geolocation contract's UpdateGeolocation() function");
@@ -115,15 +104,11 @@ impl contracts::NativeContract for Geolocation {
                             return Err(TransactionError::UnknownError);
                         }
                         // Insert account id to new city
-                        info!("Push {} to city {}",
-                            hex::encode(&sender), geolocation_info.city_name);
                         let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
                         workers.push(sender);
                     }
                 } else {
                     // newly arrived worker
-                    info!("Push {} to city {}",
-                            hex::encode(&sender), geolocation_info.city_name);
                     self.geolocation_info.insert(sender.clone(), geolocation_info.clone());
                     let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
                     workers.push(sender);
@@ -138,7 +123,7 @@ impl contracts::NativeContract for Geolocation {
         let inner = || -> Result<Response> {
             match req {
                 Request::GetGeolocationInfo { account } => {
-                    if origin == None || origin.unwrap() != &account {
+                    if origin != Some(&account) {
                         return Err(anyhow::Error::msg(Error::NotAuthorized));
                     }
                     if let Some(data) = self.geolocation_info.get(&account) {
@@ -146,7 +131,7 @@ impl contracts::NativeContract for Geolocation {
                         Ok(Response::GetGeolocationInfo { geolocation_info })
                     } else {
                         error!("no record");
-                        return Err(anyhow::Error::msg(Error::InvalidRequest));
+                        Err(anyhow::Error::msg(Error::InvalidRequest))
                     }
                 },
                 Request::GetAvailableCityName {} => {
@@ -154,23 +139,22 @@ impl contracts::NativeContract for Geolocation {
                     Ok(Response::GetAvailableCityName { city_names })
                 },
                 Request::GetCityDistribution { city_name } => {
-                    if let Some(workers) = self.city_distribution.get(&city_name) {
-                        Ok(Response::GetCityDistribution { workers: workers.clone() })
-                    } else {
-                        error!("Unavailable city name provided");
-                        Err(anyhow::Error::msg(Error::InvalidRequest))
-                    }
+                    // TODO(soptq): Authorization
+                    Err(anyhow::Error::msg(Error::Other("Currently Unimplemented".parse()?)))
+                    // if let Some(workers) = self.city_distribution.get(&city_name) {
+                    //     Ok(Response::GetCityDistribution { workers: workers.clone() })
+                    // } else {
+                    //     error!("Unavailable city name provided");
+                    //     Err(anyhow::Error::msg(Error::InvalidRequest))
+                    // }
                 },
                 Request::GetCityDistributionCount { city_name } => {
                     if let Some(workers) = self.city_distribution.get(&city_name) {
-                        let count = match u32::try_from(workers.len()) {
-                            Ok(e) => e,
-                            Err(_) => u32::MAX,
-                        };
+                        let count = u32::try_from(workers.len()).unwrap_or(u32::MAX);
                         Ok(Response::GetCityDistributionCount { count })
                     } else {
                         error!("Unavailable city name provided");
-                        return Err(anyhow::Error::msg(Error::InvalidRequest));
+                        Err(anyhow::Error::msg(Error::InvalidRequest))
                     }
                 }
             }
