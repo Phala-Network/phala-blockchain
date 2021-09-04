@@ -546,7 +546,7 @@ where
                             worker.tokenomic = TokenomicInfo {
                                 v,
                                 v_init: v,
-                                v_last: v,
+                                payable: fp!(0),
                                 v_update_at: self.block.now_ms,
                                 v_update_block: self.block.block_number,
                                 iteration_last: 0,
@@ -671,7 +671,7 @@ mod tokenomic {
     pub struct TokenomicInfo {
         pub v: FixedPoint,
         pub v_init: FixedPoint,
-        pub v_last: FixedPoint,
+        pub payable: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
         pub iteration_last: u64,
@@ -695,7 +695,7 @@ mod tokenomic {
             Self {
                 v: info.v.to_string(),
                 v_init: info.v_init.to_string(),
-                v_last: info.v_last.to_string(),
+                payable: info.payable.to_string(),
                 v_update_at: info.v_update_at,
                 v_update_block: info.v_update_block,
                 iteration_last: info.iteration_last,
@@ -769,8 +769,10 @@ mod tokenomic {
             } else {
                 self.p_instant / self.p_bench
             };
-            let v = self.v + perf_multiplier * ((params.rho - fp!(1)) * self.v + cost_idle);
+            let delta_v = perf_multiplier * ((params.rho - fp!(1)) * self.v + cost_idle);
+            let v = self.v + delta_v;
             self.v = v.min(params.v_max);
+            self.payable += delta_v;
         }
 
         /// case2: Idle, successful heartbeat
@@ -786,24 +788,27 @@ mod tokenomic {
             if sum_share == fp!(0) {
                 return NO_UPDATE;
             }
-            if self.v < self.v_last {
+            if self.payable == fp!(0) {
                 return NO_UPDATE;
             }
             if block_number <= self.v_update_block {
                 // May receive more than one heartbeat for a single worker in a single block.
                 return NO_UPDATE;
             }
-            let dv = self.v - self.v_last;
+            let share = self.share();
+            if share == fp!(0) {
+                return NO_UPDATE;
+            }
             let blocks = FixedPoint::from_num(block_number - self.v_update_block);
-            let budget = self.share() / sum_share * params.budget_per_block * blocks;
+            let budget = share / sum_share * params.budget_per_block * blocks;
             let to_payout = budget * params.payout_ration;
             let to_treasury = budget * params.treasury_ration;
 
-            let actual_payout = dv.max(fp!(0)).min(to_payout); // w
-            let actual_treasury = (actual_payout / to_payout) * to_treasury;
+            let actual_payout = self.payable.max(fp!(0)).min(to_payout); // w
+            let actual_treasury = (actual_payout / to_payout) * to_treasury;  // to_payout > 0
 
             self.v -= actual_payout;
-            self.v_last = self.v;
+            self.payable = fp!(0);
             self.v_update_at = now_ms;
             self.v_update_block = block_number;
 
@@ -819,7 +824,7 @@ mod tokenomic {
         pub fn update_v_slash(&mut self, params: &Params, block_number: chain::BlockNumber) {
             let slash = self.v * params.slash_rate;
             self.v -= slash;
-            self.v_last = self.v;
+            self.payable = fp!(0);
 
             // stats
             self.last_slash = slash;
@@ -1274,7 +1279,7 @@ pub mod tests {
         assert!(!r.get_worker(0).unresponsive, "Worker should be online");
         assert!(
             v_snap > r.get_worker(0).tokenomic.v,
-            "Worker should be payed out"
+            "Worker should be paid out"
         );
 
         {
@@ -1595,6 +1600,60 @@ pub mod tests {
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(2997.0260877851113935014));
 
         // TODO(hangyin): also check miner reconnection and V recovery
+    }
+
+    #[test]
+    fn should_payout_at_v_max() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                confidence_level: 2,
+            }));
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            let mut worker0 = r.for_worker(0);
+            worker0.pallet_say(msg::WorkerEvent::BenchScore(3000));
+            worker0.pallet_say(msg::WorkerEvent::MiningStart {
+                session_id: 1,
+                init_v: fp!(30000).to_bits(),
+                init_p: 3000,
+            });
+            r.gk.process_messages(block);
+        });
+        // Mine for 24h
+        for _ in 0..7200 {
+            block_number += 1;
+            with_block(block_number, |block| {
+                r.gk.process_messages(block);
+            });
+        }
+        // Trigger payout
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.for_worker(0).challenge();
+            r.gk.process_messages(block);
+        });
+        r.for_worker(0).heartbeat(1, block_number, 1000000 as u64);
+        block_number += 1;
+        with_block(block_number, |block| {
+            r.gk.process_messages(block);
+        });
+        // Check payout
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(29855.38985958385856094607));
+        assert_eq!(r.get_worker(0).tokenomic.payable, fp!(0));
+        let report = r.gk.egress.drain_mining_info_update_event();
+        assert_eq!(
+            FixedPoint::from_bits(report[0].settle[0].payout),
+            fp!(144.61014041614143905393)
+        );
     }
 
     #[test]
