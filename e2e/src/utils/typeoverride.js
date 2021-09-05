@@ -91,10 +91,9 @@ const types = {
         "sequence": "u64",
         "signature": "Vec<u8>"
     },
-    "MachineId": "[u8; 16]",
     "WorkerRegistrationInfo": {
         "version": "u32",
-        "machineId": "MachineId",
+        "machineId": "Vec<u8>",
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
         "genesisBlockHash": "H256",
