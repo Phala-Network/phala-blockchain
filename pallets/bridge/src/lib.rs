@@ -149,9 +149,9 @@ pub mod pallet {
 		RelayerAdded(T::AccountId),
 		/// Relayer removed from set
 		RelayerRemoved(T::AccountId),
-		/// FunglibleTransfer is for relaying fungibles (dest_id, nonce, resource_id, amount, recipient, metadata)
+		/// FungibleTransfer is for relaying fungibles (dest_id, nonce, resource_id, amount, recipient)
 		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
-		/// NonFungibleTransfer is for relaying NFTS (dest_id, nonce, resource_id, token_id, recipient, metadata)
+		/// NonFungibleTransfer is for relaying NFTs (dest_id, nonce, resource_id, token_id, recipient, metadata)
 		NonFungibleTransfer(
 			BridgeChainId,
 			DepositNonce,
