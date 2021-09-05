@@ -291,10 +291,12 @@
   dependencies:
     "@open-web3/orml-type-definitions" "0.9.4-34"
 
-"@phala/typedefs@^0.2.17":
-  version "0.2.18"
-  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.18.tgz#f99d6efd22c9866c6ba3ffdd2ddc333c2519957c"
-  integrity sha512-WkthT6tqXE5Q4hlryTkUW5UHXTWZjCqBPPVdE5pH6A6z6xXcO2Wfe7PsY/NlKdSJkz5IwQik5o+y+3DesrtsAw==
+"@phala/typedefs@^0.2.21":
+  version "0.2.21"
+  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.21.tgz#cba64822ed27f51411bd4a4a0bee326728ba2fd7"
+  integrity sha512-HcXgLr6t57fIIFBvjhp0lOdBeL7N1VzHZjKSZsljjw471f8Vg9ki8aWFu0mDXtdKPInH9z65EXekcYbX5HLxQA==
+  dependencies:
+    "@polkadot/types" "^5.7.1"
 
 "@polkadot/api-derive@5.7.1", "@polkadot/api-derive@^5.6.2-5":
   version "5.7.1"
@@ -631,7 +633,7 @@ asynckit@^0.4.0:
   resolved "https://registry.yarnpkg.com/asynckit/-/asynckit-0.4.0.tgz#c79ed97f7f34cb8f2ba1bc9790bcc366474b4b79"
   integrity sha1-x57Zf380y48robyXkLzDZkdLS3k=
 
-axios@^0.21.1:
+axios@^0.21.3:
   version "0.21.3"
   resolved "https://registry.yarnpkg.com/axios/-/axios-0.21.3.tgz#f85d9b747f9b66d59ca463605cedf1844872b82e"
   integrity sha512-JtoZ3Ndke/+Iwt5n+BgSli/3idTvpt5OjKyoCmz4LX5+lPiY5l7C1colYezhlxThjNa/NhngCUWZSZFypIFuaA==
