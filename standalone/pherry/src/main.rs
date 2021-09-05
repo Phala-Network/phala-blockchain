@@ -709,9 +709,10 @@ async fn get_geolocation() -> Result<CoordinateInfo> {
             }
         }
     }
-    let location = city_general_data.location.expect("Failed to get geolocation");
-    let latitude = location.latitude.expect("Failed to get geolocation");
-    let longitude = location.longitude.expect("Failed to get geolocation");
+    let location = city_general_data.location
+        .ok_or(Error::FailedToSendGeolocation)?;
+    let latitude = location.latitude.ok_or(Error::FailedToSendGeolocation)?;
+    let longitude = location.longitude.ok_or(Error::FailedToSendGeolocation)?;
     info!("Look-up geolocation: {}, {}, {}", latitude, longitude, region_name);
 
     // Convert f64 to i32 with 4 digits precision
