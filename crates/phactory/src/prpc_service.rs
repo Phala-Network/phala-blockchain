@@ -506,8 +506,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let msg = GeolocationCommand::update_geolocation (
             coordinate_info
         );
-        secret_mq.sendto(contract::command_topic(contract::id256(contracts::GEOLOCATION)),
-                         &msg, Some(&public_contract_ecdh_key));
+        // TODO(soptq): make the whole procedure deterministic.
+        // secret_mq.sendto(contract::command_topic(contract::id256(contracts::GEOLOCATION)),
+        //                  &msg, Some(&public_contract_ecdh_key));
 
         Ok(())
     }
