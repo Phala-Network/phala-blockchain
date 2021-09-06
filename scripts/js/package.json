@@ -5,7 +5,8 @@
   "license": "MIT",
   "scripts": {
     "build": "rollup -c rollup.config.js",
-    "build:all": "rollup -c rollup.config.js src/*.js"
+    "build:all": "rollup -c rollup.config.js src/*.js",
+    "build:proto": "./build_proto.sh"
   },
   "dependencies": {
     "@acala-network/api": "^2.2.1",
@@ -27,6 +28,7 @@
     "@rollup/plugin-commonjs": "^19.0.2",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.0.4",
+    "protobufjs": "^6.11.2",
     "rollup": "^2.56.3",
     "rollup-plugin-terser": "^7.0.2"
   }

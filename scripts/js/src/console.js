@@ -10,6 +10,7 @@ const phalaTypes = require('@phala/typedefs').khalaDev;
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
+const { pruntime_rpc } = require('./proto/pruntime_rpc');
 
 function run(afn) {
     function runner(...args) {
@@ -21,41 +22,27 @@ function run(afn) {
     return runner;
 }
 
-function rand() {
-    return (Math.random() * 65536) | 0;
-}
-
 class PRuntimeApi {
     constructor(endpoint) {
         this.api = axios.create({
             baseURL: endpoint,
             headers: {
-                'Content-Type': 'application/json',
-            }
+                'Content-Type': 'application/octet-stream',
+            },
+            baseURL: endpoint,
+            responseType: 'arraybuffer',
         });
     }
-    async req(method, data={}) {
-        const r = await this.api.post('/' + method, {
-            input: data,
-            nonce: { id: rand() }
-        });
-        if (r.data.status === 'ok') {
-            return JSON.parse(r.data.payload);
-        } else {
-            throw new Error(`Got error response: ${r.data}`);
-        }
+    async req(method, data = undefined) {
+        const r = await this.api.post('/prpc/' + method, data);
+        return pruntime_rpc.PhactoryInfo.decode(r.data);
     }
-    async query(contractId, request) {
-        const bodyJson = JSON.stringify({
-            contract_id: contractId,
-            nonce: rand(),
-            request
-        });
-        const payloadJson = JSON.stringify({Plain: bodyJson});
-        const queryData = {query_payload: payloadJson};
-        const response = await this.req('query', queryData);
-        const plainResp = JSON.parse(response.Plain);
-        return plainResp;
+    async query(_contractId, _request) {
+        throw new Error('Unimplemented');
+    }
+
+    async getInfo() {
+        return await this.req('PhactoryAPI.GetInfo');
     }
 }
 
@@ -227,7 +214,7 @@ pruntime
     .description('get the running status')
     .action(run(async () => {
         const pr = pruntimeApi();
-        printObject(await pr.req('get_info'));
+        printObject(await pr.getInfo());
     }));
 
 pruntime
@@ -236,6 +223,7 @@ pruntime
     .argument('<method>', 'the method name')
     .option('--body', 'a json request body', '')
     .action(run(async (method, opt) => {
+        console.warn('This feature could be broken.');
         const pr = pruntimeApi();
         let body;
         if (opt.body) {
@@ -250,6 +238,7 @@ pruntime
     .argument('<contract-id>', 'confidential contract id (number)')
     .argument('<plain-query>', 'the plain query payload (string or json, depending on the definition)')
     .action(run(async (contractId, plainQuery) => {
+        console.warn('This feature could be broken.');
         const pr = pruntimeApi();
         const cid = parseInt(contractId);
         const plainQueryObj = JSON.parse(plainQuery);
