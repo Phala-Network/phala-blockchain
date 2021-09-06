@@ -2,8 +2,8 @@
 
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeLotteryId, BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime,
-	Test, ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
+	BridgeLotteryId, BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime, Test,
+	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
 };
 use super::{bridge, *};
 use frame_support::dispatch::DispatchError;

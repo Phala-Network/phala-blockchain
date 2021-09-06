@@ -139,7 +139,10 @@ pub mod pallet {
 				min_fee
 			};
 			let free_balance = T::Currency::free_balance(&source);
-			ensure!(free_balance >= (amount + fee), Error::<T>::InsufficientBalance);
+			ensure!(
+				free_balance >= (amount + fee),
+				Error::<T>::InsufficientBalance
+			);
 
 			let imbalance = T::Currency::withdraw(
 				&source,
