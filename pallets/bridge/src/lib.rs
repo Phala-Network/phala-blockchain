@@ -70,7 +70,7 @@ pub mod pallet {
 	}
 
 	impl<A: PartialEq, B: PartialOrd + Default> ProposalVotes<A, B> {
-		/// Attempts to mark the proposal as approve or rejected.
+		/// Attempts to mark the proposal as approved or rejected.
 		/// Returns true if the status changes from active.
 		pub fn try_to_complete(&mut self, threshold: u32, total: u32) -> ProposalStatus {
 			if self.votes_for.len() >= threshold as usize {
@@ -523,12 +523,10 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let mut votes = match Votes::<T>::get(src_id, (nonce, prop.clone())) {
 				Some(v) => v,
-				None => {
-					ProposalVotes {
-						expiry: now + T::ProposalLifetime::get(),
-						..Default::default()
-					}
-				}
+				None => ProposalVotes {
+					expiry: now + T::ProposalLifetime::get(),
+					..Default::default()
+				},
 			};
 
 			// Ensure the proposal isn't complete and relayer hasn't already voted
