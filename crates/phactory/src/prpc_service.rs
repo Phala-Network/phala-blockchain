@@ -468,12 +468,27 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
         // Validate signature
-        if let Some(origin) = &request.signature {
-            if !origin.verify(&request.encoded_encrypted_data) {
-                return Err(from_display("Verifying signature failed"));
+        let origin = if let Some(sig) = &request.signature {
+            let current_block = self.get_info().blocknum - 1;
+            // At most two level cert chain supported
+            match sig.verify(&request.encoded_encrypted_data, current_block, 2) {
+                Ok(key_chain) => match &key_chain[..] {
+                    [root_pubkey, ..] => Some(root_pubkey.clone()),
+                    _ => {
+                        return Err(from_display("BUG: verify ok but no key?"));
+                    }
+                },
+                Err(err) => {
+                    return Err(from_display(format!("Verifying signature failed: {:?}", err)));
+                }
             }
-            info!("Verifying signature passed!");
-        }
+        } else {
+            info!("No query signature");
+            None
+        };
+
+        info!("Verifying signature passed! origin={:?}", origin);
+
         let ecdh_key = self.runtime_state()?.ecdh_key.clone();
 
         // Decrypt data
@@ -486,10 +501,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let data_cursor = data_cursor;
 
         // Origin
-        let accid_origin = match request.signature.as_ref() {
-            Some(sig) => {
+        let accid_origin = match origin {
+            Some(origin) => {
                 use core::convert::TryFrom;
-                let accid = chain::AccountId::try_from(sig.origin.as_slice())
+                let accid = chain::AccountId::try_from(origin.as_slice())
                     .map_err(|_| from_display("Bad account id"))?;
                 Some(accid)
             }
@@ -559,8 +574,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         });
         let (code, data) = match server.dispatch_request(path, data.to_vec()) {
             Ok(data) => (200, data),
-            Err(e) => {
-                let (code, err) = match e {
+            Err(err) => {
+                error!("Rpc error: {:?}", err);
+                let (code, err) = match err {
                     Error::NotFound => (404, ProtoError::new("Method Not Found")),
                     Error::DecodeError(err) => {
                         (400, ProtoError::new(format!("DecodeError({:?})", err)))
