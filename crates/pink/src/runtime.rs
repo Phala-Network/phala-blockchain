@@ -46,11 +46,12 @@ impl ChainExtension<PinkRuntime> for NullExtension {
 }
 
 parameter_types! {
-pub const BlockHashCount: u64 = 250;
-pub BlockWeights: frame_system::limits::BlockWeights =
-    frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
-pub static ExistentialDeposit: u64 = 0;
+    pub const BlockHashCount: u64 = 250;
+    pub BlockWeights: frame_system::limits::BlockWeights =
+        frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
+    pub static ExistentialDeposit: u64 = 0;
 }
+
 impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
     type BlockWeights = BlockWeights;
@@ -91,8 +92,9 @@ impl pallet_balances::Config for PinkRuntime {
 }
 
 parameter_types! {
-pub const MinimumPeriod: u64 = 1;
+    pub const MinimumPeriod: u64 = 1;
 }
+
 impl pallet_timestamp::Config for PinkRuntime {
     type Moment = u64;
     type OnTimestampSet = ();
