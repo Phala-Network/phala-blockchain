@@ -291,11 +291,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(
-                genesis.block_header,
-                genesis.validator_set,
-                genesis.validator_set_proof,
-            )
+            .initialize_bridge(genesis.block_header, genesis.authority_set, genesis.proof)
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
@@ -575,14 +571,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         (code, data)
     }
 
-    fn handle_inbound_messages(
-        &mut self,
-        block_number: chain::BlockNumber,
-    ) -> RpcResult<()> {
-        let state = self.runtime_state
+    fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
+        let state = self
+            .runtime_state
             .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let system = self.system
+        let system = self
+            .system
             .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
@@ -648,9 +643,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             return Err(from_display("System process events failed"));
         }
 
-        let mut env = ExecuteEnv {
-            block: &block,
-        };
+        let mut env = ExecuteEnv { block: &block };
 
         for contract in state.contracts.values_mut() {
             contract.process_messages(&mut env);

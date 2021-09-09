@@ -181,6 +181,7 @@ struct Args {
 
 struct BlockSyncState {
     blocks: Vec<BlockWithChanges>,
+    /// Tracks the latest known authority set id at a certain block.
     authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
@@ -237,25 +238,28 @@ async fn get_block_with_storage_changes(
 }
 
 async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange> {
+    use subxt::Store;
     // Storage
-    let storage_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let value = chain_client::get_storage(&client, Some(hash), storage_key.clone())
+    let authority_set_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
+    let id_key = runtimes::grandpa::CurrentSetIdStore::<Runtime>::new().key(&client.metadata()).expect("Must have grandpa::CurrentSetId");
+    // Authority set
+    let value = chain_client::get_storage(&client, Some(hash), authority_set_key.clone())
         .await?
         .expect("No authority key found");
-    let authority_set: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
+    let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
         .expect("Failed to decode VersionedAuthorityList")
         .into();
-    // Proof
-    let proof = chain_client::read_proof(&client, Some(hash), storage_key).await?;
     // Set id
-    let set_id = client
+    let id = client
         .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
         .await
         .map_err(|_| Error::NoSetIdAtBlock)?;
+    // Proof
+    let proof = chain_client::read_proofs(&client, Some(hash), vec![authority_set_key, id_key]).await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet {
-            authority_set,
-            set_id,
+            list,
+            id,
         },
         authority_proof: proof,
     })
@@ -645,8 +649,8 @@ async fn init_runtime(
     let genesis_state = chain_client::fetch_genesis_storage(paraclient).await?;
     let genesis_info = blocks::GenesisBlockInfo {
         block_header: genesis_block.header,
-        validator_set: set_proof.authority_set.authority_set,
-        validator_set_proof: set_proof.authority_proof,
+        authority_set: set_proof.authority_set,
+        proof: set_proof.authority_proof,
     };
     let mut debug_set_key = None;
     if !inject_key.is_empty() {

@@ -44,6 +44,9 @@ enum Cli {
     DecodeFrnkJustification {
         hex_data: String,
     },
+    DecodeGenesisBlockInfo {
+        b64_data: String,
+    },
     EcdhKey {
         privkey: String,
     },
@@ -134,6 +137,11 @@ fn main() {
             let data = decode_hex(&hex_data);
             let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..]).expect("Error decoding FRNK justification");
             println!("{:?}", j);
+        }
+        Cli::DecodeGenesisBlockInfo { b64_data } => {
+            let data = decode_b64(&b64_data);
+            let gi = phactory_api::blocks::GenesisBlockInfo::decode(&mut &data[..]).unwrap();
+            println!("{:?}", gi);
         }
         Cli::EcdhKey { privkey } => {
             use phala_crypto::ecdh;

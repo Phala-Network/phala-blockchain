@@ -170,9 +170,9 @@ pub mod phala_registry {
 pub mod phala_mq {
     use codec::Encode;
     use core::marker::PhantomData;
-    use subxt::{balances::Balances, module, system::System, Call, Store};
+    use subxt::{balances::Balances, module, system::System, Call};
 
-    use phala_types::messaging::{MessageOrigin, SignedMessage};
+    use phala_types::messaging::SignedMessage;
 
     #[module]
     pub trait PhalaMq: System + Balances {}
@@ -181,23 +181,6 @@ pub mod phala_mq {
     pub struct SyncOffchainMessageCall<T: PhalaMq> {
         pub _runtime: PhantomData<T>,
         pub message: SignedMessage,
-    }
-
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
-    pub struct OffchainIngressStore<T: PhalaMq> {
-        #[store(returns = u64)]
-        /// Runtime marker.
-        pub _runtime: PhantomData<T>,
-        pub sender: MessageOrigin,
-    }
-
-    impl<T: PhalaMq> OffchainIngressStore<T> {
-        pub fn new(sender: MessageOrigin) -> Self {
-            Self {
-                _runtime: Default::default(),
-                sender,
-            }
-        }
     }
 }
 

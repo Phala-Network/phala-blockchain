@@ -40,6 +40,19 @@ pub async fn read_proof(
         .map_err(Into::into)
 }
 
+/// Gets a storage proof for a storage items
+pub async fn read_proofs(
+    client: &XtClient,
+    hash: Option<Hash>,
+    storage_keys: Vec<StorageKey>,
+) -> Result<StorageProof> {
+    client
+        .read_proof(storage_keys, hash)
+        .await
+        .map(raw_proof)
+        .map_err(Into::into)
+}
+
 // Storage functions
 
 /// Fetch storage changes made by given block.
