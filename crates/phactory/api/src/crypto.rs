@@ -54,7 +54,7 @@ impl From<CodecError> for SignatureVerifyError {
 }
 
 impl Signature {
-    /// Verify signature and return the siger pubkey chain.
+    /// Verify signature and return the siger pubkey chain in top-down order.
     pub fn verify(
         &self,
         msg: &[u8],
