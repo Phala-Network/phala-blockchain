@@ -7,12 +7,12 @@ use anyhow::{anyhow, Result};
 use codec::Decode;
 use codec::Encode;
 use phactory_api::blocks::{ParaId, StorageProof};
-use phala_types::messaging::MessageOrigin;
 use phala_node_rpc_ext::MakeInto as _;
+use phala_trie_storage::ser::StorageChanges;
+use phala_types::messaging::MessageOrigin;
 use serde_json::to_value;
 use sp_core::{storage::StorageKey, twox_128, twox_64};
 use subxt::Signer;
-use phala_trie_storage::ser::StorageChanges;
 
 type SrSigner = subxt::PairSigner<super::Runtime, sp_core::sr25519::Pair>;
 
@@ -35,6 +35,19 @@ pub async fn read_proof(
 ) -> Result<StorageProof> {
     client
         .read_proof(vec![storage_key], hash)
+        .await
+        .map(raw_proof)
+        .map_err(Into::into)
+}
+
+/// Gets a storage proof for a storage items
+pub async fn read_proofs(
+    client: &XtClient,
+    hash: Option<Hash>,
+    storage_keys: Vec<StorageKey>,
+) -> Result<StorageProof> {
+    client
+        .read_proof(storage_keys, hash)
         .await
         .map(raw_proof)
         .map_err(Into::into)

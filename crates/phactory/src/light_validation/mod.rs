@@ -52,18 +52,11 @@ use finality_grandpa::voter_set::VoterSet;
 use num::AsPrimitive;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::H256;
-use sp_finality_grandpa::{AuthorityId, AuthorityList, AuthorityWeight};
+use sp_finality_grandpa::{AuthorityId, AuthorityWeight, SetId};
 use sp_runtime::traits::{Block as BlockT, Header, NumberFor};
 use sp_runtime::EncodedJustification;
 
 pub use types::{AuthoritySet, AuthoritySetChange};
-
-#[derive(Encode, Decode, Clone, PartialEq)]
-pub struct BridgeInitInfo<T: Config> {
-    pub block_header: T::Header,
-    pub validator_set: AuthorityList,
-    pub validator_set_proof: StorageProof,
-}
 
 #[derive(Encode, Decode, Clone, PartialEq)]
 pub struct BridgeInfo<T: Config> {
@@ -72,13 +65,10 @@ pub struct BridgeInfo<T: Config> {
 }
 
 impl<T: Config> BridgeInfo<T> {
-    pub fn new(block_header: T::Header, validator_set: AuthorityList) -> Self {
+    pub fn new(block_header: T::Header, validator_set: AuthoritySet) -> Self {
         BridgeInfo {
             last_finalized_block_header: block_header,
-            current_set: AuthoritySet {
-                authority_set: validator_set,
-                set_id: 0,
-            },
+            current_set: validator_set,
         }
     }
 }
@@ -113,12 +103,12 @@ where
     pub fn initialize_bridge(
         &mut self,
         block_header: T::Header,
-        validator_set: AuthorityList,
-        validator_set_proof: StorageProof,
+        validator_set: AuthoritySet,
+        proof: StorageProof,
     ) -> Result<BridgeId> {
         let state_root = block_header.state_root();
 
-        Self::check_validator_set_proof(state_root, validator_set_proof, &validator_set)
+        Self::check_validator_set_proof(state_root, proof, &validator_set.list, validator_set.id)
             .map_err(anyhow::Error::msg)?;
 
         let bridge_info = BridgeInfo::new(block_header, validator_set);
@@ -159,8 +149,8 @@ where
 
         // Check that the header has been finalized
         let voters = &bridge.current_set;
-        let voter_set = VoterSet::new(voters.authority_set.clone()).unwrap();
-        let voter_set_id = voters.set_id;
+        let voter_set = VoterSet::new(voters.list.clone()).unwrap();
+        let voter_set_id = voters.id;
         verify_grandpa_proof::<T::Block>(
             grandpa_proof,
             block_hash,
@@ -174,7 +164,7 @@ where
                 bridge_info.last_finalized_block_header = header;
                 if let Some(change) = auhtority_set_change {
                     // Check the validator set increment
-                    if change.authority_set.set_id != voter_set_id + 1 {
+                    if change.authority_set.id != voter_set_id + 1 {
                         return Err(anyhow::Error::msg(Error::UnexpectedValidatorSetId));
                     }
                     // Check validator set change proof
@@ -182,12 +172,13 @@ where
                     Self::check_validator_set_proof(
                         state_root,
                         change.authority_proof,
-                        &change.authority_set.authority_set,
+                        &change.authority_set.list,
+                        change.authority_set.id,
                     )?;
                     // Commit
                     bridge_info.current_set = AuthoritySet {
-                        authority_set: change.authority_set.authority_set,
-                        set_id: change.authority_set.set_id,
+                        list: change.authority_set.list,
+                        id: change.authority_set.id,
                     }
                 }
             }
@@ -271,6 +262,7 @@ where
         state_root: &T::Hash,
         proof: StorageProof,
         validator_set: &[(AuthorityId, AuthorityWeight)],
+        _set_id: SetId,
     ) -> Result<()> {
         let checker = <StorageProofChecker<T::Hashing>>::new(*state_root, proof)?;
 
@@ -281,6 +273,9 @@ where
         let actual_validator_set = checker
             .read_value(b":grandpa_authorities")?
             .ok_or_else(|| anyhow::Error::msg(Error::StorageValueUnavailable))?;
+
+        // TODO: check set_id
+        // checker.read_value(grandpa::CurrentSetId.key())
 
         if encoded_validator_set == actual_validator_set {
             Ok(())
@@ -374,17 +369,7 @@ impl<T: Config> fmt::Debug for LightValidation<T> {
 impl<T: Config> fmt::Debug for BridgeInfo<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "BridgeInfo {{ last_finalized_block_header: {:?}, current_validator_set: {:?}, current_validator_set_id: {} }}",
-			self.last_finalized_block_header, self.current_set.authority_set, self.current_set.set_id)
-    }
-}
-
-impl<T: Config> fmt::Debug for BridgeInitInfo<T> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "BridgeInfo {{ block_header: {:?}, validator_set: {:?}, validator_set_proof: {:?} }}",
-            self.block_header, self.validator_set, self.validator_set_proof
-        )
+			self.last_finalized_block_header, self.current_set.list, self.current_set.id)
     }
 }
 
