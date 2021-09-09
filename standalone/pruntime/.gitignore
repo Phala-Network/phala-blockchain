@@ -63,3 +63,6 @@ Enclave_t.h
 
 tmp
 SGX_MODE
+
+# Geolite Database
+**/pherry/GeoLite2-City.mmdb
