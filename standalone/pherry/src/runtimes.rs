@@ -186,8 +186,14 @@ pub mod mining_staking {
 
 pub mod chain_bridge {
     use subxt::{module, system::System};
+    #[rustfmt::skip]
     #[module]
-    pub trait ChainBridge: System {}
+    pub trait ChainBridge: System {
+        #![event_alias(BridgeChainId = u8)]
+        #![event_alias(ResourceId = [u8; 32])]
+        #![event_alias(DepositNonce = u64)]
+        #![event_alias(U256 = sp_core::U256)]
+    }
 }
 
 pub mod parachain_info {
