@@ -19,7 +19,7 @@
   "dependencies": {
     "@phala/typedefs": "^0.2.23",
     "@polkadot/api": "^4.16.2",
-    "axios": "^0.21.1",
+    "axios": "^0.21.4",
     "chai": "^4.2.0",
     "dotenv": "^8.2.0",
     "mocha": "^8.1.3",
