@@ -16,41 +16,18 @@
 
 use sp_runtime::{
     generic::Header,
-    traits::{
-        BlakeTwo256,
-        IdentifyAccount,
-        Verify,
-    },
-    MultiSignature,
-    OpaqueExtrinsic,
+    traits::{BlakeTwo256, IdentifyAccount, Verify},
+    MultiSignature, OpaqueExtrinsic,
 };
 
 use subxt::{
-    balances::{
-        AccountData,
-        Balances,
-        BalancesEventTypeRegistry,
-    },
-    session::{
-        Session,
-        SessionEventTypeRegistry,
-    },
-    staking::{
-        Staking,
-        StakingEventTypeRegistry,
-    },
-    sudo::{
-        Sudo,
-        SudoEventTypeRegistry,
-    },
-    system::{
-        System,
-        SystemEventTypeRegistry,
-    },
-    EventTypeRegistry,
-    Runtime,
-    BasicSessionKeys,
-    register_default_type_sizes
+    balances::{AccountData, Balances, BalancesEventTypeRegistry},
+    register_default_type_sizes,
+    session::{Session, SessionEventTypeRegistry},
+    staking::{Staking, StakingEventTypeRegistry},
+    sudo::{Sudo, SudoEventTypeRegistry},
+    system::{System, SystemEventTypeRegistry},
+    BasicSessionKeys, EventTypeRegistry, Runtime,
 };
 
 use crate::extra::PhalaExtra;
@@ -81,8 +58,7 @@ impl Runtime for PhalaNodeRuntime {
         register_default_type_sizes(event_type_registry);
         event_type_registry
             .register_type_size::<phala_types::messaging::Message>("PhalaMq::Message");
-        event_type_registry
-            .register_type_size::<u8>("bridge::BridgeChainId");
+        event_type_registry.register_type_size::<u8>("bridge::BridgeChainId");
     }
 }
 
@@ -120,9 +96,9 @@ impl chain_bridge::ChainBridge for PhalaNodeRuntime {}
 pub mod grandpa {
     use super::PhalaNodeRuntime;
     use codec::Encode;
-    use subxt::{module, Store, system::System};
     use core::marker::PhantomData;
     use pallet_grandpa::fg_primitives::SetId;
+    use subxt::{module, system::System, Store};
 
     #[module]
     pub trait Grandpa: System {}
@@ -138,7 +114,7 @@ pub mod grandpa {
     impl<T: Grandpa> CurrentSetIdStore<T> {
         pub fn new() -> Self {
             Self {
-                _runtime: Default::default()
+                _runtime: Default::default(),
             }
         }
     }
@@ -146,9 +122,9 @@ pub mod grandpa {
 
 pub mod phala_registry {
     use codec::Encode;
-    use phala_types::WorkerRegistrationInfo;
     use core::marker::PhantomData;
     use phala_pallets::registry::Attestation;
+    use phala_types::WorkerRegistrationInfo;
     use subxt::{module, system::System, Call};
 
     #[module]
@@ -186,12 +162,8 @@ pub mod phala_mq {
 
 pub mod mining_staking {
     use codec::Encode;
-    use subxt::{
-        module, Store,
-        system::System,
-        balances::Balances
-    };
     use core::marker::PhantomData;
+    use subxt::{balances::Balances, module, system::System, Store};
 
     #[module]
     pub trait MiningStaking: System + Balances {}
@@ -213,24 +185,16 @@ pub mod mining_staking {
 }
 
 pub mod chain_bridge {
-    use subxt::{
-        module,
-        system::System,
-    };
+    use subxt::{module, system::System};
     #[module]
-    pub trait ChainBridge: System {
-        #![event_alias(BridgeChainId = u8)]
-        #![event_alias(ResourceId = [u8; 32])]
-        #![event_alias(DepositNonce = u64)]
-        #![event_alias(U256 = sp_core::U256)]
-    }
+    pub trait ChainBridge: System {}
 }
 
 pub mod parachain_info {
     use super::PhalaNodeRuntime;
-    use codec::{Encode};
-    use subxt::{module, Store, system::System};
+    use codec::Encode;
     use core::marker::PhantomData;
+    use subxt::{module, system::System, Store};
 
     pub type ParachainId = phactory_api::blocks::ParaId;
 
@@ -248,9 +212,8 @@ pub mod parachain_info {
     impl<T: ParachainInfo> ParachainIdStore<T> {
         pub fn new() -> Self {
             Self {
-                _runtime: Default::default()
+                _runtime: Default::default(),
             }
         }
     }
 }
-

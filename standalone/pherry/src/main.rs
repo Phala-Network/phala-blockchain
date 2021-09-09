@@ -241,7 +241,9 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
     use subxt::Store;
     // Storage
     let authority_set_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let id_key = runtimes::grandpa::CurrentSetIdStore::<Runtime>::new().key(&client.metadata()).expect("Must have grandpa::CurrentSetId");
+    let id_key = runtimes::grandpa::CurrentSetIdStore::<Runtime>::new()
+        .key(&client.metadata())
+        .expect("Must have grandpa::CurrentSetId");
     // Authority set
     let value = chain_client::get_storage(&client, Some(hash), authority_set_key.clone())
         .await?
@@ -255,12 +257,10 @@ async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<Au
         .await
         .map_err(|_| Error::NoSetIdAtBlock)?;
     // Proof
-    let proof = chain_client::read_proofs(&client, Some(hash), vec![authority_set_key, id_key]).await?;
+    let proof =
+        chain_client::read_proofs(&client, Some(hash), vec![authority_set_key, id_key]).await?;
     Ok(AuthoritySetChange {
-        authority_set: AuthoritySet {
-            list,
-            id,
-        },
+        authority_set: AuthoritySet { list, id },
         authority_proof: proof,
     })
 }
@@ -998,7 +998,11 @@ fn preprocess_args(args: &mut Args) {
     }
     if args.longevity > 0 {
         assert!(args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
-        assert_eq!(args.longevity.count_ones(), 1, "Option --longevity must be power of two.");
+        assert_eq!(
+            args.longevity.count_ones(),
+            1,
+            "Option --longevity must be power of two."
+        );
     }
 }
 
