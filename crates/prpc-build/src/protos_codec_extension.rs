@@ -257,16 +257,32 @@ impl<'a> CodeGenerator<'a> {
         &self.source_info.location[idx]
     }
 
-    fn codec_decoration(&self) -> Option<(String, String)> {
+    fn find_comment<T>(&self, predicate: impl Fn(&str) -> Option<T>) -> Option<T> {
         let comments = self.location().leading_comments();
-        comments.split('\n').find_map(|line| {
-            let line = line.trim_start();
+        comments
+            .split('\n')
+            .find_map(|line| predicate(line.trim_start()))
+    }
+
+    fn codec_decoration(&self) -> Option<(String, String)> {
+        self.find_comment(|line| {
             let parts: Vec<_> = line.split_whitespace().collect();
             match parts[..] {
                 ["@codec", name, type_path] => Some((name.to_owned(), type_path.to_owned())),
                 _ => None,
             }
         })
+    }
+
+    fn boxed_decoration(&self) -> bool {
+        self.find_comment(|line| {
+            if line.starts_with("@boxed") {
+                Some(())
+            } else {
+                None
+            }
+        })
+        .is_some()
     }
 
     fn push_mod(&mut self, module: &str) {
@@ -331,6 +347,11 @@ impl<'a> CodeGenerator<'a> {
             Type::String => String::from("::prost::alloc::string::String"),
             Type::Bytes => String::from("::prost::alloc::vec::Vec<u8>"),
             Type::Group | Type::Message => self.resolve_ident(field.type_name()),
+        };
+        let ty = if self.boxed_decoration() {
+            format!("::prost::alloc::boxed::Box<{}>", ty)
+        } else {
+            ty
         };
         if self.optional(field) {
             format!("Option<{}>", ty)

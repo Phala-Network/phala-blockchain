@@ -295,11 +295,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let next_headernum = genesis.block_header.number + 1;
         let mut light_client = LightValidation::new();
         let main_bridge = light_client
-            .initialize_bridge(
-                genesis.block_header,
-                genesis.validator_set,
-                genesis.validator_set_proof,
-            )
+            .initialize_bridge(genesis.block_header, genesis.authority_set, genesis.proof)
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
@@ -518,12 +514,27 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
         // Validate signature
-        if let Some(origin) = &request.signature {
-            if !origin.verify(&request.encoded_encrypted_data) {
-                return Err(from_display("Verifying signature failed"));
+        let origin = if let Some(sig) = &request.signature {
+            let current_block = self.get_info().blocknum - 1;
+            // At most two level cert chain supported
+            match sig.verify(&request.encoded_encrypted_data, current_block, 2) {
+                Ok(key_chain) => match &key_chain[..] {
+                    [root_pubkey, ..] => Some(root_pubkey.clone()),
+                    _ => {
+                        return Err(from_display("BUG: verify ok but no key?"));
+                    }
+                },
+                Err(err) => {
+                    return Err(from_display(format!("Verifying signature failed: {:?}", err)));
+                }
             }
-            info!("Verifying signature passed!");
-        }
+        } else {
+            info!("No query signature");
+            None
+        };
+
+        info!("Verifying signature passed! origin={:?}", origin);
+
         let ecdh_key = self.runtime_state()?.ecdh_key.clone();
 
         // Decrypt data
@@ -536,10 +547,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let data_cursor = data_cursor;
 
         // Origin
-        let accid_origin = match request.signature.as_ref() {
-            Some(sig) => {
+        let accid_origin = match origin {
+            Some(origin) => {
                 use core::convert::TryFrom;
-                let accid = chain::AccountId::try_from(sig.origin.as_slice())
+                let accid = chain::AccountId::try_from(origin.as_slice())
                     .map_err(|_| from_display("Bad account id"))?;
                 Some(accid)
             }
@@ -609,8 +620,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         });
         let (code, data) = match server.dispatch_request(path, data.to_vec()) {
             Ok(data) => (200, data),
-            Err(e) => {
-                let (code, err) = match e {
+            Err(err) => {
+                error!("Rpc error: {:?}", err);
+                let (code, err) = match err {
                     Error::NotFound => (404, ProtoError::new("Method Not Found")),
                     Error::DecodeError(err) => {
                         (400, ProtoError::new(format!("DecodeError({:?})", err)))
@@ -625,14 +637,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         (code, data)
     }
 
-    fn handle_inbound_messages(
-        &mut self,
-        block_number: chain::BlockNumber,
-    ) -> RpcResult<()> {
-        let state = self.runtime_state
+    fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
+        let state = self
+            .runtime_state
             .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let system = self.system
+        let system = self
+            .system
             .as_mut()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
 
@@ -698,9 +709,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             return Err(from_display("System process events failed"));
         }
 
-        let mut env = ExecuteEnv {
-            block: &block,
-        };
+        let mut env = ExecuteEnv { block: &block };
 
         for contract in state.contracts.values_mut() {
             contract.process_messages(&mut env);

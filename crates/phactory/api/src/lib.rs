@@ -42,23 +42,30 @@ pub mod blocks {
     pub type StorageProof = Vec<Vec<u8>>;
     pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 
+    /// The GRNADPA authority set with the id
     #[derive(Encode, Decode, Clone, PartialEq, Debug)]
     pub struct AuthoritySet {
-        pub authority_set: AuthorityList,
-        pub set_id: SetId,
+        pub list: AuthorityList,
+        pub id: SetId,
     }
 
+    /// AuthoritySet change with the storage proof (including both the authority set and the id)
     #[derive(Encode, Decode, Clone, PartialEq, Debug)]
     pub struct AuthoritySetChange {
         pub authority_set: AuthoritySet,
         pub authority_proof: StorageProof,
     }
 
-    #[derive(Encode, Decode, Clone, PartialEq)]
+    /// The genesis block initialization info.
+    ///
+    /// The genesis block is the first block to start GRNADPA light validation tracking. It could
+    /// be block 0 or a later block on the relay chain. The authority set represents the validator
+    /// infomation at the selected block.
+    #[derive(Encode, Decode, Clone, PartialEq, Debug)]
     pub struct GenesisBlockInfo {
         pub block_header: chain::Header,
-        pub validator_set: AuthorityList,
-        pub validator_set_proof: StorageProof,
+        pub authority_set: AuthoritySet,
+        pub proof: StorageProof,
     }
 
     pub type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
