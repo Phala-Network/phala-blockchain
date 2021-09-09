@@ -741,7 +741,7 @@ async fn try_send_geolocation(
             info!("Geolocation TTL is passed. Updating geolocation.")
         }
         Err(e) => {
-            info!("Geolocation TTL is not passed. Ignoring to update geolocation");
+            info!("Geolocation TTL is not passed. Ignoring to update geolocation: {}", e);
             return Ok(*ttl);
         }
     }
@@ -749,7 +749,7 @@ async fn try_send_geolocation(
         Ok(r) => r,
         Err(e) => {
             let message = format!("Failed to retrieve geolocation: {:?}", e);
-            error!("FailedToSendGeolocation: {:?}", message);
+            warn!("FailedToSendGeolocation: {:?}", message);
             return Err(anyhow!(Error::FailedToSendGeolocation));
         }
     };
@@ -934,7 +934,11 @@ async fn bridge(args: Args) -> Result<()> {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
             geolocation_report_ttl =
-                try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await?;
+                match try_send_geolocation(&pr, &geolocation_report_ttl,
+                                           &args.geoip_city_db).await {
+                    Ok(d) => d,
+                    Err(_e) => { geolocation_report_ttl }
+                };
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1049,7 +1053,11 @@ async fn bridge(args: Args) -> Result<()> {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
             geolocation_report_ttl =
-                try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await?;
+                match try_send_geolocation(&pr, &geolocation_report_ttl,
+                                           &args.geoip_city_db).await {
+                    Ok(d) => d,
+                    Err(_e) => { geolocation_report_ttl }
+                };
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
