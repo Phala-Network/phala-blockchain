@@ -8,12 +8,12 @@ use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
 use std::convert::TryFrom;
 
-use super::{TransactionResult, TransactionError};
+use super::{TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::{AccountId, NativeContext};
 extern crate runtime as chain;
 
-use phala_types::messaging::{GeolocationCommand, CoordinateInfo};
+use phala_types::messaging::{CoordinateInfo, GeolocationCommand};
 
 type Command = GeolocationCommand;
 
@@ -24,19 +24,11 @@ pub struct Geolocation {
 
 #[derive(Encode, Decode, Debug)]
 pub enum Error {
-    InvalidRequest,
+    // InvalidRequest,
+    NoRecord,
     NotAuthorized,
-    Other(String),
-}
-
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Error::InvalidRequest => write!(f, "invalid request"),
-            Error::NotAuthorized => write!(f, "not authorized"),
-            Error::Other(e) => write!(f, "{}", e),
-        }
-    }
+    UnavailableCityName,
+    Unimplemented,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -44,7 +36,7 @@ pub enum Request {
     GetGeolocationInfo { account: AccountId },
     GetAvailableCityName {},
     GetCityDistribution { city_name: String },
-    GetCityDistributionCount { city_name: String }
+    GetCityDistributionCount { city_name: String },
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -68,7 +60,7 @@ impl Geolocation {
 impl contracts::NativeContract for Geolocation {
     type Cmd = Command;
     type QReq = Request;
-    type QResp = Response;
+    type QResp = Result<Response, Error>;
 
     fn id(&self) -> contracts::ContractId32 {
         contracts::GEOLOCATION
@@ -104,13 +96,20 @@ impl contracts::NativeContract for Geolocation {
                             return Err(TransactionError::UnknownError);
                         }
                         // Insert account id to new city
-                        let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
+                        let workers = self
+                            .city_distribution
+                            .entry(geolocation_info.city_name)
+                            .or_default();
                         workers.push(sender);
                     }
                 } else {
                     // newly arrived worker
-                    self.geolocation_info.insert(sender.clone(), geolocation_info.clone());
-                    let workers = self.city_distribution.entry(geolocation_info.city_name).or_default();
+                    self.geolocation_info
+                        .insert(sender.clone(), geolocation_info.clone());
+                    let workers = self
+                        .city_distribution
+                        .entry(geolocation_info.city_name)
+                        .or_default();
                     workers.push(sender);
                 };
 
@@ -119,49 +118,45 @@ impl contracts::NativeContract for Geolocation {
         }
     }
 
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
-        let inner = || -> Result<Response> {
-            match req {
-                Request::GetGeolocationInfo { account } => {
-                    if origin != Some(&account) {
-                        return Err(anyhow::Error::msg(Error::NotAuthorized));
-                    }
-                    if let Some(data) = self.geolocation_info.get(&account) {
-                        let geolocation_info = data.clone();
-                        Ok(Response::GetGeolocationInfo { geolocation_info })
-                    } else {
-                        error!("no record");
-                        Err(anyhow::Error::msg(Error::InvalidRequest))
-                    }
-                },
-                Request::GetAvailableCityName {} => {
-                    let city_names: Vec<String> = self.city_distribution.keys().cloned().collect();
-                    Ok(Response::GetAvailableCityName { city_names })
-                },
-                Request::GetCityDistribution { city_name } => {
-                    // TODO(soptq): Authorization
-                    Err(anyhow::Error::msg(Error::Other("Currently Unimplemented".parse()?)))
-                    // if let Some(workers) = self.city_distribution.get(&city_name) {
-                    //     Ok(Response::GetCityDistribution { workers: workers.clone() })
-                    // } else {
-                    //     error!("Unavailable city name provided");
-                    //     Err(anyhow::Error::msg(Error::InvalidRequest))
-                    // }
-                },
-                Request::GetCityDistributionCount { city_name } => {
-                    if let Some(workers) = self.city_distribution.get(&city_name) {
-                        let count = u32::try_from(workers.len()).unwrap_or(u32::MAX);
-                        Ok(Response::GetCityDistributionCount { count })
-                    } else {
-                        error!("Unavailable city name provided");
-                        Err(anyhow::Error::msg(Error::InvalidRequest))
-                    }
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: Request,
+    ) -> Result<Response, Error> {
+        match req {
+            Request::GetGeolocationInfo { account } => {
+                if origin != Some(&account) {
+                    return Err(Error::NotAuthorized);
+                }
+                if let Some(data) = self.geolocation_info.get(&account) {
+                    let geolocation_info = data.clone();
+                    Ok(Response::GetGeolocationInfo { geolocation_info })
+                } else {
+                    Err(Error::NoRecord)
                 }
             }
-        };
-        match inner() {
-            Err(error) => Response::Error(error.to_string()),
-            Ok(resp) => resp,
+            Request::GetAvailableCityName {} => {
+                let city_names: Vec<String> = self.city_distribution.keys().cloned().collect();
+                Ok(Response::GetAvailableCityName { city_names })
+            }
+            Request::GetCityDistribution { city_name } => {
+                // TODO(soptq): Authorization
+                Err(Error::Unimplemented)
+                // if let Some(workers) = self.city_distribution.get(&city_name) {
+                //     Ok(Response::GetCityDistribution { workers: workers.clone() })
+                // } else {
+                //     error!("Unavailable city name provided");
+                //     Err(anyhow::Error::msg(Error::InvalidRequest))
+                // }
+            }
+            Request::GetCityDistributionCount { city_name } => {
+                let workers = self
+                    .city_distribution
+                    .get(&city_name)
+                    .ok_or(Error::UnavailableCityName)?;
+                let count = u32::try_from(workers.len()).unwrap_or(u32::MAX);
+                Ok(Response::GetCityDistributionCount { count })
+            }
         }
     }
 }

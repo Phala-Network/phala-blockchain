@@ -3,6 +3,34 @@ const types = {
     "LookupSource": "MultiAddress",
     "RawSolution": "RawSolutionWith24",
     "BridgeChainId": "u8",
+    "BridgeEvent": {
+        "_enum": {
+            "FungibleTransfer": "FungibleTransfer",
+            "NonFungibleTransfer": "NonFungibleTransfer",
+            "GenericTransfer": "GenericTransfer"
+        }
+    },
+    "FungibleTransfer": {
+        "dest_id": "BridgeChainId",
+        "nonce": "DepositNonce",
+        "resource_id": "ResourceId",
+        "amount": "U256",
+        "recipient": "Vec<u8>"
+    },
+    "NonFungibleTransfer": {
+        "dest_id": "BridgeChainId",
+        "nonce": "DepositNonce",
+        "resource_id": "ResourceId",
+        "token_id": "Vec<u8>",
+        "recipient": "Vec<u8>",
+        "metadata": "Vec<u8>"
+    },
+    "GenericTransfer": {
+        "dest_id": "BridgeChainId",
+        "nonce": "DepositNonce",
+        "resource_id": "ResourceId",
+        "metadata": "Vec<u8>"
+    },
     "ResourceId": "[u8; 32]",
     "TokenId": "u256",
     "DepositNonce": "u64",
@@ -63,10 +91,9 @@ const types = {
         "sequence": "u64",
         "signature": "Vec<u8>"
     },
-    "MachineId": "[u8; 16]",
     "WorkerRegistrationInfo": {
         "version": "u32",
-        "machineId": "MachineId",
+        "machineId": "Vec<u8>",
         "pubkey": "WorkerPublicKey",
         "ecdhPubkey": "EcdhPublicKey",
         "genesisBlockHash": "H256",

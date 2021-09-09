@@ -178,6 +178,9 @@ struct Args {
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
+
+    #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
+    geoip_city_db: String,
 }
 
 struct BlockSyncState {
@@ -675,12 +678,13 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn get_geolocation() -> Result<CoordinateInfo> {
+async fn get_geolocation(db_path: &str) -> Result<CoordinateInfo> {
     let res = reqwest::get("https://ipinfo.io/ip").await?;
     if !res.status().is_success() {
-        return Err(anyhow::Error::msg(
-            format!("Cannot get public IP: {}", res.status())
-        ));
+        return Err(anyhow::Error::msg(format!(
+            "Cannot get public IP: {}",
+            res.status()
+        )));
     }
     let pub_ip = res.text().await?;
     info!("Public IP address: {}", pub_ip);
@@ -688,10 +692,9 @@ async fn get_geolocation() -> Result<CoordinateInfo> {
     use maxminddb::geoip2;
     use std::net::IpAddr;
 
-    let geo_db_bytes = include_bytes!("../GeoLite2-City.mmdb");
-    let geo_db_buf: Vec<u8> = geo_db_bytes.to_vec();
-    let reader = maxminddb::Reader::from_source(geo_db_buf)
-        .expect("Geolite2 database is not loaded");
+    let geo_db_buf = std::fs::read(db_path)?;
+    let reader =
+        maxminddb::Reader::from_source(geo_db_buf).expect("Geolite2 database is not loaded");
     let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
 
     let city_general_data: geoip2::City = reader.lookup(ip).unwrap();
@@ -709,11 +712,15 @@ async fn get_geolocation() -> Result<CoordinateInfo> {
             }
         }
     }
-    let location = city_general_data.location
+    let location = city_general_data
+        .location
         .ok_or(Error::FailedToSendGeolocation)?;
     let latitude = location.latitude.ok_or(Error::FailedToSendGeolocation)?;
     let longitude = location.longitude.ok_or(Error::FailedToSendGeolocation)?;
-    info!("Look-up geolocation: {}, {}, {}", latitude, longitude, region_name);
+    info!(
+        "Look-up geolocation: {}, {}, {}",
+        latitude, longitude, region_name
+    );
 
     // Convert f64 to i32 with 4 digits precision
     Ok(CoordinateInfo {
@@ -723,18 +730,22 @@ async fn get_geolocation() -> Result<CoordinateInfo> {
     })
 }
 
-async fn try_send_geolocation(pr: &PrClient, ttl: &SystemTime) -> Result<SystemTime> {
+async fn try_send_geolocation(
+    pr: &PrClient,
+    ttl: &SystemTime,
+    db_path: &str,
+) -> Result<SystemTime> {
     // If ttl is not passed, we do not perform updating
     match ttl.elapsed() {
         Ok(e) => {
             info!("Geolocation TTL is passed. Updating geolocation.")
-        },
+        }
         Err(e) => {
             info!("Geolocation TTL is not passed. Ignoring to update geolocation");
             return Ok(*ttl);
         }
     }
-    let coordinate_info = match get_geolocation().await {
+    let coordinate_info = match get_geolocation(db_path).await {
         Ok(r) => r,
         Err(e) => {
             let message = format!("Failed to retrieve geolocation: {:?}", e);
@@ -742,14 +753,14 @@ async fn try_send_geolocation(pr: &PrClient, ttl: &SystemTime) -> Result<SystemT
             return Err(anyhow!(Error::FailedToSendGeolocation));
         }
     };
-    pr.send_coordinate_info(
-        SendCoordinateInfoRequest{
-            latitude: coordinate_info.latitude,
-            longitude: coordinate_info.longitude,
-            city_name: coordinate_info.city_name,
-        }).await?;
+    pr.send_coordinate_info(SendCoordinateInfoRequest {
+        latitude: coordinate_info.latitude,
+        longitude: coordinate_info.longitude,
+        city_name: coordinate_info.city_name,
+    })
+    .await?;
     let new_ttl = SystemTime::now()
-        .checked_add(Duration::from_secs(8 * 3600))// 8 hours
+        .checked_add(Duration::from_secs(8 * 3600)) // 8 hours
         .expect("Failed to generate new ttl for geolocation report");
     Ok(new_ttl)
 }
@@ -922,7 +933,8 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
-            geolocation_report_ttl = try_send_geolocation(&pr, &geolocation_report_ttl).await?;
+            geolocation_report_ttl =
+                try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await?;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1036,7 +1048,8 @@ async fn bridge(args: Args) -> Result<()> {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
-            geolocation_report_ttl = try_send_geolocation(&pr, &geolocation_report_ttl).await?;
+            geolocation_report_ttl =
+                try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await?;
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
@@ -1077,7 +1090,11 @@ fn preprocess_args(args: &mut Args) {
     }
     if args.longevity > 0 {
         assert!(args.longevity >= 4, "Option --longevity must be 0 or >= 4.");
-        assert_eq!(args.longevity.count_ones(), 1, "Option --longevity must be power of two.");
+        assert_eq!(
+            args.longevity.count_ones(),
+            1,
+            "Option --longevity must be power of two."
+        );
     }
 }
 

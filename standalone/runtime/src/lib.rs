@@ -1071,6 +1071,7 @@ impl pallet_bridge_transfer::Config for Runtime {
 	type Currency = Balances;
 	type BridgeTokenId = BridgeTokenId;
 	type BridgeLotteryId = BridgeLotteryId;
+	type OnFeePay = Treasury;
 }
 
 parameter_types! {

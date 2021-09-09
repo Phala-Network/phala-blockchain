@@ -25,7 +25,7 @@ frame-system = { default-features = false, path = "../../substrate/frame/system"
 
 phala-types = { path = "../../crates/phala-types", default-features = false }
 phala-pallets = { path = "../phala", default-features = false }
-pallet-bridge = { path = "../bridge" , default-features = false }
+pallet-bridge = { path = "../bridge", default-features = false }
 hex = { version = "0.4", default-features = false }
 
 [dev-dependencies]
@@ -40,9 +40,9 @@ std = [
 	"serde",
 	"sp-std/std",
 	"sp-runtime/std",
-    "sp-io/std",
-    "sp-core/std",
-    "sp-arithmetic/std",
+	"sp-io/std",
+	"sp-core/std",
+	"sp-arithmetic/std",
 	"frame-support/std",
 	"frame-system/std",
 	"pallet-bridge/std",

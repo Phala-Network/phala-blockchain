@@ -70,7 +70,7 @@ pub mod pallet {
 	}
 
 	impl<A: PartialEq, B: PartialOrd + Default> ProposalVotes<A, B> {
-		/// Attempts to mark the proposal as approve or rejected.
+		/// Attempts to mark the proposal as approved or rejected.
 		/// Returns true if the status changes from active.
 		pub fn try_to_complete(&mut self, threshold: u32, total: u32) -> ProposalStatus {
 			if self.votes_for.len() >= threshold as usize {
@@ -149,9 +149,9 @@ pub mod pallet {
 		RelayerAdded(T::AccountId),
 		/// Relayer removed from set
 		RelayerRemoved(T::AccountId),
-		/// FunglibleTransfer is for relaying fungibles (dest_id, nonce, resource_id, amount, recipient, metadata)
+		/// FungibleTransfer is for relaying fungibles (dest_id, nonce, resource_id, amount, recipient)
 		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
-		/// NonFungibleTransfer is for relaying NFTS (dest_id, nonce, resource_id, token_id, recipient, metadata)
+		/// NonFungibleTransfer is for relaying NFTs (dest_id, nonce, resource_id, token_id, recipient, metadata)
 		NonFungibleTransfer(
 			BridgeChainId,
 			DepositNonce,
@@ -523,12 +523,10 @@ pub mod pallet {
 			let now = <frame_system::Pallet<T>>::block_number();
 			let mut votes = match Votes::<T>::get(src_id, (nonce, prop.clone())) {
 				Some(v) => v,
-				None => {
-					ProposalVotes {
-						expiry: now + T::ProposalLifetime::get(),
-						..Default::default()
-					}
-				}
+				None => ProposalVotes {
+					expiry: now + T::ProposalLifetime::get(),
+					..Default::default()
+				},
 			};
 
 			// Ensure the proposal isn't complete and relayer hasn't already voted
