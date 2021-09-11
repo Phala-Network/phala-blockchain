@@ -88,7 +88,7 @@ pub mod pallet {
 		MalformedSignature,
 		InvalidSignatureLength,
 		InvalidSignature,
-		UnknwonContract,
+		UnknownContract,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
