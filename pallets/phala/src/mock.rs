@@ -51,6 +51,7 @@ parameter_types! {
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
+	pub const VerifyPRuntime: bool = false;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -119,6 +120,7 @@ impl registry::Config for Test {
 	type Event = Event;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type VerifyPRuntime = VerifyPRuntime;
 }
 
 impl mining::Config for Test {
@@ -146,12 +148,15 @@ impl stakepool::Config for Test {
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
+use phala_types::PRuntimeHash;
 pub struct MockValidator;
 impl AttestationValidator for MockValidator {
 	fn validate(
 		_attestation: &Attestation,
 		_user_data_hash: &[u8; 32],
 		_now: u64,
+		_verify_pruntime: bool,
+		_pruntime_allowlist: Vec<PRuntimeHash>
 	) -> Result<IasFields, AttestationError> {
 		Ok(IasFields {
 			mr_enclave: [0u8; 32],

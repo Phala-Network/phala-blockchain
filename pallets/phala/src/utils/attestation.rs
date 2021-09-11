@@ -6,6 +6,7 @@ use sp_std::{
 	convert::{TryFrom, TryInto},
 	vec::Vec,
 };
+use phala_types::PRuntimeHash;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub enum Attestation {
@@ -22,10 +23,13 @@ pub trait AttestationValidator {
 		attestation: &Attestation,
 		user_data_hash: &[u8; 32],
 		now: u64,
+		verify_pruntime_hash: bool,
+		pruntime_allowlist: Vec<PRuntimeHash>
 	) -> Result<IasFields, Error>;
 }
 
 pub enum Error {
+	InvalidPRuntime,
 	InvalidIASSigningCert,
 	InvalidReport,
 	InvalidQuoteStatus,
@@ -51,13 +55,18 @@ impl AttestationValidator for IasValidator {
 		attestation: &Attestation,
 		user_data_hash: &[u8; 32],
 		now: u64,
+		verify_pruntime: bool,
+		pruntime_allowlist: Vec<PRuntimeHash>
 	) -> Result<IasFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas {
 				ra_report,
 				signature,
 				raw_signing_cert,
-			} => validate_ias_report(ra_report, signature, raw_signing_cert, now),
+			} => validate_ias_report(
+				ra_report, signature, raw_signing_cert, now,
+				verify_pruntime, pruntime_allowlist,
+			),
 		}?;
 		let commit = &fields.report_data[..32];
 		if commit != user_data_hash {
@@ -68,11 +77,27 @@ impl AttestationValidator for IasValidator {
 	}
 }
 
+fn extend_mrenclave(
+	mr_enclave: &[u8],
+	mr_signer: &[u8],
+	isv_prod_id: &[u8],
+	isv_svn: &[u8],
+) -> Vec<u8> {
+	let mut t_mrenclave = Vec::new();
+	t_mrenclave.extend_from_slice(mr_enclave);
+	t_mrenclave.extend_from_slice(isv_prod_id);
+	t_mrenclave.extend_from_slice(isv_svn);
+	t_mrenclave.extend_from_slice(mr_signer);
+	t_mrenclave
+}
+
 pub fn validate_ias_report(
 	report: &[u8],
 	signature: &[u8],
 	raw_signing_cert: &[u8],
 	now: u64,
+	verify_pruntime: bool,
+	pruntime_allowlist: Vec<PRuntimeHash>
 ) -> Result<IasFields, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
@@ -93,6 +118,25 @@ pub fn validate_ias_report(
 	// Validate related fields
 	let parsed_report: serde_json::Value =
 		serde_json::from_slice(report).or(Err(Error::InvalidReport))?;
+
+	// Extract quote fields
+	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
+		.as_str()
+		.ok_or(Error::UnknownQuoteBodyFormat)?;
+	let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
+	let mr_enclave = &quote_body[112..144];
+	let mr_signer = &quote_body[176..208];
+	let isv_prod_id = &quote_body[304..306];
+	let isv_svn = &quote_body[306..308];
+
+	// Validate PRuntime
+	if verify_pruntime {
+		let t_mrenclave = extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
+		if !pruntime_allowlist.contains(&t_mrenclave) {
+			return Err(Error::InvalidPRuntime)
+		}
+	}
+
 	// Validate time
 	let raw_report_timestamp = parsed_report["timestamp"]
 		.as_str()
@@ -133,17 +177,12 @@ pub fn validate_ias_report(
 			}
 		}
 	}
-	// Extract quote fields
-	let raw_quote_body = parsed_report["isvEnclaveQuoteBody"]
-		.as_str()
-		.ok_or(Error::UnknownQuoteBodyFormat)?;
-	let quote_body = base64::decode(&raw_quote_body).or(Err(Error::UnknownQuoteBodyFormat))?;
 	// Check the following fields
 	Ok(IasFields {
-		mr_enclave: (&quote_body[112..144]).try_into().unwrap(),
-		mr_signer: (&quote_body[176..208]).try_into().unwrap(),
-		isv_prod_id: (&quote_body[304..306]).try_into().unwrap(),
-		isv_svn: (&quote_body[306..308]).try_into().unwrap(),
+		mr_enclave: mr_enclave.try_into().unwrap(),
+		mr_signer: mr_signer.try_into().unwrap(),
+		isv_prod_id: isv_prod_id.try_into().unwrap(),
+		isv_svn: isv_svn.try_into().unwrap(),
 		report_data: (&quote_body[368..432]).try_into().unwrap(),
 		confidence_level,
 	})

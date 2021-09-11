@@ -26,6 +26,7 @@ pub mod pallet {
 			SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		PRuntimeHash,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -41,6 +42,10 @@ pub mod pallet {
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
+
+		/// Verify attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		#[pallet::constant]
+		type VerifyPRuntime: Get<bool>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -74,6 +79,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
 
+	/// Allow list of PRuntime
+	///
+	/// Only pRuntime within the list can do register.
+	#[pallet::storage]
+	#[pallet::getter(fn pruntime_allowlist)]
+	pub type PRuntimeAllowList<T> = StorageValue<_, Vec<PRuntimeHash>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
@@ -89,6 +101,10 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		// PRuntime related
+		InvalidPRuntime,
+		PRuntimeAlreadyExist,
+		PRuntimeNotFound,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -239,14 +255,14 @@ pub mod pallet {
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
-			let fields = T::AttestationValidator::validate(&attestation, &runtime_info_hash, now)
+			let fields = T::AttestationValidator::validate(
+				&attestation,
+				&runtime_info_hash,
+				now,
+				T::VerifyPRuntime::get(),
+				PRuntimeAllowList::<T>::get().unwrap_or(vec![])
+			)
 				.map_err(Into::<Error<T>>::into)?;
-			// Validate fields
-
-			// TODO(h4x): Add back mrenclave whitelist check
-			// let whitelist = MREnclaveWhitelist::get();
-			// let t_mrenclave = Self::extend_mrenclave(&fields.mr_enclave, &fields.mr_signer, &fields.isv_prod_id, &fields.isv_svn);
-			// ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
 
 			// TODO(h4x): Validate genesis block hash
 
@@ -292,6 +308,46 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		/// Register a PRuntime
+		#[pallet::weight(0)]
+		pub fn add_pruntime(
+			origin: OriginFor<T>,
+			pruntime_hash: PRuntimeHash,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or(Vec::new());
+			ensure!(!allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeAlreadyExist);
+
+			allowlist.push(pruntime_hash);
+			PRuntimeAllowList::<T>::put(allowlist);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_pruntime(
+			origin: OriginFor<T>,
+			pruntime_hash: PRuntimeHash,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or(Vec::new());
+			ensure!(allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeNotFound);
+
+			let len = allowlist.len();
+			for i in 0..len {
+				if allowlist[i] == pruntime_hash {
+					allowlist.remove(i);
+					break;
+				}
+			}
+
+			PRuntimeAllowList::<T>::put(allowlist);
+
 			Ok(())
 		}
 	}
@@ -532,6 +588,7 @@ pub mod pallet {
 	impl<T: Config> From<AttestationError> for Error<T> {
 		fn from(err: AttestationError) -> Self {
 			match err {
+				AttestationError::InvalidPRuntime => Self::InvalidPRuntime,
 				AttestationError::InvalidIASSigningCert => Self::InvalidIASSigningCert,
 				AttestationError::InvalidReport => Self::InvalidReport,
 				AttestationError::InvalidQuoteStatus => Self::InvalidQuoteStatus,
