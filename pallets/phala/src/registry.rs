@@ -306,7 +306,7 @@ pub mod pallet {
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {
-					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknwonContract)?;
+					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy
 				}
 				MessageOrigin::Gatekeeper => {
