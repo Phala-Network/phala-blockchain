@@ -568,7 +568,6 @@ pub struct Score {
 }
 
 type MachineId = Vec<u8>;
-pub type PRuntimeHash = Vec<u8>;
 pub type Sr25519Signature = sp_core::sr25519::Signature;
 pub type WorkerPublicKey = sp_core::sr25519::Public;
 pub type ContractPublicKey = sp_core::sr25519::Public;

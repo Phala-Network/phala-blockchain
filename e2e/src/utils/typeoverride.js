@@ -68,7 +68,6 @@ const types = {
             "Gatekeeper": null
         }
     },
-    "PRuntimeHash": "Vec<u8>",
     "Attestation": {
         "_enum": {
             "SgxIas": "AttestationSgxIas"

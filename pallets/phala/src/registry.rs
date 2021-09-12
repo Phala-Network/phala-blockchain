@@ -26,7 +26,6 @@ pub mod pallet {
 			SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
-		PRuntimeHash,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -84,7 +83,7 @@ pub mod pallet {
 	/// Only pRuntime within the list can do register.
 	#[pallet::storage]
 	#[pallet::getter(fn pruntime_allowlist)]
-	pub type PRuntimeAllowList<T> = StorageValue<_, Vec<PRuntimeHash>>;
+	pub type PRuntimeAllowList<T> = StorageValue<_, Vec<Vec<u8>>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -260,7 +259,7 @@ pub mod pallet {
 				&runtime_info_hash,
 				now,
 				T::VerifyPRuntime::get(),
-				PRuntimeAllowList::<T>::get().unwrap_or(vec![])
+				PRuntimeAllowList::<T>::get().unwrap_or_default()
 			)
 				.map_err(Into::<Error<T>>::into)?;
 
@@ -311,15 +310,15 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Register a PRuntime
+		/// Registers a pRuntime image as the canonical runtime with its digest.
 		#[pallet::weight(0)]
 		pub fn add_pruntime(
 			origin: OriginFor<T>,
-			pruntime_hash: PRuntimeHash,
+			pruntime_hash: Vec<u8>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 
-			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or(Vec::new());
+			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
 			ensure!(!allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeAlreadyExist);
 
 			allowlist.push(pruntime_hash);
@@ -331,22 +330,15 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn remove_pruntime(
 			origin: OriginFor<T>,
-			pruntime_hash: PRuntimeHash,
+			pruntime_hash: Vec<u8>,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 
-			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or(Vec::new());
+			let allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
 			ensure!(allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeNotFound);
 
-			let len = allowlist.len();
-			for i in 0..len {
-				if allowlist[i] == pruntime_hash {
-					allowlist.remove(i);
-					break;
-				}
-			}
-
-			PRuntimeAllowList::<T>::put(allowlist);
+			let filtered: Vec<_> = allowlist.into_iter().filter(|h| *h != pruntime_hash).collect();
+			PRuntimeAllowList::<T>::put(filtered);
 
 			Ok(())
 		}

@@ -6,7 +6,6 @@ use sp_std::{
 	convert::{TryFrom, TryInto},
 	vec::Vec,
 };
-use phala_types::PRuntimeHash;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub enum Attestation {
@@ -24,7 +23,7 @@ pub trait AttestationValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_pruntime_hash: bool,
-		pruntime_allowlist: Vec<PRuntimeHash>
+		pruntime_allowlist: Vec<Vec<u8>>
 	) -> Result<IasFields, Error>;
 }
 
@@ -56,7 +55,7 @@ impl AttestationValidator for IasValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_pruntime: bool,
-		pruntime_allowlist: Vec<PRuntimeHash>
+		pruntime_allowlist: Vec<Vec<u8>>
 	) -> Result<IasFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas {
@@ -97,7 +96,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_pruntime: bool,
-	pruntime_allowlist: Vec<PRuntimeHash>
+	pruntime_allowlist: Vec<Vec<u8>>
 ) -> Result<IasFields, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);

@@ -148,7 +148,6 @@ impl stakepool::Config for Test {
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
-use phala_types::PRuntimeHash;
 pub struct MockValidator;
 impl AttestationValidator for MockValidator {
 	fn validate(
@@ -156,7 +155,7 @@ impl AttestationValidator for MockValidator {
 		_user_data_hash: &[u8; 32],
 		_now: u64,
 		_verify_pruntime: bool,
-		_pruntime_allowlist: Vec<PRuntimeHash>
+		_pruntime_allowlist: Vec<Vec<u8>>
 	) -> Result<IasFields, AttestationError> {
 		Ok(IasFields {
 			mr_enclave: [0u8; 32],
