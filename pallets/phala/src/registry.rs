@@ -648,11 +648,13 @@ pub mod pallet {
 
 	#[cfg(test)]
 	mod test {
-		use frame_support::assert_ok;
+		use frame_support::{assert_ok, assert_noop};
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, worker_pubkey, Origin, Test,
+			ecdh_pubkey, elapse_seconds, new_test_ext,
+			set_block_1, setup_relaychain_genesis_allowlist, worker_pubkey,
+			Origin, Test,
 		};
 		// Pallets
 		use crate::mock::PhalaRegistry;
@@ -661,6 +663,30 @@ pub mod pallet {
 		fn test_register_worker() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
+				setup_relaychain_genesis_allowlist();
+
+				// New registration without valid genesis_block_hash
+				assert_noop!(
+					PhalaRegistry::register_worker(
+						Origin::signed(1),
+						WorkerRegistrationInfo::<u64> {
+							version: 1,
+							machine_id: Default::default(),
+							pubkey: worker_pubkey(1),
+							ecdh_pubkey: ecdh_pubkey(1),
+							genesis_block_hash: Default::default(),
+							features: vec![4, 1],
+							operator: Some(1),
+						},
+						Attestation::SgxIas {
+							ra_report: Vec::new(),
+							signature: Vec::new(),
+							raw_signing_cert: Vec::new(),
+						}
+					),
+					Error::<Test>::GenesisBlockHashNotFound
+				);
+
 				// New registration
 				assert_ok!(PhalaRegistry::register_worker(
 					Origin::signed(1),
@@ -669,7 +695,7 @@ pub mod pallet {
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
-						genesis_block_hash: Default::default(),
+						genesis_block_hash: H256::repeat_byte(1),
 						features: vec![4, 1],
 						operator: Some(1),
 					},
@@ -690,7 +716,7 @@ pub mod pallet {
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
-						genesis_block_hash: Default::default(),
+						genesis_block_hash: H256::repeat_byte(1),
 						features: vec![4, 1],
 						operator: Some(2),
 					},
@@ -703,6 +729,38 @@ pub mod pallet {
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.last_updated, 100);
 				assert_eq!(worker.operator, Some(2));
+			});
+		}
+
+		#[test]
+		fn test_pruntime_allowlist_works() {
+			new_test_ext().execute_with(|| {
+				// Set block number to 1 to test the events
+				set_block_1();
+
+				let sample: Vec<u8> = [1, 2, 3, 4].to_vec();
+				assert_ok!(PhalaRegistry::add_pruntime(Origin::root(), sample.clone()));
+				assert_noop!(PhalaRegistry::add_pruntime(Origin::root(), sample.clone()), Error::<Test>::PRuntimeAlreadyExists);
+				assert_eq!(PRuntimeAllowList::<Test>::get().unwrap_or_default().len(), 1);
+				assert_ok!(PhalaRegistry::remove_pruntime(Origin::root(), sample.clone()));
+				assert_noop!(PhalaRegistry::remove_pruntime(Origin::root(), sample.clone()), Error::<Test>::PRuntimeNotFound);
+				assert_eq!(PRuntimeAllowList::<Test>::get().unwrap_or_default().len(), 0);
+			});
+		}
+
+		#[test]
+		fn test_relaychain_genesis_block_hash_allowlist_works() {
+			new_test_ext().execute_with(|| {
+				// Set block number to 1 to test the events
+				set_block_1();
+
+				let sample: H256 = H256::repeat_byte(1);
+				assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample.clone()));
+				assert_noop!(PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample.clone()), Error::<Test>::GenesisBlockHashAlreadyExists);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().unwrap_or_default().len(), 1);
+				assert_ok!(PhalaRegistry::remove_relaychain_genesis_block_hash(Origin::root(), sample.clone()));
+				assert_noop!(PhalaRegistry::remove_relaychain_genesis_block_hash(Origin::root(), sample.clone()), Error::<Test>::GenesisBlockHashNotFound);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().unwrap_or_default().len(), 0);
 			});
 		}
 	}
