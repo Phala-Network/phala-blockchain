@@ -139,11 +139,11 @@ const types = {
         "stats": "MinerStats"
     },
     "Benchmark": {
-        "pInstant": "u32",
         "pInit": "u32",
+        "pInstant": "u32",
         "iterations": "u64",
         "miningStartTime": "u64",
-        "updatedAt": "u64"
+        "challengeTimeLast": "u64"
     },
     "MinerState": {
         "_enum": {
