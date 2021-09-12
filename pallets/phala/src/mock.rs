@@ -52,6 +52,7 @@ parameter_types! {
 	pub const MiningEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
 	pub const VerifyPRuntime: bool = false;
+	pub const VerifyRelaychainGenesisBlockHash: bool = false;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -121,6 +122,7 @@ impl registry::Config for Test {
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
+	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
 }
 
 impl mining::Config for Test {

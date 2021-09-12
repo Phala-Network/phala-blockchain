@@ -45,6 +45,10 @@ pub mod pallet {
 		/// Verify attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
 		#[pallet::constant]
 		type VerifyPRuntime: Get<bool>;
+
+		/// Verify relaychain genesis, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		#[pallet::constant]
+		type VerifyRelaychainGenesisBlockHash: Get<bool>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -85,6 +89,13 @@ pub mod pallet {
 	#[pallet::getter(fn pruntime_allowlist)]
 	pub type PRuntimeAllowList<T> = StorageValue<_, Vec<Vec<u8>>>;
 
+	/// Allow list of relaychain genesis
+	///
+	/// Only genesis within the list can do register.
+	#[pallet::storage]
+	#[pallet::getter(fn relaychain_genesis_allowlist)]
+	pub type RelaychainGenesisBlockHashAllowList<T> = StorageValue<_, Vec<H256>>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event {
@@ -100,6 +111,9 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		// GenesisBlockHash related
+		GenesisBlockHashAlreadyExists,
+		GenesisBlockHashNotFound,
 		// PRuntime related
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
@@ -263,6 +277,11 @@ pub mod pallet {
 				.map_err(Into::<Error<T>>::into)?;
 
 			// TODO(h4x): Validate genesis block hash
+			if T::VerifyRelaychainGenesisBlockHash::get() {
+				let genesis_block_hash = pruntime_info.genesis_block_hash;
+				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+				ensure!(allowlist.contains(&genesis_block_hash), Error::<T>::GenesisBlockHashNotFound);
+			}
 
 			// Update the registry
 			let pubkey = pruntime_info.pubkey;
@@ -338,6 +357,38 @@ pub mod pallet {
 
 			let filtered: Vec<_> = allowlist.into_iter().filter(|h| *h != pruntime_hash).collect();
 			PRuntimeAllowList::<T>::put(filtered);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn add_relaychain_genesis_block_hash(
+			origin: OriginFor<T>,
+			genesis_block_hash: H256,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+			ensure!(!allowlist.contains(&genesis_block_hash), Error::<T>::GenesisBlockHashAlreadyExists);
+
+			allowlist.push(genesis_block_hash);
+			RelaychainGenesisBlockHashAllowList::<T>::put(allowlist);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_relaychain_genesis_block_hash(
+			origin: OriginFor<T>,
+			genesis_block_hash: H256,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+
+			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+			ensure!(allowlist.contains(&genesis_block_hash), Error::<T>::GenesisBlockHashNotFound);
+
+			let filtered: Vec<_> = allowlist.into_iter().filter(|h| *h != genesis_block_hash).collect();
+			RelaychainGenesisBlockHashAllowList::<T>::put(filtered);
 
 			Ok(())
 		}
