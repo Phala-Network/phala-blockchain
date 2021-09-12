@@ -28,7 +28,7 @@ pub trait AttestationValidator {
 }
 
 pub enum Error {
-	InvalidPRuntime,
+	PRuntimeNotFound,
 	InvalidIASSigningCert,
 	InvalidReport,
 	InvalidQuoteStatus,
@@ -132,7 +132,7 @@ pub fn validate_ias_report(
 	if verify_pruntime {
 		let t_mrenclave = extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
 		if !pruntime_allowlist.contains(&t_mrenclave) {
-			return Err(Error::InvalidPRuntime)
+			return Err(Error::PRuntimeNotFound)
 		}
 	}
 

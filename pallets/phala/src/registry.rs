@@ -101,8 +101,7 @@ pub mod pallet {
 		InvalidSignature,
 		UnknownContract,
 		// PRuntime related
-		InvalidPRuntime,
-		PRuntimeAlreadyExist,
+		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
 		// IAS related
 		InvalidIASSigningCert,
@@ -319,7 +318,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 
 			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
-			ensure!(!allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeAlreadyExist);
+			ensure!(!allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeAlreadyExists);
 
 			allowlist.push(pruntime_hash);
 			PRuntimeAllowList::<T>::put(allowlist);
@@ -580,7 +579,7 @@ pub mod pallet {
 	impl<T: Config> From<AttestationError> for Error<T> {
 		fn from(err: AttestationError) -> Self {
 			match err {
-				AttestationError::InvalidPRuntime => Self::InvalidPRuntime,
+				AttestationError::PRuntimeNotFound => Self::PRuntimeNotFound,
 				AttestationError::InvalidIASSigningCert => Self::InvalidIASSigningCert,
 				AttestationError::InvalidReport => Self::InvalidReport,
 				AttestationError::InvalidQuoteStatus => Self::InvalidQuoteStatus,
