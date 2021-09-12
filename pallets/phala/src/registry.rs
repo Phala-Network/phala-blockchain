@@ -49,6 +49,9 @@ pub mod pallet {
 		/// Verify relaychain genesis, SHOULD NOT SET FALSE ON PRODUCTION !!!
 		#[pallet::constant]
 		type VerifyRelaychainGenesisBlockHash: Get<bool>;
+
+		/// Origin used to administer the pallet
+		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -210,7 +213,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
 			let mut gatekeepers = Gatekeeper::<T>::get();
 
 			// wait for the lead gatekeeper to upload the master pubkey
@@ -334,7 +338,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pruntime_hash: Vec<u8>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
 			ensure!(!allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeAlreadyExists);
@@ -350,7 +354,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			pruntime_hash: Vec<u8>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
 			ensure!(allowlist.contains(&pruntime_hash), Error::<T>::PRuntimeNotFound);
@@ -366,7 +370,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
 			ensure!(!allowlist.contains(&genesis_block_hash), Error::<T>::GenesisBlockHashAlreadyExists);
@@ -382,7 +386,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			genesis_block_hash: H256,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
 
 			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
 			ensure!(allowlist.contains(&genesis_block_hash), Error::<T>::GenesisBlockHashNotFound);

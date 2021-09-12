@@ -123,6 +123,7 @@ impl registry::Config for Test {
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
 	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
+	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl mining::Config for Test {
