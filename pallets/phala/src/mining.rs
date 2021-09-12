@@ -296,6 +296,7 @@ pub mod pallet {
 		InsufficientStake,
 		TooMuchStake,
 		InternalErrorBadTokenomicParameters,
+		DuplicateBoundWorker,
 	}
 
 	type BalanceOf<T> =
@@ -606,7 +607,7 @@ pub mod pallet {
 			);
 			ensure!(
 				Self::ensure_worker_bound(&pubkey).is_err(),
-				Error::<T>::DuplicateBoundMiner
+				Error::<T>::DuplicateBoundWorker
 			);
 
 			let now = Self::now_sec();
@@ -1110,7 +1111,7 @@ pub mod pallet {
 				);
 				assert_noop!(
 					PhalaMining::bind(1, worker_pubkey(2)),
-					Error::<Test>::DuplicateBoundMiner
+					Error::<Test>::DuplicateBoundWorker
 				);
 				// Force unbind should be tested via StakePool
 			});
