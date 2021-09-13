@@ -164,6 +164,7 @@ $(App_Enclave_u_Object): app/Enclave_u.o
 	$(AR) rcsD $@ $^
 	cp $(App_Enclave_u_Object) ./lib
 
+.PHONY: $(App_Name)
 $(App_Name): $(App_Enclave_u_Object) $(App_SRC_Files) SGX_MODE
 	@cd app && SGX_SDK=$(SGX_SDK) cargo build $(App_Rust_Flags)
 	@echo "Cargo  =>  $@"
