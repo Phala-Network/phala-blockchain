@@ -53,14 +53,26 @@ enum Cli {
     InspectPalletId {
         pallet_id: String,
     },
-    GetWorkerState {
+    Rpc {
         #[structopt(long, default_value = "http://localhost:8000")]
         url: String,
-        pubkey: String,
+
+        #[structopt(subcommand)]
+        command: RpcCommand,
     }
 }
 
-fn main() {
+#[derive(Debug, StructOpt)]
+enum RpcCommand {
+    GetWorkerState {
+        pubkey: String,
+    },
+    GetInfo,
+}
+
+
+#[tokio::main]
+async fn main() {
     let cli = Cli::from_args();
     match cli {
         Cli::DecodeWorkerRegistrationInfo {
@@ -160,21 +172,32 @@ fn main() {
             let account: AccountId = id.into_account();
             println!("Pallet account: {}", account);
         }
-        Cli::GetWorkerState { url, pubkey } => {
-            use tokio::runtime::Runtime;
-
-            let client = phactory_api::pruntime_client::new_pruntime_client(url);
-            let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
-
-            let rt  = Runtime::new().unwrap();
-            rt.block_on(async move {
-                match client.get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key }).await {
-                    Ok(state) => println!("{:#?}", state),
-                    Err(err) => println!("Error: {:?}", err),
-                }
-            });
+        Cli::Rpc { url, command } => {
+            handle_rpc_command(command, url).await;
         }
     }
+}
+
+async fn handle_rpc_command(command: RpcCommand, url: String) {
+    let client = phactory_api::pruntime_client::new_pruntime_client(url);
+    fn print_result<T: Debug, E: Debug>(result: Result<T, E>) {
+        match result {
+            Ok(result) => println!("{:#?}", result),
+            Err(err) => println!("Error: {:?}", err),
+        }
+    }
+    match command {
+        RpcCommand::GetWorkerState { pubkey } => {
+            let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
+            let rv = client.get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key }).await;
+            print_result(rv);
+        },
+        RpcCommand::GetInfo => {
+            let rv = client.get_info(()).await;
+            print_result(rv);
+        },
+    }
+
 }
 
 fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
