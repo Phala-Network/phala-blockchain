@@ -1,0 +1,4 @@
+#!/bin/sh
+DIRTY=$(git diff HEAD --quiet || echo "-dirty")
+REVISION="$(git rev-parse HEAD)${DIRTY}"
+echo $REVISION

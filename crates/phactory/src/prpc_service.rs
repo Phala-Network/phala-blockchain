@@ -108,6 +108,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             dev_mode,
             pending_messages: pending_messages as _,
             score,
+            version: self.args.version.clone(),
+            git_revision: self.args.git_revision.clone(),
         }
     }
 
@@ -390,7 +392,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         let system = system::System::new(
             self.platform.clone(),
-            self.sealing_path.clone(),
+            self.args.sealing_path.clone(),
             &id_pair,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,

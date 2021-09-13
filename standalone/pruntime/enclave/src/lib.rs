@@ -2,23 +2,22 @@
 #![feature(c_variadic)]
 
 use core::sync::atomic::{AtomicU32, Ordering};
+use parity_scale_codec::Decode;
 
-use log::{error, warn, info};
+use log::{error, info, warn};
 
-use sgx_types::sgx_status_t;
 use sgx_tstd::sync::SgxMutex;
+use sgx_types::sgx_status_t;
 
-mod pal_sgx;
 mod libc_hacks;
+mod pal_sgx;
 
 use pal_sgx::SgxPlatform;
 use phactory::{benchmark, Phactory};
 
-
 lazy_static::lazy_static! {
     static ref APPLICATION: SgxMutex<Phactory<SgxPlatform>> = SgxMutex::new(Phactory::new(SgxPlatform));
 }
-
 
 #[no_mangle]
 #[allow(clippy::not_unsafe_ptr_arg_deref)]
@@ -59,7 +58,6 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
 
     libc_hacks::init();
 
-    use parity_scale_codec::Decode;
     let mut args_buf = unsafe { std::slice::from_raw_parts(args, args_len) };
     let args = match phactory_api::ecall_args::InitArgs::decode(&mut args_buf) {
         Ok(args) => args,
@@ -69,14 +67,10 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
         }
     };
 
-    APPLICATION.lock().unwrap().set_sealing_path(args.sealing_path);
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter))
+        .init();
 
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter)).init();
-
-    benchmark::reset_iteration_counter();
-    if args.init_bench {
-        benchmark::resume();
-    }
+    APPLICATION.lock().unwrap().init(args.clone());
 
     info!("Enclave init OK");
     sgx_status_t::SGX_SUCCESS
@@ -104,7 +98,8 @@ pub extern "C" fn ecall_prpc_request(
     output_len_ptr: *mut usize,
 ) -> sgx_status_t {
     let mut factory = APPLICATION.lock().unwrap();
-    let (code, data) = unsafe { factory.dispatch_prpc_request(path, path_len, data, data_len, output_buf_len) };
+    let (code, data) =
+        unsafe { factory.dispatch_prpc_request(path, path_len, data, data_len, output_buf_len) };
     let (code, data) = if data.len() > output_buf_len {
         error!("ecall_prpc_request: output buffer too short");
         (500, vec![])
