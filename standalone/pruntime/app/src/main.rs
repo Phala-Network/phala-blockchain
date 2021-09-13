@@ -56,9 +56,12 @@ use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
-use phactory_api::{actions, prpc};
 use parity_scale_codec::Encode;
-
+use phactory_api::{
+    actions,
+    ecall_args::{git_revision, InitArgs},
+    prpc,
+};
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "pruntime", about = "The Phala TEE worker app.")]
@@ -508,12 +511,14 @@ fn main() {
     let sealing_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH);
     let sealing_path = String::from(sealing_path.to_str().unwrap());
     let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
-    let init_args = phactory_api::ecall_args::InitArgs {
+    let init_args = InitArgs {
         sealing_path,
         log_filter,
         init_bench: args.init_bench,
+        version: env!("CARGO_PKG_VERSION").into(),
+        git_revision: git_revision(),
     };
-    info!("init_args: {:?}", init_args);
+    info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
     let result = unsafe {
         ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len())

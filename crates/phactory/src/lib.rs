@@ -28,6 +28,7 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
+use phactory_api::ecall_args::{InitArgs, git_revision};
 use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
 use phactory_api::prpc::InitRuntimeResponse;
 use phactory_api::storage_sync::{
@@ -127,7 +128,7 @@ enum RuntimeDataSeal {
 
 pub struct Phactory<Platform> {
     platform: Platform,
-    sealing_path: String,
+    args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
     machine_id: Vec<u8>,
@@ -141,7 +142,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let machine_id = platform.machine_id();
         Phactory {
             platform,
-            sealing_path: Default::default(),
+            args: Default::default(),
             skip_ra: false,
             dev_mode: false,
             machine_id,
@@ -151,8 +152,16 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
     }
 
-    pub fn set_sealing_path(&mut self, path: String) {
-        self.sealing_path = path;
+    pub fn init(&mut self, args: InitArgs) {
+        if args.git_revision != git_revision() {
+            panic!("git revision mismatch: {}(app) vs {}(enclave)", args.git_revision, git_revision());
+        }
+
+        if args.init_bench {
+            benchmark::resume();
+        }
+
+        self.args = args;
     }
 
     fn init_runtime_data(
@@ -204,7 +213,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             let data = RuntimeDataSeal::V1(data.clone());
             let encoded_vec = data.encode();
             info!("Length of encoded slice: {}", encoded_vec.len());
-            let filepath = PathBuf::from(&self.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+            let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
             self.platform
                 .seal_data(filepath, &encoded_vec)
                 .map_err(Into::into)
@@ -215,7 +224,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     fn load_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
-        let filepath = PathBuf::from(&self.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+        let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
         let data = self
             .platform
             .unseal_data(filepath)

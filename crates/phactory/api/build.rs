@@ -1,6 +1,8 @@
 fn main() {
     use tera::{Context, Tera};
 
+    println!("cargo:rerun-if-env-changed=PHALA_GIT_REVISIOIN");
+
     let tera = Tera::new("proto/*.proto").unwrap();
 
     let tmpdir = tempdir::TempDir::new("rendered_proto").unwrap();
