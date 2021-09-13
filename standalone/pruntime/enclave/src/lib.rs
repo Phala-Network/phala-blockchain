@@ -57,6 +57,8 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
         panic!("Enclave already initialized.");
     }
 
+    libc_hacks::init();
+
     use parity_scale_codec::Decode;
     let mut args_buf = unsafe { std::slice::from_raw_parts(args, args_len) };
     let args = match phactory_api::ecall_args::InitArgs::decode(&mut args_buf) {
