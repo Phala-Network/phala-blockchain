@@ -58,7 +58,7 @@ pub mod pallet {
 
 		/// If mining is enabled by default.
 		#[pallet::constant]
-		type MiningEnabledDefault: Get<bool>;
+		type MiningEnabledByDefault: Get<bool>;
 
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -122,11 +122,11 @@ pub mod pallet {
 	/// Switch to enable the stake pool pallet (disabled by default)
 	#[pallet::storage]
 	#[pallet::getter(fn mining_enabled)]
-	pub type MiningEnabled<T> = StorageValue<_, bool, ValueQuery, MiningEnabledDefault<T>>;
+	pub type MiningEnabled<T> = StorageValue<_, bool, ValueQuery, MiningEnabledByDefault<T>>;
 
 	#[pallet::type_value]
-	pub fn MiningEnabledDefault<T: Config>() -> bool {
-		T::MiningEnabledDefault::get()
+	pub fn MiningEnabledByDefault<T: Config>() -> bool {
+		T::MiningEnabledByDefault::get()
 	}
 
 	#[pallet::event]

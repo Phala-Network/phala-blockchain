@@ -1080,7 +1080,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 50;
-	pub const MiningEnabledDefault: bool = false;
+	pub const MiningEnabledByDefault: bool = false;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1110,7 +1110,7 @@ impl pallet_stakepool::Config for Runtime {
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
-	type MiningEnabledDefault = MiningEnabledDefault;
+	type MiningEnabledByDefault = MiningEnabledByDefault;
 	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 }
