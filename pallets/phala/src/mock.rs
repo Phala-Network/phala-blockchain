@@ -49,6 +49,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
+	pub const MiningEnabledDefault: bool = true;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -130,6 +131,7 @@ impl mining::Config for Test {
 	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = ();
+	type UpdateTokenomicOrigin = frame_system::EnsureRoot<u64>;
 }
 
 impl stakepool::Config for Test {
@@ -137,7 +139,9 @@ impl stakepool::Config for Test {
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
+	type MiningEnabledDefault = MiningEnabledDefault;
 	type OnSlashed = ();
+	type MiningSwitchOrigin = frame_system::EnsureRoot<u64>;
 }
 
 pub struct MockValidator;
