@@ -1079,6 +1079,7 @@ parameter_types! {
 	pub const MinMiningStaking: Balance = 1 * PHAS;
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
+	pub const MinInitP: u32 = 50;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1093,6 +1094,7 @@ impl pallet_mq::Config for Runtime {
 impl pallet_mining::Config for Runtime {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
+	type MinInitP = MinInitP;
 	type Currency = Balances;
 	type Randomness = RandomnessCollectiveFlip;
 	type OnReward = PhalaStakePool;

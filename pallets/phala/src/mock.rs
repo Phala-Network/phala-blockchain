@@ -48,6 +48,7 @@ parameter_types! {
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
+	pub const MinInitP: u32 = 1;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -121,6 +122,7 @@ impl registry::Config for Test {
 impl mining::Config for Test {
 	type Event = Event;
 	type ExpectedBlockTimeSec = ExpectedBlockTimeSec;
+	type MinInitP = MinInitP;
 	type Currency = Balances;
 	type Randomness = TestRandomness<Self>;
 	type OnReward = PhalaStakePool;
