@@ -280,7 +280,6 @@ pub mod pallet {
 			)
 				.map_err(Into::<Error<T>>::into)?;
 
-			// TODO(h4x): Validate genesis block hash
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
 				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
