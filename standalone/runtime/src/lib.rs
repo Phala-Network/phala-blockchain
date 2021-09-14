@@ -1082,12 +1082,17 @@ parameter_types! {
 	pub const MinInitP: u32 = 50;
 	pub const MiningEnabledByDefault: bool = false;
 	pub const MaxPoolWorkers: u32 = 200;
+	pub const VerifyPRuntime: bool = false;
+	pub const VerifyRelaychainGenesisBlockHash: bool = false;
 }
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
 	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
+	type VerifyPRuntime = VerifyPRuntime;
+	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
+	type GovernanceOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_mq::Config for Runtime {
 	type QueueNotifyConfig = msg_routing::MessageRouteConfig;

@@ -51,6 +51,8 @@ parameter_types! {
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
 	pub const MaxPoolWorkers: u32 = 10;
+	pub const VerifyPRuntime: bool = false;
+	pub const VerifyRelaychainGenesisBlockHash: bool = true;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -119,6 +121,9 @@ impl registry::Config for Test {
 	type Event = Event;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
+	type VerifyPRuntime = VerifyPRuntime;
+	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
+	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl mining::Config for Test {
@@ -152,6 +157,8 @@ impl AttestationValidator for MockValidator {
 		_attestation: &Attestation,
 		_user_data_hash: &[u8; 32],
 		_now: u64,
+		_verify_pruntime: bool,
+		_pruntime_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, AttestationError> {
 		Ok(IasFields {
 			mr_enclave: [0u8; 32],
@@ -230,6 +237,15 @@ pub fn ecdh_pubkey(i: u8) -> EcdhPublicKey {
 	raw[31] = i;
 	raw[30] = 1; // distinguish with the genesis config
 	EcdhPublicKey(raw)
+}
+
+pub fn setup_relaychain_genesis_allowlist() {
+	use frame_support::assert_ok;
+	let sample: H256 = H256::repeat_byte(1);
+	assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
+		Origin::root(),
+		sample
+	));
 }
 
 /// Sets up `n` workers starting from 1, registered and benchmarked. All owned by account1.

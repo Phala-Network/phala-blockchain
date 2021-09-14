@@ -41,6 +41,17 @@ pub mod pallet {
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
+
+		/// Verify attestation, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		#[pallet::constant]
+		type VerifyPRuntime: Get<bool>;
+
+		/// Verify relaychain genesis, SHOULD NOT SET FALSE ON PRODUCTION !!!
+		#[pallet::constant]
+		type VerifyRelaychainGenesisBlockHash: Get<bool>;
+
+		/// Origin used to administer the pallet
+		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -73,6 +84,21 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub type BenchmarkDuration<T: Config> = StorageValue<_, u32>;
+
+	/// Allow list of pRuntime binary digest
+	///
+	/// Only pRuntime within the list can register.
+	#[pallet::storage]
+	#[pallet::getter(fn pruntime_allowlist)]
+	pub type PRuntimeAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
+
+	/// Allow list of relaychain genesis
+	///
+	/// Only genesis within the list can do register.
+	#[pallet::storage]
+	#[pallet::getter(fn relaychain_genesis_allowlist)]
+	pub type RelaychainGenesisBlockHashAllowList<T: Config> =
+		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -107,6 +133,14 @@ pub mod pallet {
 		InvalidMasterPubkey,
 		MasterKeyMismatch,
 		MasterKeyUninitialized,
+		// GenesisBlockHash related
+		GenesisBlockHashRejected,
+		GenesisBlockHashAlreadyExists,
+		GenesisBlockHashNotFound,
+		// PRuntime related
+		PRuntimeRejected,
+		PRuntimeAlreadyExists,
+		PRuntimeNotFound,
 	}
 
 	#[pallet::call]
@@ -182,7 +216,8 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			gatekeeper: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
 			let mut gatekeepers = Gatekeeper::<T>::get();
 
 			// wait for the lead gatekeeper to upload the master pubkey
@@ -239,16 +274,23 @@ pub mod pallet {
 			// Validate RA report & embedded user data
 			let now = T::UnixTime::now().as_secs().saturated_into::<u64>();
 			let runtime_info_hash = crate::hashing::blake2_256(&Encode::encode(&pruntime_info));
-			let fields = T::AttestationValidator::validate(&attestation, &runtime_info_hash, now)
-				.map_err(Into::<Error<T>>::into)?;
-			// Validate fields
+			let fields = T::AttestationValidator::validate(
+				&attestation,
+				&runtime_info_hash,
+				now,
+				T::VerifyPRuntime::get(),
+				PRuntimeAllowList::<T>::get(),
+			)
+			.map_err(Into::<Error<T>>::into)?;
 
-			// TODO(h4x): Add back mrenclave whitelist check
-			// let whitelist = MREnclaveWhitelist::get();
-			// let t_mrenclave = Self::extend_mrenclave(&fields.mr_enclave, &fields.mr_signer, &fields.isv_prod_id, &fields.isv_svn);
-			// ensure!(whitelist.contains(&t_mrenclave), Error::<T>::WrongMREnclave);
-
-			// TODO(h4x): Validate genesis block hash
+			if T::VerifyRelaychainGenesisBlockHash::get() {
+				let genesis_block_hash = pruntime_info.genesis_block_hash;
+				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
+				ensure!(
+					allowlist.contains(&genesis_block_hash),
+					Error::<T>::GenesisBlockHashRejected
+				);
+			}
 
 			// Update the registry
 			let pubkey = pruntime_info.pubkey;
@@ -292,6 +334,83 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		/// Registers a pRuntime image as the canonical runtime with its digest.
+		#[pallet::weight(0)]
+		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let mut allowlist = PRuntimeAllowList::<T>::get();
+			ensure!(
+				!allowlist.contains(&pruntime_hash),
+				Error::<T>::PRuntimeAlreadyExists
+			);
+
+			allowlist.push(pruntime_hash);
+			PRuntimeAllowList::<T>::put(allowlist);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let allowlist = PRuntimeAllowList::<T>::get();
+			ensure!(
+				allowlist.contains(&pruntime_hash),
+				Error::<T>::PRuntimeNotFound
+			);
+
+			let filtered: Vec<_> = allowlist
+				.into_iter()
+				.filter(|h| *h != pruntime_hash)
+				.collect();
+			PRuntimeAllowList::<T>::put(filtered);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn add_relaychain_genesis_block_hash(
+			origin: OriginFor<T>,
+			genesis_block_hash: H256,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
+			ensure!(
+				!allowlist.contains(&genesis_block_hash),
+				Error::<T>::GenesisBlockHashAlreadyExists
+			);
+
+			allowlist.push(genesis_block_hash);
+			RelaychainGenesisBlockHashAllowList::<T>::put(allowlist);
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn remove_relaychain_genesis_block_hash(
+			origin: OriginFor<T>,
+			genesis_block_hash: H256,
+		) -> DispatchResult {
+			T::GovernanceOrigin::ensure_origin(origin)?;
+
+			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
+			ensure!(
+				allowlist.contains(&genesis_block_hash),
+				Error::<T>::GenesisBlockHashNotFound
+			);
+
+			let filtered: Vec<_> = allowlist
+				.into_iter()
+				.filter(|h| *h != genesis_block_hash)
+				.collect();
+			RelaychainGenesisBlockHashAllowList::<T>::put(filtered);
+
 			Ok(())
 		}
 	}
@@ -532,6 +651,7 @@ pub mod pallet {
 	impl<T: Config> From<AttestationError> for Error<T> {
 		fn from(err: AttestationError) -> Self {
 			match err {
+				AttestationError::PRuntimeRejected => Self::PRuntimeRejected,
 				AttestationError::InvalidIASSigningCert => Self::InvalidIASSigningCert,
 				AttestationError::InvalidReport => Self::InvalidReport,
 				AttestationError::InvalidQuoteStatus => Self::InvalidQuoteStatus,
@@ -545,11 +665,12 @@ pub mod pallet {
 
 	#[cfg(test)]
 	mod test {
-		use frame_support::assert_ok;
+		use frame_support::{assert_noop, assert_ok};
 
 		use super::*;
 		use crate::mock::{
-			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1, worker_pubkey, Origin, Test,
+			ecdh_pubkey, elapse_seconds, new_test_ext, set_block_1,
+			setup_relaychain_genesis_allowlist, worker_pubkey, Origin, Test,
 		};
 		// Pallets
 		use crate::mock::PhalaRegistry;
@@ -558,6 +679,30 @@ pub mod pallet {
 		fn test_register_worker() {
 			new_test_ext().execute_with(|| {
 				set_block_1();
+				setup_relaychain_genesis_allowlist();
+
+				// New registration without valid genesis_block_hash
+				assert_noop!(
+					PhalaRegistry::register_worker(
+						Origin::signed(1),
+						WorkerRegistrationInfo::<u64> {
+							version: 1,
+							machine_id: Default::default(),
+							pubkey: worker_pubkey(1),
+							ecdh_pubkey: ecdh_pubkey(1),
+							genesis_block_hash: Default::default(),
+							features: vec![4, 1],
+							operator: Some(1),
+						},
+						Attestation::SgxIas {
+							ra_report: Vec::new(),
+							signature: Vec::new(),
+							raw_signing_cert: Vec::new(),
+						}
+					),
+					Error::<Test>::GenesisBlockHashRejected
+				);
+
 				// New registration
 				assert_ok!(PhalaRegistry::register_worker(
 					Origin::signed(1),
@@ -566,7 +711,7 @@ pub mod pallet {
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
-						genesis_block_hash: Default::default(),
+						genesis_block_hash: H256::repeat_byte(1),
 						features: vec![4, 1],
 						operator: Some(1),
 					},
@@ -587,7 +732,7 @@ pub mod pallet {
 						machine_id: Default::default(),
 						pubkey: worker_pubkey(1),
 						ecdh_pubkey: ecdh_pubkey(1),
-						genesis_block_hash: Default::default(),
+						genesis_block_hash: H256::repeat_byte(1),
 						features: vec![4, 1],
 						operator: Some(2),
 					},
@@ -600,6 +745,65 @@ pub mod pallet {
 				let worker = Workers::<Test>::get(worker_pubkey(1)).unwrap();
 				assert_eq!(worker.last_updated, 100);
 				assert_eq!(worker.operator, Some(2));
+			});
+		}
+
+		#[test]
+		fn test_pruntime_allowlist_works() {
+			new_test_ext().execute_with(|| {
+				// Set block number to 1 to test the events
+				set_block_1();
+
+				let sample: Vec<u8> = [1, 2, 3, 4].to_vec();
+				assert_ok!(PhalaRegistry::add_pruntime(Origin::root(), sample.clone()));
+				assert_noop!(
+					PhalaRegistry::add_pruntime(Origin::root(), sample.clone()),
+					Error::<Test>::PRuntimeAlreadyExists
+				);
+				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 1);
+				assert_ok!(PhalaRegistry::remove_pruntime(
+					Origin::root(),
+					sample.clone()
+				));
+				assert_noop!(
+					PhalaRegistry::remove_pruntime(Origin::root(), sample.clone()),
+					Error::<Test>::PRuntimeNotFound
+				);
+				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 0);
+			});
+		}
+
+		#[test]
+		fn test_relaychain_genesis_block_hash_allowlist_works() {
+			new_test_ext().execute_with(|| {
+				// Set block number to 1 to test the events
+				set_block_1();
+
+				let sample: H256 = H256::repeat_byte(1);
+				assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
+					Origin::root(),
+					sample.clone()
+				));
+				assert_noop!(
+					PhalaRegistry::add_relaychain_genesis_block_hash(
+						Origin::root(),
+						sample.clone()
+					),
+					Error::<Test>::GenesisBlockHashAlreadyExists
+				);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
+				assert_ok!(PhalaRegistry::remove_relaychain_genesis_block_hash(
+					Origin::root(),
+					sample.clone()
+				));
+				assert_noop!(
+					PhalaRegistry::remove_relaychain_genesis_block_hash(
+						Origin::root(),
+						sample.clone()
+					),
+					Error::<Test>::GenesisBlockHashNotFound
+				);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 0);
 			});
 		}
 	}

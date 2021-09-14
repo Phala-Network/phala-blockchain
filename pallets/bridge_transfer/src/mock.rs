@@ -135,10 +135,18 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 	}
 }
 
+parameter_types! {
+	pub const VerifyPRuntime: bool = false;
+	pub const VerifyRelaychainGenesisBlockHash: bool = false;
+}
+
 impl reg::Config for Test {
 	type Event = Event;
 	type AttestationValidator = reg::IasValidator;
 	type UnixTime = Timestamp;
+	type VerifyPRuntime = VerifyPRuntime;
+	type VerifyRelaychainGenesisBlockHash = VerifyRelaychainGenesisBlockHash;
+	type GovernanceOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl pallet_timestamp::Config for Test {
