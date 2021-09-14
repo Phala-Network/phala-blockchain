@@ -131,7 +131,7 @@ impl mining::Config for Test {
 	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = ();
-	type UpdateTokenomicOrigin = frame_system::EnsureRoot<u64>;
+	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl stakepool::Config for Test {
@@ -141,7 +141,7 @@ impl stakepool::Config for Test {
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledDefault = MiningEnabledDefault;
 	type OnSlashed = ();
-	type MiningSwitchOrigin = frame_system::EnsureRoot<u64>;
+	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 pub struct MockValidator;
