@@ -202,6 +202,7 @@ where
         let sum_share: FixedPoint = self
             .workers
             .values()
+            .filter(|info| !info.unresponsive)
             .map(|info| info.tokenomic.share())
             .sum();
 
