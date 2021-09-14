@@ -19,7 +19,7 @@ pub mod pallet {
 	pub use pallet_bridge as bridge;
 	use sp_arithmetic::traits::SaturatedConversion;
 	use sp_core::U256;
-	use sp_runtime::traits::Zero;
+	use sp_runtime::traits::{Saturating, Zero};
 	use sp_std::convert::TryFrom;
 	use sp_std::prelude::*;
 
@@ -84,6 +84,7 @@ pub mod pallet {
 		FeeOptionsMissing,
 		InsufficientBalance,
 		ResourceIdInUsed,
+		AssetNotRegistered,
 		AccountNotExist,
 	}
 
@@ -160,6 +161,10 @@ pub mod pallet {
 				Error::<T>::InvalidTransfer
 			);
 			ensure!(
+				Assets::<T>::contains_key(&asset),
+				Error::<T>::AssetNotRegistered
+			);
+			ensure!(
 				BridgeFee::<T>::contains_key(&dest_id),
 				Error::<T>::FeeOptionsMissing
 			);
@@ -173,7 +178,7 @@ pub mod pallet {
 
 			// check account existence
 			ensure!(
-				Balances::<T>::contains_key(asset, &source),
+				Balances::<T>::contains_key(&asset, &source),
 				Error::<T>::AccountNotExist
 			);
 
@@ -273,12 +278,22 @@ pub mod pallet {
 			_rid: ResourceId,
 		) -> DispatchResult {
 			let source = T::BridgeOrigin::ensure_origin(origin)?;
-			<T as Config>::Currency::transfer(
-				&source,
-				&to,
-				amount,
-				ExistenceRequirement::AllowDeath,
-			)?;
+			if _rid == T::ReserveTokenId::get() {
+				<T as Config>::Currency::transfer(
+					&source,
+					&to,
+					amount,
+					ExistenceRequirement::AllowDeath,
+				)?;
+			} else {
+				// check asset balance to cover transfer amount
+				ensure!(
+					Self::asset_balance(&_rid, &source) >= amount,
+					Error::<T>::InsufficientBalance
+				);
+				Self::do_asset_deposit(&_rid, &to, amount);
+			}
+
 			Ok(())
 		}
 	}
@@ -289,21 +304,64 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub fn asset_balance(asset: &bridge::ResourceId, who: &T::AccountId) -> BalanceOf<T> {
-			Balances::<T>::get(asset, &who).unwrap_or(Zero::zero())
+			Balances::<T>::get(asset, who).unwrap_or(Zero::zero())
 		}
 
+		/// Deposit specific amount assets into recipient account.
+		///
+		/// If recipient is bridge account, assets would deposited to bridge account only,
+		/// otherwise, assets would be withdrawn from bridge account and then deposit to
+		/// recipient.
+		/// Bridge account is treat as holding account of all assets.
+		///
+		/// DO NOT guarantee asset was registered
+		/// DO NOT guarantee bridge account(e.g. hodling account) has enough balance
 		pub fn do_asset_deposit(
 			asset: &bridge::ResourceId,
-			who: &T::AccountId,
+			recipient: &T::AccountId,
 			amount: BalanceOf<T>,
 		) {
+			let bridge_id = <bridge::Pallet<T>>::account_id();
+			if *recipient != bridge_id {
+				Balances::<T>::mutate(asset, bridge_id, |maybe_balance| {
+					if let Some(ref mut balance) = maybe_balance {
+						balance.saturating_sub(amount);
+					}
+				});
+			}
+
+			Balances::<T>::mutate(asset, recipient, |maybe_balance| {
+				if let Some(ref mut balance) = maybe_balance {
+					balance.saturating_add(amount);
+				} else {
+					Some(amount);
+				}
+			});
 		}
 
+		/// Withdraw specific amount assets from sender.
+		///
+		/// Assets would be withdrawn from the sender and then deposit to bridge account.
+		/// Bridge account is treat as holding account of all assets.
+		///
+		/// DO NOT guarantee asset was registered
+		/// DO NOT grarantee sender account has enough balance
 		pub fn do_asset_withdraw(
 			asset: &bridge::ResourceId,
-			who: &T::AccountId,
+			sender: &T::AccountId,
 			amount: BalanceOf<T>,
 		) {
+			let bridge_id = <bridge::Pallet<T>>::account_id();
+			Balances::<T>::mutate(asset, sender, |maybe_balance| {
+				if let Some(ref mut balance) = maybe_balance {
+					balance.saturating_sub(amount);
+				}
+			});
+			Balances::<T>::mutate(asset, bridge_id, |maybe_balance| {
+				if let Some(ref mut balance) = maybe_balance {
+					balance.saturating_add(amount);
+				}
+			});
 		}
 	}
 }
