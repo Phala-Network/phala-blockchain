@@ -90,14 +90,15 @@ pub mod pallet {
 	/// Only pRuntime within the list can register.
 	#[pallet::storage]
 	#[pallet::getter(fn pruntime_allowlist)]
-	pub type PRuntimeAllowList<T> = StorageValue<_, Vec<Vec<u8>>>;
+	pub type PRuntimeAllowList<T: Config> = StorageValue<_, Vec<Vec<u8>>, ValueQuery>;
 
 	/// Allow list of relaychain genesis
 	///
 	/// Only genesis within the list can do register.
 	#[pallet::storage]
 	#[pallet::getter(fn relaychain_genesis_allowlist)]
-	pub type RelaychainGenesisBlockHashAllowList<T> = StorageValue<_, Vec<H256>>;
+	pub type RelaychainGenesisBlockHashAllowList<T: Config> =
+		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -278,13 +279,13 @@ pub mod pallet {
 				&runtime_info_hash,
 				now,
 				T::VerifyPRuntime::get(),
-				PRuntimeAllowList::<T>::get().unwrap_or_default(),
+				PRuntimeAllowList::<T>::get(),
 			)
 			.map_err(Into::<Error<T>>::into)?;
 
 			if T::VerifyRelaychainGenesisBlockHash::get() {
 				let genesis_block_hash = pruntime_info.genesis_block_hash;
-				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+				let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
 				ensure!(
 					allowlist.contains(&genesis_block_hash),
 					Error::<T>::GenesisBlockHashRejected
@@ -341,7 +342,7 @@ pub mod pallet {
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
+			let mut allowlist = PRuntimeAllowList::<T>::get();
 			ensure!(
 				!allowlist.contains(&pruntime_hash),
 				Error::<T>::PRuntimeAlreadyExists
@@ -357,7 +358,7 @@ pub mod pallet {
 		pub fn remove_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = PRuntimeAllowList::<T>::get().unwrap_or_default();
+			let allowlist = PRuntimeAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&pruntime_hash),
 				Error::<T>::PRuntimeNotFound
@@ -379,7 +380,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+			let mut allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
 			ensure!(
 				!allowlist.contains(&genesis_block_hash),
 				Error::<T>::GenesisBlockHashAlreadyExists
@@ -398,7 +399,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			T::GovernanceOrigin::ensure_origin(origin)?;
 
-			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get().unwrap_or_default();
+			let allowlist = RelaychainGenesisBlockHashAllowList::<T>::get();
 			ensure!(
 				allowlist.contains(&genesis_block_hash),
 				Error::<T>::GenesisBlockHashNotFound
@@ -759,10 +760,7 @@ pub mod pallet {
 					PhalaRegistry::add_pruntime(Origin::root(), sample.clone()),
 					Error::<Test>::PRuntimeAlreadyExists
 				);
-				assert_eq!(
-					PRuntimeAllowList::<Test>::get().unwrap_or_default().len(),
-					1
-				);
+				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 1);
 				assert_ok!(PhalaRegistry::remove_pruntime(
 					Origin::root(),
 					sample.clone()
@@ -771,10 +769,7 @@ pub mod pallet {
 					PhalaRegistry::remove_pruntime(Origin::root(), sample.clone()),
 					Error::<Test>::PRuntimeNotFound
 				);
-				assert_eq!(
-					PRuntimeAllowList::<Test>::get().unwrap_or_default().len(),
-					0
-				);
+				assert_eq!(PRuntimeAllowList::<Test>::get().len(), 0);
 			});
 		}
 
@@ -796,12 +791,7 @@ pub mod pallet {
 					),
 					Error::<Test>::GenesisBlockHashAlreadyExists
 				);
-				assert_eq!(
-					RelaychainGenesisBlockHashAllowList::<Test>::get()
-						.unwrap_or_default()
-						.len(),
-					1
-				);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 1);
 				assert_ok!(PhalaRegistry::remove_relaychain_genesis_block_hash(
 					Origin::root(),
 					sample.clone()
@@ -813,12 +803,7 @@ pub mod pallet {
 					),
 					Error::<Test>::GenesisBlockHashNotFound
 				);
-				assert_eq!(
-					RelaychainGenesisBlockHashAllowList::<Test>::get()
-						.unwrap_or_default()
-						.len(),
-					0
-				);
+				assert_eq!(RelaychainGenesisBlockHashAllowList::<Test>::get().len(), 0);
 			});
 		}
 	}
