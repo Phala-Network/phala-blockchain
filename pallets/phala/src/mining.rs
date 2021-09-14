@@ -188,6 +188,7 @@ pub mod pallet {
 	pub trait Config: frame_system::Config + mq::Config + registry::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 		type ExpectedBlockTimeSec: Get<u32>;
+		type MinInitP: Get<u32>;
 
 		type Currency: Currency<Self::AccountId>;
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -297,6 +298,8 @@ pub mod pallet {
 		TooMuchStake,
 		InternalErrorBadTokenomicParameters,
 		DuplicateBoundWorker,
+		/// Indicating the initial benchmark score is too low to start mining.
+		BenchmarkTooLow,
 	}
 
 	type BalanceOf<T> =
@@ -665,6 +668,9 @@ pub mod pallet {
 		}
 
 		/// Starts mining with the given `stake`, assuming the stake is already locked externally
+		///
+		/// A minimal P is required to avoid some edge case (e.g. miner not getting full benchmark
+		/// with a close-to-zero score).
 		pub fn start_mining(miner: T::AccountId, stake: BalanceOf<T>) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
 
@@ -678,6 +684,8 @@ pub mod pallet {
 			let p = worker_info
 				.initial_score
 				.ok_or(Error::<T>::BenchmarkMissing)?;
+			// Disallow some weird benchmark score.
+			ensure!(p >= T::MinInitP::get(), Error::<T>::BenchmarkTooLow);
 
 			let tokenomic = Self::tokenomic()?;
 			let min_stake = tokenomic.minimal_stake(p);
