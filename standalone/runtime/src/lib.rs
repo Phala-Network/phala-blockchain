@@ -1080,6 +1080,7 @@ parameter_types! {
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 50;
+	pub const MiningEnabledByDefault: bool = false;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1102,13 +1103,16 @@ impl pallet_mining::Config for Runtime {
 	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = Treasury;
+	type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_stakepool::Config for Runtime {
 	type Event = Event;
 	type Currency = Balances;
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
+	type MiningEnabledByDefault = MiningEnabledByDefault;
 	type OnSlashed = Treasury;
+	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 }
 
 construct_runtime!(

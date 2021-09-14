@@ -198,6 +198,9 @@ pub mod pallet {
 		type OnStopped: OnStopped<BalanceOf<Self>>;
 		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
 		// Let the StakePool to take over the slash events.
+
+		/// The origin to update tokenomic.
+		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
@@ -404,7 +407,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			new_params: TokenomicParams,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::UpdateTokenomicOrigin::ensure_origin(origin)?;
 			Self::update_tokenomic_parameters(new_params);
 			Ok(())
 		}
@@ -547,9 +550,7 @@ pub mod pallet {
 				for info in &event.settle {
 					// Do not crash here
 					if Self::try_handle_settle(info, now).is_err() {
-						Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(
-							info.pubkey,
-						))
+						Self::deposit_event(Event::<T>::InternalErrorMinerSettleFailed(info.pubkey))
 					}
 				}
 
