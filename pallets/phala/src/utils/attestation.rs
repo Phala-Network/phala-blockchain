@@ -27,6 +27,7 @@ pub trait AttestationValidator {
 	) -> Result<IasFields, Error>;
 }
 
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
 	PRuntimeNotFound,
 	InvalidIASSigningCert,
@@ -38,6 +39,7 @@ pub enum Error {
 	InvalidUserDataHash,
 }
 
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct IasFields {
 	pub mr_enclave: [u8; 32],
 	pub mr_signer: [u8; 32],
@@ -185,4 +187,52 @@ pub fn validate_ias_report(
 		report_data: (&quote_body[368..432]).try_into().unwrap(),
 		confidence_level,
 	})
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+	use frame_support::{assert_noop, assert_ok};
+
+	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
+	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478
+	pub const PRUNTIME_HASH: &str = "518422fa769d2d55982015a0e0417c6a8521fdfc7308f5ec18aaa1b6924bd0f300000000815f42f11cf64430c30bab7816ba596a1da0130c3b028b673133a66cf9a3e0e6";
+
+	#[test]
+	fn test_ias_validator() {
+		let sample: serde_json::Value = serde_json::from_slice(ATTESTATION_SAMPLE).unwrap();
+
+		let report = sample["raReport"].as_str().unwrap().as_bytes();
+		let signature = hex::decode(sample["signature"].as_str().unwrap().as_bytes()).unwrap();
+		let raw_signing_cert = hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
+
+		assert_eq!(
+			validate_ias_report(
+				report, &signature, &raw_signing_cert,
+				ATTESTATION_TIMESTAMP + 10000000,
+				false,
+				vec![]
+			),
+			Err(Error::OutdatedIASReport)
+		);
+
+		assert_eq!(
+			validate_ias_report(
+				report, &signature, &raw_signing_cert,
+				ATTESTATION_TIMESTAMP,
+				true,
+				vec![]
+			),
+			Err(Error::PRuntimeNotFound)
+		);
+
+		assert_ok!(
+			validate_ias_report(
+				report, &signature, &raw_signing_cert,
+				ATTESTATION_TIMESTAMP,
+				true,
+				vec![hex::decode(PRUNTIME_HASH).unwrap()]
+			)
+		);
+	}
 }
