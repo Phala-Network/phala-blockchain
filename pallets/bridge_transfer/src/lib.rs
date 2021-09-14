@@ -24,7 +24,6 @@ pub mod pallet {
 
 	use pallet_mq::MessageOriginInfo;
 	use phala_pallets::pallet_mq;
-	use phala_types::messaging::{DecodedMessage, Lottery, LotteryCommand};
 
 	type ResourceId = bridge::ResourceId;
 
@@ -54,8 +53,6 @@ pub mod pallet {
 
 		#[pallet::constant]
 		type BridgeTokenId: Get<ResourceId>;
-		#[pallet::constant]
-		type BridgeLotteryId: Get<ResourceId>;
 
 		/// The handler to absorb the fee.
 		type OnFeePay: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -99,18 +96,6 @@ pub mod pallet {
 			BridgeFee::<T>::insert(dest_id, (min_fee, fee_scale));
 			Self::deposit_event(Event::FeeUpdated(dest_id, min_fee, fee_scale));
 			Ok(())
-		}
-
-		/// Transfers an arbitrary signed bitcoin tx to a (whitelisted) destination chain.
-		#[pallet::weight(195_000_000)]
-		pub fn force_lottery_output(
-			origin: OriginFor<T>,
-			payload: Vec<u8>,
-			dest_id: bridge::BridgeChainId,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			let lottery = Lottery::decode(&mut &payload[..]).or(Err(Error::<T>::InvalidPayload))?;
-			Self::lottery_output(&lottery, dest_id)
 		}
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
@@ -187,114 +172,11 @@ pub mod pallet {
 			)?;
 			Ok(())
 		}
-
-		/// This can be called by the bridge to demonstrate an arbitrary call from a proposal.
-		#[pallet::weight(195_000_000)]
-		pub fn lottery_handler(
-			origin: OriginFor<T>,
-			metadata: Vec<u8>,
-			_rid: ResourceId,
-		) -> DispatchResult {
-			T::BridgeOrigin::ensure_origin(origin)?;
-
-			let op = u8::from_be_bytes(
-				<[u8; 1]>::try_from(&metadata[..1]).map_err(|_| Error::<T>::InvalidCommand)?,
-			);
-			if op == 0 {
-				ensure!(metadata.len() == 13, Error::<T>::InvalidCommand);
-
-				Self::push_command(LotteryCommand::new_round(
-					u32::from_be_bytes(
-						<[u8; 4]>::try_from(&metadata[1..5])
-							.map_err(|_| Error::<T>::InvalidCommand)?,
-					), // roundId
-					u32::from_be_bytes(
-						<[u8; 4]>::try_from(&metadata[5..9])
-							.map_err(|_| Error::<T>::InvalidCommand)?,
-					), // totalCount
-					u32::from_be_bytes(
-						<[u8; 4]>::try_from(&metadata[9..])
-							.map_err(|_| Error::<T>::InvalidCommand)?,
-					), // winnerCount
-				));
-			} else if op == 1 {
-				ensure!(metadata.len() > 13, Error::<T>::InvalidCommand);
-
-				let address_len: usize = u32::from_be_bytes(
-					<[u8; 4]>::try_from(&metadata[9..13])
-						.map_err(|_| Error::<T>::InvalidCommand)?,
-				)
-				.saturated_into();
-				ensure!(
-					metadata.len() == (13 + address_len),
-					Error::<T>::InvalidCommand
-				);
-
-				Self::push_command(LotteryCommand::open_box(
-					u32::from_be_bytes(
-						<[u8; 4]>::try_from(&metadata[1..5])
-							.map_err(|_| Error::<T>::InvalidCommand)?,
-					), // roundId
-					u32::from_be_bytes(
-						<[u8; 4]>::try_from(&metadata[5..9])
-							.map_err(|_| Error::<T>::InvalidCommand)?,
-					), // tokenId
-					metadata[13..].to_vec(), // btcAddress
-				));
-			} else {
-				fail!(Error::<T>::InvalidCommand);
-			}
-
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn force_lottery_new_round(
-			origin: OriginFor<T>,
-			round_id: u32,
-			total_count: u32,
-			winner_count: u32,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::push_command(LotteryCommand::new_round(
-				round_id,
-				total_count,
-				winner_count,
-			));
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn force_lottery_open_box(
-			origin: OriginFor<T>,
-			round_id: u32,
-			token_id: u32,
-			btc_address: Vec<u8>,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::push_command(LotteryCommand::open_box(round_id, token_id, btc_address));
-			Ok(())
-		}
 	}
 
 	impl<T: Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
 	}
 
-	impl<T: Config> Pallet<T> {
-		pub fn lottery_output(payload: &Lottery, dest_id: bridge::BridgeChainId) -> DispatchResult {
-			ensure!(
-				<bridge::Pallet<T>>::chain_whitelisted(dest_id),
-				Error::<T>::InvalidTransfer
-			);
-			let metadata: Vec<u8> = payload.encode();
-			<bridge::Pallet<T>>::transfer_generic(dest_id, T::BridgeLotteryId::get(), metadata)
-		}
-
-		pub fn on_message_received(message: DecodedMessage<Lottery>) -> DispatchResult {
-			// TODO.kevin: check the sender?
-			// Dest chain 0 is EVM chain, and 1 is ourself
-			Self::lottery_output(&message.payload, 0)
-		}
-	}
+	impl<T: Config> Pallet<T> {}
 }

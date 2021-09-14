@@ -2,8 +2,8 @@
 
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeLotteryId, BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime, Test,
-	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
+	BridgeTokenId, BridgeTransfer, Call, Event, Origin, ProposalLifetime, Test, ENDOWED_BALANCE,
+	RELAYER_A, RELAYER_B, RELAYER_C,
 };
 use super::{bridge, *};
 use frame_support::dispatch::DispatchError;
@@ -12,14 +12,7 @@ use frame_support::{assert_noop, assert_ok};
 use codec::Encode;
 use hex_literal::hex;
 
-use phala_types::messaging::Lottery;
-
 const TEST_THRESHOLD: u32 = 2;
-
-fn make_generic_proposal(metada: Vec<u8>) -> Call {
-	let resource_id = BridgeLotteryId::get();
-	Call::BridgeTransfer(crate::Call::lottery_handler(metada, resource_id))
-}
 
 fn make_transfer_proposal(to: u64, amount: u64) -> Call {
 	let resource_id = BridgeTokenId::get();
@@ -32,34 +25,6 @@ fn constant_equality() {
 	let encoded: [u8; 32] =
 		hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
 	assert_eq!(r_id, encoded);
-
-	let r_id = bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"lottery"));
-	let encoded: [u8; 32] =
-		hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
-	assert_eq!(r_id, encoded);
-}
-
-#[test]
-fn lottery_output() {
-	new_test_ext().execute_with(|| {
-		let dest_chain = 0;
-		let resource_id = BridgeLotteryId::get();
-		let lottery: Lottery = Lottery::BtcAddresses {
-			address_set: vec![b"123456".to_vec()].to_vec(),
-		};
-
-		assert_ok!(Bridge::set_threshold(Origin::root(), TEST_THRESHOLD,));
-
-		assert_ok!(Bridge::whitelist_chain(Origin::root(), dest_chain.clone()));
-		assert_ok!(BridgeTransfer::lottery_output(&lottery, dest_chain,));
-
-		expect_event(bridge::Event::GenericTransfer(
-			dest_chain,
-			1,
-			resource_id,
-			lottery.encode(),
-		));
-	})
 }
 
 #[test]
@@ -102,33 +67,6 @@ fn transfer_native() {
 			amount.into(),
 			recipient,
 		));
-	})
-}
-
-#[test]
-fn execute_lottery_handler_bad_origin() {
-	new_test_ext().execute_with(|| {
-		let payload: Vec<u8> = hex::decode("00000000010000000100000001").unwrap();
-		let resource_id = BridgeLotteryId::get();
-		assert_ok!(BridgeTransfer::lottery_handler(
-			Origin::signed(Bridge::account_id()),
-			payload.clone(),
-			resource_id
-		));
-		// Don't allow any signed origin except from bridge addr
-		assert_noop!(
-			BridgeTransfer::lottery_handler(
-				Origin::signed(RELAYER_A),
-				payload.clone(),
-				resource_id
-			),
-			DispatchError::BadOrigin
-		);
-		// Don't allow root calls
-		assert_noop!(
-			BridgeTransfer::lottery_handler(Origin::root(), payload, resource_id),
-			DispatchError::BadOrigin
-		);
 	})
 }
 

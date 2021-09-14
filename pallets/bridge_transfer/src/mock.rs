@@ -107,8 +107,6 @@ impl bridge::Config for Test {
 parameter_types! {
 	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
 	pub const BridgeTokenId: [u8; 32] = hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
-	// bridge::derive_resource_id(1, &hashing::blake2_128(b"lottery"))
-	pub const BridgeLotteryId: [u8; 32] = hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
 }
 
 impl Config for Test {
@@ -116,7 +114,6 @@ impl Config for Test {
 	type BridgeOrigin = bridge::EnsureBridge<Test>;
 	type Currency = Balances;
 	type BridgeTokenId = BridgeTokenId;
-	type BridgeLotteryId = BridgeLotteryId;
 	type OnFeePay = ();
 }
 
