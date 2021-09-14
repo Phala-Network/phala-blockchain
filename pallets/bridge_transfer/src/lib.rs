@@ -94,12 +94,12 @@ pub mod pallet {
 		StorageMap<_, Blake2_256, bridge::BridgeChainId, (BalanceOf<T>, u32), ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn assets)]
-	pub type Assets<T: Config> = StorageMap<_, Blake2_256, bridge::ResourceId, AssetInfo>;
+	#[pallet::getter(fn bridge_assets)]
+	pub type BridgeAssets<T: Config> = StorageMap<_, Blake2_256, bridge::ResourceId, AssetInfo>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn balances)]
-	pub type Balances<T: Config> =
+	#[pallet::getter(fn bridge_balances)]
+	pub type BridgeBalances<T: Config> =
 		StorageDoubleMap<_, Blake2_256, bridge::ResourceId, Blake2_256, T::AccountId, BalanceOf<T>>;
 
 	#[pallet::call]
@@ -132,10 +132,10 @@ pub mod pallet {
 				&bridge::hashing::blake2_128(&asset_identity.to_vec()),
 			);
 			ensure!(
-				!Assets::<T>::contains_key(resource_id),
+				!BridgeAssets::<T>::contains_key(resource_id),
 				Error::<T>::ResourceIdInUsed
 			);
-			Assets::<T>::insert(
+			BridgeAssets::<T>::insert(
 				resource_id,
 				AssetInfo {
 					dest_id,
@@ -161,12 +161,12 @@ pub mod pallet {
 				Error::<T>::InvalidTransfer
 			);
 			ensure!(
-				Assets::<T>::contains_key(&asset),
-				Error::<T>::AssetNotRegistered
-			);
-			ensure!(
 				BridgeFee::<T>::contains_key(&dest_id),
 				Error::<T>::FeeOptionsMissing
+			);
+			ensure!(
+				BridgeAssets::<T>::contains_key(&asset),
+				Error::<T>::AssetNotRegistered
 			);
 			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
 			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
@@ -178,7 +178,7 @@ pub mod pallet {
 
 			// check account existence
 			ensure!(
-				Balances::<T>::contains_key(&asset, &source),
+				BridgeBalances::<T>::contains_key(&asset, &source),
 				Error::<T>::AccountNotExist
 			);
 
@@ -304,7 +304,7 @@ pub mod pallet {
 
 	impl<T: Config> Pallet<T> {
 		pub fn asset_balance(asset: &bridge::ResourceId, who: &T::AccountId) -> BalanceOf<T> {
-			Balances::<T>::get(asset, who).unwrap_or(Zero::zero())
+			BridgeBalances::<T>::get(asset, who).unwrap_or(Zero::zero())
 		}
 
 		/// Deposit specific amount assets into recipient account.
@@ -323,14 +323,14 @@ pub mod pallet {
 		) {
 			let bridge_id = <bridge::Pallet<T>>::account_id();
 			if *recipient != bridge_id {
-				Balances::<T>::mutate(asset, bridge_id, |maybe_balance| {
+				BridgeBalances::<T>::mutate(asset, bridge_id, |maybe_balance| {
 					if let Some(ref mut balance) = maybe_balance {
 						balance.saturating_sub(amount);
 					}
 				});
 			}
 
-			Balances::<T>::mutate(asset, recipient, |maybe_balance| {
+			BridgeBalances::<T>::mutate(asset, recipient, |maybe_balance| {
 				if let Some(ref mut balance) = maybe_balance {
 					balance.saturating_add(amount);
 				} else {
@@ -352,12 +352,12 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		) {
 			let bridge_id = <bridge::Pallet<T>>::account_id();
-			Balances::<T>::mutate(asset, sender, |maybe_balance| {
+			BridgeBalances::<T>::mutate(asset, sender, |maybe_balance| {
 				if let Some(ref mut balance) = maybe_balance {
 					balance.saturating_sub(amount);
 				}
 			});
-			Balances::<T>::mutate(asset, bridge_id, |maybe_balance| {
+			BridgeBalances::<T>::mutate(asset, bridge_id, |maybe_balance| {
 				if let Some(ref mut balance) = maybe_balance {
 					balance.saturating_add(amount);
 				}
