@@ -52,7 +52,7 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId>;
 
 		#[pallet::constant]
-		type BridgeTokenId: Get<ResourceId>;
+		type ReserveTokenId: Get<ResourceId>;
 
 		/// The handler to absorb the fee.
 		type OnFeePay: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -145,7 +145,7 @@ pub mod pallet {
 
 			<bridge::Pallet<T>>::transfer_fungible(
 				dest_id,
-				T::BridgeTokenId::get(),
+				T::ReserveTokenId::get(),
 				recipient,
 				U256::from(amount.saturated_into::<u128>()),
 			)
