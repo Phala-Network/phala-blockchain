@@ -168,14 +168,6 @@ pub mod pallet {
 				BridgeAssets::<T>::contains_key(&asset),
 				Error::<T>::AssetNotRegistered
 			);
-			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
-			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
-			let fee = if fee_estimated > min_fee {
-				fee_estimated
-			} else {
-				min_fee
-			};
-
 			// check account existence
 			ensure!(
 				BridgeBalances::<T>::contains_key(&asset, &source),
@@ -188,6 +180,7 @@ pub mod pallet {
 				Error::<T>::InsufficientBalance
 			);
 
+			let fee = Self::calculate_fee(dest_id, amount);
 			// check reserve balance to cover fee
 			let reserve_free_balance = T::Currency::free_balance(&source);
 			ensure!(reserve_free_balance >= fee, Error::<T>::InsufficientBalance);
@@ -230,13 +223,7 @@ pub mod pallet {
 				BridgeFee::<T>::contains_key(&dest_id),
 				Error::<T>::FeeOptionsMissing
 			);
-			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
-			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
-			let fee = if fee_estimated > min_fee {
-				fee_estimated
-			} else {
-				min_fee
-			};
+			let fee = Self::calculate_fee(dest_id, amount);
 			let free_balance = T::Currency::free_balance(&source);
 			ensure!(
 				free_balance >= (amount + fee),
@@ -307,6 +294,16 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		pub fn asset_balance(asset: &bridge::ResourceId, who: &T::AccountId) -> BalanceOf<T> {
 			BridgeBalances::<T>::get(asset, who).unwrap_or(Zero::zero())
+		}
+
+		pub fn calculate_fee(dest_id: bridge::BridgeChainId, amount: BalanceOf<T>) -> BalanceOf<T> {
+			let (min_fee, fee_scale) = Self::bridge_fee(dest_id);
+			let fee_estimated = amount * fee_scale.into() / 1000u32.into();
+			if fee_estimated > min_fee {
+				fee_estimated
+			} else {
+				min_fee
+			}
 		}
 
 		/// Deposit specific amount assets into recipient account.
