@@ -286,11 +286,13 @@ pub mod pallet {
 					ExistenceRequirement::AllowDeath,
 				)?;
 			} else {
-				// check asset balance to cover transfer amount
-				ensure!(
-					Self::asset_balance(&_rid, &source) >= amount,
-					Error::<T>::InsufficientBalance
-				);
+				// if recipient isn't holding account, make sure holding accouint balance to cover transfer amount
+				if to != source {
+					ensure!(
+						Self::asset_balance(&_rid, &source) >= amount,
+						Error::<T>::InsufficientBalance
+					);
+				}
 				Self::do_asset_deposit(&_rid, &to, amount);
 			}
 
@@ -322,21 +324,17 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		) {
 			let bridge_id = <bridge::Pallet<T>>::account_id();
-			if *recipient != bridge_id {
-				BridgeBalances::<T>::mutate(asset, bridge_id, |maybe_balance| {
-					if let Some(ref mut balance) = maybe_balance {
-						balance.saturating_sub(amount);
-					}
-				});
-			}
+			let holding_balance = BridgeBalances::<T>::get(asset, &bridge_id).unwrap_or_default();
+			let recipient_balance = BridgeBalances::<T>::get(asset, recipient).unwrap_or_default();
 
-			BridgeBalances::<T>::mutate(asset, recipient, |maybe_balance| {
-				if let Some(ref mut balance) = maybe_balance {
-					balance.saturating_add(amount);
-				} else {
-					Some(amount);
-				}
-			});
+			if *recipient != bridge_id {
+				BridgeBalances::<T>::insert(
+					asset,
+					&bridge_id,
+					holding_balance.saturating_sub(amount),
+				);
+			}
+			BridgeBalances::<T>::insert(asset, recipient, recipient_balance.saturating_add(amount));
 		}
 
 		/// Withdraw specific amount assets from sender.
@@ -352,16 +350,11 @@ pub mod pallet {
 			amount: BalanceOf<T>,
 		) {
 			let bridge_id = <bridge::Pallet<T>>::account_id();
-			BridgeBalances::<T>::mutate(asset, sender, |maybe_balance| {
-				if let Some(ref mut balance) = maybe_balance {
-					balance.saturating_sub(amount);
-				}
-			});
-			BridgeBalances::<T>::mutate(asset, bridge_id, |maybe_balance| {
-				if let Some(ref mut balance) = maybe_balance {
-					balance.saturating_add(amount);
-				}
-			});
+			let holding_balance = BridgeBalances::<T>::get(asset, &bridge_id).unwrap_or_default();
+			let recipient_balance = BridgeBalances::<T>::get(asset, sender).unwrap_or_default();
+
+			BridgeBalances::<T>::insert(asset, sender, recipient_balance.saturating_sub(amount));
+			BridgeBalances::<T>::insert(asset, &bridge_id, holding_balance.saturating_add(amount));
 		}
 	}
 }
