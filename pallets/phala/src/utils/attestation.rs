@@ -23,13 +23,13 @@ pub trait AttestationValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_pruntime_hash: bool,
-		pruntime_allowlist: Vec<Vec<u8>>
+		pruntime_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, Error>;
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-	PRuntimeNotFound,
+	PRuntimeRejected,
 	InvalidIASSigningCert,
 	InvalidReport,
 	InvalidQuoteStatus,
@@ -57,7 +57,7 @@ impl AttestationValidator for IasValidator {
 		user_data_hash: &[u8; 32],
 		now: u64,
 		verify_pruntime: bool,
-		pruntime_allowlist: Vec<Vec<u8>>
+		pruntime_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, Error> {
 		let fields = match attestation {
 			Attestation::SgxIas {
@@ -65,8 +65,12 @@ impl AttestationValidator for IasValidator {
 				signature,
 				raw_signing_cert,
 			} => validate_ias_report(
-				ra_report, signature, raw_signing_cert, now,
-				verify_pruntime, pruntime_allowlist,
+				ra_report,
+				signature,
+				raw_signing_cert,
+				now,
+				verify_pruntime,
+				pruntime_allowlist,
 			),
 		}?;
 		let commit = &fields.report_data[..32];
@@ -98,7 +102,7 @@ pub fn validate_ias_report(
 	raw_signing_cert: &[u8],
 	now: u64,
 	verify_pruntime: bool,
-	pruntime_allowlist: Vec<Vec<u8>>
+	pruntime_allowlist: Vec<Vec<u8>>,
 ) -> Result<IasFields, Error> {
 	// Validate report
 	let sig_cert = webpki::EndEntityCert::try_from(raw_signing_cert);
@@ -134,7 +138,7 @@ pub fn validate_ias_report(
 	if verify_pruntime {
 		let t_mrenclave = extend_mrenclave(mr_enclave, mr_signer, isv_prod_id, isv_svn);
 		if !pruntime_allowlist.contains(&t_mrenclave) {
-			return Err(Error::PRuntimeNotFound)
+			return Err(Error::PRuntimeRejected);
 		}
 	}
 
@@ -204,11 +208,14 @@ mod test {
 
 		let report = sample["raReport"].as_str().unwrap().as_bytes();
 		let signature = hex::decode(sample["signature"].as_str().unwrap().as_bytes()).unwrap();
-		let raw_signing_cert = hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
+		let raw_signing_cert =
+			hex::decode(sample["rawSigningCert"].as_str().unwrap().as_bytes()).unwrap();
 
 		assert_eq!(
 			validate_ias_report(
-				report, &signature, &raw_signing_cert,
+				report,
+				&signature,
+				&raw_signing_cert,
 				ATTESTATION_TIMESTAMP + 10000000,
 				false,
 				vec![]
@@ -218,21 +225,23 @@ mod test {
 
 		assert_eq!(
 			validate_ias_report(
-				report, &signature, &raw_signing_cert,
+				report,
+				&signature,
+				&raw_signing_cert,
 				ATTESTATION_TIMESTAMP,
 				true,
 				vec![]
 			),
-			Err(Error::PRuntimeNotFound)
+			Err(Error::PRuntimeRejected)
 		);
 
-		assert_ok!(
-			validate_ias_report(
-				report, &signature, &raw_signing_cert,
-				ATTESTATION_TIMESTAMP,
-				true,
-				vec![hex::decode(PRUNTIME_HASH).unwrap()]
-			)
-		);
+		assert_ok!(validate_ias_report(
+			report,
+			&signature,
+			&raw_signing_cert,
+			ATTESTATION_TIMESTAMP,
+			true,
+			vec![hex::decode(PRUNTIME_HASH).unwrap()]
+		));
 	}
 }

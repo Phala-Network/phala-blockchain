@@ -158,7 +158,7 @@ impl AttestationValidator for MockValidator {
 		_user_data_hash: &[u8; 32],
 		_now: u64,
 		_verify_pruntime: bool,
-		_pruntime_allowlist: Vec<Vec<u8>>
+		_pruntime_allowlist: Vec<Vec<u8>>,
 	) -> Result<IasFields, AttestationError> {
 		Ok(IasFields {
 			mr_enclave: [0u8; 32],
@@ -242,7 +242,10 @@ pub fn ecdh_pubkey(i: u8) -> EcdhPublicKey {
 pub fn setup_relaychain_genesis_allowlist() {
 	use frame_support::assert_ok;
 	let sample: H256 = H256::repeat_byte(1);
-	assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(Origin::root(), sample.clone()));
+	assert_ok!(PhalaRegistry::add_relaychain_genesis_block_hash(
+		Origin::root(),
+		sample
+	));
 }
 
 /// Sets up `n` workers starting from 1, registered and benchmarked. All owned by account1.
