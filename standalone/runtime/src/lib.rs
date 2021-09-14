@@ -1081,6 +1081,7 @@ parameter_types! {
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 50;
 	pub const MiningEnabledByDefault: bool = false;
+	pub const MaxPoolWorkers: u32 = 200;
 }
 
 impl pallet_registry::Config for Runtime {
@@ -1111,6 +1112,7 @@ impl pallet_stakepool::Config for Runtime {
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
+	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 }

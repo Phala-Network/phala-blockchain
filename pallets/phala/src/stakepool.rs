@@ -60,6 +60,10 @@ pub mod pallet {
 		#[pallet::constant]
 		type MiningEnabledByDefault: Get<bool>;
 
+		/// The max allowed workers in a pool
+		#[pallet::constant]
+		type MaxPoolWorkers: Get<u32>;
+
 		/// The handler to absorb the slashed amount.
 		type OnSlashed: OnUnbalanced<NegativeImbalanceOf<Self>>;
 
@@ -187,6 +191,8 @@ pub mod pallet {
 		NoRewardToClaim,
 		/// The StakePool is not enabled yet.
 		FeatureNotEnabled,
+		/// Failed to add a worker because the number of the workers exceeds the upper limit.
+		WorkersExceedLimit,
 	}
 
 	type BalanceOf<T> =
@@ -275,14 +281,17 @@ pub mod pallet {
 				Error::<T>::BenchmarkMissing
 			);
 
-			// origin must be owner of pool
+			// origin must be the owner of the pool
 			let mut pool_info = Self::ensure_pool(pid)?;
 			ensure!(pool_info.owner == owner, Error::<T>::UnauthorizedPoolOwner);
 			// make sure worker has not been not added
-			// TODO: should we set a cap to avoid performance problem
 			let workers = &mut pool_info.workers;
-			// TODO: limit the number of workers to avoid performance issue.
 			ensure!(!workers.contains(&pubkey), Error::<T>::WorkerExists);
+			// too many workers may cause performance regression
+			ensure!(
+				workers.len() + 1 <= T::MaxPoolWorkers::get() as usize,
+				Error::<T>::WorkersExceedLimit
+			);
 
 			// generate miner account
 			let miner: T::AccountId = pool_sub_account(pid, &pubkey);

@@ -50,6 +50,7 @@ parameter_types! {
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
 	pub const MinInitP: u32 = 1;
 	pub const MiningEnabledByDefault: bool = true;
+	pub const MaxPoolWorkers: u32 = 10;
 }
 impl system::Config for Test {
 	type BaseCallFilter = frame_support::traits::Everything;
@@ -140,6 +141,7 @@ impl stakepool::Config for Test {
 	type MinContribution = MinContribution;
 	type GracePeriod = MiningGracePeriod;
 	type MiningEnabledByDefault = MiningEnabledByDefault;
+	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = ();
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
