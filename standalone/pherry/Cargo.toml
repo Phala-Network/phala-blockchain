@@ -40,6 +40,6 @@ phala-types = { path = "../../crates/phala-types" }
 phala-pallets = { path = "../../pallets/phala" }
 phala-trie-storage = { path = "../../crates/phala-trie-storage" }
 phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
-phactory-api = { path = "../../crates/phactory/api" }
+phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 
 maxminddb = "0.17"
