@@ -137,6 +137,7 @@ the _current_ rustc.
 
 Sub-pages
 
+- [RPC](./docs/rpc.md): RPC documentations
 - [Test](./docs/test.md): How to test the components
 
 External
