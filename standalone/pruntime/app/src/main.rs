@@ -566,22 +566,28 @@ fn main() {
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let rocket = thread::spawn(move || {
-        rocket().launch();
-    });
+    let rocket = thread::Builder::new()
+        .name("rocket".into())
+        .spawn(move || {
+            rocket().launch();
+        })
+        .expect("Failed to launch Rocket");
 
     let mut v = vec![];
     for i in 0..bench_cores {
-        let child = thread::spawn(move || {
-            set_thread_idle_policy();
-            loop {
-                let result = unsafe { ecall_bench_run(eid, &mut retval, i) };
-                if result != sgx_status_t::SGX_SUCCESS {
-                    panic!("Run benchmark {} failed", i);
+        let child = thread::Builder::new()
+            .name(format!("bench-{}", i))
+            .spawn(move || {
+                set_thread_idle_policy();
+                loop {
+                    let result = unsafe { ecall_bench_run(eid, &mut retval, i) };
+                    if result != sgx_status_t::SGX_SUCCESS {
+                        panic!("Run benchmark {} failed", i);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(200));
                 }
-                std::thread::sleep(std::time::Duration::from_millis(200));
-            }
-        });
+            })
+            .expect("Failed to launch benchmark thread");
         v.push(child);
     }
 
