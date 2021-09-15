@@ -48,18 +48,17 @@ use jsonrpsee_types::{
         params::{
             Id,
             JsonRpcParams,
+            JsonRpcSubscriptionParams,
             SubscriptionId,
             TwoPointZero,
         },
         request::{
             JsonRpcCallSer,
             JsonRpcInvalidRequest,
+            JsonRpcNotification,
             JsonRpcNotificationSer,
         },
-        response::{
-            JsonRpcResponse,
-            JsonRpcSubscriptionResponseAlloc,
-        },
+        response::JsonRpcResponse,
     },
     DeserializeOwned,
     Error as JsonRpseeError,
@@ -143,10 +142,10 @@ impl SubxtClient {
                                 let _ = rpc.rpc_query(&session, &raw).await;
                             }
                             FrontToBack::Request(RequestMessage {
-                                raw,
-                                id,
-                                send_back,
-                            }) => {
+                                                     raw,
+                                                     id,
+                                                     send_back,
+                                                 }) => {
                                 let raw_response = rpc.rpc_query(&session, &raw).await;
                                 let to_front = match read_jsonrpc_response(
                                     raw_response,
@@ -164,12 +163,12 @@ impl SubxtClient {
                             }
 
                             FrontToBack::Subscribe(SubscriptionMessage {
-                                raw,
-                                subscribe_id,
-                                unsubscribe_id,
-                                unsubscribe_method,
-                                send_back,
-                            }) => {
+                                                       raw,
+                                                       subscribe_id,
+                                                       unsubscribe_id,
+                                                       unsubscribe_method,
+                                                       send_back,
+                                                   }) => {
                                 let raw_response = rpc.rpc_query(&session, &raw).await;
                                 let sub_id: SubscriptionId = match read_jsonrpc_response(
                                     raw_response,
@@ -210,11 +209,13 @@ impl SubxtClient {
                                     while let Some(Ok(response)) = from_back.next().await
                                     {
                                         let notif = serde_json::from_str::<
-                                            JsonRpcSubscriptionResponseAlloc<JsonValue>,
+                                            JsonRpcNotification<
+                                                JsonRpcSubscriptionParams<_>,
+                                            >,
                                         >(
                                             &response
                                         )
-                                        .expect("failed to decode subscription notif");
+                                            .expect("failed to decode subscription notif");
                                         // ignore send error since the channel is probably closed
                                         let _ = send_front_sub
                                             .send(notif.params.result)
@@ -228,7 +229,7 @@ impl SubxtClient {
 
                                 let subscriptions = subscriptions.read().await;
                                 if let Some((unsub_method, unsub_id)) =
-                                    subscriptions.get(&sub_id)
+                                subscriptions.get(&sub_id)
                                 {
                                     let message =
                                         serde_json::to_string(&JsonRpcCallSer::new(
@@ -236,7 +237,7 @@ impl SubxtClient {
                                             unsub_method,
                                             params.into(),
                                         ))
-                                        .unwrap();
+                                            .unwrap();
                                     let _ = rpc.rpc_query(&session, &message).await;
                                 }
                             }
@@ -248,7 +249,7 @@ impl SubxtClient {
                     task_manager.future().await.ok();
                 }),
             )
-            .map(drop),
+                .map(drop),
         );
 
         Self {
@@ -288,8 +289,8 @@ impl SubxtClient {
         method: &'a str,
         params: JsonRpcParams<'a>,
     ) -> Result<T, JsonRpseeError>
-    where
-        T: DeserializeOwned,
+        where
+            T: DeserializeOwned,
     {
         let (send_back_tx, send_back_rx) = oneshot::channel();
 
@@ -322,8 +323,8 @@ impl SubxtClient {
         params: JsonRpcParams<'a>,
         unsubscribe_method: &'a str,
     ) -> Result<Subscription<N>, JsonRpseeError>
-    where
-        N: DeserializeOwned,
+        where
+            N: DeserializeOwned,
     {
         let sub_req_id = self.next_id.fetch_add(1, Ordering::Relaxed);
         let unsub_req_id = self.next_id.fetch_add(1, Ordering::Relaxed);
@@ -332,7 +333,7 @@ impl SubxtClient {
             subscribe_method,
             params,
         ))
-        .map_err(JsonRpseeError::ParseError)?;
+            .map_err(JsonRpseeError::ParseError)?;
 
         let (send_back_tx, send_back_rx) = oneshot::channel();
         self.to_back
@@ -436,7 +437,7 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
                 format!("/ip4/127.0.0.1/tcp/{}/ws", port),
                 0,
             )])
-            .expect("valid config; qed");
+                .expect("valid config; qed");
             Some(endpoints)
         } else {
             None
@@ -453,7 +454,7 @@ impl<C: ChainSpec + 'static> SubxtClientConfig<C> {
                     TaskType::Blocking => task::spawn_blocking(|| task::block_on(fut)),
                 }
             })
-            .into(),
+                .into(),
             database: self.db,
             keystore: self.keystore,
             max_runtime_instances: 8,
