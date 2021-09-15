@@ -145,7 +145,7 @@ struct Args {
 
     #[structopt(
         long,
-        help = "The first parent header to be synced, none to auto-determine"
+        help = "The first parent header to be synced, default to auto-determine"
     )]
     start_header: Option<BlockNumber>,
 
