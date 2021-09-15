@@ -10,6 +10,7 @@ pub enum Error {
     FailedToCallRegisterWorker,
     FailedToSendGeolocation,
     ParachainIdNotFound,
+    ParachainValidationDataNotFound,
 }
 
 impl fmt::Display for Error {
@@ -23,6 +24,9 @@ impl fmt::Display for Error {
             Error::FailedToCallRegisterWorker => write!(f, "failed to call register_worker"),
             Error::FailedToSendGeolocation => write!(f, "failed to send desensitized geolocation"),
             Error::ParachainIdNotFound => write!(f, "parachain id not found"),
+            Error::ParachainValidationDataNotFound => {
+                write!(f, "parachain validation data not found")
+            }
         }
     }
 }
