@@ -321,7 +321,7 @@ macro_rules! do_ecall_handle {
     }};
 }
 
-macro_rules! proxy {
+macro_rules! proxy_post {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
         fn $name(contract_input: Json<ContractInput>) -> JsonValue {
@@ -333,6 +333,25 @@ macro_rules! proxy {
             let input_string = serde_json::to_string(&*contract_input).unwrap();
             do_ecall_handle!($num, input_string)
         }
+    };
+}
+
+macro_rules! proxy_get {
+    ($rpc: literal, $name: ident, $num: expr) => {
+        #[get($rpc)]
+        fn $name() -> JsonValue {
+            let input_string = r#"{ "input": {} }"#.to_string();
+            do_ecall_handle!($num, input_string)
+        }
+    };
+}
+
+macro_rules! proxy {
+    (post, $rpc: literal, $name: ident, $num: expr) => {
+        proxy_post!($rpc, $name, $num)
+    };
+    (get, $rpc: literal, $name: ident, $num: expr) => {
+        proxy_get!($rpc, $name, $num)
     };
 }
 
@@ -363,8 +382,8 @@ macro_rules! proxy_bin {
 }
 
 macro_rules! proxy_routes {
-    ($(($rpc: literal, $name: ident, $num: expr),)+) => {{
-        $(proxy!($rpc, $name, $num);)+
+    ($(($m: ident, $rpc: literal, $name: ident, $num: expr),)+) => {{
+        $(proxy!($m, $rpc, $name, $num);)+
         routes![$($name),+]
     }};
 }
@@ -473,7 +492,10 @@ fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
         .mount(
             "/",
-            proxy_routes![("/get_info", get_info, actions::ACTION_GET_INFO),],
+            proxy_routes![
+                (get, "/get_info", get_info, actions::ACTION_GET_INFO),
+                (post, "/get_info", get_info_post, actions::ACTION_GET_INFO),
+            ],
         )
         .mount(
             "/bin_api",
