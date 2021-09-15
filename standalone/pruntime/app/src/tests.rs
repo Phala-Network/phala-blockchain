@@ -1,23 +1,23 @@
 use super::*;
+use hex_literal::hex;
 use ring_compat::aead::{generic_array::GenericArray, Aead, AeadInPlace, NewAead, Payload};
 use ring_compat::Aes256Gcm;
-use hex_literal::hex;
 
 type Sid = String;
 #[derive(Serialize, Deserialize)]
 struct Plain {
-    Plain: String
+    Plain: String,
 }
 
 //SetPageView
 #[derive(Serialize, Deserialize)]
 struct PageViewCount {
-    page_view_count: u32
+    page_view_count: u32,
 }
 
 #[derive(Serialize, Deserialize)]
 struct SetPageView {
-    SetPageView: PageViewCount
+    SetPageView: PageViewCount,
 }
 
 //GetOnlineUsers
@@ -32,12 +32,12 @@ struct OnlineUser {
 #[derive(Serialize, Deserialize)]
 struct OnlineUsers {
     online_users: Vec<OnlineUser>,
-    encrypted: bool
+    encrypted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
 struct GetOnlineUsers {
-    GetOnlineUsers: OnlineUsers
+    GetOnlineUsers: OnlineUsers,
 }
 
 //GetHourlyStats
@@ -86,46 +86,45 @@ pub struct HourlyStat {
     weekly_clients: Vec<WeeklyClient>,
     weekly_sites: Vec<WeeklySite>,
     weekly_devices: Vec<WeeklyDevice>,
-    total_stats: Vec<HourlyPageViewStat>
+    total_stats: Vec<HourlyPageViewStat>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct HourlyStats {
     hourly_stat: HourlyStat,
-    encrypted: bool
+    encrypted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
 struct GetHourlyStats {
-    GetHourlyStats: HourlyStats
+    GetHourlyStats: HourlyStats,
 }
 
 //GetDailyStats
 #[derive(Serialize, Deserialize)]
 pub struct DailyStat {
-    stats: Vec<HourlyPageViewStat>
+    stats: Vec<HourlyPageViewStat>,
 }
 
 #[derive(Serialize, Deserialize)]
 struct DailyStats {
     daily_stat: DailyStat,
-    encrypted: bool
+    encrypted: bool,
 }
 
 #[derive(Serialize, Deserialize)]
 struct GetDailyStats {
-    GetDailyStats: DailyStats
+    GetDailyStats: DailyStats,
 }
 
 //ClearPageView
 #[derive(Serialize, Deserialize)]
 struct ClearPageView {
-    ClearPageView: PageViewCount
+    ClearPageView: PageViewCount,
 }
 
 #[test]
 fn test_w3a_setpageview() {
-
     init_enclave_for_test();
 
     let input_string = r#"{
@@ -142,7 +141,8 @@ fn test_w3a_setpageview() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 2);
 
@@ -151,7 +151,6 @@ fn test_w3a_setpageview() {
 
 #[test]
 fn test_w3a_getonlineusers() {
-
     init_enclave_for_test();
 
     let mut input_string = r#"{
@@ -168,7 +167,8 @@ fn test_w3a_getonlineusers() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 2);
 
@@ -200,7 +200,6 @@ fn test_w3a_getonlineusers() {
 
 #[test]
 fn test_w3a_gethourlystats() {
-
     init_enclave_for_test();
 
     let mut input_string = r#"{
@@ -217,7 +216,8 @@ fn test_w3a_gethourlystats() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 3);
 
@@ -239,32 +239,55 @@ fn test_w3a_gethourlystats() {
 
     assert_eq!(ghs.GetHourlyStats.encrypted, false);
 
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats.len(), 1);
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].cid_count, "1");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].pv_count, "3");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].avg_duration, "26");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats.len(),
+        1
+    );
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].cid_count,
+        "1"
+    );
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].pv_count,
+        "3"
+    );
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].avg_duration,
+        "26"
+    );
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients.len(), 1);
     assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients[0].cids.len(), 1);
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_devices.len(), 1);
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].count, "3");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].device, "Chrome");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.weekly_devices[0].device,
+        "Chrome"
+    );
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites.len(), 3);
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].count, "1");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].path, "/page2.html");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.weekly_sites[0].path,
+        "/page2.html"
+    );
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].count, "1");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].path, "/index.html");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.weekly_sites[1].path,
+        "/index.html"
+    );
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].count, "1");
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].path, "/page1.html");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.weekly_sites[2].path,
+        "/page1.html"
+    );
 
     destroy_enclave();
 }
 
 #[test]
 fn test_w3a_getdailystats() {
-
     init_enclave_for_test();
 
     let input_string = r#"{
@@ -280,7 +303,8 @@ fn test_w3a_getdailystats() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let gds: GetDailyStats = serde_json::from_str(&plain.Plain).unwrap();
 
     assert_eq!(gds.GetDailyStats.encrypted, false);
@@ -295,7 +319,6 @@ fn test_w3a_getdailystats() {
 
 #[test]
 fn test_w3a_clearpageview() {
-
     init_enclave_for_test();
 
     let mut input_string = r#"{
@@ -312,7 +335,8 @@ fn test_w3a_clearpageview() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 3);
 
@@ -338,7 +362,6 @@ fn test_w3a_clearpageview() {
 
 #[test]
 fn test_w3a_encrypted_getonlineusers() {
-
     init_enclave_for_test();
 
     let mut input_string = r#"{
@@ -355,7 +378,8 @@ fn test_w3a_encrypted_getonlineusers() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 2);
 
@@ -378,17 +402,28 @@ fn test_w3a_encrypted_getonlineusers() {
     assert_eq!(gou.GetOnlineUsers.encrypted, true);
 
     assert_eq!(gou.GetOnlineUsers.online_users.len(), 2);
-    assert_eq!(decrypt(gou.GetOnlineUsers.online_users[0].cid_count.clone()), "1");
-    assert_eq!(decrypt(gou.GetOnlineUsers.online_users[0].ip_count.clone()), "1");
-    assert_eq!(decrypt(gou.GetOnlineUsers.online_users[1].cid_count.clone()), "1");
-    assert_eq!(decrypt(gou.GetOnlineUsers.online_users[1].ip_count.clone()), "1");
+    assert_eq!(
+        decrypt(gou.GetOnlineUsers.online_users[0].cid_count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(gou.GetOnlineUsers.online_users[0].ip_count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(gou.GetOnlineUsers.online_users[1].cid_count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(gou.GetOnlineUsers.online_users[1].ip_count.clone()),
+        "1"
+    );
 
     destroy_enclave();
 }
 
 #[test]
 fn test_w3a_encrypted_gethourlystats() {
-
     init_enclave_for_test();
 
     let mut input_string = r#"{
@@ -405,7 +440,8 @@ fn test_w3a_encrypted_gethourlystats() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 3);
 
@@ -427,32 +463,87 @@ fn test_w3a_encrypted_gethourlystats() {
 
     assert_eq!(ghs.GetHourlyStats.encrypted, true);
 
-    assert_eq!(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats.len(), 1);
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].cid_count.clone()), "1");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].pv_count.clone()), "3");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0].avg_duration.clone()), "26");
+    assert_eq!(
+        ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats.len(),
+        1
+    );
+    assert_eq!(
+        decrypt(
+            ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0]
+                .cid_count
+                .clone()
+        ),
+        "1"
+    );
+    assert_eq!(
+        decrypt(
+            ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0]
+                .pv_count
+                .clone()
+        ),
+        "3"
+    );
+    assert_eq!(
+        decrypt(
+            ghs.GetHourlyStats.hourly_stat.hourly_page_view_stats[0]
+                .avg_duration
+                .clone()
+        ),
+        "26"
+    );
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients.len(), 1);
     assert_eq!(ghs.GetHourlyStats.hourly_stat.site_clients[0].cids.len(), 1);
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_devices.len(), 1);
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].count.clone()), "3");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_devices[0].device.clone()), "Chrome");
+    assert_eq!(
+        decrypt(
+            ghs.GetHourlyStats.hourly_stat.weekly_devices[0]
+                .count
+                .clone()
+        ),
+        "3"
+    );
+    assert_eq!(
+        decrypt(
+            ghs.GetHourlyStats.hourly_stat.weekly_devices[0]
+                .device
+                .clone()
+        ),
+        "Chrome"
+    );
 
     assert_eq!(ghs.GetHourlyStats.hourly_stat.weekly_sites.len(), 3);
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].count.clone()), "1");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].path.clone()), "/page2.html");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].count.clone()), "1");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].path.clone()), "/index.html");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].count.clone()), "1");
-    assert_eq!(decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].path.clone()), "/page1.html");
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[0].path.clone()),
+        "/page2.html"
+    );
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[1].path.clone()),
+        "/index.html"
+    );
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].count.clone()),
+        "1"
+    );
+    assert_eq!(
+        decrypt(ghs.GetHourlyStats.hourly_stat.weekly_sites[2].path.clone()),
+        "/page1.html"
+    );
 
     destroy_enclave();
 }
 
 #[test]
 fn test_w3a_encrypted_getdailystats() {
-
     init_enclave_for_test();
 
     // Sending SetPageView request just tell TEE it works in encrypted mode
@@ -470,7 +561,8 @@ fn test_w3a_encrypted_getdailystats() {
     assert_eq!(result, sgx_status_t::SGX_SUCCESS);
     assert_eq!(output_value.get("status").unwrap().as_str().unwrap(), "ok");
 
-    let mut plain: Plain = serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
+    let mut plain: Plain =
+        serde_json::from_str(output_value.get("payload").unwrap().as_str().unwrap()).unwrap();
     let spv: SetPageView = serde_json::from_str(&plain.Plain).unwrap();
     assert_eq!(spv.SetPageView.page_view_count, 3);
 
@@ -493,9 +585,18 @@ fn test_w3a_encrypted_getdailystats() {
     assert_eq!(gds.GetDailyStats.encrypted, true);
 
     assert_eq!(gds.GetDailyStats.daily_stat.stats.len(), 1);
-    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].cid_count.clone()), "2");
-    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].pv_count.clone()), "5");
-    assert_eq!(decrypt(gds.GetDailyStats.daily_stat.stats[0].avg_duration.clone()), "86");
+    assert_eq!(
+        decrypt(gds.GetDailyStats.daily_stat.stats[0].cid_count.clone()),
+        "2"
+    );
+    assert_eq!(
+        decrypt(gds.GetDailyStats.daily_stat.stats[0].pv_count.clone()),
+        "5"
+    );
+    assert_eq!(
+        decrypt(gds.GetDailyStats.daily_stat.stats[0].avg_duration.clone()),
+        "86"
+    );
 
     destroy_enclave();
 }
@@ -507,19 +608,17 @@ fn init_enclave_for_test() {
         Ok(r) => {
             println!("[+] Init Enclave Successful {}!", r.geteid());
             r
-        },
+        }
         Err(x) => {
             panic!("[-] Init Enclave Failed {}!", x.as_str());
-        },
+        }
     };
 
     ENCLAVE.write().unwrap().replace(enclave);
 
     let eid = get_eid();
     let mut retval = sgx_status_t::SGX_SUCCESS;
-    let result = unsafe {
-        ecall_init(eid, &mut retval)
-    };
+    let result = unsafe { ecall_init(eid, &mut retval) };
 
     if result != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
@@ -531,17 +630,21 @@ fn call_in_enclave(input_string: &str) -> (sgx_status_t, serde_json::value::Valu
     let mut retval = sgx_status_t::SGX_SUCCESS;
 
     let mut return_output_buf = vec![0; ENCLAVE_OUTPUT_BUF_MAX_LEN].into_boxed_slice();
-    let mut output_len : usize = 0;
+    let mut output_len: usize = 0;
     let output_slice = &mut return_output_buf;
     let output_ptr = output_slice.as_mut_ptr();
     let output_len_ptr = &mut output_len as *mut usize;
 
     let result = unsafe {
         ecall_handle(
-            eid, &mut retval,
+            eid,
+            &mut retval,
             6,
-            input_string.as_ptr(), input_string.len(),
-            output_ptr, output_len_ptr, ENCLAVE_OUTPUT_BUF_MAX_LEN
+            input_string.as_ptr(),
+            input_string.len(),
+            output_ptr,
+            output_len_ptr,
+            ENCLAVE_OUTPUT_BUF_MAX_LEN,
         )
     };
 
@@ -566,7 +669,9 @@ fn aead_decrypt(iv: &[u8], cipher_data: &[u8]) -> String {
         aad: b"",
     };
     let cipher = Aes256Gcm::new(GenericArray::from_slice(&key));
-    let plaintext = cipher.decrypt(GenericArray::from_slice(iv), payload).unwrap();
+    let plaintext = cipher
+        .decrypt(GenericArray::from_slice(iv), payload)
+        .unwrap();
 
     String::from_utf8(plaintext).unwrap()
 }

@@ -3,9 +3,9 @@
 use std::thread;
 
 extern crate env_logger;
+extern crate mio;
 extern crate sgx_types;
 extern crate sgx_urts;
-extern crate mio;
 #[macro_use]
 extern crate lazy_static;
 #[macro_use]
@@ -21,18 +21,18 @@ extern crate serde;
 extern crate serde_json;
 #[macro_use]
 extern crate serde_derive;
+extern crate parity_scale_codec;
 extern crate phactory_api;
 extern crate structopt;
-extern crate parity_scale_codec;
 
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
-extern crate ring_compat;
-#[cfg(test)]
 extern crate base64;
 #[cfg(test)]
 extern crate hex_literal;
+#[cfg(test)]
+extern crate ring_compat;
 
 mod attestation;
 mod contract_input;
@@ -42,17 +42,17 @@ use colored::Colorize;
 use sgx_types::*;
 use sgx_urts::SgxEnclave;
 
+use std::env;
 use std::path;
 use std::str;
 use std::sync::RwLock;
-use std::env;
 
 use rocket::data::Data;
+use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
-use rocket::http::Method;
 use rocket_contrib::json::{Json, JsonValue};
-use rocket_cors::{AllowedHeaders, AllowedOrigins, AllowedMethods, CorsOptions};
+use rocket_cors::{AllowedHeaders, AllowedMethods, AllowedOrigins, CorsOptions};
 use structopt::StructOpt;
 
 use contract_input::ContractInput;
@@ -75,25 +75,24 @@ struct Args {
     init_bench: bool,
 }
 
-
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
 static ENCLAVE_STATE_FILE: &'static str = "enclave.token";
 
-const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 10*2048*1024 as usize;
+const ENCLAVE_OUTPUT_BUF_MAX_LEN: usize = 10 * 2048 * 1024 as usize;
 
 lazy_static! {
     static ref ENCLAVE: RwLock<Option<SgxEnclave>> = RwLock::new(None);
     static ref ENCLAVE_STATE_FILE_PATH: &'static str = {
         Box::leak(
-            env::var("STATE_FILE_PATH").unwrap_or_else(|_| "./".to_string()).into_boxed_str()
+            env::var("STATE_FILE_PATH")
+                .unwrap_or_else(|_| "./".to_string())
+                .into_boxed_str(),
         )
     };
-    static ref ALLOW_CORS: bool = {
-        env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != ""
-    };
-    static ref ENABLE_KICK_API: bool = {
-        env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != ""
-    };
+    static ref ALLOW_CORS: bool =
+        { env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "" };
+    static ref ENABLE_KICK_API: bool =
+        { env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != "" };
 }
 
 fn destroy_enclave() {
@@ -105,21 +104,28 @@ fn get_eid() -> u64 {
     ENCLAVE.read().unwrap().as_ref().unwrap().geteid()
 }
 
-extern {
+extern "C" {
     fn ecall_handle(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
         action: u8,
-        input_ptr: *const u8, input_len: usize,
-        output_ptr : *mut u8, output_len_ptr: *mut usize, output_buf_len: usize
+        input_ptr: *const u8,
+        input_len: usize,
+        output_ptr: *mut u8,
+        output_len_ptr: *mut usize,
+        output_buf_len: usize,
     ) -> sgx_status_t;
 
     fn ecall_init(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
-        args: *const u8, args_len: usize
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
+        args: *const u8,
+        args_len: usize,
     ) -> sgx_status_t;
 
     fn ecall_bench_run(
-        eid: sgx_enclave_id_t, retval: *mut sgx_status_t,
+        eid: sgx_enclave_id_t,
+        retval: *mut sgx_status_t,
         index: u32,
     ) -> sgx_status_t;
 
@@ -141,82 +147,80 @@ const IAS_SPID_STR: &str = env!("IAS_SPID");
 const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
 
 #[no_mangle]
-pub extern "C"
-fn ocall_load_ias_spid(
-    key_ptr : *mut u8,
+pub extern "C" fn ocall_load_ias_spid(
+    key_ptr: *mut u8,
     key_len_ptr: *mut usize,
-    key_buf_len: usize
+    key_buf_len: usize,
 ) -> sgx_status_t {
     let key_len = IAS_SPID_STR.len();
 
     unsafe {
         if key_len <= key_buf_len {
-            std::ptr::copy_nonoverlapping(IAS_SPID_STR.as_ptr(),
-                                          key_ptr,
-                                          key_len);
+            std::ptr::copy_nonoverlapping(IAS_SPID_STR.as_ptr(), key_ptr, key_len);
         } else {
             panic!("IAS_SPID_STR too long. Buffer overflow.");
         }
-        std::ptr::copy_nonoverlapping(&key_len as *const usize,
-                                      key_len_ptr,
-                                      std::mem::size_of_val(&key_len));
+        std::ptr::copy_nonoverlapping(
+            &key_len as *const usize,
+            key_len_ptr,
+            std::mem::size_of_val(&key_len),
+        );
     }
 
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
-pub extern "C"
-fn ocall_load_ias_key(
-    key_ptr : *mut u8,
+pub extern "C" fn ocall_load_ias_key(
+    key_ptr: *mut u8,
     key_len_ptr: *mut usize,
-    key_buf_len: usize
+    key_buf_len: usize,
 ) -> sgx_status_t {
     let key_len = IAS_API_KEY_STR.len();
 
     unsafe {
         if key_len <= key_buf_len {
-            std::ptr::copy_nonoverlapping(IAS_API_KEY_STR.as_ptr(),
-                                          key_ptr,
-                                          key_len);
+            std::ptr::copy_nonoverlapping(IAS_API_KEY_STR.as_ptr(), key_ptr, key_len);
         } else {
             panic!("IAS_API_KEY_STR too long. Buffer overflow.");
         }
-        std::ptr::copy_nonoverlapping(&key_len as *const usize,
-                                      key_len_ptr,
-                                      std::mem::size_of_val(&key_len));
+        std::ptr::copy_nonoverlapping(
+            &key_len as *const usize,
+            key_len_ptr,
+            std::mem::size_of_val(&key_len),
+        );
     }
 
     sgx_status_t::SGX_SUCCESS
 }
 
 #[no_mangle]
-pub extern "C"
-fn ocall_sgx_init_quote(ret_ti: *mut sgx_target_info_t,
-                        ret_gid : *mut sgx_epid_group_id_t) -> sgx_status_t {
+pub extern "C" fn ocall_sgx_init_quote(
+    ret_ti: *mut sgx_target_info_t,
+    ret_gid: *mut sgx_epid_group_id_t,
+) -> sgx_status_t {
     info!("Entering ocall_sgx_init_quote");
     unsafe { sgx_init_quote(ret_ti, ret_gid) }
 }
 
 #[no_mangle]
-pub extern "C"
-fn ocall_get_quote (p_sigrl            : *const u8,
-                    sigrl_len          : u32,
-                    p_report           : *const sgx_report_t,
-                    quote_type         : sgx_quote_sign_type_t,
-                    p_spid             : *const sgx_spid_t,
-                    p_nonce            : *const sgx_quote_nonce_t,
-                    p_qe_report        : *mut sgx_report_t,
-                    p_quote            : *mut u8,
-                    _maxlen            : u32,
-                    p_quote_len        : *mut u32) -> sgx_status_t {
+pub extern "C" fn ocall_get_quote(
+    p_sigrl: *const u8,
+    sigrl_len: u32,
+    p_report: *const sgx_report_t,
+    quote_type: sgx_quote_sign_type_t,
+    p_spid: *const sgx_spid_t,
+    p_nonce: *const sgx_quote_nonce_t,
+    p_qe_report: *mut sgx_report_t,
+    p_quote: *mut u8,
+    _maxlen: u32,
+    p_quote_len: *mut u32,
+) -> sgx_status_t {
     info!("Entering ocall_get_quote");
 
-    let mut real_quote_len : u32 = 0;
+    let mut real_quote_len: u32 = 0;
 
-    let ret = unsafe {
-        sgx_calc_quote_size(p_sigrl, sigrl_len, &mut real_quote_len as *mut u32)
-    };
+    let ret = unsafe { sgx_calc_quote_size(p_sigrl, sigrl_len, &mut real_quote_len as *mut u32) };
 
     if ret != sgx_status_t::SGX_SUCCESS {
         warn!("sgx_calc_quote_size returned {}", ret);
@@ -224,18 +228,22 @@ fn ocall_get_quote (p_sigrl            : *const u8,
     }
 
     info!("quote size = {}", real_quote_len);
-    unsafe { *p_quote_len = real_quote_len; }
+    unsafe {
+        *p_quote_len = real_quote_len;
+    }
 
     let ret = unsafe {
-        sgx_get_quote(p_report,
-                      quote_type,
-                      p_spid,
-                      p_nonce,
-                      p_sigrl,
-                      sigrl_len,
-                      p_qe_report,
-                      p_quote as *mut sgx_quote_t,
-                      real_quote_len)
+        sgx_get_quote(
+            p_report,
+            quote_type,
+            p_spid,
+            p_nonce,
+            p_sigrl,
+            sigrl_len,
+            p_qe_report,
+            p_quote as *mut sgx_quote_t,
+            real_quote_len,
+        )
     };
 
     if ret != sgx_status_t::SGX_SUCCESS {
@@ -248,15 +256,12 @@ fn ocall_get_quote (p_sigrl            : *const u8,
 }
 
 #[no_mangle]
-pub extern "C"
-fn ocall_get_update_info(
-    platform_blob: * const sgx_platform_info_t,
+pub extern "C" fn ocall_get_update_info(
+    platform_blob: *const sgx_platform_info_t,
     enclave_trusted: i32,
-    update_info: * mut sgx_update_info_bit_t
+    update_info: *mut sgx_update_info_bit_t,
 ) -> sgx_status_t {
-    unsafe{
-        sgx_report_attestation_status(platform_blob, enclave_trusted, update_info)
-    }
+    unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -266,12 +271,17 @@ fn init_enclave() -> SgxResult<SgxEnclave> {
     // Debug Support: set 2nd parameter to 1
     let debug = option_env!("SGX_DEBUG").unwrap_or("1");
 
-    let mut misc_attr = sgx_misc_attribute_t {secs_attr: sgx_attributes_t {flags:0, xfrm:0}, misc_select:0};
-    SgxEnclave::create(ENCLAVE_FILE,
-                       if debug == "0" { 0 } else { 1 },
-                       &mut launch_token,
-                       &mut launch_token_updated,
-                       &mut misc_attr)
+    let mut misc_attr = sgx_misc_attribute_t {
+        secs_attr: sgx_attributes_t { flags: 0, xfrm: 0 },
+        misc_select: 0,
+    };
+    SgxEnclave::create(
+        ENCLAVE_FILE,
+        if debug == "0" { 0 } else { 1 },
+        &mut launch_token,
+        &mut launch_token_updated,
+        &mut misc_attr,
+    )
 }
 
 macro_rules! do_ecall_handle {
@@ -315,7 +325,10 @@ macro_rules! proxy {
     ($rpc: literal, $name: ident, $num: expr) => {
         #[post($rpc, format = "json", data = "<contract_input>")]
         fn $name(contract_input: Json<ContractInput>) -> JsonValue {
-            debug!("{}", ::serde_json::to_string_pretty(&*contract_input).unwrap());
+            debug!(
+                "{}",
+                ::serde_json::to_string_pretty(&*contract_input).unwrap()
+            );
 
             let input_string = serde_json::to_string(&*contract_input).unwrap();
             do_ecall_handle!($num, input_string)
@@ -393,7 +406,7 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
     let output_buf_len = output_buf.len();
     let output_ptr = output_buf.as_mut_ptr();
 
-    let mut output_len : usize = 0;
+    let mut output_len: usize = 0;
     let output_len_ptr = &mut output_len as *mut usize;
 
     let mut status_code: u16 = 500;
@@ -402,11 +415,16 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
 
     let result = unsafe {
         crate::ecall_prpc_request(
-            eid, &mut retval,
-            path_ptr, path_len,
-            data_ptr, data_len,
+            eid,
+            &mut retval,
+            path_ptr,
+            path_len,
+            data_ptr,
+            data_len,
             &mut status_code,
-            output_ptr, output_buf_len, output_len_ptr
+            output_ptr,
+            output_buf_len,
+            output_len_ptr,
         )
     };
 
@@ -419,7 +437,7 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
                 error!("[-] prpc: Invalid status code: {}!", status_code);
                 Custom(Status::ServiceUnavailable, vec![])
             }
-        },
+        }
         _ => {
             error!("[-] ECALL Enclave Failed {}!", result.as_str());
             Custom(Status::ServiceUnavailable, vec![])
@@ -429,7 +447,10 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
 
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
-    let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post].into_iter().map(From::from).collect();
+    let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
+        .into_iter()
+        .map(From::from)
+        .collect();
 
     // You can also deserialize this
     rocket_cors::CorsOptions {
@@ -450,15 +471,31 @@ fn print_rpc_methods(prefix: &str, methods: &[&str]) {
 
 fn rocket() -> rocket::Rocket {
     let mut server = rocket::ignite()
-        .mount("/", proxy_routes![
-            ("/get_info", get_info, actions::ACTION_GET_INFO),
-        ])
-        .mount("/bin_api", proxy_bin_routes![
-            ("/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER),
-            ("/dispatch_block", dispatch_block, actions::BIN_ACTION_DISPATCH_BLOCK),
-            ("/sync_para_header", sync_para_header, actions::BIN_ACTION_SYNC_PARA_HEADER),
-            ("/sync_combined_headers", sync_combined_headers, actions::BIN_ACTION_SYNC_COMBINED_HEADERS),
-        ]);
+        .mount(
+            "/",
+            proxy_routes![("/get_info", get_info, actions::ACTION_GET_INFO),],
+        )
+        .mount(
+            "/bin_api",
+            proxy_bin_routes![
+                ("/sync_header", sync_header, actions::BIN_ACTION_SYNC_HEADER),
+                (
+                    "/dispatch_block",
+                    dispatch_block,
+                    actions::BIN_ACTION_DISPATCH_BLOCK
+                ),
+                (
+                    "/sync_para_header",
+                    sync_para_header,
+                    actions::BIN_ACTION_SYNC_PARA_HEADER
+                ),
+                (
+                    "/sync_combined_headers",
+                    sync_combined_headers,
+                    actions::BIN_ACTION_SYNC_COMBINED_HEADERS
+                ),
+            ],
+        );
 
     if *ENABLE_KICK_API {
         info!("ENABLE `kick` API");
@@ -496,10 +533,10 @@ fn main() {
         Ok(r) => {
             info!("[+] Init Enclave Successful, pid={}!", r.geteid());
             r
-        },
+        }
         Err(x) => {
             panic!("[-] Init Enclave Failed {}!", x.as_str());
-        },
+        }
     };
 
     ENCLAVE.write().unwrap().replace(enclave);
@@ -520,9 +557,7 @@ fn main() {
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
-    let result = unsafe {
-        ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len())
-    };
+    let result = unsafe { ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len()) };
 
     if result != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
@@ -540,9 +575,7 @@ fn main() {
         let child = thread::spawn(move || {
             set_thread_idle_policy();
             loop {
-                let result = unsafe {
-                    ecall_bench_run(eid, &mut retval, i)
-                };
+                let result = unsafe { ecall_bench_run(eid, &mut retval, i) };
                 if result != sgx_status_t::SGX_SUCCESS {
                     panic!("Run benchmark {} failed", i);
                 }
@@ -564,9 +597,7 @@ fn main() {
 }
 
 fn set_thread_idle_policy() {
-    let param = libc::sched_param {
-        sched_priority: 0,
-    };
+    let param = libc::sched_param { sched_priority: 0 };
     unsafe {
         let rv = libc::sched_setscheduler(0, libc::SCHED_IDLE, &param);
         if rv != 0 {
