@@ -1,6 +1,6 @@
 use crate::{
 	attestation::{Attestation, AttestationValidator, Error as AttestationError, IasFields},
-	mining, mq, registry, stakepool,
+	mining, mq, ott, registry, stakepool,
 };
 
 use frame_support::{
@@ -37,10 +37,12 @@ frame_support::construct_runtime!(
 		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
+		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
 	}
 );
 
 parameter_types! {
+	pub const ExistentialDeposit: u64 = 2;
 	pub const BlockHashCount: u64 = 250;
 	pub const SS58Prefix: u8 = 20;
 	pub const MinimumPeriod: u64 = 1;
@@ -84,7 +86,7 @@ impl pallet_balances::Config for Test {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type Event = Event;
-	type ExistentialDeposit = ();
+	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
 	type MaxLocks = ();
@@ -149,6 +151,11 @@ impl stakepool::Config for Test {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = ();
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+}
+
+impl ott::Config for Test {
+	type Event = Event;
+	type Currency = Balances;
 }
 
 pub struct MockValidator;

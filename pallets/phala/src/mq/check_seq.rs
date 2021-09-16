@@ -8,8 +8,8 @@ use sp_runtime::transaction_validity::{
 	InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
 };
 use sp_std::marker::PhantomData;
-use sp_std::vec::Vec;
 use sp_std::vec;
+use sp_std::vec::Vec;
 
 /// Requires a message queue message must has correct sequence id.
 ///
@@ -26,9 +26,9 @@ pub fn tag(sender: &MessageOrigin, seq: u64) -> Vec<u8> {
 }
 
 impl<T> Default for CheckMqSequence<T> {
-    fn default() -> Self {
-        Self(Default::default())
-    }
+	fn default() -> Self {
+		Self(Default::default())
+	}
 }
 
 impl<T> CheckMqSequence<T> {
