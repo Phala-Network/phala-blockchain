@@ -921,8 +921,7 @@ async fn bridge(args: Args) -> Result<()> {
                 }
             };
             let start_header =
-                resolve_start_header(&paraclient, args.parachain, args.start_header)
-                    .await?;
+                resolve_start_header(&paraclient, args.parachain, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
                 &client,
