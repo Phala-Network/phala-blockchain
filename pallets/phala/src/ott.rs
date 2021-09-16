@@ -20,6 +20,7 @@ pub mod pallet {
 		transactional,
 	};
 	use frame_system::pallet_prelude::*;
+	use sp_std::vec::Vec;
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
