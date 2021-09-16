@@ -100,6 +100,7 @@ use sp_runtime::generic::Era;
 pub use pallet_kitties;
 pub use phala_pallets::{
 	pallet_mq,
+	pallet_ott,
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
@@ -1121,6 +1122,10 @@ impl pallet_stakepool::Config for Runtime {
 	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 }
+impl pallet_ott::Config for Runtime {
+	type Event = Event;
+	type Currency = Balances;
+}
 
 construct_runtime!(
 	pub enum Runtime where
@@ -1170,6 +1175,7 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
 		PhalaMining: pallet_mining::{Pallet, Call, Event<T>, Storage, Config},
 		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event<T>, Storage},
+		PhalaOneshotTransfer: pallet_ott::{Pallet, Call, Event<T>, Storage},
 	}
 );
 
