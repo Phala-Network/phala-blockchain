@@ -287,6 +287,7 @@ async fn bisec_setid_change(
     last_set: (BlockNumber, SetId),
     known_blocks: &Vec<BlockWithChanges>,
 ) -> Result<Option<BlockNumber>> {
+    debug!("bisec_setid_change(last_set: {:?})", last_set);
     if known_blocks.is_empty() {
         return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
     }
@@ -319,6 +320,7 @@ async fn bisec_setid_change(
     } else {
         None
     };
+    debug!("bisec_setid_change result: {:?}", result);
     Ok(result)
 }
 
@@ -408,11 +410,11 @@ async fn batch_sync_block(
         let last_set = if let Some(set) = sync_state.authory_set_state {
             set
         } else {
-            let header = &block_buf.first().unwrap().block.block.header;
-            let hash = header.hash();
-            let number = header.number;
+            // Construct the authority set from the last block we have synced (the genesis)
+            let number = &block_buf.first().unwrap().block.block.header.number - 1;
+            let hash = client.block_hash(Some(number.into())).await?;
             let set_id = client
-                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), hash)
                 .await
                 .map_err(|_| Error::NoSetIdAtBlock)?;
             let set = (number, set_id);
@@ -636,7 +638,6 @@ async fn sync_parachain_header(
 /// standalone blockchain, and resolve to the last relay chain block before the frist parachain
 /// parent block. This behavior matches the one on PRB.
 async fn resolve_start_header(
-    client: &XtClient,
     paraclient: &XtClient,
     is_parachain: bool,
     start_header: Option<BlockNumber>,
@@ -650,7 +651,7 @@ async fn resolve_start_header(
     let h1 = paraclient
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(1))))
         .await?;
-    let validation_data = client
+    let validation_data = paraclient
         .fetch_or_default(&runtimes::parachain_system::ValidationDataStore::new(), h1)
         .await
         .or(Err(Error::ParachainValidationDataNotFound))?;
@@ -920,8 +921,8 @@ async fn bridge(args: Args) -> Result<()> {
                 }
             };
             let start_header =
-                resolve_start_header(&client, &paraclient, args.parachain, args.start_header)
-                    .await?;
+                resolve_start_header(&paraclient, args.parachain, args.start_header).await?;
+            info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
                 &client,
                 &paraclient,
