@@ -13,6 +13,16 @@ enclave {
 
     include "sgx_quote.h"
 
+    struct timespec_ {
+        int64_t tv_sec;
+        long tv_nsec;
+    };
+
+    struct itimerspec_ {
+        struct timespec it_interval;
+        struct timespec it_value;
+    };
+
     trusted {
         /* define ECALLs here. */
 
@@ -71,6 +81,32 @@ enclave {
             [in] sgx_platform_info_t * platformBlob,
             int32_t enclaveTrusted,
             [out] sgx_update_info_bit_t * update_info
+        );
+
+        int ocall_eventfd(
+            [out] int *errno_,
+            unsigned int init,
+            int flags
+        );
+
+        int ocall_timerfd_create(
+            [out] int *errno_,
+            int clockid,
+            int flags
+        );
+
+        int ocall_timerfd_settime(
+            [out] int *errno_,
+            int fd,
+            int flags,
+            [in] struct itimerspec_ *new_value,
+            [out] struct itimerspec_ *old_value
+        );
+
+        int ocall_timerfd_gettime(
+            [out] int *errno_,
+            int fd,
+            [out] struct itimerspec_ *curr_value
         );
     };
 };

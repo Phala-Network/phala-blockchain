@@ -9,6 +9,10 @@ resolver = "2"
 name = "enclaveapp"
 crate-type = ["staticlib"]
 
+[features]
+default = ["net"]
+net = []
+
 [dependencies]
 libc        = "0.2.98"
 log         = "0.4.14"

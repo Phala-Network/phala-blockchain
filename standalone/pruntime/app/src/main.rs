@@ -264,6 +264,60 @@ pub extern "C" fn ocall_get_update_info(
     unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
 }
 
+#[no_mangle]
+pub extern "C" fn ocall_eventfd(
+    errno: *mut libc::c_int,
+    init: libc::c_uint,
+    flags: libc::c_int,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::eventfd(init, flags);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_create(
+    errno: *mut libc::c_int,
+    clockid: libc::c_int,
+    flags: libc::c_int,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_create(clockid, flags);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_settime(
+    errno: *mut libc::c_int,
+    fd: libc::c_int,
+    flags: libc::c_int,
+    new_value: *const libc::itimerspec,
+    old_value: *mut libc::itimerspec,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_settime(fd, flags, new_value, old_value);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_gettime(
+    errno: *mut libc::c_int,
+    fd: libc::c_int,
+    curr_value: *mut libc::itimerspec,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_gettime(fd, curr_value);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
 fn init_enclave() -> SgxResult<SgxEnclave> {
     let mut launch_token: sgx_launch_token_t = [0; 1024];
     let mut launch_token_updated: i32 = 0;

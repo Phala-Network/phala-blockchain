@@ -134,6 +134,37 @@ extern "C" {
         maxlen: u32,
         p_quote_len: *mut u32,
     ) -> sgx_status_t;
+
+    // sgx_status_t SGX_CDECL ocall_eventfd(int* retval, unsigned int init, int flags, int* errno);
+    pub fn ocall_eventfd(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        init: libc::c_uint,
+        flags: libc::c_int,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_create(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        clockid: libc::c_int,
+        flags: libc::c_int,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_settime(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        fd: libc::c_int,
+        flags: libc::c_int,
+        new_value: *const libc::itimerspec,
+        old_value: *mut libc::itimerspec,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_gettime(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        fd: libc::c_int,
+        curr_value: *mut libc::itimerspec,
+    ) -> sgx_status_t;
 }
 
 fn ias_spid() -> sgx_spid_t {
