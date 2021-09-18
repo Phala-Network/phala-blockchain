@@ -29,7 +29,9 @@ pub trait Machine {
 pub trait AsyncSpawn {
     // Requirement: Drop the Task instance must cancel the spawned task.
     type Task: Send + Sync + 'static;
-    fn spawn_async(future: impl Future<Output=()> + 'static + Send + Sync) -> Self::Task;
+
+    #[must_use = "Dropping a Task will cancel it immediately"]
+    fn spawn_async(future: impl Future<Output=()> + 'static + Send) -> Self::Task;
 }
 
 pub trait Platform: Sealing + RA + Machine + AsyncSpawn + Clone {}

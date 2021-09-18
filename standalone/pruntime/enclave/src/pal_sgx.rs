@@ -52,7 +52,7 @@ impl AsyncSpawn for SgxPlatform {
     type Task = async_executor::Task<()>;
 
     fn spawn_async(
-        future: impl futures::Future<Output = ()> + Sync + Send + 'static,
+        future: impl futures::Future<Output = ()> + Send + 'static,
     ) -> Self::Task {
         EXECUTOR.spawn(future)
     }
