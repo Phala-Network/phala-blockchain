@@ -141,6 +141,9 @@ extern "C" {
         output_buf_len: usize,
         output_len_ptr: *mut usize,
     ) -> sgx_status_t;
+
+    fn ecall_async_reactor_run(eid: sgx_enclave_id_t) -> sgx_status_t;
+    fn ecall_async_executor_run(eid: sgx_enclave_id_t) -> sgx_status_t;
 }
 
 const IAS_SPID_STR: &str = env!("IAS_SPID");
@@ -616,6 +619,26 @@ fn main() {
     if result != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
     }
+
+    let _reactor = thread::Builder::new()
+        .name("async-reactor".into())
+        .spawn(move || {
+            let result = unsafe { ecall_async_reactor_run(eid) };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("[-] ecall_async_reactor_run failed {}!", result);
+            }
+        })
+        .expect("Failed to spawn async-reactor");
+
+    let _executor = thread::Builder::new()
+        .name("async-executor".into())
+        .spawn(move || {
+            let result = unsafe { ecall_async_executor_run(eid) };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("[-] ecall_async_executor_run failed {}!", result);
+            }
+        })
+        .expect("Failed to spawn async-executor");
 
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
