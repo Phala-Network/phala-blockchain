@@ -248,8 +248,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid);
-    let url = TryFrom::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = TryFrom::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Ocp-Apim-Subscription-Key", &ias_key())
@@ -304,8 +303,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
     let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
-    let url = TryFrom::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = TryFrom::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")
