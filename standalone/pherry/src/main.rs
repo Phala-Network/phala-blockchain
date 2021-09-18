@@ -178,6 +178,9 @@ struct Args {
     )]
     max_sync_msgs_per_round: u64,
 
+    #[structopt(long, help = "Enable geolocaltion report")]
+    enable_geolocation: bool,
+
     #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
     geoip_city_db: String,
 }
@@ -970,6 +973,8 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
+        }
+        if args.enable_geolocation {
             geolocation_report_ttl =
                 match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
                 {
@@ -1089,12 +1094,14 @@ async fn bridge(args: Args) -> Result<()> {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
-            geolocation_report_ttl =
-                match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
-                {
-                    Ok(d) => d,
-                    Err(_e) => geolocation_report_ttl,
-                };
+            if args.enable_geolocation {
+                geolocation_report_ttl =
+                    match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
+                    {
+                        Ok(d) => d,
+                        Err(_e) => geolocation_report_ttl,
+                    };
+            }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {
