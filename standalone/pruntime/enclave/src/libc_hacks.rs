@@ -169,6 +169,7 @@ pub unsafe extern "C" fn syscall(num: libc::c_long, mut args: ...) -> libc::c_lo
             return net::epoll_create1(0) as _;
         }
         _ => {
+            // TODO.kevin.must: static analysis the binary to check unsupported syscalls
             eprintln!("unsupported syscall({})", num);
             not_allowed!()
         }
