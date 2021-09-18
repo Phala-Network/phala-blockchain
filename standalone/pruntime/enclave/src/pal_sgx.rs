@@ -16,7 +16,7 @@ use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write};
 use sgx_types::*;
 use std::convert::TryFrom;
 
-use phactory_pal::{Machine, Sealing, RA};
+use phactory_pal::{AsyncSpawn, Machine, Sealing, RA};
 
 use async_executor::Executor;
 
@@ -45,6 +45,16 @@ impl SgxPlatform {
     pub fn async_reactor_run() {
         info!("Async reactor started");
         async_io::io_main_loop();
+    }
+}
+
+impl AsyncSpawn for SgxPlatform {
+    type Task = async_executor::Task<()>;
+
+    fn spawn_async(
+        future: impl futures::Future<Output = ()> + Sync + Send + 'static,
+    ) -> Self::Task {
+        EXECUTOR.spawn(future)
     }
 }
 
