@@ -1,16 +1,11 @@
-/*
+/* USAGE:
 
-USAGE:
-
-sudo apt install timeout
-
+```bash
 while true; do
   ENDPOINT=ws://127.0.0.1:9144 timeout 10 node cleanTxPool.js
-  ENDPOINT=ws://127.0.0.1:9244 timeout 10 node cleanTxPool.js
-  ENDPOINT=ws://127.0.0.1:9344 timeout 10 node cleanTxPool.js
   sleep 6
 done
-
+```
 */
 
 require('dotenv').config();
