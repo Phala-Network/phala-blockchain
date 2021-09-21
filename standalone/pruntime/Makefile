@@ -142,7 +142,7 @@ RustEnclave_Name := enclave/enclave.so
 Signed_RustEnclave_Name := bin/enclave.signed.so
 Dumped_Signed_RustEnclave_Name := bin/enclave.dump
 
-export PHALA_GIT_REVISION := $(shell ./git-revision)
+export PHALA_GIT_REVISION := $(shell ./scripts/git-revision)
 
 .PHONY: all
 all: $(App_Name) $(Signed_RustEnclave_Name)
@@ -189,7 +189,7 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 	$(SGX_ENCLAVE_SIGNER) sign -key $(SGX_SIGN_KEY) -enclave $(RustEnclave_Name) -out $@ -config $(SGX_ENCLAVE_CONFIG)
 	@rm -rf priv
 	@echo "SIGN =>  $@"
-	./check-instructions.py $@
+	./scripts/check-instructions.py $@
 
 .PHONY: enclave
 enclave:
@@ -202,7 +202,7 @@ dump:
 
 .PHONY: check-instructions
 check-instructions: $(RustEnclave_Name)
-	./check-instructions.py --show-callers $(RustEnclave_Name)
+	./scripts/check-instructions.py --show-callers $(RustEnclave_Name)
 
 .PHONY: clean
 clean:
