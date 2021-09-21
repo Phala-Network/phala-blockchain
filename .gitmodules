@@ -10,3 +10,6 @@
 [submodule "cryptocorrosion-sgx"]
 	path = cryptocorrosion-sgx
 	url = https://github.com/Phala-Network/cryptocorrosion-sgx.git
+[submodule "standalone/pruntime/radare2"]
+	path = standalone/pruntime/radare2
+	url = https://github.com/radareorg/radare2

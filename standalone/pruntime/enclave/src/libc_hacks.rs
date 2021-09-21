@@ -127,6 +127,7 @@ pub extern "C" fn getcwd(mut buf: *mut c_char, size: size_t) -> *mut c_char {
     return buf;
 }
 
+#[inline(never)]
 #[no_mangle]
 pub unsafe extern "C" fn syscall(num: libc::c_long, mut args: ...) -> libc::c_long {
     macro_rules! wrap_ocall {
@@ -168,8 +169,11 @@ pub unsafe extern "C" fn syscall(num: libc::c_long, mut args: ...) -> libc::c_lo
         libc::SYS_epoll_create => {
             return net::epoll_create1(0) as _;
         }
+        libc::SYS_statx => {
+            set_errno(libc::EPERM);
+            return -1;
+        }
         _ => {
-            // TODO.kevin.must: static analysis the binary to check unsupported syscalls
             eprintln!("unsupported syscall({})", num);
             not_allowed!()
         }
