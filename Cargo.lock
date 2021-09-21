@@ -4576,11 +4576,11 @@ name = "pallet-bridge"
 version = "0.0.1"
 dependencies = [
  "blake2-rfc",
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -4591,6 +4591,7 @@ dependencies = [
 name = "pallet-bridge-transfer"
 version = "0.0.1"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "hex",
@@ -4601,7 +4602,6 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
- "serde",
  "sp-arithmetic",
  "sp-core",
  "sp-io",
