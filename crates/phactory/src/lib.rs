@@ -12,13 +12,12 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use rand::*;
-use side_task::SideTask;
+use side_task::SideTaskManager;
 
 use crate::light_validation::LightValidation;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str;
-use std::future::Future;
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -137,7 +136,7 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     system: Option<system::System<Platform>>,
-    side_tasks: Vec<Box<dyn SideTask + Send>>,
+    side_task_man: SideTaskManager,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -152,7 +151,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
-            side_tasks: vec![],
+            side_task_man: Default::default(),
         }
     }
 

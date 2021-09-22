@@ -23,3 +23,20 @@ impl PollState {
         matches!(self, PollState::Running { .. })
     }
 }
+
+#[derive(Default)]
+pub struct SideTaskManager {
+    tasks: Vec<Box<dyn SideTask + Send>>,
+}
+
+impl SideTaskManager {
+    pub fn poll(&mut self, context: &Context) {
+        self.tasks.retain(|task| {
+            task.poll(&context).is_running()
+        });
+    }
+
+    pub fn add_task<T: SideTask + Send + 'static>(&mut self, task: T) {
+        self.tasks.push(Box::new(task));
+    }
+}

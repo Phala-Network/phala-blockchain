@@ -699,12 +699,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or_else(|| from_display("No timestamp found in block"))?;
 
         let storage = &state.chain_storage;
+        let side_task_man = &mut self.side_task_man;
         let recv_mq = &mut *guard;
         let mut block = BlockInfo {
             block_number,
             now_ms,
             storage,
             recv_mq,
+            side_task_man,
         };
 
         if let Err(e) = system.process_messages(&mut block) {
@@ -730,9 +732,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             block_number,
             storage: &state.chain_storage,
         };
-        self.side_tasks.retain(|task| {
-            task.poll(&context).is_running()
-        });
+        self.side_task_man.poll(&context);
         Ok(())
     }
 }
