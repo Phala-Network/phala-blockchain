@@ -4,10 +4,9 @@ pub use frame_support::storage::generator::StorageMap as StorageMapTrait;
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{
-		dispatch::DispatchResult, pallet_prelude::*,
-		traits::{
-			PalletInfo, StorageVersion,
-		}
+		dispatch::DispatchResult,
+		pallet_prelude::*,
+		traits::{PalletInfo, StorageVersion},
 	};
 	use frame_system::pallet_prelude::*;
 

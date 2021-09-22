@@ -196,7 +196,7 @@ pub fn validate_ias_report(
 #[cfg(test)]
 mod test {
 	use super::*;
-	use frame_support::{assert_noop, assert_ok};
+	use frame_support::assert_ok;
 
 	pub const ATTESTATION_SAMPLE: &[u8] = include_bytes!("../../sample/ias_attestation.json");
 	pub const ATTESTATION_TIMESTAMP: u64 = 1631441180; // 2021-09-12T18:06:20.402478

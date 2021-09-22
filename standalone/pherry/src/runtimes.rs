@@ -223,3 +223,42 @@ pub mod parachain_info {
         }
     }
 }
+
+pub mod parachain_system {
+    use super::PhalaNodeRuntime;
+    use codec::{Decode, Encode};
+    use core::marker::PhantomData;
+    use subxt::{module, system::System, Store};
+
+    pub type HeadData = Vec<u8>;
+
+    #[derive(PartialEq, Eq, Clone, Encode, Decode, Debug, Default)]
+    pub struct PersistedValidationData<H, N> {
+        /// The parent head-data.
+        pub parent_head: HeadData,
+        /// The relay-chain block number this is in the context of.
+        pub relay_parent_number: N,
+        /// The relay-chain block storage root this is in the context of.
+        pub relay_parent_storage_root: H,
+        /// The maximum legal size of a POV block, in bytes.
+        pub max_pov_size: u32,
+    }
+
+    #[module]
+    pub trait ParachainSystem: System {}
+    impl ParachainSystem for PhalaNodeRuntime {}
+
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    pub struct ValidationDataStore<T: ParachainSystem> {
+        #[store(returns = PersistedValidationData<T::Hash, T::BlockNumber>)]
+        pub _runtime: PhantomData<T>,
+    }
+
+    impl<T: ParachainSystem> ValidationDataStore<T> {
+        pub fn new() -> Self {
+            Self {
+                _runtime: Default::default(),
+            }
+        }
+    }
+}

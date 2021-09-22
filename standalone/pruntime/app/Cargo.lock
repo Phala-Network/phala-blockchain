@@ -127,7 +127,7 @@ checksum = "28ae2b3dec75a406790005a200b1bd89785afc02517a00ca99ecfe093ee9e6cf"
 
 [[package]]
 name = "app"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "base64 0.12.3",
  "colored",
@@ -2152,7 +2152,6 @@ dependencies = [
  "frame-system",
  "pallet-balances",
  "parity-scale-codec",
- "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
@@ -2170,7 +2169,6 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
- "serde",
  "sp-arithmetic",
  "sp-core",
  "sp-io",

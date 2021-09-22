@@ -144,11 +144,10 @@ struct Args {
     parachain: bool,
 
     #[structopt(
-        default_value = "0",
         long,
-        help = "The first parent header to be synced"
+        help = "The first parent header to be synced, default to auto-determine"
     )]
-    start_header: BlockNumber,
+    start_header: Option<BlockNumber>,
 
     #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
     no_wait: bool,
@@ -178,6 +177,9 @@ struct Args {
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
+
+    #[structopt(long, help = "Enable geolocaltion report")]
+    enable_geolocation: bool,
 
     #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
     geoip_city_db: String,
@@ -288,6 +290,7 @@ async fn bisec_setid_change(
     last_set: (BlockNumber, SetId),
     known_blocks: &Vec<BlockWithChanges>,
 ) -> Result<Option<BlockNumber>> {
+    debug!("bisec_setid_change(last_set: {:?})", last_set);
     if known_blocks.is_empty() {
         return Err(anyhow!(Error::SearchSetIdChangeInEmptyRange));
     }
@@ -320,6 +323,7 @@ async fn bisec_setid_change(
     } else {
         None
     };
+    debug!("bisec_setid_change result: {:?}", result);
     Ok(result)
 }
 
@@ -409,11 +413,11 @@ async fn batch_sync_block(
         let last_set = if let Some(set) = sync_state.authory_set_state {
             set
         } else {
-            let header = &block_buf.first().unwrap().block.block.header;
-            let hash = header.hash();
-            let number = header.number;
+            // Construct the authority set from the last block we have synced (the genesis)
+            let number = &block_buf.first().unwrap().block.block.header.number - 1;
+            let hash = client.block_hash(Some(number.into())).await?;
             let set_id = client
-                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), hash)
                 .await
                 .map_err(|_| Error::NoSetIdAtBlock)?;
             let set = (number, set_id);
@@ -631,6 +635,32 @@ async fn sync_parachain_header(
     Ok(r.synced_to)
 }
 
+/// Resolves the starting block header for the genesis block.
+///
+/// It returns the specified value if `start_header` is Some. Otherwise, it returns 0 for
+/// standalone blockchain, and resolve to the last relay chain block before the frist parachain
+/// parent block. This behavior matches the one on PRB.
+async fn resolve_start_header(
+    paraclient: &XtClient,
+    is_parachain: bool,
+    start_header: Option<BlockNumber>,
+) -> Result<BlockNumber> {
+    if let Some(start_header) = start_header {
+        return Ok(start_header);
+    }
+    if !is_parachain {
+        return Ok(0);
+    }
+    let h1 = paraclient
+        .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(1))))
+        .await?;
+    let validation_data = paraclient
+        .fetch_or_default(&runtimes::parachain_system::ValidationDataStore::new(), h1)
+        .await
+        .or(Err(Error::ParachainValidationDataNotFound))?;
+    Ok((validation_data.relay_parent_number - 1) as BlockNumber)
+}
+
 async fn init_runtime(
     client: &XtClient,
     paraclient: &XtClient,
@@ -741,11 +771,14 @@ async fn try_send_geolocation(
 ) -> Result<SystemTime> {
     // If ttl is not passed, we do not perform updating
     match ttl.elapsed() {
-        Ok(e) => {
+        Ok(_) => {
             info!("Geolocation TTL is passed. Updating geolocation.")
         }
         Err(e) => {
-            info!("Geolocation TTL is not passed. Ignoring to update geolocation: {}", e);
+            info!(
+                "Geolocation TTL is not passed. Ignoring to update geolocation: {}",
+                e
+            );
             return Ok(*ttl);
         }
     }
@@ -890,6 +923,9 @@ async fn bridge(args: Args) -> Result<()> {
                     Some(parsed_operator)
                 }
             };
+            let start_header =
+                resolve_start_header(&paraclient, args.parachain, args.start_header).await?;
+            info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
                 &client,
                 &paraclient,
@@ -899,7 +935,7 @@ async fn bridge(args: Args) -> Result<()> {
                 &args.inject_key,
                 operator,
                 args.parachain,
-                args.start_header,
+                start_header,
             )
             .await?;
             // STATUS: pruntime_initialized = true
@@ -937,11 +973,13 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
+        }
+        if args.enable_geolocation {
             geolocation_report_ttl =
-                match try_send_geolocation(&pr, &geolocation_report_ttl,
-                                           &args.geoip_city_db).await {
+                match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
+                {
                     Ok(d) => d,
-                    Err(_e) => { geolocation_report_ttl }
+                    Err(_e) => geolocation_report_ttl,
                 };
         }
         warn!("Block sync disabled.");
@@ -1056,12 +1094,14 @@ async fn bridge(args: Args) -> Result<()> {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
             }
-            geolocation_report_ttl =
-                match try_send_geolocation(&pr, &geolocation_report_ttl,
-                                           &args.geoip_city_db).await {
-                    Ok(d) => d,
-                    Err(_e) => { geolocation_report_ttl }
-                };
+            if args.enable_geolocation {
+                geolocation_report_ttl =
+                    match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
+                    {
+                        Ok(d) => d,
+                        Err(_e) => geolocation_report_ttl,
+                    };
+            }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
             nc.notify(&NotifyReq {

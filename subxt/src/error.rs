@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
-use jsonrpsee_ws_client::Error as RequestError;
+use jsonrpsee_types::Error as RequestError;
 use sp_core::crypto::SecretStringError;
 use sp_runtime::{
-    transaction_validity::TransactionValidityError, TokenError, ArithmeticError,
+    transaction_validity::TransactionValidityError,
     DispatchError,
 };
 use thiserror::Error;
@@ -53,7 +53,7 @@ pub enum Error {
     Metadata(#[from] MetadataError),
     /// Unregistered type sizes.
     #[error(
-        "The following types do not have a type size registered: \
+    "The following types do not have a type size registered: \
             {0:?} \
          Use `ClientBuilder::register_type_size` to register missing type sizes."
     )]
@@ -111,12 +111,6 @@ pub enum RuntimeError {
     /// Cannot lookup.
     #[error("Cannot lookup some information required to validate the transaction.")]
     CannotLookup,
-    /// Token error.
-    #[error("An error to do with tokens.")]
-    TokenError(TokenError),
-    /// Arithmetic error.
-    #[error("Arithmetic error.")]
-    Arithmetic(ArithmeticError),
     /// Other error.
     #[error("Other error: {0}")]
     Other(String),
@@ -145,9 +139,11 @@ impl RuntimeError {
             DispatchError::CannotLookup => Ok(Self::CannotLookup),
             DispatchError::ConsumerRemaining => Ok(Self::ConsumerRemaining),
             DispatchError::NoProviders => Ok(Self::NoProviders),
-            DispatchError::Token(err) => Ok(Self::TokenError(err)),
-            DispatchError::Arithmetic(err) => Ok(Self::Arithmetic(err)),
-            DispatchError::Other(msg) => Ok(Self::Other(msg.into())),
+            DispatchError::Arithmetic(_math_error) => {
+                Ok(Self::Other("math_error".into()))
+            }
+            DispatchError::Token(_token_error) => Ok(Self::Other("token error".into())),
+            DispatchError::Other(msg) => Ok(Self::Other(msg.to_string())),
         }
     }
 }
