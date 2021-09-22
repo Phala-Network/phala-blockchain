@@ -6,38 +6,89 @@ const fs = require('fs');
 
 const typedefs = require('@phala/typedefs').phalaDev;
 
+const { program } = require('commander');
+
+program
+    .option('--endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'wss://khala-api.phala.network/ws')
+
+program
+    .command('dump-pool-workers')
+    .option('--pools <pid-list>', 'Dump a list of the pool id, separated by comma', '')
+    .option('--output <path>', 'The path of the output json file', './tmp/pool-workers.json')
+    .action(run(dumpPoolWorkers));
+
+program
+    .command('dump-snapshots')
+    .option('--step <n>', 'Dump the snapshot every n blocks', 100)
+    .option('--since <b>', 'Dump the snapshots since block b; a negative number to specify a relative block number to the best one', -7200)
+    .option('--output <path>', 'The path of the output json file', './tmp/snapshot.json')
+    .action(run(dumpSnapshots));
+
 const bn64b = new BN(2).pow(new BN(64));
-const bn1e12 = new BN(10).pow(new BN(12));
 const bn1e10 = new BN(10).pow(new BN(10));
+
+function run(afn) {
+    function runner(...args) {
+        afn(...args)
+            .catch(console.error)
+            .then(process.exit)
+            .finally(() => process.exit(-1));
+    };
+    return runner;
+}
+
+async function createApi() {
+    const {endpoint} = program.opts();
+    const wsProvider = new WsProvider(endpoint);
+    return await ApiPromise.create({
+        provider: wsProvider,
+        types: typedefs,
+    });
+}
 
 function writeJson(path, obj) {
     const jsonData = JSON.stringify(obj, undefined, 2);
     fs.writeFileSync(path, jsonData, {encoding: 'utf-8'});
 }
 
-async function main() {
-    const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({
-        provider: wsProvider,
-        types: typedefs,
-    });
+async function dumpPoolWorkers (opt) {
+    const {output, pools} = opt;
+    // Check file access
+    fs.writeFileSync(output, '');
 
-    const tip = await api.rpc.chain.getHeader();
-    const tipNum = tip.number.toNumber();
-    const GAP = 50; // 10 mins
-    const startNum = tipNum - GAP * 144;  // 1 day
+    const api = await createApi();
 
     // Dump pool workers
-    const pids = [0];
-    const pools = await api.query.phalaStakePool.stakePools.multi(pids);
-    const poolWorkers = pools
+    const pids = pools.split(',').map(parseInt).filter(x => !!x);
+    if (pids.length == 0) {
+        console.log('No pool specified');
+        return;
+    }
+
+    const poolInfo = await api.query.phalaStakePool.stakePools.multi(pids);
+    const poolWorkers = poolInfo
         .map(p => p.unwrap())
         .map(p => [p.pid.toNumber(), p.workers.toJSON()])
         .reduce((map, [k, v]) => {
             map[k] = v;
             return map;
         }, {});
-    writeJson('./tmp/poolWorkers.json', poolWorkers);
+    writeJson(output, poolWorkers);
+}
+
+async function dumpSnapshots(opt) {
+    let {output, step, since} = opt;
+    step = parseInt(step);
+    since = parseInt(since);
+
+    // Check file access
+    fs.writeFileSync(output, '');
+
+    const api = await createApi();
+
+    const tip = await api.rpc.chain.getHeader();
+    const tipNum = tip.number.toNumber();
+    const startNum = since > 0 ? since : tipNum + since;
 
     // Dump miner-to-worker map (instant snapshot)
     const minerBindings = await api.query.phalaMining.minerBindings.entries();
@@ -50,8 +101,8 @@ async function main() {
 
     // Dump miner status
     const dataset = [];
-    for (let n = tipNum; n > startNum; n -= GAP) {
-        console.log('Remaining to dump:', (n - startNum) / GAP);
+    for (let n = startNum; n <= tipNum; n += step) {
+        console.log(`Dumping ${n} / ${tipNum}`);
         const h = await api.rpc.chain.getBlockHash(n);
         const entries = await api.query.phalaMining.miners.entriesAt(h);
 
@@ -75,7 +126,7 @@ async function main() {
         });
     }
 
-    writeJson('./tmp/snapshot.json', dataset);
+    writeJson(output, dataset);
 }
 
-main().catch(console.error).finally(() => process.exit());
+program.parse(process.argv);
