@@ -28,9 +28,10 @@ pub trait Machine {
 
 pub trait AsyncSpawn {
     // Requirement: Drop the Task instance must cancel the spawned task.
+    #[must_use = "Dropping a Task will cancel it immediately"]
     type Task: Send + Sync + 'static;
 
-    #[must_use = "Dropping a Task will cancel it immediately"]
+    // You should use Phactory::spawn_task() instead of this function.
     fn spawn_async(future: impl Future<Output=()> + 'static + Send) -> Self::Task;
 }
 

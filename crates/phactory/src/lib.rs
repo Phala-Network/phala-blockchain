@@ -18,6 +18,7 @@ use crate::light_validation::LightValidation;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str;
+use std::future::Future;
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -237,6 +238,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         match data {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
+    }
+
+    pub fn spawn_async(&self, task: impl Future<Output=()> + 'static + Send) -> Platform::Task  {
+        Platform::spawn_async(async {
+            // Delay one second to avoid net traffic storm when replaying blocks.
+            async_std::task::sleep(std::time::Duration::from_secs(1)).await;
+            task.await;
+        })
     }
 }
 
