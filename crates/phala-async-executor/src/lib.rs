@@ -22,5 +22,5 @@ pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + Send + 'static
 }
 
 pub fn run_executor() {
-    async_io::block_on(EXECUTOR.run(futures::future::pending::<()>()));
+    futures::executor::block_on(EXECUTOR.run(futures::future::pending::<()>()));
 }

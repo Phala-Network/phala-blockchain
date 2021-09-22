@@ -728,7 +728,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .runtime_state
             .as_ref()
             .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let context = side_task::Context {
+        let context = side_task::PollContext {
             block_number,
             storage: &state.chain_storage,
         };

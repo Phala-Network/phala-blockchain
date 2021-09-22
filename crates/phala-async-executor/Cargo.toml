@@ -7,7 +7,6 @@ edition = "2018"
 
 [dependencies]
 async-std = "1.10.0"
-async-io = "1.6.0"
 async-executor = "1.4.1"
 futures = "0.3.17"
 
