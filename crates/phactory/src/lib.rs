@@ -239,14 +239,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
     }
-
-    pub fn spawn_async(&self, task: impl Future<Output=()> + 'static + Send) -> Platform::Task  {
-        Platform::spawn_async(async {
-            // Delay one second to avoid net traffic storm when replaying blocks.
-            async_std::task::sleep(std::time::Duration::from_secs(1)).await;
-            task.await;
-        })
-    }
 }
 
 fn new_sr25519_key() -> sr25519::Pair {

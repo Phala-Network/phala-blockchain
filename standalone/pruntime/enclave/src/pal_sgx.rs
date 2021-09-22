@@ -16,9 +16,7 @@ use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write};
 use sgx_types::*;
 use std::convert::TryFrom;
 
-use phactory_pal::{AsyncSpawn, Machine, Sealing, RA};
-
-use async_executor::Executor;
+use phactory_pal::{Machine, Sealing, RA};
 
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_SIGRL_ENDPOINT: &str = env!("IAS_SIGRL_ENDPOINT");
@@ -33,28 +31,15 @@ fn to_tstd_path(path: &std::path::Path) -> &sgx_tstd::path::Path {
     sgx_tstd::path::Path::new(os_str)
 }
 
-
-static EXECUTOR: Executor<'static> = Executor::new();
-
 impl SgxPlatform {
     pub fn async_executor_run() {
         info!("Async executor started");
-        async_io::block_on(EXECUTOR.run(futures::future::pending::<()>()));
+        phala_async_executor::run_executor();
     }
 
     pub fn async_reactor_run() {
         info!("Async reactor started");
         async_io::io_main_loop();
-    }
-}
-
-impl AsyncSpawn for SgxPlatform {
-    type Task = async_executor::Task<()>;
-
-    fn spawn_async(
-        future: impl futures::Future<Output = ()> + Send + 'static,
-    ) -> Self::Task {
-        EXECUTOR.spawn(future)
     }
 }
 

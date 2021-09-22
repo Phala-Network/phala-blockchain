@@ -26,14 +26,5 @@ pub trait Machine {
     fn cpu_feature_level(&self) -> u32;
 }
 
-pub trait AsyncSpawn {
-    // Requirement: Drop the Task instance must cancel the spawned task.
-    #[must_use = "Dropping a Task will cancel it immediately"]
-    type Task: Send + Sync + 'static;
-
-    // You should use Phactory::spawn_task() instead of this function.
-    fn spawn_async(future: impl Future<Output=()> + 'static + Send) -> Self::Task;
-}
-
-pub trait Platform: Sealing + RA + Machine + AsyncSpawn + Clone {}
-impl<T: Sealing + RA + Machine + AsyncSpawn + Clone> Platform for T {}
+pub trait Platform: Sealing + RA + Machine + Clone {}
+impl<T: Sealing + RA + Machine + Clone> Platform for T {}

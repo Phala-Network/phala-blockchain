@@ -27,13 +27,12 @@ parity-scale-codec = { version = "2", default-features = false }
 phactory = { path = "../../../crates/phactory" }
 phactory-pal = { path = "../../../crates/phactory/pal" }
 phactory-api = { path = "../../../crates/phactory/api" }
+phala-async-executor = { path = "../../../crates/phala-async-executor", features = ['no-thread'] }
 
 http_req    = { git = "https://github.com/Phala-Network/http_req-sgx.git", branch = "phala", default-features = false, features = ["rust-tls"]}
 ppv-lite86 = { version = "0.2", features = ["phala-sgx"] }
 
 async-io = { version = "1.6" }
-async-executor = { version = "1.4.1" }
-futures = { version = "0.3.17" }
 
 aho-corasick = { version = "0.7.18", features = ["sgx_trts"] }
 parking_lot_core = { version = "0.8.5", features = ["phala-sgx"] }

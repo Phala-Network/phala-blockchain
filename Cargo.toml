@@ -25,6 +25,7 @@ members = [
 	"crates/phactory/api",
 	"crates/phactory/pal",
 	"crates/phala-types",
+	"crates/phala-async-executor",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",

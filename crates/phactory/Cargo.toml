@@ -83,6 +83,7 @@ futures = { version = "0.3.17", default-features = false }
 async-io = { version = "1.6.0" }
 async-executor = { version = "1.4.1" }
 async-std = { version = "1.10.0" }
+phala-async-executor = { path = '../phala-async-executor' }
 
 [features]
 default = [
