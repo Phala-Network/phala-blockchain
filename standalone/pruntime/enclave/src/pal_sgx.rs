@@ -54,7 +54,12 @@ impl AsyncSpawn for SgxPlatform {
     fn spawn_async(
         future: impl futures::Future<Output = ()> + Send + 'static,
     ) -> Self::Task {
-        EXECUTOR.spawn(future)
+        EXECUTOR.spawn(async {
+            use async_std::task;
+            // Delay one second to avoid net traffic storm when replaying blocks.
+            task::sleep(Duration::from_secs(1)).await;
+            future.await;
+        })
     }
 }
 
