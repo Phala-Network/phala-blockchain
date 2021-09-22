@@ -33,7 +33,6 @@ ppv-lite86 = { version = "0.2", features = ["phala-sgx"] }
 
 async-io = { version = "1.6" }
 async-executor = { version = "1.4.1" }
-async-std = { version = "1.10.0" }
 futures = { version = "0.3.17" }
 
 aho-corasick = { version = "0.7.18", features = ["sgx_trts"] }
