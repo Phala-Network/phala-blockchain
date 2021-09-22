@@ -93,6 +93,7 @@ pub mod async_side_task {
 
     use crate::side_task::{PollContext, PollState, SideTask};
 
+    #[must_use = "SideTask will loss it's work without adding it to the task manager"]
     pub struct AsyncSideTask<Tsk, Rlt, Proc> {
         report_at: BlockNumber,
         result: Arc<Mutex<Option<Rlt>>>,
