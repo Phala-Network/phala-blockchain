@@ -216,6 +216,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
+            self.poll_side_tasks(block.block_header.number)?;
             last_block = block.block_header.number;
         }
 
@@ -717,6 +718,21 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             contract.process_messages(&mut env);
         }
 
+        Ok(())
+    }
+
+    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
+        let state = self
+            .runtime_state
+            .as_ref()
+            .ok_or_else(|| from_display("Runtime not initialized"))?;
+        let context = side_task::Context {
+            block_number,
+            storage: &state.chain_storage,
+        };
+        self.side_tasks.retain(|task| {
+            task.poll(&context).is_running()
+        });
         Ok(())
     }
 }
