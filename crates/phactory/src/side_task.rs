@@ -79,6 +79,10 @@ impl SideTaskManager {
     pub fn add_task<T: SideTask + Send + 'static>(&mut self, task: T) {
         self.tasks.push(TaskWrapper::wrap(task));
     }
+
+    pub fn tasks_count(&self) -> usize {
+        self.tasks.len()
+    }
 }
 
 pub mod async_side_task {

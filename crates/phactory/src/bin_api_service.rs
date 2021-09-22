@@ -24,6 +24,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             "pending_messages": info.pending_messages,
             "score": info.score,
             "machine_id": machine_id,
+            "running_side_tasks": info.running_side_tasks,
         }))
     }
 

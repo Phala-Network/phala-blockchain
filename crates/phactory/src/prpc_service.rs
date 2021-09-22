@@ -110,6 +110,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             score,
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
+            running_side_tasks: self.side_task_man.tasks_count() as _,
         }
     }
 
