@@ -291,10 +291,10 @@
   dependencies:
     "@open-web3/orml-type-definitions" "0.9.4-34"
 
-"@phala/typedefs@^0.2.21":
-  version "0.2.21"
-  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.21.tgz#cba64822ed27f51411bd4a4a0bee326728ba2fd7"
-  integrity sha512-HcXgLr6t57fIIFBvjhp0lOdBeL7N1VzHZjKSZsljjw471f8Vg9ki8aWFu0mDXtdKPInH9z65EXekcYbX5HLxQA==
+"@phala/typedefs@^0.2.28":
+  version "0.2.28"
+  resolved "https://registry.yarnpkg.com/@phala/typedefs/-/typedefs-0.2.28.tgz#d4738545456b11d8dda0f5e52612c6b59b8b4be4"
+  integrity sha512-2TLB2bR2XaWgnRVXsfQ1doIbYXI+tBFSFKzaDYcpAaVyeON12pV1YD0qeJIgF6ORsydONR84ULLIQU3L9gTN2A==
   dependencies:
     "@polkadot/types" "^5.7.1"
 
