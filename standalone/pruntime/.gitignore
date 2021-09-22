@@ -67,5 +67,5 @@ SGX_MODE
 # Geolite Database
 **/pherry/GeoLite2-City.mmdb
 
-r2_build
+rz_build
 

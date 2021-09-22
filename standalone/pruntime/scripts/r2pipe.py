@@ -8,15 +8,15 @@ from subprocess import Popen, PIPE
 
 class R2Pipe:
     def __init__(self, filename):
-        radare2_bin = os.environ.get('RADARE2_BIN', 'radare2')
-        cmd = [radare2_bin, "-q0", filename]
+        rz_bin = os.environ.get('RIZIN_BIN', 'rizin')
+        cmd = [rz_bin, "-q0", filename]
         try:
             self.process = Popen(
                 cmd, shell=False, stdin=PIPE, stdout=PIPE, bufsize=0
             )
             self.process.stdout.read(1)  # initial \x00
         except:
-            raise Exception("ERROR: Cannot find radare2 in PATH")
+            raise Exception("ERROR: Cannot find rizin in PATH")
 
     def cmd(self, cmd):
         cmd = cmd.strip().replace("\n", ";")

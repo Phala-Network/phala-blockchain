@@ -22,7 +22,7 @@ class Checker:
 
     def __init__(self, filename):
         self.p = r2pipe.open(filename)
-        self.p.cmd("e bin.cache=true;aa;aae;")  # run analysis
+        self.p.cmd("aa;aae;")  # run analysis
 
     def check_syscalls(self):
         p = self.p

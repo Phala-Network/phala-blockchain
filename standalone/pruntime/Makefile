@@ -23,9 +23,9 @@ SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
-RADARE2_DIR=$(shell pwd)/r2_build
-RADARE2_BIN=$(RADARE2_DIR)/bin/radare2
-export RADARE2_BIN
+RIZIN_BUILD_DIR=$(shell pwd)/rz_build
+RIZIN_BIN=$(RIZIN_BUILD_DIR)/bin/rizin
+export RIZIN_BIN
 
 
 # Changing SGX_MODE will trigger rebuild
@@ -186,7 +186,7 @@ $(RustEnclave_Name): enclave enclave/Enclave_t.o
 	@$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
-$(Signed_RustEnclave_Name): $(RustEnclave_Name) $(RADARE2_BIN)
+$(Signed_RustEnclave_Name): $(RustEnclave_Name) $(RIZIN_BIN)
 	@mkdir -p priv
 	@if [ ! -z "$(SGX_SIGN_KEY_URL)" ]; then wget $(SGX_SIGN_KEY_URL) -q -t 3 -O $(SGX_SIGN_KEY); fi
 	@if [ ! -z "$(SGX_ENCLAVE_CONFIG_URL)" ]; then wget $(SGX_ENCLAVE_CONFIG_URL) -q -t 3 -O $(SGX_ENCLAVE_CONFIG); fi
@@ -195,18 +195,16 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name) $(RADARE2_BIN)
 	@rm -rf priv
 	@echo "SIGN =>  $@"
 	./scripts/check-instructions.py $@
-	LD_LIBRARY_PATH=$(RADARE2_DIR)/lib:$${LD_LIBRARY_PATH} ./scripts/check-calls.py $@
+	LD_LIBRARY_PATH=$(RIZIN_BUILD_DIR)/lib:$${LD_LIBRARY_PATH} ./scripts/check-calls.py $@
 
-$(RADARE2_BIN):
-	mkdir -p $(RADARE2_DIR)
-	cd radare2 && \
-		./preconfigure && \
-		PREFIX=$(RADARE2_DIR) ./sys/build.sh && \
-		make install
-	rm -f radare2/shlr/capstone-4.0.2.tar.gz
+$(RIZIN_BIN):
+	mkdir -p $(RIZIN_BUILD_DIR)
+	meson --prefix=$(RIZIN_BUILD_DIR) rizin $(RIZIN_BUILD_DIR) && \
+		ninja -C $(RIZIN_BUILD_DIR) && \
+		ninja -C $(RIZIN_BUILD_DIR) install
 
-.PHONY: build_r2
-build_r2: $(RADARE2_BIN)
+.PHONY: build_rz
+build_rz: $(RIZIN_BIN)
 
 
 .PHONY: enclave
@@ -227,5 +225,5 @@ clean:
 	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) $(Dumped_Signed_RustEnclave_Name) enclave/*_t.* app/*_u.* lib/*.a
 	@cd enclave && cargo clean
 	@cd app && cargo clean
-	@rm -rf r2_build
+	@rm -rf $(RIZIN_BUILD_DIR)
 
