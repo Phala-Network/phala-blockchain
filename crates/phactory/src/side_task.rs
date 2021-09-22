@@ -132,7 +132,7 @@ pub mod async_side_task {
         ///
         /// # Examples
         ///
-        /// ```no_run
+        /// ```ignore
         /// let mut task_man = SideTaskManager::default();
         /// let cur_block = 100;
         /// let duration = 3;

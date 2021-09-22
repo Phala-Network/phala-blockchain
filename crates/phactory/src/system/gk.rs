@@ -1037,6 +1037,7 @@ pub mod tests {
             now_ms: block_ts(block_number),
             storage: &storage,
             recv_mq: &mut mq,
+            side_task_man: &mut Default::default(),
         };
         call(&block);
     }
