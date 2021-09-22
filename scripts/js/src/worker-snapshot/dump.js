@@ -59,12 +59,16 @@ async function dumpPoolWorkers (opt) {
     const api = await createApi();
 
     // Dump pool workers
-    const pids = pools.split(',').map(parseInt).filter(x => !!x);
+    const pids = pools
+        .split(',')
+        .map(s => parseInt(s.trim()))
+        .filter(x => !!x);
     if (pids.length == 0) {
         console.log('No pool specified');
         return;
     }
 
+    console.log('Dumping pool workers at:', pids);
     const poolInfo = await api.query.phalaStakePool.stakePools.multi(pids);
     const poolWorkers = poolInfo
         .map(p => p.unwrap())
@@ -102,7 +106,8 @@ async function dumpSnapshots(opt) {
     // Dump miner status
     const dataset = [];
     for (let n = startNum; n <= tipNum; n += step) {
-        console.log(`Dumping ${n} / ${tipNum}`);
+        const percentage = ((n - startNum) / (tipNum - startNum) * 100).toFixed(2);
+        console.log(`Dumping ${n} / ${tipNum} (${percentage}%)`);
         const h = await api.rpc.chain.getBlockHash(n);
         const entries = await api.query.phalaMining.miners.entriesAt(h);
 
