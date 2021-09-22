@@ -1,6 +1,16 @@
 const fs = require('fs');
 const Papa = require('papaparse');
 
+const { program } = require('commander');
+
+
+program
+    .option('--snapshots <path>', 'The snapshots to analyze', './tmp/snapshots.json')
+    .option('--pool-workers <path>', 'When sepcified the dumped pool worker json file, the analysis will have pool level break-down', './tmp/pool-workers.json')
+    .option('--output <path>', 'The path of the output csv file', './tmp/analysis.csv')
+    .option('--sample-worker', 'If enabled, it will sample "v, totalReward, pPerc" of the first worker in a pool in the output', false)
+    .action(main);
+
 function sampleWorker(dataset, N=1) {
     const miners = dataset[0].frame.slice(0, N).map(m => m.miner);
     const sampled = dataset.map(({frame}) =>
@@ -29,7 +39,7 @@ function stats(dataset) {
         .map(({frame}) => frame.filter(m => m.state == 'MiningUnresponsive').length);
 
     // series: typical V and totalReward
-    const sampledMetrics = sampleWorker(dataset);
+    const sampledMetrics = program.opts().sampleWorker ? sampleWorker(dataset) : {};
 
     return {
         totalRewards,
@@ -73,21 +83,25 @@ function sheetToCsv(sheet) {
 }
 
 function main() {
-    const dataset = loadJson('./tmp/snapshot.json');
-    const poolWorkers = loadJson('./tmp/poolWorkers.json');
+    const { snapshots, poolWorkers, output } = program.opts();
 
-    const sheet = {};
+    const dataset = loadJson(snapshots);
+    const poolWorkersData = poolWorkers ? loadJson(poolWorkers) : {};
+
+    const sheet = {
+        blocknum: dataset.map(row => row.blocknum),
+    };
 
     addToSheet(sheet, stats(dataset), 'full');
-    for (const pid in poolWorkers) {
-        const workers = poolWorkers[pid];
+    for (const pid in poolWorkersData) {
+        const workers = poolWorkersData[pid];
         const slice = extractPoolWorkers(dataset, new Set(workers));
         addToSheet(sheet, stats(slice), `p${pid}`);
     }
 
     const csvObj = sheetToCsv(sheet);
     const rawCsv = Papa.unparse(csvObj);
-    fs.writeFileSync('./tmp/analysis.csv', rawCsv, {encoding: 'utf-8'});
+    fs.writeFileSync(output, rawCsv, {encoding: 'utf-8'});
 }
 
-main();
+program.parse(process.argv);
