@@ -18,8 +18,8 @@ node src/worker-snapshot/dump.js dump-pool-workers --help
 
 ## Analyze the data
 
-WIP: documentation
+Load the dumped snapshots and the worker list to produce the analyze report. Check detailed usage:
 
 ```
-node src/worker-snapshot/analyze.js
+node src/worker-snapshot/analyze.js --help
 ```
