@@ -85,19 +85,15 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    mining_events: TypedReceiver<MiningReportEvent>,
-    system_events: TypedReceiver<SystemEvent>,
-    workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
-    // Tokenomic
-    tokenomic_params: tokenomic::Params,
+    pub(crate) finance: MiningFinance<MsgChan>,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
-    MsgChan: MessageChannel,
+    MsgChan: MessageChannel + Clone,
 {
     pub fn new(
         master_key: sr25519::Pair,
@@ -110,14 +106,11 @@ where
             master_key,
             master_pubkey_on_chain: false,
             registered_on_chain: false,
-            egress,
+            egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
-            mining_events: recv_mq.subscribe_bound(),
-            system_events: recv_mq.subscribe_bound(),
-            workers: Default::default(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
-            tokenomic_params: tokenomic::test_params(),
+            finance: MiningFinance::new(recv_mq, egress),
         }
     }
 
@@ -199,26 +192,57 @@ where
             return;
         }
 
-        let sum_share: FixedPoint = self
-            .workers
-            .values()
-            .filter(|info| !info.unresponsive)
-            .map(|info| info.tokenomic.share())
-            .sum();
+        debug!("Gatekeeper: processing block {}", block.block_number);
+        loop {
+            let ok = phala_mq::select! {
+                message = self.gatekeeper_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_event(origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+            };
+            if ok.is_none() {
+                // All messages processed
+                break;
+            }
+        }
 
-        let mut processor = GKMessageProcesser {
-            state: self,
-            block,
-            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
-            sum_share,
+        self.finance.process_messages(block);
+
+        debug!("Gatekeeper: processed block {}", block.block_number);
+    }
+
+    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        info!("Incoming gatekeeper event: {:?}", event);
+        match event {
+            GatekeeperEvent::NewRandomNumber(random_number_event) => {
+                self.process_random_number_event(origin, random_number_event)
+            }
+            GatekeeperEvent::TokenomicParametersChanged(params) => {
+                // Handled by MiningFinance
+            }
+        }
+    }
+
+    /// Verify on-chain random number
+    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
         };
 
-        processor.process();
-
-        let report = processor.report;
-
-        if !report.is_empty() {
-            self.egress.push_message(report);
+        let expect_random = next_random_number(
+            &self.master_key,
+            event.block_number,
+            event.last_random_number,
+        );
+        // instead of checking the origin, we directly verify the random to avoid access storage
+        if expect_random != event.random_number {
+            error!("Fatal error: Expect random number {:?}", expect_random);
+            panic!("GK state poisoned");
         }
     }
 
@@ -240,6 +264,31 @@ where
             self.last_random_number,
         ));
         self.last_random_number = random_number;
+    }
+}
+
+pub(crate) struct MiningFinance<MsgChan> {
+    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    mining_events: TypedReceiver<MiningReportEvent>,
+    system_events: TypedReceiver<SystemEvent>,
+    gatekeeper_events: TypedReceiver<GatekeeperEvent>,
+    workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
+    tokenomic_params: tokenomic::Params,
+}
+
+impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
+    pub fn new(
+        recv_mq: &mut MessageDispatcher,
+        egress: MsgChan,
+    ) -> Self {
+        MiningFinance {
+            egress,
+            mining_events: recv_mq.subscribe_bound(),
+            system_events: recv_mq.subscribe_bound(),
+            gatekeeper_events: recv_mq.subscribe_bound(),
+            workers: Default::default(),
+            tokenomic_params: tokenomic::test_params(),
+        }
     }
 
     pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
@@ -273,21 +322,45 @@ where
             },
         })
     }
+
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        let sum_share: FixedPoint = self
+            .workers
+            .values()
+            .filter(|info| !info.unresponsive)
+            .map(|info| info.tokenomic.share())
+            .sum();
+
+        let mut processor = MiningMessageProcesser {
+            state: self,
+            block,
+            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
+            sum_share,
+        };
+
+        processor.process();
+
+        let report = processor.report;
+
+        if !report.is_empty() {
+            self.egress.push_message(report);
+        }
+    }
 }
 
-struct GKMessageProcesser<'a, MsgChan> {
-    state: &'a mut Gatekeeper<MsgChan>,
+struct MiningMessageProcesser<'a, MsgChan> {
+    state: &'a mut MiningFinance<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
     sum_share: FixedPoint,
 }
 
-impl<MsgChan> GKMessageProcesser<'_, MsgChan>
+
+impl<MsgChan> MiningMessageProcesser<'_, MsgChan>
 where
     MsgChan: MessageChannel,
 {
     fn process(&mut self) {
-        debug!("Gatekeeper: processing block {}", self.block.block_number);
         self.prepare();
         loop {
             let ok = phala_mq::select! {
@@ -324,7 +397,6 @@ where
             }
         }
         self.block_post_process();
-        debug!("Gatekeeper: processed block {}", self.block.block_number);
     }
 
     fn prepare(&mut self) {
@@ -598,7 +670,7 @@ where
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
-                self.process_random_number_event(origin, random_number_event)
+                // Handled by Gatekeeper.
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
@@ -609,25 +681,6 @@ where
                     );
                 }
             }
-        }
-    }
-
-    /// Verify on-chain random number
-    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
-        if !origin.is_gatekeeper() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        };
-
-        let expect_random = next_random_number(
-            &self.state.master_key,
-            event.block_number,
-            event.last_random_number,
-        );
-        // instead of checking the origin, we directly verify the random to avoid access storage
-        if expect_random != event.random_number {
-            error!("Fatal error: Expect random number {:?}", expect_random);
-            panic!("GK state poisoned");
         }
     }
 }
@@ -875,7 +928,7 @@ mod msg_trait {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, Gatekeeper};
+    use super::{BlockInfo, FixedPoint, MiningFinance, msg_trait::MessageChannel};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
@@ -949,19 +1002,15 @@ pub mod tests {
 
     struct Roles {
         mq: MessageDispatcher,
-        gk: Gatekeeper<CollectChannel>,
+        gk: MiningFinance<CollectChannel>,
         workers: [WorkerPublicKey; 2],
     }
 
     impl Roles {
         fn test_roles() -> Roles {
-            use sp_core::crypto::Pair;
-
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let key = sp_core::sr25519::Pair::from_seed(&[1u8; 32]);
-            let mut gk = Gatekeeper::new(key, &mut mq, egress);
-            gk.master_pubkey_on_chain = true;
+            let mut gk = MiningFinance::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,
