@@ -3,8 +3,18 @@ use std::any::Any;
 use crate::storage::Storage;
 use ::chain::BlockNumber;
 
+/// A side task is designed to do some async works in the BACKGROUND.
+///
+/// In the old days, we do all the chain block processing logic in the `dispatch_block` RPC call, synchronously.
+/// But there are some cases, such as making an HTTP request or doing some CPU heavy computing, it is not acceptable
+/// do it in the RPC call synchronously. So we need to move these works to another thread and report it's result in
+/// the RPC call. That's what the `SideTask` is for.
+///
+/// When some async works are needed, we can create a `SideTask` and spawn some sort of background task to do the works.
+/// When the background task is done, it sets the result into the corresponding `SideTask` and wait for the chain block
+/// processing to poll it to process the result. We can then make some side-input (mq egress) in the result processing.
 pub trait SideTask {
-    // The scheduler will call this function at any time, typically once each block, until it returns PollState::Complete.
+    /// The scheduler will call this function at any time, typically once each block, until it returns PollState::Complete.
     fn poll(self, block: &PollContext) -> PollState<Self>
     where
         Self: Sized;
@@ -16,9 +26,9 @@ pub struct PollContext<'a> {
 }
 
 pub enum PollState<T> {
-    // The task is in progress.
+    /// The task is in progress.
     Running(T),
-    // The task is done. The task will be removed from the queue.
+    /// The task is done. The task will be removed from the queue.
     Complete,
 }
 
