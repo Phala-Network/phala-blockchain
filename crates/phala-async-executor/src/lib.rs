@@ -6,6 +6,7 @@ static EXECUTOR: Executor<'static> = Executor::new();
 pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + Send + 'static) -> Task<T> {
     #[cfg(not(feature = "no-thread"))]
     {
+        // For testing codes runing outside of SGX environment.
         use std::sync::Once;
 
         static START_EXECUTOR: Once = Once::new();
@@ -15,6 +16,7 @@ pub fn spawn<T: Send + 'static>(future: impl Future<Output = T> + Send + 'static
         });
     }
     EXECUTOR.spawn(async {
+        // TODO: find out better ways to bypass the async when syncing.
         // Delay one second to avoid net traffic storm when pRuntime replaying blocks.
         let _ = async_std::task::sleep(std::time::Duration::from_secs(1)).await;
         future.await
