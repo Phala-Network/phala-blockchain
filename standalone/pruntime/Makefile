@@ -195,13 +195,17 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name) $(RIZIN_BIN)
 	@rm -rf priv
 	@echo "SIGN =>  $@"
 	./scripts/check-instructions.py $@
+ifeq ($(PRUNTIME_CHECK_CALLS), 1)
 	LD_LIBRARY_PATH=$(RIZIN_BUILD_DIR)/lib:$${LD_LIBRARY_PATH} ./scripts/check-calls.py $@
+endif
 
 $(RIZIN_BIN):
+ifeq ($(PRUNTIME_CHECK_CALLS), 1)
 	mkdir -p $(RIZIN_BUILD_DIR)
 	meson --prefix=$(RIZIN_BUILD_DIR) rizin $(RIZIN_BUILD_DIR) && \
 		ninja -C $(RIZIN_BUILD_DIR) && \
 		ninja -C $(RIZIN_BUILD_DIR) install
+endif
 
 .PHONY: build_rz
 build_rz: $(RIZIN_BIN)
