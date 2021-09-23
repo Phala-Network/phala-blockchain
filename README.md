@@ -82,6 +82,7 @@ the _current_ rustc.
     ```bash
     sudo mkdir /opt/intel
     sudo ln -s /opt/sgxsdk /opt/intel/sgxsdk
+    sudo pip install meson ninja
     ```
 
     Run `make` (`SGX_MODE=SW make` for simulation mode if you don't have the hardware).

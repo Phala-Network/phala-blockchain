@@ -36,7 +36,7 @@ tempdir = { version = "0.3.7" }
 
 
 [features]
-default = ["std", "pruntime-client"]
+default = ["std"]
 
 std = [
     "serde",

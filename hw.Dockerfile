@@ -5,6 +5,9 @@ ARG DEBIAN_FRONTEND='noninteractive'
 ADD dockerfile.d/01_apt.sh /root
 RUN bash /root/01_apt.sh
 
+ADD dockerfile.d/02_pip.sh /root
+RUN bash /root/02_pip.sh
+
 ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 

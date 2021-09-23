@@ -23,6 +23,11 @@ SGX_SDK ?= /opt/intel/sgxsdk
 SGX_MODE ?= HW
 SGX_ARCH ?= x64
 
+RIZIN_BUILD_DIR=$(shell pwd)/rz_build
+RIZIN_BIN=$(RIZIN_BUILD_DIR)/bin/rizin
+export RIZIN_BIN
+
+
 # Changing SGX_MODE will trigger rebuild
 define DEPENDABLE_VAR
 .PHONY: phony
@@ -142,7 +147,7 @@ RustEnclave_Name := enclave/enclave.so
 Signed_RustEnclave_Name := bin/enclave.signed.so
 Dumped_Signed_RustEnclave_Name := bin/enclave.dump
 
-export PHALA_GIT_REVISION := $(shell ./git-revision)
+export PHALA_GIT_REVISION := $(shell ./scripts/git-revision)
 
 .PHONY: all
 all: $(App_Name) $(Signed_RustEnclave_Name)
@@ -181,7 +186,7 @@ $(RustEnclave_Name): enclave enclave/Enclave_t.o
 	@$(CXX) enclave/Enclave_t.o -o $@ $(RustEnclave_Link_Flags)
 	@echo "LINK =>  $@"
 
-$(Signed_RustEnclave_Name): $(RustEnclave_Name)
+$(Signed_RustEnclave_Name): $(RustEnclave_Name) $(RIZIN_BIN)
 	@mkdir -p priv
 	@if [ ! -z "$(SGX_SIGN_KEY_URL)" ]; then wget $(SGX_SIGN_KEY_URL) -q -t 3 -O $(SGX_SIGN_KEY); fi
 	@if [ ! -z "$(SGX_ENCLAVE_CONFIG_URL)" ]; then wget $(SGX_ENCLAVE_CONFIG_URL) -q -t 3 -O $(SGX_ENCLAVE_CONFIG); fi
@@ -189,7 +194,22 @@ $(Signed_RustEnclave_Name): $(RustEnclave_Name)
 	$(SGX_ENCLAVE_SIGNER) sign -key $(SGX_SIGN_KEY) -enclave $(RustEnclave_Name) -out $@ -config $(SGX_ENCLAVE_CONFIG)
 	@rm -rf priv
 	@echo "SIGN =>  $@"
-	./check-instructions.py $@
+	./scripts/check-instructions.py $@
+ifeq ($(PRUNTIME_CHECK_CALLS), 1)
+	LD_LIBRARY_PATH=$(RIZIN_BUILD_DIR)/lib:$${LD_LIBRARY_PATH} ./scripts/check-calls.py $@
+endif
+
+$(RIZIN_BIN):
+ifeq ($(PRUNTIME_CHECK_CALLS), 1)
+	mkdir -p $(RIZIN_BUILD_DIR)
+	meson --prefix=$(RIZIN_BUILD_DIR) rizin $(RIZIN_BUILD_DIR) && \
+		ninja -C $(RIZIN_BUILD_DIR) && \
+		ninja -C $(RIZIN_BUILD_DIR) install
+endif
+
+.PHONY: build_rz
+build_rz: $(RIZIN_BIN)
+
 
 .PHONY: enclave
 enclave:
@@ -202,10 +222,12 @@ dump:
 
 .PHONY: check-instructions
 check-instructions: $(RustEnclave_Name)
-	./check-instructions.py --show-callers $(RustEnclave_Name)
+	./scripts/check-instructions.py --show-callers $(RustEnclave_Name)
 
 .PHONY: clean
 clean:
 	@rm -f $(App_Name) $(RustEnclave_Name) $(Signed_RustEnclave_Name) $(Dumped_Signed_RustEnclave_Name) enclave/*_t.* app/*_u.* lib/*.a
-	@cd enclave && cargo clean && rm -f Cargo.lock
-	@cd app && cargo clean && rm -f Cargo.lock
+	@cd enclave && cargo clean
+	@cd app && cargo clean
+	@rm -rf $(RIZIN_BUILD_DIR)
+

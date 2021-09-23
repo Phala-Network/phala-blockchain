@@ -1,12 +1,13 @@
-use libc::{self, c_char, c_int, c_uint, c_ulong, c_void, iovec, size_t, ssize_t};
+use libc::{self, c_char, c_int, c_long, c_uint, c_ulong, c_void, iovec, size_t, ssize_t};
+use log::{error, info};
 use sgx_libc::{self, ocall};
 use sgx_types::{sgx_read_rand, sgx_status_t};
 use sgx_unwind as _;
 use std::{
     ffi::CStr,
+    slice::from_raw_parts,
     sync::atomic::{AtomicU16, Ordering},
 };
-use log::{error, info};
 
 macro_rules! assert_eq_size {
     ($x:ty, $($xs:ty),+ $(,)?) => {
@@ -44,6 +45,13 @@ fn set_errno(errno: libc::c_int) {
     }
 }
 
+fn cstr(cs: *const c_char) -> String {
+    if cs.is_null() {
+        return "(null)".into();
+    }
+    String::from_utf8_lossy(unsafe { from_raw_parts(cs as *mut u8, sgx_libc::strlen(cs)) }).into()
+}
+
 pub fn init() {
     use std::io;
     let _ = (io::stdin(), io::stdout(), io::stderr());
@@ -67,42 +75,26 @@ pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: 
 
 #[no_mangle]
 pub extern "C" fn read(fd: c_int, buf: *mut c_void, count: size_t) -> ssize_t {
-    if fd != 0 {
-        not_allowed!()
-    } else {
-        unsafe { ocall::read(fd, buf, count) }
-    }
+    unsafe { ocall::read(fd, buf, count) }
 }
 
 #[no_mangle]
 pub extern "C" fn readv(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t {
     assert_eq_size!(libc::iovec, sgx_libc::iovec);
 
-    if fd != 0 {
-        not_allowed!()
-    } else {
-        unsafe { ocall::readv(fd, iov as _, iovcnt) }
-    }
+    unsafe { ocall::readv(fd, iov as _, iovcnt) }
 }
 
 #[no_mangle]
 pub extern "C" fn write(fd: c_int, buf: *const c_void, count: size_t) -> ssize_t {
-    if !matches!(fd, 1 | 2) {
-        not_allowed!()
-    } else {
-        unsafe { ocall::write(fd, buf, count) }
-    }
+    unsafe { ocall::write(fd, buf, count) }
 }
 
 #[no_mangle]
 pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t {
     assert_eq_size!(libc::iovec, sgx_libc::iovec);
 
-    if !matches!(fd, 1 | 2) {
-        not_allowed!()
-    } else {
-        unsafe { ocall::writev(fd, iov as _, iovcnt) }
-    }
+    unsafe { ocall::writev(fd, iov as _, iovcnt) }
 }
 
 #[no_mangle]
@@ -135,16 +127,57 @@ pub extern "C" fn getcwd(mut buf: *mut c_char, size: size_t) -> *mut c_char {
     return buf;
 }
 
+#[inline(never)]
 #[no_mangle]
 pub unsafe extern "C" fn syscall(num: libc::c_long, mut args: ...) -> libc::c_long {
-    if num == libc::SYS_getrandom {
-        let buf = args.arg::<*mut c_void>();
-        let buflen = args.arg::<size_t>();
-        let flags = args.arg::<c_uint>();
-        return getrandom(buf, buflen, flags) as _;
+    macro_rules! wrap_ocall {
+        ($func: ident ($($arg: ident),+)) => {{
+            let mut ret_val: c_int = 0;
+            let mut errno: c_int = 0;
+            $(let $arg = args.arg();)+
+            let status = crate::pal_sgx::$func(&mut ret_val, &mut errno, $($arg,)+);
+            if status != sgx_status_t::SGX_SUCCESS {
+                error!("status = {:?}", status);
+                set_errno(sgx_libc::ESGX);
+                return -1;
+            }
+            if ret_val == -1 {
+                set_errno(errno);
+            }
+            ret_val as _
+        }}
     }
-    eprintln!("unsupported syscall({})", num);
-    loop {}
+
+    match num {
+        libc::SYS_getrandom => {
+            return getrandom(args.arg(), args.arg(), args.arg()) as _;
+        }
+        libc::SYS_timerfd_create => {
+            wrap_ocall! { ocall_timerfd_create(clockid, flags) }
+        }
+        libc::SYS_timerfd_settime => {
+            wrap_ocall! { ocall_timerfd_settime(fd, flags, new_value, old_value) }
+        }
+        libc::SYS_timerfd_gettime => {
+            wrap_ocall! { ocall_timerfd_gettime(fd, curr_value) }
+        }
+        #[cfg(feature = "net")]
+        libc::SYS_epoll_create1 => {
+            return net::epoll_create1(args.arg()) as _;
+        }
+        #[cfg(feature = "net")]
+        libc::SYS_epoll_create => {
+            return net::epoll_create1(0) as _;
+        }
+        libc::SYS_statx => {
+            set_errno(libc::EPERM);
+            return -1;
+        }
+        _ => {
+            eprintln!("unsupported syscall({})", num);
+            not_allowed!()
+        }
+    }
 }
 
 #[no_mangle]
@@ -250,7 +283,8 @@ pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn open64(_path: *const c_char, _oflag: c_int, _mode: c_int) -> c_int {
+pub extern "C" fn open64(path: *const c_char, _oflag: c_int, _mode: c_int) -> c_int {
+    error!("Trying to open {}", cstr(path));
     // unsafe { ocall::open64(path, oflag, mode) }
     not_allowed!()
 }
@@ -343,7 +377,38 @@ pub extern "C" fn fstat64(_fildes: c_int, _buf: *mut libc::stat64) -> c_int {
     not_allowed!()
 }
 
-// #[cfg(feature = "net")]
+#[no_mangle]
+extern "C" fn sysconf(name: c_int) -> c_long {
+    unsafe { ocall::sysconf(name) }
+}
+
+#[no_mangle]
+extern "C" fn sched_getaffinity(
+    pid: libc::pid_t,
+    cpusetsize: size_t,
+    cpuset: *mut libc::cpu_set_t,
+) -> c_int {
+    assert_eq_size!(libc::cpu_set_t, sgx_libc::cpu_set_t);
+    if pid == 0 {
+        unsafe { ocall::sched_getaffinity(pid, cpusetsize, cpuset as _) }
+    } else {
+        not_allowed!()
+    }
+}
+
+#[no_mangle]
+unsafe extern "C" fn fcntl(fd: c_int, cmd: c_int, mut args: ...) -> c_int {
+    match cmd {
+        libc::F_GETFL => ocall::fcntl_arg0(fd, cmd),
+        libc::F_SETFL => ocall::fcntl_arg1(fd, cmd, args.arg()),
+        _ => {
+            error!("fcntl: unknown command {}", cmd);
+            not_allowed!()
+        }
+    }
+}
+
+#[cfg(feature = "net")]
 mod net {
     use super::*;
 
@@ -411,21 +476,95 @@ mod net {
         hints: *const libc::addrinfo,
         res: *mut *mut libc::addrinfo,
     ) -> c_int {
+        log::warn!("getaddrinfo: node={} service={}", cstr(node), cstr(service));
         assert_eq_size!(libc::addrinfo, sgx_libc::addrinfo);
         unsafe { ocall::getaddrinfo(node, service, hints as _, res as _) }
     }
 
     #[no_mangle]
     pub extern "C" fn __res_init() -> c_int {
-        eprintln!("WARN: __res_init not implemented");
+        log::warn!("__res_init not implemented");
         0
     }
 
     #[no_mangle]
-    pub extern "C" fn gai_strerror(_errcode: c_int) -> *const c_char {
-        // different memory space
-        // ocall::gai_strerror(errcode)
-        b"gai_strerror not supported\0".as_ptr() as _
+    pub extern "C" fn gai_strerror(errcode: c_int) -> *const c_char {
+        unsafe { ocall::gai_strerror(errcode) }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn epoll_create(_size: c_int) -> c_int {
+        /*
+        man epoll_create:
+        epoll_create1()
+        If flags is 0, then, other than the fact that the obsolete size argument is dropped, epoll_create1() is the same as epoll_create().
+         */
+        epoll_create1(0)
+    }
+
+    #[no_mangle]
+    pub extern "C" fn epoll_create1(flags: c_int) -> c_int {
+        unsafe { ocall::epoll_create1(flags) }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn epoll_ctl(
+        epfd: c_int,
+        op: c_int,
+        fd: c_int,
+        event: *mut libc::epoll_event,
+    ) -> c_int {
+        assert_eq_size!(libc::epoll_event, sgx_libc::epoll_event);
+        unsafe { ocall::epoll_ctl(epfd, op, fd, event as _) }
+    }
+
+    #[no_mangle]
+    pub extern "C" fn epoll_wait(
+        epfd: c_int,
+        events: *mut libc::epoll_event,
+        maxevents: c_int,
+        timeout: c_int,
+    ) -> c_int {
+        assert_eq_size!(libc::epoll_event, sgx_libc::epoll_event);
+        let rv = unsafe { ocall::epoll_wait(epfd, events as _, maxevents, timeout) };
+        rv
+    }
+
+    #[no_mangle]
+    extern "C" fn getpeername(
+        socket: c_int,
+        address: *mut libc::sockaddr,
+        address_len: *mut libc::socklen_t,
+    ) -> c_int {
+        assert_eq_size!(libc::sockaddr, sgx_libc::sockaddr);
+        assert_eq_size!(libc::socklen_t, sgx_libc::socklen_t);
+        unsafe { ocall::getpeername(socket, address as _, address_len as _) }
+    }
+
+    #[no_mangle]
+    extern "C" fn getsockname(
+        socket: c_int,
+        address: *mut libc::sockaddr,
+        address_len: *mut libc::socklen_t,
+    ) -> c_int {
+        assert_eq_size!(libc::sockaddr, sgx_libc::sockaddr);
+        assert_eq_size!(libc::socklen_t, sgx_libc::socklen_t);
+        unsafe { ocall::getsockname(socket, address as _, address_len as _) }
+    }
+
+    #[no_mangle]
+    extern "C" fn eventfd(init: c_uint, flags: c_int) -> c_int {
+        let mut rv: c_int = 0;
+        let mut errno: c_int = 0;
+        let status = unsafe { crate::pal_sgx::ocall_eventfd(&mut rv, &mut errno, init, flags) };
+        if status != sgx_status_t::SGX_SUCCESS {
+            set_errno(sgx_libc::ESGX);
+            return -1;
+        }
+        if rv == -1 {
+            set_errno(errno);
+        }
+        rv
     }
 }
 
@@ -433,29 +572,73 @@ mod net {
 #[cfg(feature = "libc_placeholders")]
 mod placeholders {
     #[no_mangle]
-    pub extern "C" fn sigaltstack() {}
+    extern "C" fn sigaltstack() {}
     #[no_mangle]
-    pub extern "C" fn sysconf() {}
+    extern "C" fn shutdown() {}
     #[no_mangle]
-    pub extern "C" fn mprotect() {}
+    extern "C" fn waitpid() {}
     #[no_mangle]
-    pub extern "C" fn pthread_attr_init() {}
+    extern "C" fn sendto() {}
     #[no_mangle]
-    pub extern "C" fn pthread_attr_setstacksize() {}
+    extern "C" fn recvfrom() {}
     #[no_mangle]
-    pub extern "C" fn pthread_attr_destroy() {}
+    extern "C" fn mprotect() {}
     #[no_mangle]
-    pub extern "C" fn prctl() {}
+    extern "C" fn pthread_attr_init() {}
     #[no_mangle]
-    pub extern "C" fn pthread_detach() {}
+    extern "C" fn pthread_attr_setstacksize() {}
     #[no_mangle]
-    pub extern "C" fn pthread_getattr_np() {}
+    extern "C" fn pthread_attr_destroy() {}
     #[no_mangle]
-    pub extern "C" fn pthread_attr_getguardsize() {}
+    extern "C" fn prctl() {}
     #[no_mangle]
-    pub extern "C" fn pthread_attr_getstack() {}
+    extern "C" fn pthread_detach() {}
     #[no_mangle]
-    pub extern "C" fn sched_getaffinity() {}
+    extern "C" fn pthread_getattr_np() {}
+    #[no_mangle]
+    extern "C" fn pthread_attr_getguardsize() {}
+    #[no_mangle]
+    extern "C" fn pthread_attr_getstack() {}
+    #[no_mangle]
+    extern "C" fn bind() {}
+    #[no_mangle]
+    extern "C" fn sigaction() {}
+    #[no_mangle]
+    extern "C" fn socketpair() {}
+    #[no_mangle]
+    extern "C" fn gethostname() {}
+
+    #[no_mangle]
+    extern "C" fn pthread_condattr_init(_attr: *mut libc::pthread_condattr_t) -> c_int {
+        0
+    }
+
+    #[no_mangle]
+    extern "C" fn pthread_condattr_setclock(
+        _attr: *mut libc::pthread_condattr_t,
+        _clock_id: libc::clockid_t,
+    ) -> c_int {
+        0
+    }
+
+    #[no_mangle]
+    extern "C" fn pthread_condattr_destroy(_attr: *mut libc::pthread_condattr_t) -> c_int {
+        0
+    }
+
+    #[no_mangle]
+    extern "C" fn pthread_cond_timedwait(
+        cond: *mut libc::pthread_cond_t,
+        lock: *mut libc::pthread_mutex_t,
+        _abstime: *const libc::timespec,
+    ) -> c_int {
+        unsafe { sgx_libc::pthread_cond_wait(cond as _, lock as _) }
+    }
+
+    #[no_mangle]
+    extern "C" fn nanosleep(rqtp: *const libc::timespec, rmtp: *mut libc::timespec) -> c_int {
+        unsafe { ocall::nanosleep(rqtp as _, rmtp as _) }
+    }
 }
 
 #[cfg(feature = "tests")]

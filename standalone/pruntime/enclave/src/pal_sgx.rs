@@ -31,6 +31,18 @@ fn to_tstd_path(path: &std::path::Path) -> &sgx_tstd::path::Path {
     sgx_tstd::path::Path::new(os_str)
 }
 
+impl SgxPlatform {
+    pub fn async_executor_run() {
+        info!("Async executor started");
+        phala_async_executor::run_executor();
+    }
+
+    pub fn async_reactor_run() {
+        info!("Async reactor started");
+        async_io::io_main_loop();
+    }
+}
+
 impl Sealing for SgxPlatform {
     type SealError = anyhow::Error;
     type UnsealError = anyhow::Error;
@@ -134,6 +146,37 @@ extern "C" {
         maxlen: u32,
         p_quote_len: *mut u32,
     ) -> sgx_status_t;
+
+    // sgx_status_t SGX_CDECL ocall_eventfd(int* retval, unsigned int init, int flags, int* errno);
+    pub fn ocall_eventfd(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        init: libc::c_uint,
+        flags: libc::c_int,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_create(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        clockid: libc::c_int,
+        flags: libc::c_int,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_settime(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        fd: libc::c_int,
+        flags: libc::c_int,
+        new_value: *const libc::itimerspec,
+        old_value: *mut libc::itimerspec,
+    ) -> sgx_status_t;
+
+    pub fn ocall_timerfd_gettime(
+        ret_val: *mut libc::c_int,
+        errno: *mut libc::c_int,
+        fd: libc::c_int,
+        curr_value: *mut libc::itimerspec,
+    ) -> sgx_status_t;
 }
 
 fn ias_spid() -> sgx_spid_t {
@@ -200,8 +243,7 @@ pub fn get_sigrl_from_intel(gid: u32) -> Vec<u8> {
     let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}/{:08x}", IAS_HOST, IAS_SIGRL_ENDPOINT, gid);
-    let url = TryFrom::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = TryFrom::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Ocp-Apim-Subscription-Key", &ias_key())
@@ -256,8 +298,7 @@ pub fn get_report_from_intel(quote: Vec<u8>) -> (String, String, String) {
     let timeout = Some(Duration::from_secs(8));
 
     let url = format!("https://{}{}", IAS_HOST, IAS_REPORT_ENDPOINT);
-    let url = TryFrom::try_from(url.as_str())
-        .expect("Invalid IAS URI");
+    let url = TryFrom::try_from(url.as_str()).expect("Invalid IAS URI");
     let res = Request::new(&url)
         .header("Connection", "Close")
         .header("Content-Type", "application/json")

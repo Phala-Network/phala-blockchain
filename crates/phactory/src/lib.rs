@@ -12,9 +12,9 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use rand::*;
+use side_task::SideTaskManager;
 
 use crate::light_validation::LightValidation;
-use crate::secret_channel::PeelingReceiver;
 use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str;
@@ -56,6 +56,7 @@ mod secret_channel;
 mod storage;
 mod system;
 mod types;
+mod side_task;
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ExecuteEnv, SYSTEM};
@@ -135,6 +136,7 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     system: Option<system::System<Platform>>,
+    side_task_man: SideTaskManager,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -149,6 +151,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_info: None,
             runtime_state: None,
             system: None,
+            side_task_man: Default::default(),
         }
     }
 

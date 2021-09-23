@@ -17,6 +17,8 @@ pub struct BlockInfo<'a> {
     pub storage: &'a crate::Storage,
     /// The message queue
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,
+    /// The side-task manager.
+    pub side_task_man: &'a mut crate::side_task::SideTaskManager,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]

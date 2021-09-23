@@ -36,6 +36,8 @@ else ifeq ($(MITIGATION-CVE-2020-0551), CF)
 export MITIGATION_CVE_2020_0551=CF
 endif
 
+export CARGO_CFG_MEMCHR_DISABLE_AUTO_SIMD=1
+
 .PHONY: all
 
 all: $(Rust_Enclave_Name)

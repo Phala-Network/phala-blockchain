@@ -141,6 +141,9 @@ extern "C" {
         output_buf_len: usize,
         output_len_ptr: *mut usize,
     ) -> sgx_status_t;
+
+    fn ecall_async_reactor_run(eid: sgx_enclave_id_t) -> sgx_status_t;
+    fn ecall_async_executor_run(eid: sgx_enclave_id_t) -> sgx_status_t;
 }
 
 const IAS_SPID_STR: &str = env!("IAS_SPID");
@@ -262,6 +265,60 @@ pub extern "C" fn ocall_get_update_info(
     update_info: *mut sgx_update_info_bit_t,
 ) -> sgx_status_t {
     unsafe { sgx_report_attestation_status(platform_blob, enclave_trusted, update_info) }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_eventfd(
+    errno: *mut libc::c_int,
+    init: libc::c_uint,
+    flags: libc::c_int,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::eventfd(init, flags);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_create(
+    errno: *mut libc::c_int,
+    clockid: libc::c_int,
+    flags: libc::c_int,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_create(clockid, flags);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_settime(
+    errno: *mut libc::c_int,
+    fd: libc::c_int,
+    flags: libc::c_int,
+    new_value: *const libc::itimerspec,
+    old_value: *mut libc::itimerspec,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_settime(fd, flags, new_value, old_value);
+        *errno = *libc::__errno_location();
+        rv
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn ocall_timerfd_gettime(
+    errno: *mut libc::c_int,
+    fd: libc::c_int,
+    curr_value: *mut libc::itimerspec,
+) -> libc::c_int {
+    unsafe {
+        let rv = libc::timerfd_gettime(fd, curr_value);
+        *errno = *libc::__errno_location();
+        rv
+    }
 }
 
 fn init_enclave() -> SgxResult<SgxEnclave> {
@@ -585,25 +642,51 @@ fn main() {
         panic!("Initialize Failed");
     }
 
+    let _reactor = thread::Builder::new()
+        .name("async-reactor".into())
+        .spawn(move || {
+            let result = unsafe { ecall_async_reactor_run(eid) };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("[-] ecall_async_reactor_run failed {}!", result);
+            }
+        })
+        .expect("Failed to spawn async-reactor");
+
+    let _executor = thread::Builder::new()
+        .name("async-executor".into())
+        .spawn(move || {
+            let result = unsafe { ecall_async_executor_run(eid) };
+            if result != sgx_status_t::SGX_SUCCESS {
+                panic!("[-] ecall_async_executor_run failed {}!", result);
+            }
+        })
+        .expect("Failed to spawn async-executor");
+
     let bench_cores: u32 = args.cores.unwrap_or_else(|| num_cpus::get() as _);
     info!("Bench cores: {}", bench_cores);
 
-    let rocket = thread::spawn(move || {
-        rocket().launch();
-    });
+    let rocket = thread::Builder::new()
+        .name("rocket".into())
+        .spawn(move || {
+            rocket().launch();
+        })
+        .expect("Failed to launch Rocket");
 
     let mut v = vec![];
     for i in 0..bench_cores {
-        let child = thread::spawn(move || {
-            set_thread_idle_policy();
-            loop {
-                let result = unsafe { ecall_bench_run(eid, &mut retval, i) };
-                if result != sgx_status_t::SGX_SUCCESS {
-                    panic!("Run benchmark {} failed", i);
+        let child = thread::Builder::new()
+            .name(format!("bench-{}", i))
+            .spawn(move || {
+                set_thread_idle_policy();
+                loop {
+                    let result = unsafe { ecall_bench_run(eid, &mut retval, i) };
+                    if result != sgx_status_t::SGX_SUCCESS {
+                        panic!("Run benchmark {} failed", i);
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(200));
                 }
-                std::thread::sleep(std::time::Duration::from_millis(200));
-            }
-        });
+            })
+            .expect("Failed to launch benchmark thread");
         v.push(child);
     }
 

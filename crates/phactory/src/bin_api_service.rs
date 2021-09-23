@@ -26,6 +26,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             "machine_id": machine_id,
             "version": info.version,
             "git_revision": info.git_revision,
+            "running_side_tasks": info.running_side_tasks,
         }))
     }
 

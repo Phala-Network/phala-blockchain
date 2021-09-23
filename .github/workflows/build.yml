@@ -51,7 +51,7 @@ jobs:
     - uses: ./.github/actions/install_toolchain
     
     - name: Build pRuntime
-      run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make
+      run: source /opt/intel/sgxsdk/environment && cd ./standalone/pruntime/ && SGX_MODE=SW make PRUNTIME_CHECK_CALLS=1
     - name: Save pruntime binaries
       uses: actions/upload-artifact@v2
       with:
