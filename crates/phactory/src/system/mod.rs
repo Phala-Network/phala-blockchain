@@ -337,6 +337,7 @@ pub struct System<Platform> {
     platform: Platform,
     // Configuration
     sealing_path: String,
+    enable_geoprobing: bool,
     // Messageing
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
@@ -356,6 +357,7 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
         sealing_path: String,
+        enable_geoprobing: bool,
         identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
@@ -367,6 +369,7 @@ impl<Platform: pal::Platform> System<Platform> {
         System {
             platform,
             sealing_path,
+            enable_geoprobing,
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
@@ -389,7 +392,9 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
-        // geo_probe::process_block(block.block_number, &self.egress, block.side_task_man, &self.identity_key);
+        if self.enable_geoprobing {
+            geo_probe::process_block(block.block_number, &self.egress, block.side_task_man, &self.identity_key);
+        }
         loop {
             let ok = phala_mq::select! {
                 message = self.system_events => match message {
