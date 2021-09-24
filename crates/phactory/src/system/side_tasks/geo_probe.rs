@@ -73,8 +73,8 @@ pub fn process_block(
                 log::info!("public IP address: {}", pub_ip);
 
                 // 2. Look up geolocation info in maxmind database.
-                // let geo_db_buf = std::fs::read("./GeoLite2-City.mmdb").unwrap();
-                let geo_db_buf = include_bytes!("../../../../../standalone/pruntime/bin/GeoLite2-City.mmdb");
+                let geo_db_buf = std::fs::read("./GeoLite2-City.mmdb").unwrap();
+                // let geo_db_buf = include_bytes!("../../../../../standalone/pruntime/bin/GeoLite2-City.mmdb");
                 let reader =
                     maxminddb::Reader::from_source(geo_db_buf).expect("Geolite2 database is not loaded");
                 let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();

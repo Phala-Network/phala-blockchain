@@ -284,9 +284,9 @@ pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
 
 #[no_mangle]
 pub extern "C" fn open64(path: *const c_char, _oflag: c_int, _mode: c_int) -> c_int {
-    error!("Trying to open {}", cstr(path));
-    // unsafe { ocall::open64(path, oflag, mode) }
-    not_allowed!()
+    // error!("Trying to open {}", cstr(path));
+    unsafe { ocall::open64(path, _oflag, _mode) }
+    // not_allowed!()
 }
 
 #[no_mangle]
