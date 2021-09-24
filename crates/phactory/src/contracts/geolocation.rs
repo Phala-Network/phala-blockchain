@@ -92,7 +92,7 @@ impl contracts::NativeContract for Geolocation {
                 // Perform geo_data cleaning
                 // purging expired region map
                 for (k, v) in &self.geo_data {
-                    if v.created_at <= context.block.block_number {
+                    if v.data.is_some() && v.created_at <= context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM {
                         // Will be removed very soon, delete its corresponding region map.
                         if let Some(workers) = self.region_map.get_mut(&v.data.as_ref().unwrap().region_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == *k) {
@@ -111,7 +111,7 @@ impl contracts::NativeContract for Geolocation {
                 self.geo_data = self.geo_data.clone()
                     .into_iter()
                     .filter(|(_, v)|
-                        v.created_at <= context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM)
+                        v.created_at > context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM)
                     .collect();
 
                 // Insert data to geolocation info btreemap
@@ -191,6 +191,13 @@ impl contracts::NativeContract for Geolocation {
                 }
             }
             Request::GetAvailableRegionName {} => {
+                // let valid_region_map = self.region_map.clone()
+                //     .into_iter()
+                //     .filter(|(_, v)|
+                //         v.len() == 0)
+                //     .collect();
+                // let region_names: Vec<String> = valid_region_map.keys().cloned().collect();
+
                 let region_names: Vec<String> = self.region_map.keys().cloned().collect();
                 Ok(Response::GetAvailableRegionName { region_names })
             }
