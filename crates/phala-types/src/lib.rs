@@ -467,6 +467,7 @@ pub mod messaging {
     pub enum GatekeeperEvent {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
+        RepairV,
     }
 
     impl GatekeeperEvent {

@@ -609,6 +609,24 @@ where
                     );
                 }
             }
+            GatekeeperEvent::RepairV => {
+                if origin.is_pallet() {
+                    info!("Repairing V");
+                    // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
+                    // not being applied.
+                    //
+                    // See below links for more detail:
+                    // https://github.com/Phala-Network/phala-blockchain/issues/489
+                    // https://github.com/Phala-Network/phala-blockchain/issues/495
+                    // https://forum.phala.network/t/topic/2753#timeline
+                    // https://forum.phala.network/t/topic/2909
+                    self.state.workers.values_mut().for_each(|w| {
+                        if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
+                            w.tokenomic.v = w.tokenomic.v_init;
+                        }
+                    })
+                }
+            }
         }
     }
 
