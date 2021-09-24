@@ -73,6 +73,10 @@ struct Args {
     /// Run benchmark at startup.
     #[structopt(long)]
     init_bench: bool,
+
+    /// Enable geolocaltion report
+    #[structopt(long)]
+    enable_geoprobing: bool,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -633,6 +637,7 @@ fn main() {
         init_bench: args.init_bench,
         version: env!("CARGO_PKG_VERSION").into(),
         git_revision: git_revision(),
+        enable_geoprobing: args.enable_geoprobing,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();

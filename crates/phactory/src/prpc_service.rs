@@ -392,6 +392,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
+            self.args.enable_geoprobing.clone(),
             &id_pair,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
