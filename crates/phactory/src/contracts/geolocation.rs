@@ -90,6 +90,23 @@ impl contracts::NativeContract for Geolocation {
                 };
 
                 // Perform geo_data cleaning
+                // purging expired region map
+                for (k, v) in &self.geo_data {
+                    if v.created_at <= context.block.block_number {
+                        // Will be removed very soon, delete its corresponding region map.
+                        if let Some(workers) = self.region_map.get_mut(&v.data.as_ref().unwrap().region_name) {
+                            if let Some(pos) = workers.iter().position(|x| *x == *k) {
+                                workers.remove(pos);
+                            } else {
+                                error!("Cannot locate AccountId. Something is wrong in the geolocation contract's UpdateGeolocation() function");
+                                return Err(TransactionError::UnknownError);
+                            }
+                        } else {
+                            error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
+                            return Err(TransactionError::UnknownError);
+                        }
+                    }
+                }
                 // Purging expired geo_data
                 self.geo_data = self.geo_data.clone()
                     .into_iter()
