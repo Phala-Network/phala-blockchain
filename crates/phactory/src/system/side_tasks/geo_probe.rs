@@ -147,7 +147,7 @@ pub fn process_block(
                                                               &egress,
                                                               &key_map);
                 let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
-                log::info!("send msg [{:?}] to topic [{:?}]", &msg, &topic);
+                log::info!("send msg [{:?}] to topic [{:?}]", &msg, String::from_utf8_lossy(&topic));
 
                 secret_egress.sendto(topic, &msg, Some(&public_contract_ecdh_key));
             },
