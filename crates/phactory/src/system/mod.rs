@@ -1,5 +1,6 @@
 mod gk;
 mod master_key;
+mod side_tasks;
 
 use crate::{benchmark, types::BlockInfo};
 use anyhow::Result;
@@ -23,6 +24,7 @@ use phala_types::{
     MasterPublicKey, WorkerPublicKey,
 };
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use side_tasks::geo_probe;
 
 pub type TransactionResult = Result<(), TransactionError>;
 
@@ -387,6 +389,7 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+        // geo_probe::process_block(block.block_number, &self.egress, block.side_task_man, &self.identity_key);
         loop {
             let ok = phala_mq::select! {
                 message = self.system_events => match message {
