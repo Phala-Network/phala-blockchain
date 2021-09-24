@@ -14,6 +14,7 @@ use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
 
+mod replay_gk;
 mod chain_client;
 mod error;
 mod extra;
@@ -183,6 +184,9 @@ struct Args {
 
     #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
     geoip_city_db: String,
+
+    #[structopt(long, help = "Replay GK for debug")]
+    replay_gk_at: Option<BlockNumber>,
 }
 
 struct BlockSyncState {
@@ -897,6 +901,10 @@ async fn bridge(args: Args) -> Result<()> {
         wait_until_synced(&client).await?;
         wait_until_synced(&paraclient).await?;
         info!("Substrate sync blocks done");
+    }
+
+    if let Some(block_number) = args.replay_gk_at {
+        return replay_gk::replay(&client, block_number).await;
     }
 
     // Other initialization

@@ -8,6 +8,7 @@ use crate::runtimes::PhalaNodeRuntime;
 pub type Runtime = PhalaNodeRuntime;
 pub type Header = <Runtime as subxt::system::System>::Header;
 pub type Hash = <Runtime as subxt::system::System>::Hash;
+pub type Hashing = <Runtime as subxt::system::System>::Hashing;
 pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
 pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
 pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;

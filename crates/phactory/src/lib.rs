@@ -12,7 +12,6 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use rand::*;
-use side_task::SideTaskManager;
 
 use crate::light_validation::LightValidation;
 use std::collections::BTreeMap;
@@ -44,6 +43,11 @@ use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageS
 use phala_pallets::pallet_mq;
 use phala_types::WorkerRegistrationInfo;
 
+pub use system::gk;
+pub use storage::{Storage, StorageExt};
+pub use types::BlockInfo;
+pub use side_task::SideTaskManager;
+
 pub mod benchmark;
 
 mod bin_api_service;
@@ -60,8 +64,6 @@ mod side_task;
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use contracts::{ExecuteEnv, SYSTEM};
-use storage::{Storage, StorageExt};
-use types::BlockInfo;
 use types::Error;
 
 // TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal

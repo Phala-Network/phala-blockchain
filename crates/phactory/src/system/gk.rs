@@ -22,9 +22,10 @@ use std::{
 
 use fixed_macro::types::U64F64 as fp;
 use log::debug;
-use msg_trait::MessageChannel;
 use phactory_api::prpc as pb;
 use tokenomic::{FixedPoint, TokenomicInfo};
+
+pub use msg_trait::MessageChannel;
 
 /// Block interval to generate pseudo-random on chain
 ///
@@ -221,7 +222,7 @@ where
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
             }
-            GatekeeperEvent::TokenomicParametersChanged(params) => {
+            GatekeeperEvent::TokenomicParametersChanged(_params) => {
                 // Handled by MiningFinance
             }
             GatekeeperEvent::RepairV => {
@@ -270,7 +271,7 @@ where
     }
 }
 
-pub(crate) struct MiningFinance<MsgChan> {
+pub struct MiningFinance<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -672,7 +673,7 @@ where
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
-            GatekeeperEvent::NewRandomNumber(random_number_event) => {
+            GatekeeperEvent::NewRandomNumber(_random_number_event) => {
                 // Handled by Gatekeeper.
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
@@ -1031,7 +1032,7 @@ pub mod tests {
         fn test_roles() -> Roles {
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let mut gk = MiningFinance::new(&mut mq, egress);
+            let gk = MiningFinance::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,

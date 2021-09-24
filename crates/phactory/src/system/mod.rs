@@ -1,4 +1,4 @@
-mod gk;
+pub mod gk;
 mod master_key;
 
 use crate::{benchmark, types::BlockInfo};
