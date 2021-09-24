@@ -8,7 +8,6 @@ pub enum Error {
     SearchSetIdChangeInEmptyRange,
     FailedToDecode,
     FailedToCallRegisterWorker,
-    FailedToSendGeolocation,
     ParachainIdNotFound,
     ParachainValidationDataNotFound,
 }
@@ -22,7 +21,6 @@ impl fmt::Display for Error {
             Error::SearchSetIdChangeInEmptyRange => write!(f, "list of known blocks is empty"),
             Error::FailedToDecode => write!(f, "failed to decode"),
             Error::FailedToCallRegisterWorker => write!(f, "failed to call register_worker"),
-            Error::FailedToSendGeolocation => write!(f, "failed to send desensitized geolocation"),
             Error::ParachainIdNotFound => write!(f, "parachain id not found"),
             Error::ParachainValidationDataNotFound => {
                 write!(f, "parachain validation data not found")

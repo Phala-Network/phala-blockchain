@@ -13,13 +13,23 @@ use crate::contracts;
 use crate::contracts::{AccountId, NativeContext};
 extern crate runtime as chain;
 
-use phala_types::messaging::{CoordinateInfo, GeolocationCommand};
+use phala_types::messaging::{Geocoding, GeolocationCommand};
 
 type Command = GeolocationCommand;
 
+const GEOCODING_EXPIRED_BLOCKNUM: u32 = 2400; // roughly 8 hours
+
+#[derive(Encode, Decode, Debug, Clone)]
+pub struct GeocodingWithBlockInfo {
+    data: Option<Geocoding>,
+    created_at: chain::BlockNumber,
+    err_info: Option<String>,
+}
+
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct Geolocation {
-    geolocation_info: BTreeMap<AccountId, CoordinateInfo>,
-    city_distribution: BTreeMap<String, Vec<AccountId>>,
+    geo_data: BTreeMap<AccountId, GeocodingWithBlockInfo>,
+    region_map: BTreeMap<String, Vec<AccountId>>,
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -33,26 +43,26 @@ pub enum Error {
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
-    GetGeolocationInfo { account: AccountId },
-    GetAvailableCityName {},
-    GetCityDistribution { city_name: String },
-    GetCityDistributionCount { city_name: String },
+    GetGeocoding { account: AccountId },
+    GetAvailableRegionName {},
+    GetAccountsInRegion { region_name: String },
+    GetAccountCountInRegion { region_name: String },
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Response {
-    GetGeolocationInfo { geolocation_info: CoordinateInfo },
-    GetAvailableCityName { city_names: Vec<String> },
-    GetCityDistribution { workers: Vec<AccountId> },
-    GetCityDistributionCount { count: u32 },
+    GetGeocoding { geocoding: Geocoding },
+    GetAvailableRegionName { region_names: Vec<String> },
+    GetAccountsInRegion { workers: Vec<AccountId> },
+    GetAccountCountInRegion { count: u32 },
     Error(String),
 }
 
 impl Geolocation {
     pub fn new() -> Self {
         Geolocation {
-            geolocation_info: BTreeMap::new(),
-            city_distribution: BTreeMap::new(),
+            geo_data: BTreeMap::new(),
+            region_map: BTreeMap::new(),
         }
     }
 }
@@ -73,18 +83,29 @@ impl contracts::NativeContract for Geolocation {
         cmd: Command,
     ) -> TransactionResult {
         match cmd {
-            Command::UpdateGeolocation { geolocation_info } => {
+            Command::UpdateGeolocation { geocoding, err_info } => {
                 let sender = match &origin {
                     MessageOrigin::Worker(pubkey) => AccountId::from(*pubkey),
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
+                // Perform geo_data cleaning
+                // Purging expired geo_data
+                self.geo_data = self.geo_data.clone()
+                    .into_iter()
+                    .filter(|(_, v)|
+                        v.created_at <= context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM)
+                    .collect();
+
                 // Insert data to geolocation info btreemap
-                if let Some(geo_data) = self.geolocation_info.get_mut(&sender) {
-                    *geo_data = geolocation_info.clone();
-                    if geo_data.city_name != geolocation_info.city_name {
-                        // Remove account id to previous city
-                        if let Some(workers) = self.city_distribution.get_mut(&geo_data.city_name) {
+                if let Some(geo_datum) = self.geo_data.get_mut(&sender) {
+                    // Some cases that we need to clear the region info of the sender:
+                    // 1. geo_datum has value while geocoding has not;
+                    // 2. geocoding has a different region name compared to geo_datum's
+                    if (geo_datum.data.is_some() && geocoding.is_none())
+                        || (geo_datum.data.as_ref().unwrap().region_name != geocoding.as_ref().unwrap().region_name) {
+                        // Remove account id to previous region
+                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.as_ref().unwrap().region_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == sender) {
                                 workers.remove(pos);
                             } else {
@@ -95,22 +116,36 @@ impl contracts::NativeContract for Geolocation {
                             error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
                             return Err(TransactionError::UnknownError);
                         }
-                        // Insert account id to new city
+                        // Insert account id to new region
+                        if geocoding.is_some() {
+                            let workers = self
+                                .region_map
+                                .entry(geocoding.as_ref().unwrap().region_name.clone())
+                                .or_default();
+                            workers.push(sender);
+                        }
+                    }
+                    *geo_datum = GeocodingWithBlockInfo {
+                        data: geocoding.clone(),
+                        created_at: context.block.block_number,
+                        err_info
+                    };
+                } else {
+                    // newly arrived worker
+                    self.geo_data
+                        .insert(sender.clone(),
+                                GeocodingWithBlockInfo {
+                                    data: geocoding.clone(),
+                                    created_at: context.block.block_number,
+                                    err_info
+                                });
+                    if geocoding.is_some() {
                         let workers = self
-                            .city_distribution
-                            .entry(geolocation_info.city_name)
+                            .region_map
+                            .entry(geocoding.unwrap().region_name)
                             .or_default();
                         workers.push(sender);
                     }
-                } else {
-                    // newly arrived worker
-                    self.geolocation_info
-                        .insert(sender.clone(), geolocation_info.clone());
-                    let workers = self
-                        .city_distribution
-                        .entry(geolocation_info.city_name)
-                        .or_default();
-                    workers.push(sender);
                 };
 
                 Ok(())
@@ -124,38 +159,41 @@ impl contracts::NativeContract for Geolocation {
         req: Request,
     ) -> Result<Response, Error> {
         match req {
-            Request::GetGeolocationInfo { account } => {
+            Request::GetGeocoding { account } => {
                 if origin != Some(&account) {
                     return Err(Error::NotAuthorized);
                 }
-                if let Some(data) = self.geolocation_info.get(&account) {
-                    let geolocation_info = data.clone();
-                    Ok(Response::GetGeolocationInfo { geolocation_info })
+                if let Some(geo_data) = self.geo_data.get(&account) {
+                    if let Some(geocoding) = geo_data.data.clone() {
+                        Ok(Response::GetGeocoding { geocoding })
+                    } else {
+                        Err(Error::NoRecord)
+                    }
                 } else {
                     Err(Error::NoRecord)
                 }
             }
-            Request::GetAvailableCityName {} => {
-                let city_names: Vec<String> = self.city_distribution.keys().cloned().collect();
-                Ok(Response::GetAvailableCityName { city_names })
+            Request::GetAvailableRegionName {} => {
+                let region_names: Vec<String> = self.region_map.keys().cloned().collect();
+                Ok(Response::GetAvailableRegionName { region_names })
             }
-            Request::GetCityDistribution { city_name } => {
+            Request::GetAccountsInRegion { region_name } => {
                 // TODO(soptq): Authorization
                 Err(Error::Unimplemented)
-                // if let Some(workers) = self.city_distribution.get(&city_name) {
+                // if let Some(workers) = self.city_distribution.get(&region_name) {
                 //     Ok(Response::GetCityDistribution { workers: workers.clone() })
                 // } else {
                 //     error!("Unavailable city name provided");
                 //     Err(anyhow::Error::msg(Error::InvalidRequest))
                 // }
             }
-            Request::GetCityDistributionCount { city_name } => {
+            Request::GetAccountCountInRegion { region_name } => {
                 let workers = self
-                    .city_distribution
-                    .get(&city_name)
+                    .region_map
+                    .get(&region_name)
                     .ok_or(Error::UnavailableCityName)?;
                 let count = u32::try_from(workers.len()).unwrap_or(u32::MAX);
-                Ok(Response::GetCityDistributionCount { count })
+                Ok(Response::GetAccountCountInRegion { count })
             }
         }
     }
