@@ -373,8 +373,8 @@ pub extern "C" fn readlink(_path: *const c_char, _buf: *mut c_char, _bufsz: size
 #[no_mangle]
 pub extern "C" fn fstat64(_fildes: c_int, _buf: *mut libc::stat64) -> c_int {
     // assert_eq_size!(libc::stat64, sgx_libc::stat64);
-    // unsafe { ocall::fstat64(fildes, buf as _) }
-    not_allowed!()
+    unsafe { ocall::fstat64(_fildes, buf as _) }
+    // not_allowed!()
 }
 
 #[no_mangle]
