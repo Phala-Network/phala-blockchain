@@ -280,24 +280,9 @@ pub struct MiningFinance<MsgChan> {
     tokenomic_params: tokenomic::Params,
 }
 
-impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
-    pub fn new(
-        recv_mq: &mut MessageDispatcher,
-        egress: MsgChan,
-    ) -> Self {
-        MiningFinance {
-            egress,
-            mining_events: recv_mq.subscribe_bound(),
-            system_events: recv_mq.subscribe_bound(),
-            gatekeeper_events: recv_mq.subscribe_bound(),
-            workers: Default::default(),
-            tokenomic_params: tokenomic::test_params(),
-        }
-    }
-
-    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
-        let info = self.workers.get(pubkey)?;
-        Some(pb::WorkerState {
+impl From<&WorkerInfo> for pb::WorkerState {
+    fn from(info: &WorkerInfo) -> Self {
+        pb::WorkerState {
             registered: info.state.registered,
             unresponsive: info.unresponsive,
             bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
@@ -319,12 +304,32 @@ impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
             last_heartbeat_at_block: info.last_heartbeat_at_block,
             last_gk_responsive_event: info.last_gk_responsive_event,
             last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
-            tokenomic_info: if info.state.mining_state.is_some() {
-                Some(info.tokenomic.clone().into())
-            } else {
-                None
-            },
-        })
+            tokenomic_info: Some(info.tokenomic.clone().into()),
+        }
+    }
+}
+
+impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
+    pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
+        MiningFinance {
+            egress,
+            mining_events: recv_mq.subscribe_bound(),
+            system_events: recv_mq.subscribe_bound(),
+            gatekeeper_events: recv_mq.subscribe_bound(),
+            workers: Default::default(),
+            tokenomic_params: tokenomic::test_params(),
+        }
+    }
+
+    pub fn dump_workers_state(&self) -> Vec<(WorkerPublicKey, pb::WorkerState)> {
+        self.workers
+            .values()
+            .map(|info| (info.state.pubkey, info.into()))
+            .collect()
+    }
+
+    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
+        self.workers.get(pubkey).map(Into::into)
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -358,7 +363,6 @@ struct MiningMessageProcesser<'a, MsgChan> {
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
     sum_share: FixedPoint,
 }
-
 
 impl<MsgChan> MiningMessageProcesser<'_, MsgChan>
 where
@@ -468,7 +472,9 @@ where
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
-                worker_info.tokenomic.update_v_slash(params, self.block.block_number);
+                worker_info
+                    .tokenomic
+                    .update_v_slash(params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
                 debug!(
                     "[{}] case1: Idle, no event",
@@ -881,7 +887,7 @@ mod tokenomic {
             let to_treasury = budget * params.treasury_ration;
 
             let actual_payout = self.payable.max(fp!(0)).min(to_payout); // w
-            let actual_treasury = (actual_payout / to_payout) * to_treasury;  // to_payout > 0
+            let actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
 
             self.v -= actual_payout;
             self.payable = fp!(0);
@@ -950,7 +956,7 @@ mod msg_trait {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{BlockInfo, FixedPoint, MiningFinance, msg_trait::MessageChannel};
+    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, MiningFinance};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};

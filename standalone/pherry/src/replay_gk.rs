@@ -90,7 +90,10 @@ impl gk::MessageChannel for ReplayMsgChannel {
     fn set_dummy(&self, _dummy: bool) {}
 }
 
-pub async fn fetch_genesis_storage(client: &XtClient, pos: BlockNumber) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
+pub async fn fetch_genesis_storage(
+    client: &XtClient,
+    pos: BlockNumber,
+) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let pos = subxt::BlockNumber::from(NumberOrHex::Number(pos.into()));
     let hash = client.block_hash(Some(pos)).await?;
     let response = client.rpc.storage_pairs(StorageKey(vec![]), hash).await?;
@@ -119,4 +122,25 @@ pub(super) async fn replay(client: &XtClient, genesis_block: BlockNumber) -> Res
             }
         }
     }
+
+    println!("pubkey,v_init,v,p_init,p_instant,total_slashed,total_slash_times,total_payout,total_payout_times");
+    for (pubkey, state) in factory.gk.dump_workers_state() {
+        let tk = match &state.tokenomic_info {
+            Some(info) => info,
+            None => continue,
+        };
+        println!(
+            "{:?},{},{},{},{},{},{},{},{}",
+            pubkey,
+            tk.v_init,
+            tk.v,
+            tk.p_bench,
+            tk.p_instant,
+            tk.total_slash,
+            tk.total_slash_count,
+            tk.total_payout,
+            tk.total_payout_count,
+        );
+    }
+    Ok(())
 }
