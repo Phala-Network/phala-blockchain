@@ -44,7 +44,8 @@ pub fn process_block(
     block_number: BlockNumber,
     egress: &Sr25519MessageChannel,
     side_task_man: &mut SideTaskManager,
-    identity_key: &sr25519::Pair
+    identity_key: &sr25519::Pair,
+    geoip_city_db: String,
 ) {
     if block_number % BLOCK_INTERVAL == 1 {
         log::info!("start geolocation probing at block {}",
@@ -73,7 +74,7 @@ pub fn process_block(
                 log::info!("public IP address: {}", pub_ip);
 
                 // 2. Look up geolocation info in maxmind database.
-                let geo_db_buf = match std::fs::read("./GeoLite2-City.mmdb") {
+                let geo_db_buf = match std::fs::read(geoip_city_db) {
                     Ok(data) => data,
                     Err(err) => {
                         return GeoProbeSideTaskResult::Failed(format!("cannot open mmdb file: {:?}", err));

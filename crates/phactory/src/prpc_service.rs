@@ -399,6 +399,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.platform.clone(),
             self.args.sealing_path.clone(),
             self.args.enable_geoprobing.clone(),
+            self.args.geoip_city_db.clone(),
             &id_pair,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
