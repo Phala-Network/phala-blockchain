@@ -21,6 +21,9 @@ pub struct InitArgs {
 
     /// Enable geolocation report
     pub enable_geoprobing: bool,
+
+    /// Geoip database path
+    pub geoip_city_db: String,
 }
 
 pub fn git_revision() -> String {
