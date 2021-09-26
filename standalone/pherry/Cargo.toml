@@ -44,5 +44,7 @@ phala-mq = { path = "../../crates/phala-mq" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phactory-pal = { path = "../../crates/phactory/pal" }
 phactory = { path = "../../crates/phactory" }
+sqlx = { version = "0.5.7", features = ["postgres", "decimal", "chrono", "runtime-tokio-rustls"] }
+chrono = { version = "0.4.19" }
 
 maxminddb = "0.17"

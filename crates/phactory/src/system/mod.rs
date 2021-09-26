@@ -89,6 +89,7 @@ struct MiningInfo {
 
 // Minimum worker state machine can be reused to replay in GK.
 // TODO: shrink size
+#[derive(Debug)]
 struct WorkerState {
     pubkey: WorkerPublicKey,
     hashed_id: U256,

@@ -570,7 +570,7 @@ pub struct Score {
 
 type MachineId = Vec<u8>;
 pub type Sr25519Signature = sp_core::sr25519::Signature;
-pub type WorkerPublicKey = sp_core::sr25519::Public;
+pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub type ContractPublicKey = sp_core::sr25519::Public;
 pub type MasterPublicKey = sp_core::sr25519::Public;
 #[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]

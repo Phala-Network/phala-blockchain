@@ -23,7 +23,7 @@ use std::{
 use fixed_macro::types::U64F64 as fp;
 use log::debug;
 use phactory_api::prpc as pb;
-use tokenomic::{FixedPoint, TokenomicInfo};
+pub use tokenomic::{FixedPoint, TokenomicInfo};
 
 pub use msg_trait::MessageChannel;
 
@@ -52,7 +52,8 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-struct WorkerInfo {
+#[derive(Debug)]
+pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
     unresponsive: bool,
@@ -77,6 +78,14 @@ impl WorkerInfo {
             last_gk_responsive_event: 0,
             last_gk_responsive_event_at_block: 0,
         }
+    }
+
+    pub fn tokenomic_info(&self) -> &TokenomicInfo {
+        &self.tokenomic
+    }
+
+    pub fn pubkey(&self) -> &WorkerPublicKey {
+        &self.state.pubkey
     }
 }
 
@@ -271,6 +280,51 @@ where
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinanceEvent {
+    MiningStart,
+    MiningStop,
+    HeartbeatChallenge,
+    Heartbeat { payout: FixedPoint },
+    EnterUnresponsive,
+    ExitUnresponsive,
+}
+
+impl FinanceEvent {
+    pub fn event_string(&self) -> &'static str {
+        match self {
+            FinanceEvent::MiningStart => "mining_start",
+            FinanceEvent::MiningStop => "mining_stop",
+            FinanceEvent::HeartbeatChallenge => "heartbeat_challenge",
+            FinanceEvent::Heartbeat { .. } => "heartbeat",
+            FinanceEvent::EnterUnresponsive => "enter_unresponsive",
+            FinanceEvent::ExitUnresponsive => "exit_unresponsive",
+        }
+    }
+
+    pub fn payout(&self) -> FixedPoint {
+        if let Self::Heartbeat { payout } = self {
+            *payout
+        } else {
+            fp!(0)
+        }
+    }
+}
+
+pub trait FinanceEventListener {
+    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo);
+}
+
+impl FinanceEventListener for () {
+    fn on_finance_event(&mut self, _event: FinanceEvent, _state: &WorkerInfo) {}
+}
+
+impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
+    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo) {
+        (self)(event, state);
+    }
+}
+
 pub struct MiningFinance<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -333,6 +387,14 @@ impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        self.process_messages_with_event_listener(block, &mut ());
+    }
+
+    pub fn process_messages_with_event_listener(
+        &mut self,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl FinanceEventListener,
+    ) {
         let sum_share: FixedPoint = self
             .workers
             .values()
@@ -344,6 +406,7 @@ impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
             state: self,
             block,
             report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
+            event_listener,
             sum_share,
         };
 
@@ -361,6 +424,7 @@ struct MiningMessageProcesser<'a, MsgChan> {
     state: &'a mut MiningFinance<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
+    event_listener: &'a mut dyn FinanceEventListener,
     sum_share: FixedPoint,
 }
 
@@ -419,9 +483,7 @@ where
                 "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
-            let mut tracker = WorkerSMTracker {
-                waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-            };
+            let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info
                 .state
                 .on_block_processed(self.block, &mut tracker);
@@ -447,6 +509,8 @@ where
                     worker_info.last_gk_responsive_event =
                         pb::ResponsiveEvent::ExitUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+                    self.event_listener
+                        .on_finance_event(FinanceEvent::ExitUnresponsive, worker_info);
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if self.block.block_number - hb_sent_at
@@ -463,6 +527,8 @@ where
                     worker_info.last_gk_responsive_event =
                         pb::ResponsiveEvent::EnterUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+                    self.event_listener
+                        .on_finance_event(FinanceEvent::EnterUnresponsive, worker_info);
                 }
             }
 
@@ -549,11 +615,12 @@ where
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
-                if worker_info.unresponsive {
+                let payout = if worker_info.unresponsive {
                     debug!(
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
+                    fp!(0)
                 } else {
                     debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
@@ -570,7 +637,10 @@ where
                         payout: payout.to_bits(),
                         treasury: treasury.to_bits(),
                     });
-                }
+                    payout
+                };
+                self.event_listener
+                    .on_finance_event(FinanceEvent::Heartbeat { payout }, worker_info);
             }
         }
     }
@@ -598,13 +668,15 @@ where
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
-            let mut tracker = WorkerSMTracker {
-                waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-            };
+            let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, log_on);
+            if tracker.challenge_received {
+                self.event_listener
+                    .on_finance_event(FinanceEvent::HeartbeatChallenge, worker_info);
+            }
         }
 
         match &event {
@@ -647,6 +719,8 @@ where
                                 total_slash: fp!(0),
                                 total_slash_count: 0,
                             };
+                            self.event_listener
+                                .on_finance_event(FinanceEvent::MiningStart, worker);
                         }
                         WorkerEvent::MiningStop => {
                             // TODO.kevin: report the final V?
@@ -665,7 +739,9 @@ where
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
                                 treasury: 0,
-                            })
+                            });
+                            self.event_listener
+                                .on_finance_event(FinanceEvent::MiningStop, worker);
                         }
                         WorkerEvent::MiningEnterUnresponsive => {}
                         WorkerEvent::MiningExitUnresponsive => {}
@@ -715,6 +791,16 @@ where
 
 struct WorkerSMTracker<'a> {
     waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>,
+    challenge_received: bool,
+}
+
+impl<'a> WorkerSMTracker<'a> {
+    fn new(waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>) -> Self {
+        Self {
+            waiting_heartbeats,
+            challenge_received: false,
+        }
+    }
 }
 
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
@@ -727,6 +813,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
     ) {
         debug!("Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
+        self.challenge_received = true;
     }
 }
 
@@ -749,7 +836,7 @@ mod tokenomic {
         }
     }
 
-    #[derive(Default, Clone, Copy)]
+    #[derive(Default, Debug, Clone, Copy)]
     pub struct TokenomicInfo {
         pub v: FixedPoint,
         pub v_init: FixedPoint,

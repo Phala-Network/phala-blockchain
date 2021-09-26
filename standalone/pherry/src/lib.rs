@@ -14,7 +14,6 @@ use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 use sp_rpc::number::NumberOrHex;
 
-mod replay_gk;
 mod chain_client;
 mod error;
 mod extra;
@@ -22,6 +21,7 @@ mod msg_sync;
 mod notify_client;
 mod runtimes;
 mod types;
+pub mod replay_gk;
 
 use crate::error::Error;
 use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
@@ -184,9 +184,6 @@ struct Args {
 
     #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
     geoip_city_db: String,
-
-    #[structopt(long, help = "Replay GK for debug")]
-    replay_gk_at: Option<BlockNumber>,
 }
 
 struct BlockSyncState {
@@ -866,6 +863,15 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     }
 }
 
+pub async fn subxt_connect(uri: String) -> Result<XtClient> {
+    let client = subxt::ClientBuilder::<Runtime>::new()
+        .set_url(uri)
+        .skip_type_sizes_check()
+        .build()
+        .await?;
+    Ok(client)
+}
+
 async fn bridge(args: Args) -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -873,19 +879,11 @@ async fn bridge(args: Args) -> Result<()> {
         .init();
 
     // Connect to substrate
-    let client = subxt::ClientBuilder::<Runtime>::new()
-        .set_url(args.substrate_ws_endpoint.clone())
-        .skip_type_sizes_check()
-        .build()
-        .await?;
+    let client = subxt_connect(args.substrate_ws_endpoint.clone()).await?;
     info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let paraclient = if args.parachain {
-        let paraclient = subxt::ClientBuilder::<Runtime>::new()
-            .skip_type_sizes_check()
-            .set_url(args.collator_ws_endpoint.clone())
-            .build()
-            .await?;
+        let paraclient = subxt_connect(args.collator_ws_endpoint.clone()).await?;
         info!(
             "Connected to parachain node at: {}",
             args.collator_ws_endpoint
@@ -901,10 +899,6 @@ async fn bridge(args: Args) -> Result<()> {
         wait_until_synced(&client).await?;
         wait_until_synced(&paraclient).await?;
         info!("Substrate sync blocks done");
-    }
-
-    if let Some(block_number) = args.replay_gk_at {
-        return replay_gk::replay(&client, block_number).await;
     }
 
     // Other initialization
@@ -1104,7 +1098,8 @@ async fn bridge(args: Args) -> Result<()> {
             }
             if args.enable_geolocation {
                 geolocation_report_ttl =
-                    match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
+                    match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db)
+                        .await
                     {
                         Ok(d) => d,
                         Err(_e) => geolocation_report_ttl,
@@ -1158,8 +1153,7 @@ fn preprocess_args(args: &mut Args) {
     }
 }
 
-#[tokio::main]
-async fn main() {
+pub async fn pherry_main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
 
