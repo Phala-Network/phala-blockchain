@@ -324,4 +324,11 @@ impl contracts::NativeContract for DataPlaza {
             },
         }
     }
+
+    fn on_block_end(
+        &mut self,
+        _context: &NativeContext,
+    ) {
+
+    }
 }
