@@ -609,6 +609,24 @@ where
                     );
                 }
             }
+            GatekeeperEvent::RepairV => {
+                if origin.is_pallet() {
+                    info!("Repairing V");
+                    // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
+                    // not being applied.
+                    //
+                    // See below links for more detail:
+                    // https://github.com/Phala-Network/phala-blockchain/issues/489
+                    // https://github.com/Phala-Network/phala-blockchain/issues/495
+                    // https://forum.phala.network/t/topic/2753#timeline
+                    // https://forum.phala.network/t/topic/2909
+                    self.state.workers.values_mut().for_each(|w| {
+                        if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
+                            w.tokenomic.v = w.tokenomic.v_init;
+                        }
+                    })
+                }
+            }
         }
     }
 
@@ -981,6 +999,10 @@ pub mod tests {
 
         fn get_worker(&self, n: usize) -> &super::WorkerInfo {
             &self.gk.workers[&self.workers[n]]
+        }
+
+        fn get_worker_mut(&mut self, n: usize) -> &mut super::WorkerInfo {
+            self.gk.workers.get_mut(&self.workers[n]).unwrap()
         }
     }
 
@@ -1674,5 +1696,60 @@ pub mod tests {
         // Reset
         info.update_p_instant(200_000, 999);
         assert_eq!(info.p_instant, fp!(0));
+    }
+
+    #[test]
+    fn test_repair_v() {
+        let mut r = Roles::test_roles();
+        let mut block_number = 1;
+
+        // Register worker
+        with_block(block_number, |block| {
+            for i in 0..=1 {
+                let mut worker = r.for_worker(i);
+                worker.pallet_say(msg::WorkerEvent::Registered(msg::WorkerInfo {
+                    confidence_level: 2,
+                }));
+            }
+            r.gk.process_messages(block);
+        });
+
+        // Start mining & send heartbeat challenge
+        block_number += 1;
+        with_block(block_number, |block| {
+            for i in 0..=1 {
+                let mut worker = r.for_worker(i);
+                worker.pallet_say(msg::WorkerEvent::BenchScore(3000));
+                worker.pallet_say(msg::WorkerEvent::MiningStart {
+                    session_id: 1,
+                    init_v: fp!(30000).to_bits(),
+                    init_p: 3000,
+                });
+            }
+            r.gk.process_messages(block);
+        });
+
+        for i in 0..=1 {
+            let worker = r.get_worker_mut(i);
+
+            worker.tokenomic.v = fp!(100);
+            worker.tokenomic.v_init = fp!(200);
+
+            assert!(worker.tokenomic.v < worker.tokenomic.v_init);
+        }
+
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(100));
+        assert_eq!(r.get_worker(1).tokenomic.v, fp!(100));
+
+        block_number += 1;
+        with_block(block_number, |block| {
+            let sender = MessageOrigin::Pallet(b"Pallet".to_vec());
+            r.mq.dispatch_bound(&sender, msg::GatekeeperEvent::RepairV);
+            r.gk.process_messages(block);
+        });
+
+        // Should repaired and rewarded
+        assert_eq!(r.get_worker(0).tokenomic.v, fp!(200.00021447729505831407));
+        assert_eq!(r.get_worker(1).tokenomic.v, fp!(200.00021447729505831407));
     }
 }
