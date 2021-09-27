@@ -6,7 +6,7 @@
 
 DROP TABLE IF EXISTS "worker_finance_events";
 CREATE TABLE "worker_finance_events" (
-    "sequence" bigint NOT NULL,
+    "sequence" bigint NOT NULL UNIQUE,
     "pubkey" bytea NOT NULL,
     "block" integer NOT NULL,
     "time" timestamp without time zone NOT NULL,
