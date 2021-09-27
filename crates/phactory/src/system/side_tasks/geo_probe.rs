@@ -4,25 +4,57 @@ use phala_mq::Sr25519MessageChannel;
 use crate::side_task::async_side_task::AsyncSideTask;
 use crate::side_task::SideTaskManager;
 
+use std::{error, fmt};
 use std::str::FromStr;
+
 use phala_types::contract;
 use phala_types::messaging::{Geocoding, GeolocationCommand};
 
 use maxminddb::geoip2;
 use std::net::IpAddr;
 
-use sp_core::sr25519;
+use sp_core::{hashing::blake2_256, sr25519, Pair};
 use phala_crypto::sr25519::KDF;
 use crate::secret_channel::SecretMessageChannel;
+use std::convert::TryInto;
 
 const BLOCK_INTERVAL: BlockNumber = 2400;   // 8 hours
 const PROBE_DURATION: BlockNumber = 5;      // 1 min
-const IP_PROBE_URL: &str = "https://ip.kvin.wang";   // ipinfo is reported to be baned in China
 
-pub enum GeoProbeSideTaskResult {
-    Success(Geocoding),
-    Failed(String)
+// For detecting the public IP address of worker, we now use the service provided by ipify.org
+// Why we use this service:
+// 1. It is one of the largest and most popular IP address API services on the internet. ipify serves over 30 billion requests per month!
+// 2. It is accessible in both Chinese mainland and other regions.
+// 3. It is open sourced at https://github.com/rdegges/ipify-api.
+const IP_PROBE_URL: &str = "api.ipify.org";   // ipinfo is reported to be baned in China
+
+#[derive(Debug)]
+pub enum GeoProbeError {
+    // geo_probe
+    FailedToGetPublicIPAddress,
+    DBNotFound,
+    DBNotValid,
+    IPNotValid,
+    NoRecord,
+    UnknownError,
 }
+
+impl fmt::Display for GeoProbeError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            GeoProbeError::FailedToGetPublicIPAddress => {
+                write!(f, "network error, failed to get public IP address")
+            },
+            GeoProbeError::DBNotFound => write!(f, "geolite DB not found"),
+            GeoProbeError::DBNotValid => write!(f, "geolite DB is probably broken"),
+            GeoProbeError::IPNotValid => write!(f, "fetched IP address not valid for parsing"),
+            GeoProbeError::NoRecord => write!(f, "no record found in DB"),
+            GeoProbeError::UnknownError => write!(f, "unknown error"),
+        }
+    }
+}
+
+impl error::Error for GeoProbeError {}
 
 pub fn db_query_region_name<'a>(city_general_data: &'a geoip2::City) -> &'a str {
     if let Some(city) = &city_general_data.city {
@@ -47,64 +79,52 @@ pub fn process_block(
     identity_key: &sr25519::Pair,
     geoip_city_db: String,
 ) {
+    let identity_key = identity_key.clone();
+    let worker_pubkey = identity_key.public();
+    let raw_pubkey: &[u8] = worker_pubkey.as_ref();
+    let pkh = blake2_256(raw_pubkey);
+    let (pkh_first_32_bits, _) = pkh.split_at(std::mem::size_of::<u32>());
+    let worker_magic = u32::from_be_bytes(
+        match pkh_first_32_bits.try_into() {
+            Ok(data) => data,
+            Err(e) => {
+                info!("failed to init geo_probe side task");
+                return;
+            }
+        }
+    ) % BLOCK_INTERVAL;
     if block_number % BLOCK_INTERVAL == 1 {
-        log::info!("start geolocation probing at block {}",
-            block_number.clone());
+        log::info!("start geolocation probing at block {}, worker magic {}",
+            block_number, worker_magic);
 
-        let identity_key = identity_key.clone();
         let egress = egress.clone();
         let duration = PROBE_DURATION;
         let task = AsyncSideTask::spawn(
             block_number,
             duration,
             async {
+                // 1. check if db exists, if not then return
+                if !std::path::Path::new(&geoip_city_db).exists() {
+                    return Err(GeoProbeError::DBNotFound)
+                }
+
                 // 1. get IP address.
-                let mut resp = match surf::get(IP_PROBE_URL).send().await {
-                    Ok(r) => r,
-                    Err(err) => {
-                        return GeoProbeSideTaskResult::Failed(format!("network error: {:?}", err));
-                    }
-                };
-                let pub_ip = match resp.body_string().await {
-                    Ok(body) => body,
-                    Err(err) => {
-                        return GeoProbeSideTaskResult::Failed(format!("network error: {:?}", err));
-                    }
-                };
+                let mut resp = surf::get(IP_PROBE_URL).send().await.map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
+                let pub_ip = resp.body_string().await.map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
                 log::info!("public IP address: {}", pub_ip);
 
                 // 2. Look up geolocation info in maxmind database.
-                let geo_db_buf = match std::fs::read(geoip_city_db) {
-                    Ok(data) => data,
-                    Err(err) => {
-                        return GeoProbeSideTaskResult::Failed(format!("cannot open mmdb file: {:?}", err));
-                    }
-                };
+                let geo_db_buf = std::fs::read(geoip_city_db).map_err(|_| GeoProbeError::DBNotFound)?;
                 let reader =
-                    maxminddb::Reader::from_source(geo_db_buf).expect("Geolite2 database is not loaded");
-                let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
+                    maxminddb::Reader::from_source(geo_db_buf).map_err(|_| GeoProbeError::DBNotValid)?;
+                let ip: IpAddr = FromStr::from_str(&pub_ip).map_err(|_| GeoProbeError::IPNotValid)?;
 
-                let city_general_data: geoip2::City = reader.lookup(ip).unwrap();
-                let region_name = match db_query_region_name(&city_general_data).parse::<String>() {
-                    Ok(data) => data,
-                    Err(err) => {
-                        return GeoProbeSideTaskResult::Failed(format!("fail to parse region name: {:?}", err));
-                    }
-                };
+                let city_general_data: geoip2::City = reader.lookup(ip).map_err(|_| GeoProbeError::NoRecord)?;
+                let region_name = db_query_region_name(&city_general_data).parse::<String>().map_err(|_| GeoProbeError::NoRecord)?;
 
-                if city_general_data.location.is_none() {
-                    return GeoProbeSideTaskResult::Failed("location is not existed in database".into());
-                }
-                let location = city_general_data.location.clone().unwrap(); // This should never fail.
-
-                if location.latitude.is_none() {
-                    return GeoProbeSideTaskResult::Failed("latitude is not existed in database".into());
-                }
-                if location.longitude.is_none() {
-                    return GeoProbeSideTaskResult::Failed("longitude is not existed in database".into());
-                }
-                let latitude = location.latitude.unwrap();  // This should never fail.
-                let longitude = location.longitude.unwrap();    // This should never fail.
+                let location = city_general_data.location.clone().ok_or(GeoProbeError::NoRecord)?;
+                let latitude = location.latitude.ok_or(GeoProbeError::NoRecord)?;
+                let longitude = location.longitude.ok_or(GeoProbeError::NoRecord)?;
 
                 info!(
                     "look-up geolocation: {}, {}, {}",
@@ -117,23 +137,18 @@ pub fn process_block(
                     region_name,
                 };
 
-                GeoProbeSideTaskResult::Success(geocoding)
+                Ok(geocoding)
             },
             move |result, _context| {
                 let result = result
-                    .unwrap_or(GeoProbeSideTaskResult::Failed("failed to probe geolocation.".into()));
-                let msg = match result {
-                    GeoProbeSideTaskResult::Failed(err_info) => {
-                        GeolocationCommand::update_geolocation (
-                            None, Some(err_info)
-                        )
-                    },
-                    GeoProbeSideTaskResult::Success(geocoding) => {
-                        GeolocationCommand::update_geolocation (
-                            Some(geocoding), None
-                        )
+                    .unwrap_or(Err(GeoProbeError::UnknownError));
+                match result {
+                    Err(ref e) => {
+                        info!("geo_probe sidetask error: {}", e);
                     }
+                    _ => {}
                 };
+                let msg = GeolocationCommand::update_geolocation(result.ok());
 
                 let my_ecdh_key = identity_key
                     .derive_ecdh_key()

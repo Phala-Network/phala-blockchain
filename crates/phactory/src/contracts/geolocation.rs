@@ -1,9 +1,7 @@
 use std::collections::BTreeMap;
-use std::string::{String, ToString};
+use std::string::String;
 
 use anyhow::Result;
-use core::fmt;
-use log::info;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
 use std::convert::TryFrom;
@@ -11,6 +9,7 @@ use std::convert::TryFrom;
 use super::{TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::{AccountId, NativeContext};
+
 extern crate runtime as chain;
 
 use phala_types::messaging::{Geocoding, GeolocationCommand};
@@ -21,9 +20,8 @@ const GEOCODING_EXPIRED_BLOCKNUM: u32 = 2400; // roughly 8 hours
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub struct GeocodingWithBlockInfo {
-    data: Option<Geocoding>,
+    data: Geocoding,
     created_at: chain::BlockNumber,
-    err_info: Option<String>,
 }
 
 #[derive(Encode, Decode, Debug, Clone)]
@@ -44,7 +42,7 @@ pub enum Error {
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum Request {
     GetGeocoding { account: AccountId },
-    GetAvailableRegionName {},
+    GetAvailableRegionName,
     GetAccountsInRegion { region_name: String },
     GetAccountCountInRegion { region_name: String },
 }
@@ -83,23 +81,25 @@ impl contracts::NativeContract for Geolocation {
         cmd: Command,
     ) -> TransactionResult {
         match cmd {
-            Command::UpdateGeolocation { geocoding, err_info } => {
+            Command::UpdateGeolocation { geocoding } => {
                 let sender = match &origin {
                     MessageOrigin::Worker(pubkey) => AccountId::from(*pubkey),
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
+                // If no geocoding is coming, return
+                if geocoding.is_none() {
+                    return Err(TransactionError::BadInput);
+                }
+
                 // Perform geo_data cleaning
                 // purging expired region map
                 for (k, v) in &self.geo_data {
-                    if v.data.is_some() && v.created_at <= context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM {
+                    if v.created_at <= context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM {
                         // Will be removed very soon, delete its corresponding region map.
-                        if let Some(workers) = self.region_map.get_mut(&v.data.as_ref().unwrap().region_name) {
+                        if let Some(workers) = self.region_map.get_mut(&v.data.region_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == *k) {
                                 workers.remove(pos);
-                            } else {
-                                error!("Cannot locate AccountId. Something is wrong in the geolocation contract's UpdateGeolocation() function");
-                                return Err(TransactionError::UnknownError);
                             }
                         } else {
                             error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
@@ -116,53 +116,39 @@ impl contracts::NativeContract for Geolocation {
 
                 // Insert data to geolocation info btreemap
                 if let Some(geo_datum) = self.geo_data.get_mut(&sender) {
-                    // Some cases that we need to clear the region info of the sender:
-                    // 1. geo_datum has value while geocoding has not;
-                    // 2. geocoding has a different region name compared to geo_datum's
-                    if (geo_datum.data.is_some() && geocoding.is_none())
-                        || (geo_datum.data.as_ref().unwrap().region_name != geocoding.as_ref().unwrap().region_name) {
+                    // geocoding has a different region name compared to geo_datum's,
+                    // we need to clear the region info of the sender:
+                    if geo_datum.data.region_name != geocoding.as_ref().unwrap().region_name {
                         // Remove account id to previous region
-                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.as_ref().unwrap().region_name) {
+                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == sender) {
                                 workers.remove(pos);
-                            } else {
-                                error!("Cannot locate AccountId. Something is wrong in the geolocation contract's UpdateGeolocation() function");
-                                return Err(TransactionError::UnknownError);
                             }
-                        } else {
-                            error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
-                            return Err(TransactionError::UnknownError);
                         }
                         // Insert account id to new region
-                        if geocoding.is_some() {
-                            let workers = self
-                                .region_map
-                                .entry(geocoding.as_ref().unwrap().region_name.clone())
-                                .or_default();
-                            workers.push(sender);
-                        }
+                        let workers = self
+                            .region_map
+                            .entry(geocoding.as_ref().unwrap().region_name.clone())
+                            .or_default();
+                        workers.push(sender);
                     }
                     *geo_datum = GeocodingWithBlockInfo {
-                        data: geocoding.clone(),
+                        data: geocoding.unwrap().clone(),
                         created_at: context.block.block_number,
-                        err_info
                     };
                 } else {
                     // newly arrived worker
                     self.geo_data
                         .insert(sender.clone(),
                                 GeocodingWithBlockInfo {
-                                    data: geocoding.clone(),
+                                    data: geocoding.as_ref().unwrap().clone(),
                                     created_at: context.block.block_number,
-                                    err_info
                                 });
-                    if geocoding.is_some() {
-                        let workers = self
-                            .region_map
-                            .entry(geocoding.unwrap().region_name)
-                            .or_default();
-                        workers.push(sender);
-                    }
+                    let workers = self
+                        .region_map
+                        .entry(geocoding.unwrap().region_name)
+                        .or_default();
+                    workers.push(sender);
                 };
 
                 Ok(())
@@ -180,15 +166,9 @@ impl contracts::NativeContract for Geolocation {
                 if origin != Some(&account) {
                     return Err(Error::NotAuthorized);
                 }
-                if let Some(geo_data) = self.geo_data.get(&account) {
-                    if let Some(geocoding) = geo_data.data.clone() {
-                        Ok(Response::GetGeocoding { geocoding })
-                    } else {
-                        Err(Error::NoRecord)
-                    }
-                } else {
-                    Err(Error::NoRecord)
-                }
+                let geo_data = self.geo_data.get(&account).ok_or(Error::NoRecord)?;
+                let geocoding = geo_data.data.clone();
+                Ok(Response::GetGeocoding { geocoding })
             }
             Request::GetAvailableRegionName {} => {
                 // let valid_region_map = self.region_map.clone()
