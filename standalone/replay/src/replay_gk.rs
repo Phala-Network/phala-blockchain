@@ -381,6 +381,7 @@ async fn save_data_task(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {
 }
 
 async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecord]) -> Result<()> {
+    // Current version of sqlx does not support bulk insertion, so we have to do it manually.
     let mut sequences = vec![];
     let mut pubkeys = vec![];
     let mut block_numbers = vec![];
