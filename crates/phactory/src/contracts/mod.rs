@@ -83,6 +83,10 @@ mod support {
             origin: Option<&chain::AccountId>,
             req: Self::QReq,
         ) -> Self::QResp;
+        fn on_block_end(
+            &mut self,
+            _context: &NativeContext,
+        );
     }
 
     pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
@@ -180,6 +184,7 @@ mod support {
                     break;
                 }
             }
+            self.contract.on_block_end(&context)
         }
     }
 }
