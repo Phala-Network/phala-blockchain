@@ -19,6 +19,13 @@ struct Args {
 
     #[structopt(long, help = "The PostgresQL database to store the events.")]
     db_uri: String,
+
+    #[structopt(
+        default_value = "127.0.0.1:8080",
+        long,
+        help = "Bind address for local HTTP server."
+    )]
+    bind_addr: String,
 }
 
 #[tokio::main]
@@ -26,7 +33,7 @@ async fn main() {
     env_logger::init();
 
     let args = Args::from_args();
-    pherry::replay_gk::replay(args.node_uri, args.start_at, args.db_uri)
+    pherry::replay_gk::replay(args.node_uri, args.start_at, args.db_uri, args.bind_addr)
         .await
         .expect("Failed to run replay");
 }

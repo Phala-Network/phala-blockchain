@@ -7,7 +7,8 @@ use phala_trie_storage::TrieStorage;
 use phala_types::{messaging::MiningInfoUpdateEvent, WorkerPublicKey};
 use sqlx::types::Decimal;
 use sqlx::{postgres::PgPoolOptions, Row};
-use tokio::sync::mpsc;
+use std::sync::Arc;
+use tokio::sync::{mpsc, Mutex};
 
 use crate::types::Hashing;
 
@@ -21,8 +22,9 @@ struct EventRecord {
     p: gk::FixedPoint,
 }
 
-struct ReplayFactory {
+pub struct ReplayFactory {
     event_seq: i64,
+    current_block: BlockNumber,
     event_tx: mpsc::Sender<EventRecord>,
     storage: TrieStorage<Hashing>,
     recv_mq: MessageDispatcher,
@@ -37,6 +39,7 @@ impl ReplayFactory {
         let gk = gk::MiningFinance::new(&mut recv_mq, ReplayMsgChannel);
         Self {
             event_seq: 0,
+            current_block: 0,
             event_tx,
             storage,
             recv_mq,
@@ -57,6 +60,7 @@ impl ReplayFactory {
 
         self.storage.apply_changes(state_root, transaction);
         self.handle_inbound_messages(header.number).await?;
+        self.current_block = block.block.block.header.number;
         Ok(())
     }
 
@@ -133,7 +137,7 @@ struct ReplayMsgChannel;
 impl gk::MessageChannel for ReplayMsgChannel {
     fn push_message<M: codec::Encode + phala_types::messaging::BindTopic>(&self, message: M) {
         if let Ok(msg) = MiningInfoUpdateEvent::<BlockNumber>::decode(&mut &message.encode()[..]) {
-            info!("Report mining event: {:#?}", msg);
+            log::debug!("Report mining event: {:#?}", msg);
         }
     }
 
@@ -161,7 +165,71 @@ async fn wait_for_block(client: &XtClient, block: BlockNumber) -> Result<()> {
     }
 }
 
-pub async fn replay(node_uri: String, genesis_block: BlockNumber, db_uri: String) -> Result<()> {
+mod httpserver {
+    use super::*;
+    use actix_web::{get, web, App, HttpResponse, HttpServer};
+
+    struct AppState {
+        factory: Arc<Mutex<ReplayFactory>>,
+    }
+
+    #[get("/worker-state/{pubkey}")]
+    async fn get_worker_state(
+        web::Path(pubkey): web::Path<String>,
+        data: web::Data<AppState>,
+    ) -> HttpResponse {
+        let factory = data.factory.lock().await;
+        let pubkey = match AccountId32::from_str(pubkey.as_str()) {
+            Ok(accid) => WorkerPublicKey(accid.into()),
+            Err(_) => {
+                return HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": "Invalid pubkey"
+                }));
+            }
+        };
+
+        match factory.gk.worker_state(&pubkey) {
+            None => HttpResponse::NotFound().json(serde_json::json!({
+                "error": "Worker not found"
+            })),
+            Some(state) => HttpResponse::Ok().json(serde_json::json!({
+                "current_block": factory.current_block,
+                "benchmarking": state.bench_state.is_some(),
+                "mining": state.mining_state.is_some(),
+                "unresponsive": state.unresponsive,
+                "last_heartbeat_for_block": state.last_heartbeat_for_block,
+                "last_heartbeat_at_block": state.last_heartbeat_at_block,
+                "waiting_heartbeats": state.waiting_heartbeats,
+                "v": state.tokenomic_info.as_ref().map(|info| info.v.clone()),
+                "v_init": state.tokenomic_info.as_ref().map(|info| info.v_init.clone()),
+                "p_instant": state.tokenomic_info.as_ref().map(|info| info.p_instant.clone()),
+                "p_init": state.tokenomic_info.as_ref().map(|info| info.p_bench.clone()),
+            })),
+        }
+    }
+
+    pub async fn serve(bind_addr: String, factory: Arc<Mutex<ReplayFactory>>) {
+        HttpServer::new(move || {
+            let factory = factory.clone();
+            App::new()
+                .data(AppState { factory })
+                .service(get_worker_state)
+        })
+        .disable_signals()
+        .bind(&bind_addr)
+        .expect("Can not bind http server")
+        .run()
+        .await
+        .expect("Http server failed");
+    }
+}
+
+pub async fn replay(
+    node_uri: String,
+    genesis_block: BlockNumber,
+    db_uri: String,
+    bind_addr: String,
+) -> Result<()> {
     let mut client = crate::subxt_connect(&node_uri)
         .await
         .expect("Failed to connect to substrate");
@@ -170,11 +238,17 @@ pub async fn replay(node_uri: String, genesis_block: BlockNumber, db_uri: String
     let genesis_state = fetch_genesis_storage(&client, genesis_block).await?;
     let (event_tx, event_rx) = mpsc::channel(1024 * 5);
 
-    let _task = tokio::spawn(async move {
-        save_data_task(event_rx, &db_uri).await;
-    });
+    let factory = Arc::new(Mutex::new(ReplayFactory::new(genesis_state, event_tx)));
 
-    let mut factory = ReplayFactory::new(genesis_state, event_tx);
+    let _db_task = tokio::spawn(async move { save_data_task(event_rx, &db_uri).await });
+
+    let _http_task = std::thread::spawn({
+        let factory = factory.clone();
+        move || {
+            let mut system = actix_rt::System::new("api-server");
+            system.block_on(httpserver::serve(bind_addr, factory))
+        }
+    });
 
     let mut block_number = genesis_block + 1;
 
@@ -184,7 +258,12 @@ pub async fn replay(node_uri: String, genesis_block: BlockNumber, db_uri: String
             match get_block_with_storage_changes(&client, Some(block_number)).await {
                 Ok(block) => {
                     log::info!("Replaying block {}", block_number);
-                    factory.dispatch_block(block).await.expect("Block is valid");
+                    factory
+                        .lock()
+                        .await
+                        .dispatch_block(block)
+                        .await
+                        .expect("Block is valid");
                     block_number += 1;
                 }
                 Err(err) => {
@@ -218,7 +297,7 @@ pub async fn replay(node_uri: String, genesis_block: BlockNumber, db_uri: String
     }
 }
 
-pub fn restart_required(error: &Error) -> bool {
+fn restart_required(error: &Error) -> bool {
     format!("{}", error).contains("restart required")
 }
 
@@ -257,7 +336,7 @@ async fn save_data_task(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {
             };
         }
         if !records.is_empty() {
-            log::debug!("Inserting {} records.", records.len());
+            log::info!("Inserting {} records.", records.len());
             'try_insert: loop {
                 match insert_records(&pool, &records).await {
                     Ok(()) => {
@@ -268,7 +347,7 @@ async fn save_data_task(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {
                         log::error!("{}", err);
                         match get_last_sequence(&pool).await {
                             Ok(last_sequence) => {
-                                log::debug!("last_sequence={}", last_sequence);
+                                log::info!("last_sequence={}", last_sequence);
                                 if last_sequence
                                     >= records.last().expect("records can not be empty").sequence
                                 {
