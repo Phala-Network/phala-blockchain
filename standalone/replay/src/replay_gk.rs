@@ -28,14 +28,17 @@ struct EventRecord {
 pub struct ReplayFactory {
     next_event_seq: i64,
     current_block: BlockNumber,
-    event_tx: mpsc::Sender<EventRecord>,
+    event_tx: Option<mpsc::Sender<EventRecord>>,
     storage: TrieStorage<Hashing>,
     recv_mq: MessageDispatcher,
     gk: gk::MiningFinance<ReplayMsgChannel>,
 }
 
 impl ReplayFactory {
-    fn new(genesis_state: Vec<(Vec<u8>, Vec<u8>)>, event_tx: mpsc::Sender<EventRecord>) -> Self {
+    fn new(
+        genesis_state: Vec<(Vec<u8>, Vec<u8>)>,
+        event_tx: Option<mpsc::Sender<EventRecord>>,
+    ) -> Self {
         let mut recv_mq = MessageDispatcher::new();
         let mut storage = TrieStorage::default();
         storage.load(genesis_state.into_iter());
@@ -117,11 +120,13 @@ impl ReplayFactory {
             },
         );
 
-        for record in records {
-            match self.event_tx.send(record).await {
-                Ok(()) => (),
-                Err(err) => {
-                    log::error!("Can not send event to replay: {}", err);
+        if let Some(tx) = self.event_tx.as_ref() {
+            for record in records {
+                match tx.send(record).await {
+                    Ok(()) => (),
+                    Err(err) => {
+                        log::error!("Can not send event to replay: {}", err);
+                    }
                 }
             }
         }
@@ -180,11 +185,15 @@ pub async fn replay(
     log::info!("Connected to substrate at: {}", node_uri);
 
     let genesis_state = fetch_genesis_storage(&client, genesis_block).await?;
-    let (event_tx, event_rx) = mpsc::channel(1024 * 5);
-
+    let event_tx = if !db_uri.is_empty() {
+        let (event_tx, event_rx) = mpsc::channel(1024 * 5);
+        let _db_task =
+            tokio::spawn(async move { data_persist::run_persist(event_rx, &db_uri).await });
+        Some(event_tx)
+    } else {
+        None
+    };
     let factory = Arc::new(Mutex::new(ReplayFactory::new(genesis_state, event_tx)));
-
-    let _db_task = tokio::spawn(async move { data_persist::run_persist(event_rx, &db_uri).await });
 
     let _http_task = std::thread::spawn({
         let factory = factory.clone();
