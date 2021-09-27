@@ -27,7 +27,7 @@ const PROBE_DURATION: BlockNumber = 5; // 1 min
 // 1. It is one of the largest and most popular IP address API services on the internet. ipify serves over 30 billion requests per month!
 // 2. It is accessible in both Chinese mainland and other regions.
 // 3. It is open sourced at https://github.com/rdegges/ipify-api.
-const IP_PROBE_URL: &str = "api.ipify.org"; // ipinfo is reported to be baned in China
+const IP_PROBE_URL: &str = "https://api.ipify.org"; // ipinfo is reported to be baned in China
 
 #[derive(Debug)]
 pub enum GeoProbeError {
@@ -92,7 +92,7 @@ pub fn process_block(
             return;
         }
     }) % BLOCK_INTERVAL;
-    if block_number % BLOCK_INTERVAL == 1 {
+    if block_number % BLOCK_INTERVAL == worker_magic {
         log::info!(
             "start geolocation probing at block {}, worker magic {}",
             block_number,
