@@ -1,3 +1,5 @@
+mod replay_gk;
+
 use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
@@ -33,7 +35,7 @@ async fn main() {
     env_logger::init();
 
     let args = Args::from_args();
-    pherry::replay_gk::replay(args.node_uri, args.start_at, args.db_uri, args.bind_addr)
+    replay_gk::replay(args.node_uri, args.start_at, args.db_uri, args.bind_addr)
         .await
         .expect("Failed to run replay");
 }

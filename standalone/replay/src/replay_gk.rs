@@ -1,16 +1,19 @@
-use super::*;
+use std::sync::Arc;
+use std::time::Duration;
+
 use anyhow::Error;
 use chrono::TimeZone as _;
+use parity_scale_codec::{Decode, Encode};
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
 use phala_trie_storage::TrieStorage;
 use phala_types::{messaging::MiningInfoUpdateEvent, WorkerPublicKey};
+use pherry::chain_client::StorageKey;
+use pherry::types::{BlockNumber, BlockWithChanges, Hashing, NumberOrHex, XtClient};
 use sqlx::types::Decimal;
 use sqlx::{postgres::PgPoolOptions, Row};
-use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
-
-use crate::types::Hashing;
+use anyhow::Result;
 
 struct EventRecord {
     sequence: i64,
@@ -125,7 +128,7 @@ impl ReplayFactory {
 
         let n_unhandled = self.recv_mq.clear();
         if n_unhandled > 0 {
-            warn!("There are {} unhandled messages dropped", n_unhandled);
+            log::warn!("There are {} unhandled messages dropped", n_unhandled);
         }
 
         Ok(())
@@ -135,7 +138,7 @@ impl ReplayFactory {
 struct ReplayMsgChannel;
 
 impl gk::MessageChannel for ReplayMsgChannel {
-    fn push_message<M: codec::Encode + phala_types::messaging::BindTopic>(&self, message: M) {
+    fn push_message<M: Encode + phala_types::messaging::BindTopic>(&self, message: M) {
         if let Ok(msg) = MiningInfoUpdateEvent::<BlockNumber>::decode(&mut &message.encode()[..]) {
             log::debug!("Report mining event: {:#?}", msg);
         }
@@ -166,8 +169,11 @@ async fn wait_for_block(client: &XtClient, block: BlockNumber) -> Result<()> {
 }
 
 mod httpserver {
+    use std::str::FromStr;
+
     use super::*;
     use actix_web::{get, web, App, HttpResponse, HttpServer};
+    use subxt::sp_runtime::AccountId32;
 
     struct AppState {
         factory: Arc<Mutex<ReplayFactory>>,
@@ -230,7 +236,7 @@ pub async fn replay(
     db_uri: String,
     bind_addr: String,
 ) -> Result<()> {
-    let mut client = crate::subxt_connect(&node_uri)
+    let mut client = pherry::subxt_connect(&node_uri)
         .await
         .expect("Failed to connect to substrate");
     log::info!("Connected to substrate at: {}", node_uri);
@@ -255,7 +261,7 @@ pub async fn replay(
     loop {
         loop {
             log::info!("Fetching block {}", block_number);
-            match get_block_with_storage_changes(&client, Some(block_number)).await {
+            match pherry::get_block_with_storage_changes(&client, Some(block_number)).await {
                 Ok(block) => {
                     log::info!("Replaying block {}", block_number);
                     factory
@@ -284,7 +290,7 @@ pub async fn replay(
 
         client = loop {
             log::info!("Reconnecting to substrate");
-            let client = match crate::subxt_connect(&node_uri).await {
+            let client = match pherry::subxt_connect(&node_uri).await {
                 Ok(client) => client,
                 Err(err) => {
                     log::error!("Failed to connect to substrate: {}", err);

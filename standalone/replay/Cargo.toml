@@ -1,0 +1,24 @@
+[package]
+name = "replay"
+version = "0.1.0"
+edition = "2018"
+
+[dependencies]
+phala-mq = { path = "../../crates/phala-mq" }
+phala-types = { path = "../../crates/phala-types" }
+phala-trie-storage = { path = "../../crates/phala-trie-storage" }
+phactory = { path = "../../crates/phactory" }
+pherry = { path = "../pherry" }
+subxt = { path = "../../subxt", package = "substrate-subxt", default-features = false, features = ["tokio1"] }
+
+log = "0.4.14"
+anyhow = "1.0.43"
+structopt = "0.3"
+tokio = { version = "1.9.0", features = ["full"] }
+sqlx = { version = "0.5.7", features = ["postgres", "decimal", "chrono", "runtime-tokio-rustls"] }
+chrono = { version = "0.4.19" }
+actix-web = "3"
+actix-rt = "1"
+serde_json = "1.0"
+parity-scale-codec = "2.2.0"
+env_logger = "0.9.0"

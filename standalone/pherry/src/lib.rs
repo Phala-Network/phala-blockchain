@@ -12,37 +12,29 @@ use codec::Decode;
 use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
-use sp_rpc::number::NumberOrHex;
 
-mod chain_client;
 mod error;
 mod extra;
 mod msg_sync;
 mod notify_client;
 mod runtimes;
-mod types;
-pub mod replay_gk;
+
+pub mod types;
+pub mod chain_client;
 
 use crate::error::Error;
-use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
+use crate::types::{
+    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, OpaqueSignedBlock, PrClient, Runtime,
+    SrSigner, XtClient, NumberOrHex
+};
 use phactory_api::blocks::{
-    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
-    StorageProof,
+    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
 use phactory_api::prpc::{self, InitRuntimeResponse, SendCoordinateInfoRequest};
 use phactory_api::pruntime_client;
 use phala_types::messaging::CoordinateInfo;
 
 use notify_client::NotifyClient;
-type XtClient = subxt::Client<Runtime>;
-type PrClient = pruntime_client::PRuntimeClient;
-type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
-
-#[derive(Clone, Debug)]
-struct BlockWithChanges {
-    block: OpaqueSignedBlock,
-    storage_changes: StorageChanges,
-}
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pherry")]
@@ -226,7 +218,7 @@ async fn get_block_without_storage_changes(
     });
 }
 
-async fn get_block_with_storage_changes(
+pub async fn get_block_with_storage_changes(
     client: &XtClient,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
