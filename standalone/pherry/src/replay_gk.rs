@@ -1,4 +1,5 @@
 use super::*;
+use anyhow::Error;
 use chrono::TimeZone as _;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
@@ -102,7 +103,7 @@ impl ReplayFactory {
                     time_ms: now_ms,
                     event,
                     v: state.tokenomic_info().v,
-                    p: state.tokenomic_info().v,
+                    p: state.tokenomic_info().p_instant,
                 };
                 records.push(record);
                 *seq += 1;
@@ -160,9 +161,13 @@ async fn wait_for_block(client: &XtClient, block: BlockNumber) -> Result<()> {
     }
 }
 
-pub async fn replay(client: &XtClient, genesis_block: BlockNumber, db_uri: String) -> Result<()> {
-    log::info!("Fetching genesis storage");
-    let genesis_state = fetch_genesis_storage(client, genesis_block).await?;
+pub async fn replay(node_uri: String, genesis_block: BlockNumber, db_uri: String) -> Result<()> {
+    let mut client = crate::subxt_connect(&node_uri)
+        .await
+        .expect("Failed to connect to substrate");
+    log::info!("Connected to substrate at: {}", node_uri);
+
+    let genesis_state = fetch_genesis_storage(&client, genesis_block).await?;
     let (event_tx, event_rx) = mpsc::channel(1024 * 5);
 
     let _task = tokio::spawn(async move {
@@ -174,22 +179,47 @@ pub async fn replay(client: &XtClient, genesis_block: BlockNumber, db_uri: Strin
     let mut block_number = genesis_block + 1;
 
     loop {
-        log::info!("Fetching block {}", block_number);
-        match get_block_with_storage_changes(client, Some(block_number)).await {
-            Ok(block) => {
-                log::info!("Replaying block {}", block_number);
-                factory.dispatch_block(block).await.expect("Block is valid");
-                block_number += 1;
-            }
-            Err(err) => {
-                log::error!("{}", err);
-                if let Err(err) = wait_for_block(client, block_number).await {
+        loop {
+            log::info!("Fetching block {}", block_number);
+            match get_block_with_storage_changes(&client, Some(block_number)).await {
+                Ok(block) => {
+                    log::info!("Replaying block {}", block_number);
+                    factory.dispatch_block(block).await.expect("Block is valid");
+                    block_number += 1;
+                }
+                Err(err) => {
                     log::error!("{}", err);
-                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    if restart_required(&err) {
+                        break;
+                    }
+                    if let Err(err) = wait_for_block(&client, block_number).await {
+                        log::error!("{}", err);
+                        if restart_required(&err) {
+                            break;
+                        }
+                        tokio::time::sleep(Duration::from_secs(5)).await;
+                    }
                 }
             }
         }
+
+        client = loop {
+            log::info!("Reconnecting to substrate");
+            let client = match crate::subxt_connect(&node_uri).await {
+                Ok(client) => client,
+                Err(err) => {
+                    log::error!("Failed to connect to substrate: {}", err);
+                    tokio::time::sleep(Duration::from_secs(5)).await;
+                    continue;
+                }
+            };
+            break client;
+        }
     }
+}
+
+pub fn restart_required(error: &Error) -> bool {
+    format!("{}", error).contains("restart required")
 }
 
 async fn save_data_task(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {

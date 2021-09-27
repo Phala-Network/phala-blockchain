@@ -863,7 +863,7 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     }
 }
 
-pub async fn subxt_connect(uri: String) -> Result<XtClient> {
+pub async fn subxt_connect(uri: &str) -> Result<XtClient> {
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(uri)
         .skip_type_sizes_check()
@@ -879,11 +879,11 @@ async fn bridge(args: Args) -> Result<()> {
         .init();
 
     // Connect to substrate
-    let client = subxt_connect(args.substrate_ws_endpoint.clone()).await?;
+    let client = subxt_connect(&args.substrate_ws_endpoint).await?;
     info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let paraclient = if args.parachain {
-        let paraclient = subxt_connect(args.collator_ws_endpoint.clone()).await?;
+        let paraclient = subxt_connect(&args.collator_ws_endpoint).await?;
         info!(
             "Connected to parachain node at: {}",
             args.collator_ws_endpoint

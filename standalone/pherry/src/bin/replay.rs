@@ -26,11 +26,7 @@ async fn main() {
     env_logger::init();
 
     let args = Args::from_args();
-    let client = pherry::subxt_connect(args.node_uri.clone())
-        .await
-        .expect("Failed to connect to substrate");
-    log::info!("Connected to substrate at: {}", args.node_uri);
-    pherry::replay_gk::replay(&client, args.start_at, args.db_uri)
+    pherry::replay_gk::replay(args.node_uri, args.start_at, args.db_uri)
         .await
         .expect("Failed to run replay");
 }
