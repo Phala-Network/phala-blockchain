@@ -227,12 +227,12 @@ pub mod messaging {
     bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum GeolocationCommand {
-        UpdateGeolocation { geocoding: Option<Geocoding>, err_info: Option<String> },
+        UpdateGeolocation { geocoding: Option<Geocoding> },
     }
 
     impl GeolocationCommand {
-        pub fn update_geolocation(geocoding: Option<Geocoding>, err_info: Option<String>) -> Self {
-            Self::UpdateGeolocation { geocoding, err_info }
+        pub fn update_geolocation(geocoding: Option<Geocoding> ) -> Self {
+            Self::UpdateGeolocation { geocoding }
         }
     }
 
