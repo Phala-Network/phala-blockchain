@@ -108,10 +108,13 @@ impl contracts::NativeContract for Geolocation {
                     }
                 }
                 // Purging expired geo_data
-                self.geo_data = self.geo_data.clone()
+                self.geo_data = self
+                    .geo_data
+                    .clone()
                     .into_iter()
-                    .filter(|(_, v)|
-                        v.created_at > context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM)
+                    .filter(|(_, v)| {
+                        v.created_at > context.block.block_number - GEOCODING_EXPIRED_BLOCKNUM
+                    })
                     .collect();
 
                 // Insert data to geolocation info btreemap
@@ -120,7 +123,8 @@ impl contracts::NativeContract for Geolocation {
                     // we need to clear the region info of the sender:
                     if geo_datum.data.region_name != geocoding.as_ref().unwrap().region_name {
                         // Remove account id to previous region
-                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name) {
+                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name)
+                        {
                             if let Some(pos) = workers.iter().position(|x| *x == sender) {
                                 workers.remove(pos);
                             }
@@ -138,12 +142,13 @@ impl contracts::NativeContract for Geolocation {
                     };
                 } else {
                     // newly arrived worker
-                    self.geo_data
-                        .insert(sender.clone(),
-                                GeocodingWithBlockInfo {
-                                    data: geocoding.as_ref().unwrap().clone(),
-                                    created_at: context.block.block_number,
-                                });
+                    self.geo_data.insert(
+                        sender.clone(),
+                        GeocodingWithBlockInfo {
+                            data: geocoding.as_ref().unwrap().clone(),
+                            created_at: context.block.block_number,
+                        },
+                    );
                     let workers = self
                         .region_map
                         .entry(geocoding.unwrap().region_name)

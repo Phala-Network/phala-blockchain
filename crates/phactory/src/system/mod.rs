@@ -9,8 +9,8 @@ use log::info;
 
 use crate::pal;
 use chain::pallet_registry::RegistryEvent;
-pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
     BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
@@ -23,8 +23,8 @@ use phala_types::{
     },
     MasterPublicKey, WorkerPublicKey,
 };
-use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 use side_tasks::geo_probe;
+use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<(), TransactionError>;
 
@@ -396,11 +396,13 @@ impl<Platform: pal::Platform> System<Platform> {
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
         if self.enable_geoprobing {
-            geo_probe::process_block(block.block_number,
-                                     &self.egress,
-                                     block.side_task_man,
-                                     &self.identity_key,
-                                     self.geoip_city_db.clone());
+            geo_probe::process_block(
+                block.block_number,
+                &self.egress,
+                block.side_task_man,
+                &self.identity_key,
+                self.geoip_city_db.clone(),
+            );
         }
         loop {
             let ok = phala_mq::select! {

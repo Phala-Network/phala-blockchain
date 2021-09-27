@@ -1,6 +1,5 @@
-
-use parity_scale_codec::{Encode, Decode};
 use alloc::string::{String, ToString};
+use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {

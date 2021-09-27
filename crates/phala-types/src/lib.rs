@@ -231,7 +231,7 @@ pub mod messaging {
     }
 
     impl GeolocationCommand {
-        pub fn update_geolocation(geocoding: Option<Geocoding> ) -> Self {
+        pub fn update_geolocation(geocoding: Option<Geocoding>) -> Self {
             Self::UpdateGeolocation { geocoding }
         }
     }

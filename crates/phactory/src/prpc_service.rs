@@ -1,13 +1,13 @@
 use crate::system::System;
 
 use super::*;
+use crate::secret_channel::PeelingReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
-use crate::secret_channel::PeelingReceiver;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -493,7 +493,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     }
                 },
                 Err(err) => {
-                    return Err(from_display(format!("Verifying signature failed: {:?}", err)));
+                    return Err(from_display(format!(
+                        "Verifying signature failed: {:?}",
+                        err
+                    )));
                 }
             }
         } else {
@@ -798,14 +801,12 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
         Ok(state)
     }
 
-    fn send_coordinate_info (&mut self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
+    fn send_coordinate_info(&mut self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
         Ok(())
     }
 
     fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
         let echo_msg = request.echo_msg;
-        Ok(
-            pb::EchoMessage { echo_msg }
-        )
+        Ok(pb::EchoMessage { echo_msg })
     }
 }
