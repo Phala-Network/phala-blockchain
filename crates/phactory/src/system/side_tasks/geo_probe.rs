@@ -57,20 +57,20 @@ impl fmt::Display for GeoProbeError {
 
 impl error::Error for GeoProbeError {}
 
-pub fn db_query_region_name<'a>(city_general_data: &'a geoip2::City) -> &'a str {
+pub fn db_query_region_name<'a>(city_general_data: &'a geoip2::City) -> Option<&'a str> {
     if let Some(city) = &city_general_data.city {
-        return *city.names.as_ref().unwrap().get(&"en").unwrap();
+        return Some(*city.names.as_ref()?.get(&"en")?);
     }
 
     if let Some(subdivisions) = &city_general_data.subdivisions {
-        return *subdivisions[0].names.as_ref().unwrap().get(&"en").unwrap();
+        return Some(*subdivisions[0].names.as_ref()?.get(&"en")?);
     }
 
     if let Some(country) = &city_general_data.country {
-        return *country.names.as_ref().unwrap().get(&"en").unwrap();
-    } else {
-        return &"NA";
+        return Some(*country.names.as_ref()?.get(&"en")?);
     }
+
+    Some(&"N/A")
 }
 
 pub fn process_block(
@@ -130,8 +130,7 @@ pub fn process_block(
                 let city_general_data: geoip2::City =
                     reader.lookup(ip).map_err(|_| GeoProbeError::NoRecord)?;
                 let region_name = db_query_region_name(&city_general_data)
-                    .parse::<String>()
-                    .map_err(|_| GeoProbeError::NoRecord)?;
+                    .ok_or(GeoProbeError::NoRecord)?;
 
                 let location = city_general_data
                     .location
@@ -148,7 +147,7 @@ pub fn process_block(
                 let geocoding = Geocoding {
                     latitude: (latitude * 10000f64) as i32,
                     longitude: (longitude * 10000f64) as i32,
-                    region_name,
+                    region_name: region_name.to_string(),
                 };
 
                 Ok(geocoding)
