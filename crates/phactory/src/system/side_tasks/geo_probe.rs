@@ -103,18 +103,16 @@ pub fn process_block(
             block_number,
             duration,
             async {
-                // 1. check if db exists, if not then return
-                if !std::path::Path::new(&geoip_city_db).exists() {
-                    return Err(GeoProbeError::DBNotFound)
-                }
+                // 1. we load the database first, so that in case where the database not exists,
+                // we can just return an error without emits any http request.
+                let geo_db_buf = std::fs::read(geoip_city_db).map_err(|_| GeoProbeError::DBNotFound)?;
 
-                // 1. get IP address.
+                // 2. get IP address.
                 let mut resp = surf::get(IP_PROBE_URL).send().await.map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
                 let pub_ip = resp.body_string().await.map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
                 log::info!("public IP address: {}", pub_ip);
 
-                // 2. Look up geolocation info in maxmind database.
-                let geo_db_buf = std::fs::read(geoip_city_db).map_err(|_| GeoProbeError::DBNotFound)?;
+                // 3. Look up geolocation info in maxmind database.
                 let reader =
                     maxminddb::Reader::from_source(geo_db_buf).map_err(|_| GeoProbeError::DBNotValid)?;
                 let ip: IpAddr = FromStr::from_str(&pub_ip).map_err(|_| GeoProbeError::IPNotValid)?;
@@ -140,6 +138,7 @@ pub fn process_block(
                 Ok(geocoding)
             },
             move |result, _context| {
+                // 4. construct the confidential contract command.
                 let result = result
                     .unwrap_or(Err(GeoProbeError::UnknownError));
                 match result {
@@ -150,6 +149,7 @@ pub fn process_block(
                 };
                 let msg = GeolocationCommand::update_geolocation(result.ok());
 
+                // 5. construct the secret message channel
                 let my_ecdh_key = identity_key
                     .derive_ecdh_key()
                     .expect("Should never failed with valid identity key; qed.");
@@ -165,6 +165,7 @@ pub fn process_block(
                 let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
                 log::info!("send msg [{:?}] to topic [{:?}]", &msg, String::from_utf8_lossy(&topic));
 
+                // 6. send the command
                 secret_egress.sendto(topic, &msg, Some(&public_contract_ecdh_key));
             },
         );
