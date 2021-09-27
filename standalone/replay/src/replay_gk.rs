@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::Error;
+use anyhow::Result;
 use chrono::TimeZone as _;
 use parity_scale_codec::{Decode, Encode};
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
@@ -13,7 +14,6 @@ use pherry::types::{BlockNumber, BlockWithChanges, Hashing, NumberOrHex, XtClien
 use sqlx::types::Decimal;
 use sqlx::{postgres::PgPoolOptions, Row};
 use tokio::sync::{mpsc, Mutex};
-use anyhow::Result;
 
 struct EventRecord {
     sequence: i64,
@@ -26,7 +26,7 @@ struct EventRecord {
 }
 
 pub struct ReplayFactory {
-    event_seq: i64,
+    next_event_seq: i64,
     current_block: BlockNumber,
     event_tx: mpsc::Sender<EventRecord>,
     storage: TrieStorage<Hashing>,
@@ -41,7 +41,7 @@ impl ReplayFactory {
         storage.load(genesis_state.into_iter());
         let gk = gk::MiningFinance::new(&mut recv_mq, ReplayMsgChannel);
         Self {
-            event_seq: 0,
+            next_event_seq: 1,
             current_block: 0,
             event_tx,
             storage,
@@ -96,7 +96,7 @@ impl ReplayFactory {
             side_task_man: &mut SideTaskManager::default(),
         };
 
-        let seq = &mut self.event_seq;
+        let next_seq = &mut self.next_event_seq;
 
         let mut records = vec![];
 
@@ -104,7 +104,7 @@ impl ReplayFactory {
             &mut block,
             &mut |event: gk::FinanceEvent, state: &gk::WorkerInfo| {
                 let record = EventRecord {
-                    sequence: *seq as _,
+                    sequence: *next_seq as _,
                     pubkey: state.pubkey().clone(),
                     block_number,
                     time_ms: now_ms,
@@ -113,7 +113,7 @@ impl ReplayFactory {
                     p: state.tokenomic_info().p_instant,
                 };
                 records.push(record);
-                *seq += 1;
+                *next_seq += 1;
             },
         );
 
@@ -380,10 +380,7 @@ async fn save_data_task(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {
     }
 }
 
-async fn insert_records(
-    pool: &sqlx::Pool<sqlx::Postgres>,
-    records: &[EventRecord],
-) -> Result<(), sqlx::Error> {
+async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecord]) -> Result<()> {
     let mut sequences = vec![];
     let mut pubkeys = vec![];
     let mut block_numbers = vec![];
@@ -393,7 +390,12 @@ async fn insert_records(
     let mut ps = vec![];
     let mut payouts = vec![];
 
+    let last_seq = get_last_sequence(&pool).await?;
+
     for rec in records {
+        if rec.sequence <= last_seq {
+            continue;
+        }
         sequences.push(rec.sequence);
         pubkeys.push(rec.pubkey.0.to_vec());
         block_numbers.push(rec.block_number);
@@ -402,6 +404,10 @@ async fn insert_records(
         vs.push(cvt_fp(rec.v));
         ps.push(cvt_fp(rec.p));
         payouts.push(cvt_fp(rec.event.payout()));
+    }
+
+    if sequences.is_empty() {
+        return Ok(());
     }
 
     sqlx::query(
@@ -435,7 +441,7 @@ fn cvt_fp(v: gk::FixedPoint) -> Decimal {
 async fn get_last_sequence(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<i64> {
     let latest_row =
         sqlx::query("SELECT sequence FROM worker_finance_events ORDER BY sequence DESC LIMIT 1")
-            .fetch_one(pool)
+            .fetch_optional(pool)
             .await?;
-    Ok(latest_row.get(0))
+    Ok(latest_row.map_or(0, |row| row.get(0)))
 }
