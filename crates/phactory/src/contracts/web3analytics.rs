@@ -1021,4 +1021,11 @@ impl contracts::NativeContract for Web3Analytics {
             Ok(resp) => resp,
         }
     }
+
+    fn on_block_end(
+        &mut self,
+        _context: &NativeContext,
+    ) {
+
+    }
 }

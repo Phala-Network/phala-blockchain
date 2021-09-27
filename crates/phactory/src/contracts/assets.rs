@@ -291,6 +291,13 @@ impl contracts::NativeContract for Assets {
             Ok(resp) => resp,
         }
     }
+
+    fn on_block_end(
+        &mut self,
+        _context: &NativeContext,
+    ) {
+
+    }
 }
 
 fn is_tracked(_id: &AccountId) -> bool {

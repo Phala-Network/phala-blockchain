@@ -179,4 +179,10 @@ impl contracts::NativeContract for Balances {
             Ok(resp) => resp,
         }
     }
+
+    fn on_block_end(
+        &mut self,
+        _context: &NativeContext,
+    ) {
+    }
 }
