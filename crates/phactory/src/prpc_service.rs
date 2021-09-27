@@ -795,10 +795,6 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
         Ok(state)
     }
 
-    fn send_coordinate_info(&mut self, request: pb::SendCoordinateInfoRequest) -> RpcResult<()> {
-        Ok(())
-    }
-
     fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
         let echo_msg = request.echo_msg;
         Ok(pb::EchoMessage { echo_msg })
