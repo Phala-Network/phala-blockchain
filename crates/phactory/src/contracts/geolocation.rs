@@ -123,11 +123,13 @@ impl contracts::NativeContract for Geolocation {
                     // we need to clear the region info of the sender:
                     if geo_datum.data.region_name != geocoding.as_ref().unwrap().region_name {
                         // Remove account id to previous region
-                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name)
-                        {
+                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name) {
                             if let Some(pos) = workers.iter().position(|x| *x == sender) {
                                 workers.remove(pos);
                             }
+                        } else {
+                            error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
+                            return Err(TransactionError::UnknownError);
                         }
                         // Insert account id to new region
                         let workers = self
