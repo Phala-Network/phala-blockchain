@@ -163,12 +163,30 @@ pub async fn fetch_genesis_storage(
     Ok(storage)
 }
 
-async fn wait_for_block(client: &XtClient, block: BlockNumber) -> Result<()> {
+async fn finalized_number(client: &XtClient) -> Result<BlockNumber> {
+    let hash = client.rpc.finalized_head().await?;
+    let header = client.rpc.header(Some(hash)).await?;
+    Ok(header.ok_or(anyhow::anyhow!("Header not found"))?.number)
+}
+
+async fn wait_for_block(
+    client: &XtClient,
+    block: BlockNumber,
+    assume_finalized: u32,
+) -> Result<()> {
     loop {
+        let finalized = finalized_number(client).await.unwrap_or(0);
         let state = client.rpc.system_sync_state().await?;
-        if state.current_block as BlockNumber >= block {
+        if block <= state.current_block as BlockNumber && block <= finalized.max(assume_finalized) {
             return Ok(());
         }
+        log::info!(
+            "Waiting for {} to be finalized. (finalized={}, assume_finalized={}, latest={})",
+            block,
+            finalized,
+            assume_finalized,
+            state.current_block
+        );
         tokio::time::sleep(Duration::from_secs(5)).await;
     }
 }
@@ -178,6 +196,7 @@ pub async fn replay(
     genesis_block: BlockNumber,
     db_uri: String,
     bind_addr: String,
+    assume_finalized: u32,
 ) -> Result<()> {
     let mut client = pherry::subxt_connect(&node_uri)
         .await
@@ -207,6 +226,12 @@ pub async fn replay(
 
     loop {
         loop {
+            if let Err(err) = wait_for_block(&client, block_number, assume_finalized).await {
+                log::error!("{}", err);
+                if restart_required(&err) {
+                    break;
+                }
+            }
             log::info!("Fetching block {}", block_number);
             match pherry::get_block_with_storage_changes(&client, Some(block_number)).await {
                 Ok(block) => {
@@ -224,13 +249,7 @@ pub async fn replay(
                     if restart_required(&err) {
                         break;
                     }
-                    if let Err(err) = wait_for_block(&client, block_number).await {
-                        log::error!("{}", err);
-                        if restart_required(&err) {
-                            break;
-                        }
-                        tokio::time::sleep(Duration::from_secs(5)).await;
-                    }
+                    tokio::time::sleep(Duration::from_secs(5)).await;
                 }
             }
         }

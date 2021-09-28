@@ -32,6 +32,13 @@ struct Args {
         help = "The PostgresQL database to store the events."
     )]
     persist_events_to: String,
+
+    #[structopt(
+        default_value = "0",
+        long,
+        help = "Assmue the give number of block finalized."
+    )]
+    assume_finalized: u32,
 }
 
 #[tokio::main]
@@ -44,6 +51,7 @@ async fn main() {
         args.start_at,
         args.persist_events_to,
         args.bind_addr,
+        args.assume_finalized,
     )
     .await
     .expect("Failed to run replay");
