@@ -405,13 +405,6 @@ impl contracts::NativeContract for BtcLottery {
             },
         }
     }
-
-    fn on_block_end(
-        &mut self,
-        _context: &NativeContext,
-    ) {
-
-    }
 }
 
 impl BtcLottery {

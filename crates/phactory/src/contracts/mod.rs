@@ -86,7 +86,7 @@ mod support {
         fn on_block_end(
             &mut self,
             _context: &NativeContext,
-        );
+        ) {}
     }
 
     pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>

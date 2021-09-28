@@ -963,13 +963,6 @@ impl contracts::NativeContract for Diem {
             Ok(resp) => resp,
         }
     }
-
-    fn on_block_end(
-        &mut self,
-        _context: &NativeContext,
-    ) {
-
-    }
 }
 
 /// Parses a TrustedState from a bcs encoded LedgerInfoWithSignature in base64
