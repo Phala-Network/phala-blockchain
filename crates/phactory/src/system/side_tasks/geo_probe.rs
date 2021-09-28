@@ -85,13 +85,9 @@ pub fn process_block(
     let raw_pubkey: &[u8] = worker_pubkey.as_ref();
     let pkh = blake2_256(raw_pubkey);
     let (pkh_first_32_bits, _) = pkh.split_at(std::mem::size_of::<u32>());
-    let worker_magic = u32::from_be_bytes(match pkh_first_32_bits.try_into() {
-        Ok(data) => data,
-        Err(e) => {
-            info!("failed to init geo_probe side task");
-            return;
-        }
-    }) % BLOCK_INTERVAL;
+    let worker_magic = u32::from_be_bytes(
+        pkh_first_32_bits.try_into().expect("Should never fail with valid worker pubkey; qed."),
+    ) % BLOCK_INTERVAL;
     if block_number % BLOCK_INTERVAL == worker_magic {
         log::info!(
             "start geolocation probing at block {}, worker magic {}",
@@ -129,8 +125,8 @@ pub fn process_block(
 
                 let city_general_data: geoip2::City =
                     reader.lookup(ip).map_err(|_| GeoProbeError::NoRecord)?;
-                let region_name = db_query_region_name(&city_general_data)
-                    .ok_or(GeoProbeError::NoRecord)?;
+                let region_name =
+                    db_query_region_name(&city_general_data).ok_or(GeoProbeError::NoRecord)?;
 
                 let location = city_general_data
                     .location
@@ -155,12 +151,9 @@ pub fn process_block(
             move |result, _context| {
                 // 4. construct the confidential contract command.
                 let result = result.unwrap_or(Err(GeoProbeError::UnknownError));
-                match result {
-                    Err(ref e) => {
-                        info!("geo_probe sidetask error: {}", e);
-                    }
-                    _ => {}
-                };
+                if let Err(err) = &result {
+                    info!("geo_probe sidetask error: {}", err);
+                }
                 let msg = GeolocationCommand::update_geolocation(result.ok());
 
                 // 5. construct the secret message channel

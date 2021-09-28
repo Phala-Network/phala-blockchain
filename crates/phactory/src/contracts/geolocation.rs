@@ -78,15 +78,11 @@ impl Geolocation {
                 }
             }
         }
+
         // Purging expired geo_data
-        self.geo_data = self
-            .geo_data
-            .clone()
-            .into_iter()
-            .filter(|(_, v)| {
+        self.geo_data.retain(|_, v| {
                 v.created_at > current_blocknum - GEOCODING_EXPIRED_BLOCKNUM
-            })
-            .collect();
+        });
     }
 }
 
