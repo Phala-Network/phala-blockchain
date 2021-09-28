@@ -288,6 +288,7 @@ pub enum FinanceEvent {
     Heartbeat { payout: FixedPoint },
     EnterUnresponsive,
     ExitUnresponsive,
+    RecoverV,
 }
 
 impl FinanceEvent {
@@ -299,6 +300,7 @@ impl FinanceEvent {
             FinanceEvent::Heartbeat { .. } => "heartbeat",
             FinanceEvent::EnterUnresponsive => "enter_unresponsive",
             FinanceEvent::ExitUnresponsive => "exit_unresponsive",
+            FinanceEvent::RecoverV => "recover_v",
         }
     }
 
@@ -778,11 +780,12 @@ where
                     // https://github.com/Phala-Network/phala-blockchain/issues/495
                     // https://forum.phala.network/t/topic/2753#timeline
                     // https://forum.phala.network/t/topic/2909
-                    self.state.workers.values_mut().for_each(|w| {
+                    for w in self.state.workers.values_mut() {
                         if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
                             w.tokenomic.v = w.tokenomic.v_init;
+                            self.event_listener.on_finance_event(FinanceEvent::RecoverV, w)
                         }
-                    })
+                    }
                 }
             }
         }
