@@ -240,7 +240,8 @@ pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec
 
 #[no_mangle]
 pub extern "C" fn close(_fd: c_int) -> c_int {
-    not_allowed!()
+    unsafe { ocall::close(_fd) }
+    // not_allowed!()
 }
 
 #[no_mangle]
