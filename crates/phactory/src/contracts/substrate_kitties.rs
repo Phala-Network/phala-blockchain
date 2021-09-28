@@ -323,11 +323,4 @@ impl contracts::NativeContract for SubstrateKitties {
             Ok(resp) => resp,
         }
     }
-
-    fn on_block_end(
-        &mut self,
-        _context: &NativeContext,
-    ) {
-
-    }
 }
