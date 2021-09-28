@@ -32,6 +32,7 @@ wasmi-validation = { version = "0.3.0", default-features = false }
 paste = "1.0"
 pretty_assertions = "0.7.2"
 wat = "1.0"
+call-trace = "*"
 
 [dev-dependencies]
 serde = { version = "1.0.101", features = ["derive"] }
