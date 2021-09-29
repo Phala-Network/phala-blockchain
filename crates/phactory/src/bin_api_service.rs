@@ -6,6 +6,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let info = self.get_info();
         let machine_id = hex::encode(&self.machine_id);
         let gatekeeper = info.gatekeeper.unwrap();
+        let meminfo = info.memory_usage.unwrap_or_default();
         Ok(json!({
             "initialized": info.initialized,
             "registered": info.registered,
@@ -27,6 +28,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             "version": info.version,
             "git_revision": info.git_revision,
             "running_side_tasks": info.running_side_tasks,
+            "memory_usage": {
+                "total_peak_used": meminfo.total_peak_used,
+                "rust_used": meminfo.rust_used,
+                "rust_peak_used": meminfo.rust_peak_used,
+            }
         }))
     }
 
