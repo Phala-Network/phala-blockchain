@@ -28,6 +28,7 @@ phactory = { path = "../../../crates/phactory" }
 phactory-pal = { path = "../../../crates/phactory/pal" }
 phactory-api = { path = "../../../crates/phactory/api" }
 phala-async-executor = { path = "../../../crates/phala-async-executor", features = ['no-thread'] }
+phala-allocator = { path = "../../../crates/phala-allocator" }
 
 http_req    = { git = "https://github.com/Phala-Network/http_req-sgx.git", branch = "phala", default-features = false, features = ["rust-tls"]}
 ppv-lite86 = { version = "0.2", features = ["phala-sgx"] }

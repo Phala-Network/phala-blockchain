@@ -1,3 +1,4 @@
+use std::alloc::System;
 use std::os::unix::prelude::OsStrExt as _;
 use std::str;
 use std::time::Duration;
@@ -16,7 +17,8 @@ use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write};
 use sgx_types::*;
 use std::convert::TryFrom;
 
-use phactory_pal::{Machine, Sealing, RA};
+use phactory_pal::{Machine, MemoryStats, MemoryUsage, Sealing, RA};
+use phala_allocator::StatSizeAllocator;
 
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_SIGRL_ENDPOINT: &str = env!("IAS_SIGRL_ENDPOINT");
@@ -583,4 +585,22 @@ fn generate_seal_key() -> [u8; 16] {
     };
     let seal_key = rsgx_get_align_key(&key_request).unwrap();
     seal_key.key
+}
+
+#[global_allocator]
+static ALLOCATOR: StatSizeAllocator<System> = StatSizeAllocator::new(System);
+
+impl MemoryStats for SgxPlatform {
+    fn memory_usage(&self) -> MemoryUsage {
+        let stats = ALLOCATOR.stats();
+        MemoryUsage {
+            total_peak_used: unsafe { g_peak_heap_used } as _,
+            rust_used: stats.current_used,
+            rust_peak_used: stats.peak_used,
+        }
+    }
+}
+
+extern "C" {
+    static g_peak_heap_used: libc::size_t;
 }
