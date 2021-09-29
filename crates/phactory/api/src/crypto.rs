@@ -104,6 +104,16 @@ where
     T::verify_weak(sig, msg, pubkey)
 }
 
+/// Wraps the message in the same format as it defined in Polkadot.js extension:
+///   https://github.com/polkadot-js/extension/blob/e4ce268b1cad5e39e75a2195e3aa6d0344de7745/packages/extension-dapp/src/wrapBytes.ts
+fn wrap_bytes(msg: &[u8]) -> Vec<u8> {
+    let mut wrapped = Vec::<u8>::new();
+    wrapped.extend_from_slice(b"<Bytes>");
+    wrapped.extend_from_slice(msg);
+    wrapped.extend_from_slice(b"</Bytes>");
+    wrapped
+}
+
 #[derive(Clone, Encode, Decode, Debug)]
 pub struct CertificateBody {
     pub pubkey: Vec<u8>,
@@ -126,6 +136,18 @@ impl CertificateBody {
                 verify::<sp_core::sr25519::Pair>(&self.pubkey, &signature, msg)
             }
             SignatureType::Ecdsa => verify::<sp_core::ecdsa::Pair>(&self.pubkey, &signature, msg),
+            SignatureType::Ed25519WrapBytes => {
+                let wrapped = wrap_bytes(msg);
+                verify::<sp_core::ed25519::Pair>(&self.pubkey, &signature, &wrapped)
+            }
+            SignatureType::Sr25519WrapBytes => {
+                let wrapped = wrap_bytes(msg);
+                verify::<sp_core::sr25519::Pair>(&self.pubkey, &signature, &wrapped)
+            }
+            SignatureType::EcdsaWrapBytes => {
+                let wrapped = wrap_bytes(msg);
+                verify::<sp_core::ecdsa::Pair>(&self.pubkey, &signature, &wrapped)
+            }
         };
         if valid {
             Ok(())
