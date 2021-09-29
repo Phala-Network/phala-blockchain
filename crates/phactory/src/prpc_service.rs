@@ -93,6 +93,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         };
 
         let score = benchmark::score();
+        let m_usage = self.platform.memory_usage();
 
         pb::PhactoryInfo {
             initialized,
@@ -111,6 +112,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             version: self.args.version.clone(),
             git_revision: self.args.git_revision.clone(),
             running_side_tasks: self.side_task_man.tasks_count() as _,
+            memory_usage: Some(pb::MemoryUsage {
+                rust_used: m_usage.rust_used as _,
+                rust_peak_used: m_usage.rust_peak_used as _,
+                total_peak_used: m_usage.total_peak_used as _,
+            }),
         }
     }
 

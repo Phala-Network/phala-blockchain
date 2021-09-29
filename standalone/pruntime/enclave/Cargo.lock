@@ -21,6 +21,7 @@ dependencies = [
  "phactory",
  "phactory-api",
  "phactory-pal",
+ "phala-allocator",
  "phala-async-executor",
  "ppv-lite86",
  "rand 0.7.3",
@@ -2744,6 +2745,10 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
 ]
+
+[[package]]
+name = "phala-allocator"
+version = "0.1.0"
 
 [[package]]
 name = "phala-async-executor"
