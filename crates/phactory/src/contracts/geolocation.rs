@@ -64,25 +64,21 @@ impl Geolocation {
         }
     }
 
-    pub fn purge(&mut self, current_blocknum: &chain::BlockNumber) {
-        // purging expired region map
-        for (k, v) in &self.geo_data {
-            if v.created_at <= current_blocknum - GEOCODING_EXPIRED_BLOCKNUM {
-                // Will be removed very soon, delete its corresponding region map.
-                if let Some(workers) = self.region_map.get_mut(&v.data.region_name) {
-                    if let Some(pos) = workers.iter().position(|x| *x == *k) {
-                        workers.remove(pos);
-                    }
-                } else {
-                    error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
-                }
-            }
-        }
-
-        // Purging expired geo_data
+    pub fn guard(&mut self, current_blocknum: &chain::BlockNumber) {
+        // purging expired geo_data
         self.geo_data.retain(|_, v| {
             v.created_at > current_blocknum - GEOCODING_EXPIRED_BLOCKNUM
         });
+
+        self.region_map.clear();
+        // building region map
+        for (k, v) in &self.geo_data {
+            let workers = self
+                .region_map
+                .entry(v.data.region_name.clone())
+                .or_default();
+            workers.push(k.clone());
+        }
     }
 }
 
@@ -115,31 +111,11 @@ impl contracts::NativeContract for Geolocation {
 
                 // Insert data to geolocation info btreemap
                 if let Some(geo_datum) = self.geo_data.get_mut(&sender) {
-                    // geocoding has a different region name compared to geo_datum's,
-                    // we need to clear the region info of the sender:
-                    if geo_datum.data.region_name != geocoding.as_ref().unwrap().region_name {
-                        // Remove account id to previous region
-                        if let Some(workers) = self.region_map.get_mut(&geo_datum.data.region_name) {
-                            if let Some(pos) = workers.iter().position(|x| *x == sender) {
-                                workers.remove(pos);
-                            }
-                        } else {
-                            error!("Cannot locate previous city name. Something is wrong in the geolocation contract's UpdateGeolocation() function");
-                            return Err(TransactionError::UnknownError);
-                        }
-                        // Insert account id to new region
-                        let workers = self
-                            .region_map
-                            .entry(geocoding.as_ref().unwrap().region_name.clone())
-                            .or_default();
-                        workers.push(sender);
-                    }
                     *geo_datum = GeocodingWithBlockInfo {
                         data: geocoding.unwrap().clone(),
                         created_at: context.block.block_number,
                     };
                 } else {
-                    // newly arrived worker
                     self.geo_data.insert(
                         sender.clone(),
                         GeocodingWithBlockInfo {
@@ -147,11 +123,6 @@ impl contracts::NativeContract for Geolocation {
                             created_at: context.block.block_number,
                         },
                     );
-                    let workers = self
-                        .region_map
-                        .entry(geocoding.unwrap().region_name)
-                        .or_default();
-                    workers.push(sender);
                 };
 
                 Ok(())
@@ -209,6 +180,6 @@ impl contracts::NativeContract for Geolocation {
         &mut self,
         context: &NativeContext,
     ) {
-        self.purge(&context.block.block_number);
+        self.guard(&context.block.block_number);
     }
 }

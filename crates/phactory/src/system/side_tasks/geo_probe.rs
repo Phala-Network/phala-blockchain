@@ -104,27 +104,27 @@ pub fn process_block(
                 // 1. we load the database first, so that in case where the database not exists,
                 // we can just return an error without emits any http request.
                 let geo_db_buf =
-                    std::fs::read(geoip_city_db).map_err(|_| GeoProbeError::DBNotFound)?;
+                    std::fs::read(geoip_city_db).or(Err(GeoProbeError::DBNotFound))?;
 
                 // 2. get IP address.
                 let mut resp = surf::get(IP_PROBE_URL)
                     .send()
                     .await
-                    .map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
+                    .or(Err(GeoProbeError::FailedToGetPublicIPAddress))?;
                 let pub_ip = resp
                     .body_string()
                     .await
-                    .map_err(|_| GeoProbeError::FailedToGetPublicIPAddress)?;
+                    .or(Err(GeoProbeError::FailedToGetPublicIPAddress))?;
                 log::info!("public IP address: {}", pub_ip);
 
                 // 3. Look up geolocation info in maxmind database.
                 let reader = maxminddb::Reader::from_source(geo_db_buf)
-                    .map_err(|_| GeoProbeError::DBNotValid)?;
+                    .or(Err(GeoProbeError::DBNotValid))?;
                 let ip: IpAddr =
-                    FromStr::from_str(&pub_ip).map_err(|_| GeoProbeError::IPNotValid)?;
+                    FromStr::from_str(&pub_ip).or(Err(GeoProbeError::IPNotValid))?;
 
                 let city_general_data: geoip2::City =
-                    reader.lookup(ip).map_err(|_| GeoProbeError::NoRecord)?;
+                    reader.lookup(ip).or(Err(GeoProbeError::NoRecord))?;
                 let region_name =
                     db_query_region_name(&city_general_data).ok_or(GeoProbeError::NoRecord)?;
 

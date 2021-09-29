@@ -123,6 +123,6 @@ recommended to use our Docker build for the complete setup.
 
 ## Prepare Geolocation Database
 
-Download GeoLite-City.mmdb database at https://drive.google.com/file/d/1UDKHuZ2KQSaDvy34LMKlUPKgToZPoNUk/view?usp=sharing
+Download GeoLite-City.mmdb database at https://dev.maxmind.com/geoip/geolite2-free-geolocation-data
 
 By default, please place it at the root of compiled binary folder (./standalone/pruntime/bin/GeoLite-City.mmdb).
