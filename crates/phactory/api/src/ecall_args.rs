@@ -18,6 +18,12 @@ pub struct InitArgs {
 
     /// The git commit hash which this binary was built from.
     pub git_revision: String,
+
+    /// Enable geolocation report
+    pub enable_geoprobing: bool,
+
+    /// Geoip database path
+    pub geoip_city_db: String,
 }
 
 pub fn git_revision() -> String {

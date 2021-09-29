@@ -583,14 +583,21 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
-        const filesToCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
-        filesToCopy.forEach(f =>
+        const filesMustCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
+        const filesShouldCopy = ['GeoLite2-City.mmdb']
+        filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
         );
+        filesShouldCopy.forEach(f => {
+            if (fs.existsSync(`${path.dirname(pathPRuntime)}/${f}`)) {
+                fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
+            }
+        });
     }
     return new Process([
         `${workDir}/app`, [
             '--cores=0',	// Disable benchmark
+            '--enable-geoprobing'
         ], {
             cwd: workDir,
             env: {
