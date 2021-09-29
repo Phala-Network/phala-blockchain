@@ -5749,7 +5749,7 @@ dependencies = [
 
 [[package]]
 name = "phala-pallets"
-version = "3.2.6"
+version = "3.3.0"
 dependencies = [
  "assert_matches",
  "base64 0.11.0",

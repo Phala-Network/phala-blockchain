@@ -1,5 +1,14 @@
 pub use self::pallet::*;
 
+use frame_support::traits::Currency;
+use sp_runtime::traits::Zero;
+
+type BalanceOf<T> =
+	<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
+type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
+	<T as frame_system::Config>::AccountId,
+>>::NegativeImbalance;
+
 #[allow(unused_variables)]
 #[frame_support::pallet]
 pub mod pallet {
@@ -12,12 +21,16 @@ pub mod pallet {
 	use fixed::types::U64F64 as FixedPoint;
 	use fixed_macro::types::U64F64 as fp;
 
+	use super::{
+		balance_close_to_zero, balances_nearly_equal, extract_dust, is_positive_balance, BalanceOf,
+		NegativeImbalanceOf,
+	};
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
 		traits::{
-			Currency, LockIdentifier, LockableCurrency, OnUnbalanced, StorageVersion, UnixTime,
-			WithdrawReasons,
+			Currency, Imbalance, LockIdentifier, LockableCurrency, OnUnbalanced, StorageVersion,
+			UnixTime, WithdrawReasons,
 		},
 	};
 	use frame_system::pallet_prelude::*;
@@ -38,8 +51,9 @@ pub mod pallet {
 		fn ledger_accrue(who: &AccountId, amount: Balance);
 		/// Decreases the locked amount for a user
 		///
+		/// Optionally remove some dust by `Currency::slash` and move it to the Treasury.
 		/// Unsafe: it assumes there's enough locked `amount`
-		fn ledger_reduce(who: &AccountId, amount: Balance);
+		fn ledger_reduce(who: &AccountId, amount: Balance, dust: Balance);
 		/// Gets the locked amount of `who`
 		fn ledger_query(who: &AccountId) -> Balance;
 	}
@@ -71,7 +85,7 @@ pub mod pallet {
 		type MiningSwitchOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -159,6 +173,8 @@ pub mod pallet {
 		RewardDismissedNotInPool(WorkerPublicKey, BalanceOf<T>),
 		/// Some reward is dismissed because the pool doesn't have any share. \[pid, amount\]
 		RewardDismissedNoShare(u64, BalanceOf<T>),
+		/// Some dust stake is removed. \[user, amount\]
+		DustRemoved(T::AccountId, BalanceOf<T>),
 	}
 
 	#[pallet::error]
@@ -195,13 +211,6 @@ pub mod pallet {
 		WorkersExceedLimit,
 	}
 
-	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
-
-	type NegativeImbalanceOf<T> = <<T as Config>::Currency as Currency<
-		<T as frame_system::Config>::AccountId,
-	>>::NegativeImbalance;
-
 	#[pallet::hooks]
 	impl<T: Config> Hooks<T::BlockNumber> for Pallet<T>
 	where
@@ -213,6 +222,19 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 			Self::maybe_force_withdraw(now);
+		}
+
+		fn on_runtime_upgrade() -> Weight {
+			let mut w = 0;
+			let old = Self::on_chain_storage_version();
+			w += T::DbWeight::get().reads(1);
+
+			if old == 0 {
+				super::migrations::migrate_to_v1::<T>();
+				STORAGE_VERSION.put::<super::Pallet<T>>();
+				w += T::DbWeight::get().writes(1);
+			}
+			w
 		}
 	}
 
@@ -464,10 +486,14 @@ pub mod pallet {
 					Error::<T>::StakeExceedsCapacity
 				);
 			}
+
 			// We don't really want to allow to contribute to a bankrupt StakePool. It can avoid
 			// a lot of weird edge cases when dealing with pending slash.
 			ensure!(
-				pool_info.total_shares == Zero::zero() || pool_info.total_stake > Zero::zero(),
+				// There's no share, meaning the pool is empty;
+				pool_info.total_shares == Zero::zero()
+				// or there's no trivial `total_stake`, meaning it's still operating normally
+				|| pool_info.total_stake > Zero::zero(),
 				Error::<T>::PoolBankrupt
 			);
 
@@ -494,7 +520,7 @@ pub mod pallet {
 			// Lock the funds
 			Self::ledger_accrue(&who, a);
 
-			// We have new free stake now, try handle the waitting withdraw queue
+			// We have new free stake now, try to handle the waiting withdraw queue
 			Self::try_process_withdraw_queue(&mut pool_info);
 
 			// Persist
@@ -519,9 +545,11 @@ pub mod pallet {
 				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
 
 			ensure!(
-				BalanceOf::<T>::zero() < shares && shares <= user_info.shares,
+				is_positive_balance(shares) && shares <= user_info.shares,
 				Error::<T>::InvalidWithdrawalAmount
 			);
+			// TODO(hangyin): consider the amounts in the withdraw request
+			// https://github.com/Phala-Network/phala-blockchain/issues/490
 
 			let mut pool_info = Self::ensure_pool(pid)?;
 			let now = <T as registry::Config>::UnixTime::now()
@@ -530,6 +558,7 @@ pub mod pallet {
 
 			// if withdraw_queue is not empty, means pool doesn't have free stake now, just add withdraw to queue
 			if !pool_info.withdraw_queue.is_empty() {
+				// TODO(hangyin): limit the number of concurrent withdraw from a single user
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
 					user: who,
 					shares,
@@ -641,7 +670,7 @@ pub mod pallet {
 			rewards: BalanceOf<T>,
 		) {
 			if rewards > Zero::zero() {
-				if pool_info.total_shares == Zero::zero() {
+				if balance_close_to_zero(pool_info.total_shares) {
 					Self::deposit_event(Event::<T>::RewardDismissedNoShare(pool_info.pid, rewards));
 					return;
 				}
@@ -675,15 +704,18 @@ pub mod pallet {
 				_ => shares,
 			};
 			let withdrawing_shares = shares.min(free_shares);
+			let (withdrawing_shares, _) = extract_dust(withdrawing_shares);
 			let queued_shares = shares - withdrawing_shares;
+			let (queued_shares, _) = extract_dust(queued_shares);
 			// Try withdraw immediately if we can
 			if withdrawing_shares > Zero::zero() {
 				Self::maybe_settle_slash(pool_info, user_info);
 				// Overflow warning: remove_stake is carefully written to avoid precision error.
-				let reduced = pool_info
+				// (I hope so)
+				let (reduced, dust) = pool_info
 					.remove_stake(user_info, withdrawing_shares)
 					.expect("There are enough withdrawing_shares; qed.");
-				Self::ledger_reduce(&user_info.user, reduced);
+				Self::ledger_reduce(&user_info.user, reduced, dust);
 				Self::deposit_event(Event::<T>::Withdrawal(
 					pool_info.pid,
 					user_info.user.clone(),
@@ -716,8 +748,22 @@ pub mod pallet {
 				None => return,
 			};
 
-			while pool_info.free_stake > Zero::zero() {
+			while is_positive_balance(pool_info.free_stake) {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
+					// Backfill to #487
+					// There are dust withdrawal requests left in the queues, which are safe to
+					// ignore for now. However the goal is to not leave any withdrawal requests
+					// with dust in the queue at all. So we can remove the backfill once all the
+					// withdrawal queue are clean.
+					if balance_close_to_zero(withdraw.shares) {
+						pool_info.withdraw_queue.pop_front();
+						continue;
+					}
+					#[cfg(test)]
+					{
+						println!(">> pool: {:?}", pool_info);
+						println!(">> withdraw: {:?}", withdraw);
+					}
 					// Must clear the pending reward before any stake change
 					let info_key = (pool_info.pid, withdraw.user.clone());
 					let mut user_info = Self::pool_stakers(&info_key).unwrap();
@@ -729,13 +775,20 @@ pub mod pallet {
 						bdiv(pool_info.free_stake, &price)
 					};
 					let withdrawing_shares = free_shares.min(withdraw.shares);
+					debug_assert!(
+						is_positive_balance(withdrawing_shares),
+						"withdrawing_shares must be positive"
+					);
+					// Actually remove the fulfilled withdraw request. Dust in the user shares is
+					// considered but it in the request is ignored.
 					Self::maybe_settle_slash(pool_info, &mut user_info);
-					let reduced = pool_info
+					let (reduced, dust) = pool_info
 						.remove_stake(&mut user_info, withdrawing_shares)
 						.expect("Remove only what we have; qed.");
-					withdraw.shares.saturating_reduce(withdrawing_shares);
-					// Actually withdraw the funds
-					Self::ledger_reduce(&user_info.user, reduced);
+					let (shares, _) = extract_dust(withdraw.shares - withdrawing_shares);
+					withdraw.shares = shares;
+					// Withdraw the funds
+					Self::ledger_reduce(&user_info.user, reduced, dust);
 					Self::deposit_event(Event::<T>::Withdrawal(
 						pool_info.pid,
 						user_info.user.clone(),
@@ -763,6 +816,17 @@ pub mod pallet {
 				<T as Config>::Currency::remove_lock(STAKING_ID, who);
 			} else {
 				<T as Config>::Currency::set_lock(STAKING_ID, who, amount, WithdrawReasons::all());
+			}
+		}
+
+		/// Removes some dust amount from a user's account by Currency::slash.
+		fn remove_dust(who: &T::AccountId, dust: BalanceOf<T>) {
+			debug_assert!(dust != Zero::zero());
+			if dust != Zero::zero() {
+				let (imbalance, _remaining) = <T as Config>::Currency::slash(who, dust);
+				let actual_removed = imbalance.peek();
+				T::OnSlashed::on_unbalanced(imbalance);
+				Self::deposit_event(Event::<T>::DustRemoved(who.clone(), actual_removed));
 			}
 		}
 
@@ -819,15 +883,19 @@ pub mod pallet {
 			user: &mut UserStakeInfo<T::AccountId, BalanceOf<T>>,
 		) {
 			match pool.settle_slash(user) {
-				Some(slashed) if slashed > Zero::zero() => {
+				// We don't slash on dust, because the share price is just unstable.
+				Some(slashed) if is_positive_balance(slashed) => {
 					let (imbalance, _remaining) =
 						<T as Config>::Currency::slash(&user.user, slashed);
+					let actual_slashed = imbalance.peek();
 					T::OnSlashed::on_unbalanced(imbalance);
-					Self::ledger_reduce(&user.user, slashed);
+					// Dust is not considered because it's already merged into the slash if
+					// presents.
+					Self::ledger_reduce(&user.user, actual_slashed, Zero::zero());
 					Self::deposit_event(Event::<T>::SlashSettled(
 						pool.pid,
 						user.user.clone(),
-						slashed,
+						actual_slashed,
 					));
 				}
 				_ => (),
@@ -838,6 +906,7 @@ pub mod pallet {
 		///
 		/// If the
 		fn maybe_force_withdraw(now: u64) {
+			// TODO: review again!
 			let mut t = WithdrawalTimestamps::<T>::get();
 			if t.is_empty() {
 				return;
@@ -928,7 +997,7 @@ pub mod pallet {
 		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
 		/// reset to zero.
 		fn on_reclaim(miner: &T::AccountId, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
-			let pid = SubAccountAssignments::<T>::get(miner).expect("Sub-acocunt must exist; qed.");
+			let pid = SubAccountAssignments::<T>::get(miner).expect("Sub-account must exist; qed.");
 			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
 
 			let returned = orig_stake - slashed;
@@ -940,7 +1009,7 @@ pub mod pallet {
 				Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
 			}
 
-			// with the worker been cleaned, whose stake now are free
+			// With the worker being cleaned, those stake now are free
 			debug_assert!(
 				pool_info.releasing_stake >= returned,
 				"More return then expected"
@@ -981,12 +1050,16 @@ pub mod pallet {
 			Self::update_lock(who, new_b);
 		}
 
-		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>) {
+		fn ledger_reduce(who: &T::AccountId, amount: BalanceOf<T>, dust: BalanceOf<T>) {
 			let b: BalanceOf<T> = StakeLedger::<T>::get(who).unwrap_or_default();
-			debug_assert!(b >= amount, "Cannot reduce lock more than it has");
-			let new_b = b.saturating_sub(amount);
+			let to_remove = amount + dust;
+			debug_assert!(b >= to_remove, "Cannot reduce lock more than it has");
+			let new_b = b.saturating_sub(to_remove);
 			StakeLedger::<T>::insert(who, new_b);
 			Self::update_lock(who, new_b);
+			if dust != Zero::zero() {
+				Self::remove_dust(who, dust);
+			}
 		}
 
 		fn ledger_query(who: &T::AccountId) -> BalanceOf<T> {
@@ -1008,29 +1081,29 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId: Default, Balance> {
 		/// Pool ID
-		pid: u64,
+		pub pid: u64,
 		/// The owner of the pool
-		owner: AccountId,
+		pub owner: AccountId,
 		/// The commission the pool owner takes
-		payout_commission: Option<Permill>,
+		pub payout_commission: Option<Permill>,
 		/// Claimalbe owner reward
-		owner_reward: Balance,
+		pub owner_reward: Balance,
 		/// The hard cap of the pool
-		cap: Option<Balance>,
+		pub cap: Option<Balance>,
 		/// The reward accumulator
-		reward_acc: CodecFixedPoint,
-		/// Total shares
-		total_shares: Balance,
-		/// Total stake
-		total_stake: Balance,
-		/// Total free stake (unused)
-		free_stake: Balance,
+		pub reward_acc: CodecFixedPoint,
+		/// Total shares. Cannot be dust.
+		pub total_shares: Balance,
+		/// Total stake. Cannot be dust.
+		pub total_stake: Balance,
+		/// Total free stake. Can be dust.
+		pub free_stake: Balance,
 		/// Releasing stake (will be unlocked after worker reclaiming)
-		releasing_stake: Balance,
+		pub releasing_stake: Balance,
 		/// Bound workers
-		workers: Vec<WorkerPublicKey>,
+		pub workers: Vec<WorkerPublicKey>,
 		/// The queue of withdraw requests
-		withdraw_queue: VecDeque<WithdrawInfo<AccountId, Balance>>,
+		pub withdraw_queue: VecDeque<WithdrawInfo<AccountId, Balance>>,
 	}
 
 	impl<AccountId, Balance> PoolInfo<AccountId, Balance>
@@ -1044,6 +1117,7 @@ pub mod pallet {
 		/// share price is zero (all slashed), which is a really a disrupting case that we don't
 		/// even bother to deal with.
 		fn add_stake(&mut self, user: &mut UserStakeInfo<AccountId, Balance>, amount: Balance) {
+			debug_assert!(is_positive_balance(amount));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
 			// Calcuate shares to add
@@ -1063,41 +1137,82 @@ pub mod pallet {
 
 		/// Removes some shares from a user and returns the removed stake amount.
 		///
-		/// This function can deal with fixed point precision issue. However it also requires:
+		/// This function can deal with fixed point precision issue (I hope so). However it also
+		/// requires:
 		///
 		/// - There's no dirty slash
 		/// - `shares` mustn't exceed the user shares.
 		///
-		/// It returns `None` and makes no change if there's any error. Otherwise it returns the
-		/// amount of the actual removed stake.
+		/// It returns `None` and makes no change if there's any error. Otherwise it returns a
+		/// tuple with the amount of the actual removed stake, and potentially the dust stake to
+		/// remove.
 		fn remove_stake(
 			&mut self,
 			user: &mut UserStakeInfo<AccountId, Balance>,
 			shares: Balance,
-		) -> Option<Balance> {
+		) -> Option<(Balance, Balance)> {
+			debug_assert!(is_positive_balance(shares));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
-			let total_shares = self.total_shares.checked_sub(&shares)?;
+
+			// It's tricky to deal with the fixed point precision loss. Generally we drop the dust
+			// shares, because shares are just a virtual value representing the ownership of a
+			// pool. However for balances, even the dust of 1 pico PHA must be absorbed.
+			//
+			// In StakePool, all the balances are PHA locked in user's account. Therefore once we
+			// want to absorb some dust, we have to withdraw the funds from the users' stake, and
+			// deposit it to the Treasury.
 			let price = self.share_price()?;
 			let amount = bmul(shares, &price);
-			// In case `amount` is a little bit larger than `free_stake`
+			// In case `amount` is a little bit larger than `free_stake`. It also implies that
+			// amount will never exceed user.stake.
 			let amount = amount.min(self.free_stake);
+			// Remove shares and stake from the user record
 			let user_shares = user.shares.checked_sub(&shares)?;
+			let (user_shares, shares_dust) = extract_dust(user_shares);
 			let user_locked = user.locked.checked_sub(&amount)?;
+			let (user_locked, user_dust) = extract_dust(user_locked);
+			// Whenver we remove dust shares in user's account, we remove it in the total_shares
+			// as well. It keeps the invariant:
+			//   pool.total_shares == sum(pool_user.shares)
+			let total_shares = self.total_shares.checked_sub(&(shares + shares_dust))?;
+			debug_assert!(
+				extract_dust(total_shares).1 == Zero::zero(),
+				"total_shares should never have dust"
+			);
 			// Apply updates
-			self.free_stake -= amount;
-			self.total_stake -= amount;
+			//
+			// Note that ideally we should maintain the invariant:
+			//   pool.total_stake == sum(pool_user.stake)
+			//
+			// When we extracted some dust, we should also deduct it from the total_stake. However,
+			// the invarant will be broken anyway when a pool got any slash settled. For example,
+			// when the total stake got slashed by 1 pico-PHA, the sum of pool users' stake will
+			// be always larger than total_stake.
+			//
+			// So we'd rather just don't deduct the the removed dust at all. Instead, we drop the
+			// dust in pool.total_stake after the user stake is removed. In other words, we always
+			// drop the dust in total_stake without more bookkeeping.
+			let (total_stake, _) = extract_dust(self.total_stake - amount);
+			if total_stake > Zero::zero() {
+				self.free_stake -= amount;
+				self.total_stake -= amount;
+			} else {
+				self.free_stake = Zero::zero();
+				self.total_stake = Zero::zero();
+			}
 			self.total_shares = total_shares;
 			user.shares = user_shares;
 			user.locked = user_locked;
 			self.reset_pending_reward(user);
-			Some(amount)
+			Some((amount, user_dust))
 		}
 
+		/// Slashes the pool with dust removed.
 		fn slash(&mut self, amount: Balance) {
 			debug_assert!(
-				self.total_shares > Zero::zero(),
-				"No share in hte pool. This shouldn't happen."
+				is_positive_balance(self.total_shares),
+				"No share in the pool. This shouldn't happen."
 			);
 			debug_assert!(
 				self.total_stake >= amount,
@@ -1105,18 +1220,21 @@ pub mod pallet {
 				self.total_stake,
 				amount
 			);
-			self.total_stake.saturating_reduce(amount);
+			let amount = self.total_stake.min(amount);
+			// Note that once the stake reaches zero by slashing (implying the share is non-zero),
+			// the pool goes banckrupt. In such case, the pool becomes frozen.
+			// (TODO: maybe can be recovered by removing all the miners from the pool? How to take
+			// care of PoolUsers?)
+			let (new_stake, _) = extract_dust(self.total_stake - amount);
+			self.total_stake = new_stake;
 		}
 
 		/// Asserts there's no dirty slash (in debug profile only)
-		///
-		/// This could be probalematic if the fixed point precision is not handled correctly.
-		/// However since here we check the exact same condition as we set in `settle_slash`, it
-		/// should be always safe.
 		fn assert_slash_clean(&self, user: &UserStakeInfo<AccountId, Balance>) {
 			debug_assert!(
 				self.total_shares == Zero::zero()
-					|| bmul(user.shares, &self.share_price().unwrap()) == user.locked,
+				// Due to the unstable fixed point share price, we cannot compare them directly
+					|| balances_nearly_equal(bmul(user.shares, &self.share_price().unwrap()), user.locked),
 				"There shouldn't be any dirty slash (user shares = {}, price = {:?}, user locked = {}, delta = {})",
 				user.shares, self.share_price(), user.locked,
 				bmul(user.shares, &self.share_price().unwrap()) - user.locked
@@ -1140,15 +1258,30 @@ pub mod pallet {
 			let price = self.share_price()?;
 			let locked = user.locked;
 			let new_locked = bmul(user.shares, &price);
+			// Double check the new_locked won't exceed the original locked
+			let new_locked = new_locked.min(locked);
+			// When only dust remaining in the pool, we include the dust in the slash amount
+			let (new_locked, _) = extract_dust(new_locked);
 			user.locked = new_locked;
 			// The actual slashed amount. Usually slash will only cause the share price decreasing.
 			// However in some edge case (i.e. the pool got slashed to 0 and then new contribution
 			// added), the locked amount may even become larger
-			Some(locked.saturating_sub(new_locked))
+			Some(locked - new_locked)
 		}
 
 		/// Returns the price of one share, or None if no share at all.
 		fn share_price(&self) -> Option<FixedPoint> {
+			#[cfg(test)]
+			{
+				println!(
+					"total_stake = {}, total_share = {}, div = {:?}",
+					self.total_stake.to_fixed(),
+					self.total_shares.to_fixed(),
+					self.total_stake
+						.to_fixed()
+						.checked_div(self.total_shares.to_fixed())
+				);
+			}
 			self.total_stake
 				.to_fixed()
 				.checked_div(self.total_shares.to_fixed())
@@ -1169,7 +1302,7 @@ pub mod pallet {
 		// Warning: `total_reward` mustn't be zero.
 		fn distribute_reward(&mut self, rewards: Balance) {
 			assert!(
-				self.total_shares != Zero::zero(),
+				is_positive_balance(self.total_shares),
 				"Divide by zero at distribute_reward"
 			);
 			Accumulator::<Balance>::distribute(
@@ -1232,22 +1365,28 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId: Default, Balance> {
 		/// User account
-		user: AccountId,
+		pub user: AccountId,
 		/// The actual locked stake
-		locked: Balance,
-		/// The share in the pool
-		shares: Balance,
+		pub locked: Balance,
+		/// The share in the pool. Cannot be dust.
+		///
+		/// Invariant must hold:
+		///   StakePools[pid].total_stake == sum(PoolStakers[(pid, user)].shares)
+		pub shares: Balance,
 		/// Claimable rewards
-		available_rewards: Balance,
+		pub available_rewards: Balance,
 		/// The debt of a user's stake subject to the pool reward accumulator
-		reward_debt: Balance,
+		pub reward_debt: Balance,
 	}
 
 	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId: Default, Balance> {
-		user: AccountId,
-		shares: Balance,
-		start_time: u64,
+		/// The withdrawal requester
+		pub user: AccountId,
+		/// The shares to withdraw. Cannot be dust.
+		pub shares: Balance,
+		/// The start time of the request
+		pub start_time: u64,
 	}
 
 	#[cfg(test)]
@@ -2599,6 +2738,55 @@ pub mod pallet {
 				));
 			});
 		}
+		#[test]
+		fn issue487_eps_should_not_cause_dead_loop() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				StakePools::<Test>::insert(
+					0,
+					PoolInfo {
+						pid: 0,
+						owner: 1,
+						payout_commission: None,
+						owner_reward: 0,
+						cap: None,
+						reward_acc: CodecFixedPoint::zero(),
+						/// Total shares
+						total_shares: 47_9299_9999_9999,
+						total_stake: 47_9300_0000_0000,
+						free_stake: 1,
+						releasing_stake: 0,
+						workers: vec![],
+						/// The queue of withdraw requests
+						withdraw_queue: {
+							let mut q = VecDeque::<WithdrawInfo<u64, u128>>::new();
+							q.push_back(WithdrawInfo {
+								user: 2,
+								shares: 298_9080_0000_0000,
+								start_time: 100,
+							});
+							q
+						},
+					},
+				);
+				PoolStakers::<Test>::insert(
+					(0, 2),
+					UserStakeInfo::<u64, u128> {
+						user: 2,
+						locked: 299_9000_0000_0000,
+						shares: 299_9000_0000_0000,
+						available_rewards: 0,
+						reward_debt: 0,
+					},
+				);
+				PhalaStakePool::ledger_accrue(&2, 299_9000_0000_0000);
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(3),
+					0,
+					1 * DOLLARS
+				));
+			});
+		}
 
 		fn the_lock(amount: Balance) -> pallet_balances::BalanceLock<Balance> {
 			pallet_balances::BalanceLock {
@@ -2649,5 +2837,39 @@ pub mod pallet {
 				},
 			}));
 		}
+	}
+}
+
+mod migrations;
+
+use sp_runtime::traits::AtLeast32BitUnsigned;
+
+/// Returns true if `n` is close to zero (1000 pico, or 1e-8).
+fn balance_close_to_zero<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
+	n <= B::from(1000u32)
+}
+
+/// Returns true if `a` and `b` are close enough (1000 pico, or 1e-8)
+fn balances_nearly_equal<B: AtLeast32BitUnsigned + Copy>(a: B, b: B) -> bool {
+	if a > b {
+		balance_close_to_zero(a - b)
+	} else {
+		balance_close_to_zero(b - a)
+	}
+}
+
+/// Returns true if `n` is a non-trivial positive balance
+fn is_positive_balance<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
+	!balance_close_to_zero(n)
+}
+
+/// Normalizes `n` to zero if it's a dust balance.
+///
+/// Returns type  `n` itself if it's a non-trivial positive balance, otherwise zero.
+fn extract_dust<B: AtLeast32BitUnsigned + Copy>(n: B) -> (B, B) {
+	if balance_close_to_zero(n) {
+		(Zero::zero(), n)
+	} else {
+		(n, Zero::zero())
 	}
 }
