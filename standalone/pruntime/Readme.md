@@ -118,3 +118,11 @@ However, in order to send commands and queries to pRuntime, it's better to use a
 (blockchain, pherry (bridge), pRuntime, and frontend), because these messages are encrypted and
 signed with blockchain identity and therefore not easy to be emulated by a standalone script. It's
 recommended to use our Docker build for the complete setup.
+
+
+
+## Prepare Geolocation Database
+
+Download GeoLite-City.mmdb database at https://drive.google.com/file/d/1UDKHuZ2KQSaDvy34LMKlUPKgToZPoNUk/view?usp=sharing
+
+By default, please place it at the root of compiled binary folder (./standalone/pruntime/bin/GeoLite-City.mmdb).
