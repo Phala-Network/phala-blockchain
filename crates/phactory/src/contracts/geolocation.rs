@@ -66,9 +66,8 @@ impl Geolocation {
 
     pub fn guard(&mut self, current_blocknum: &chain::BlockNumber) {
         // purging expired geo_data
-        self.geo_data.retain(|_, v| {
-            v.created_at > current_blocknum - GEOCODING_EXPIRED_BLOCKNUM
-        });
+        self.geo_data
+            .retain(|_, v| v.created_at > current_blocknum - GEOCODING_EXPIRED_BLOCKNUM);
 
         self.region_map.clear();
         // building region map
@@ -176,10 +175,7 @@ impl contracts::NativeContract for Geolocation {
         }
     }
 
-    fn on_block_end(
-        &mut self,
-        context: &NativeContext,
-    ) {
+    fn on_block_end(&mut self, context: &NativeContext) {
         self.guard(&context.block.block_number);
     }
 }
