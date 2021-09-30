@@ -144,13 +144,6 @@ impl contracts::NativeContract for Geolocation {
                 Ok(Response::GetGeocoding { geocoding })
             }
             Request::GetAvailableRegionName {} => {
-                // let valid_region_map = self.region_map.clone()
-                //     .into_iter()
-                //     .filter(|(_, v)|
-                //         v.len() == 0)
-                //     .collect();
-                // let region_names: Vec<String> = valid_region_map.keys().cloned().collect();
-
                 let region_names: Vec<String> = self.region_map.keys().cloned().collect();
                 Ok(Response::GetAvailableRegionName { region_names })
             }
