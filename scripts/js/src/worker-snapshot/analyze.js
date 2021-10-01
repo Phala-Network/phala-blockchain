@@ -91,6 +91,15 @@ function sheetToCsv(sheet) {
     return { fields, data };
 }
 
+function fmtDate(d) {
+    return (
+        (d.getMonth() + 1).toString().padStart(2, '0') + "-"
+        + d.getDate().toString().padStart(2, '0') + " "
+        + d.getHours().toString().padStart(2, '0') + ":"
+        + d.getMinutes().toString().padStart(2, '0')
+    );
+}
+
 function main() {
     const { snapshots, poolWorkers, output } = program.opts();
 
@@ -99,6 +108,7 @@ function main() {
 
     const sheet = {
         blocknum: dataset.map(row => row.blocknum),
+        date: dataset.map(row => fmtDate(new Date(row.timestamp))),
     };
 
     addToSheet(sheet, stats(dataset), 'full');
