@@ -34,16 +34,25 @@ function stats(dataset) {
     const totalRewards = dataset
         .map(({frame}) => frame.reduce((acc, {totalReward}) => acc + totalReward, 0));
 
+    // series: sum(status == MiningIdle)
+    const mining = dataset
+        .map(({frame}) => frame.filter(m => m.state == 'MiningIdle').length);
+
     // series: sum(state == Unresponsive)
     const unresponsive = dataset
         .map(({frame}) => frame.filter(m => m.state == 'MiningUnresponsive').length);
+
+    const total = dataset
+        .map(({frame}) => frame.length);
 
     // series: typical V and totalReward
     const sampledMetrics = program.opts().sampleWorker ? sampleWorker(dataset) : {};
 
     return {
         totalRewards,
+        mining,
         unresponsive,
+        total,
         ...sampledMetrics,
     };
 }
