@@ -145,7 +145,7 @@ where
 				// Shares
 				let (shares, shares_dust) = extract_dust(user.shares);
 				user.shares = shares;
-				// Accumulate the dust to the table to ensure shares invarant
+				// Accumulate the dust to the table to ensure shares invariant
 				if shares_dust > Zero::zero() {
 					let v = share_dust_removed
 						.get(&pid)
