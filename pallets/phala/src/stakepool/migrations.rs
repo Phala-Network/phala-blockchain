@@ -1,6 +1,8 @@
 use super::*;
 
 use crate::balance_convert::FixedPointConvert;
+use frame_support::pallet_prelude::Weight;
+use frame_support::traits::Get;
 use log::info;
 use sp_std::collections::btree_map::BTreeMap;
 use sp_std::fmt::Display;
@@ -10,12 +12,12 @@ use sp_std::vec::Vec;
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
 
-pub(super) fn migrate_to_v1<T: Config>()
+pub(super) fn migrate_to_v1<T: Config>() -> Weight
 where
 	T: crate::mining::Config<Currency = <T as Config>::Currency>,
 	BalanceOf<T>: FixedPointConvert + Display,
 {
-	Migration::<T>::migrate_fix487();
+	Migration::<T>::migrate_fix487()
 }
 
 /// Indicating now it's pre or post migration
@@ -33,13 +35,14 @@ where
 	BalanceOf<T>: FixedPointConvert + Display,
 {
 	/// Fix bug #487
-	pub fn migrate_fix487() {
+	pub fn migrate_fix487() -> Weight {
 		info!("== migrate_fix487: Pre-Migration ==");
 		Self::print_pool_details(Stage::PreMigration);
 		let result = Self::backfill_487_maybe_remove_pool_dust();
 		info!("== migrate_fix487: Post-Migration ==");
 		Self::print_pool_details(Stage::PostMigration);
 		info!("== migrate_fix487: {:?} ==", result);
+		result.unwrap_or_default()
 	}
 
 	fn print_pool_details(stage: Stage) {
@@ -133,9 +136,11 @@ where
 	}
 
 	// Removes the dust shares and stake in a pool.
-	fn backfill_487_maybe_remove_pool_dust() -> Result<(), ()> {
+	fn backfill_487_maybe_remove_pool_dust() -> Result<Weight, ()> {
 		// BTreeMap is chosen for its slightly lower memory footprint
 		let mut share_dust_removed = BTreeMap::<u64, BalanceOf<T>>::new();
+		let mut num_reads = 0u64;
+		let mut num_writes = 0u64;
 
 		// Remove dust in stakers and collect dust shares that will be removed in stake pools
 		// later.
@@ -161,6 +166,8 @@ where
 					info!("dust stake removed: {:?} {}", account, stake_dust);
 					Pallet::<T>::ledger_reduce(&account, Zero::zero(), stake_dust);
 				}
+				num_reads += 1;
+				num_writes += 1;
 				Some(user)
 			},
 		);
@@ -183,9 +190,12 @@ where
 			// Remove dust in withdraw request
 			pool.withdraw_queue
 				.retain(|withdraw| is_positive_balance(withdraw.shares));
+
+			num_reads += 1;
+			num_writes += 1;
 			Some(pool)
 		});
 
-		Ok(())
+		Ok(T::DbWeight::get().reads_writes(num_reads, num_writes))
 	}
 }

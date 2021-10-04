@@ -230,7 +230,7 @@ pub mod pallet {
 			w += T::DbWeight::get().reads(1);
 
 			if old == 0 {
-				super::migrations::migrate_to_v1::<T>();
+				w += super::migrations::migrate_to_v1::<T>();
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
 			}
