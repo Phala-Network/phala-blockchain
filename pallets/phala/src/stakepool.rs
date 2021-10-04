@@ -750,20 +750,6 @@ pub mod pallet {
 
 			while is_positive_balance(pool_info.free_stake) {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
-					// Backfill to #487
-					// There are dust withdrawal requests left in the queues, which are safe to
-					// ignore for now. However the goal is to not leave any withdrawal requests
-					// with dust in the queue at all. So we can remove the backfill once all the
-					// withdrawal queue are clean.
-					if balance_close_to_zero(withdraw.shares) {
-						pool_info.withdraw_queue.pop_front();
-						continue;
-					}
-					#[cfg(test)]
-					{
-						println!(">> pool: {:?}", pool_info);
-						println!(">> withdraw: {:?}", withdraw);
-					}
 					// Must clear the pending reward before any stake change
 					let info_key = (pool_info.pid, withdraw.user.clone());
 					let mut user_info = Self::pool_stakers(&info_key).unwrap();
