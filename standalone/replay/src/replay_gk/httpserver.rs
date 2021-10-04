@@ -8,6 +8,18 @@ struct AppState {
     factory: Arc<Mutex<ReplayFactory>>,
 }
 
+#[get("/meminfo")]
+async fn meminfo(
+    data: web::Data<AppState>,
+) -> HttpResponse {
+    let factory = data.factory.lock().await;
+    let size = factory.storage.pairs(&[]).iter().map(|(k, v)| k.len() + v.len()).sum::<usize>();
+    log::info!("Storage size: {}", size);
+    HttpResponse::Ok().json(serde_json::json!({
+            "storage_size": size,
+    }))
+}
+
 #[get("/worker-state/{pubkey}")]
 async fn get_worker_state(
     web::Path(pubkey): web::Path<String>,
@@ -49,6 +61,7 @@ pub async fn serve(bind_addr: String, factory: Arc<Mutex<ReplayFactory>>) {
         App::new()
             .data(AppState { factory })
             .service(get_worker_state)
+            .service(meminfo)
     })
     .disable_signals()
     .bind(&bind_addr)
