@@ -22,7 +22,7 @@ pub mod pallet {
 	use fixed_macro::types::U64F64 as fp;
 
 	use super::{
-		balance_close_to_zero, balances_nearly_equal, extract_dust, is_positive_balance, BalanceOf,
+		balance_close_to_zero, balances_nearly_equal, extract_dust, is_nondust_balance, BalanceOf,
 		NegativeImbalanceOf,
 	};
 	use frame_support::{
@@ -547,7 +547,7 @@ pub mod pallet {
 				Self::pool_stakers(&info_key).ok_or(Error::<T>::PoolStakeNotFound)?;
 
 			ensure!(
-				is_positive_balance(shares) && shares <= user_info.shares,
+				is_nondust_balance(shares) && shares <= user_info.shares,
 				Error::<T>::InvalidWithdrawalAmount
 			);
 			// TODO(hangyin): consider the amounts in the withdraw request
@@ -679,7 +679,7 @@ pub mod pallet {
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
 				let to_distribute = rewards - commission;
-				if is_positive_balance(to_distribute) {
+				if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
 				} else {
 					Self::deposit_event(Event::<T>::RewardDismissedDust(
@@ -763,7 +763,7 @@ pub mod pallet {
 				None => return,
 			};
 
-			while is_positive_balance(pool_info.free_stake) {
+			while is_nondust_balance(pool_info.free_stake) {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let info_key = (pool_info.pid, withdraw.user.clone());
@@ -780,7 +780,7 @@ pub mod pallet {
 					// in any withdraw request mustn't be dust when inserting and updating it.
 					let withdrawing_shares = free_shares.min(withdraw.shares);
 					debug_assert!(
-						is_positive_balance(withdrawing_shares),
+						is_nondust_balance(withdrawing_shares),
 						"withdrawing_shares must be positive"
 					);
 					// Actually remove the fulfilled withdraw request. Dust in the user shares is
@@ -888,7 +888,7 @@ pub mod pallet {
 		) {
 			match pool.settle_slash(user) {
 				// We don't slash on dust, because the share price is just unstable.
-				Some(slashed) if is_positive_balance(slashed) => {
+				Some(slashed) if is_nondust_balance(slashed) => {
 					let (imbalance, _remaining) =
 						<T as Config>::Currency::slash(&user.user, slashed);
 					let actual_slashed = imbalance.peek();
@@ -1121,7 +1121,7 @@ pub mod pallet {
 		/// share price is zero (all slashed), which is a really a disrupting case that we don't
 		/// even bother to deal with.
 		fn add_stake(&mut self, user: &mut UserStakeInfo<AccountId, Balance>, amount: Balance) {
-			debug_assert!(is_positive_balance(amount));
+			debug_assert!(is_nondust_balance(amount));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
 			// Calcuate shares to add
@@ -1155,7 +1155,7 @@ pub mod pallet {
 			user: &mut UserStakeInfo<AccountId, Balance>,
 			shares: Balance,
 		) -> Option<(Balance, Balance)> {
-			debug_assert!(is_positive_balance(shares));
+			debug_assert!(is_nondust_balance(shares));
 			self.assert_slash_clean(user);
 			self.assert_reward_clean(user);
 
@@ -1215,7 +1215,7 @@ pub mod pallet {
 		/// Slashes the pool with dust removed.
 		fn slash(&mut self, amount: Balance) {
 			debug_assert!(
-				is_positive_balance(self.total_shares),
+				is_nondust_balance(self.total_shares),
 				"No share in the pool. This shouldn't happen."
 			);
 			debug_assert!(
@@ -1295,7 +1295,7 @@ pub mod pallet {
 		// Warning: `total_reward` mustn't be zero.
 		fn distribute_reward(&mut self, rewards: Balance) {
 			assert!(
-				is_positive_balance(self.total_shares),
+				is_nondust_balance(self.total_shares),
 				"Divide by zero at distribute_reward"
 			);
 			Accumulator::<Balance>::distribute(
@@ -2887,7 +2887,7 @@ fn balances_nearly_equal<B: AtLeast32BitUnsigned + Copy>(a: B, b: B) -> bool {
 }
 
 /// Returns true if `n` is a non-trivial positive balance
-fn is_positive_balance<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
+fn is_nondust_balance<B: AtLeast32BitUnsigned + Copy>(n: B) -> bool {
 	!balance_close_to_zero(n)
 }
 

@@ -189,7 +189,7 @@ where
 			}
 			// Remove dust in withdraw request
 			pool.withdraw_queue
-				.retain(|withdraw| is_positive_balance(withdraw.shares));
+				.retain(|withdraw| is_nondust_balance(withdraw.shares));
 
 			num_reads += 1;
 			num_writes += 1;
