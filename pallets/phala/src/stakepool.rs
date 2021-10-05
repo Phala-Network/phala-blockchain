@@ -767,7 +767,14 @@ pub mod pallet {
 				if let Some(mut withdraw) = pool_info.withdraw_queue.front().cloned() {
 					// Must clear the pending reward before any stake change
 					let info_key = (pool_info.pid, withdraw.user.clone());
-					let mut user_info = Self::pool_stakers(&info_key).unwrap();
+					let mut user_info = match Self::pool_stakers(&info_key) {
+						Some(user) => user,
+						// Usually it shouldn't be the case but we still check as a safe-guard
+						None => {
+							pool_info.withdraw_queue.pop_front();
+							continue;
+						}
+					};
 					pool_info.settle_user_pending_reward(&mut user_info);
 					// Try to fulfill the withdraw requests as much as possible
 					let free_shares = if price == fp!(0) {
@@ -806,7 +813,10 @@ pub mod pallet {
 					if withdraw.shares == Zero::zero() {
 						pool_info.withdraw_queue.pop_front();
 					} else {
-						*pool_info.withdraw_queue.front_mut().unwrap() = withdraw;
+						*pool_info
+							.withdraw_queue
+							.front_mut()
+							.expect("front exists as just checked; qed.") = withdraw;
 					}
 				} else {
 					break;
@@ -856,8 +866,7 @@ pub mod pallet {
 
 			// push pool to the pool list, if the pool was added in this pool, means it has waiting withdraw request
 			// in current block(if they have the same timestamp, we think they are in the same block)
-			if WithdrawalQueuedPools::<T>::contains_key(&start_time) {
-				let mut pool_list = WithdrawalQueuedPools::<T>::get(&start_time).unwrap();
+			if let Some(mut pool_list) = WithdrawalQueuedPools::<T>::get(&start_time) {
 				// if pool has already been added, ignore it
 				if !pool_list.contains(&pid) {
 					pool_list.push(pid);

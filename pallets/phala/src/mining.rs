@@ -322,7 +322,7 @@ pub mod pallet {
 		pub fn set_cool_down_expiration(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
 
-			CoolDownPeriod::<T>::mutate(|p| *p = period);
+			CoolDownPeriod::<T>::put(period);
 			Self::deposit_event(Event::<T>::CoolDownExpirationChanged(period));
 			Ok(())
 		}
@@ -513,8 +513,10 @@ pub mod pallet {
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						let mut miner_info = match Self::miners(&account) {
+							Some(miner) => miner,
+							None => continue, // Skip non-existing miners
+						};
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -532,8 +534,10 @@ pub mod pallet {
 				// worker recovered to online, update bound miner state to idle
 				for worker in event.recovered_to_online {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						let mut miner_info = match Self::miners(&account) {
+							Some(miner) => miner,
+							None => continue, // Skip non-existing miners
+						};
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
