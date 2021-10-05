@@ -303,6 +303,7 @@ pub mod pallet {
 		DuplicateBoundWorker,
 		/// Indicating the initial benchmark score is too low to start mining.
 		BenchmarkTooLow,
+		InternalErrorCannotStartWithExistingStake,
 	}
 
 	type BalanceOf<T> =
@@ -599,6 +600,7 @@ pub mod pallet {
 		/// 1. The worker is alerady registered
 		/// 2. The worker has an initial benchmark
 		/// 3. Both the worker and the miner are not bound
+		/// 4. There's no stake in CD associated with the miner
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let worker =
 				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
@@ -613,6 +615,12 @@ pub mod pallet {
 				Self::ensure_worker_bound(&pubkey).is_err(),
 				Error::<T>::DuplicateBoundWorker
 			);
+			// Make sure we are not overriding a running miner (even if the worker is unbound)
+			let can_bind = match Miners::<T>::get(&miner) {
+				Some(info) => info.state == MinerState::Ready,
+				None => true,
+			};
+			ensure!(can_bind, Error::<T>::MinerNotReady);
 
 			let now = Self::now_sec();
 			MinerBindings::<T>::insert(&miner, &pubkey);
@@ -674,10 +682,14 @@ pub mod pallet {
 		/// with a close-to-zero score).
 		pub fn start_mining(miner: T::AccountId, stake: BalanceOf<T>) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-
 			ensure!(
 				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
 				Error::<T>::MinerNotReady
+			);
+			// Double check the Stake shouldn't be overrode
+			ensure!(
+				Stakes::<T>::get(&miner) == None,
+				Error::<T>::InternalErrorCannotStartWithExistingStake,
 			);
 
 			let worker_info =
