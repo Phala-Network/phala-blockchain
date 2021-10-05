@@ -173,6 +173,8 @@ pub mod pallet {
 		RewardDismissedNotInPool(WorkerPublicKey, BalanceOf<T>),
 		/// Some reward is dismissed because the pool doesn't have any share. \[pid, amount\]
 		RewardDismissedNoShare(u64, BalanceOf<T>),
+		/// Some reward is dismissed because the amount is too tiny (dust). \[pid, amount\]
+		RewardDismissedDust(u64, BalanceOf<T>),
 		/// Some dust stake is removed. \[user, amount\]
 		DustRemoved(T::AccountId, BalanceOf<T>),
 	}
@@ -676,7 +678,15 @@ pub mod pallet {
 				}
 				let commission = pool_info.payout_commission.unwrap_or_default() * rewards;
 				pool_info.owner_reward.saturating_accrue(commission);
-				pool_info.distribute_reward(rewards - commission);
+				let to_distribute = rewards - commission;
+				if is_positive_balance(to_distribute) {
+					pool_info.distribute_reward(to_distribute);
+				} else {
+					Self::deposit_event(Event::<T>::RewardDismissedDust(
+						pool_info.pid,
+						to_distribute,
+					));
+				}
 			}
 		}
 
@@ -703,6 +713,11 @@ pub mod pallet {
 				// in return.
 				_ => shares,
 			};
+			// The user is requesting to withdraw `shares`. So we compare the maximal free shares
+			// with that of the request. The `shares` in the request is splitted to:
+			// - `withdraw_shares`: can be withdrawn immedately
+			// - `queued_shares`: enqueued in the withdrawl queue
+			// We remove the dust in both values.
 			let withdrawing_shares = shares.min(free_shares);
 			let (withdrawing_shares, _) = extract_dust(withdrawing_shares);
 			let queued_shares = shares - withdrawing_shares;
@@ -760,6 +775,9 @@ pub mod pallet {
 					} else {
 						bdiv(pool_info.free_stake, &price)
 					};
+					// This is the shares to withdraw immedately. It should NOT contain any dust
+					// because we ensure (1) `free_shares` is not dust earlier, and (2) the shares
+					// in any withdraw request mustn't be dust when inserting and updating it.
 					let withdrawing_shares = free_shares.min(withdraw.shares);
 					debug_assert!(
 						is_positive_balance(withdrawing_shares),
@@ -890,7 +908,7 @@ pub mod pallet {
 
 		/// Tries to enforce expired withdraw requests
 		///
-		/// If the
+		/// TODO: carefully examine the caveat in this function
 		fn maybe_force_withdraw(now: u64) {
 			// TODO: review again!
 			let mut t = WithdrawalTimestamps::<T>::get();
@@ -1257,17 +1275,6 @@ pub mod pallet {
 
 		/// Returns the price of one share, or None if no share at all.
 		fn share_price(&self) -> Option<FixedPoint> {
-			#[cfg(test)]
-			{
-				println!(
-					"total_stake = {}, total_share = {}, div = {:?}",
-					self.total_stake.to_fixed(),
-					self.total_shares.to_fixed(),
-					self.total_stake
-						.to_fixed()
-						.checked_div(self.total_shares.to_fixed())
-				);
-			}
 			self.total_stake
 				.to_fixed()
 				.checked_div(self.total_shares.to_fixed())
@@ -2076,6 +2083,41 @@ pub mod pallet {
 				assert_eq!(staker1.shares, 0);
 				assert_eq!(staker1.reward_debt, 0);
 				assert_eq!(staker2.shares, 400 * DOLLARS);
+			});
+		}
+
+		#[test]
+		fn dismiss_dust_reward() {
+			use crate::mining::pallet::OnReward;
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid = 0
+
+				// Check stake before receiving any rewards
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(1),
+					0,
+					100 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					400 * DOLLARS
+				));
+				let _ = take_events();
+				// Inject 100 pico PHA payout to trigger dust removal (99 after convering to fp)
+				PhalaStakePool::on_reward(&vec![SettleInfo {
+					pubkey: worker_pubkey(1),
+					v: FixedPoint::from_num(1).to_bits(),
+					payout: 100u128.to_fixed().to_bits(),
+					treasury: 0,
+				}]);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![TestEvent::PhalaStakePool(Event::RewardDismissedDust(0, 99))]
+				);
 			});
 		}
 
