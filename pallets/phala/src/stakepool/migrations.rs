@@ -191,7 +191,7 @@ where
 			pool.withdraw_queue
 				.retain(|withdraw| is_nondust_balance(withdraw.shares));
 
-			// Remove duplicated requests (we only allow on request per user)
+			// Remove duplicated requests (we only allow one request per user)
 			let mut visited = Vec::<T::AccountId>::new();
 			pool.withdraw_queue.retain(|withdraw| {
 				if !visited.contains(&withdraw.user) {
