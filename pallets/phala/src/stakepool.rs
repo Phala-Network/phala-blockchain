@@ -691,7 +691,7 @@ pub mod pallet {
 				//    in issue 518, because it should be either fixed in another fix, or the record
 				//    is already overwritten.
 
-				let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+				let mut pool_info = Self::ensure_pool(pid)?;
 
 				let returned = orig_stake - slashed;
 				if slashed != Zero::zero() {
