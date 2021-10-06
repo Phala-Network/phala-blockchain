@@ -1121,6 +1121,7 @@ impl pallet_stakepool::Config for Runtime {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
+	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_ott::Config for Runtime {
 	type Event = Event;
