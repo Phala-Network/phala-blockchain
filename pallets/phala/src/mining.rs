@@ -154,21 +154,10 @@ pub mod pallet {
 		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
 	}
 
-	pub trait OnReclaim<AccountId, Balance> {
-		/// Called when the miner has finished reclaiming and a given amount of the stake should be
-		/// returned
-		///
-		/// When called, it's not guaranteed there's still a worker associated to the miner.
-		fn on_reclaim(miner: &AccountId, orig_stake: Balance, slashed: Balance) {}
-
-		// Using miner account as the identity here is necessary because at this point the worker
-		// may be already unbound.
-	}
-
 	pub trait OnStopped<Balance> {
 		/// Called with a miner is stopped and can already calculate the final slash and stake.
 		///
-		/// It guarantees the number will be the same as the parameters in OnReclaim
+		/// It guarantees the number will be the same as the return value of `reclaim()`
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
 	}
 
@@ -194,7 +183,6 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
-		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
 		type OnStopped: OnStopped<BalanceOf<Self>>;
 		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
 		// Let the StakePool to take over the slash events.
@@ -340,29 +328,6 @@ pub mod pallet {
 			// Always notify the subscriber. Please note that even if the miner is not mining, we
 			// still have to notify the subscriber that an unbinding operation has just happened.
 			Self::unbind_miner(&miner, true)
-		}
-
-		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
-		///
-		/// Anyone can reclaim.
-		///
-		/// Requires:
-		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
-		#[pallet::weight(0)]
-		pub fn reclaim(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
-			ensure_signed(origin)?;
-			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
-			miner_info.state = MinerState::Ready;
-			miner_info.cool_down_start = 0u64;
-			Miners::<T>::insert(&miner, &miner_info);
-
-			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
-			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
-
-			T::OnReclaim::on_reclaim(&miner, orig_stake, slashed);
-			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
-			Ok(())
 		}
 
 		/// Triggers a force heartbeat request to all workers by sending a MAX pow target
@@ -592,6 +557,24 @@ pub mod pallet {
 			}
 			let now = Self::now_sec();
 			now - miner_info.cool_down_start >= Self::cool_down_period()
+		}
+
+		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
+		///
+		/// Requires:
+		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
+		pub fn reclaim(miner: T::AccountId) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
+			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
+			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
+			miner_info.state = MinerState::Ready;
+			miner_info.cool_down_start = 0u64;
+			Miners::<T>::insert(&miner, &miner_info);
+
+			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
+
+			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
+			Ok((orig_stake, slashed))
 		}
 
 		/// Binds a miner to a worker
