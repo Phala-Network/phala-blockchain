@@ -561,7 +561,10 @@ pub mod pallet {
 
 			// if withdraw_queue is not empty, means pool doesn't have free stake now, just add withdraw to queue
 			if !pool_info.withdraw_queue.is_empty() {
-				// TODO(hangyin): limit the number of concurrent withdraw from a single user
+				// Remove the existing withdraw request in the queue if there is any.
+				pool_info
+					.withdraw_queue
+					.retain(|withdraw| withdraw.user != who);
 				pool_info.withdraw_queue.push_back(WithdrawInfo {
 					user: who,
 					shares,
@@ -2839,6 +2842,42 @@ pub mod pallet {
 					0,
 					1 * DOLLARS
 				));
+			});
+		}
+
+		#[test]
+		fn issue490_limit_one_withdraw_per_user() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid=0
+								  // Start a worker as usual
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1500 * DOLLARS
+				));
+
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					100 * DOLLARS
+				));
+				let queue = PhalaStakePool::stake_pools(0).unwrap().withdraw_queue;
+				assert_eq!(queue[0].shares, 100 * DOLLARS);
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					200 * DOLLARS
+				));
+				let queue = PhalaStakePool::stake_pools(0).unwrap().withdraw_queue;
+				assert_eq!(queue[0].shares, 200 * DOLLARS);
 			});
 		}
 
