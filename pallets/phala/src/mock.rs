@@ -136,7 +136,6 @@ impl mining::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
-	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;

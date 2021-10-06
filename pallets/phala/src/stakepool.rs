@@ -119,9 +119,8 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type WorkerAssignments<T: Config> = StorageMap<_, Twox64Concat, WorkerPublicKey, u64>;
 
-	/// Mapping a miner sub-account to the pool it belongs to.
-	///
-	/// The map entry lasts from `add_worker()` to `remove_worker()` or force unbinding.
+	/// (Deprecated)
+	// TODO: remove it
 	#[pallet::storage]
 	pub type SubAccountAssignments<T: Config> = StorageMap<_, Twox64Concat, T::AccountId, u64>;
 
@@ -332,7 +331,6 @@ pub mod pallet {
 			workers.push(pubkey);
 			StakePools::<T>::insert(&pid, &pool_info);
 			WorkerAssignments::<T>::insert(&pubkey, pid);
-			SubAccountAssignments::<T>::insert(&miner, pid);
 			Self::deposit_event(Event::<T>::PoolWorkerAdded(pid, pubkey));
 
 			Ok(())
@@ -356,7 +354,6 @@ pub mod pallet {
 			ensure!(pool.owner == who, Error::<T>::UnauthorizedPoolOwner);
 			// The worker is in this pool. It implies:
 			// - The worker is already in `PoolInfo::worker` list
-			// - The sub-account assignment exists (because they are created & killed together)
 			let lookup_pid =
 				WorkerAssignments::<T>::get(worker).ok_or(Error::<T>::WorkerDoesNotExist)?;
 			ensure!(pid == lookup_pid, Error::<T>::WorerInAnotherPool);
@@ -643,17 +640,19 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Helper function to trigger reclaiming for a worker in a pool.
+		/// Reclaims the releasing stake of a miner in a pool.
 		#[pallet::weight(0)]
-		pub fn relcaim_pool_worker(
+		pub fn reclaim_pool_worker(
 			origin: OriginFor<T>,
 			pid: u64,
 			worker: WorkerPublicKey,
 		) -> DispatchResult {
-			ensure_signed(origin.clone())?;
+			ensure_signed(origin)?;
 			Self::ensure_pool(pid)?;
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			mining::Pallet::<T>::reclaim(origin, sub_account)
+			let (orig_stake, slashed) = mining::Pallet::<T>::reclaim(sub_account)?;
+			Self::handle_reclaim(pid, orig_stake, slashed);
+			Ok(())
 		}
 
 		/// Enables or disables mining. Must be called with the council or root permission.
@@ -680,40 +679,8 @@ pub mod pallet {
 			data: Vec<(u64, WorkerPublicKey, BalanceOf<T>, BalanceOf<T>)>,
 		) -> DispatchResult {
 			T::BackfillOrigin::ensure_origin(origin)?;
-
 			for (pid, worker_pubkey, orig_stake, slashed) in data {
-				// We basically copied the code from `on_reclaim` with two exceptions:
-				//
-				// 1. Instead of specifying `miner`, we get `pid` and `worker_pubkey`. In this way
-				//    we no longer worry about the potential impact of [issue 518](https://github.com/Phala-Network/phala-blockchain/issues/518),
-				//    where a stopped worker may not have `SubAccountAssignments` record to lookup.
-				// 2. We don't do anything to `SubAccountAssignments` as what we are likely to do
-				//    in issue 518, because it should be either fixed in another fix, or the record
-				//    is already overwritten.
-
-				let mut pool_info = Self::ensure_pool(pid)?;
-
-				let returned = orig_stake - slashed;
-				if slashed != Zero::zero() {
-					// Remove some slashed value from `total_stake`, causing the share price to reduce
-					// and creating a logical pending slash. The actual slash happens with the pending
-					// slash to individuals is settled.
-					pool_info.slash(slashed);
-					Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
-				}
-
-				// With the worker being cleaned, those stake now are free
-				debug_assert!(
-					pool_info.releasing_stake >= returned,
-					"More return then expected, releasing = {}, returend = {}",
-					pool_info.releasing_stake,
-					returned
-				);
-				pool_info.free_stake.saturating_accrue(returned);
-				pool_info.releasing_stake.saturating_reduce(returned);
-
-				Self::try_process_withdraw_queue(&mut pool_info);
-				StakePools::<T>::insert(&pid, &pool_info);
+				Self::handle_reclaim(pid, orig_stake, slashed);
 			}
 			Ok(())
 		}
@@ -746,6 +713,34 @@ pub mod pallet {
 					));
 				}
 			}
+		}
+
+		/// Called when worker was reclaimed.
+		///
+		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
+		/// reset to zero.
+		fn handle_reclaim(pid: u64, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
+			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
+
+			let returned = orig_stake - slashed;
+			if slashed != Zero::zero() {
+				// Remove some slashed value from `total_stake`, causing the share price to reduce
+				// and creating a logical pending slash. The actual slash happens with the pending
+				// slash to individuals is settled.
+				pool_info.slash(slashed);
+				Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
+			}
+
+			// With the worker being cleaned, those stake now are free
+			debug_assert!(
+				pool_info.releasing_stake >= returned,
+				"More return then expected"
+			);
+			pool_info.free_stake.saturating_accrue(returned);
+			pool_info.releasing_stake.saturating_reduce(returned);
+
+			Self::try_process_withdraw_queue(&mut pool_info);
+			StakePools::<T>::insert(&pid, &pool_info);
 		}
 
 		/// Tries to withdraw a specific amount from a pool.
@@ -940,8 +935,6 @@ pub mod pallet {
 		/// It assumes the worker is already in a pool.
 		fn remove_worker_from_pool(worker: &WorkerPublicKey) {
 			let pid = WorkerAssignments::<T>::take(worker).expect("Worker must be in a pool; qed.");
-			let sub_account: T::AccountId = pool_sub_account(pid, worker);
-			SubAccountAssignments::<T>::remove(sub_account);
 			StakePools::<T>::mutate(pid, |value| {
 				if let Some(pool) = value {
 					pool.remove_worker(worker);
@@ -1055,41 +1048,6 @@ pub mod pallet {
 			// bookkeeping stuff (i.e. updating releasing_stake), and eventually the slash will
 			// be enacted at `on_reclaim`.
 			Self::remove_worker_from_pool(worker);
-		}
-	}
-
-	impl<T: Config> mining::OnReclaim<T::AccountId, BalanceOf<T>> for Pallet<T>
-	where
-		T: mining::Config<Currency = <T as Config>::Currency>,
-		BalanceOf<T>: FixedPointConvert + Display,
-	{
-		/// Called when worker was reclaimed.
-		///
-		/// After the cool down ends, worker was cleaned up, whose contributed balance would be
-		/// reset to zero.
-		fn on_reclaim(miner: &T::AccountId, orig_stake: BalanceOf<T>, slashed: BalanceOf<T>) {
-			let pid = SubAccountAssignments::<T>::get(miner).expect("Sub-account must exist; qed.");
-			let mut pool_info = Self::ensure_pool(pid).expect("Stake pool must exist; qed.");
-
-			let returned = orig_stake - slashed;
-			if slashed != Zero::zero() {
-				// Remove some slashed value from `total_stake`, causing the share price to reduce
-				// and creating a logical pending slash. The actual slash happens with the pending
-				// slash to individuals is settled.
-				pool_info.slash(slashed);
-				Self::deposit_event(Event::<T>::PoolSlashed(pid, slashed));
-			}
-
-			// With the worker being cleaned, those stake now are free
-			debug_assert!(
-				pool_info.releasing_stake >= returned,
-				"More return then expected"
-			);
-			pool_info.free_stake.saturating_accrue(returned);
-			pool_info.releasing_stake.saturating_reduce(returned);
-
-			Self::try_process_withdraw_queue(&mut pool_info);
-			StakePools::<T>::insert(&pid, &pool_info);
 		}
 	}
 
@@ -1562,7 +1520,6 @@ pub mod pallet {
 				);
 				// Check assignments
 				assert_eq!(WorkerAssignments::<Test>::get(&worker_pubkey(1)), Some(0));
-				assert_eq!(SubAccountAssignments::<Test>::get(&subaccount), Some(0));
 				// Other bad cases
 				assert_noop!(
 					PhalaStakePool::add_worker(Origin::signed(1), 100, worker1.clone()),
@@ -1657,15 +1614,8 @@ pub mod pallet {
 				));
 				let sub_account = pool_sub_account(0, &worker_pubkey(1));
 				assert_ok!(PhalaMining::unbind(Origin::signed(101), sub_account));
-				// Check assignments cleared, and the worker removed from the pool
-				assert_eq!(
-					WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)),
-					false
-				);
-				assert_eq!(
-					SubAccountAssignments::<Test>::contains_key(&sub_account),
-					false
-				);
+				// Check worker assignments cleared, and the worker removed from the pool
+				assert!(!WorkerAssignments::<Test>::contains_key(&worker_pubkey(1)));
 				let pool = PhalaStakePool::stake_pools(0).unwrap();
 				assert_eq!(pool.workers.contains(&worker_pubkey(1)), false);
 				// Check the mining is ready
@@ -1687,15 +1637,8 @@ pub mod pallet {
 				));
 				let sub_account = pool_sub_account(1, &worker_pubkey(2));
 				assert_ok!(PhalaMining::unbind(Origin::signed(102), sub_account));
-				// Check assignments cleared, and the worker removed from the pool
-				assert_eq!(
-					WorkerAssignments::<Test>::contains_key(&worker_pubkey(2)),
-					false
-				);
-				assert_eq!(
-					SubAccountAssignments::<Test>::contains_key(&sub_account),
-					false
-				);
+				// Check worker assignments cleared, and the worker removed from the pool
+				assert!(!WorkerAssignments::<Test>::contains_key(&worker_pubkey(2)));
 				let pool = PhalaStakePool::stake_pools(1).unwrap();
 				assert_eq!(pool.workers.contains(&worker_pubkey(2)), false);
 				// Check the mining is stopped
@@ -1874,15 +1817,19 @@ pub mod pallet {
 					worker_pubkey(1)
 				));
 				elapse_cool_down();
-				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
 				let ev = take_events();
 				assert_matches!(
 					ev.as_slice(),
 					[
 						TestEvent::PhalaMining(mining::Event::MinerSettled(_, v, 0)),
 						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
+						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _)),
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, slashed)),
-						TestEvent::PhalaMining(mining::Event::MinerReclaimed(_, _, _))
 					]
 					if FixedPoint::from_bits(*v) == ve / 2
 						&& *slashed == 250000000000000
@@ -1937,19 +1884,23 @@ pub mod pallet {
 					worker_pubkey(1)
 				));
 				elapse_cool_down();
-				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
 				let ev = take_events();
 				assert_matches!(
 					ev.as_slice(),
 					[
 						TestEvent::PhalaMining(mining::Event::MinerSettled(_, _, 0)),
 						TestEvent::PhalaMining(mining::Event::MinerStopped(_)),
-						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000000)),
 						TestEvent::PhalaMining(mining::Event::MinerReclaimed(
 							_,
 							500000000000000,
 							250000000000000
 						)),
+						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 250000000000000)),
 					]
 				);
 				// Withdraw & check amount
@@ -2015,8 +1966,11 @@ pub mod pallet {
 					worker_pubkey(1)
 				));
 				elapse_cool_down();
-				let sub_account1: u64 = pool_sub_account(0, &worker_pubkey(1));
-				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
 				// Check cannot contribute
 				assert_noop!(
 					PhalaStakePool::contribute(Origin::signed(1), 0, 10 * DOLLARS),
@@ -2269,13 +2223,11 @@ pub mod pallet {
 
 		#[test]
 		fn test_withdraw() {
-			use crate::mining::pallet::{OnReclaim, OnStopped};
+			use crate::mining::pallet::OnStopped;
 			new_test_ext().execute_with(|| {
 				set_block_1();
 				setup_workers(2);
 				setup_pool_with_workers(1, &[1, 2]); // pid = 0
-				let sub_account1 = pool_sub_account(0, &worker_pubkey(1));
-				let sub_account2 = pool_sub_account(0, &worker_pubkey(2));
 
 				// Stake 1000 PHA, and start two miners with 400 & 100 PHA as stake
 				assert_ok!(PhalaStakePool::contribute(
@@ -2395,7 +2347,7 @@ pub mod pallet {
 				// fulfill staker2's withdraw request, but leaving staker1's untouched.
 				let _ = take_events();
 				PhalaStakePool::on_stopped(&worker_pubkey(2), 100 * DOLLARS, 0);
-				PhalaStakePool::on_reclaim(&sub_account2, 100 * DOLLARS, 0);
+				PhalaStakePool::handle_reclaim(0, 100 * DOLLARS, 0);
 				assert_eq!(
 					take_events().as_slice(),
 					[TestEvent::PhalaStakePool(Event::Withdrawal(
@@ -2415,7 +2367,7 @@ pub mod pallet {
 				// (100 slashed & 300 free), fulfilling stakers' requests.
 				let _ = take_events();
 				PhalaStakePool::on_stopped(&worker_pubkey(1), 400 * DOLLARS, 100 * DOLLARS);
-				PhalaStakePool::on_reclaim(&sub_account1, 400 * DOLLARS, 100 * DOLLARS);
+				PhalaStakePool::handle_reclaim(0, 400 * DOLLARS, 100 * DOLLARS);
 				assert_eq!(
 					take_events().as_slice(),
 					[
@@ -2553,7 +2505,11 @@ pub mod pallet {
 				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
 				// Reclaim, triggering the return of the stake
 				elapse_cool_down();
-				assert_ok!(PhalaMining::reclaim(Origin::signed(1), sub_account1));
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
 				// Check worker is is reclaimed
 				let miner = PhalaMining::miners(sub_account1).unwrap();
 				assert_eq!(miner.state, mining::MinerState::Ready);
@@ -2792,13 +2748,15 @@ pub mod pallet {
 				assert_eq!(miner2.state, mining::MinerState::MiningCoolingDown);
 				// Wait the cool down period
 				elapse_cool_down();
-				assert_ok!(PhalaMining::reclaim(
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
 					Origin::signed(1),
-					sub_account1.clone()
+					0,
+					worker1
 				));
-				assert_ok!(PhalaMining::reclaim(
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
 					Origin::signed(1),
-					sub_account2.clone()
+					0,
+					worker2
 				));
 				// 90% stake get returend from pool 0
 				let pool0 = PhalaStakePool::stake_pools(0).unwrap();

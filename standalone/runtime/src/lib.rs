@@ -1107,7 +1107,6 @@ impl pallet_mining::Config for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
-	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = Treasury;
 	type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
