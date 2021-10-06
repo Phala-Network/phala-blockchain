@@ -151,6 +151,7 @@ impl stakepool::Config for Test {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = ();
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl ott::Config for Test {
