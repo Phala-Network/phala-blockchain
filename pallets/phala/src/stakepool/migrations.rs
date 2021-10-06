@@ -17,7 +17,7 @@ where
 	T: crate::mining::Config<Currency = <T as Config>::Currency>,
 	BalanceOf<T>: FixedPointConvert + Display,
 {
-	Migration::<T>::migrate_fix487()
+	Migration::<T>::migrate_fix487_490()
 }
 
 /// Indicating now it's pre or post migration
@@ -35,10 +35,10 @@ where
 	BalanceOf<T>: FixedPointConvert + Display,
 {
 	/// Fix bug #487
-	pub fn migrate_fix487() -> Weight {
+	pub fn migrate_fix487_490() -> Weight {
 		info!("== migrate_fix487: Pre-Migration ==");
 		Self::print_pool_details(Stage::PreMigration);
-		let result = Self::backfill_487_maybe_remove_pool_dust();
+		let result = Self::backfill_487_490_maybe_remove_pool_dust();
 		info!("== migrate_fix487: Post-Migration ==");
 		Self::print_pool_details(Stage::PostMigration);
 		info!("== migrate_fix487: {:?} ==", result);
@@ -136,7 +136,7 @@ where
 	}
 
 	// Removes the dust shares and stake in a pool.
-	fn backfill_487_maybe_remove_pool_dust() -> Result<Weight, ()> {
+	fn backfill_487_490_maybe_remove_pool_dust() -> Result<Weight, ()> {
 		// BTreeMap is chosen for its slightly lower memory footprint
 		let mut share_dust_removed = BTreeMap::<u64, BalanceOf<T>>::new();
 		let mut num_reads = 0u64;
@@ -190,6 +190,17 @@ where
 			// Remove dust in withdraw request
 			pool.withdraw_queue
 				.retain(|withdraw| is_nondust_balance(withdraw.shares));
+
+			// Remove duplicated requests (we only allow on request per user)
+			let mut visited = Vec::<T::AccountId>::new();
+			pool.withdraw_queue.retain(|withdraw| {
+				if !visited.contains(&withdraw.user) {
+					visited.push(withdraw.user.clone());
+					true
+				} else {
+					false
+				}
+			});
 
 			num_reads += 1;
 			num_writes += 1;
