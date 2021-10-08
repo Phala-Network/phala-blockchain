@@ -86,6 +86,57 @@ fn register_asset() {
 }
 
 #[test]
+fn mint_asset() {
+	new_test_ext().execute_with(|| {
+		let asset = bridge::derive_resource_id(2, &bridge::hashing::blake2_128(b"an asset"));
+		let bridge_id: u64 = Bridge::account_id();
+
+		assert_noop!(
+			BridgeTransfer::mint_asset(Origin::root(), asset, 100),
+			Error::<Test>::AssetNotRegistered
+		);
+		assert_ok!(BridgeTransfer::register_asset(
+			Origin::root(),
+			b"an asset".to_vec(),
+			2
+		));
+		assert_ok!(BridgeTransfer::mint_asset(Origin::root(), asset, 100));
+		assert_eq!(BridgeTransfer::asset_balance(&asset, &bridge_id), 100);
+	})
+}
+
+#[test]
+fn burn_asset() {
+	new_test_ext().execute_with(|| {
+		let asset = bridge::derive_resource_id(2, &bridge::hashing::blake2_128(b"an asset"));
+
+		assert_noop!(
+			BridgeTransfer::burn_asset(Origin::root(), asset, 100),
+			Error::<Test>::AssetNotRegistered
+		);
+		assert_ok!(BridgeTransfer::register_asset(
+			Origin::root(),
+			b"an asset".to_vec(),
+			2
+		));
+		assert_noop!(
+			BridgeTransfer::burn_asset(Origin::root(), asset, 100),
+			Error::<Test>::InsufficientBalance
+		);
+		assert_ok!(BridgeTransfer::mint_asset(Origin::root(), asset, 100));
+		assert_eq!(
+			BridgeTransfer::asset_balance(&asset, &Bridge::account_id()),
+			100
+		);
+		assert_ok!(BridgeTransfer::burn_asset(Origin::root(), asset, 100));
+		assert_eq!(
+			BridgeTransfer::asset_balance(&asset, &Bridge::account_id()),
+			0
+		);
+	})
+}
+
+#[test]
 fn transfer_assets_not_registered() {
 	new_test_ext().execute_with(|| {
 		let dest_chain = 2;
@@ -309,13 +360,16 @@ fn transfer_to_holdingaccount() {
 			bridge::derive_resource_id(dest_chain, &bridge::hashing::blake2_128(b"an asset"));
 		let amount: u64 = 100;
 
-		assert_ok!(BridgeTransfer::transfer(
-			Origin::signed(Bridge::account_id()),
-			bridge_id,
-			amount,
-			asset,
-		));
-		assert_eq!(BridgeTransfer::asset_balance(&asset, &bridge_id), amount);
+		// transfer to bridge account is not allowed
+		assert_noop!(
+			BridgeTransfer::transfer(
+				Origin::signed(Bridge::account_id()),
+				bridge_id,
+				amount,
+				asset,
+			),
+			Error::<Test>::InvalidCommand
+		);
 	})
 }
 
@@ -328,6 +382,12 @@ fn transfer_to_regular_account() {
 			bridge::derive_resource_id(dest_chain, &bridge::hashing::blake2_128(b"an asset"));
 		let amount: u64 = 100;
 
+		assert_ok!(BridgeTransfer::register_asset(
+			Origin::root(),
+			b"an asset".to_vec(),
+			dest_chain
+		));
+
 		assert_noop!(
 			BridgeTransfer::transfer(
 				Origin::signed(Bridge::account_id()),
@@ -338,12 +398,11 @@ fn transfer_to_regular_account() {
 			Error::<Test>::InsufficientBalance
 		);
 
-		// transfer some asset to holding account first
-		assert_ok!(BridgeTransfer::transfer(
-			Origin::signed(Bridge::account_id()),
-			bridge_id,
-			amount * 2,
+		// mint some asset to holding account first
+		assert_ok!(BridgeTransfer::mint_asset(
+			Origin::root(),
 			asset,
+			amount * 2
 		));
 
 		// transfer to regular account, would withdraw from holding account then deposit to
