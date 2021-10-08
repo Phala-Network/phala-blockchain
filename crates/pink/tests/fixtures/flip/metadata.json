@@ -1,0 +1,161 @@
+{
+  "metadataVersion": "0.1.0",
+  "source": {
+    "hash": "0xa3f91e98edc8ccfb035946133027dd5a3f8694c70e7a27ffdf8056f7b9cc40ab",
+    "language": "ink! 3.0.0-rc5",
+    "compiler": "rustc 1.55.0-nightly"
+  },
+  "contract": {
+    "name": "flip",
+    "version": "0.1.0",
+    "authors": [
+      "[your_name] <[your_email]>"
+    ]
+  },
+  "spec": {
+    "constructors": [
+      {
+        "args": [
+          {
+            "name": "init_value",
+            "type": {
+              "displayName": [
+                "bool"
+              ],
+              "type": 1
+            }
+          }
+        ],
+        "docs": [
+          "Constructor that initializes the `bool` value to the given `init_value`."
+        ],
+        "name": [
+          "new"
+        ],
+        "selector": "0x9bae9d5e"
+      },
+      {
+        "args": [],
+        "docs": [
+          "Constructor that initializes the `bool` value to `false`.",
+          "",
+          "Constructors can delegate to other constructors."
+        ],
+        "name": [
+          "default"
+        ],
+        "selector": "0xed4b9d1b"
+      }
+    ],
+    "docs": [],
+    "events": [],
+    "messages": [
+      {
+        "args": [],
+        "docs": [
+          " A message that can be called on instantiated contracts.",
+          " This one flips the value of the stored `bool` from `true`",
+          " to `false` and vice versa."
+        ],
+        "mutates": true,
+        "name": [
+          "flip"
+        ],
+        "payable": false,
+        "returnType": null,
+        "selector": "0x633aa551"
+      },
+      {
+        "args": [],
+        "docs": [
+          " Simply returns the current value of our `bool`."
+        ],
+        "mutates": false,
+        "name": [
+          "get"
+        ],
+        "payable": false,
+        "returnType": {
+          "displayName": [
+            "bool"
+          ],
+          "type": 1
+        },
+        "selector": "0x2f865bd9"
+      },
+      {
+        "args": [
+          {
+            "name": "foo",
+            "type": {
+              "displayName": [
+                "u32"
+              ],
+              "type": 2
+            }
+          },
+          {
+            "name": "bar",
+            "type": {
+              "displayName": [
+                "u128"
+              ],
+              "type": 3
+            }
+          }
+        ],
+        "docs": [],
+        "mutates": false,
+        "name": [
+          "echo"
+        ],
+        "payable": false,
+        "returnType": {
+          "displayName": [],
+          "type": 4
+        },
+        "selector": "0xf7dff04c"
+      }
+    ]
+  },
+  "storage": {
+    "struct": {
+      "fields": [
+        {
+          "layout": {
+            "cell": {
+              "key": "0x0000000000000000000000000000000000000000000000000000000000000000",
+              "ty": 1
+            }
+          },
+          "name": "value"
+        }
+      ]
+    }
+  },
+  "types": [
+    {
+      "def": {
+        "primitive": "bool"
+      }
+    },
+    {
+      "def": {
+        "primitive": "u32"
+      }
+    },
+    {
+      "def": {
+        "primitive": "u128"
+      }
+    },
+    {
+      "def": {
+        "tuple": [
+          2,
+          3
+        ]
+      }
+    }
+  ]
+}

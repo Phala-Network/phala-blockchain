@@ -1,5 +1,7 @@
 mod mock_types;
 
+use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
+use frame_support::weights::Weight;
 use frame_support::{parameter_types, weights::constants::WEIGHT_PER_SECOND};
 use pallet_contracts::{
     chain_extension::{
@@ -8,9 +10,11 @@ use pallet_contracts::{
     },
     Config, Frame, Schedule,
 };
-use sp_runtime::{Perbill, generic::Header, traits::{Convert, IdentityLookup}};
-use frame_support::weights::Weight;
-use crate::types::{Balance, Hash, BlockNumber, Hashing, AccountId, Index};
+use sp_runtime::{
+    generic::Header,
+    traits::{Convert, IdentityLookup},
+    Perbill,
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
@@ -137,7 +141,10 @@ mod tests {
     use pallet_contracts::Config;
     use sp_runtime::{traits::Hash, AccountId32};
 
-    use crate::runtime::{Balance, Contracts, Origin, PinkRuntime};
+    use crate::{
+        runtime::{Contracts, Origin, PinkRuntime},
+        types::{ENOUGH, GAS_LIMIT},
+    };
     pub use frame_support::weights::Weight;
 
     pub fn compile_wat<T>(wat_bytes: &[u8]) -> wat::Result<(Vec<u8>, <T::Hashing as Hash>::Output)>
@@ -153,11 +160,9 @@ mod tests {
     pub fn contract_test() {
         use codec::Encode;
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = 10_000_000_000;
-        const ENOUGH: Balance = Balance::MAX / 2;
 
         let (wasm, code_hash) =
-            compile_wat::<PinkRuntime>(include_bytes!("../fixtures/event_size.wat")).unwrap();
+            compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/event_size.wat")).unwrap();
 
         exec::execute_with(|| {
             Contracts::instantiate_with_code(
@@ -192,7 +197,8 @@ mod tests {
         const GAS_LIMIT: Weight = 10_000_000_000;
 
         let (wasm, code_hash) =
-            compile_wat::<PinkRuntime>(include_bytes!("../fixtures/crypto_hashes.wat")).unwrap();
+            compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
+                .unwrap();
 
         exec::execute_with(|| {
             // Instantiate the CRYPTO_HASHES contract.

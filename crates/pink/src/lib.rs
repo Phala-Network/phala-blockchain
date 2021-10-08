@@ -1,6 +1,7 @@
 mod runtime;
 pub mod types;
 
+use codec::{Decode, Encode};
 use runtime::Contracts;
 use sp_core::Hasher;
 use sp_runtime::DispatchError;
@@ -53,7 +54,7 @@ where
 
 pub struct PinkContract {
     storage: Storage<InMemoryBackend>,
-    address: AccountId,
+    pub address: AccountId,
 }
 
 impl PinkContract {
@@ -63,12 +64,12 @@ impl PinkContract {
     ///
     /// * `origin`: The owner of the created contract instance.
     /// * `code`: The contract code to deploy in raw bytes.
-    /// * `data`: The input data to pass to the contract constructor.
+    /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
     pub fn new(
         origin: AccountId,
         code: Vec<u8>,
-        data: Vec<u8>,
+        input_data: Vec<u8>,
         salt: Vec<u8>,
     ) -> Result<Self, DispatchError> {
         let mut storage = Storage::new(InMemoryBackend::default());
@@ -80,7 +81,7 @@ impl PinkContract {
                 ENOUGH,
                 GAS_LIMIT,
                 pallet_contracts_primitives::Code::Upload(code.into()),
-                data,
+                input_data,
                 salt.clone(),
                 false,
                 false,
@@ -90,6 +91,19 @@ impl PinkContract {
         })?;
 
         Ok(Self { storage, address })
+    }
+
+    pub fn new_with_selector(
+        origin: AccountId,
+        code: Vec<u8>,
+        selector: [u8; 4],
+        args: impl Encode,
+        salt: Vec<u8>,
+    ) -> Result<Self, DispatchError> {
+        let mut input_data = vec![];
+        selector.encode_to(&mut input_data);
+        args.encode_to(&mut input_data);
+        Self::new(origin, code, input_data, salt)
     }
 
     /// Call a contract method
@@ -112,5 +126,19 @@ impl PinkContract {
                 result.result
             })?;
         Ok(rv.data.0)
+    }
+
+    /// Call a contract method given it's selector
+    pub fn call_with_selector<RV: Decode>(
+        &mut self,
+        origin: AccountId,
+        selector: [u8; 4],
+        args: impl Encode,
+    ) -> Result<RV, DispatchError> {
+        let mut input_data = vec![];
+        selector.encode_to(&mut input_data);
+        args.encode_to(&mut input_data);
+        let rv = self.bare_call(origin, input_data)?;
+        Ok(Decode::decode(&mut &rv[..]).or(Err(DispatchError::Other("Decode result failed")))?)
     }
 }
