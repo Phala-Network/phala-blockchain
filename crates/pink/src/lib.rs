@@ -1,8 +1,7 @@
 mod runtime;
 pub mod types;
 
-use codec::Encode;
-use runtime::{Contracts, Origin, PinkRuntime};
+use runtime::Contracts;
 use sp_core::Hasher;
 use sp_runtime::DispatchError;
 use sp_state_machine::{
@@ -21,7 +20,6 @@ pub struct Storage<Backend> {
     changes: OverlayedChanges,
 }
 
-// TODO: generic HASHING
 impl<Backend> Storage<Backend>
 where
     Backend: StorageBackend<Hashing>,
@@ -59,47 +57,60 @@ pub struct PinkContract {
 }
 
 impl PinkContract {
-    pub fn new(wasm_binary: Vec<u8>, owner: AccountId) -> Result<Self, DispatchError> {
+    /// Create a new contract instance.
+    ///
+    /// # Parameters
+    ///
+    /// * `origin`: The owner of the created contract instance.
+    /// * `code`: The contract code to deploy in raw bytes.
+    /// * `data`: The input data to pass to the contract constructor.
+    /// * `salt`: Used for the address derivation.
+    pub fn new(
+        origin: AccountId,
+        code: Vec<u8>,
+        data: Vec<u8>,
+        salt: Vec<u8>,
+    ) -> Result<Self, DispatchError> {
         let mut storage = Storage::new(InMemoryBackend::default());
-        let code_hash = Hashing::hash(&wasm_binary);
+        let code_hash = Hashing::hash(&code);
 
-        let address = storage.execute_with(move || {
-            let _ = Contracts::instantiate_with_code(
-                Origin::signed(owner.clone()),
+        let address = storage.execute_with(move || -> Result<_, DispatchError> {
+            let _ = Contracts::bare_instantiate(
+                origin.clone(),
                 ENOUGH,
                 GAS_LIMIT,
-                wasm_binary,
-                vec![],
-                vec![],
+                pallet_contracts_primitives::Code::Upload(code.into()),
+                data,
+                salt.clone(),
+                false,
+                false,
             )
-            .map_err(|e| e.error)?;
-            Result::<_, DispatchError>::Ok(Contracts::contract_address(&owner, &code_hash, &[]))
+            .result?;
+            Result::<_, DispatchError>::Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         })?;
 
         Ok(Self { storage, address })
     }
 
-    pub fn call(
+    /// Call a contract method
+    ///
+    /// # Parameters
+    /// * `input_data`: The SCALE encoded arguments including the 4-bytes selector as prefix.
+    /// # Return
+    /// Returns the SCALE encoded method return value.
+    pub fn bare_call(
         &mut self,
         origin: AccountId,
-        method: &str,
-        args: Vec<u8>,
+        input_data: Vec<u8>,
     ) -> Result<Vec<u8>, DispatchError> {
         let addr = self.address.clone();
-        self.storage.execute_with(move || {
-            Contracts::call(
-                Origin::signed(origin),
-                addr,
-                0,
-                GAS_LIMIT * 2,
-                <PinkRuntime as pallet_contracts::Config>::Schedule::get()
-                    .limits
-                    .payload_len
-                    .encode(),
-            )
-            .unwrap();
-        });
-
-        todo!()
+        let rv = self
+            .storage
+            .execute_with(move || -> Result<_, DispatchError> {
+                let result =
+                    Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, false);
+                result.result
+            })?;
+        Ok(rv.data.0)
     }
 }
