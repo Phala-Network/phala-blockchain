@@ -239,8 +239,9 @@ pub extern "C" fn clock_gettime(clk_id: libc::clockid_t, tp: *mut libc::timespec
 }
 
 #[no_mangle]
-pub extern "C" fn close(_fd: c_int) -> c_int {
-    not_allowed!()
+pub extern "C" fn close(fd: c_int) -> c_int {
+    unsafe { ocall::close(fd) }
+    // not_allowed!()
 }
 
 #[no_mangle]
@@ -283,10 +284,10 @@ pub extern "C" fn getenv(_name: *const c_char) -> *const c_char {
 }
 
 #[no_mangle]
-pub extern "C" fn open64(path: *const c_char, _oflag: c_int, _mode: c_int) -> c_int {
-    error!("Trying to open {}", cstr(path));
-    // unsafe { ocall::open64(path, oflag, mode) }
-    not_allowed!()
+pub extern "C" fn open64(path: *const c_char, oflag: c_int, mode: c_int) -> c_int {
+    // error!("Trying to open {}", cstr(path));
+    unsafe { ocall::open64(path, oflag, mode) }
+    // not_allowed!()
 }
 
 #[no_mangle]
@@ -371,10 +372,10 @@ pub extern "C" fn readlink(_path: *const c_char, _buf: *mut c_char, _bufsz: size
 }
 
 #[no_mangle]
-pub extern "C" fn fstat64(_fildes: c_int, _buf: *mut libc::stat64) -> c_int {
-    // assert_eq_size!(libc::stat64, sgx_libc::stat64);
-    // unsafe { ocall::fstat64(fildes, buf as _) }
-    not_allowed!()
+pub extern "C" fn fstat64(fildes: c_int, buf: *mut libc::stat64) -> c_int {
+    assert_eq_size!(libc::stat64, sgx_libc::stat64);
+    unsafe { ocall::fstat64(fildes, buf as _) }
+    // not_allowed!()
 }
 
 #[no_mangle]
