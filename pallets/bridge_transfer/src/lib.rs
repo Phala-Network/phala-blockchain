@@ -59,7 +59,7 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId>;
 
 		#[pallet::constant]
-		type ReserveTokenId: Get<ResourceId>;
+		type NativeTokenResourceId: Get<ResourceId>;
 
 		/// The handler to absorb the fee.
 		type OnFeePay: OnUnbalanced<NegativeImbalanceOf<Self>>;
@@ -83,7 +83,7 @@ pub mod pallet {
 		InvalidFeeOption,
 		FeeOptionsMissing,
 		InsufficientBalance,
-		ResourceIdInUsed,
+		ResourceIdInUse,
 		AssetNotRegistered,
 		AccountNotExist,
 	}
@@ -139,7 +139,7 @@ pub mod pallet {
 			);
 			ensure!(
 				!BridgeAssets::<T>::contains_key(resource_id),
-				Error::<T>::ResourceIdInUsed
+				Error::<T>::ResourceIdInUse
 			);
 			BridgeAssets::<T>::insert(
 				resource_id,
@@ -252,7 +252,7 @@ pub mod pallet {
 
 			<bridge::Pallet<T>>::transfer_fungible(
 				dest_id,
-				T::ReserveTokenId::get(),
+				T::NativeTokenResourceId::get(),
 				recipient,
 				U256::from(amount.saturated_into::<u128>()),
 			)
@@ -268,10 +268,10 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			to: T::AccountId,
 			amount: BalanceOf<T>,
-			_rid: ResourceId,
+			rid: ResourceId,
 		) -> DispatchResult {
 			let source = T::BridgeOrigin::ensure_origin(origin)?;
-			if _rid == T::ReserveTokenId::get() {
+			if rid == T::NativeTokenResourceId::get() {
 				<T as Config>::Currency::transfer(
 					&source,
 					&to,
@@ -282,11 +282,11 @@ pub mod pallet {
 				// if recipient isn't holding account, make sure holding accouint balance to cover transfer amount
 				if to != source {
 					ensure!(
-						Self::asset_balance(&_rid, &source) >= amount,
+						Self::asset_balance(&rid, &source) >= amount,
 						Error::<T>::InsufficientBalance
 					);
 				}
-				Self::do_asset_deposit(&_rid, &to, amount);
+				Self::do_asset_deposit(&rid, &to, amount);
 			}
 
 			Ok(())

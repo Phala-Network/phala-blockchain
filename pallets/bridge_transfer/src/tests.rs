@@ -2,8 +2,8 @@
 
 use super::mock::{
 	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeTransfer, Call, Event, Origin, ProposalLifetime, ReserveTokenId, Test, ENDOWED_BALANCE,
-	RELAYER_A, RELAYER_B, RELAYER_C,
+	BridgeTransfer, Call, Event, NativeTokenResourceId, Origin, ProposalLifetime, Test,
+	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
 };
 use super::{bridge, *};
 use frame_support::dispatch::DispatchError;
@@ -15,7 +15,7 @@ use hex_literal::hex;
 const TEST_THRESHOLD: u32 = 2;
 
 fn make_transfer_proposal(to: u64, amount: u64) -> Call {
-	let resource_id = ReserveTokenId::get();
+	let resource_id = NativeTokenResourceId::get();
 	Call::BridgeTransfer(crate::Call::transfer(to, amount.into(), resource_id))
 }
 
@@ -80,7 +80,7 @@ fn register_asset() {
 
 		assert_noop!(
 			BridgeTransfer::register_asset(Origin::root(), b"an asset".to_vec(), 2),
-			Error::<Test>::ResourceIdInUsed
+			Error::<Test>::ResourceIdInUse
 		);
 	})
 }
@@ -236,7 +236,7 @@ fn transfer_assets() {
 fn transfer_native() {
 	new_test_ext().execute_with(|| {
 		let dest_chain = 0;
-		let resource_id = ReserveTokenId::get();
+		let resource_id = NativeTokenResourceId::get();
 		let amount: u64 = 100;
 		let recipient = vec![99];
 
@@ -280,7 +280,7 @@ fn transfer() {
 	new_test_ext().execute_with(|| {
 		// Check inital state
 		let bridge_id: u64 = Bridge::account_id();
-		let resource_id = ReserveTokenId::get();
+		let resource_id = NativeTokenResourceId::get();
 		assert_eq!(Balances::free_balance(&bridge_id), ENDOWED_BALANCE);
 		// Transfer and check result
 		assert_ok!(BridgeTransfer::transfer(
