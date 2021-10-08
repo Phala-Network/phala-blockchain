@@ -709,7 +709,7 @@ pub mod pallet {
 				let to_distribute = rewards - commission;
 				if is_nondust_balance(to_distribute) {
 					pool_info.distribute_reward(to_distribute);
-				} else {
+				} else if to_distribute > Zero::zero() {
 					Self::deposit_event(Event::<T>::RewardDismissedDust(
 						pool_info.pid,
 						to_distribute,
