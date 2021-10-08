@@ -91,16 +91,22 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn bridge_fee)]
 	pub type BridgeFee<T: Config> =
-		StorageMap<_, Blake2_256, bridge::BridgeChainId, (BalanceOf<T>, u32), ValueQuery>;
+		StorageMap<_, Twox64Concat, bridge::BridgeChainId, (BalanceOf<T>, u32), ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bridge_assets)]
-	pub type BridgeAssets<T: Config> = StorageMap<_, Blake2_256, bridge::ResourceId, AssetInfo>;
+	pub type BridgeAssets<T: Config> = StorageMap<_, Twox64Concat, bridge::ResourceId, AssetInfo>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn bridge_balances)]
-	pub type BridgeBalances<T: Config> =
-		StorageDoubleMap<_, Blake2_256, bridge::ResourceId, Blake2_256, T::AccountId, BalanceOf<T>>;
+	pub type BridgeBalances<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		bridge::ResourceId,
+		Twox64Concat,
+		T::AccountId,
+		BalanceOf<T>,
+	>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
