@@ -158,7 +158,7 @@ mod tests {
 
     #[test]
     pub fn contract_test() {
-        use codec::Encode;
+        use scale::Encode;
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
         let (wasm, code_hash) =

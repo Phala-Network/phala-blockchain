@@ -1,11 +1,11 @@
-use pink::PinkContract;
+use pink::Contract;
 use sp_runtime::AccountId32;
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
 #[test]
 fn test_ink_flip() {
-    let mut contract = PinkContract::new_with_selector(
+    let mut contract = Contract::new_with_selector(
         ALICE.clone(),
         include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
         [0x9b, 0xae, 0x9d, 0x5e], // init_value
