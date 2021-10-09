@@ -8,14 +8,12 @@ use pallet_contracts::{
     },
     Config, Frame, Schedule,
 };
-use sp_core::H256;
-use sp_runtime::{AccountId32, Perbill, generic::Header, traits::{BlakeTwo256, Convert, IdentityLookup}};
-
+use sp_runtime::{Perbill, generic::Header, traits::{Convert, IdentityLookup}};
 use frame_support::weights::Weight;
+use crate::types::{Balance, Hash, BlockNumber, Hashing, AccountId, Index};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
-type Balance = u128;
 
 frame_support::construct_runtime! {
     pub enum PinkRuntime where
@@ -55,12 +53,12 @@ impl frame_system::Config for PinkRuntime {
     type BlockLength = ();
     type DbWeight = ();
     type Origin = Origin;
-    type Index = u64;
-    type BlockNumber = u32;
-    type Hash = H256;
+    type Index = Index;
+    type BlockNumber = BlockNumber;
+    type Hash = Hash;
     type Call = Call;
-    type Hashing = BlakeTwo256;
-    type AccountId = AccountId32;
+    type Hashing = Hashing;
+    type AccountId = AccountId;
     type Lookup = IdentityLookup<Self::AccountId>;
     type Header = Header<Self::BlockNumber, Self::Hashing>;
     type Event = Event;
