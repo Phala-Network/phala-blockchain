@@ -105,10 +105,12 @@ impl Contract {
     }
 }
 
+pub use contract_file::ContractFile;
+
 mod contract_file {
     use impl_serde::serialize as bytes;
     use serde::Deserialize;
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     #[serde(rename_all = "camelCase")]
     pub struct ContractFile {
         pub metadata_version: String,
@@ -116,7 +118,7 @@ mod contract_file {
         pub contract: Contract,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     pub struct Source {
         #[serde(with = "bytes")]
         pub wasm: Vec<u8>,
@@ -126,9 +128,15 @@ mod contract_file {
         pub compiler: String,
     }
 
-    #[derive(Deserialize)]
+    #[derive(Debug, Deserialize)]
     pub struct Contract {
         pub name: String,
         pub version: String,
+    }
+
+    impl ContractFile {
+        pub fn load(json_contract: &[u8]) -> serde_json::Result<Self> {
+            serde_json::from_slice(json_contract)
+        }
     }
 }

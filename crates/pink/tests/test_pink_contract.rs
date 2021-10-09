@@ -1,3 +1,4 @@
+use frame_support::assert_ok;
 use pink::Contract;
 use sp_runtime::AccountId32;
 
@@ -50,4 +51,10 @@ fn test_ink_flip() {
         )
         .unwrap();
     assert_eq!(result, (42, 24));
+}
+
+
+#[test]
+fn test_load_contract_file() {
+    assert_ok!(pink::ContractFile::load(include_bytes!("./fixtures/flip/flip.contract")));
 }
