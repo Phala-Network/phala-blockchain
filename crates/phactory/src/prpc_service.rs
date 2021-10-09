@@ -1,13 +1,13 @@
 use crate::system::System;
 
 use super::*;
+use crate::secret_channel::PeelingReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
-use crate::secret_channel::PeelingReceiver;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -377,7 +377,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         let mut runtime_state = RuntimeState {
-            contracts,
             send_mq,
             recv_mq,
             storage_synchronizer,
@@ -403,6 +402,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             &id_pair,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
+            contracts,
         );
 
         let resp = pb::InitRuntimeResponse::new(
@@ -493,7 +493,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     }
                 },
                 Err(err) => {
-                    return Err(from_display(format!("Verifying signature failed: {:?}", err)));
+                    return Err(from_display(format!(
+                        "Verifying signature failed: {:?}",
+                        err
+                    )));
                 }
             }
         } else {
@@ -528,18 +531,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         // Dispatch
         let ref_origin = accid_origin.as_ref();
 
-        let res = if head.id == contract::id256(SYSTEM) {
-            let system = self.system()?;
-            let response = system.handle_query(ref_origin, types::deopaque_query(data_cursor)?);
-            response.encode()
-        } else {
-            let state = self.runtime_state()?;
-            let contract = state
-                .contracts
-                .get_mut(&head.id)
-                .ok_or_else(|| from_display("Contract not found"))?;
-            contract.handle_query(ref_origin, data_cursor)?
-        };
+        let res = self
+            .system()?
+            .handle_query(ref_origin, &head.id, data_cursor)?;
 
         // Encode response
         let response = contract::ContractQueryResponse {
@@ -678,13 +672,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             error!("System process events failed: {:?}", e);
             return Err(from_display("System process events failed"));
         }
-
-        let mut env = ExecuteEnv { block: &block };
-
-        for contract in state.contracts.values_mut() {
-            contract.process_messages(&mut env);
-        }
-
         Ok(())
     }
 

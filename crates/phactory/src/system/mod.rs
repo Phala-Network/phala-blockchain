@@ -2,19 +2,21 @@ pub mod gk;
 mod master_key;
 mod side_tasks;
 
-use crate::{benchmark, types::BlockInfo};
+use crate::{benchmark, contracts::ExecuteEnv, types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply}};
 use anyhow::Result;
 use core::fmt;
 use log::info;
+use std::collections::BTreeMap;
 
+use crate::contracts;
 use crate::pal;
 use chain::pallet_registry::RegistryEvent;
-pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
-    BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
-    TypedReceiveError, TypedReceiver,
+    BadOrigin, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
+    Sr25519MessageChannel, TypedReceiveError, TypedReceiver,
 };
 use phala_types::{
     messaging::{
@@ -353,6 +355,8 @@ pub struct System<Platform> {
     // Gatekeeper
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
+
+    pub(crate) contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -364,6 +368,7 @@ impl<Platform: pal::Platform> System<Platform> {
         identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
+        contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
@@ -384,15 +389,21 @@ impl<Platform: pal::Platform> System<Platform> {
             worker_state: WorkerState::new(pubkey),
             master_key,
             gatekeeper: None,
+            contracts,
         }
     }
 
     pub fn handle_query(
         &mut self,
-        _accid_origin: Option<&chain::AccountId>,
-        _req: Request,
-    ) -> Response {
-        Response::Error("Unreachable!".to_string())
+        origin: Option<&chain::AccountId>,
+        contract_id: &ContractId,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError> {
+        let contract = self
+            .contracts
+            .get_mut(contract_id)
+            .ok_or(OpaqueError::ContractNotFound)?;
+        contract.handle_query(origin, req)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
@@ -463,6 +474,12 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
+        let mut env = ExecuteEnv { block: block };
+
+        for contract in self.contracts.values_mut() {
+            contract.process_messages(&mut env);
+        }
+
         Ok(())
     }
 
@@ -474,7 +491,12 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
-            master_key::seal(self.sealing_path.clone(), &master_key, &self.identity_key, &self.platform);
+            master_key::seal(
+                self.sealing_path.clone(),
+                &master_key,
+                &self.identity_key,
+                &self.platform,
+            );
             self.master_key = Some(master_key);
 
             if need_restart {
@@ -723,14 +745,6 @@ impl fmt::Display for Error {
             Error::Other(e) => write!(f, "{}", e),
         }
     }
-}
-
-#[derive(Encode, Decode, Debug, Clone)]
-pub enum Request {}
-
-#[derive(Encode, Decode, Debug)]
-pub enum Response {
-    Error(String),
 }
 
 pub mod chain_state {

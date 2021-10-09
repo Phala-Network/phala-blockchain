@@ -1,7 +1,6 @@
 //! Platform abstraction layer for Trusted Execution Environments
 
 use std::fmt::Debug;
-use std::future::Future;
 use std::path::Path;
 
 pub trait ErrorType: Debug + Into<anyhow::Error> {}
