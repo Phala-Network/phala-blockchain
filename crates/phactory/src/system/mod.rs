@@ -16,7 +16,7 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{aead, ecdh, sr25519::KDF};
 use phala_mq::{
     BadOrigin, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
-    Sr25519MessageChannel, TypedReceiveError, TypedReceiver,
+    Sr25519MessageChannel, TypedReceiver,
 };
 use phala_types::{
     messaging::{
@@ -417,48 +417,22 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
         loop {
-            let ok = phala_mq::select! {
-                message = self.system_events => match message {
-                    Ok((_, event, origin)) => {
-                        if !origin.is_pallet() {
-                            error!("Invalid SystemEvent sender: {:?}", origin);
-                            continue;
-                        }
-                        self.process_system_event(block, &event)?;
+            let ok = phala_mq::select_ignore_errors! {
+                (event, origin) = self.system_events => {
+                    if !origin.is_pallet() {
+                        error!("Invalid SystemEvent sender: {:?}", origin);
+                        continue;
                     }
-                    Err(e) => match e {
-                        TypedReceiveError::CodecError(e) => {
-                            error!("Decode system event failed: {:?}", e);
-                            continue;
-                        }
-                        TypedReceiveError::SenderGone => {
-                            return Err(anyhow::anyhow!("System message channel broken"));
-                        }
-                    }
+                    self.process_system_event(block, &event)?;
                 },
-                message = self.gatekeeper_launch_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_launch_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.gatekeeper_launch_events => {
+                    self.process_gatekeeper_launch_event(block, origin, event);
                 },
-                message = self.gatekeeper_change_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_change_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.gatekeeper_change_events => {
+                    self.process_gatekeeper_change_event(block, origin, event);
                 },
-                message = self.key_distribution_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_key_distribution_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.key_distribution_events => {
+                    self.process_key_distribution_event(block, origin, event);
                 },
             };
             if ok.is_none() {

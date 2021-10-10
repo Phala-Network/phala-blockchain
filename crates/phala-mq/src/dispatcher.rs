@@ -166,3 +166,40 @@ macro_rules! select {
         rv
     }};
 }
+
+
+#[macro_export]
+macro_rules! function {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let name = type_name_of(f);
+        &name[..name.len() - 3]
+    }};
+}
+
+
+#[macro_export]
+macro_rules! select_ignore_errors {
+    (
+        $( $bind:pat = $mq:expr => $block:expr, )+
+    ) => {{
+        $crate::select! {
+            $(
+                message = $mq => match message {
+                    Ok(msg) => {
+                        let $bind = (msg.1, msg.2);
+                        {
+                            $block
+                        }
+                    }
+                    Err(err) => {
+                        log::warn!("[{}] mq ignored error: {:?}", $crate::function!(), err);
+                    }
+                },
+            )+
+        }
+    }}
+}
