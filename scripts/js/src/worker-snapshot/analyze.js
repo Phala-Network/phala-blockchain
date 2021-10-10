@@ -112,6 +112,13 @@ function main() {
     };
 
     addToSheet(sheet, stats(dataset), 'full');
+    // Stats for all workers in pool
+    const allPoolWorkers = Object.values(poolWorkersData).flat()
+    if (allPoolWorkers.length > 0) {
+        const slice = extractPoolWorkers(dataset, new Set(allPoolWorkers));
+        addToSheet(sheet, stats(slice), 'pool');
+    }
+    // Pool break down
     for (const pid in poolWorkersData) {
         const workers = poolWorkersData[pid];
         const slice = extractPoolWorkers(dataset, new Set(workers));
