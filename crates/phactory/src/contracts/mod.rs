@@ -69,7 +69,7 @@ mod support {
         type QReq: Decode + Debug;
         type QResp: Encode + Debug;
 
-        fn id(&self) -> ContractId32;
+        fn id(&self) -> ContractId;
         fn handle_command(
             &mut self,
             _context: &NativeContext,
@@ -142,7 +142,7 @@ mod support {
         Cmd: Decode + Debug,
     {
         fn id(&self) -> ContractId {
-            id256(self.contract.id())
+            self.contract.id()
         }
 
         fn handle_query(

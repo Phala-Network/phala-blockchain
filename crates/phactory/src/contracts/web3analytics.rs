@@ -886,8 +886,8 @@ impl contracts::NativeContract for Web3Analytics {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::WEB3_ANALYTICS
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::WEB3_ANALYTICS)
     }
 
     fn handle_command(

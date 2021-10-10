@@ -138,8 +138,8 @@ impl contracts::NativeContract for SubstrateKitties {
     type QResp = Response;
 
     // Returns the contract id
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::SUBSTRATE_KITTIES
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::SUBSTRATE_KITTIES)
     }
 
     // Handles the commands from transactions on the blockchain. This method doesn't respond.

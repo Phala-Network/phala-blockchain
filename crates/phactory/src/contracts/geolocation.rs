@@ -86,8 +86,8 @@ impl contracts::NativeContract for Geolocation {
     type QReq = Request;
     type QResp = Result<Response, Error>;
 
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::GEOLOCATION
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::GEOLOCATION)
     }
 
     fn handle_command(
