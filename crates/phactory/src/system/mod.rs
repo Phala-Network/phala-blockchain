@@ -34,6 +34,7 @@ pub type TransactionResult = Result<(), TransactionError>;
 pub enum TransactionError {
     BadInput,
     BadOrigin,
+    Other(String),
     // general
     InsufficientBalance,
     NoBalance,

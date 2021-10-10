@@ -19,6 +19,7 @@ pub mod data_plaza;
 pub mod substrate_kitties;
 pub mod web3analytics;
 pub mod geolocation;
+pub mod pink;
 
 pub use phala_types::contract::*;
 
@@ -173,7 +174,10 @@ mod support {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
                         Ok((_, cmd, origin)) => {
-                            let _status = self.contract.handle_command(&context, origin, cmd);
+                            let status = self.contract.handle_command(&context, origin, cmd);
+                            if let Err(err) = status {
+                                log::error!("Contract {:?} handle command error: {:?}", self.id(), err);
+                            }
                         }
                         Err(e) => {
                             error!("Read command failed [{}]: {:?}", self.id(), e);
