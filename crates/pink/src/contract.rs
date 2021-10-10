@@ -31,7 +31,7 @@ impl Contract {
         let mut storage = Storage::new(InMemoryBackend::default());
         let code_hash = Hashing::hash(&code);
 
-        let address = storage.execute_with(move || -> Result<_, DispatchError> {
+        let address = storage.execute_with(false, move || -> Result<_, DispatchError> {
             let _ = Contracts::bare_instantiate(
                 origin.clone(),
                 ENOUGH,
@@ -72,11 +72,12 @@ impl Contract {
         &mut self,
         origin: AccountId,
         input_data: Vec<u8>,
+        rollback: bool,
     ) -> Result<Vec<u8>, DispatchError> {
         let addr = self.address.clone();
         let rv = self
             .storage
-            .execute_with(move || -> Result<_, DispatchError> {
+            .execute_with(rollback, move || -> Result<_, DispatchError> {
                 let result =
                     Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, false);
                 result.result
@@ -90,11 +91,12 @@ impl Contract {
         origin: AccountId,
         selector: [u8; 4],
         args: impl Encode,
+        rollback: bool,
     ) -> Result<RV, DispatchError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let rv = self.bare_call(origin, input_data)?;
+        let rv = self.bare_call(origin, input_data, rollback)?;
         Ok(Decode::decode(&mut &rv[..]).or(Err(DispatchError::Other("Decode result failed")))?)
     }
 

@@ -33,7 +33,7 @@ where
         }
     }
 
-    pub fn execute_with<R>(&mut self, f: impl FnOnce() -> R) -> R {
+    pub fn execute_with<R>(&mut self, rollback: bool, f: impl FnOnce() -> R) -> R {
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
 
         self.overlay.start_transaction();
@@ -46,9 +46,12 @@ where
             None,
         );
         let r = sp_externalities::set_and_run_with_externalities(&mut ext, f);
-        self.overlay
-            .commit_transaction()
-            .expect("BUG: mis-paired transaction");
+        if rollback {
+            self.overlay.rollback_transaction()
+        } else {
+            self.overlay.commit_transaction()
+        }
+        .expect("BUG: mis-paired transaction");
         r
     }
 

@@ -20,6 +20,7 @@ fn test_ink_flip() {
             ALICE.clone(),
             [0x2f, 0x86, 0x5b, 0xd9], // get
             (),
+            false,
         )
         .unwrap();
 
@@ -30,6 +31,7 @@ fn test_ink_flip() {
             ALICE.clone(),
             [0x63, 0x3a, 0xa5, 0x51], // flip
             (),
+            false,
         )
         .unwrap();
 
@@ -38,6 +40,7 @@ fn test_ink_flip() {
             ALICE.clone(),
             [0x2f, 0x86, 0x5b, 0xd9], // get
             (),
+            false,
         )
         .unwrap();
 
@@ -48,6 +51,7 @@ fn test_ink_flip() {
             ALICE.clone(),
             [0xf7, 0xdf, 0xf0, 0x4c], // echo
             (42u32, 24u128),
+            false,
         )
         .unwrap();
     assert_eq!(result, (42, 24));
