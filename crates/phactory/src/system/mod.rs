@@ -8,7 +8,7 @@ use crate::{
         pink::messaging::{PinkReport, PinkRequest},
         ExecuteEnv, NativeContract,
     },
-    secret_channel::PeelingReceiver,
+    secret_channel::{PeelingReceiver, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
@@ -27,7 +27,7 @@ use phala_crypto::{
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{
-    BadOrigin, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
+    BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
     Sr25519MessageChannel, TypedReceiver,
 };
 use phala_types::{
@@ -364,7 +364,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    pink_events: TypedReceiver<PinkRequest>,
+    pink_events: SecretReceiver<PinkRequest>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
@@ -382,6 +382,7 @@ impl<Platform: pal::Platform> System<Platform> {
         enable_geoprobing: bool,
         geoip_city_db: String,
         identity_key: &sr25519::Pair,
+        local_ecdh_key: &EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         contracts: ContractMap,
@@ -400,7 +401,10 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            pink_events: recv_mq.subscribe_bound(),
+            pink_events: SecretReceiver::new_secret(
+                recv_mq.subscribe(PinkRequest::topic()).into(),
+                local_ecdh_key.clone(),
+            ),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
             master_key,

@@ -383,7 +383,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             chain_storage: Default::default(),
             genesis_block_hash,
             identity_key,
-            ecdh_key,
+            ecdh_key: ecdh_key.clone(),
         };
 
         // Initialize other states
@@ -400,6 +400,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.args.enable_geoprobing,
             self.args.geoip_city_db.clone(),
             &id_pair,
+            &ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,

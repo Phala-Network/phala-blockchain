@@ -73,6 +73,7 @@ mod receiver {
     use phactory_api::crypto::ecdh;
     use parity_scale_codec::Decode;
     use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
+    pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
 
     pub trait Peeler {
         type Wrp;
