@@ -111,3 +111,35 @@ impl contracts::NativeContract for Pink {
         Ok(())
     }
 }
+
+pub mod messaging {
+    use phala_crypto::sr25519::Sr25519SecretKey;
+    use phala_mq::{ContractId, bind_topic};
+    use parity_scale_codec::{Encode, Decode};
+    use phala_types::WorkerPublicKey;
+    use pink::types::AccountId;
+
+    bind_topic!(PinkRequest, b"phala/pink/request");
+    #[derive(Encode, Decode, Debug)]
+    pub enum PinkRequest {
+        Deploy {
+            worker: WorkerPublicKey,
+            nonce: Vec<u8>,
+            owner: AccountId,
+            contract: Vec<u8>,
+            input_data: Vec<u8>,
+            salt: Vec<u8>,
+            key: Sr25519SecretKey,
+        },
+    }
+
+    bind_topic!(PinkReport, b"phala/pink/report");
+    #[derive(Encode, Decode, Debug)]
+    pub enum PinkReport {
+        DeployStatus {
+            nonce: Vec<u8>,
+            owner: AccountId,
+            result: Result<ContractId, String>,
+        },
+    }
+}

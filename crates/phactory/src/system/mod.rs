@@ -2,7 +2,15 @@ pub mod gk;
 mod master_key;
 mod side_tasks;
 
-use crate::{benchmark, contracts::ExecuteEnv, types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply}};
+use crate::{
+    benchmark,
+    contracts::{
+        pink::messaging::{PinkReport, PinkRequest},
+        ExecuteEnv, NativeContract,
+    },
+    secret_channel::PeelingReceiver,
+    types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+};
 use anyhow::Result;
 use core::fmt;
 use log::info;
@@ -13,12 +21,17 @@ use crate::pal;
 use chain::pallet_registry::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
-use phala_crypto::{aead, ecdh, sr25519::KDF};
+use phala_crypto::{
+    aead,
+    ecdh::{self, EcdhKey},
+    sr25519::{Persistence, KDF},
+};
 use phala_mq::{
     BadOrigin, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
     Sr25519MessageChannel, TypedReceiver,
 };
 use phala_types::{
+    contract,
     messaging::{
         DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
@@ -337,6 +350,8 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
+type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
+
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
@@ -349,6 +364,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
+    pink_events: TypedReceiver<PinkRequest>,
     // Worker
     identity_key: sr25519::Pair,
     worker_state: WorkerState,
@@ -356,7 +372,7 @@ pub struct System<Platform> {
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 
-    pub(crate) contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
+    pub(crate) contracts: ContractMap,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -368,7 +384,7 @@ impl<Platform: pal::Platform> System<Platform> {
         identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
+        contracts: ContractMap,
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
@@ -384,6 +400,7 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
+            pink_events: recv_mq.subscribe_bound(),
             identity_key: identity_key.clone(),
             worker_state: WorkerState::new(pubkey),
             master_key,
@@ -432,6 +449,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 },
                 (event, origin) = self.key_distribution_events => {
                     self.process_key_distribution_event(block, origin, event);
+                },
+                (event, origin) = self.pink_events => {
+                    self.process_pink_event(block, origin, event);
                 },
             };
             if ok.is_none() {
@@ -645,6 +665,77 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
+    fn process_pink_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: PinkRequest,
+    ) {
+        match event {
+            PinkRequest::Deploy {
+                worker,
+                nonce,
+                owner,
+                contract,
+                input_data,
+                salt,
+                key,
+            } => {
+                if worker != self.worker_state.pubkey {
+                    return;
+                }
+
+                info!(
+                    "Incoming pink deploy event: origin={} onwer={}, nonce={} contract_size={}",
+                    origin,
+                    owner,
+                    hex::encode(&nonce),
+                    contract.len()
+                );
+
+                if !origin.is_gatekeeper() {
+                    error!("Some one attempt to deploy pink instance from out of GK!");
+                    return;
+                }
+
+                let result = {
+                    let owner = owner.clone();
+                    let contracts = &mut self.contracts;
+                    (move || -> Result<ContractId, String> {
+                        let contract_key = sr25519::Pair::restore_from_secret_key(&key);
+                        let ecdh_key = contract_key.derive_ecdh_key().unwrap();
+                        let result =
+                            contracts::pink::Pink::instantiate(owner, &contract, input_data, salt);
+                        match result {
+                            Err(err) => Err(err.to_string()),
+                            Ok(pink) => {
+                                let address = pink.id();
+                                install_contract(contracts, pink, contract_key, ecdh_key, block);
+                                Ok(address)
+                            }
+                        }
+                    })()
+                };
+
+                if let Err(err) = &result {
+                    error!(
+                        "Deploy contract failed: {} owner: {:?} nonce: {}",
+                        err,
+                        owner,
+                        hex::encode(&nonce)
+                    );
+                }
+
+                let message = PinkReport::DeployStatus {
+                    nonce,
+                    owner,
+                    result,
+                };
+                self.egress.send(&message);
+            }
+        }
+    }
+
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
@@ -701,6 +792,36 @@ impl<Platform: pal::Platform> System<Platform> {
             master_public_key,
         }
     }
+}
+
+pub fn install_contract<Contract>(
+    contracts: &mut ContractMap,
+    contract: Contract,
+    contract_key: sr25519::Pair,
+    ecdh_key: EcdhKey,
+    block: &mut BlockInfo,
+) where
+    Contract: NativeContract + Send + 'static,
+    <Contract as NativeContract>::Cmd: Send,
+{
+    let contract_id = contract.id();
+    let sender = MessageOrigin::Contract(contract_id);
+    let mq = block.send_mq.channel(sender, contract_key);
+    let contract_key = ecdh_key.clone();
+    let cmd_mq = PeelingReceiver::new_secret(
+        block
+            .recv_mq
+            .subscribe(contract::command_topic(contract_id))
+            .into(),
+        contract_key,
+    );
+    let wrapped = Box::new(contracts::NativeCompatContract::new(
+        contract,
+        mq,
+        cmd_mq,
+        ecdh_key.clone(),
+    ));
+    contracts.insert(contract_id, wrapped);
 }
 
 #[derive(Encode, Decode, Debug)]
