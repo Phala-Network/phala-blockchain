@@ -134,12 +134,12 @@ mod support {
     impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp> Contract
         for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
     where
-        Cmd: Decode + Debug + Send + Sync,
-        CmdWrp: Decode + Debug + Send + Sync,
-        CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd> + Send + Sync,
+        Cmd: Decode + Debug,
+        CmdWrp: Decode + Debug,
+        CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd>,
         QReq: Decode + Debug,
         QResp: Encode + Debug,
-        Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp> + Send + Sync,
+        Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp> + Send,
         Cmd: Decode + Debug,
     {
         fn id(&self) -> ContractId {
