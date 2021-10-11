@@ -31,7 +31,7 @@ pub struct ReplayFactory {
     event_tx: Option<mpsc::Sender<EventRecord>>,
     storage: TrieStorage<Hashing>,
     recv_mq: MessageDispatcher,
-    gk: gk::MiningFinance<ReplayMsgChannel>,
+    gk: gk::MiningEconomics<ReplayMsgChannel>,
 }
 
 impl ReplayFactory {
@@ -42,7 +42,7 @@ impl ReplayFactory {
         let mut recv_mq = MessageDispatcher::new();
         let mut storage = TrieStorage::default();
         storage.load(genesis_state.into_iter());
-        let gk = gk::MiningFinance::new(&mut recv_mq, ReplayMsgChannel);
+        let gk = gk::MiningEconomics::new(&mut recv_mq, ReplayMsgChannel);
         Self {
             next_event_seq: 1,
             current_block: 0,

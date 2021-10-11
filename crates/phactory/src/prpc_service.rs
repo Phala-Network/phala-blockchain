@@ -829,7 +829,7 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
             .try_into()
             .map_err(|_| from_display("Bad public key"))?;
         let state = gk
-            .finance
+            .mining_economics
             .worker_state(&pubkey)
             .ok_or_else(|| from_display("Worker not found"))?;
         Ok(state)

@@ -98,7 +98,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
-    pub(crate) finance: MiningFinance<MsgChan>,
+    pub(crate) mining_economics: MiningEconomics<MsgChan>,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
@@ -120,7 +120,7 @@ where
             gatekeeper_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
-            finance: MiningFinance::new(recv_mq, egress),
+            mining_economics: MiningEconomics::new(recv_mq, egress),
         }
     }
 
@@ -220,7 +220,7 @@ where
             }
         }
 
-        self.finance.process_messages(block);
+        self.mining_economics.process_messages(block);
 
         debug!("Gatekeeper: processed block {}", block.block_number);
     }
@@ -232,10 +232,10 @@ where
                 self.process_random_number_event(origin, random_number_event)
             }
             GatekeeperEvent::TokenomicParametersChanged(_params) => {
-                // Handled by MiningFinance
+                // Handled by MiningEconomics
             }
             GatekeeperEvent::RepairV => {
-                // Handled by MiningFinance
+                // Handled by MiningEconomics
             }
         }
     }
@@ -327,7 +327,7 @@ impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
     }
 }
 
-pub struct MiningFinance<MsgChan> {
+pub struct MiningEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
     system_events: TypedReceiver<SystemEvent>,
@@ -365,9 +365,9 @@ impl From<&WorkerInfo> for pb::WorkerState {
     }
 }
 
-impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
+impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
     pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
-        MiningFinance {
+        MiningEconomics {
             egress,
             mining_events: recv_mq.subscribe_bound(),
             system_events: recv_mq.subscribe_bound(),
@@ -404,7 +404,7 @@ impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
             .map(|info| info.tokenomic.share())
             .sum();
 
-        let mut processor = MiningMessageProcesser {
+        let mut processor = MiningMessageProcessor {
             state: self,
             block,
             report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
@@ -422,15 +422,15 @@ impl<MsgChan: MessageChannel> MiningFinance<MsgChan> {
     }
 }
 
-struct MiningMessageProcesser<'a, MsgChan> {
-    state: &'a mut MiningFinance<MsgChan>,
+struct MiningMessageProcessor<'a, MsgChan> {
+    state: &'a mut MiningEconomics<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
     event_listener: &'a mut dyn FinanceEventListener,
     sum_share: FixedPoint,
 }
 
-impl<MsgChan> MiningMessageProcesser<'_, MsgChan>
+impl<MsgChan> MiningMessageProcessor<'_, MsgChan>
 where
     MsgChan: MessageChannel,
 {
@@ -1046,7 +1046,7 @@ mod msg_trait {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, MiningFinance};
+    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, MiningEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
@@ -1120,7 +1120,7 @@ pub mod tests {
 
     struct Roles {
         mq: MessageDispatcher,
-        gk: MiningFinance<CollectChannel>,
+        gk: MiningEconomics<CollectChannel>,
         workers: [WorkerPublicKey; 2],
     }
 
@@ -1128,7 +1128,7 @@ pub mod tests {
         fn test_roles() -> Roles {
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let gk = MiningFinance::new(&mut mq, egress);
+            let gk = MiningEconomics::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,
