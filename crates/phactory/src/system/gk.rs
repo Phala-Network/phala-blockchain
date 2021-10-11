@@ -1202,12 +1202,14 @@ pub mod tests {
     fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
         // GK never use the storage ATM.
         let storage = crate::Storage::default();
-        let mut mq = phala_mq::MessageDispatcher::new();
+        let mut recv_mq = phala_mq::MessageDispatcher::new();
+        let mut send_mq = phala_mq::MessageSendQueue::new();
         let block = BlockInfo {
             block_number,
             now_ms: block_ts(block_number),
             storage: &storage,
-            recv_mq: &mut mq,
+            recv_mq: &mut recv_mq,
+            send_mq: &mut send_mq,
             side_task_man: &mut Default::default(),
         };
         call(&block);

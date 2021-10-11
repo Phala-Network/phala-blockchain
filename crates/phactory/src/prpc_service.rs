@@ -664,6 +664,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             block_number,
             now_ms,
             storage,
+            send_mq: &state.send_mq,
             recv_mq,
             side_task_man,
         };

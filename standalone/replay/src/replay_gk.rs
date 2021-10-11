@@ -96,6 +96,7 @@ impl ReplayFactory {
             now_ms,
             storage: &self.storage,
             recv_mq: &mut self.recv_mq,
+            send_mq: &mut Default::default(),
             side_task_man: &mut SideTaskManager::default(),
         };
 

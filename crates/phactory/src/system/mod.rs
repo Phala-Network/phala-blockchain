@@ -344,7 +344,6 @@ pub struct System<Platform> {
     enable_geoprobing: bool,
     geoip_city_db: String,
     // Messageing
-    send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
@@ -380,7 +379,6 @@ impl<Platform: pal::Platform> System<Platform> {
             sealing_path,
             enable_geoprobing,
             geoip_city_db,
-            send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
@@ -483,7 +481,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn init_gatekeeper(&mut self, recv_mq: &mut MessageDispatcher) {
+    fn init_gatekeeper(&mut self, block: &mut BlockInfo) {
         assert!(
             self.master_key.is_some(),
             "Gatekeeper initialization without master key"
@@ -498,8 +496,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 .as_ref()
                 .expect("checked master key above; qed.")
                 .clone(),
-            recv_mq,
-            self.send_mq.channel(
+            block.recv_mq,
+            block.send_mq.channel(
                 MessageOrigin::Gatekeeper,
                 self.master_key
                     .as_ref()
@@ -576,7 +574,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
         if self.master_key.is_some() {
             info!("Init gatekeeper in block {}", block.block_number);
-            self.init_gatekeeper(&mut block.recv_mq);
+            self.init_gatekeeper(block);
         }
 
         if my_pubkey == event.pubkey {
