@@ -1,5 +1,6 @@
 pub mod gk;
 mod master_key;
+mod side_tasks;
 
 use crate::{benchmark, types::BlockInfo};
 use anyhow::Result;
@@ -22,6 +23,7 @@ use phala_types::{
     },
     MasterPublicKey, WorkerPublicKey,
 };
+use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
 pub type TransactionResult = Result<(), TransactionError>;
@@ -336,6 +338,8 @@ pub struct System<Platform> {
     platform: Platform,
     // Configuration
     sealing_path: String,
+    enable_geoprobing: bool,
+    geoip_city_db: String,
     // Messageing
     send_mq: MessageSendQueue,
     egress: Sr25519MessageChannel,
@@ -355,6 +359,8 @@ impl<Platform: pal::Platform> System<Platform> {
     pub fn new(
         platform: Platform,
         sealing_path: String,
+        enable_geoprobing: bool,
+        geoip_city_db: String,
         identity_key: &sr25519::Pair,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
@@ -366,6 +372,8 @@ impl<Platform: pal::Platform> System<Platform> {
         System {
             platform,
             sealing_path,
+            enable_geoprobing,
+            geoip_city_db,
             send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
@@ -388,6 +396,15 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+        if self.enable_geoprobing {
+            geo_probe::process_block(
+                block.block_number,
+                &self.egress,
+                block.side_task_man,
+                &self.identity_key,
+                self.geoip_city_db.clone(),
+            );
+        }
         loop {
             let ok = phala_mq::select! {
                 message = self.system_events => match message {

@@ -13,6 +13,9 @@
 #[cfg(target_arch = "wasm32")]
 extern crate webpki_wasm as webpki;
 
+#[cfg(not(feature = "std"))]
+extern crate alloc;
+
 // Re-export
 use utils::{accumulator, attestation, balance_convert, constants, fixed_point};
 

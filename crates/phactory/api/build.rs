@@ -9,6 +9,7 @@ fn main() {
     let render_dir = tmpdir.path();
 
     for tmpl in tera.templates.keys() {
+        println!("cargo:rerun-if-changed=proto/{}", tmpl);
         let render_output = std::fs::File::create(render_dir.join(tmpl)).unwrap();
         tera.render_to(tmpl, &Context::new(), render_output)
             .unwrap();

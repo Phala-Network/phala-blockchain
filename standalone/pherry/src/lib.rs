@@ -4,7 +4,7 @@ use phala_pallets::registry::Attestation;
 use sp_core::crypto::AccountId32;
 use std::cmp;
 use std::str::FromStr;
-use std::time::{Duration, SystemTime};
+use std::time::Duration;
 use structopt::StructOpt;
 use tokio::time::sleep;
 
@@ -30,9 +30,8 @@ use crate::types::{
 use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
-use phactory_api::prpc::{self, InitRuntimeResponse, SendCoordinateInfoRequest};
+use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
-use phala_types::messaging::CoordinateInfo;
 
 use notify_client::NotifyClient;
 
@@ -170,12 +169,6 @@ struct Args {
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
-
-    #[structopt(long, help = "Enable geolocaltion report")]
-    enable_geolocation: bool,
-
-    #[structopt(long, default_value = "./tmp/GeoLite2-City.mmdb")]
-    geoip_city_db: String,
 }
 
 struct BlockSyncState {
@@ -705,96 +698,6 @@ async fn init_runtime(
     Ok(resp)
 }
 
-async fn get_geolocation(db_path: &str) -> Result<CoordinateInfo> {
-    let res = reqwest::get("https://ipinfo.io/ip").await?;
-    if !res.status().is_success() {
-        return Err(anyhow::Error::msg(format!(
-            "Cannot get public IP: {}",
-            res.status()
-        )));
-    }
-    let pub_ip = res.text().await?;
-    info!("Public IP address: {}", pub_ip);
-
-    use maxminddb::geoip2;
-    use std::net::IpAddr;
-
-    let geo_db_buf = std::fs::read(db_path)?;
-    let reader =
-        maxminddb::Reader::from_source(geo_db_buf).expect("Geolite2 database is not loaded");
-    let ip: IpAddr = FromStr::from_str(&pub_ip).unwrap();
-
-    let city_general_data: geoip2::City = reader.lookup(ip).unwrap();
-    let region_name;
-    if let Some(city) = city_general_data.city {
-        region_name = *city.names.as_ref().unwrap().get(&"en").unwrap();
-    } else {
-        if let Some(subdivisions) = city_general_data.subdivisions {
-            region_name = *subdivisions[0].names.as_ref().unwrap().get(&"en").unwrap();
-        } else {
-            if let Some(country) = city_general_data.country {
-                region_name = *country.names.as_ref().unwrap().get(&"en").unwrap();
-            } else {
-                region_name = &"NA";
-            }
-        }
-    }
-    let location = city_general_data
-        .location
-        .ok_or(Error::FailedToSendGeolocation)?;
-    let latitude = location.latitude.ok_or(Error::FailedToSendGeolocation)?;
-    let longitude = location.longitude.ok_or(Error::FailedToSendGeolocation)?;
-    info!(
-        "Look-up geolocation: {}, {}, {}",
-        latitude, longitude, region_name
-    );
-
-    // Convert f64 to i32 with 4 digits precision
-    Ok(CoordinateInfo {
-        latitude: (latitude * 10000f64) as i32,
-        longitude: (longitude * 10000f64) as i32,
-        city_name: region_name.parse()?,
-    })
-}
-
-async fn try_send_geolocation(
-    pr: &PrClient,
-    ttl: &SystemTime,
-    db_path: &str,
-) -> Result<SystemTime> {
-    // If ttl is not passed, we do not perform updating
-    match ttl.elapsed() {
-        Ok(_) => {
-            info!("Geolocation TTL is passed. Updating geolocation.")
-        }
-        Err(e) => {
-            info!(
-                "Geolocation TTL is not passed. Ignoring to update geolocation: {}",
-                e
-            );
-            return Ok(*ttl);
-        }
-    }
-    let coordinate_info = match get_geolocation(db_path).await {
-        Ok(r) => r,
-        Err(e) => {
-            let message = format!("Failed to retrieve geolocation: {:?}", e);
-            warn!("FailedToSendGeolocation: {:?}", message);
-            return Err(anyhow!(Error::FailedToSendGeolocation));
-        }
-    };
-    pr.send_coordinate_info(SendCoordinateInfoRequest {
-        latitude: coordinate_info.latitude,
-        longitude: coordinate_info.longitude,
-        city_name: coordinate_info.city_name,
-    })
-    .await?;
-    let new_ttl = SystemTime::now()
-        .checked_add(Duration::from_secs(8 * 3600)) // 8 hours
-        .expect("Failed to generate new ttl for geolocation report");
-    Ok(new_ttl)
-}
-
 async fn register_worker(
     paraclient: &XtClient,
     encoded_runtime_info: Vec<u8>,
@@ -902,7 +805,6 @@ async fn bridge(args: Args) -> Result<()> {
     let mut pruntime_initialized = false;
     let mut pruntime_new_init = false;
     let mut initial_sync_finished = false;
-    let mut geolocation_report_ttl = SystemTime::now();
 
     // Try to initialize pRuntime and register on-chain
     let info = pr.get_info(()).await?;
@@ -967,14 +869,6 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
-        }
-        if args.enable_geolocation {
-            geolocation_report_ttl =
-                match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db).await
-                {
-                    Ok(d) => d,
-                    Err(_e) => geolocation_report_ttl,
-                };
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -1087,15 +981,6 @@ async fn bridge(args: Args) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 try_register_worker(&pr, &paraclient, &mut signer).await?;
-            }
-            if args.enable_geolocation {
-                geolocation_report_ttl =
-                    match try_send_geolocation(&pr, &geolocation_report_ttl, &args.geoip_city_db)
-                        .await
-                    {
-                        Ok(d) => d,
-                        Err(_e) => geolocation_report_ttl,
-                    };
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;

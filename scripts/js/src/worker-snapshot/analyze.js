@@ -34,16 +34,25 @@ function stats(dataset) {
     const totalRewards = dataset
         .map(({frame}) => frame.reduce((acc, {totalReward}) => acc + totalReward, 0));
 
+    // series: sum(status == MiningIdle)
+    const mining = dataset
+        .map(({frame}) => frame.filter(m => m.state == 'MiningIdle').length);
+
     // series: sum(state == Unresponsive)
     const unresponsive = dataset
         .map(({frame}) => frame.filter(m => m.state == 'MiningUnresponsive').length);
+
+    const total = dataset
+        .map(({frame}) => frame.length);
 
     // series: typical V and totalReward
     const sampledMetrics = program.opts().sampleWorker ? sampleWorker(dataset) : {};
 
     return {
         totalRewards,
+        mining,
         unresponsive,
+        total,
         ...sampledMetrics,
     };
 }
@@ -82,6 +91,15 @@ function sheetToCsv(sheet) {
     return { fields, data };
 }
 
+function fmtDate(d) {
+    return (
+        (d.getMonth() + 1).toString().padStart(2, '0') + "-"
+        + d.getDate().toString().padStart(2, '0') + " "
+        + d.getHours().toString().padStart(2, '0') + ":"
+        + d.getMinutes().toString().padStart(2, '0')
+    );
+}
+
 function main() {
     const { snapshots, poolWorkers, output } = program.opts();
 
@@ -90,9 +108,17 @@ function main() {
 
     const sheet = {
         blocknum: dataset.map(row => row.blocknum),
+        date: dataset.map(row => fmtDate(new Date(row.timestamp))),
     };
 
     addToSheet(sheet, stats(dataset), 'full');
+    // Stats for all workers in pool
+    const allPoolWorkers = Object.values(poolWorkersData).flat()
+    if (allPoolWorkers.length > 0) {
+        const slice = extractPoolWorkers(dataset, new Set(allPoolWorkers));
+        addToSheet(sheet, stats(slice), 'pool');
+    }
+    // Pool break down
     for (const pid in poolWorkersData) {
         const workers = poolWorkersData[pid];
         const slice = extractPoolWorkers(dataset, new Set(workers));

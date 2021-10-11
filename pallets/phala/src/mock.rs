@@ -136,7 +136,6 @@ impl mining::Config for Test {
 	type Randomness = TestRandomness<Self>;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
-	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = ();
 	type UpdateTokenomicOrigin = frame_system::EnsureRoot<Self::AccountId>;
@@ -151,6 +150,7 @@ impl stakepool::Config for Test {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = ();
 	type MiningSwitchOrigin = frame_system::EnsureRoot<Self::AccountId>;
+	type BackfillOrigin = frame_system::EnsureRoot<Self::AccountId>;
 }
 
 impl ott::Config for Test {

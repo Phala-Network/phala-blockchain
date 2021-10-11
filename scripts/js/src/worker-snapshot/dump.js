@@ -26,6 +26,7 @@ program
 
 const bn64b = new BN(2).pow(new BN(64));
 const bn1e10 = new BN(10).pow(new BN(10));
+const bn1e3 = new BN(10).pow(new BN(3));
 
 function run(afn) {
     function runner(...args) {
@@ -109,6 +110,7 @@ async function dumpSnapshots(opt) {
         const percentage = ((n - startNum) / (tipNum - startNum) * 100).toFixed(2);
         console.log(`Dumping ${n} / ${tipNum} (${percentage}%)`);
         const h = await api.rpc.chain.getBlockHash(n);
+        const timestamp = (await api.query.timestamp.now.at(h)).toNumber();
         const entries = await api.query.phalaMining.miners.entriesAt(h);
 
         const frame = entries.map(([key, v]) => {
@@ -127,6 +129,7 @@ async function dumpSnapshots(opt) {
         });
         dataset.push({
             blocknum: n,
+            timestamp,
             frame,
         });
     }

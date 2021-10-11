@@ -26,7 +26,14 @@ cargo +nightly test -p phala-pallets --tests
 rm -rf ./coverage/
 # create the *html* report out of all the test binaries
 # mostly useful for local inspection
-grcov ./tmp/coveragedata --binary-path ./target/debug -s . -t html --branch --ignore-not-existing -o ./coverage/ \
+grcov ./tmp/coveragedata \
+    --binary-path ./target/debug \
+    -s . -t html \
+    --branch \
+    --llvm \
+    --excl-br-line '^\s*(//|#\[pallet|$)' \
+    --excl-line '^\s*(//|#\[pallet|$)' \
+    --ignore-not-existing -o ./coverage/ \
     --keep-only 'pallets/**'
 miniserve -r ./coverage
 

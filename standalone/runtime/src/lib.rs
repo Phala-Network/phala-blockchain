@@ -1061,17 +1061,14 @@ impl pallet_bridge::Config for Runtime {
 
 parameter_types! {
 	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
-	pub const BridgeTokenId: [u8; 32] = hex_literal::hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
-	// bridge::derive_resource_id(1, &hashing::blake2_128(b"lottery"))
-	pub const BridgeLotteryId: [u8; 32] = hex_literal::hex!("000000000000000000000000000000eae111a54fe8107ea6c18985c4df7d9801");
+	pub const NativeTokenResourceId: [u8; 32] = hex_literal::hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
 }
 
 impl pallet_bridge_transfer::Config for Runtime {
 	type Event = Event;
 	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
 	type Currency = Balances;
-	type BridgeTokenId = BridgeTokenId;
-	type BridgeLotteryId = BridgeLotteryId;
+	type NativeTokenResourceId = NativeTokenResourceId;
 	type OnFeePay = Treasury;
 }
 
@@ -1107,7 +1104,6 @@ impl pallet_mining::Config for Runtime {
 	type Randomness = RandomnessCollectiveFlip;
 	type OnReward = PhalaStakePool;
 	type OnUnbound = PhalaStakePool;
-	type OnReclaim = PhalaStakePool;
 	type OnStopped = PhalaStakePool;
 	type OnTreasurySettled = Treasury;
 	type UpdateTokenomicOrigin = EnsureRootOrHalfCouncil;
@@ -1121,6 +1117,7 @@ impl pallet_stakepool::Config for Runtime {
 	type MaxPoolWorkers = MaxPoolWorkers;
 	type OnSlashed = Treasury;
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
+	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
 impl pallet_ott::Config for Runtime {
 	type Event = Event;

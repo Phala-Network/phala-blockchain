@@ -20,11 +20,21 @@ pub trait RA {
     fn create_attestation_report(&self, data: &[u8]) -> Result<(String, String, String), Self::Error>;
 }
 
+pub struct MemoryUsage {
+    pub total_peak_used: usize,
+    pub rust_used: usize,
+    pub rust_peak_used: usize,
+}
+
+pub trait MemoryStats {
+    fn memory_usage(&self) -> MemoryUsage;
+}
+
 pub trait Machine {
     fn machine_id(&self) -> Vec<u8>;
     fn cpu_core_num(&self) -> u32;
     fn cpu_feature_level(&self) -> u32;
 }
 
-pub trait Platform: Sealing + RA + Machine + Clone {}
-impl<T: Sealing + RA + Machine + Clone> Platform for T {}
+pub trait Platform: Sealing + RA + Machine + MemoryStats + Clone {}
+impl<T: Sealing + RA + Machine + MemoryStats + Clone> Platform for T {}
