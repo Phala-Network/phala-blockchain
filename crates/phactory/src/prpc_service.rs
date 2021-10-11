@@ -61,9 +61,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.runtime_info.is_some();
         let state = self.runtime_state.as_ref();
+        let system = self.system.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
-        let public_key = state.map(|state| hex::encode(state.identity_key.public()));
-        let ecdh_public_key = state.map(|state| hex::encode(&state.ecdh_key.public()));
+        let public_key = system.map(|state| hex::encode(state.identity_key.public()));
+        let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
         let dev_mode = self.dev_mode;
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
@@ -77,7 +78,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         };
 
         let (registered, gatekeeper_status) = {
-            match self.system.as_ref() {
+            match system {
                 Some(system) => (system.is_registered(), system.gatekeeper_status()),
                 None => (
                     false,
@@ -315,7 +316,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
         };
 
-        let id_pair = identity_key.clone();
         let send_mq = MessageSendQueue::default();
         let mut recv_mq = MessageDispatcher::default();
 
@@ -330,7 +330,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 ($id: expr, $inner: expr) => {{
                     let contract_id = contract::id256($id);
                     let sender = MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, id_pair.clone());
+                    let mq = send_mq.channel(sender, identity_key.clone());
                     // TODO.kevin: use real contract key
                     let contract_key = ecdh_key.clone();
                     let cmd_mq = PeelingReceiver::new_secret(
@@ -359,7 +359,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             );
             install_contract!(
                 contracts::BTC_LOTTERY,
-                contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+                contracts::btc_lottery::BtcLottery::new(Some(identity_key.clone()))
             );
             // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
             // install_contract!(
@@ -382,8 +382,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             storage_synchronizer,
             chain_storage: Default::default(),
             genesis_block_hash,
-            identity_key,
-            ecdh_key: ecdh_key.clone(),
         };
 
         // Initialize other states
@@ -399,8 +397,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.args.sealing_path.clone(),
             self.args.enable_geoprobing,
             self.args.geoip_city_db.clone(),
-            &id_pair,
-            &ecdh_key,
+            identity_key,
+            ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
             contracts,
@@ -507,7 +505,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         info!("Verifying signature passed! origin={:?}", origin);
 
-        let ecdh_key = self.runtime_state()?.ecdh_key.clone();
+        let ecdh_key = self.system()?.ecdh_key.clone();
 
         // Decrypt data
         let encrypted_req = request.decode_encrypted_data()?;

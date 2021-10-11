@@ -76,8 +76,6 @@ struct RuntimeState {
     storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
     chain_storage: Storage,
     genesis_block_hash: H256,
-    identity_key: sr25519::Pair,
-    ecdh_key: EcdhKey,
 }
 
 impl RuntimeState {

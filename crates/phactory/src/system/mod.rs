@@ -366,7 +366,8 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     pink_events: SecretReceiver<PinkRequest>,
     // Worker
-    identity_key: sr25519::Pair,
+    pub(crate) identity_key: sr25519::Pair,
+    pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
     // Gatekeeper
     master_key: Option<sr25519::Pair>,
@@ -381,15 +382,15 @@ impl<Platform: pal::Platform> System<Platform> {
         sealing_path: String,
         enable_geoprobing: bool,
         geoip_city_db: String,
-        identity_key: &sr25519::Pair,
-        local_ecdh_key: &EcdhKey,
+        identity_key: sr25519::Pair,
+        ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
         contracts: ContractMap,
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), identity_key, &platform);
+        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key, &platform);
 
         System {
             platform,
@@ -403,9 +404,10 @@ impl<Platform: pal::Platform> System<Platform> {
             key_distribution_events: recv_mq.subscribe_bound(),
             pink_events: SecretReceiver::new_secret(
                 recv_mq.subscribe(PinkRequest::topic()).into(),
-                local_ecdh_key.clone(),
+                ecdh_key.clone(),
             ),
-            identity_key: identity_key.clone(),
+            identity_key,
+            ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
             gatekeeper: None,
