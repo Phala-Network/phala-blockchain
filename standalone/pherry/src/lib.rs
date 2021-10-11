@@ -12,35 +12,28 @@ use codec::Decode;
 use core::marker::PhantomData;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
-use sp_rpc::number::NumberOrHex;
 
-mod chain_client;
 mod error;
 mod extra;
 mod msg_sync;
 mod notify_client;
 mod runtimes;
-mod types;
+
+pub mod types;
+pub mod chain_client;
 
 use crate::error::Error;
-use crate::types::{BlockNumber, Hash, Header, NotifyReq, OpaqueSignedBlock, Runtime};
+use crate::types::{
+    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, OpaqueSignedBlock, PrClient, Runtime,
+    SrSigner, XtClient, NumberOrHex
+};
 use phactory_api::blocks::{
-    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageChanges,
-    StorageProof,
+    self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
 };
 use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
 
 use notify_client::NotifyClient;
-type XtClient = subxt::Client<Runtime>;
-type PrClient = pruntime_client::PRuntimeClient;
-type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
-
-#[derive(Clone, Debug)]
-struct BlockWithChanges {
-    block: OpaqueSignedBlock,
-    storage_changes: StorageChanges,
-}
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "pherry")]
@@ -218,7 +211,7 @@ async fn get_block_without_storage_changes(
     });
 }
 
-async fn get_block_with_storage_changes(
+pub async fn get_block_with_storage_changes(
     client: &XtClient,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
@@ -765,6 +758,15 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     }
 }
 
+pub async fn subxt_connect(uri: &str) -> Result<XtClient> {
+    let client = subxt::ClientBuilder::<Runtime>::new()
+        .set_url(uri)
+        .skip_type_sizes_check()
+        .build()
+        .await?;
+    Ok(client)
+}
+
 async fn bridge(args: Args) -> Result<()> {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -772,19 +774,11 @@ async fn bridge(args: Args) -> Result<()> {
         .init();
 
     // Connect to substrate
-    let client = subxt::ClientBuilder::<Runtime>::new()
-        .set_url(args.substrate_ws_endpoint.clone())
-        .skip_type_sizes_check()
-        .build()
-        .await?;
+    let client = subxt_connect(&args.substrate_ws_endpoint).await?;
     info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let paraclient = if args.parachain {
-        let paraclient = subxt::ClientBuilder::<Runtime>::new()
-            .skip_type_sizes_check()
-            .set_url(args.collator_ws_endpoint.clone())
-            .build()
-            .await?;
+        let paraclient = subxt_connect(&args.collator_ws_endpoint).await?;
         info!(
             "Connected to parachain node at: {}",
             args.collator_ws_endpoint
@@ -1036,8 +1030,7 @@ fn preprocess_args(args: &mut Args) {
     }
 }
 
-#[tokio::main]
-async fn main() {
+pub async fn pherry_main() {
     let mut args = Args::from_args();
     preprocess_args(&mut args);
 

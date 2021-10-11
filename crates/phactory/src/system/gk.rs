@@ -22,9 +22,10 @@ use std::{
 
 use fixed_macro::types::U64F64 as fp;
 use log::debug;
-use msg_trait::MessageChannel;
 use phactory_api::prpc as pb;
-use tokenomic::{FixedPoint, TokenomicInfo};
+pub use tokenomic::{FixedPoint, TokenomicInfo};
+
+pub use msg_trait::MessageChannel;
 
 /// Block interval to generate pseudo-random on chain
 ///
@@ -51,7 +52,8 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-struct WorkerInfo {
+#[derive(Debug)]
+pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
     unresponsive: bool,
@@ -77,6 +79,14 @@ impl WorkerInfo {
             last_gk_responsive_event_at_block: 0,
         }
     }
+
+    pub fn tokenomic_info(&self) -> &TokenomicInfo {
+        &self.tokenomic
+    }
+
+    pub fn pubkey(&self) -> &WorkerPublicKey {
+        &self.state.pubkey
+    }
 }
 
 pub(crate) struct Gatekeeper<MsgChan> {
@@ -85,19 +95,15 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    mining_events: TypedReceiver<MiningReportEvent>,
-    system_events: TypedReceiver<SystemEvent>,
-    workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
-    // Tokenomic
-    tokenomic_params: tokenomic::Params,
+    pub(crate) mining_economics: MiningEconomics<MsgChan>,
 }
 
 impl<MsgChan> Gatekeeper<MsgChan>
 where
-    MsgChan: MessageChannel,
+    MsgChan: MessageChannel + Clone,
 {
     pub fn new(
         master_key: sr25519::Pair,
@@ -110,14 +116,11 @@ where
             master_key,
             master_pubkey_on_chain: false,
             registered_on_chain: false,
-            egress,
+            egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
-            mining_events: recv_mq.subscribe_bound(),
-            system_events: recv_mq.subscribe_bound(),
-            workers: Default::default(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
-            tokenomic_params: tokenomic::test_params(),
+            mining_economics: MiningEconomics::new(recv_mq, egress),
         }
     }
 
@@ -199,26 +202,60 @@ where
             return;
         }
 
-        let sum_share: FixedPoint = self
-            .workers
-            .values()
-            .filter(|info| !info.unresponsive)
-            .map(|info| info.tokenomic.share())
-            .sum();
+        debug!("Gatekeeper: processing block {}", block.block_number);
+        loop {
+            let ok = phala_mq::select! {
+                message = self.gatekeeper_events => match message {
+                    Ok((_, event, origin)) => {
+                        self.process_gatekeeper_event(origin, event);
+                    }
+                    Err(e) => {
+                        error!("Read message failed: {:?}", e);
+                    }
+                },
+            };
+            if ok.is_none() {
+                // All messages processed
+                break;
+            }
+        }
 
-        let mut processor = GKMessageProcesser {
-            state: self,
-            block,
-            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
-            sum_share,
+        self.mining_economics.process_messages(block);
+
+        debug!("Gatekeeper: processed block {}", block.block_number);
+    }
+
+    fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
+        info!("Incoming gatekeeper event: {:?}", event);
+        match event {
+            GatekeeperEvent::NewRandomNumber(random_number_event) => {
+                self.process_random_number_event(origin, random_number_event)
+            }
+            GatekeeperEvent::TokenomicParametersChanged(_params) => {
+                // Handled by MiningEconomics
+            }
+            GatekeeperEvent::RepairV => {
+                // Handled by MiningEconomics
+            }
+        }
+    }
+
+    /// Verify on-chain random number
+    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
         };
 
-        processor.process();
-
-        let report = processor.report;
-
-        if !report.is_empty() {
-            self.egress.push_message(report);
+        let expect_random = next_random_number(
+            &self.master_key,
+            event.block_number,
+            event.last_random_number,
+        );
+        // instead of checking the origin, we directly verify the random to avoid access storage
+        if expect_random != event.random_number {
+            error!("Fatal error: Expect random number {:?}", expect_random);
+            panic!("GK state poisoned");
         }
     }
 
@@ -241,10 +278,67 @@ where
         ));
         self.last_random_number = random_number;
     }
+}
 
-    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
-        let info = self.workers.get(pubkey)?;
-        Some(pb::WorkerState {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FinanceEvent {
+    MiningStart,
+    MiningStop,
+    HeartbeatChallenge,
+    Heartbeat { payout: FixedPoint },
+    EnterUnresponsive,
+    ExitUnresponsive,
+    RecoverV,
+}
+
+impl FinanceEvent {
+    pub fn event_string(&self) -> &'static str {
+        match self {
+            FinanceEvent::MiningStart => "mining_start",
+            FinanceEvent::MiningStop => "mining_stop",
+            FinanceEvent::HeartbeatChallenge => "heartbeat_challenge",
+            FinanceEvent::Heartbeat { .. } => "heartbeat",
+            FinanceEvent::EnterUnresponsive => "enter_unresponsive",
+            FinanceEvent::ExitUnresponsive => "exit_unresponsive",
+            FinanceEvent::RecoverV => "recover_v",
+        }
+    }
+
+    pub fn payout(&self) -> FixedPoint {
+        if let Self::Heartbeat { payout } = self {
+            *payout
+        } else {
+            fp!(0)
+        }
+    }
+}
+
+pub trait FinanceEventListener {
+    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo);
+}
+
+impl FinanceEventListener for () {
+    fn on_finance_event(&mut self, _event: FinanceEvent, _state: &WorkerInfo) {}
+}
+
+impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
+    fn on_finance_event(&mut self, event: FinanceEvent, state: &WorkerInfo) {
+        (self)(event, state);
+    }
+}
+
+pub struct MiningEconomics<MsgChan> {
+    egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
+    mining_events: TypedReceiver<MiningReportEvent>,
+    system_events: TypedReceiver<SystemEvent>,
+    gatekeeper_events: TypedReceiver<GatekeeperEvent>,
+    workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
+    tokenomic_params: tokenomic::Params,
+}
+
+impl From<&WorkerInfo> for pb::WorkerState {
+    fn from(info: &WorkerInfo) -> Self {
+        pb::WorkerState {
             registered: info.state.registered,
             unresponsive: info.unresponsive,
             bench_state: info.state.bench_state.as_ref().map(|state| pb::BenchState {
@@ -266,28 +360,81 @@ where
             last_heartbeat_at_block: info.last_heartbeat_at_block,
             last_gk_responsive_event: info.last_gk_responsive_event,
             last_gk_responsive_event_at_block: info.last_gk_responsive_event_at_block,
-            tokenomic_info: if info.state.mining_state.is_some() {
-                Some(info.tokenomic.clone().into())
-            } else {
-                None
-            },
-        })
+            tokenomic_info: Some(info.tokenomic.clone().into()),
+        }
     }
 }
 
-struct GKMessageProcesser<'a, MsgChan> {
-    state: &'a mut Gatekeeper<MsgChan>,
+impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
+    pub fn new(recv_mq: &mut MessageDispatcher, egress: MsgChan) -> Self {
+        MiningEconomics {
+            egress,
+            mining_events: recv_mq.subscribe_bound(),
+            system_events: recv_mq.subscribe_bound(),
+            gatekeeper_events: recv_mq.subscribe_bound(),
+            workers: Default::default(),
+            tokenomic_params: tokenomic::test_params(),
+        }
+    }
+
+    pub fn dump_workers_state(&self) -> Vec<(WorkerPublicKey, pb::WorkerState)> {
+        self.workers
+            .values()
+            .map(|info| (info.state.pubkey, info.into()))
+            .collect()
+    }
+
+    pub fn worker_state(&self, pubkey: &WorkerPublicKey) -> Option<pb::WorkerState> {
+        self.workers.get(pubkey).map(Into::into)
+    }
+
+    pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
+        self.process_messages_with_event_listener(block, &mut ());
+    }
+
+    pub fn process_messages_with_event_listener(
+        &mut self,
+        block: &BlockInfo<'_>,
+        event_listener: &mut impl FinanceEventListener,
+    ) {
+        let sum_share: FixedPoint = self
+            .workers
+            .values()
+            .filter(|info| !info.unresponsive)
+            .map(|info| info.tokenomic.share())
+            .sum();
+
+        let mut processor = MiningMessageProcessor {
+            state: self,
+            block,
+            report: MiningInfoUpdateEvent::new(block.block_number, block.now_ms),
+            event_listener,
+            sum_share,
+        };
+
+        processor.process();
+
+        let report = processor.report;
+
+        if !report.is_empty() {
+            self.egress.push_message(report);
+        }
+    }
+}
+
+struct MiningMessageProcessor<'a, MsgChan> {
+    state: &'a mut MiningEconomics<MsgChan>,
     block: &'a BlockInfo<'a>,
     report: MiningInfoUpdateEvent<chain::BlockNumber>,
+    event_listener: &'a mut dyn FinanceEventListener,
     sum_share: FixedPoint,
 }
 
-impl<MsgChan> GKMessageProcesser<'_, MsgChan>
+impl<MsgChan> MiningMessageProcessor<'_, MsgChan>
 where
     MsgChan: MessageChannel,
 {
     fn process(&mut self) {
-        debug!("Gatekeeper: processing block {}", self.block.block_number);
         self.prepare();
         loop {
             let ok = phala_mq::select! {
@@ -324,7 +471,6 @@ where
             }
         }
         self.block_post_process();
-        debug!("Gatekeeper: processed block {}", self.block.block_number);
     }
 
     fn prepare(&mut self) {
@@ -339,9 +485,7 @@ where
                 "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
-            let mut tracker = WorkerSMTracker {
-                waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-            };
+            let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             worker_info
                 .state
                 .on_block_processed(self.block, &mut tracker);
@@ -367,6 +511,8 @@ where
                     worker_info.last_gk_responsive_event =
                         pb::ResponsiveEvent::ExitUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+                    self.event_listener
+                        .on_finance_event(FinanceEvent::ExitUnresponsive, worker_info);
                 }
             } else if let Some(&hb_sent_at) = worker_info.waiting_heartbeats.get(0) {
                 if self.block.block_number - hb_sent_at
@@ -383,6 +529,8 @@ where
                     worker_info.last_gk_responsive_event =
                         pb::ResponsiveEvent::EnterUnresponsive as _;
                     worker_info.last_gk_responsive_event_at_block = self.block.block_number;
+                    self.event_listener
+                        .on_finance_event(FinanceEvent::EnterUnresponsive, worker_info);
                 }
             }
 
@@ -392,7 +540,9 @@ where
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
-                worker_info.tokenomic.update_v_slash(params, self.block.block_number);
+                worker_info
+                    .tokenomic
+                    .update_v_slash(params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
                 debug!(
                     "[{}] case1: Idle, no event",
@@ -467,11 +617,12 @@ where
                 tokenomic.challenge_time_last = challenge_time;
                 tokenomic.iteration_last = iterations;
 
-                if worker_info.unresponsive {
+                let payout = if worker_info.unresponsive {
                     debug!(
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
+                    fp!(0)
                 } else {
                     debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
@@ -488,7 +639,10 @@ where
                         payout: payout.to_bits(),
                         treasury: treasury.to_bits(),
                     });
-                }
+                    payout
+                };
+                self.event_listener
+                    .on_finance_event(FinanceEvent::Heartbeat { payout }, worker_info);
             }
         }
     }
@@ -516,13 +670,15 @@ where
         // TODO.kevin: Avoid unnecessary iteration for WorkerEvents.
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
-            let mut tracker = WorkerSMTracker {
-                waiting_heartbeats: &mut worker_info.waiting_heartbeats,
-            };
+            let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
             debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, log_on);
+            if tracker.challenge_received {
+                self.event_listener
+                    .on_finance_event(FinanceEvent::HeartbeatChallenge, worker_info);
+            }
         }
 
         match &event {
@@ -565,6 +721,8 @@ where
                                 total_slash: fp!(0),
                                 total_slash_count: 0,
                             };
+                            self.event_listener
+                                .on_finance_event(FinanceEvent::MiningStart, worker);
                         }
                         WorkerEvent::MiningStop => {
                             // TODO.kevin: report the final V?
@@ -583,7 +741,9 @@ where
                                 v: worker.tokenomic.v.to_bits(),
                                 payout: 0,
                                 treasury: 0,
-                            })
+                            });
+                            self.event_listener
+                                .on_finance_event(FinanceEvent::MiningStop, worker);
                         }
                         WorkerEvent::MiningEnterUnresponsive => {}
                         WorkerEvent::MiningExitUnresponsive => {}
@@ -597,8 +757,8 @@ where
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
         info!("Incoming gatekeeper event: {:?}", event);
         match event {
-            GatekeeperEvent::NewRandomNumber(random_number_event) => {
-                self.process_random_number_event(origin, random_number_event)
+            GatekeeperEvent::NewRandomNumber(_random_number_event) => {
+                // Handled by Gatekeeper.
             }
             GatekeeperEvent::TokenomicParametersChanged(params) => {
                 if origin.is_pallet() {
@@ -620,38 +780,30 @@ where
                     // https://github.com/Phala-Network/phala-blockchain/issues/495
                     // https://forum.phala.network/t/topic/2753#timeline
                     // https://forum.phala.network/t/topic/2909
-                    self.state.workers.values_mut().for_each(|w| {
+                    for w in self.state.workers.values_mut() {
                         if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
                             w.tokenomic.v = w.tokenomic.v_init;
+                            self.event_listener.on_finance_event(FinanceEvent::RecoverV, w)
                         }
-                    })
+                    }
                 }
             }
-        }
-    }
-
-    /// Verify on-chain random number
-    fn process_random_number_event(&mut self, origin: MessageOrigin, event: RandomNumberEvent) {
-        if !origin.is_gatekeeper() {
-            error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
-        };
-
-        let expect_random = next_random_number(
-            &self.state.master_key,
-            event.block_number,
-            event.last_random_number,
-        );
-        // instead of checking the origin, we directly verify the random to avoid access storage
-        if expect_random != event.random_number {
-            error!("Fatal error: Expect random number {:?}", expect_random);
-            panic!("GK state poisoned");
         }
     }
 }
 
 struct WorkerSMTracker<'a> {
     waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>,
+    challenge_received: bool,
+}
+
+impl<'a> WorkerSMTracker<'a> {
+    fn new(waiting_heartbeats: &'a mut VecDeque<chain::BlockNumber>) -> Self {
+        Self {
+            waiting_heartbeats,
+            challenge_received: false,
+        }
+    }
 }
 
 impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
@@ -664,6 +816,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
     ) {
         debug!("Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
+        self.challenge_received = true;
     }
 }
 
@@ -686,7 +839,7 @@ mod tokenomic {
         }
     }
 
-    #[derive(Default, Clone, Copy)]
+    #[derive(Default, Debug, Clone, Copy)]
     pub struct TokenomicInfo {
         pub v: FixedPoint,
         pub v_init: FixedPoint,
@@ -824,7 +977,7 @@ mod tokenomic {
             let to_treasury = budget * params.treasury_ration;
 
             let actual_payout = self.payable.max(fp!(0)).min(to_payout); // w
-            let actual_treasury = (actual_payout / to_payout) * to_treasury;  // to_payout > 0
+            let actual_treasury = (actual_payout / to_payout) * to_treasury; // to_payout > 0
 
             self.v -= actual_payout;
             self.payable = fp!(0);
@@ -893,7 +1046,7 @@ mod msg_trait {
 
 #[cfg(test)]
 pub mod tests {
-    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, Gatekeeper};
+    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, MiningEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
     use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
@@ -967,19 +1120,15 @@ pub mod tests {
 
     struct Roles {
         mq: MessageDispatcher,
-        gk: Gatekeeper<CollectChannel>,
+        gk: MiningEconomics<CollectChannel>,
         workers: [WorkerPublicKey; 2],
     }
 
     impl Roles {
         fn test_roles() -> Roles {
-            use sp_core::crypto::Pair;
-
             let mut mq = MessageDispatcher::new();
             let egress = CollectChannel::default();
-            let key = sp_core::sr25519::Pair::from_seed(&[1u8; 32]);
-            let mut gk = Gatekeeper::new(key, &mut mq, egress);
-            gk.master_pubkey_on_chain = true;
+            let gk = MiningEconomics::new(&mut mq, egress);
             Roles {
                 mq,
                 gk,

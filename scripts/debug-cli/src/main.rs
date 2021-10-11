@@ -246,7 +246,7 @@ fn decode_mq_payload(destination: &[u8], payload: &[u8]) {
     ) -> Result<(), ()> {
         if &T::topic() == destination {
             let msg: T = Decode::decode(&mut &payload[..]).expect("Cannot decode message");
-            println!("{:?}", msg);
+            println!("{:#?}", msg);
             return Ok(());
         }
         Err(())
