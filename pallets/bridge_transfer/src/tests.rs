@@ -352,7 +352,7 @@ fn transfer() {
 }
 
 #[test]
-fn transfer_to_holdingaccount() {
+fn disallow_transfer_to_holding_account() {
 	new_test_ext().execute_with(|| {
 		let dest_chain = 0;
 		let bridge_id: u64 = Bridge::account_id();
