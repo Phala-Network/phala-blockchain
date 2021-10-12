@@ -9,8 +9,10 @@ base64 = "0.11"
 codec = { package = "parity-scale-codec", version = "2.1" }
 hex = "0.4"
 structopt = "0.3"
+anyhow = "1.0.43"
 
 sp-runtime = { path = "../../substrate/primitives/runtime" }
+sp-core = { path = "../../substrate/primitives/core" }
 frame-support = { path = "../../substrate/frame/support" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 

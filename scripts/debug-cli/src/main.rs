@@ -1,4 +1,7 @@
-use codec::Decode;
+mod query;
+
+use codec::{Encode, Decode};
+use phala_types::contract::ContractId;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
@@ -59,17 +62,30 @@ enum Cli {
 
         #[structopt(subcommand)]
         command: RpcCommand,
-    }
+    },
+    Pink {
+        #[structopt(subcommand)]
+        command: PinkCommand,
+    },
 }
 
 #[derive(Debug, StructOpt)]
 enum RpcCommand {
-    GetWorkerState {
-        pubkey: String,
-    },
+    GetWorkerState { pubkey: String },
     GetInfo,
 }
 
+#[derive(Debug, StructOpt)]
+enum PinkCommand {
+    Query {
+        #[structopt(long, default_value = "http://localhost:8000")]
+        url: String,
+
+        id: String,
+
+        message: String,
+    },
+}
 
 #[tokio::main]
 async fn main() {
@@ -147,7 +163,8 @@ async fn main() {
         }
         Cli::DecodeFrnkJustification { hex_data } => {
             let data = decode_hex(&hex_data);
-            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..]).expect("Error decoding FRNK justification");
+            let j = sc_finality_grandpa::GrandpaJustification::<Block>::decode(&mut &data[..])
+                .expect("Error decoding FRNK justification");
             println!("{:?}", j);
         }
         Cli::DecodeGenesisBlockInfo { b64_data } => {
@@ -175,6 +192,9 @@ async fn main() {
         Cli::Rpc { url, command } => {
             handle_rpc_command(command, url).await;
         }
+        Cli::Pink { command } => {
+            handle_pink_command(command).await;
+        }
     }
 }
 
@@ -189,15 +209,59 @@ async fn handle_rpc_command(command: RpcCommand, url: String) {
     match command {
         RpcCommand::GetWorkerState { pubkey } => {
             let public_key = try_decode_hex(&pubkey).expect("Failed to decode pubkey");
-            let rv = client.get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key }).await;
+            let rv = client
+                .get_worker_state(phactory_api::prpc::GetWorkerStateRequest { public_key })
+                .await;
             print_result(rv);
-        },
+        }
         RpcCommand::GetInfo => {
             let rv = client.get_info(()).await;
             print_result(rv);
-        },
+        }
+    }
+}
+
+async fn handle_pink_command(command: PinkCommand) {
+    #[derive(Debug, Encode, Decode)]
+    pub enum Query {
+        InkMessage(Vec<u8>),
     }
 
+    #[derive(Debug, Encode, Decode)]
+    pub enum Response {
+        InkMessageReturn(Vec<u8>),
+    }
+
+    #[derive(Debug, Encode, Decode)]
+    pub enum QueryError {
+        BadOrigin,
+        RuntimeError(String),
+    }
+
+    match command {
+        PinkCommand::Query { url, id, message } => {
+            let id = decode_hex(&id);
+            let id = ContractId::decode(&mut &id[..]).expect("Bad contract id");
+            let message = decode_hex(&message);
+            let query = Query::InkMessage(message);
+
+            let result: Result<Response, QueryError> =
+                query::query(url, id, query).await.expect("Query failed");
+
+            let response = match result {
+                Err(err) => {
+                    println!("Error: {:?}", err);
+                    return;
+                }
+                Ok(response) => response,
+            };
+            match response {
+                Response::InkMessageReturn(ret) => {
+                    println!("return: ({})", hex::encode(ret));
+                }
+            }
+        }
+    }
 }
 
 fn try_decode_hex(hex_str: &str) -> Result<Vec<u8>, hex::FromHexError> {
