@@ -143,3 +143,21 @@ pub mod messaging {
         },
     }
 }
+
+#[test]
+fn test_make_pink_request() {
+    use hex_literal::hex;
+    use crate::secret_channel::Payload;
+
+    let request = messaging::PinkRequest::Deploy {
+        worker: phala_types::WorkerPublicKey(hex!("3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d")),
+        nonce: vec![],
+        owner: hex!("3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d").into(),
+        contract: include_bytes!("fixtures/flip.contract").to_vec(),
+        input_data: hex!("9bae9d5e01").to_vec(),
+        salt: vec![],
+        key: [0; 64],
+    };
+    let message = Payload::Plain(request);
+    println!("message: {}", hex::encode(message.encode()));
+}
