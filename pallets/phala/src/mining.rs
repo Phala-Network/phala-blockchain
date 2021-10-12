@@ -191,7 +191,7 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -397,9 +397,9 @@ pub mod pallet {
 				w += migrations::initialize::<T>();
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
-			} else if old == 1 {
-				// Triggers GK RepairV event to rescure the slashed miners due to incorrectly
-				// applied tokenomic.
+			} else if old == 2 {
+				// Triggers GK RepairV event (again) to rescure the slashed miners due to
+				// incorrectly applied tokenomic.
 				w += migrations::repair_v::<T>();
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
@@ -1001,7 +1001,7 @@ pub mod pallet {
 		pub fn repair_v<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::push_message(GatekeeperEvent::RepairV);
+			Pallet::<T>::queue_message(GatekeeperEvent::RepairV);
 			T::DbWeight::get().writes(1)
 		}
 	}
