@@ -692,7 +692,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
 
                 info!(
-                    "Incoming pink deploy event: origin={} onwer={}, nonce={} contract_size={}",
+                    "Incoming pink deploy event: origin={}, onwer={}, nonce={}, contract_size={}",
                     origin,
                     owner,
                     hex::encode(&nonce),
@@ -723,13 +723,24 @@ impl<Platform: pal::Platform> System<Platform> {
                     })()
                 };
 
-                if let Err(err) = &result {
-                    error!(
-                        "Deploy contract failed: {} owner: {:?} nonce: {}",
-                        err,
-                        owner,
-                        hex::encode(&nonce)
-                    );
+                match &result {
+                    Err(err) => {
+                        error!(
+                            "Deploy contract error: {}, owner: {:?}, nonce: {}",
+                            err,
+                            owner,
+                            hex::encode(&nonce)
+                        );
+                    }
+                    Ok(addr) => {
+                        info!(
+                            "Contract deployed: owner: {:?}, nonce: {}, address: {}",
+                            owner,
+                            hex::encode(&nonce),
+                            hex::encode(addr),
+                        );
+
+                    }
                 }
 
                 let message = PinkReport::DeployStatus {

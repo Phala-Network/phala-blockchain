@@ -42,7 +42,7 @@ impl Pink {
         let instance = pink::Contract::new(origin.clone(), file.source.wasm, input_data, salt)
             .map_err(|err| {
                 anyhow!(
-                    "Instantiate contract failed: {:?} origin={:?}, code_hash: {:?}",
+                    "Instantiate contract failed: {:?} origin={:?}, code_hash={:?}",
                     err,
                     origin,
                     code_hash,
