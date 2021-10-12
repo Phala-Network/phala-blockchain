@@ -699,15 +699,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     contract.len()
                 );
 
-                if !origin.is_gatekeeper() {
-                    error!("Some one attempt to deploy pink instance from out of GK!");
+                if !origin.is_gatekeeper() && !origin.is_pallet() {
+                    error!("Attempt to deploy a pink instance from out of GK!");
                     return;
                 }
 
-                let result = {
+                let result: Result<ContractId, String> = {
                     let owner = owner.clone();
                     let contracts = &mut self.contracts;
-                    (move || -> Result<ContractId, String> {
+                    (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
                         let result =
