@@ -103,6 +103,20 @@ pub mod pallet {
 			Self::dispatch_message(message);
 			Ok(())
 		}
+
+		// Force push a from-pallet message.
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn force_push_pallet_message(
+			origin: OriginFor<T>,
+			destination: Vec<u8>,
+			payload: Vec<u8>,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			let sender = MessageOrigin::Pallet(b"ForcePushed".to_vec());
+			let message = Message::new(sender, destination, payload);
+			Self::dispatch_message(message);
+			Ok(())
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
