@@ -201,6 +201,11 @@ impl<T: Runtime> ClientBuilder<T> {
 
     /// Creates a new Client.
     pub async fn build<'a>(self) -> Result<Client<T>, Error> {
+        self.build_at(None).await
+    }
+
+    /// Creates a new Client with the metadata at some specific block.
+    pub async fn build_at<'a>(self, hash: Option<T::Hash>) -> Result<Client<T>, Error> {
         let client = if let Some(client) = self.client {
             client
         } else {
@@ -221,7 +226,7 @@ impl<T: Runtime> ClientBuilder<T> {
             rpc.accept_weak_inclusion();
         }
         let (metadata, genesis_hash, runtime_version, properties) = future::join4(
-            rpc.metadata(),
+            rpc.metadata_at(hash),
             rpc.genesis_hash(),
             rpc.runtime_version(None),
             rpc.system_properties(),

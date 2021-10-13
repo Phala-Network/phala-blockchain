@@ -417,12 +417,18 @@ impl<T: Runtime> Rpc<T> {
         }
     }
 
-    /// Fetch the metadata
-    pub async fn metadata(&self) -> Result<Metadata, Error> {
-        let bytes: Bytes = self.client.request("state_getMetadata", &[]).await?;
+    /// Fetch the metadata at a certain block hash
+    pub async fn metadata_at(&self, hash: Option<T::Hash>) -> Result<Metadata, Error> {
+        let params = &[to_json_value(hash)?];
+        let bytes: Bytes = self.client.request("state_getMetadata", params).await?;
         let meta: RuntimeMetadataPrefixed = Decode::decode(&mut &bytes[..])?;
         let metadata: Metadata = meta.try_into()?;
         Ok(metadata)
+    }
+
+    /// Fetch the metadata
+    pub async fn metadata(&self) -> Result<Metadata, Error> {
+        self.metadata_at(None).await
     }
 
     /// Fetch system properties
