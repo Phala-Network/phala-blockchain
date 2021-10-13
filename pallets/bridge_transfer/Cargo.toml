@@ -49,5 +49,7 @@ std = [
 	"sp-arithmetic/std",
 	"frame-support/std",
 	"frame-system/std",
+	"frame-benchmarking/std",
 	"pallet-bridge/std",
+	"phala-pallets/std",
 ]
