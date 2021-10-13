@@ -19,13 +19,13 @@ mod msg_sync;
 mod notify_client;
 mod runtimes;
 
-pub mod types;
 pub mod chain_client;
+pub mod types;
 
 use crate::error::Error;
 use crate::types::{
-    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, OpaqueSignedBlock, PrClient, Runtime,
-    SrSigner, XtClient, NumberOrHex
+    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, NumberOrHex, OpaqueSignedBlock,
+    PrClient, Runtime, SrSigner, XtClient,
 };
 use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
@@ -169,6 +169,13 @@ struct Args {
         help = "Max number of messages to be submitted per-round"
     )]
     max_sync_msgs_per_round: u64,
+
+    #[structopt(
+        default_value = "0x5429c83d1da5a9e9cebe51cd4e060a6ad9cec88432ce5f43b1cd2aa82fbb264c",
+        long,
+        help = "Fetch the metadata at this relaychain block. Mitigation for #529. Only used with --parachain"
+    )]
+    b529_mitigation_metadata_block: String,
 }
 
 struct BlockSyncState {
@@ -758,11 +765,11 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     }
 }
 
-pub async fn subxt_connect(uri: &str) -> Result<XtClient> {
+pub async fn subxt_connect(uri: &str, hash: Option<sp_core::H256>) -> Result<XtClient> {
     let client = subxt::ClientBuilder::<Runtime>::new()
         .set_url(uri)
         .skip_type_sizes_check()
-        .build()
+        .build_at(hash)
         .await?;
     Ok(client)
 }
@@ -774,11 +781,22 @@ async fn bridge(args: Args) -> Result<()> {
         .init();
 
     // Connect to substrate
-    let client = subxt_connect(&args.substrate_ws_endpoint).await?;
+
+    // TODO: Mitigation for #529. It tries to fetch the Metadata v13. Remove once subxt supports
+    // Metadata v14.
+    let maybe_block_hash = if args.parachain {
+        Some(sp_core::H256::from_str(
+            &args.b529_mitigation_metadata_block,
+        )?)
+    } else {
+        None
+    };
+
+    let client = subxt_connect(&args.substrate_ws_endpoint, maybe_block_hash).await?;
     info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
 
     let paraclient = if args.parachain {
-        let paraclient = subxt_connect(&args.collator_ws_endpoint).await?;
+        let paraclient = subxt_connect(&args.collator_ws_endpoint, None).await?;
         info!(
             "Connected to parachain node at: {}",
             args.collator_ws_endpoint

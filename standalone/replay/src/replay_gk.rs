@@ -198,7 +198,7 @@ pub async fn replay(
     bind_addr: String,
     assume_finalized: u32,
 ) -> Result<()> {
-    let mut client = pherry::subxt_connect(&node_uri)
+    let mut client = pherry::subxt_connect(&node_uri, None)
         .await
         .expect("Failed to connect to substrate");
     log::info!("Connected to substrate at: {}", node_uri);
@@ -256,7 +256,7 @@ pub async fn replay(
 
         client = loop {
             log::info!("Reconnecting to substrate");
-            let client = match pherry::subxt_connect(&node_uri).await {
+            let client = match pherry::subxt_connect(&node_uri, None).await {
                 Ok(client) => client,
                 Err(err) => {
                     log::error!("Failed to connect to substrate: {}", err);

@@ -1,4 +1,7 @@
-use phactory_api::{blocks::{StorageChanges, StorageProof}, pruntime_client};
+use phactory_api::{
+    blocks::{StorageChanges, StorageProof},
+    pruntime_client,
+};
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519;
 use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
