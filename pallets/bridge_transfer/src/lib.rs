@@ -14,6 +14,7 @@ pub mod pallet {
 		fail,
 		pallet_prelude::*,
 		traits::{Currency, ExistenceRequirement, OnUnbalanced, StorageVersion, WithdrawReasons},
+		transactional,
 	};
 	use frame_system::pallet_prelude::*;
 	pub use pallet_bridge as bridge;
@@ -217,6 +218,7 @@ pub mod pallet {
 
 		/// Transfer some amount of specific asset to some recipient on a (whitelisted) distination chain.
 		#[pallet::weight(195_000_000)]
+		#[transactional]
 		pub fn transfer_assets(
 			origin: OriginFor<T>,
 			asset: bridge::ResourceId,
@@ -276,6 +278,7 @@ pub mod pallet {
 
 		/// Transfers some amount of the native token to some recipient on a (whitelisted) destination chain.
 		#[pallet::weight(195_000_000)]
+		#[transactional]
 		pub fn transfer_native(
 			origin: OriginFor<T>,
 			amount: BalanceOf<T>,
