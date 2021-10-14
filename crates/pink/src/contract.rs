@@ -1,12 +1,18 @@
 use scale::{Decode, Encode};
-use sp_runtime::DispatchError;
 use sp_core::Hasher as _;
+use sp_runtime::DispatchError;
 
 use crate::{
-    storage::{InMemoryBackend, Storage},
     runtime::Contracts,
+    storage::{InMemoryBackend, Storage},
     types::{AccountId, Hashing, ENOUGH, GAS_LIMIT},
 };
+
+#[derive(Debug)]
+pub struct ExecError {
+    source: DispatchError,
+    message: String,
+}
 
 pub struct Contract {
     storage: Storage<InMemoryBackend>,
@@ -27,12 +33,12 @@ impl Contract {
         code: Vec<u8>,
         input_data: Vec<u8>,
         salt: Vec<u8>,
-    ) -> Result<Self, DispatchError> {
+    ) -> Result<Self, ExecError> {
         let mut storage = Storage::new(InMemoryBackend::default());
         let code_hash = Hashing::hash(&code);
 
-        let address = storage.execute_with(false, move || -> Result<_, DispatchError> {
-            let _ = Contracts::bare_instantiate(
+        let address = storage.execute_with(false, move || -> Result<_, ExecError> {
+            let result = Contracts::bare_instantiate(
                 origin.clone(),
                 ENOUGH,
                 GAS_LIMIT,
@@ -40,10 +46,18 @@ impl Contract {
                 input_data,
                 salt.clone(),
                 false,
-                false,
-            )
-            .result?;
-            Result::<_, DispatchError>::Ok(Contracts::contract_address(&origin, &code_hash, &salt))
+                true,
+            );
+            match result.result {
+                Err(err) => {
+                    return Err(ExecError {
+                        source: err,
+                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                    });
+                }
+                Ok(_) => (),
+            }
+            Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         })?;
 
         Ok(Self { storage, address })
@@ -55,7 +69,7 @@ impl Contract {
         selector: [u8; 4],
         args: impl Encode,
         salt: Vec<u8>,
-    ) -> Result<Self, DispatchError> {
+    ) -> Result<Self, ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
@@ -73,14 +87,21 @@ impl Contract {
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
-    ) -> Result<Vec<u8>, DispatchError> {
+    ) -> Result<Vec<u8>, ExecError> {
         let addr = self.address.clone();
         let rv = self
             .storage
-            .execute_with(rollback, move || -> Result<_, DispatchError> {
-                let result =
-                    Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, false);
-                result.result
+            .execute_with(rollback, move || -> Result<_, ExecError> {
+                let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
+                match result.result {
+                    Err(err) => {
+                        return Err(ExecError {
+                            source: err,
+                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                        });
+                    }
+                    Ok(rv) => Ok(rv),
+                }
             })?;
         Ok(rv.data.0)
     }
@@ -92,12 +113,15 @@ impl Contract {
         selector: [u8; 4],
         args: impl Encode,
         rollback: bool,
-    ) -> Result<RV, DispatchError> {
+    ) -> Result<RV, ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
         let rv = self.bare_call(origin, input_data, rollback)?;
-        Ok(Decode::decode(&mut &rv[..]).or(Err(DispatchError::Other("Decode result failed")))?)
+        Ok(Decode::decode(&mut &rv[..]).or(Err(ExecError {
+            source: DispatchError::Other("Decode result failed"),
+            message: Default::default(),
+        }))?)
     }
 
     pub fn commit_storage_changes(&mut self) {
