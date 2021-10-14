@@ -1,13 +1,15 @@
 use frame_support::assert_ok;
+use hex_literal::hex;
 use pink::Contract;
 use sp_runtime::AccountId32;
-use hex_literal::hex;
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
 #[test]
 fn test_ink_flip() {
+    let mut storage = Contract::new_storage();
     let mut contract = Contract::new_with_selector(
+        &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
         hex!("9bae9d5e"), // init_value
@@ -18,6 +20,7 @@ fn test_ink_flip() {
 
     let result: bool = contract
         .call_with_selector(
+            &mut storage,
             ALICE.clone(),
             hex!("2f865bd9"), // get
             (),
@@ -29,6 +32,7 @@ fn test_ink_flip() {
 
     let _: () = contract
         .call_with_selector(
+            &mut storage,
             ALICE.clone(),
             hex!("633aa551"), // flip
             (),
@@ -38,6 +42,7 @@ fn test_ink_flip() {
 
     let result: bool = contract
         .call_with_selector(
+            &mut storage,
             ALICE.clone(),
             hex!("2f865bd9"), // get
             (),
@@ -49,6 +54,7 @@ fn test_ink_flip() {
 
     let result: (u32, u128) = contract
         .call_with_selector(
+            &mut storage,
             ALICE.clone(),
             hex!("f7dff04c"), // echo
             (42u32, 24u128),
@@ -58,10 +64,11 @@ fn test_ink_flip() {
     assert_eq!(result, (42, 24));
 }
 
-
 #[test]
 fn test_load_contract_file() {
-    assert_ok!(pink::ContractFile::load(include_bytes!("./fixtures/flip/flip.contract")));
+    assert_ok!(pink::ContractFile::load(include_bytes!(
+        "./fixtures/flip/flip.contract"
+    )));
 }
 
 #[test]

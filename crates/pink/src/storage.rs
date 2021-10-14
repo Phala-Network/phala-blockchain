@@ -70,11 +70,17 @@ where
         self.backend.full_storage_root(delta, child_delta)
     }
 
-    pub fn commit_changes(&mut self, root: Hash, transaction: Backend::Transaction) {
+    pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {
         self.backend.commit_transaction(root, transaction)
     }
 
     pub fn clear_changes(&mut self) {
         self.overlay = Default::default();
+    }
+
+    pub fn commit_changes(&mut self) {
+        let (root, transaction) = self.changes_transaction();
+        self.commit_transaction(root, transaction);
+        self.clear_changes();
     }
 }

@@ -4,9 +4,11 @@ use sp_runtime::DispatchError;
 
 use crate::{
     runtime::Contracts,
-    storage::{InMemoryBackend, Storage},
+    storage,
     types::{AccountId, Hashing, ENOUGH, GAS_LIMIT},
 };
+
+type Storage = storage::Storage<storage::InMemoryBackend>;
 
 #[derive(Debug)]
 pub struct ExecError {
@@ -15,11 +17,14 @@ pub struct ExecError {
 }
 
 pub struct Contract {
-    storage: Storage<InMemoryBackend>,
     pub address: AccountId,
 }
 
 impl Contract {
+    pub fn new_storage() -> Storage {
+        Storage::new(Default::default())
+    }
+
     /// Create a new contract instance.
     ///
     /// # Parameters
@@ -29,12 +34,12 @@ impl Contract {
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
     pub fn new(
+        storage: &mut Storage,
         origin: AccountId,
         code: Vec<u8>,
         input_data: Vec<u8>,
         salt: Vec<u8>,
     ) -> Result<Self, ExecError> {
-        let mut storage = Storage::new(InMemoryBackend::default());
         let code_hash = Hashing::hash(&code);
 
         let address = storage.execute_with(false, move || -> Result<_, ExecError> {
@@ -60,10 +65,11 @@ impl Contract {
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         })?;
 
-        Ok(Self { storage, address })
+        Ok(Self { address })
     }
 
     pub fn new_with_selector(
+        storage: &mut Storage,
         origin: AccountId,
         code: Vec<u8>,
         selector: [u8; 4],
@@ -73,7 +79,7 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(origin, code, input_data, salt)
+        Self::new(storage, origin, code, input_data, salt)
     }
 
     /// Call a contract method
@@ -84,31 +90,31 @@ impl Contract {
     /// Returns the SCALE encoded method return value.
     pub fn bare_call(
         &mut self,
+        storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
     ) -> Result<Vec<u8>, ExecError> {
         let addr = self.address.clone();
-        let rv = self
-            .storage
-            .execute_with(rollback, move || -> Result<_, ExecError> {
-                let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
-                match result.result {
-                    Err(err) => {
-                        return Err(ExecError {
-                            source: err,
-                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                        });
-                    }
-                    Ok(rv) => Ok(rv),
+        let rv = storage.execute_with(rollback, move || -> Result<_, ExecError> {
+            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
+            match result.result {
+                Err(err) => {
+                    return Err(ExecError {
+                        source: err,
+                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                    });
                 }
-            })?;
+                Ok(rv) => Ok(rv),
+            }
+        })?;
         Ok(rv.data.0)
     }
 
     /// Call a contract method given it's selector
     pub fn call_with_selector<RV: Decode>(
         &mut self,
+        storage: &mut Storage,
         origin: AccountId,
         selector: [u8; 4],
         args: impl Encode,
@@ -117,17 +123,11 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let rv = self.bare_call(origin, input_data, rollback)?;
+        let rv = self.bare_call(storage, origin, input_data, rollback)?;
         Ok(Decode::decode(&mut &rv[..]).or(Err(ExecError {
             source: DispatchError::Other("Decode result failed"),
             message: Default::default(),
         }))?)
-    }
-
-    pub fn commit_storage_changes(&mut self) {
-        let (root, transaction) = self.storage.changes_transaction();
-        self.storage.commit_changes(root, transaction);
-        self.storage.clear_changes();
     }
 }
 
