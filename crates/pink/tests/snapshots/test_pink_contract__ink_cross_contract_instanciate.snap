@@ -1,0 +1,6 @@
+---
+source: crates/pink/tests/test_pink_contract.rs
+expression: result
+
+---
+true
