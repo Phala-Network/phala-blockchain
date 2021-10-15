@@ -186,10 +186,9 @@ pub mod messaging {
     use phala_types::WorkerPublicKey;
     use pink::types::AccountId;
 
-    bind_topic!(PinkRequest, b"phala/pink/request");
+    bind_topic!(WorkerPinkRequest, b"phala/pink/worker/request");
     #[derive(Encode, Decode, Debug)]
-    pub enum PinkRequest {
-        // TODO: rename to instantiate
+    pub enum WorkerPinkRequest {
         Instantiate {
             group_id: ContractGroupId,
             worker: WorkerPublicKey,
@@ -202,9 +201,9 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(PinkReport, b"phala/pink/report");
+    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
     #[derive(Encode, Decode, Debug)]
-    pub enum PinkReport {
+    pub enum WorkerPinkReport {
         DeployStatus {
             nonce: Vec<u8>,
             owner: AccountId,
@@ -218,7 +217,7 @@ fn test_make_pink_request() {
     use crate::secret_channel::Payload;
     use hex_literal::hex;
 
-    let request = messaging::PinkRequest::Instantiate {
+    let request = messaging::WorkerPinkRequest::Instantiate {
         group_id: Default::default(),
         worker: phala_types::WorkerPublicKey(hex!(
             "3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"

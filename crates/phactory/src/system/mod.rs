@@ -7,7 +7,7 @@ use crate::{
     contracts::{
         pink::{
             group::GroupKeeper,
-            messaging::{PinkReport, PinkRequest},
+            messaging::{WorkerPinkReport, WorkerPinkRequest},
         },
         ExecuteEnv, NativeContract,
     },
@@ -367,7 +367,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    pink_events: SecretReceiver<PinkRequest>,
+    pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
     pub(crate) identity_key: sr25519::Pair,
     pub(crate) ecdh_key: EcdhKey,
@@ -407,7 +407,7 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
             pink_events: SecretReceiver::new_secret(
-                recv_mq.subscribe(PinkRequest::topic()).into(),
+                recv_mq.subscribe(WorkerPinkRequest::topic()).into(),
                 ecdh_key.clone(),
             ),
             identity_key,
@@ -683,10 +683,10 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: PinkRequest,
+        event: WorkerPinkRequest,
     ) {
         match event {
-            PinkRequest::Instantiate {
+            WorkerPinkRequest::Instantiate {
                 group_id,
                 worker,
                 nonce,
@@ -752,7 +752,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
 
                 // TODO.kevin: report address, group_id, pubkey
-                let message = PinkReport::DeployStatus {
+                let message = WorkerPinkReport::DeployStatus {
                     nonce,
                     owner,
                     result,
