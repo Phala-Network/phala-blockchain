@@ -686,7 +686,7 @@ impl<Platform: pal::Platform> System<Platform> {
         event: PinkRequest,
     ) {
         match event {
-            PinkRequest::Deploy {
+            PinkRequest::Instantiate {
                 group_id,
                 worker,
                 nonce,
@@ -701,7 +701,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
 
                 info!(
-                    "Incoming pink deploy event: origin={}, onwer={}, nonce={}, contract_size={}",
+                    "Incoming pink instantiate event: origin={}, onwer={}, nonce={}, contract_size={}",
                     origin,
                     owner,
                     hex::encode(&nonce),
@@ -709,7 +709,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 );
 
                 if !origin.is_gatekeeper() && !origin.is_pallet() {
-                    error!("Attempt to deploy a pink instance from out of GK!");
+                    error!("Attempt to instantiate a pink instance from out of GK!");
                     return;
                 }
 
@@ -735,7 +735,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 match &result {
                     Err(err) => {
                         error!(
-                            "Deploy contract error: {}, owner: {:?}, nonce: {}",
+                            "Instantiate contract error: {}, owner: {:?}, nonce: {}",
                             err,
                             owner,
                             hex::encode(&nonce)
@@ -743,7 +743,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     }
                     Ok(addr) => {
                         info!(
-                            "Contract deployed: owner: {:?}, nonce: {}, address: {}",
+                            "Contract instantiated: owner: {:?}, nonce: {}, address: {}",
                             owner,
                             hex::encode(&nonce),
                             hex::encode(addr),

@@ -44,7 +44,7 @@ impl Pink {
             pink::Contract::new(storage, origin.clone(), wasm_bin, input_data, salt)
                 .map_err(|err| {
                     anyhow!(
-                        "Instantiate contract failed: {:?} origin={:?}, code_hash={:?}",
+                        "Instantiate contract failed: {:?} origin={:?}",
                         err,
                         origin,
                     )
@@ -190,7 +190,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Debug)]
     pub enum PinkRequest {
         // TODO: rename to instantiate
-        Deploy {
+        Instantiate {
             group_id: ContractGroupId,
             worker: WorkerPublicKey,
             nonce: Vec<u8>,
@@ -218,7 +218,7 @@ fn test_make_pink_request() {
     use crate::secret_channel::Payload;
     use hex_literal::hex;
 
-    let request = messaging::PinkRequest::Deploy {
+    let request = messaging::PinkRequest::Instantiate {
         group_id: Default::default(),
         worker: phala_types::WorkerPublicKey(hex!(
             "3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"
