@@ -49,6 +49,7 @@ pub use system::gk;
 pub use storage::{Storage, StorageExt};
 pub use types::BlockInfo;
 pub use side_task::SideTaskManager;
+pub use contracts::pink;
 
 pub mod benchmark;
 
