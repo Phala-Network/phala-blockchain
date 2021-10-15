@@ -3,6 +3,7 @@ use super::{TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::AccountId;
 use lazy_static;
+use phala_mq::traits::MessageChannel;
 use sp_core::hashing::blake2_128;
 use sp_core::H256 as Hash;
 use sp_core::U256;
@@ -269,7 +270,7 @@ impl contracts::NativeContract for SubstrateKitties {
                     };
 
                     self.opend_boxes.push(blind_box_id.clone());
-                    context.mq().send(&data);
+                    context.mq().push_message(&data);
                 }
                 Ok(())
             }

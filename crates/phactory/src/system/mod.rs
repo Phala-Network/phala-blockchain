@@ -29,10 +29,7 @@ use phala_crypto::{
     ecdh::{self, EcdhKey},
     sr25519::{Persistence, KDF},
 };
-use phala_mq::{
-    BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue,
-    Sr25519MessageChannel, TypedReceiver,
-};
+use phala_mq::{BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel, TypedReceiver, traits::MessageChannel};
 use phala_types::{
     contract,
     messaging::{
@@ -315,7 +312,7 @@ trait WorkerStateMachineCallback {
     }
 }
 
-struct WorkerSMDelegate<'a>(&'a Sr25519MessageChannel);
+struct WorkerSMDelegate<'a>(&'a SignedMessageChannel);
 
 impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
@@ -333,7 +330,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("Reporting benchmark: {:?}", report);
-        self.0.send(&report);
+        self.0.push_message(&report);
     }
     fn heartbeat(
         &mut self,
@@ -349,7 +346,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("System: sending {:?}", event);
-        self.0.send(&event);
+        self.0.push_message(&event);
     }
 }
 
@@ -362,7 +359,7 @@ pub struct System<Platform> {
     enable_geoprobing: bool,
     geoip_city_db: String,
     // Messageing
-    egress: Sr25519MessageChannel,
+    egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
@@ -374,7 +371,7 @@ pub struct System<Platform> {
     worker_state: WorkerState,
     // Gatekeeper
     master_key: Option<sr25519::Pair>,
-    pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
+    pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractMap,
     contract_groups: GroupKeeper,
@@ -603,7 +600,7 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pubkey = RegistryEvent::MasterPubkey {
                 master_pubkey: master_key.public(),
             };
-            self.egress.send(&master_pubkey);
+            self.egress.push_message(&master_pubkey);
         }
 
         if self.master_key.is_some() {
@@ -758,7 +755,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     result,
                 };
                 info!("pink instantiate status: {:?}", message);
-                self.egress.send(&message);
+                self.egress.push_message(&message);
             }
         }
     }

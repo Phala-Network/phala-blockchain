@@ -2,6 +2,7 @@ use std::collections::BTreeMap;
 use std::string::ToString;
 
 use anyhow::Result;
+use phala_mq::traits::MessageChannel;
 use core::fmt;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
@@ -125,7 +126,7 @@ impl contracts::NativeContract for Balances {
                             dest,
                             amount: value,
                         };
-                        context.mq().send(&data);
+                        context.mq().push_message(&data);
                         Ok(())
                     } else {
                         Err(TransactionError::InsufficientBalance)

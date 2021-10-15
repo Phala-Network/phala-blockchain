@@ -87,7 +87,7 @@ impl MessageSendQueue {
 pub use msg_channel::*;
 mod msg_channel {
     use super::*;
-    use crate::{types::Path, BindTopic, MessageSigner, SenderId};
+    use crate::{types::Path, MessageSigner, SenderId};
     use parity_scale_codec::Encode;
 
     #[derive(Clone)]
@@ -106,7 +106,7 @@ mod msg_channel {
             }
         }
 
-        pub fn send_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
+        fn send_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
             let sender = self.sender.clone();
             let signer = &self.signer;
 
@@ -132,17 +132,19 @@ mod msg_channel {
             })
         }
 
-        pub fn sendto<M: Encode>(&self, message: &M, to: impl Into<Path>) {
-            self.send_data(message.encode(), to)
-        }
-
-        pub fn send<M: Encode + BindTopic>(&self, message: &M) {
-            self.sendto(message, <M as BindTopic>::topic())
-        }
-
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
-        pub fn set_dummy(&self, dummy: bool) {
+        fn set_dummy(&self, dummy: bool) {
             self.queue.set_dummy_mode(self.sender.clone(), dummy);
+        }
+    }
+
+    impl<T: MessageSigner> crate::traits::MessageChannel for MessageChannel<T> {
+        fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
+            self.send_data(payload, to)
+        }
+
+        fn set_dummy(&self, dummy: bool) {
+            self.set_dummy(dummy);
         }
     }
 }

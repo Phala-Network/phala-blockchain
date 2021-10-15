@@ -9,7 +9,7 @@ use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
 use anyhow::{Context, Error, Result};
 use chain::AccountId;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
+use phala_mq::{MessageOrigin, SignedMessageChannel};
 
 pub mod assets;
 pub mod balances;
@@ -46,9 +46,9 @@ mod support {
 
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
-        mq: &'a MessageChannel,
+        mq: &'a SignedMessageChannel,
         #[allow(unused)] // TODO.kevin: remove this.
-        secret_mq: SecretMessageChannel<'a>,
+        secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
         pub contract_groups: &'a mut GroupKeeper,
     }
 
@@ -57,7 +57,7 @@ mod support {
     }
 
     impl NativeContext<'_> {
-        pub fn mq(&self) -> &MessageChannel {
+        pub fn mq(&self) -> &SignedMessageChannel {
             self.mq
         }
     }
@@ -106,7 +106,7 @@ mod support {
         Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp>,
     {
         contract: Con,
-        send_mq: MessageChannel,
+        send_mq: SignedMessageChannel,
         cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
         ecdh_key: KeyPair,
     }
@@ -124,7 +124,7 @@ mod support {
     {
         pub fn new(
             contract: Con,
-            send_mq: MessageChannel,
+            send_mq: SignedMessageChannel,
             cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
             ecdh_key: KeyPair,
         ) -> Self {

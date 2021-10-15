@@ -2,8 +2,8 @@ pub use receiver::*;
 pub use sender::*;
 
 use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
-use phactory_api::crypto::EncryptedData;
 use parity_scale_codec::{Decode, Encode};
+use phactory_api::crypto::EncryptedData;
 
 #[derive(Encode, Decode, Debug)]
 pub enum Payload<T> {
@@ -12,24 +12,25 @@ pub enum Payload<T> {
 }
 
 mod sender {
-    use phactory_api::crypto::{ecdh, EncryptedData};
     use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, Path, Sr25519MessageChannel};
+    use phactory_api::crypto::{ecdh, EncryptedData};
+    use phala_mq::{BindTopic, Path};
+    use phala_mq::traits::MessageChannel;
 
     pub type KeyPair = ecdh::EcdhKey;
 
     #[allow(unused)] // TODO.kevin: remove this.
-    pub struct SecretMessageChannel<'a> {
+    pub struct SecretMessageChannel<'a, MsgChan> {
         key: &'a KeyPair,
-        mq: &'a Sr25519MessageChannel,
+        mq: &'a MsgChan,
         key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
     }
 
     #[allow(unused)] // TODO.kevin: remove this.
-    impl<'a> SecretMessageChannel<'a> {
+    impl<'a, MsgChan: MessageChannel> SecretMessageChannel<'a, MsgChan> {
         pub fn new(
             key: &'a KeyPair,
-            mq: &'a Sr25519MessageChannel,
+            mq: &'a MsgChan,
             key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
         ) -> Self {
             SecretMessageChannel { key, mq, key_map }
@@ -39,7 +40,7 @@ mod sender {
             (self.key_map)(topic)
         }
 
-        pub fn sendto<M: Encode>(
+        pub fn push_message_to<M: Encode>(
             &self,
             to: impl Into<Path>,
             message: &M,
@@ -54,15 +55,15 @@ mod sender {
             } else {
                 super::Payload::Plain(message)
             };
-            self.mq.send_data(payload.encode(), to)
+            self.mq.push_data(payload.encode(), to)
         }
 
-        pub fn send<M: Encode + BindTopic>(
+        pub fn push_message<M: Encode + BindTopic>(
             &self,
             message: &M,
             remote_pubkey: Option<&ecdh::EcdhPublicKey>,
         ) {
-            self.sendto(<M as BindTopic>::topic(), message, remote_pubkey)
+            self.push_message_to(<M as BindTopic>::topic(), message, remote_pubkey)
         }
     }
 }
@@ -70,8 +71,8 @@ mod sender {
 mod receiver {
     use super::Payload;
     use core::marker::PhantomData;
-    use phactory_api::crypto::ecdh;
     use parity_scale_codec::Decode;
+    use phactory_api::crypto::ecdh;
     use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
     pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
 

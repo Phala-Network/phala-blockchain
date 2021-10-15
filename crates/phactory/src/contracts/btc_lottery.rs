@@ -15,7 +15,8 @@ use anyhow::Result;
 use lazy_static;
 use log::error;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
+use phala_mq::traits::MessageChannel;
+use phala_mq::{MessageOrigin, SignedMessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use sp_core::{crypto::Pair, hashing::blake2_256, sr25519, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
@@ -141,7 +142,7 @@ impl BtcLottery {
 
     pub fn new_round(
         &mut self,
-        mq: &MessageChannel,
+        mq: &SignedMessageChannel,
         round_id: u32,
         total_count: u32,
         winner_count: u32,
@@ -195,7 +196,7 @@ impl BtcLottery {
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
 
-            mq.send(&Lottery::BtcAddresses { address_set });
+            mq.push_message(&Lottery::BtcAddresses { address_set });
         } else {
             error!("Round {} has already started", round_id);
         }
@@ -203,7 +204,7 @@ impl BtcLottery {
 
     pub fn open_lottery(
         &mut self,
-        mq: &MessageChannel,
+        mq: &SignedMessageChannel,
         round_id: u32,
         token_no: u32,
         btc_address: Vec<u8>,
@@ -310,7 +311,7 @@ impl BtcLottery {
                     tx: tx_bytes,
                 }
             };
-            mq.send(&data);
+            mq.push_message(&data);
         } else {
             error!("Round {} has already started", round_id);
         }
