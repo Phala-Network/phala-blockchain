@@ -720,7 +720,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result = contract_groups.instantiate_contract(group_id, owner, &wasm_bin, input_data, salt);
+                        let result = contract_groups.instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
                         match result {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {

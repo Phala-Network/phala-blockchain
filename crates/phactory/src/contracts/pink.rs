@@ -1,8 +1,6 @@
-use std::collections::BTreeMap;
-
 use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
-use anyhow::{anyhow, Context, Result};
+use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use runtime::AccountId;
@@ -38,21 +36,17 @@ impl Pink {
         group: ContractGroupId,
         storage: &mut pink::Storage,
         origin: AccountId,
-        contract_content: &[u8],
+        wasm_bin: Vec<u8>,
         input_data: Vec<u8>,
         salt: Vec<u8>,
     ) -> Result<Self> {
-        // TODO.kevin.: use raw binary
-        let file = pink::ContractFile::load(contract_content).context("Parse contract")?;
-        let code_hash = file.source.hash;
         let instance =
-            pink::Contract::new(storage, origin.clone(), file.source.wasm, input_data, salt)
+            pink::Contract::new(storage, origin.clone(), wasm_bin, input_data, salt)
                 .map_err(|err| {
                     anyhow!(
                         "Instantiate contract failed: {:?} origin={:?}, code_hash={:?}",
                         err,
                         origin,
-                        code_hash,
                     )
                 })?;
         Ok(Self { group, instance })
@@ -159,7 +153,7 @@ pub mod group {
             &mut self,
             group_id: ContractGroupId,
             origin: AccountId,
-            wasm_bin: &[u8],
+            wasm_bin: Vec<u8>,
             input_data: Vec<u8>,
             salt: Vec<u8>,
         ) -> Result<Pink> {
