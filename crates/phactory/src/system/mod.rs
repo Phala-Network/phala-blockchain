@@ -11,6 +11,7 @@ use crate::{
         },
         ExecuteEnv, NativeContract,
     },
+    pink::messaging::ContractInfo,
     secret_channel::{PeelingReceiver, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
@@ -26,10 +27,13 @@ use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
-    ecdh::{self, EcdhKey},
+    ecdh::{self, EcdhKey, EcdhPublicKey},
     sr25519::{Persistence, KDF},
 };
-use phala_mq::{BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel, TypedReceiver, traits::MessageChannel};
+use phala_mq::{
+    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
+    MessageSendQueue, SignedMessageChannel, TypedReceiver,
+};
 use phala_types::{
     contract,
     messaging::{
@@ -478,7 +482,10 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
-        let mut env = ExecuteEnv { block: block, contract_groups: &mut self.contract_groups };
+        let mut env = ExecuteEnv {
+            block: block,
+            contract_groups: &mut self.contract_groups,
+        };
 
         for contract in self.contracts.values_mut() {
             contract.process_messages(&mut env);
@@ -710,20 +717,23 @@ impl<Platform: pal::Platform> System<Platform> {
                     return;
                 }
 
-                let result: Result<ContractId, String> = {
+                let result: Result<(ContractId, EcdhPublicKey), String> = {
                     let owner = owner.clone();
                     let contracts = &mut self.contracts;
                     let contract_groups = &mut self.contract_groups;
+                    let group_id = group_id.clone();
                     (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result = contract_groups.instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
+                        let result = contract_groups
+                            .instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
                         match result {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {
                                 let address = pink.id();
+                                let pubkey = ecdh_key.public();
                                 install_contract(contracts, pink, contract_key, ecdh_key, block);
-                                Ok(address)
+                                Ok((address, pubkey))
                             }
                         }
                     })()
@@ -740,10 +750,11 @@ impl<Platform: pal::Platform> System<Platform> {
                     }
                     Ok(addr) => {
                         info!(
-                            "Contract instantiated: owner: {:?}, nonce: {}, address: {}",
+                            "Contract instantiated: owner: {:?}, nonce: {}, address: {}, group: {}",
                             owner,
                             hex::encode(&nonce),
-                            hex::encode(addr),
+                            hex::encode(addr.0),
+                            hex::encode(&group_id),
                         );
                     }
                 }
@@ -752,7 +763,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 let message = WorkerPinkReport::DeployStatus {
                     nonce,
                     owner,
-                    result,
+                    result: result.map(|(id, pubkey)| ContractInfo {
+                        id,
+                        group_id,
+                        pubkey,
+                    }),
                 };
                 info!("pink instantiate status: {:?}", message);
                 self.egress.push_message(&message);

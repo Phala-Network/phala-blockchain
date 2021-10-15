@@ -181,7 +181,7 @@ pub mod group {
 
 pub mod messaging {
     use parity_scale_codec::{Decode, Encode};
-    use phala_crypto::sr25519::Sr25519SecretKey;
+    use phala_crypto::{ecdh::EcdhPublicKey, sr25519::Sr25519SecretKey};
     use phala_mq::{bind_topic, ContractGroupId, ContractId};
     use phala_types::WorkerPublicKey;
     use pink::types::AccountId;
@@ -207,8 +207,15 @@ pub mod messaging {
         DeployStatus {
             nonce: Vec<u8>,
             owner: AccountId,
-            result: Result<ContractId, String>,
+            result: Result<ContractInfo, String>,
         },
+    }
+
+    #[derive(Encode, Decode, Debug)]
+    pub struct ContractInfo {
+        pub id: ContractId,
+        pub group_id: ContractGroupId,
+        pub pubkey: EcdhPublicKey,
     }
 
     bind_topic!(GKPinkRequest, b"phala/pink/gk/request");
