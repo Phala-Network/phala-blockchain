@@ -210,6 +210,17 @@ pub mod messaging {
             result: Result<ContractId, String>,
         },
     }
+
+    bind_topic!(GKPinkRequest, b"phala/pink/gk/request");
+    #[derive(Encode, Decode, Debug)]
+    pub enum GKPinkRequest {
+        Instantiate {
+            group_id: Option<ContractGroupId>, // None for create a new one
+            worker: WorkerPublicKey, // TODO: None for choosing one by GK or by the group_id?
+            wasm_bin: Vec<u8>,
+            input_data: Vec<u8>,
+        },
+    }
 }
 
 #[test]
