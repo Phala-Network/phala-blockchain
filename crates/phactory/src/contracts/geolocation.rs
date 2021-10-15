@@ -92,9 +92,9 @@ impl contracts::NativeContract for Geolocation {
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
         origin: MessageOrigin,
         cmd: Command,
+        context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             Command::UpdateGeolocation { geocoding } => {
@@ -133,6 +133,7 @@ impl contracts::NativeContract for Geolocation {
         &mut self,
         origin: Option<&chain::AccountId>,
         req: Request,
+        _: &mut contracts::QueryContext,
     ) -> Result<Response, Error> {
         match req {
             Request::GetGeocoding { account } => {
@@ -168,7 +169,7 @@ impl contracts::NativeContract for Geolocation {
         }
     }
 
-    fn on_block_end(&mut self, context: &NativeContext) {
+    fn on_block_end(&mut self, context: &mut NativeContext) {
         self.guard(&context.block.block_number);
     }
 }

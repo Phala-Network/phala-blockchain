@@ -1,8 +1,8 @@
 use crate::secret_channel::{
     storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
 };
-use std::fmt::Debug;
 use std::convert::TryFrom as _;
+use std::fmt::Debug;
 
 use crate::system::{TransactionError, TransactionResult};
 use crate::types::{deopaque_query, OpaqueError, OpaqueQuery, OpaqueReply};
@@ -16,10 +16,10 @@ pub mod balances;
 pub mod btc_lottery;
 pub mod data_plaza;
 // pub mod diem;
-pub mod substrate_kitties;
-pub mod web3analytics;
 pub mod geolocation;
 pub mod pink;
+pub mod substrate_kitties;
+pub mod web3analytics;
 
 pub use phala_types::contract::*;
 
@@ -35,11 +35,13 @@ pub use support::*;
 mod support {
     use core::convert::TryInto;
 
+    use super::pink::group::GroupKeeper;
     use super::*;
     use crate::types::BlockInfo;
 
     pub struct ExecuteEnv<'a> {
         pub block: &'a BlockInfo<'a>,
+        pub contract_groups: &'a mut GroupKeeper,
     }
 
     pub struct NativeContext<'a> {
@@ -47,6 +49,11 @@ mod support {
         mq: &'a MessageChannel,
         #[allow(unused)] // TODO.kevin: remove this.
         secret_mq: SecretMessageChannel<'a>,
+        pub contract_groups: &'a mut GroupKeeper,
+    }
+
+    pub struct QueryContext<'a> {
+        pub contract_groups: &'a mut GroupKeeper,
     }
 
     impl NativeContext<'_> {
@@ -61,6 +68,7 @@ mod support {
             &mut self,
             origin: Option<&chain::AccountId>,
             req: OpaqueQuery,
+            context: &mut QueryContext,
         ) -> Result<OpaqueReply, OpaqueError>;
         fn process_messages(&mut self, env: &mut ExecuteEnv);
     }
@@ -73,9 +81,9 @@ mod support {
         fn id(&self) -> ContractId;
         fn handle_command(
             &mut self,
-            _context: &NativeContext,
             _origin: MessageOrigin,
             _cmd: Self::Cmd,
+            _context: &mut NativeContext,
         ) -> TransactionResult {
             Ok(())
         }
@@ -83,11 +91,9 @@ mod support {
             &mut self,
             origin: Option<&chain::AccountId>,
             req: Self::QReq,
+            context: &mut QueryContext,
         ) -> Self::QResp;
-        fn on_block_end(
-            &mut self,
-            _context: &NativeContext,
-        ) {}
+        fn on_block_end(&mut self, _context: &mut NativeContext) {}
     }
 
     pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
@@ -150,8 +156,9 @@ mod support {
             &mut self,
             origin: Option<&runtime::AccountId>,
             req: OpaqueQuery,
+            context: &mut QueryContext,
         ) -> Result<OpaqueReply, OpaqueError> {
-            let response = self.contract.handle_query(origin, deopaque_query(req)?);
+            let response = self.contract.handle_query(origin, deopaque_query(req)?, context);
             Ok(response.encode())
         }
 
@@ -165,16 +172,17 @@ mod support {
                     .flatten()
             };
             let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq, &key_map);
-            let context = NativeContext {
+            let mut context = NativeContext {
                 block: env.block,
                 mq: &self.send_mq,
                 secret_mq,
+                contract_groups: &mut env.contract_groups,
             };
             loop {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
                         Ok((_, cmd, origin)) => {
-                            let status = self.contract.handle_command(&context, origin, cmd);
+                            let status = self.contract.handle_command(origin, cmd, &mut context);
                             if let Err(err) = status {
                                 log::error!("Contract {:?} handle command error: {:?}", self.id(), err);
                             }
@@ -188,7 +196,7 @@ mod support {
                     break;
                 }
             }
-            self.contract.on_block_end(&context)
+            self.contract.on_block_end(&mut context)
         }
     }
 }

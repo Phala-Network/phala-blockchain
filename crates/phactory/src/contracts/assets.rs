@@ -1,10 +1,10 @@
-use std::string::ToString;
 use anyhow::Result;
 use core::fmt;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
 use std::collections::BTreeMap;
+use std::string::ToString;
 
 use super::{NativeContext, TransactionError, TransactionResult};
 use crate::contracts;
@@ -102,9 +102,9 @@ impl contracts::NativeContract for Assets {
 
     fn handle_command(
         &mut self,
-        _context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        _context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             Command::Issue { symbol, total } => {
@@ -217,7 +217,12 @@ impl contracts::NativeContract for Assets {
         }
     }
 
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Self::QReq) -> Self::QResp {
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: Self::QReq,
+        _context: &mut contracts::QueryContext,
+    ) -> Self::QResp {
         let inner = || -> Result<Response> {
             match req {
                 Request::Balance { id, account } => {

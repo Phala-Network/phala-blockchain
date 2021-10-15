@@ -69,9 +69,9 @@ impl contracts::NativeContract for Balances {
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
         origin: MessageOrigin,
         cmd: Command,
+        context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             Command::Transfer { dest, value } => {
@@ -156,7 +156,12 @@ impl contracts::NativeContract for Balances {
         }
     }
 
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: Request,
+        _context: &mut contracts::QueryContext,
+    ) -> Response {
         let inner = || -> Result<Response> {
             match req {
                 Request::FreeBalance { account } => {

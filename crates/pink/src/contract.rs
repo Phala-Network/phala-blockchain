@@ -8,7 +8,7 @@ use crate::{
     types::{AccountId, Hashing, ENOUGH, GAS_LIMIT},
 };
 
-type Storage = storage::Storage<storage::InMemoryBackend>;
+pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
 #[derive(Debug)]
 pub struct ExecError {

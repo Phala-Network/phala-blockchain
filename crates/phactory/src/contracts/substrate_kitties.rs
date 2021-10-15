@@ -9,8 +9,8 @@ use sp_core::U256;
 extern crate runtime as chain;
 use parity_scale_codec::{Decode, Encode};
 
-use std::collections::BTreeMap;
 use rand::Rng;
+use std::collections::BTreeMap;
 
 use super::NativeContext;
 use phala_types::messaging::{KittiesCommand, KittyTransfer, MessageOrigin};
@@ -145,9 +145,9 @@ impl contracts::NativeContract for SubstrateKitties {
     // Handles the commands from transactions on the blockchain. This method doesn't respond.
     fn handle_command(
         &mut self,
-        context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             // Handle the `Pack` command
@@ -292,7 +292,12 @@ impl contracts::NativeContract for SubstrateKitties {
     }
 
     // Handles a direct query and responds to the query. It shouldn't modify the contract states.
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: Request,
+        _context: &mut contracts::QueryContext,
+    ) -> Response {
         let inner = || -> Result<Response, Error> {
             match req {
                 Request::ObserveBox => Ok(Response::ObserveBox {

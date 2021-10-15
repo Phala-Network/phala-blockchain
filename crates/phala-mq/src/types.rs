@@ -11,6 +11,7 @@ pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
 pub type ContractId = H256;
 pub type AccountId = H256;
+pub type ContractGroupId = H256;
 
 pub fn contract_id256(id: u32) -> ContractId {
     ContractId::from_low_u64_be(id as u64)

@@ -5,7 +5,10 @@ mod side_tasks;
 use crate::{
     benchmark,
     contracts::{
-        pink::messaging::{PinkReport, PinkRequest},
+        pink::{
+            group::GroupKeeper,
+            messaging::{PinkReport, PinkRequest},
+        },
         ExecuteEnv, NativeContract,
     },
     secret_channel::{PeelingReceiver, SecretReceiver},
@@ -374,6 +377,7 @@ pub struct System<Platform> {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
 
     pub(crate) contracts: ContractMap,
+    contract_groups: GroupKeeper,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -412,6 +416,7 @@ impl<Platform: pal::Platform> System<Platform> {
             master_key,
             gatekeeper: None,
             contracts,
+            contract_groups: Default::default(),
         }
     }
 
@@ -425,7 +430,10 @@ impl<Platform: pal::Platform> System<Platform> {
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        contract.handle_query(origin, req)
+        let mut context = contracts::QueryContext {
+            contract_groups: &mut self.contract_groups,
+        };
+        contract.handle_query(origin, req, &mut context)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
@@ -473,7 +481,7 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
-        let mut env = ExecuteEnv { block: block };
+        let mut env = ExecuteEnv { block: block, contract_groups: &mut self.contract_groups };
 
         for contract in self.contracts.values_mut() {
             contract.process_messages(&mut env);
@@ -679,10 +687,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             PinkRequest::Deploy {
+                group_id,
                 worker,
                 nonce,
                 owner,
-                contract,
+                wasm_bin,
                 input_data,
                 salt,
                 key,
@@ -696,7 +705,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     origin,
                     owner,
                     hex::encode(&nonce),
-                    contract.len()
+                    wasm_bin.len(),
                 );
 
                 if !origin.is_gatekeeper() && !origin.is_pallet() {
@@ -707,11 +716,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 let result: Result<ContractId, String> = {
                     let owner = owner.clone();
                     let contracts = &mut self.contracts;
+                    let contract_groups = &mut self.contract_groups;
                     (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result =
-                            contracts::pink::Pink::instantiate(owner, &contract, input_data, salt);
+                        let result = contract_groups.instantiate_contract(group_id, owner, &wasm_bin, input_data, salt);
                         match result {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {
@@ -739,15 +748,16 @@ impl<Platform: pal::Platform> System<Platform> {
                             hex::encode(&nonce),
                             hex::encode(addr),
                         );
-
                     }
                 }
 
+                // TODO.kevin: report address, group_id, pubkey
                 let message = PinkReport::DeployStatus {
                     nonce,
                     owner,
                     result,
                 };
+                info!("pink instantiate status: {:?}", message);
                 self.egress.send(&message);
             }
         }

@@ -329,9 +329,9 @@ impl contracts::NativeContract for BtcLottery {
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             Command::PalletCommand(cmd) => self.handle_pallet_command(context, origin, cmd),
@@ -339,7 +339,12 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        _origin: Option<&chain::AccountId>,
+        req: Request,
+        _context: &mut contracts::QueryContext,
+    ) -> Response {
         match req {
             Request::GetAllRounds => Response::GetAllRounds {
                 round_id: self.round_id,
