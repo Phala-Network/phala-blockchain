@@ -27,7 +27,7 @@ use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
-    ecdh::{self, EcdhKey, EcdhPublicKey},
+    ecdh::{self, EcdhKey},
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{
@@ -40,7 +40,7 @@ use phala_types::{
         DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
-    MasterPublicKey, WorkerPublicKey,
+    EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
@@ -731,7 +731,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {
                                 let address = pink.id();
-                                let pubkey = ecdh_key.public();
+                                let pubkey = EcdhPublicKey(ecdh_key.public());
                                 install_contract(contracts, pink, contract_key, ecdh_key, block);
                                 Ok((address, pubkey))
                             }
@@ -762,7 +762,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 // TODO.kevin: report address, group_id, pubkey
                 let message = WorkerPinkReport::DeployStatus {
                     nonce,
-                    owner,
+                    owner: phala_types::messaging::AccountId(owner.into()),
                     result: result.map(|(id, pubkey)| ContractInfo {
                         id,
                         group_id,

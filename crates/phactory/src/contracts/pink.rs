@@ -186,6 +186,8 @@ pub mod messaging {
     use phala_types::WorkerPublicKey;
     use pink::types::AccountId;
 
+    pub use phala_types::messaging::{WorkerPinkReport, ContractInfo};
+
     bind_topic!(WorkerPinkRequest, b"phala/pink/worker/request");
     #[derive(Encode, Decode, Debug)]
     pub enum WorkerPinkRequest {
@@ -199,23 +201,6 @@ pub mod messaging {
             salt: Vec<u8>,
             key: Sr25519SecretKey,
         },
-    }
-
-    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
-    #[derive(Encode, Decode, Debug)]
-    pub enum WorkerPinkReport {
-        DeployStatus {
-            nonce: Vec<u8>,
-            owner: AccountId,
-            result: Result<ContractInfo, String>,
-        },
-    }
-
-    #[derive(Encode, Decode, Debug)]
-    pub struct ContractInfo {
-        pub id: ContractId,
-        pub group_id: ContractGroupId,
-        pub pubkey: EcdhPublicKey,
     }
 
     bind_topic!(GKPinkRequest, b"phala/pink/gk/request");
