@@ -517,7 +517,7 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				WorkerPinkReport::DeployStatus { nonce: _, owner: _, result } => {
+				WorkerPinkReport::InstantiateStatus { nonce: _, owner: _, result } => {
 					if let Ok(info) = result {
 						ContractKey::<T>::insert(info.id, info.pubkey);
 					}

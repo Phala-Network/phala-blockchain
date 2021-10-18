@@ -520,7 +520,7 @@ pub mod messaging {
     bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
     #[derive(Encode, Decode, Debug)]
     pub enum WorkerPinkReport {
-        DeployStatus {
+        InstantiateStatus {
             nonce: Vec<u8>,
             owner: AccountId,
             result: Result<ContractInfo, String>,

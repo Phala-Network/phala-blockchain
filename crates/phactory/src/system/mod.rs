@@ -759,8 +759,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     }
                 }
 
-                // TODO.kevin: report address, group_id, pubkey
-                let message = WorkerPinkReport::DeployStatus {
+                let message = WorkerPinkReport::InstantiateStatus {
                     nonce,
                     owner: phala_types::messaging::AccountId(owner.into()),
                     result: result.map(|(id, pubkey)| ContractInfo {
