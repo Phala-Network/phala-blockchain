@@ -40,15 +40,10 @@ impl Pink {
         input_data: Vec<u8>,
         salt: Vec<u8>,
     ) -> Result<Self> {
-        let instance =
-            pink::Contract::new(storage, origin.clone(), wasm_bin, input_data, salt)
-                .map_err(|err| {
-                    anyhow!(
-                        "Instantiate contract failed: {:?} origin={:?}",
-                        err,
-                        origin,
-                    )
-                })?;
+        let instance = pink::Contract::new(storage, origin.clone(), wasm_bin, input_data, salt)
+            .map_err(
+                |err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,),
+            )?;
         Ok(Self { group, instance })
     }
 }
@@ -181,12 +176,12 @@ pub mod group {
 
 pub mod messaging {
     use parity_scale_codec::{Decode, Encode};
-    use phala_crypto::{ecdh::EcdhPublicKey, sr25519::Sr25519SecretKey};
-    use phala_mq::{bind_topic, ContractGroupId, ContractId};
+    use phala_crypto::sr25519::Sr25519SecretKey;
+    use phala_mq::{bind_topic, ContractGroupId};
     use phala_types::WorkerPublicKey;
     use pink::types::AccountId;
 
-    pub use phala_types::messaging::{WorkerPinkReport, ContractInfo};
+    pub use phala_types::messaging::{ContractInfo, WorkerPinkReport};
 
     bind_topic!(WorkerPinkRequest, b"phala/pink/worker/request");
     #[derive(Encode, Decode, Debug)]
