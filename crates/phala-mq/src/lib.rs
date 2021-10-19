@@ -46,7 +46,7 @@ mod alias {
 pub mod traits {
     use parity_scale_codec::Encode;
 
-    use crate::{BindTopic, Path};
+    use crate::{BindTopic, Path, SigningMessage};
 
     pub trait MessageChannel {
         fn push_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>);
@@ -57,5 +57,17 @@ pub mod traits {
             self.push_message_to(message, M::topic())
         }
         fn set_dummy(&self, _dummy: bool) {}
+    }
+
+    pub trait MessagePrepareChannel {
+        type Signer;
+
+        fn prepare_with_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>) -> SigningMessage<Self::Signer>;
+        fn prepare_message_to(&self, message: &impl Encode, to: impl Into<Path>) -> SigningMessage<Self::Signer> {
+            self.prepare_with_data(message.encode(), to)
+        }
+        fn prepare_message<M: Encode + BindTopic>(&self, message: &M) -> SigningMessage<Self::Signer> {
+            self.prepare_message_to(message, M::topic())
+        }
     }
 }

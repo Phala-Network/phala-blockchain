@@ -1,7 +1,8 @@
-use crate::types::{Message, MessageToBeSigned, SignedMessage};
-use crate::{MessageOrigin, MessageSigner, Mutex, SenderId};
+use crate::{
+    Message, MessageOrigin, MessageSigner, MessageToBeSigned, Mutex, SenderId, SignedMessage,
+    SigningMessage,
+};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
-
 
 #[derive(Default)]
 struct Channel {
@@ -35,6 +36,12 @@ impl MessageSendQueue {
         let entry = inner.entry(sender).or_default();
         if !entry.dummy {
             let message = constructor(entry.sequence);
+            log::info!(
+                "Sending message, from={}, to={:?}, seq={}",
+                message.message.sender,
+                message.message.destination,
+                entry.sequence,
+            );
             entry.messages.push(message);
         }
         entry.sequence += 1;
@@ -64,11 +71,15 @@ impl MessageSendQueue {
 
     pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
-        inner.get(sender).map(|x| x.messages.clone()).unwrap_or_default()
+        inner
+            .get(sender)
+            .map(|x| x.messages.clone())
+            .unwrap_or_default()
     }
 
     pub fn count_messages(&self) -> usize {
-        self.inner.lock()
+        self.inner
+            .lock()
             .iter()
             .map(|(_k, v)| v.messages.len())
             .sum()
@@ -88,7 +99,6 @@ pub use msg_channel::*;
 mod msg_channel {
     use super::*;
     use crate::{types::Path, MessageSigner, SenderId};
-    use parity_scale_codec::Encode;
 
     #[derive(Clone)]
     pub struct MessageChannel<Si: MessageSigner> {
@@ -105,30 +115,32 @@ mod msg_channel {
                 signer,
             }
         }
+    }
 
-        fn send_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
+    impl<Si: MessageSigner + Clone> MessageChannel<Si> {
+        fn prepare_with_data(
+            &self,
+            payload: alloc::vec::Vec<u8>,
+            to: impl Into<Path>,
+        ) -> SigningMessage<Si> {
             let sender = self.sender.clone();
-            let signer = &self.signer;
+            let signer = self.signer.clone();
+            let message = Message {
+                sender,
+                destination: to.into().into(),
+                payload,
+            };
+            SigningMessage { message, signer }
+        }
+    }
 
-            self.queue.enqueue_message(sender.clone(), move |sequence| {
-                let message = Message {
-                    sender,
-                    destination: to.into().into(),
-                    payload,
-                };
-                let be_signed = MessageToBeSigned {
-                    message: &message,
-                    sequence,
-                }
-                .encode();
-                let signature = signer.sign(&be_signed);
-                log::info!("Sending message, from={}, to={:?}, seq={}", message.sender, message.destination, sequence);
-                SignedMessage {
-                    message,
-                    sequence,
-                    signature,
-                }
-            })
+    impl<T: MessageSigner + Clone> crate::traits::MessageChannel for MessageChannel<T> {
+        fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
+            let signing = self.prepare_with_data(payload, to);
+            self.queue
+                .enqueue_message(self.sender.clone(), move |sequence| {
+                    signing.to_signed(sequence)
+                })
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
@@ -137,13 +149,16 @@ mod msg_channel {
         }
     }
 
-    impl<T: MessageSigner> crate::traits::MessageChannel for MessageChannel<T> {
-        fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
-            self.send_data(payload, to)
-        }
+    impl<T: MessageSigner + Clone> crate::traits::MessagePrepareChannel for MessageChannel<T> {
+        type Signer = T;
 
-        fn set_dummy(&self, dummy: bool) {
-            self.set_dummy(dummy);
+        fn prepare_with_data(
+            &self,
+            payload: alloc::vec::Vec<u8>,
+            to: impl Into<Path>,
+        ) -> SigningMessage<Self::Signer> {
+            self.prepare_with_data(payload, to)
         }
     }
+
 }
