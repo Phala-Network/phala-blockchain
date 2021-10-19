@@ -1,70 +1,28 @@
-use std::any::Any;
-
 use crate::storage::Storage;
 use ::chain::BlockNumber;
+use phala_mq::MessageSendQueue;
 
-/// A side task is designed to do some async works in the BACKGROUND.
-///
-/// In the old days, we do all the chain block processing logic in the `dispatch_block` RPC call, synchronously.
-/// But there are some cases, such as making an HTTP request or doing some CPU heavy computing, it is not acceptable
-/// do it in the RPC call synchronously. So we need to move these works to another thread and report it's result in
-/// the RPC call. That's what the `SideTask` is for.
-///
-/// When some async works are needed, we can create a `SideTask` and spawn some sort of background task to do the works.
-/// When the background task is done, it sets the result into the corresponding `SideTask` and wait for the chain block
-/// processing to poll it to process the result. We can then make some side-input (mq egress) in the result processing.
-pub trait SideTask {
-    /// The scheduler will call this function at any time, typically once each block, until it returns PollState::Complete.
-    fn poll(self, block: &PollContext) -> PollState<Self>
-    where
-        Self: Sized;
-}
+type SigningMessage = phala_mq::SigningMessage<sp_core::sr25519::Pair>;
 
 pub struct PollContext<'a> {
     pub block_number: BlockNumber,
+    pub send_mq: &'a MessageSendQueue,
     pub storage: &'a Storage,
 }
 
-pub enum PollState<T> {
-    /// The task is in progress.
-    Running(T),
-    /// The task is done. The task will be removed from the queue.
-    Complete,
-}
-
 struct TaskWrapper {
-    poll_fn: fn(
-        Box<dyn Any + Send + 'static>,
-        context: &PollContext,
-    ) -> PollState<Box<dyn Any + Send + 'static>>,
-    task: Box<dyn Any + Send + 'static>,
+    on_finish: Box<dyn FnOnce(&PollContext) -> Option<Vec<SigningMessage>> + Send + 'static>,
+    default_messages: Vec<SigningMessage>,
+    end_block: BlockNumber,
 }
 
 impl TaskWrapper {
-    fn poll(self, context: &PollContext) -> PollState<Self> {
-        match (self.poll_fn)(self.task, context) {
-            PollState::Running(task) => PollState::Running(Self {
-                poll_fn: self.poll_fn,
-                task,
-            }),
-            PollState::Complete => PollState::Complete,
-        }
-    }
-
-    fn wrap<T: SideTask + Send + 'static>(task: T) -> Self {
-        fn poll_fn<T: SideTask + Send + 'static>(
-            task: Box<dyn Any + Send + 'static>,
-            context: &PollContext,
-        ) -> PollState<Box<dyn Any + Send + 'static>> {
-            let task: Box<T> = task.downcast().expect("Should nerver fail");
-            match task.poll(context) {
-                PollState::Running(task) => PollState::Running(Box::new(task)),
-                PollState::Complete => PollState::Complete,
-            }
-        }
-        Self {
-            poll_fn: poll_fn::<T>,
-            task: Box::new(task),
+    fn finish(self, context: &PollContext) {
+        let messages = (self.on_finish)(context).unwrap_or(self.default_messages);
+        for msg in messages {
+            context
+                .send_mq
+                .enqueue_message(msg.message.sender.clone(), |seq| msg.to_signed(seq));
         }
     }
 }
@@ -78,16 +36,37 @@ impl SideTaskManager {
     pub fn poll(&mut self, context: &PollContext) {
         let mut remain = vec![];
         for task in self.tasks.drain(..) {
-            match task.poll(&context) {
-                PollState::Running(task) => remain.push(task),
-                PollState::Complete => (),
+            if task.end_block > context.block_number {
+                remain.push(task);
+                continue;
             }
+            if task.end_block == context.block_number {
+                task.finish(context);
+                continue;
+            }
+            error!(
+                "BUG: side task end at past block, end_block={} current_block={}",
+                task.end_block, context.block_number
+            );
         }
         self.tasks = remain;
     }
 
-    pub fn add_task<T: SideTask + Send + 'static>(&mut self, task: T) {
-        self.tasks.push(TaskWrapper::wrap(task));
+    pub fn add_task_finish_at<
+        F: FnOnce(&PollContext) -> Option<[SigningMessage; N]> + Send + 'static,
+        const N: usize,
+    >(
+        &mut self,
+        end_block: BlockNumber,
+        default_messages: [SigningMessage; N],
+        finish: F,
+    ) {
+        let task = TaskWrapper {
+            on_finish: Box::new(move |context| finish(context).map(|arr| arr.to_vec())),
+            default_messages: default_messages.to_vec(),
+            end_block,
+        };
+        self.tasks.push(task);
     }
 
     pub fn tasks_count(&self) -> usize {
@@ -96,48 +75,36 @@ impl SideTaskManager {
 }
 
 pub mod async_side_task {
+    use anyhow::Result;
     use async_executor::Task;
-    use chain::BlockNumber;
     use futures::Future;
     use std::sync::{Arc, Mutex};
 
-    use crate::side_task::{PollContext, PollState, SideTask};
+    use crate::side_task::PollContext;
+
+    use super::{BlockNumber, SigningMessage};
 
     #[must_use = "SideTask will loss it's work without adding it to the task manager"]
-    pub struct AsyncSideTask<Tsk, Rlt, Proc> {
-        report_at: BlockNumber,
-        result: Arc<Mutex<Option<Rlt>>>,
-        result_process: Proc,
+    pub struct AsyncSideTask<Tsk, const N: usize> {
+        result: Arc<Mutex<Option<[SigningMessage; N]>>>,
         _async_task: Tsk,
     }
 
-    impl<Tsk, Rlt, Proc> SideTask for AsyncSideTask<Tsk, Rlt, Proc>
+    impl<Tsk, const N: usize> AsyncSideTask<Tsk, N>
     where
         Tsk: Send,
-        Rlt: Send,
-        Proc: Send + FnOnce(Option<Rlt>, &PollContext),
     {
-        fn poll(self, context: &PollContext) -> PollState<Self> {
-            if context.block_number >= self.report_at {
-                let result = self.result.lock().unwrap().take();
-                (self.result_process)(result, context);
-                PollState::Complete
-            } else {
-                PollState::Running(self)
-            }
+        fn finish(self, _context: &PollContext) -> Option<[SigningMessage; N]> {
+            self.result.lock().unwrap().take()
         }
     }
 
-    impl<Rlt, Proc> AsyncSideTask<Task<()>, Rlt, Proc>
-    where
-        Rlt: Send + 'static,
-        Proc: Send + FnOnce(Option<Rlt>, &PollContext),
-    {
+    impl<const N: usize> AsyncSideTask<Task<()>, N> {
         /// Create a new `AsyncSideTask`.
         ///
         /// The task will finish at `block_number` + `duration` blocks.
         ///
-        /// The task_future is a future to do an async task (e.g. a http request) to fetch some async resoures.
+        /// The `future` is a future to do an async task (e.g. a http request) to fetch some async resoures.
         ///
         /// And process the result in result_process (e.g. report a mq message).
         ///
@@ -147,35 +114,46 @@ pub mod async_side_task {
         /// let mut task_man = SideTaskManager::default();
         /// let cur_block = 100;
         /// let duration = 3;
-        /// let task = AsyncSideTask::spawn(cur_block, 3, async {
-        ///         surf::get("https://ifconfig.me").await.unwrap().body_string().await.unwrap()
-        ///     },
-        ///     |result, _context| {
-        ///         // process the result here
+        /// let task = AsyncSideTask::spawn(async {
+        ///         let ip = surf::get("https://ifconfig.me").await.unwrap().body_string().await.unwrap()
+        ///         [msg_ch.prepare_message(mk_msg_from_ip(ip))]
         ///     },
         /// );
-        /// task_man.add_task(task);
+        /// task_man.add_task_finish_at(cur_block + duration, [mk_default_msg()], |c| task.finish(c));
         /// ```
         pub fn spawn(
-            block_number: BlockNumber,
-            duration: BlockNumber,
-            task_future: impl Future<Output = Rlt> + Send + 'static,
-            result_process: Proc,
+            future: impl Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
         ) -> Self {
             let result = Arc::new(Mutex::new(None));
             let set_result = result.clone();
 
             let task = phala_async_executor::spawn(async move {
-                let result = task_future.await;
-                *set_result.lock().unwrap() = Some(result);
+                let result = future.await;
+                if let Err(err) = &result {
+                    log::error!("Async side task return error: {:?}", err);
+                }
+                *set_result.lock().unwrap() = result.ok();
             });
 
             AsyncSideTask {
-                report_at: block_number + duration,
                 result,
-                result_process,
                 _async_task: task,
             }
+        }
+    }
+
+    impl super::SideTaskManager {
+        pub fn add_async_task_finish_at<
+            F: Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
+            const N: usize,
+        >(
+            &mut self,
+            end_block: BlockNumber,
+            default_messages: [SigningMessage; N],
+            future: F,
+        ) {
+            let task = AsyncSideTask::spawn(future);
+            self.add_task_finish_at(end_block, default_messages, |context| task.finish(context));
         }
     }
 }

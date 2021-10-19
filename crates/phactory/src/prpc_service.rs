@@ -682,6 +682,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .ok_or_else(|| from_display("Runtime not initialized"))?;
         let context = side_task::PollContext {
             block_number,
+            send_mq: &state.send_mq,
             storage: &state.chain_storage,
         };
         self.side_task_man.poll(&context);
