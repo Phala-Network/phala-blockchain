@@ -624,13 +624,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                         parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
                     match event {
                         Ok(event) => {
-                            info!(
+                            debug!(target: "mq",
                                 "mq dispatching message: sender={} dest={:?} payload={:?}",
                                 $msg.sender, $msg.destination, event
                             );
                         }
                         Err(_) => {
-                            info!("mq dispatching message (decode failed): {:?}", $msg);
+                            debug!(target: "mq", "mq dispatching message (decode failed): {:?}", $msg);
                         }
                     }
                 }};
@@ -639,7 +639,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             if message.destination.path() == &SystemEvent::topic() {
                 log_message!(message, SystemEvent);
             } else {
-                info!("mq dispatching message: sender={}, dest={:?}", message.sender, message.destination);
+                debug!(target: "mq",
+                    "mq dispatching message: sender={}, dest={:?}",
+                    message.sender, message.destination
+                );
             }
             state.recv_mq.dispatch(message);
         }

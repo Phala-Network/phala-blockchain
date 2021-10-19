@@ -35,7 +35,7 @@ impl MessageSendQueue {
         let entry = inner.entry(sender).or_default();
         if !entry.dummy {
             let message = constructor(entry.sequence);
-            log::info!(
+            log::info!(target: "mq",
                 "Sending message, from={}, to={:?}, seq={}",
                 message.message.sender,
                 message.message.destination,
