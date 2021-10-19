@@ -122,8 +122,7 @@ mod msg_channel {
                 }
                 .encode();
                 let signature = signer.sign(&be_signed);
-                // TODO.kevin: log
-                // info!("send msg: data[{}], sig[{}], seq={}", be_signed.len(), signature.len(), sequence);
+                log::info!("Sending message, from={}, to={:?}, seq={}", message.sender, message.destination, sequence);
                 SignedMessage {
                     message,
                     sequence,
