@@ -16,6 +16,7 @@ pub struct BlockInfo<'a> {
     /// The storage snapshot after this block executed.
     pub storage: &'a crate::Storage,
     /// The message queue
+    pub send_mq: &'a phala_mq::MessageSendQueue,
     pub recv_mq: &'a mut phala_mq::MessageDispatcher,
     /// The side-task manager.
     pub side_task_man: &'a mut crate::side_task::SideTaskManager,

@@ -515,7 +515,7 @@ impl contracts::NativeContract for Diem {
     type QResp = Response;
 
     fn id(&self) -> contracts::ContractId {
-        contracts::DIEM
+        contracts::id256(contracts::DIEM)
     }
 
     fn handle_command(

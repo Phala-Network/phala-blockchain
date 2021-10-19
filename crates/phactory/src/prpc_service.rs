@@ -1,13 +1,13 @@
 use crate::system::System;
 
 use super::*;
+use crate::secret_channel::PeelingReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
-use crate::secret_channel::PeelingReceiver;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -61,9 +61,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn get_info(&self) -> pb::PhactoryInfo {
         let initialized = self.runtime_info.is_some();
         let state = self.runtime_state.as_ref();
+        let system = self.system.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
-        let public_key = state.map(|state| hex::encode(state.identity_key.public()));
-        let ecdh_public_key = state.map(|state| hex::encode(&state.ecdh_key.public()));
+        let public_key = system.map(|state| hex::encode(state.identity_key.public()));
+        let ecdh_public_key = system.map(|state| hex::encode(&state.ecdh_key.public()));
         let dev_mode = self.dev_mode;
 
         let (state_root, pending_messages, counters) = match state.as_ref() {
@@ -77,7 +78,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         };
 
         let (registered, gatekeeper_status) = {
-            match self.system.as_ref() {
+            match system {
                 Some(system) => (system.is_registered(), system.gatekeeper_status()),
                 None => (
                     false,
@@ -315,7 +316,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
         };
 
-        let id_pair = identity_key.clone();
         let send_mq = MessageSendQueue::default();
         let mut recv_mq = MessageDispatcher::default();
 
@@ -330,7 +330,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 ($id: expr, $inner: expr) => {{
                     let contract_id = contract::id256($id);
                     let sender = MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, id_pair.clone());
+                    let mq = send_mq.channel(sender, identity_key.clone());
                     // TODO.kevin: use real contract key
                     let contract_key = ecdh_key.clone();
                     let cmd_mq = PeelingReceiver::new_secret(
@@ -359,7 +359,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             );
             install_contract!(
                 contracts::BTC_LOTTERY,
-                contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
+                contracts::btc_lottery::BtcLottery::new(Some(identity_key.clone()))
             );
             // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
             // install_contract!(
@@ -377,14 +377,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         let mut runtime_state = RuntimeState {
-            contracts,
             send_mq,
             recv_mq,
             storage_synchronizer,
             chain_storage: Default::default(),
             genesis_block_hash,
-            identity_key,
-            ecdh_key,
         };
 
         // Initialize other states
@@ -400,9 +397,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.args.sealing_path.clone(),
             self.args.enable_geoprobing,
             self.args.geoip_city_db.clone(),
-            &id_pair,
+            identity_key,
+            ecdh_key,
             &runtime_state.send_mq,
             &mut runtime_state.recv_mq,
+            contracts,
         );
 
         let resp = pb::InitRuntimeResponse::new(
@@ -493,7 +492,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     }
                 },
                 Err(err) => {
-                    return Err(from_display(format!("Verifying signature failed: {:?}", err)));
+                    return Err(from_display(format!(
+                        "Verifying signature failed: {:?}",
+                        err
+                    )));
                 }
             }
         } else {
@@ -503,7 +505,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         info!("Verifying signature passed! origin={:?}", origin);
 
-        let ecdh_key = self.runtime_state()?.ecdh_key.clone();
+        let ecdh_key = self.system()?.ecdh_key.clone();
 
         // Decrypt data
         let encrypted_req = request.decode_encrypted_data()?;
@@ -528,18 +530,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         // Dispatch
         let ref_origin = accid_origin.as_ref();
 
-        let res = if head.id == contract::id256(SYSTEM) {
-            let system = self.system()?;
-            let response = system.handle_query(ref_origin, types::deopaque_query(data_cursor)?);
-            response.encode()
-        } else {
-            let state = self.runtime_state()?;
-            let contract = state
-                .contracts
-                .get_mut(&head.id)
-                .ok_or_else(|| from_display("Contract not found"))?;
-            contract.handle_query(ref_origin, data_cursor)?
-        };
+        let res = self
+            .system()?
+            .handle_query(ref_origin, &head.id, data_cursor)?;
 
         // Encode response
         let response = contract::ContractQueryResponse {
@@ -632,7 +625,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     match event {
                         Ok(event) => {
                             info!(
-                                "mq dispatching message: sender={:?} dest={:?} payload={:?}",
+                                "mq dispatching message: sender={} dest={:?} payload={:?}",
                                 $msg.sender, $msg.destination, event
                             );
                         }
@@ -646,7 +639,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             if message.destination.path() == &SystemEvent::topic() {
                 log_message!(message, SystemEvent);
             } else {
-                info!("mq dispatching message: {:?}", message);
+                info!("mq dispatching message: sender={}, dest={:?}", message.sender, message.destination);
             }
             state.recv_mq.dispatch(message);
         }
@@ -670,6 +663,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             block_number,
             now_ms,
             storage,
+            send_mq: &state.send_mq,
             recv_mq,
             side_task_man,
         };
@@ -678,13 +672,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             error!("System process events failed: {:?}", e);
             return Err(from_display("System process events failed"));
         }
-
-        let mut env = ExecuteEnv { block: &block };
-
-        for contract in state.contracts.values_mut() {
-            contract.process_messages(&mut env);
-        }
-
         Ok(())
     }
 

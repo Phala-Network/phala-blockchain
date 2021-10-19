@@ -15,7 +15,8 @@ use anyhow::Result;
 use lazy_static;
 use log::error;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{MessageOrigin, Sr25519MessageChannel as MessageChannel};
+use phala_mq::traits::MessageChannel;
+use phala_mq::{MessageOrigin, SignedMessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
 use sp_core::{crypto::Pair, hashing::blake2_256, sr25519, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
@@ -141,7 +142,7 @@ impl BtcLottery {
 
     pub fn new_round(
         &mut self,
-        mq: &MessageChannel,
+        mq: &SignedMessageChannel,
         round_id: u32,
         total_count: u32,
         winner_count: u32,
@@ -195,7 +196,7 @@ impl BtcLottery {
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
 
-            mq.send(&Lottery::BtcAddresses { address_set });
+            mq.push_message(&Lottery::BtcAddresses { address_set });
         } else {
             error!("Round {} has already started", round_id);
         }
@@ -203,7 +204,7 @@ impl BtcLottery {
 
     pub fn open_lottery(
         &mut self,
-        mq: &MessageChannel,
+        mq: &SignedMessageChannel,
         round_id: u32,
         token_no: u32,
         btc_address: Vec<u8>,
@@ -310,7 +311,7 @@ impl BtcLottery {
                     tx: tx_bytes,
                 }
             };
-            mq.send(&data);
+            mq.push_message(&data);
         } else {
             error!("Round {} has already started", round_id);
         }
@@ -323,15 +324,15 @@ impl contracts::NativeContract for BtcLottery {
     type QResp = Response;
 
     // Returns the contract id
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::BTC_LOTTERY
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::BTC_LOTTERY)
     }
 
     fn handle_command(
         &mut self,
-        context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        context: &mut NativeContext,
     ) -> TransactionResult {
         match cmd {
             Command::PalletCommand(cmd) => self.handle_pallet_command(context, origin, cmd),
@@ -339,7 +340,12 @@ impl contracts::NativeContract for BtcLottery {
         }
     }
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        _origin: Option<&chain::AccountId>,
+        req: Request,
+        _context: &mut contracts::QueryContext,
+    ) -> Response {
         match req {
             Request::GetAllRounds => Response::GetAllRounds {
                 round_id: self.round_id,

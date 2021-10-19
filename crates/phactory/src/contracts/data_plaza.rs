@@ -1,7 +1,7 @@
 use super::{NativeContext, TransactionError, TransactionResult};
-use std::collections::{HashMap, HashSet};
 use csv_core::{ReadRecordResult, Reader};
 use log::info;
+use std::collections::{HashMap, HashSet};
 
 use crate::contracts;
 use parity_scale_codec::{Decode, Encode};
@@ -254,15 +254,15 @@ impl contracts::NativeContract for DataPlaza {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::DATA_PLAZA
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::DATA_PLAZA)
     }
 
     fn handle_command(
         &mut self,
-        _context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        _context: &mut NativeContext,
     ) -> TransactionResult {
         let origin = match origin {
             MessageOrigin::AccountId(acc) => acc,
@@ -299,7 +299,12 @@ impl contracts::NativeContract for DataPlaza {
         }
     }
 
-    fn handle_query(&mut self, _origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        _origin: Option<&chain::AccountId>,
+        req: Request,
+        _context: &mut contracts::QueryContext,
+    ) -> Response {
         match req {
             Request::GetItems => Response::GetItems {
                 items: self.items.clone(),

@@ -3,7 +3,7 @@ use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
 };
-use phala_mq::MessageDispatcher;
+use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_types::{
     messaging::{
         GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
@@ -13,7 +13,11 @@ use phala_types::{
 };
 use sp_core::{hashing, sr25519};
 
-use crate::types::BlockInfo;
+use crate::{
+    contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
+    secret_channel::SecretMessageChannel,
+    types::BlockInfo,
+};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -24,8 +28,6 @@ use fixed_macro::types::U64F64 as fp;
 use log::debug;
 use phactory_api::prpc as pb;
 pub use tokenomic::{FixedPoint, TokenomicInfo};
-
-pub use msg_trait::MessageChannel;
 
 /// Block interval to generate pseudo-random on chain
 ///
@@ -95,6 +97,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
+    pink_requests: TypedReceiver<GKPinkRequest>, // TODO: a contract manager type?
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
@@ -118,6 +121,7 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
+            pink_requests: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
             mining_economics: MiningEconomics::new(recv_mq, egress),
@@ -184,7 +188,7 @@ where
 
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
         self.egress
-            .push_message(KeyDistribution::master_key_distribution(
+            .push_message(&KeyDistribution::master_key_distribution(
                 *pubkey,
                 my_ecdh_key
                     .public()
@@ -204,14 +208,12 @@ where
 
         debug!("Gatekeeper: processing block {}", block.block_number);
         loop {
-            let ok = phala_mq::select! {
-                message = self.gatekeeper_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_event(origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+            let ok = phala_mq::select_ignore_errors! {
+                (event, origin) = self.gatekeeper_events => {
+                    self.process_gatekeeper_event(origin, event);
+                },
+                (request, origin) = self.pink_requests => {
+                    self.process_pink_requests(origin, request);
                 },
             };
             if ok.is_none() {
@@ -236,6 +238,49 @@ where
             }
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
+            }
+        }
+    }
+
+    fn process_pink_requests(&mut self, origin: MessageOrigin, request: GKPinkRequest) {
+        info!("Incoming pink request: {:?}", request);
+        match request {
+            GKPinkRequest::Instantiate {
+                group_id,
+                worker,
+                wasm_bin,
+                input_data,
+            } => {
+                // TODO: Do some contract management logic
+                let owner = match origin.account() {
+                    Ok(owner) => owner,
+                    Err(_) => {
+                        error!("Attempt to instantiate pink from Bad origin: {}", origin);
+                        return;
+                    }
+                };
+
+                use hex_literal::hex;
+                let contract_key = crate::new_sr25519_key();
+
+                let message = WorkerPinkRequest::Instantiate {
+                    group_id: group_id.unwrap_or(
+                        hex!("0000000000000000000000000000000000000000000000000000000000000001")
+                            .into(),
+                    ),
+                    worker: worker.clone(),
+                    nonce: hex!("0001").into(),
+                    owner,
+                    wasm_bin,
+                    input_data,
+                    salt: vec![],
+                    key: contract_key.dump_secret_key(),
+                };
+
+                let tmp_key = crate::new_sr25519_key().derive_ecdh_key().unwrap();
+                let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress, &|_| None);
+                
+                secret_mq.push_message(&message, Some(&worker.0));
             }
         }
     }
@@ -271,11 +316,12 @@ where
             hex::encode(&random_number),
             block_number
         );
-        self.egress.push_message(GatekeeperEvent::new_random_number(
-            block_number,
-            random_number,
-            self.last_random_number,
-        ));
+        self.egress
+            .push_message(&GatekeeperEvent::new_random_number(
+                block_number,
+                random_number,
+                self.last_random_number,
+            ));
         self.last_random_number = random_number;
     }
 }
@@ -417,7 +463,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
         let report = processor.report;
 
         if !report.is_empty() {
-            self.egress.push_message(report);
+            self.egress.push_message(&report);
         }
     }
 }
@@ -783,7 +829,8 @@ where
                     for w in self.state.workers.values_mut() {
                         if w.state.mining_state.is_some() && w.tokenomic.v < w.tokenomic.v_init {
                             w.tokenomic.v = w.tokenomic.v_init;
-                            self.event_listener.on_finance_event(FinanceEvent::RecoverV, w)
+                            self.event_listener
+                                .on_finance_event(FinanceEvent::RecoverV, w)
                         }
                     }
                 }
@@ -1024,32 +1071,12 @@ mod tokenomic {
     }
 }
 
-mod msg_trait {
-    use parity_scale_codec::Encode;
-    use phala_mq::{BindTopic, MessageSigner};
-
-    pub trait MessageChannel {
-        fn push_message<M: Encode + BindTopic>(&self, message: M);
-        fn set_dummy(&self, dummy: bool);
-    }
-
-    impl<T: MessageSigner> MessageChannel for phala_mq::MessageChannel<T> {
-        fn push_message<M: Encode + BindTopic>(&self, message: M) {
-            self.send(&message);
-        }
-
-        fn set_dummy(&self, dummy: bool) {
-            self.set_dummy(dummy);
-        }
-    }
-}
-
 #[cfg(test)]
 pub mod tests {
-    use super::{msg_trait::MessageChannel, BlockInfo, FixedPoint, MiningEconomics};
+    use super::{BlockInfo, FixedPoint, MessageChannel, MiningEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
-    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin};
+    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path};
     use phala_types::{messaging as msg, WorkerPublicKey};
     use std::cell::RefCell;
 
@@ -1106,16 +1133,14 @@ pub mod tests {
     }
 
     impl MessageChannel for CollectChannel {
-        fn push_message<M: Encode + BindTopic>(&self, message: M) {
+        fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
             let message = Message {
                 sender: MessageOrigin::Gatekeeper,
-                destination: M::topic().into(),
-                payload: message.encode(),
+                destination: to.into().into(),
+                payload: data,
             };
             self.messages.borrow_mut().push(message);
         }
-
-        fn set_dummy(&self, _dummy: bool) {}
     }
 
     struct Roles {
@@ -1202,12 +1227,14 @@ pub mod tests {
     fn with_block(block_number: chain::BlockNumber, call: impl FnOnce(&BlockInfo)) {
         // GK never use the storage ATM.
         let storage = crate::Storage::default();
-        let mut mq = phala_mq::MessageDispatcher::new();
+        let mut recv_mq = phala_mq::MessageDispatcher::new();
+        let mut send_mq = phala_mq::MessageSendQueue::new();
         let block = BlockInfo {
             block_number,
             now_ms: block_ts(block_number),
             storage: &storage,
-            recv_mq: &mut mq,
+            recv_mq: &mut recv_mq,
+            send_mq: &mut send_mq,
             side_task_man: &mut Default::default(),
         };
         call(&block);

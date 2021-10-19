@@ -59,6 +59,7 @@ aho-corasick = { git = "https://github.com/Phala-Network/aho-corasick-sgx.git", 
 futures-executor = { git = "https://github.com/Phala-Network/futures-rs-sgx.git", branch = "phala" }
 event-listener = { git = "https://github.com/Phala-Network/event-listener-sgx.git", branch = "phala" }
 parking_lot_core = { git = "https://github.com/Phala-Network/parking_lot-sgx.git", branch = "phala" }
+cpufeatures = { git = "https://github.com/Phala-Network/cpufeatures-sgx.git", branch = "phala" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
 # sgx_alloc = { path = "../../../teaclave-sgx-sdk/sgx_alloc" }

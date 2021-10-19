@@ -1,5 +1,5 @@
 use chain::BlockNumber;
-use phala_mq::Sr25519MessageChannel;
+use phala_mq::SignedMessageChannel;
 
 use crate::side_task::async_side_task::AsyncSideTask;
 use crate::side_task::SideTaskManager;
@@ -75,7 +75,7 @@ pub fn db_query_region_name<'a>(city_general_data: &'a geoip2::City) -> Option<&
 
 pub fn process_block(
     block_number: BlockNumber,
-    egress: &Sr25519MessageChannel,
+    egress: &SignedMessageChannel,
     side_task_man: &mut SideTaskManager,
     identity_key: &sr25519::Pair,
     geoip_city_db: String,
@@ -173,7 +173,7 @@ pub fn process_block(
                 );
 
                 // 6. send the command
-                secret_egress.sendto(topic, &msg, Some(&public_contract_ecdh_key));
+                secret_egress.push_message_to(topic, &msg, Some(&public_contract_ecdh_key));
             },
         );
         side_task_man.add_task(task);

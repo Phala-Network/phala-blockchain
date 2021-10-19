@@ -27,8 +27,8 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
-use phactory_api::ecall_args::{InitArgs, git_revision};
 use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
+use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory_api::prpc::InitRuntimeResponse;
 use phactory_api::storage_sync::{
     ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
@@ -42,11 +42,14 @@ use phala_crypto::{
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_types::WorkerRegistrationInfo;
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
+use types::Error;
 
 pub use system::gk;
 pub use storage::{Storage, StorageExt};
 pub use types::BlockInfo;
 pub use side_task::SideTaskManager;
+pub use contracts::pink;
 
 pub mod benchmark;
 
@@ -57,21 +60,16 @@ mod light_validation;
 mod prpc_service;
 mod rpc_types;
 mod secret_channel;
+mod side_task;
 mod storage;
 mod system;
 mod types;
-mod side_task;
-
-use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
-use contracts::{ExecuteEnv, SYSTEM};
-use types::Error;
 
 // TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
 struct RuntimeState {
-    contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>,
     send_mq: MessageSendQueue,
     recv_mq: MessageDispatcher,
 
@@ -79,8 +77,6 @@ struct RuntimeState {
     storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
     chain_storage: Storage,
     genesis_block_hash: H256,
-    identity_key: sr25519::Pair,
-    ecdh_key: EcdhKey,
 }
 
 impl RuntimeState {
@@ -159,7 +155,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
     pub fn init(&mut self, args: InitArgs) {
         if args.git_revision != git_revision() {
-            panic!("git revision mismatch: {}(app) vs {}(enclave)", args.git_revision, git_revision());
+            panic!(
+                "git revision mismatch: {}(app) vs {}(enclave)",
+                args.git_revision,
+                git_revision()
+            );
         }
 
         if args.init_bench {
@@ -263,7 +263,6 @@ fn generate_random_info() -> [u8; 32] {
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
 }
-
 
 // --------------------------------
 

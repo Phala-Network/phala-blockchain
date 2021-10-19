@@ -1,7 +1,6 @@
 use alloc::vec::Vec;
 use alloc::string::String;
 use core::hash::{Hash, Hasher};
-use primitive_types::H256;
 
 use parity_scale_codec::{Decode, Encode};
 use sp_core::crypto::{AccountId32, UncheckedFrom};
@@ -9,8 +8,9 @@ use derive_more::Display;
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
-pub type ContractId = H256;
-pub type AccountId = H256;
+pub use primitive_types::H256 as ContractId;
+pub use primitive_types::H256 as AccountId;
+pub use primitive_types::H256 as ContractGroupId;
 
 pub fn contract_id256(id: u32) -> ContractId {
     ContractId::from_low_u64_be(id as u64)
@@ -79,9 +79,9 @@ impl MessageOrigin {
     }
 
     /// Returns the account id if the origin is from a user, or `Err(BadOrigin)` otherwise
-    pub fn account(self) -> Result<AccountId32, BadOrigin> {
+    pub fn account(&self) -> Result<AccountId32, BadOrigin> {
         match self {
-            Self::AccountId(account_id) => Ok(AccountId32::unchecked_from(account_id)),
+            Self::AccountId(account_id) => Ok(AccountId32::unchecked_from(account_id.clone())),
             _ => Err(BadOrigin),
         }
     }

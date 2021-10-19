@@ -514,6 +514,25 @@ pub mod messaging {
         // Slash calculation
         pub kappa: U64F64Bits,
     }
+
+    // Pink messages
+
+    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
+    #[derive(Encode, Decode, Debug)]
+    pub enum WorkerPinkReport {
+        InstantiateStatus {
+            nonce: Vec<u8>,
+            owner: AccountId,
+            result: Result<ContractInfo, String>,
+        },
+    }
+
+    #[derive(Encode, Decode, Debug)]
+    pub struct ContractInfo {
+        pub id: ContractId,
+        pub group_id: ContractGroupId,
+        pub pubkey: EcdhPublicKey,
+    }
 }
 
 // Types used in storage
@@ -569,27 +588,12 @@ pub struct Score {
 }
 
 type MachineId = Vec<u8>;
-pub type Sr25519Signature = sp_core::sr25519::Signature;
+pub use sp_core::sr25519::Signature as Sr25519Signature;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
-pub type ContractPublicKey = sp_core::sr25519::Public;
-pub type MasterPublicKey = sp_core::sr25519::Public;
-#[derive(Encode, Decode, Clone, Debug, Eq, PartialEq)]
-/// Sr25519 public key
-pub struct EcdhPublicKey(pub [u8; 32]);
+pub use sp_core::sr25519::Public as ContractPublicKey;
+pub use sp_core::sr25519::Public as MasterPublicKey;
+pub use sp_core::sr25519::Public as EcdhPublicKey;
 
-impl Default for EcdhPublicKey {
-    fn default() -> Self {
-        EcdhPublicKey([0_u8; 32])
-    }
-}
-
-impl TryFrom<&[u8]> for EcdhPublicKey {
-    type Error = ();
-    fn try_from(raw: &[u8]) -> Result<Self, ()> {
-        let raw: [u8; 32] = raw.try_into().map_err(|_| ())?;
-        Ok(EcdhPublicKey(raw))
-    }
-}
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
 pub struct WorkerRegistrationInfo<AccountId> {

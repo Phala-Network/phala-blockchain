@@ -6,11 +6,11 @@ use std::time::Duration;
 
 use anyhow::Error;
 use anyhow::Result;
-use parity_scale_codec::{Decode, Encode};
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
+use phala_mq::Path;
 use phala_trie_storage::TrieStorage;
-use phala_types::{messaging::MiningInfoUpdateEvent, WorkerPublicKey};
+use phala_types::WorkerPublicKey;
 use pherry::chain_client::StorageKey;
 use pherry::types::{BlockNumber, BlockWithChanges, Hashing, NumberOrHex, XtClient};
 use tokio::sync::{mpsc, Mutex};
@@ -96,6 +96,7 @@ impl ReplayFactory {
             now_ms,
             storage: &self.storage,
             recv_mq: &mut self.recv_mq,
+            send_mq: &mut Default::default(),
             side_task_man: &mut SideTaskManager::default(),
         };
 
@@ -142,14 +143,8 @@ impl ReplayFactory {
 
 struct ReplayMsgChannel;
 
-impl gk::MessageChannel for ReplayMsgChannel {
-    fn push_message<M: Encode + phala_types::messaging::BindTopic>(&self, message: M) {
-        if let Ok(msg) = MiningInfoUpdateEvent::<BlockNumber>::decode(&mut &message.encode()[..]) {
-            log::debug!("Report mining event: {:#?}", msg);
-        }
-    }
-
-    fn set_dummy(&self, _dummy: bool) {}
+impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
+    fn push_data(&self, _data: Vec<u8>, _to: impl Into<Path>) {}
 }
 
 pub async fn fetch_genesis_storage(

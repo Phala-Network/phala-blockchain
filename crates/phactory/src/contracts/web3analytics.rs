@@ -2,12 +2,12 @@ use super::account_id_from_hex;
 use super::{NativeContext, TransactionResult};
 use crate::contracts::AccountId;
 use crate::cryptography::aead;
-use std::collections::BTreeMap;
-use std::collections::HashMap;
 use anyhow::Result;
 use core::fmt;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::MessageOrigin;
+use std::collections::BTreeMap;
+use std::collections::HashMap;
 
 use crate::contracts;
 use phala_types::messaging::Web3AnalyticsCommand as Command;
@@ -886,15 +886,15 @@ impl contracts::NativeContract for Web3Analytics {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId32 {
-        contracts::WEB3_ANALYTICS
+    fn id(&self) -> contracts::ContractId {
+        contracts::id256(contracts::WEB3_ANALYTICS)
     }
 
     fn handle_command(
         &mut self,
-        _context: &NativeContext,
         origin: MessageOrigin,
         cmd: Self::Cmd,
+        _context: &mut NativeContext,
     ) -> TransactionResult {
         let status = match cmd {
             Command::SetConfiguration { skip_stat } => {
@@ -914,7 +914,12 @@ impl contracts::NativeContract for Web3Analytics {
         status
     }
 
-    fn handle_query(&mut self, origin: Option<&chain::AccountId>, req: Request) -> Response {
+    fn handle_query(
+        &mut self,
+        origin: Option<&chain::AccountId>,
+        req: Request,
+        _: &mut contracts::QueryContext,
+    ) -> Response {
         let inner = || -> Result<Response> {
             match req {
                 Request::SetPageView {

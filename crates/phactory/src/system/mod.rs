@@ -2,26 +2,45 @@ pub mod gk;
 mod master_key;
 mod side_tasks;
 
-use crate::{benchmark, types::BlockInfo};
+use crate::{
+    benchmark,
+    contracts::{
+        pink::{
+            group::GroupKeeper,
+            messaging::{WorkerPinkReport, WorkerPinkRequest},
+        },
+        ExecuteEnv, NativeContract,
+    },
+    pink::messaging::ContractInfo,
+    secret_channel::{PeelingReceiver, SecretReceiver},
+    types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
+};
 use anyhow::Result;
 use core::fmt;
 use log::info;
+use std::collections::BTreeMap;
 
+use crate::contracts;
 use crate::pal;
 use chain::pallet_registry::RegistryEvent;
-pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use parity_scale_codec::{Decode, Encode};
-use phala_crypto::{aead, ecdh, sr25519::KDF};
+pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
+use phala_crypto::{
+    aead,
+    ecdh::{self, EcdhKey},
+    sr25519::{Persistence, KDF},
+};
 use phala_mq::{
-    BadOrigin, MessageDispatcher, MessageOrigin, MessageSendQueue, Sr25519MessageChannel,
-    TypedReceiveError, TypedReceiver,
+    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
+    MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
 use phala_types::{
+    contract,
     messaging::{
         DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
         KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
-    MasterPublicKey, WorkerPublicKey,
+    EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
@@ -32,6 +51,7 @@ pub type TransactionResult = Result<(), TransactionError>;
 pub enum TransactionError {
     BadInput,
     BadOrigin,
+    Other(String),
     // general
     InsufficientBalance,
     NoBalance,
@@ -296,7 +316,7 @@ trait WorkerStateMachineCallback {
     }
 }
 
-struct WorkerSMDelegate<'a>(&'a Sr25519MessageChannel);
+struct WorkerSMDelegate<'a>(&'a SignedMessageChannel);
 
 impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     fn bench_iterations(&self) -> u64 {
@@ -314,7 +334,7 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("Reporting benchmark: {:?}", report);
-        self.0.send(&report);
+        self.0.push_message(&report);
     }
     fn heartbeat(
         &mut self,
@@ -330,9 +350,11 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
             iterations,
         };
         info!("System: sending {:?}", event);
-        self.0.send(&event);
+        self.0.push_message(&event);
     }
 }
+
+type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
 
 pub struct System<Platform> {
     platform: Platform,
@@ -341,18 +363,22 @@ pub struct System<Platform> {
     enable_geoprobing: bool,
     geoip_city_db: String,
     // Messageing
-    send_mq: MessageSendQueue,
-    egress: Sr25519MessageChannel,
+    egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
+    pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
-    identity_key: sr25519::Pair,
+    pub(crate) identity_key: sr25519::Pair,
+    pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
     // Gatekeeper
     master_key: Option<sr25519::Pair>,
-    pub(crate) gatekeeper: Option<gk::Gatekeeper<Sr25519MessageChannel>>,
+    pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
+
+    pub(crate) contracts: ContractMap,
+    contract_groups: GroupKeeper,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -361,38 +387,54 @@ impl<Platform: pal::Platform> System<Platform> {
         sealing_path: String,
         enable_geoprobing: bool,
         geoip_city_db: String,
-        identity_key: &sr25519::Pair,
+        identity_key: sr25519::Pair,
+        ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
+        contracts: ContractMap,
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), identity_key, &platform);
+        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key, &platform);
 
         System {
             platform,
             sealing_path,
             enable_geoprobing,
             geoip_city_db,
-            send_mq: send_mq.clone(),
             egress: send_mq.channel(sender, identity_key.clone()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            identity_key: identity_key.clone(),
+            pink_events: SecretReceiver::new_secret(
+                recv_mq.subscribe(WorkerPinkRequest::topic()).into(),
+                ecdh_key.clone(),
+            ),
+            identity_key,
+            ecdh_key,
             worker_state: WorkerState::new(pubkey),
             master_key,
             gatekeeper: None,
+            contracts,
+            contract_groups: Default::default(),
         }
     }
 
     pub fn handle_query(
         &mut self,
-        _accid_origin: Option<&chain::AccountId>,
-        _req: Request,
-    ) -> Response {
-        Response::Error("Unreachable!".to_string())
+        origin: Option<&chain::AccountId>,
+        contract_id: &ContractId,
+        req: OpaqueQuery,
+    ) -> Result<OpaqueReply, OpaqueError> {
+        let contract = self
+            .contracts
+            .get_mut(contract_id)
+            .ok_or(OpaqueError::ContractNotFound)?;
+        let mut context = contracts::QueryContext {
+            contract_groups: &mut self.contract_groups,
+        };
+        contract.handle_query(origin, req, &mut context)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
@@ -406,48 +448,25 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
         loop {
-            let ok = phala_mq::select! {
-                message = self.system_events => match message {
-                    Ok((_, event, origin)) => {
-                        if !origin.is_pallet() {
-                            error!("Invalid SystemEvent sender: {:?}", origin);
-                            continue;
-                        }
-                        self.process_system_event(block, &event)?;
+            let ok = phala_mq::select_ignore_errors! {
+                (event, origin) = self.system_events => {
+                    if !origin.is_pallet() {
+                        error!("Invalid SystemEvent sender: {:?}", origin);
+                        continue;
                     }
-                    Err(e) => match e {
-                        TypedReceiveError::CodecError(e) => {
-                            error!("Decode system event failed: {:?}", e);
-                            continue;
-                        }
-                        TypedReceiveError::SenderGone => {
-                            return Err(anyhow::anyhow!("System message channel broken"));
-                        }
-                    }
+                    self.process_system_event(block, &event)?;
                 },
-                message = self.gatekeeper_launch_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_launch_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.gatekeeper_launch_events => {
+                    self.process_gatekeeper_launch_event(block, origin, event);
                 },
-                message = self.gatekeeper_change_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_gatekeeper_change_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.gatekeeper_change_events => {
+                    self.process_gatekeeper_change_event(block, origin, event);
                 },
-                message = self.key_distribution_events => match message {
-                    Ok((_, event, origin)) => {
-                        self.process_key_distribution_event(block, origin, event);
-                    }
-                    Err(e) => {
-                        error!("Read message failed: {:?}", e);
-                    }
+                (event, origin) = self.key_distribution_events => {
+                    self.process_key_distribution_event(block, origin, event);
+                },
+                (event, origin) = self.pink_events => {
+                    self.process_pink_event(block, origin, event);
                 },
             };
             if ok.is_none() {
@@ -463,6 +482,15 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
+        let mut env = ExecuteEnv {
+            block: block,
+            contract_groups: &mut self.contract_groups,
+        };
+
+        for contract in self.contracts.values_mut() {
+            contract.process_messages(&mut env);
+        }
+
         Ok(())
     }
 
@@ -474,7 +502,12 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {
         if self.master_key.is_none() {
-            master_key::seal(self.sealing_path.clone(), &master_key, &self.identity_key, &self.platform);
+            master_key::seal(
+                self.sealing_path.clone(),
+                &master_key,
+                &self.identity_key,
+                &self.platform,
+            );
             self.master_key = Some(master_key);
 
             if need_restart {
@@ -486,7 +519,7 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn init_gatekeeper(&mut self, recv_mq: &mut MessageDispatcher) {
+    fn init_gatekeeper(&mut self, block: &mut BlockInfo) {
         assert!(
             self.master_key.is_some(),
             "Gatekeeper initialization without master key"
@@ -501,8 +534,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 .as_ref()
                 .expect("checked master key above; qed.")
                 .clone(),
-            recv_mq,
-            self.send_mq.channel(
+            block.recv_mq,
+            block.send_mq.channel(
                 MessageOrigin::Gatekeeper,
                 self.master_key
                     .as_ref()
@@ -574,12 +607,12 @@ impl<Platform: pal::Platform> System<Platform> {
             let master_pubkey = RegistryEvent::MasterPubkey {
                 master_pubkey: master_key.public(),
             };
-            self.egress.send(&master_pubkey);
+            self.egress.push_message(&master_pubkey);
         }
 
         if self.master_key.is_some() {
             info!("Init gatekeeper in block {}", block.block_number);
-            self.init_gatekeeper(&mut block.recv_mq);
+            self.init_gatekeeper(block);
         }
 
         if my_pubkey == event.pubkey {
@@ -650,6 +683,97 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
+    fn process_pink_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: WorkerPinkRequest,
+    ) {
+        match event {
+            WorkerPinkRequest::Instantiate {
+                group_id,
+                worker,
+                nonce,
+                owner,
+                wasm_bin,
+                input_data,
+                salt,
+                key,
+            } => {
+                if worker != self.worker_state.pubkey {
+                    return;
+                }
+
+                info!(
+                    "Incoming pink instantiate event: origin={}, onwer={}, nonce={}, contract_size={}",
+                    origin,
+                    owner,
+                    hex::encode(&nonce),
+                    wasm_bin.len(),
+                );
+
+                if !origin.is_gatekeeper() && !origin.is_pallet() {
+                    error!("Attempt to instantiate a pink instance from out of GK!");
+                    return;
+                }
+
+                let result: Result<(ContractId, EcdhPublicKey), String> = {
+                    let owner = owner.clone();
+                    let contracts = &mut self.contracts;
+                    let contract_groups = &mut self.contract_groups;
+                    let group_id = group_id.clone();
+                    (move || {
+                        let contract_key = sr25519::Pair::restore_from_secret_key(&key);
+                        let ecdh_key = contract_key.derive_ecdh_key().unwrap();
+                        let result = contract_groups
+                            .instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
+                        match result {
+                            Err(err) => Err(err.to_string()),
+                            Ok(pink) => {
+                                let address = pink.id();
+                                let pubkey = EcdhPublicKey(ecdh_key.public());
+                                install_contract(contracts, pink, contract_key, ecdh_key, block);
+                                Ok((address, pubkey))
+                            }
+                        }
+                    })()
+                };
+
+                match &result {
+                    Err(err) => {
+                        error!(
+                            "Instantiate contract error: {}, owner: {:?}, nonce: {}",
+                            err,
+                            owner,
+                            hex::encode(&nonce)
+                        );
+                    }
+                    Ok(addr) => {
+                        info!(
+                            "Contract instantiated: owner: {:?}, nonce: {}, address: {}, group: {}",
+                            owner,
+                            hex::encode(&nonce),
+                            hex::encode(addr.0),
+                            hex::encode(&group_id),
+                        );
+                    }
+                }
+
+                let message = WorkerPinkReport::InstantiateStatus {
+                    nonce,
+                    owner: phala_types::messaging::AccountId(owner.into()),
+                    result: result.map(|(id, pubkey)| ContractInfo {
+                        id,
+                        group_id,
+                        pubkey,
+                    }),
+                };
+                info!("pink instantiate status: {:?}", message);
+                self.egress.push_message(&message);
+            }
+        }
+    }
+
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
@@ -708,6 +832,36 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 }
 
+pub fn install_contract<Contract>(
+    contracts: &mut ContractMap,
+    contract: Contract,
+    contract_key: sr25519::Pair,
+    ecdh_key: EcdhKey,
+    block: &mut BlockInfo,
+) where
+    Contract: NativeContract + Send + 'static,
+    <Contract as NativeContract>::Cmd: Send,
+{
+    let contract_id = contract.id();
+    let sender = MessageOrigin::Contract(contract_id);
+    let mq = block.send_mq.channel(sender, contract_key);
+    let contract_key = ecdh_key.clone();
+    let cmd_mq = PeelingReceiver::new_secret(
+        block
+            .recv_mq
+            .subscribe(contract::command_topic(contract_id))
+            .into(),
+        contract_key,
+    );
+    let wrapped = Box::new(contracts::NativeCompatContract::new(
+        contract,
+        mq,
+        cmd_mq,
+        ecdh_key.clone(),
+    ));
+    contracts.insert(contract_id, wrapped);
+}
+
 #[derive(Encode, Decode, Debug)]
 pub enum Error {
     NotAuthorized,
@@ -723,14 +877,6 @@ impl fmt::Display for Error {
             Error::Other(e) => write!(f, "{}", e),
         }
     }
-}
-
-#[derive(Encode, Decode, Debug, Clone)]
-pub enum Request {}
-
-#[derive(Encode, Decode, Debug)]
-pub enum Response {
-    Error(String),
 }
 
 pub mod chain_state {

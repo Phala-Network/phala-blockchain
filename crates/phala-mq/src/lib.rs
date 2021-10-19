@@ -40,5 +40,22 @@ pub use alias::*;
 mod alias {
     use super::*;
     use sp_core::sr25519;
-    pub type Sr25519MessageChannel = MessageChannel<sr25519::Pair>;
+    pub type SignedMessageChannel = MessageChannel<sr25519::Pair>;
+}
+
+pub mod traits {
+    use parity_scale_codec::Encode;
+
+    use crate::{BindTopic, Path};
+
+    pub trait MessageChannel {
+        fn push_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>);
+        fn push_message_to(&self, message: &impl Encode, to: impl Into<Path>) {
+            self.push_data(message.encode(), to)
+        }
+        fn push_message<M: Encode + BindTopic>(&self, message: &M) {
+            self.push_message_to(message, M::topic())
+        }
+        fn set_dummy(&self, _dummy: bool) {}
+    }
 }
