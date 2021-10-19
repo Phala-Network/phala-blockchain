@@ -1,6 +1,6 @@
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use alloc::format;
 use codec::{Decode, Encode};
 
 pub use phala_mq::{contract_id256 as id256, ContractId};
@@ -15,6 +15,15 @@ pub const DIEM: ContractId32 = 5;
 pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
+
+/// On-chain contract registration info
+#[derive(Encode, Decode, Debug)]
+pub struct ContractInfo<CodeHash, AccountId> {
+    pub code_hash: CodeHash,
+    pub owner: AccountId,
+    /// Contract counter of the contract
+    pub counter: u64,
+}
 
 /// Contract query request parameters, to be encrypted.
 #[derive(Encode, Decode, Debug)]
@@ -73,5 +82,7 @@ impl From<ContractQueryError> for prpc::server::Error {
 }
 
 pub fn command_topic(id: ContractId) -> Vec<u8> {
-    format!("phala/contract/{}/command", hex::encode(&id)).as_bytes().to_vec()
+    format!("phala/contract/{}/command", hex::encode(&id))
+        .as_bytes()
+        .to_vec()
 }

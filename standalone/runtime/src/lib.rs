@@ -1164,6 +1164,7 @@ parameter_types! {
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;

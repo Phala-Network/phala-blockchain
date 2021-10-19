@@ -7,11 +7,12 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{StorageVersion, UnixTime},
+		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
 	use sp_core::H256;
+	use sp_runtime::traits::Hash;
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -22,6 +23,7 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
+		contract::ContractInfo,
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
 			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
@@ -39,6 +41,9 @@ pub mod pallet {
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// The currency in which fees are paid and contract balances are held.
+		type Currency: Currency<Self::AccountId>;
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
@@ -75,6 +80,26 @@ pub mod pallet {
 	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
+	// TODO(shelven): move contract code storage to a standalone pallet
+
+	/// A mapping from an original code hash to the original code, untouched by instrumentation.
+	#[pallet::storage]
+	pub type PristineCode<T: Config> = StorageMap<_, Identity, CodeHash<T>, Vec<u8>>;
+
+	/// The contract counter.
+	#[pallet::storage]
+	pub type ContractCounter<T> = StorageValue<_, u64, ValueQuery>;
+
+	/// Mapping from contract address to pubkey
+	#[pallet::storage]
+	pub type Contracts<T: Config> =
+		StorageMap<_, Twox64Concat, ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>>;
+
+	#[pallet::storage]
+	pub type ContractDeployment<T> =
+		StorageMap<_, Twox64Concat, ContractPublicKey, WorkerPublicKey>;
+
+	// TODO(shelven): remove this
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
 	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, ContractPublicKey>;
@@ -141,7 +166,13 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
+		// Contract related
+		CodeNotFound,
 	}
+
+	type CodeHash<T> = <T as frame_system::Config>::Hash;
+	type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -181,18 +212,6 @@ pub mod pallet {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
-			Ok(())
-		}
-
-		/// Force register a contract pubkey
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn force_register_contract(
-			origin: OriginFor<T>,
-			contract: H256,
-			pubkey: ContractPublicKey,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			ContractKey::<T>::insert(contract, pubkey);
 			Ok(())
 		}
 
@@ -334,6 +353,49 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
+			ensure_signed(origin)?;
+			let code_hash = T::Hashing::hash(&code.encode());
+			PristineCode::<T>::insert(&code_hash, &code);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn instantiate_contract(
+			origin: OriginFor<T>,
+			// #[pallet::compact] endowment: BalanceOf<T>,
+			// #[pallet::compact] gas_limit: Weight,
+			code_hash: CodeHash<T>,
+			data: Vec<u8>,
+			salt: Vec<u8>,
+			deploy_worker: Option<WorkerPublicKey>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			ensure!(
+				PristineCode::<T>::contains_key(code_hash),
+				Error::<T>::CodeNotFound
+			);
+
+			let _code = PristineCode::<T>::get(code_hash).expect("checked existence above; qed.");
+			// TODO(shelven): send the code and data to GK for contract key generation and contract deployment
+
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn call_contract(
+			origin: OriginFor<T>,
+			// dest: <T::Lookup as StaticLookup>::Source,
+			// #[pallet::compact] value: BalanceOf<T>,
+			// #[pallet::compact] gas_limit: Weight,
+			data: Vec<u8>,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// TODO(shelven)
 			Ok(())
 		}
 

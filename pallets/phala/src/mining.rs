@@ -830,14 +830,14 @@ pub mod pallet {
 
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
 			let wallet = Self::account_id();
-			T::Currency::transfer(&wallet, target, value, KeepAlive)
+			<T as Config>::Currency::transfer(&wallet, target, value, KeepAlive)
 		}
 
 		pub fn withdraw_imbalance_from_subsidy_pool(
 			value: BalanceOf<T>,
 		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
 			let wallet = Self::account_id();
-			T::Currency::withdraw(
+			<T as Config>::Currency::withdraw(
 				&wallet,
 				value,
 				WithdrawReasons::TRANSFER,
