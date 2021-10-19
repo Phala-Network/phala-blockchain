@@ -1,6 +1,5 @@
 use crate::{
-    Message, MessageOrigin, MessageSigner, MessageToBeSigned, Mutex, SenderId, SignedMessage,
-    SigningMessage,
+    Message, MessageOrigin, MessageSigner, Mutex, SenderId, SignedMessage, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
@@ -160,5 +159,4 @@ mod msg_channel {
             self.prepare_with_data(payload, to)
         }
     }
-
 }

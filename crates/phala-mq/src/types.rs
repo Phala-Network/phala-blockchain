@@ -288,7 +288,7 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct SigningMessage<Signer> {
     pub message: Message,
     pub signer: Signer,

@@ -278,9 +278,9 @@ where
                 };
 
                 let tmp_key = crate::new_sr25519_key().derive_ecdh_key().unwrap();
-                let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress, &|_| None);
-                
-                secret_mq.push_message(&message, Some(&worker.0));
+                let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress);
+
+                secret_mq.bind_remote_key(Some(&worker.0)).push_message(&message);
             }
         }
     }

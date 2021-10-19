@@ -1,7 +1,6 @@
 pub use receiver::*;
 pub use sender::*;
 
-use crate::light_validation::utils::storage_map_prefix_blake2_128_concat;
 use parity_scale_codec::{Decode, Encode};
 use phactory_api::crypto::EncryptedData;
 
@@ -12,59 +11,84 @@ pub enum Payload<T> {
 }
 
 mod sender {
-    use parity_scale_codec::Encode;
+    use crate::contracts::Data as OpaqueData;
     use phactory_api::crypto::{ecdh, EncryptedData};
-    use phala_mq::{BindTopic, Path};
-    use phala_mq::traits::MessageChannel;
+    use phala_crypto::ecdh::EcdhPublicKey;
+    use phala_mq::traits::{MessageChannel, MessagePrepareChannel};
+    use phala_mq::Path;
 
     pub type KeyPair = ecdh::EcdhKey;
 
-    #[allow(unused)] // TODO.kevin: remove this.
+    #[derive(Clone)]
     pub struct SecretMessageChannel<'a, MsgChan> {
         key: &'a KeyPair,
         mq: &'a MsgChan,
-        key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
     }
 
-    #[allow(unused)] // TODO.kevin: remove this.
-    impl<'a, MsgChan: MessageChannel> SecretMessageChannel<'a, MsgChan> {
-        pub fn new(
-            key: &'a KeyPair,
-            mq: &'a MsgChan,
-            key_map: &'a dyn Fn(&[u8]) -> Option<ecdh::EcdhPublicKey>,
-        ) -> Self {
-            SecretMessageChannel { key, mq, key_map }
+    pub struct BoundSecretMessageChannel<'a, MsgChan> {
+        inner: SecretMessageChannel<'a, MsgChan>,
+        remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
+    }
+
+    impl<'a, MsgChan: Clone> SecretMessageChannel<'a, MsgChan> {
+        pub fn new(key: &'a KeyPair, mq: &'a MsgChan) -> Self {
+            SecretMessageChannel { key, mq }
         }
 
-        pub fn pubkey_for_topic(&self, topic: &[u8]) -> Option<ecdh::EcdhPublicKey> {
-            (self.key_map)(topic)
-        }
-
-        pub fn push_message_to<M: Encode>(
+        pub fn bind_remote_key(
             &self,
-            to: impl Into<Path>,
-            message: &M,
-            remote_pubkey: Option<&ecdh::EcdhPublicKey>,
-        ) {
-            let data = message.encode();
-            let payload = if let Some(remote_pubkey) = remote_pubkey {
+            remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
+        ) -> BoundSecretMessageChannel<'a, MsgChan> {
+            BoundSecretMessageChannel {
+                inner: self.clone(),
+                remote_pubkey,
+            }
+        }
+    }
+
+    impl<'a, MsgChan> BoundSecretMessageChannel<'a, MsgChan> {
+        fn encrypt_payload(&self, data: Vec<u8>) -> super::Payload<OpaqueData> {
+            if let Some(remote_pubkey) = self.remote_pubkey {
                 let iv = crate::generate_random_iv();
-                let data = EncryptedData::encrypt(self.key, remote_pubkey, iv, &data)
+                let data = EncryptedData::encrypt(self.inner.key, remote_pubkey, iv, &data)
                     .expect("Encrypt message failed?");
                 super::Payload::Encrypted(data)
             } else {
-                super::Payload::Plain(message)
-            };
-            self.mq.push_data(payload.encode(), to)
+                super::Payload::Plain(OpaqueData(data))
+            }
         }
+    }
 
-        pub fn push_message<M: Encode + BindTopic>(
-            &self,
-            message: &M,
-            remote_pubkey: Option<&ecdh::EcdhPublicKey>,
-        ) {
-            self.push_message_to(<M as BindTopic>::topic(), message, remote_pubkey)
+    impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannel
+        for BoundSecretMessageChannel<'a, MsgChan>
+    {
+        fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
+            let payload = self.encrypt_payload(data);
+            self.inner.mq.push_message_to(&payload, to)
         }
+    }
+
+    impl<'a, MsgChan: MessagePrepareChannel> phala_mq::traits::MessagePrepareChannel
+        for BoundSecretMessageChannel<'a, MsgChan>
+    {
+        type Signer = MsgChan::Signer;
+
+        fn prepare_with_data(
+            &self,
+            data: Vec<u8>,
+            to: impl Into<Path>,
+        ) -> phala_mq::SigningMessage<Self::Signer> {
+            let payload = self.encrypt_payload(data);
+            self.inner.mq.prepare_message_to(&payload, to)
+        }
+    }
+
+    pub fn bind_remote<'a, MsgChan: Clone>(
+        channel: &'a MsgChan,
+        ecdh_key: &'a ecdh::EcdhKey,
+        remote_pubkey: Option<&'a EcdhPublicKey>,
+    ) -> BoundSecretMessageChannel<'a, MsgChan> {
+        SecretMessageChannel::new(ecdh_key, channel).bind_remote_key(remote_pubkey)
     }
 }
 
@@ -174,16 +198,4 @@ mod receiver {
             self.receiver.peek_ind()
         }
     }
-}
-
-/// Calculates the Substrate storage key prefix for a StorageMap
-pub fn storage_prefix_for_topic_pubkey(topic: &[u8]) -> Vec<u8> {
-    use phala_pallets::pallet_mq::StorageMapTrait as _;
-
-    type TopicKey = phala_pallets::pallet_registry::TopicKey<chain::Runtime>;
-
-    let module_prefix = TopicKey::module_prefix();
-    let storage_prefix = TopicKey::storage_prefix();
-
-    storage_map_prefix_blake2_128_concat(module_prefix, storage_prefix, &topic)
 }

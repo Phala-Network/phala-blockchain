@@ -1,6 +1,4 @@
-use crate::secret_channel::{
-    storage_prefix_for_topic_pubkey, KeyPair, Peeler, PeelingReceiver, SecretMessageChannel,
-};
+use crate::secret_channel::{KeyPair, Peeler, PeelingReceiver, SecretMessageChannel};
 use std::convert::TryFrom as _;
 use std::fmt::Debug;
 
@@ -33,8 +31,6 @@ fn account_id_from_hex(s: &str) -> Result<AccountId> {
 
 pub use support::*;
 mod support {
-    use core::convert::TryInto;
-
     use super::pink::group::GroupKeeper;
     use super::*;
     use crate::types::BlockInfo;
@@ -158,20 +154,14 @@ mod support {
             req: OpaqueQuery,
             context: &mut QueryContext,
         ) -> Result<OpaqueReply, OpaqueError> {
-            let response = self.contract.handle_query(origin, deopaque_query(req)?, context);
+            let response = self
+                .contract
+                .handle_query(origin, deopaque_query(req)?, context);
             Ok(response.encode())
         }
 
         fn process_messages(&mut self, env: &mut ExecuteEnv) {
-            let storage = env.block.storage;
-            let key_map = |topic: &[u8]| {
-                // TODO.kevin: query contract pubkey for contract topic's when the feature in GK is available.
-                storage
-                    .get(&storage_prefix_for_topic_pubkey(topic))
-                    .map(|v| v.try_into().ok())
-                    .flatten()
-            };
-            let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq, &key_map);
+            let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
             let mut context = NativeContext {
                 block: env.block,
                 mq: &self.send_mq,
