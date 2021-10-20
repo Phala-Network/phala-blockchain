@@ -4,6 +4,7 @@ use phala_mq::traits::MessageChannel;
 #[cfg(feature = "queue")]
 #[test]
 fn test_send_message() {
+    #[derive(Clone)]
     struct TestSigner(Vec<u8>);
 
     impl MessageSigner for TestSigner {

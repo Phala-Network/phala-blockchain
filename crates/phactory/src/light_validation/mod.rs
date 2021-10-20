@@ -396,18 +396,4 @@ pub mod utils {
         bytes.extend(&encoded);
         bytes
     }
-
-    /// Calculates the Substrate storage key prefix for a StorageMap
-    pub fn storage_map_prefix_blake2_128_concat(
-        module: &[u8],
-        storage_item: &[u8],
-        key: &impl Encode,
-    ) -> Vec<u8> {
-        let mut bytes = sp_core::twox_128(module).to_vec();
-        bytes.extend(&sp_core::twox_128(storage_item)[..]);
-        let encoded = key.encode();
-        bytes.extend(&sp_core::blake2_128(&encoded));
-        bytes.extend(&encoded);
-        bytes
-    }
 }

@@ -5,7 +5,6 @@ pub mod contract;
 
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
-use core::convert::{TryFrom, TryInto};
 use core::fmt::Debug;
 use sp_core::H256;
 
