@@ -2,8 +2,10 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
+use phala_mq::traits::MessageChannel;
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use runtime::AccountId;
+use scopeguard::ScopeGuard;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -71,6 +73,11 @@ impl contracts::NativeContract for Pink {
             Query::InkMessage(input_data) => {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
+
+                scopeguard::defer! {
+                    let _ = ::pink::runtime::take_mq_egress();
+                };
+
                 let ret = self
                     .instance
                     .bare_call(storage, origin.clone(), input_data, true)
@@ -99,6 +106,15 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
+                let msgs = ::pink::runtime::take_mq_egress();
+                if !msgs.is_empty() {
+                    error!(target: "pink", "BUG: some messages in runtime cache before call");
+                }
+
+                let clear_mq_guard = scopeguard::guard((), |()| {
+                    let _ = ::pink::runtime::take_mq_egress();
+                });
+
                 let ret = self
                     .instance
                     .bare_call(storage, origin.clone(), message, false)
@@ -106,8 +122,24 @@ impl contracts::NativeContract for Pink {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                         TransactionError::Other(format!("Call contract method failed: {:?}", err))
                     })?;
-                // TODO.kevin: report the output to the chain?
+
+                // TODO.kevin: store the output to some where.
                 let _ = ret;
+
+                let _ = ScopeGuard::into_inner(clear_mq_guard);
+
+                let msgs = ::pink::runtime::take_mq_egress();
+
+                for message in msgs.messages {
+                    context.mq.push_data(message.payload, message.topic);
+                }
+
+                for message in msgs.osp_messages {
+                    context
+                        .secret_mq
+                        .bind_remote_key(message.remote_pubkey.as_ref())
+                        .push_data(message.payload, message.topic);
+                }
             }
         }
         Ok(())

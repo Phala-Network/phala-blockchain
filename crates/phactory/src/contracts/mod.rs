@@ -42,9 +42,8 @@ mod support {
 
     pub struct NativeContext<'a> {
         pub block: &'a BlockInfo<'a>,
-        mq: &'a SignedMessageChannel,
-        #[allow(unused)] // TODO.kevin: remove this.
-        secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
+        pub mq: &'a SignedMessageChannel,
+        pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
         pub contract_groups: &'a mut GroupKeeper,
     }
 
