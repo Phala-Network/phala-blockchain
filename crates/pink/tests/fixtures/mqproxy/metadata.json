@@ -1,0 +1,169 @@
+{
+  "metadataVersion": "0.1.0",
+  "source": {
+    "hash": "0x6aa0e18dfcc813f3979f68ca39272c254c4407b94feced6f06191d797947b51b",
+    "language": "ink! 3.0.0-rc5",
+    "compiler": "rustc 1.57.0-nightly"
+  },
+  "contract": {
+    "name": "mqproxy",
+    "version": "0.1.0",
+    "authors": [
+      "Kevin Wang <wy721@qq.com>"
+    ]
+  },
+  "spec": {
+    "constructors": [
+      {
+        "args": [],
+        "docs": [],
+        "name": [
+          "default"
+        ],
+        "selector": "0xed4b9d1b"
+      }
+    ],
+    "docs": [],
+    "events": [],
+    "messages": [
+      {
+        "args": [
+          {
+            "name": "message",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "name": "topic",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 0
+            }
+          }
+        ],
+        "docs": [],
+        "mutates": false,
+        "name": [
+          "push_message"
+        ],
+        "payable": false,
+        "returnType": null,
+        "selector": "0x6495da7f"
+      },
+      {
+        "args": [
+          {
+            "name": "message",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "name": "topic",
+            "type": {
+              "displayName": [
+                "Vec"
+              ],
+              "type": 0
+            }
+          },
+          {
+            "name": "remote_pubkey",
+            "type": {
+              "displayName": [
+                "Option"
+              ],
+              "type": 2
+            }
+          }
+        ],
+        "docs": [],
+        "mutates": false,
+        "name": [
+          "push_osp_message"
+        ],
+        "payable": false,
+        "returnType": null,
+        "selector": "0xd09d68e0"
+      }
+    ]
+  },
+  "storage": {
+    "struct": {
+      "fields": []
+    }
+  },
+  "types": [
+    {
+      "id": 0,
+      "type": {
+        "def": {
+          "sequence": {
+            "type": 1
+          }
+        }
+      }
+    },
+    {
+      "id": 1,
+      "type": {
+        "def": {
+          "primitive": "u8"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "type": {
+        "def": {
+          "variant": {
+            "variants": [
+              {
+                "index": 0,
+                "name": "None"
+              },
+              {
+                "fields": [
+                  {
+                    "type": 3
+                  }
+                ],
+                "index": 1,
+                "name": "Some"
+              }
+            ]
+          }
+        },
+        "params": [
+          {
+            "name": "T",
+            "type": 3
+          }
+        ],
+        "path": [
+          "Option"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "type": {
+        "def": {
+          "array": {
+            "len": 32,
+            "type": 1
+          }
+        }
+      }
+    }
+  ]
+}

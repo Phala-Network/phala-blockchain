@@ -1,0 +1,67 @@
+---
+source: crates/pink/tests/test_pink_contract.rs
+expression: messages
+
+---
+PinkEgressMessages {
+    messages: [
+        Message {
+            payload: [
+                66,
+                66,
+            ],
+            topic: [
+                36,
+                36,
+            ],
+        },
+    ],
+    osp_messages: [
+        OspMessage {
+            payload: [
+                66,
+                66,
+            ],
+            topic: [
+                36,
+                36,
+            ],
+            remote_pubkey: Some(
+                [
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                    0,
+                ],
+            ),
+        },
+    ],
+}

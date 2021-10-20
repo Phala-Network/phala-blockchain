@@ -1,7 +1,10 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate alloc;
+
 use ink_env::Environment;
 use ink_lang as ink;
+use alloc::vec::Vec;
 
 pub type EcdhPublicKey = [u8; 32];
 

@@ -106,3 +106,44 @@ fn test_ink_cross_contract_instanciate() {
 
     insta::assert_debug_snapshot!(result);
 }
+
+#[test]
+fn test_mq_egress() {
+    let mut storage = Contract::new_storage();
+    let mut contract = Contract::new_with_selector(
+        &mut storage,
+        ALICE.clone(),
+        include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
+        hex!("ed4b9d1b"), // init_value
+        (),
+        vec![],
+    )
+    .unwrap();
+
+    let _: () = contract
+        .call_with_selector(
+            &mut storage,
+            ALICE.clone(),
+            hex!("6495da7f"), // push_message
+            (b"\x42\x42".to_vec(), b"\x24\x24".to_vec()),
+            false,
+        )
+        .unwrap();
+
+    let _: () = contract
+        .call_with_selector(
+            &mut storage,
+            ALICE.clone(),
+            hex!("d09d68e0"), // push_osp_message
+            (
+                b"\x42\x42".to_vec(),
+                b"\x24\x24".to_vec(),
+                Some([0u8; 32]),
+            ),
+            false,
+        )
+        .unwrap();
+
+    let messages = pink::runtime::take_mq_egress();
+    insta::assert_debug_snapshot!(messages);
+}
