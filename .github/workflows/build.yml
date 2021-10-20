@@ -17,7 +17,7 @@ jobs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly-2021-07-03
+          toolchain: nightly-2021-09-01
           override: true
           target: wasm32-unknown-unknown
     - uses: actions/checkout@v2
@@ -42,7 +42,7 @@ jobs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly-2021-07-03
+          toolchain: nightly-2021-09-01
           override: true
           target: wasm32-unknown-unknown
     - uses: actions/checkout@v2
@@ -68,7 +68,7 @@ jobs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly-2021-07-03
+          toolchain: nightly-2021-09-01
           override: true
           target: wasm32-unknown-unknown
     - uses: actions/checkout@v2
@@ -108,7 +108,7 @@ jobs:
     - name: Install latest nightly
       uses: actions-rs/toolchain@v1
       with:
-          toolchain: nightly-2021-07-03
+          toolchain: nightly-2021-09-01
           override: true
           target: wasm32-unknown-unknown
     - uses: actions/checkout@v2

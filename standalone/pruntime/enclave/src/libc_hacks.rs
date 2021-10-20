@@ -98,6 +98,26 @@ pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t
 }
 
 #[no_mangle]
+pub extern "C" fn stat64(path: *const c_char, buf: *mut libc::stat64) -> c_int {
+    assert_eq_size!(libc::stat64, sgx_libc::stat64);
+
+    unsafe { ocall::stat64(path, buf as _) }
+}
+
+#[no_mangle]
+pub extern "C" fn realpath(pathname: *const c_char, resolved: *mut c_char) -> *mut c_char {
+    let path = unsafe { ocall::realpath(pathname) };
+    if path.is_null() || resolved.is_null() {
+        return path;
+    }
+    unsafe {
+        sgx_libc::memcpy(resolved as _, path as _, sgx_libc::strlen(path) + 1);
+        sgx_libc::free(path as _);
+    }
+    resolved
+}
+
+#[no_mangle]
 pub extern "C" fn getcwd(mut buf: *mut c_char, size: size_t) -> *mut c_char {
     // Enclave have no working directory, let's return "(unreachable)"
     /*
