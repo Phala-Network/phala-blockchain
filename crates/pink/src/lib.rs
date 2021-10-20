@@ -1,6 +1,6 @@
 mod storage;
 mod contract;
-pub(crate) mod runtime;
+pub mod runtime;
 
 pub mod types;
 

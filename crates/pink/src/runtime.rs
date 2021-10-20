@@ -1,20 +1,17 @@
+mod extension;
 mod mock_types;
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::weights::Weight;
 use frame_support::{parameter_types, weights::constants::WEIGHT_PER_SECOND};
-use pallet_contracts::{
-    chain_extension::{
-        ChainExtension, Environment, Ext, InitState, Result as ExtensionResult, RetVal, SysConfig,
-        UncheckedFrom,
-    },
-    Config, Frame, Schedule,
-};
+use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{
     generic::Header,
     traits::{Convert, IdentityLookup},
     Perbill,
 };
+
+pub use extension::take_mq_egress;
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;
@@ -29,18 +26,6 @@ frame_support::construct_runtime! {
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
         Randomness: pallet_randomness_collective_flip::{Pallet, Storage},
         Contracts: pallet_contracts::{Pallet, Call, Storage, Event<T>},
-    }
-}
-
-pub struct NoExtension;
-
-impl ChainExtension<PinkRuntime> for NoExtension {
-    fn call<E>(func_id: u32, _env: Environment<E, InitState>) -> ExtensionResult<RetVal>
-    where
-        E: Ext<T = PinkRuntime>,
-        <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
-    {
-        panic!("Unknown func_id: {}", func_id);
     }
 }
 
@@ -130,7 +115,7 @@ impl Config for PinkRuntime {
     type CallStack = [Frame<Self>; 31];
     type WeightPrice = Self;
     type WeightInfo = ();
-    type ChainExtension = NoExtension;
+    type ChainExtension = extension::PinkExtension;
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
