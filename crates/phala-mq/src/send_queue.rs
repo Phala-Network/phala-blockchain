@@ -138,7 +138,7 @@ mod msg_channel {
             let signing = self.prepare_with_data(payload, to);
             self.queue
                 .enqueue_message(self.sender.clone(), move |sequence| {
-                    signing.to_signed(sequence)
+                    signing.sign(sequence)
                 })
         }
 

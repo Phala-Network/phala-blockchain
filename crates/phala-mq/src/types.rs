@@ -295,7 +295,7 @@ pub struct SigningMessage<Signer> {
 }
 
 impl<Signer: MessageSigner> SigningMessage<Signer> {
-    pub fn to_signed(self, sequence: u64) -> SignedMessage {
+    pub fn sign(self, sequence: u64) -> SignedMessage {
         let data = MessageToBeSigned {
             message: &self.message,
             sequence,

@@ -112,7 +112,7 @@ pub fn process_block(
             [secret_channel.prepare_message_to(&message, &topic[..])]
         };
 
-        side_task_man.add_async_task_finish_at(block_number + duration, default_messages,  async move {
+        side_task_man.add_async_task(block_number, duration, default_messages, async move {
             // 1. we load the database first, so that in case where the database not exists,
             // we can just return an error without emits any http request.
             let geo_db_buf = std::fs::read(geoip_city_db).or(Err(GeoProbeError::DBNotFound))?;

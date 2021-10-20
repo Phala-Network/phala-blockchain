@@ -22,7 +22,7 @@ impl TaskWrapper {
         for msg in messages {
             context
                 .send_mq
-                .enqueue_message(msg.message.sender.clone(), |seq| msg.to_signed(seq));
+                .enqueue_message(msg.message.sender.clone(), |seq| msg.sign(seq));
         }
     }
 }
@@ -52,19 +52,20 @@ impl SideTaskManager {
         self.tasks = remain;
     }
 
-    pub fn add_task_finish_at<
+    pub fn add_task<
         F: FnOnce(&PollContext) -> Option<[SigningMessage; N]> + Send + 'static,
         const N: usize,
     >(
         &mut self,
-        end_block: BlockNumber,
+        current_block: BlockNumber,
+        duration: BlockNumber,
         default_messages: [SigningMessage; N],
         finish: F,
     ) {
         let task = TaskWrapper {
             on_finish: Box::new(move |context| finish(context).map(|arr| arr.to_vec())),
             default_messages: default_messages.to_vec(),
-            end_block,
+            end_block: current_block + duration,
         };
         self.tasks.push(task);
     }
@@ -130,7 +131,7 @@ pub mod async_side_task {
             let task = phala_async_executor::spawn(async move {
                 let result = future.await;
                 if let Err(err) = &result {
-                    log::error!("Async side task return error: {:?}", err);
+                    log::error!("Async side task returns error: {:?}", err);
                 }
                 *set_result.lock().unwrap() = result.ok();
             });
@@ -143,17 +144,18 @@ pub mod async_side_task {
     }
 
     impl super::SideTaskManager {
-        pub fn add_async_task_finish_at<
+        pub fn add_async_task<
             F: Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
             const N: usize,
         >(
             &mut self,
-            end_block: BlockNumber,
+            current_block: BlockNumber,
+            duration: BlockNumber,
             default_messages: [SigningMessage; N],
             future: F,
         ) {
             let task = AsyncSideTask::spawn(future);
-            self.add_task_finish_at(end_block, default_messages, |context| task.finish(context));
+            self.add_task(current_block, duration, default_messages, |context| task.finish(context));
         }
     }
 }
