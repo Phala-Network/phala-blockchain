@@ -30,6 +30,7 @@ members = [
 	"crates/phala-async-executor",
 	"crates/phala-allocator",
 	"crates/pink",
+	"crates/pink/pink-extension",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",
