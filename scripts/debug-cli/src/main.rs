@@ -85,6 +85,10 @@ enum PinkCommand {
         id: String,
         message: String,
     },
+    Command {
+        id: String,
+        message: String,
+    },
     Deploy {
         #[structopt(long)]
         group: Option<String>,
@@ -235,6 +239,11 @@ async fn handle_pink_command(command: PinkCommand) {
     }
 
     #[derive(Debug, Encode, Decode)]
+    pub enum Command {
+        InkMessage { nonce: Vec<u8>, message: Vec<u8> },
+    }
+
+    #[derive(Debug, Encode, Decode)]
     pub enum Response {
         InkMessageReturn(Vec<u8>),
     }
@@ -268,6 +277,22 @@ async fn handle_pink_command(command: PinkCommand) {
                 }
             }
         }
+        PinkCommand::Command { id, message }  => {
+            #[derive(Encode)]
+            enum Payload<T> {
+                Plain(T)
+            }
+
+            let id = decode_hex(&id);
+            let id = ContractId::decode(&mut &id[..]).expect("Bad contract id");
+            let message = decode_hex(&message);
+            let nonce = vec![];
+            let command = Command::InkMessage{ nonce, message };
+            let mq_payload = Payload::Plain(command);
+            println!("topic: (0x{})", hex::encode(phala_types::contract::command_topic(id)));
+            println!("command: (0x{})", hex::encode(mq_payload.encode()));
+
+        }
         PinkCommand::Deploy { group, worker, wasm_file, input } => {
             let group_id = group.map(|x| {
                 H256(decode_hex(&x).try_into().expect("Bad group"))
@@ -281,7 +306,7 @@ async fn handle_pink_command(command: PinkCommand) {
                 wasm_bin,
                 input_data,
             };
-            println!("{}", hex::encode(request.encode()));
+            println!("0x{}", hex::encode(request.encode()));
         }
     }
 }
