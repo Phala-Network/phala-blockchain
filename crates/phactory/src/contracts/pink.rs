@@ -5,7 +5,6 @@ use parity_scale_codec::{Decode, Encode};
 use phala_mq::traits::MessageChannel;
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use runtime::AccountId;
-use scopeguard::ScopeGuard;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -74,11 +73,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                scopeguard::defer! {
-                    let _ = ::pink::runtime::take_mq_egress();
-                };
-
-                let ret = self
+                let (ret, _messages) = self
                     .instance
                     .bare_call(storage, origin.clone(), input_data, true)
                     .map_err(|err| {
@@ -106,16 +101,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let msgs = ::pink::runtime::take_mq_egress();
-                if !msgs.is_empty() {
-                    error!(target: "pink", "BUG: some messages in runtime cache before call");
-                }
-
-                let clear_mq_guard = scopeguard::guard((), |()| {
-                    let _ = ::pink::runtime::take_mq_egress();
-                });
-
-                let ret = self
+                let (ret, messages) = self
                     .instance
                     .bare_call(storage, origin.clone(), message, false)
                     .map_err(|err| {
@@ -126,15 +112,11 @@ impl contracts::NativeContract for Pink {
                 // TODO.kevin: store the output to some where.
                 let _ = ret;
 
-                let _ = ScopeGuard::into_inner(clear_mq_guard);
-
-                let msgs = ::pink::runtime::take_mq_egress();
-
-                for message in msgs.messages {
+                for message in messages.messages {
                     context.mq.push_data(message.payload, message.topic);
                 }
 
-                for message in msgs.osp_messages {
+                for message in messages.osp_messages {
                     context
                         .secret_mq
                         .bind_remote_key(message.remote_pubkey.as_ref())
