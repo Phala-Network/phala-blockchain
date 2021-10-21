@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::traits::MessageChannel;
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
-use runtime::AccountId;
+use runtime::{AccountId, BlockNumber};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -40,11 +40,17 @@ impl Pink {
         wasm_bin: Vec<u8>,
         input_data: Vec<u8>,
         salt: Vec<u8>,
+        block_number: BlockNumber,
     ) -> Result<Self> {
-        let instance = pink::Contract::new(storage, origin.clone(), wasm_bin, input_data, salt)
-            .map_err(
-                |err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,),
-            )?;
+        let instance = pink::Contract::new(
+            storage,
+            origin.clone(),
+            wasm_bin,
+            input_data,
+            salt,
+            block_number,
+        )
+        .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
         Ok(Self { group, instance })
     }
 }
@@ -75,7 +81,13 @@ impl contracts::NativeContract for Pink {
 
                 let (ret, _messages) = self
                     .instance
-                    .bare_call(storage, origin.clone(), input_data, true)
+                    .bare_call(
+                        storage,
+                        origin.clone(),
+                        input_data,
+                        true,
+                        context.block_number,
+                    )
                     .map_err(|err| {
                         log::error!("Pink [{:?}] query exec error: {:?}", self.id(), err);
                         QueryError::RuntimeError(format!("Call contract method failed: {:?}", err))
@@ -103,7 +115,13 @@ impl contracts::NativeContract for Pink {
 
                 let (ret, messages) = self
                     .instance
-                    .bare_call(storage, origin.clone(), message, false)
+                    .bare_call(
+                        storage,
+                        origin.clone(),
+                        message,
+                        false,
+                        context.block.block_number,
+                    )
                     .map_err(|err| {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                         TransactionError::Other(format!("Call contract method failed: {:?}", err))
@@ -144,6 +162,7 @@ pub mod group {
     use anyhow::Result;
     use phala_mq::{ContractGroupId, ContractId};
     use pink::types::AccountId;
+    use runtime::BlockNumber;
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default)]
@@ -165,6 +184,7 @@ pub mod group {
             wasm_bin: Vec<u8>,
             input_data: Vec<u8>,
             salt: Vec<u8>,
+            block_number: BlockNumber,
         ) -> Result<Pink> {
             let group = self.groups.entry(group_id.clone()).or_default();
             let pink = Pink::instantiate(
@@ -174,6 +194,7 @@ pub mod group {
                 wasm_bin,
                 input_data,
                 salt,
+                block_number,
             )?;
             group.contracts.insert(pink.id().clone());
             Ok(pink)

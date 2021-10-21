@@ -481,9 +481,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
+        let current_block = self.get_info().blocknum - 1;
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
-            let current_block = self.get_info().blocknum - 1;
             // At most two level cert chain supported
             match sig.verify(&request.encoded_encrypted_data, current_block, 2) {
                 Ok(key_chain) => match &key_chain[..] {
@@ -533,7 +533,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         let res = self
             .system()?
-            .handle_query(ref_origin, &head.id, data_cursor)?;
+            .handle_query(ref_origin, &head.id, data_cursor, current_block)?;
 
         // Encode response
         let response = contract::ContractQueryResponse {
