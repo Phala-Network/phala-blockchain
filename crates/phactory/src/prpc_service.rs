@@ -213,6 +213,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
         let mut last_block = 0;
         for block in blocks.into_iter() {
+            info!("Dispatching block: {}", block.block_header.number);
             let state = self.runtime_state()?;
             state
                 .storage_synchronizer
