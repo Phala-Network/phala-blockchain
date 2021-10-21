@@ -41,6 +41,7 @@ impl Pink {
         input_data: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
+        now: u64,
     ) -> Result<Self> {
         let instance = pink::Contract::new(
             storage,
@@ -49,6 +50,7 @@ impl Pink {
             input_data,
             salt,
             block_number,
+            now,
         )
         .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
         Ok(Self { group, instance })
@@ -87,6 +89,7 @@ impl contracts::NativeContract for Pink {
                         input_data,
                         true,
                         context.block_number,
+                        context.now_ms,
                     )
                     .map_err(|err| {
                         log::error!("Pink [{:?}] query exec error: {:?}", self.id(), err);
@@ -121,6 +124,7 @@ impl contracts::NativeContract for Pink {
                         message,
                         false,
                         context.block.block_number,
+                        context.block.now_ms,
                     )
                     .map_err(|err| {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
@@ -185,6 +189,7 @@ pub mod group {
             input_data: Vec<u8>,
             salt: Vec<u8>,
             block_number: BlockNumber,
+            now: u64,
         ) -> Result<Pink> {
             let group = self.groups.entry(group_id.clone()).or_default();
             let pink = Pink::instantiate(
@@ -195,6 +200,7 @@ pub mod group {
                 input_data,
                 salt,
                 block_number,
+                now,
             )?;
             group.contracts.insert(pink.id().clone());
             Ok(pink)

@@ -51,6 +51,7 @@ mod support {
 
     pub struct QueryContext<'a> {
         pub block_number: BlockNumber,
+        pub now_ms: u64,
         pub contract_groups: &'a mut GroupKeeper,
     }
 

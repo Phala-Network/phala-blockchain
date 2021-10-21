@@ -380,6 +380,10 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractMap,
     contract_groups: GroupKeeper,
+
+    // Cached for query
+    block_number: BlockNumber,
+    now_ms: u64,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -419,6 +423,8 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_groups: Default::default(),
+            block_number: 0,
+            now_ms: 0,
         }
     }
 
@@ -427,20 +433,23 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: Option<&chain::AccountId>,
         contract_id: &ContractId,
         req: OpaqueQuery,
-        block_number: BlockNumber,
     ) -> Result<OpaqueReply, OpaqueError> {
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
         let mut context = contracts::QueryContext {
-            block_number,
+            block_number: self.block_number,
+            now_ms: self.now_ms,
             contract_groups: &mut self.contract_groups,
         };
         contract.handle_query(origin, req, &mut context)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+        self.block_number = block.block_number;
+        self.now_ms = block.now_ms;
+
         if self.enable_geoprobing {
             geo_probe::process_block(
                 block.block_number,
@@ -735,6 +744,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             input_data,
                             salt,
                             block.block_number,
+                            block.now_ms,
                         );
                         match result {
                             Err(err) => Err(err.to_string()),
