@@ -153,6 +153,7 @@ mod support {
             req: OpaqueQuery,
             context: &mut QueryContext,
         ) -> Result<OpaqueReply, OpaqueError> {
+            debug!(target: "contract", "Contract {:?} handling query", self.id());
             let response = self
                 .contract
                 .handle_query(origin, deopaque_query(req)?, context);
@@ -171,13 +172,14 @@ mod support {
                 let ok = phala_mq::select! {
                     next_cmd = self.cmd_rcv_mq => match next_cmd {
                         Ok((_, cmd, origin)) => {
+                            info!(target: "contract", "Contract {:?} handling command", self.id());
                             let status = self.contract.handle_command(origin, cmd, &mut context);
                             if let Err(err) = status {
-                                log::error!("Contract {:?} handle command error: {:?}", self.id(), err);
+                                error!(target: "contract", "Contract {:?} handle command error: {:?}", self.id(), err);
                             }
                         }
                         Err(e) => {
-                            error!("Read command failed [{}]: {:?}", self.id(), e);
+                            error!(target: "contract", "Read command failed [{}]: {:?}", self.id(), e);
                         }
                     },
                 };
