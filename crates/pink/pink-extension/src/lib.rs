@@ -12,9 +12,15 @@ pub type EcdhPublicKey = [u8; 32];
 pub trait PinkExtension {
     type ErrorCode = ErrorCode;
 
+    /// Push a raw message to a topic accepting only vanilla messages
+    ///
+    /// Most phala system topics accept vanilla messages
     #[ink(extension = 1, returns_result = false)]
     fn push_message(message: Vec<u8>, topic: Vec<u8>);
 
+    /// Push a message to a topic accepting optinal secret messages
+    ///
+    /// Contract commands topic accept osp messages
     #[ink(extension = 2, returns_result = false)]
     fn push_osp_message(message: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>);
 }
