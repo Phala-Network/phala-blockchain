@@ -2,11 +2,7 @@ use scale::{Decode, Encode};
 use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
-use crate::{
-    runtime::Contracts,
-    storage,
-    types::{AccountId, Hashing, ENOUGH, GAS_LIMIT},
-};
+use crate::{runtime::{Contracts, PinkEgressMessages}, storage, types::{AccountId, Hashing, ENOUGH, GAS_LIMIT}};
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
@@ -63,7 +59,7 @@ impl Contract {
                 Ok(_) => (),
             }
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
-        })?;
+        }).0?;
 
         Ok(Self { address })
     }
@@ -94,9 +90,9 @@ impl Contract {
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
-    ) -> Result<Vec<u8>, ExecError> {
+    ) -> Result<(Vec<u8>, PinkEgressMessages), ExecError> {
         let addr = self.address.clone();
-        let rv = storage.execute_with(rollback, move || -> Result<_, ExecError> {
+        let (rv, messages) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
             let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
             match result.result {
                 Err(err) => {
@@ -107,8 +103,8 @@ impl Contract {
                 }
                 Ok(rv) => Ok(rv),
             }
-        })?;
-        Ok(rv.data.0)
+        });
+        Ok((rv?.data.0, messages))
     }
 
     /// Call a contract method given it's selector
@@ -119,15 +115,15 @@ impl Contract {
         selector: [u8; 4],
         args: impl Encode,
         rollback: bool,
-    ) -> Result<RV, ExecError> {
+    ) -> Result<(RV, PinkEgressMessages), ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let rv = self.bare_call(storage, origin, input_data, rollback)?;
-        Ok(Decode::decode(&mut &rv[..]).or(Err(ExecError {
+        let (rv, messages) = self.bare_call(storage, origin, input_data, rollback)?;
+        Ok((Decode::decode(&mut &rv[..]).or(Err(ExecError {
             source: DispatchError::Other("Decode result failed"),
             message: Default::default(),
-        }))?)
+        }))?, messages))
     }
 }
 

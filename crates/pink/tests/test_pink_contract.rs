@@ -26,7 +26,8 @@ fn test_ink_flip() {
             (),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     assert_eq!(result, true); // Should equal to the init value
 
@@ -38,7 +39,8 @@ fn test_ink_flip() {
             (),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     let result: bool = contract
         .call_with_selector(
@@ -48,7 +50,8 @@ fn test_ink_flip() {
             (),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     assert_eq!(result, false); // Should be flipped
 
@@ -60,7 +63,8 @@ fn test_ink_flip() {
             (42u32, 24u128),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .0;
     assert_eq!(result, (42, 24));
 }
 
@@ -102,7 +106,8 @@ fn test_ink_cross_contract_instanciate() {
             (),
             false,
         )
-        .unwrap();
+        .unwrap()
+        .0;
 
     insta::assert_debug_snapshot!(result);
 }
@@ -120,7 +125,7 @@ fn test_mq_egress() {
     )
     .unwrap();
 
-    let _: () = contract
+    let (_, messages): ((), _) = contract
         .call_with_selector(
             &mut storage,
             ALICE.clone(),
@@ -129,21 +134,16 @@ fn test_mq_egress() {
             false,
         )
         .unwrap();
+    insta::assert_debug_snapshot!(messages);
 
-    let _: () = contract
+    let (_, messages): ((), _) = contract
         .call_with_selector(
             &mut storage,
             ALICE.clone(),
             hex!("d09d68e0"), // push_osp_message
-            (
-                b"\x42\x42".to_vec(),
-                b"\x24\x24".to_vec(),
-                Some([0u8; 32]),
-            ),
+            (b"\x42\x42".to_vec(), b"\x24\x24".to_vec(), Some([0u8; 32])),
             false,
         )
         .unwrap();
-
-    let messages = pink::runtime::take_mq_egress();
     insta::assert_debug_snapshot!(messages);
 }

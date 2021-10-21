@@ -1,4 +1,7 @@
-use crate::types::{BlockNumber, Hash, Hashing};
+use crate::{
+    runtime::{take_mq_egress, PinkEgressMessages},
+    types::{BlockNumber, Hash, Hashing},
+};
 use sp_state_machine::{
     disabled_changes_trie_state, Backend as StorageBackend, Ext, OverlayedChanges,
     StorageTransactionCache,
@@ -33,7 +36,13 @@ where
         }
     }
 
-    pub fn execute_with<R>(&mut self, rollback: bool, f: impl FnOnce() -> R) -> R {
+    pub fn execute_with<R>(
+        &mut self,
+        rollback: bool,
+        f: impl FnOnce() -> R,
+    ) -> (R, PinkEgressMessages) {
+        let _ = take_mq_egress();
+
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
 
         self.overlay.start_transaction();
@@ -52,7 +61,7 @@ where
             self.overlay.commit_transaction()
         }
         .expect("BUG: mis-paired transaction");
-        r
+        (r, take_mq_egress())
     }
 
     pub fn changes_transaction(&self) -> (Hash, Backend::Transaction) {
