@@ -2,7 +2,11 @@ use scale::{Decode, Encode};
 use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
-use crate::{runtime::{Contracts, PinkEgressMessages}, storage, types::{AccountId, Hashing, ENOUGH, GAS_LIMIT}};
+use crate::{
+    runtime::{Contracts, PinkEgressMessages, System},
+    storage,
+    types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
+};
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
@@ -35,31 +39,36 @@ impl Contract {
         code: Vec<u8>,
         input_data: Vec<u8>,
         salt: Vec<u8>,
+        block_number: BlockNumber,
     ) -> Result<Self, ExecError> {
         let code_hash = Hashing::hash(&code);
 
-        let address = storage.execute_with(false, move || -> Result<_, ExecError> {
-            let result = Contracts::bare_instantiate(
-                origin.clone(),
-                ENOUGH,
-                GAS_LIMIT,
-                pallet_contracts_primitives::Code::Upload(code.into()),
-                input_data,
-                salt.clone(),
-                false,
-                true,
-            );
-            match result.result {
-                Err(err) => {
-                    return Err(ExecError {
-                        source: err,
-                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                    });
+        let address = storage
+            .execute_with(false, move || -> Result<_, ExecError> {
+                System::set_block_number(block_number);
+
+                let result = Contracts::bare_instantiate(
+                    origin.clone(),
+                    ENOUGH,
+                    GAS_LIMIT,
+                    pallet_contracts_primitives::Code::Upload(code.into()),
+                    input_data,
+                    salt.clone(),
+                    false,
+                    true,
+                );
+                match result.result {
+                    Err(err) => {
+                        return Err(ExecError {
+                            source: err,
+                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                        });
+                    }
+                    Ok(_) => (),
                 }
-                Ok(_) => (),
-            }
-            Ok(Contracts::contract_address(&origin, &code_hash, &salt))
-        }).0?;
+                Ok(Contracts::contract_address(&origin, &code_hash, &salt))
+            })
+            .0?;
 
         Ok(Self { address })
     }
@@ -71,11 +80,12 @@ impl Contract {
         selector: [u8; 4],
         args: impl Encode,
         salt: Vec<u8>,
+        block_number: BlockNumber,
     ) -> Result<Self, ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(storage, origin, code, input_data, salt)
+        Self::new(storage, origin, code, input_data, salt, block_number)
     }
 
     /// Call a contract method
@@ -90,9 +100,11 @@ impl Contract {
         origin: AccountId,
         input_data: Vec<u8>,
         rollback: bool,
+        block_number: BlockNumber,
     ) -> Result<(Vec<u8>, PinkEgressMessages), ExecError> {
         let addr = self.address.clone();
         let (rv, messages) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
+            System::set_block_number(block_number);
             let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
             match result.result {
                 Err(err) => {
@@ -115,15 +127,19 @@ impl Contract {
         selector: [u8; 4],
         args: impl Encode,
         rollback: bool,
+        block_number: BlockNumber,
     ) -> Result<(RV, PinkEgressMessages), ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (rv, messages) = self.bare_call(storage, origin, input_data, rollback)?;
-        Ok((Decode::decode(&mut &rv[..]).or(Err(ExecError {
-            source: DispatchError::Other("Decode result failed"),
-            message: Default::default(),
-        }))?, messages))
+        let (rv, messages) = self.bare_call(storage, origin, input_data, rollback, block_number)?;
+        Ok((
+            Decode::decode(&mut &rv[..]).or(Err(ExecError {
+                source: DispatchError::Other("Decode result failed"),
+                message: Default::default(),
+            }))?,
+            messages,
+        ))
     }
 }
 

@@ -16,6 +16,7 @@ use crate::{
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
+use runtime::BlockNumber;
 use core::fmt;
 use log::info;
 use std::collections::BTreeMap;
@@ -426,12 +427,14 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: Option<&chain::AccountId>,
         contract_id: &ContractId,
         req: OpaqueQuery,
+        block_number: BlockNumber,
     ) -> Result<OpaqueReply, OpaqueError> {
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
         let mut context = contracts::QueryContext {
+            block_number,
             contract_groups: &mut self.contract_groups,
         };
         contract.handle_query(origin, req, &mut context)
@@ -725,8 +728,14 @@ impl<Platform: pal::Platform> System<Platform> {
                     (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result = contract_groups
-                            .instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
+                        let result = contract_groups.instantiate_contract(
+                            group_id,
+                            owner,
+                            wasm_bin,
+                            input_data,
+                            salt,
+                            block.block_number,
+                        );
                         match result {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {

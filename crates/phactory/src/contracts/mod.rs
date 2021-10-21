@@ -31,6 +31,8 @@ fn account_id_from_hex(s: &str) -> Result<AccountId> {
 
 pub use support::*;
 mod support {
+    use runtime::BlockNumber;
+
     use super::pink::group::GroupKeeper;
     use super::*;
     use crate::types::BlockInfo;
@@ -48,6 +50,7 @@ mod support {
     }
 
     pub struct QueryContext<'a> {
+        pub block_number: BlockNumber,
         pub contract_groups: &'a mut GroupKeeper,
     }
 
