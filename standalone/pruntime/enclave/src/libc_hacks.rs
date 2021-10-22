@@ -67,6 +67,10 @@ pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: 
         if ptr.is_null() && size > 0 {
             libc::ENOMEM
         } else {
+            unsafe {
+                // Initialize the alloced memory to avoid non-deterministic behaivor as much as possible.
+                sgx_libc::memset(ptr, 0, size);
+            }
             *memptr = ptr;
             0
         }
@@ -364,7 +368,14 @@ pub extern "C" fn mmap(
         lazy_static::lazy_static! {
             static ref PAGE_SIZE: size_t = unsafe { ocall::sysconf(libc::_SC_PAGESIZE) } as _;
         }
-        return unsafe { sgx_libc::memalign(*PAGE_SIZE, len) };
+        let addr = unsafe { sgx_libc::memalign(*PAGE_SIZE, len) };
+        if !addr.is_null() {
+            unsafe {
+                // Initialize the alloced memory to avoid non-deterministic behaivor as much as possible.
+                sgx_libc::memset(addr, 0, len);
+            }
+        }
+        return addr;
     }
     info!(
         "mmap(addr={:?}, len={}, prot={}, flags={}, fd={}, offset={})",
