@@ -108,6 +108,7 @@ impl Contract {
     ) -> Result<(Vec<u8>, PinkEgressMessages), ExecError> {
         let addr = self.address.clone();
         let (rv, messages) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
+            System::reset_events();
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
             let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
