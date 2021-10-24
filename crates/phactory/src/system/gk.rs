@@ -1,4 +1,6 @@
 use super::{TypedReceiver, WorkerState};
+use chain::pallet_registry::ContractRegistryEvent;
+use parity_scale_codec::{Decode, Encode};
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -6,14 +8,17 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
+    contract::messaging::ContractEvent,
     messaging::{
-        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
-        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        ContractInfo, GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent,
+        MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent,
+        WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sp_core::{hashing, sr25519};
+use sp_application_crypto::Pair;
+use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
 use crate::{
     contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
@@ -56,7 +61,20 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+fn get_contract_key(
+    master_key: &sr25519::Pair,
+    contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
+    salt: Vec<u8>,
+) -> sr25519::Pair {
+    master_key
+        .derive_sr25519_pair(&[
+            Encode::encode(contract_info).as_bytes_ref(),
+            salt.as_bytes_ref(),
+        ])
+        .expect("should not fail with valid info")
+}
+
+#[derive(Debug)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
@@ -101,6 +119,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
+    contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
     pink_requests: TypedReceiver<GKPinkRequest>, // TODO: a contract manager type?
     // Randomness
     last_random_number: RandomNumber,
@@ -125,6 +144,7 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
+            contract_events: recv_mq.subscribe_bound(),
             pink_requests: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
@@ -219,6 +239,9 @@ where
                 (request, origin) = self.pink_requests => {
                     self.process_pink_requests(origin, request);
                 },
+                (event, origin) = self.contract_events => {
+                    self.process_contract_event(origin, event);
+                },
             };
             if ok.is_none() {
                 // All messages processed
@@ -287,6 +310,46 @@ where
                 secret_mq
                     .bind_remote_key(Some(&worker.0))
                     .push_message(&message);
+            }
+        }
+    }
+
+    fn process_contract_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: ContractEvent<chain::Hash, chain::AccountId>,
+    ) {
+        info!("Incoming contract event: {:?}", event);
+        match event {
+            ContractEvent::InstantiateCode {
+                contract_info,
+                data,
+                salt,
+                deploy_worker,
+            } => {
+                // TODO(shelven): enable Worker assignment
+                if deploy_worker.is_none() {
+                    info!("have to specify deploy_worker for now");
+                    return;
+                }
+                let deploy_worker = deploy_worker.expect("verified not none; qed.");
+
+                let owner = match origin.account() {
+                    Ok(owner) => owner,
+                    Err(_) => {
+                        error!("Attempt to instantiate pink from Bad origin: {}", origin);
+                        return;
+                    }
+                };
+                assert!(owner == contract_info.owner);
+                // first update the on-chain ContractPubkey
+                let contract_key = get_contract_key(&self.master_key, &contract_info, salt);
+                self.egress
+                    .push_message(&ContractRegistryEvent::ContractPubkey {
+                        contract_pubkey: contract_key.public(),
+                        contract_info: contract_info,
+                    });
+                // TODO(shelven): then distribute to the worke
             }
         }
     }

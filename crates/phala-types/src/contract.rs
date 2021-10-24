@@ -16,8 +16,44 @@ pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
 
+pub mod messaging {
+    use alloc::vec::Vec;
+    use codec::{Decode, Encode};
+
+    use super::ContractInfo;
+    use crate::WorkerPublicKey;
+    use phala_mq::bind_topic;
+
+    bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ContractEvent<CodeHash, AccountId> {
+        InstantiateCode {
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            data: Vec<u8>,
+            salt: Vec<u8>,
+            deploy_worker: Option<WorkerPublicKey>,
+        },
+    }
+
+    impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
+        pub fn instantiate_code(
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            data: Vec<u8>,
+            salt: Vec<u8>,
+            deploy_worker: Option<WorkerPublicKey>,
+        ) -> Self {
+            ContractEvent::InstantiateCode {
+                contract_info,
+                data,
+                salt,
+                deploy_worker,
+            }
+        }
+    }
+}
+
 /// On-chain contract registration info
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Clone, Debug)]
 pub struct ContractInfo<CodeHash, AccountId> {
     pub code_hash: CodeHash,
     pub owner: AccountId,

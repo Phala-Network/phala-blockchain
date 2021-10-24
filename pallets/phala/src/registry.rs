@@ -23,6 +23,7 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
+		contract::messaging::ContractEvent,
 		contract::ContractInfo,
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
@@ -36,6 +37,15 @@ pub mod pallet {
 	pub enum RegistryEvent {
 		BenchReport { start_time: u64, iterations: u64 },
 		MasterPubkey { master_pubkey: MasterPublicKey },
+	}
+
+	bind_topic!(ContractRegistryEvent<CodeHash, AccountId>, b"^phala/registry/contract");
+	#[derive(Encode, Decode, Clone, Debug)]
+	pub enum ContractRegistryEvent<CodeHash, AccountId> {
+		ContractPubkey {
+			contract_pubkey: ContractPublicKey,
+			contract_info: ContractInfo<CodeHash, AccountId>,
+		},
 	}
 
 	#[pallet::config]
@@ -168,6 +178,7 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Contract related
 		CodeNotFound,
+		DuplicatedContractPubkey,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -374,14 +385,28 @@ pub mod pallet {
 			salt: Vec<u8>,
 			deploy_worker: Option<WorkerPublicKey>,
 		) -> DispatchResult {
-			ensure_signed(origin)?;
+			let owner = ensure_signed(origin)?;
 			ensure!(
 				PristineCode::<T>::contains_key(code_hash),
 				Error::<T>::CodeNotFound
 			);
 
-			let _code = PristineCode::<T>::get(code_hash).expect("checked existence above; qed.");
-			// TODO(shelven): send the code and data to GK for contract key generation and contract deployment
+			let counter = ContractCounter::<T>::mutate(|counter| {
+				*counter += 1;
+				*counter
+			});
+			// we send hash instead of raw code here to reduce message size
+			let contract_info = ContractInfo {
+				code_hash,
+				owner,
+				counter,
+			};
+			Self::push_message(ContractEvent::instantiate_code(
+				contract_info,
+				data,
+				salt,
+				deploy_worker,
+			));
 
 			Ok(())
 		}
@@ -568,6 +593,27 @@ pub mod pallet {
 							));
 						}
 					}
+				}
+			}
+			Ok(())
+		}
+
+		pub fn on_contract_message_received(
+			message: DecodedMessage<ContractRegistryEvent<CodeHash<T>, T::AccountId>>,
+		) -> DispatchResult {
+			match &message.sender {
+				MessageOrigin::Gatekeeper => (),
+				_ => return Err(Error::<T>::InvalidSender.into()),
+			}
+			match message.payload {
+				ContractRegistryEvent::ContractPubkey {
+					contract_pubkey,
+					contract_info,
+				} => {
+					if Contracts::<T>::contains_key(contract_pubkey) {
+						return Err(Error::<T>::DuplicatedContractPubkey.into());
+					}
+					Contracts::<T>::insert(&contract_pubkey, &contract_info);
 				}
 			}
 			Ok(())

@@ -431,6 +431,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum KeyDistribution {
         MasterKeyDistribution(DispatchMasterKeyEvent),
+        // ContractKeyDistribution,
     }
 
     impl KeyDistribution {
@@ -583,12 +584,11 @@ pub struct Score {
 }
 
 type MachineId = Vec<u8>;
-pub use sp_core::sr25519::Signature as Sr25519Signature;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub use sp_core::sr25519::Public as ContractPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
-
+pub use sp_core::sr25519::Signature as Sr25519Signature;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {
