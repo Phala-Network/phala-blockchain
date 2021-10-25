@@ -176,6 +176,21 @@ struct Args {
         help = "Fetch the metadata at this relaychain block. Mitigation for #529. Only used with --parachain"
     )]
     b529_mitigation_metadata_block: String,
+
+    #[structopt(long, help = "Auto restart self after an error occurred")]
+    auto_restart: bool,
+
+    #[structopt(
+        default_value = "10",
+        long,
+        help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
+    )]
+    max_restart_retries: u32,
+}
+
+struct RunningFlags {
+    worker_registered: bool,
+    restart_failure_count: u32,
 }
 
 struct BlockSyncState {
@@ -774,12 +789,7 @@ pub async fn subxt_connect(uri: &str, hash: Option<sp_core::H256>) -> Result<XtC
     Ok(client)
 }
 
-async fn bridge(args: Args) -> Result<()> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .parse_default_env()
-        .init();
-
+async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
     // Connect to substrate
 
     // TODO: Mitigation for #529. It tries to fetch the Metadata v13. Remove once subxt supports
@@ -829,7 +839,7 @@ async fn bridge(args: Args) -> Result<()> {
     if !args.no_init {
         if !info.initialized {
             warn!("pRuntime not initialized. Requesting init...");
-            let operator = match args.operator {
+            let operator = match args.operator.clone() {
                 None => None,
                 Some(operator) => {
                     let parsed_operator = AccountId32::from_str(&operator)
@@ -887,6 +897,7 @@ async fn bridge(args: Args) -> Result<()> {
     if args.no_sync {
         if !args.no_register {
             try_register_worker(&pr, &paraclient, &mut signer).await?;
+            flags.worker_registered = true;
         }
         warn!("Block sync disabled.");
         return Ok(());
@@ -998,7 +1009,10 @@ async fn bridge(args: Args) -> Result<()> {
         // check if pRuntime has already reached the chain tip.
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
-                try_register_worker(&pr, &paraclient, &mut signer).await?;
+                if !flags.worker_registered {
+                    try_register_worker(&pr, &paraclient, &mut signer).await?;
+                    flags.worker_registered = true;
+                }
             }
             // STATUS: initial_sync_finished = true
             initial_sync_finished = true;
@@ -1024,7 +1038,7 @@ async fn bridge(args: Args) -> Result<()> {
                 );
                 msg_sync.maybe_sync_mq_egress().await?;
             }
-
+            flags.restart_failure_count = 0;
             info!("Waiting for new blocks");
             sleep(Duration::from_millis(args.dev_wait_block_ms)).await;
             continue;
@@ -1049,10 +1063,28 @@ fn preprocess_args(args: &mut Args) {
 }
 
 pub async fn pherry_main() {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
+
     let mut args = Args::from_args();
     preprocess_args(&mut args);
 
-    let r = bridge(args).await;
-    info!("bridge() exited with result: {:?}", r);
-    // TODO: when got any error, we should wait and retry until it works just like a daemon.
+    let mut flags = RunningFlags {
+        worker_registered: false,
+        restart_failure_count: 0,
+    };
+
+    loop {
+        if let Err(err) = bridge(&args, &mut flags).await {
+            info!("bridge() exited with error: {:?}", err);
+            if !args.auto_restart || flags.restart_failure_count > args.max_restart_retries {
+                std::process::exit(if flags.worker_registered { 1 } else { 2 });
+            }
+            flags.restart_failure_count += 1;
+            sleep(Duration::from_secs(2)).await;
+            info!("Restarting...");
+        }
+    }
 }
