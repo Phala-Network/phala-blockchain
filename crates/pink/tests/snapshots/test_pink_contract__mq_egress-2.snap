@@ -1,56 +1,25 @@
 ---
 source: crates/pink/tests/test_pink_contract.rs
-expression: messages
+expression: effects
 
 ---
-PinkEgressMessages {
-    messages: [],
-    osp_messages: [
-        OspMessage {
-            payload: [
-                66,
-                66,
-            ],
-            topic: [
-                36,
-                36,
-            ],
-            remote_pubkey: Some(
-                [
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                ],
+ExecSideEffects {
+    messages: [
+        (
+            d7b800810f95b0fa550332988b032812f6708a632b30735abcb9467e8d262f70 (5GwYp55a...),
+            Message(
+                Message {
+                    payload: [
+                        66,
+                        66,
+                    ],
+                    topic: [
+                        36,
+                        36,
+                    ],
+                },
             ),
-        },
+        ),
     ],
+    instantiated: [],
 }

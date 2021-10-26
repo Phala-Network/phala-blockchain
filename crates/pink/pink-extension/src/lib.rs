@@ -16,13 +16,13 @@ const PHALA_OSP_MESSAGE_TOPIC: &[u8] = b"phala.mq.osp_message";
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Debug)]
 pub struct Message {
     pub payload: Vec<u8>,
     pub topic: Vec<u8>,
 }
 
-#[derive(Encode, Decode, Default)]
+#[derive(Encode, Decode, Default, Debug)]
 pub struct OspMessage {
     pub message: Message,
     pub remote_pubkey: Option<EcdhPublicKey>,

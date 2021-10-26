@@ -18,7 +18,7 @@ fn test_ink_flip() {
         0,
         0,
     )
-    .unwrap();
+    .unwrap().0;
 
     let result: bool = contract
         .call_with_selector(
@@ -110,7 +110,7 @@ fn test_ink_cross_contract_instanciate() {
         0,
         0,
     )
-    .unwrap();
+    .unwrap().0;
 
     let result: bool = contract
         .call_with_selector(
@@ -131,41 +131,43 @@ fn test_ink_cross_contract_instanciate() {
 #[test]
 fn test_mq_egress() {
     let mut storage = Contract::new_storage();
-    let mut contract = Contract::new_with_selector(
+    let (mut contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
-        0,
+        1,
         0,
     )
     .unwrap();
 
-    let (_, messages): ((), _) = contract
+    insta::assert_debug_snapshot!(effects);
+
+    let (_, effects): ((), _) = contract
         .call_with_selector(
             &mut storage,
             ALICE.clone(),
             hex!("6495da7f"), // push_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec()),
             false,
-            0,
+            1,
             0,
         )
         .unwrap();
-    insta::assert_debug_snapshot!(messages);
+    insta::assert_debug_snapshot!(effects);
 
-    let (_, messages): ((), _) = contract
+    let (_, effects): ((), _) = contract
         .call_with_selector(
             &mut storage,
             ALICE.clone(),
             hex!("d09d68e0"), // push_osp_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec(), Some([0u8; 32])),
             false,
-            0,
+            1,
             0,
         )
         .unwrap();
-    insta::assert_debug_snapshot!(messages);
+    insta::assert_debug_snapshot!(effects);
 }
