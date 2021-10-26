@@ -760,6 +760,7 @@ impl<Platform: pal::Platform> System<Platform> {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
                 self.process_master_key_distribution(origin, dispatch_master_key_event)
             }
+            KeyDistribution::ContractKeyDistribution(seed) => {}
         }
     }
 

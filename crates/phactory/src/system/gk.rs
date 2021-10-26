@@ -8,6 +8,7 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
+    contract::contract_topic,
     contract::messaging::ContractEvent,
     messaging::{
         ContractInfo, GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent,
@@ -22,6 +23,7 @@ use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
 use crate::{
     contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
+    contracts::pink::Command as ContractCommand,
     secret_channel::SecretMessageChannel,
     types::BlockInfo,
 };
@@ -64,12 +66,11 @@ fn next_random_number(
 fn get_contract_key(
     master_key: &sr25519::Pair,
     contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
-    salt: Vec<u8>,
 ) -> sr25519::Pair {
     master_key
         .derive_sr25519_pair(&[
+            b"contract_key",
             Encode::encode(contract_info).as_bytes_ref(),
-            salt.as_bytes_ref(),
         ])
         .expect("should not fail with valid info")
 }
@@ -324,7 +325,6 @@ where
             ContractEvent::InstantiateCode {
                 contract_info,
                 data,
-                salt,
                 deploy_worker,
             } => {
                 // TODO(shelven): enable Worker assignment
@@ -334,22 +334,44 @@ where
                 }
                 let deploy_worker = deploy_worker.expect("verified not none; qed.");
 
-                let owner = match origin.account() {
-                    Ok(owner) => owner,
+                let sender = match origin.account() {
+                    Ok(sender) => sender,
                     Err(_) => {
                         error!("Attempt to instantiate pink from Bad origin: {}", origin);
                         return;
                     }
                 };
-                assert!(owner == contract_info.owner);
-                // first update the on-chain ContractPubkey
-                let contract_key = get_contract_key(&self.master_key, &contract_info, salt);
+                assert!(sender == contract_info.owner);
+                // first, update the on-chain ContractPubkey
+                let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
                     .push_message(&ContractRegistryEvent::ContractPubkey {
                         contract_pubkey: contract_key.public(),
                         contract_info: contract_info,
                     });
-                // TODO(shelven): then distribute to the worke
+                // then distribute contract key to the worker
+                let ecdh_key = self
+                    .master_key
+                    .derive_ecdh_key()
+                    .expect("should never fail with valid master key; qed.");
+                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
+                secret_mq
+                    .bind_remote_key(Some(&deploy_worker.0))
+                    .push_message(&KeyDistribution::contract_key_distribution(
+                        contract_key.dump_seed(),
+                    ));
+                // finally, make the call
+                let remote_ecdh_key = contract_key
+                    .derive_ecdh_key()
+                    .expect("should never fail with valid key; qed.");
+                let instantiate_command = ContractCommand::InkMessage {
+                    nonce: vec![],
+                    message: data,
+                };
+                let topic = contract_topic(&contract_key.public());
+                secret_mq
+                    .bind_remote_key(Some(&remote_ecdh_key.public()))
+                    .push_message_to(&instantiate_command, &topic[..]);
             }
         }
     }

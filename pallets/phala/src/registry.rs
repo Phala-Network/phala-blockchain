@@ -400,11 +400,11 @@ pub mod pallet {
 				code_hash,
 				owner,
 				counter,
+				salt,
 			};
 			Self::push_message(ContractEvent::instantiate_code(
 				contract_info,
 				data,
-				salt,
 				deploy_worker,
 			));
 

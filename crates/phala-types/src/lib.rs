@@ -431,7 +431,7 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum KeyDistribution {
         MasterKeyDistribution(DispatchMasterKeyEvent),
-        // ContractKeyDistribution,
+        ContractKeyDistribution(DispatchContractKeyEvent),
     }
 
     impl KeyDistribution {
@@ -448,9 +448,15 @@ pub mod messaging {
                 iv,
             })
         }
+
+        pub fn contract_key_distribution(seed: Seed) -> KeyDistribution {
+            KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent { seed })
+        }
     }
 
     type AeadIV = [u8; 12];
+    type Seed = [u8; 32];
+
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
         /// The target to dispatch master key
@@ -461,6 +467,13 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    pub struct DispatchContractKeyEvent {
+        pub seed: Seed,
+        // TODO(shelven): enable key expiration
+        // pub timeout: BlockNumber,
     }
 
     // Messages: Gatekeeper

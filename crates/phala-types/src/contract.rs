@@ -3,6 +3,8 @@ use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 
+use crate::ContractPublicKey;
+
 pub use phala_mq::{contract_id256 as id256, ContractId};
 
 pub type ContractId32 = u32;
@@ -30,7 +32,6 @@ pub mod messaging {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
             data: Vec<u8>,
-            salt: Vec<u8>,
             deploy_worker: Option<WorkerPublicKey>,
         },
     }
@@ -39,13 +40,11 @@ pub mod messaging {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
             data: Vec<u8>,
-            salt: Vec<u8>,
             deploy_worker: Option<WorkerPublicKey>,
         ) -> Self {
             ContractEvent::InstantiateCode {
                 contract_info,
                 data,
-                salt,
                 deploy_worker,
             }
         }
@@ -59,6 +58,7 @@ pub struct ContractInfo<CodeHash, AccountId> {
     pub owner: AccountId,
     /// Contract counter of the contract
     pub counter: u64,
+    pub salt: Vec<u8>,
 }
 
 /// Contract query request parameters, to be encrypted.
@@ -119,6 +119,12 @@ impl From<ContractQueryError> for prpc::server::Error {
 
 pub fn command_topic(id: ContractId) -> Vec<u8> {
     format!("phala/contract/{}/command", hex::encode(&id))
+        .as_bytes()
+        .to_vec()
+}
+
+pub fn contract_topic(contract_pubkey: &ContractPublicKey) -> Vec<u8> {
+    format!("phala/contract/{}/command", hex::encode(contract_pubkey))
         .as_bytes()
         .to_vec()
 }
