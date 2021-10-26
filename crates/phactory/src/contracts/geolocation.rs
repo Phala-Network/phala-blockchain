@@ -124,7 +124,7 @@ impl contracts::NativeContract for Geolocation {
                     );
                 };
 
-                Ok(())
+                Ok(Default::default())
             }
         }
     }

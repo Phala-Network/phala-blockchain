@@ -216,7 +216,7 @@ impl contracts::NativeContract for SubstrateKitties {
                     self.left_kitties.clear();
                 }
                 // Returns Ok(()) to indicate a successful transaction
-                Ok(())
+                Ok(Default::default())
             }
             Command::Transfer { dest, blind_box_id } => {
                 // TODO: check owner & dest not overflow & sender not underflow
@@ -248,7 +248,7 @@ impl contracts::NativeContract for SubstrateKitties {
                     self.owned_boxes.insert(reciever, new_owned_list);
                 }
                 // Returns Ok(()) to indicate a successful transaction
-                Ok(())
+                Ok(Default::default())
             }
             Command::Open { blind_box_id } => {
                 let sender = origin.account()?;
@@ -272,7 +272,7 @@ impl contracts::NativeContract for SubstrateKitties {
                     self.opend_boxes.push(blind_box_id.clone());
                     context.mq().push_message(&data);
                 }
-                Ok(())
+                Ok(Default::default())
             }
             Command::Created(dest, kitty_id) => {
                 if !origin.is_pallet() {
@@ -287,7 +287,7 @@ impl contracts::NativeContract for SubstrateKitties {
                 };
                 self.kitties.insert(new_kitty_id.to_vec(), new_kitty);
                 self.left_kitties.push(new_kitty_id.to_vec());
-                Ok(())
+                Ok(Default::default())
             }
         }
     }

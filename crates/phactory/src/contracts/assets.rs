@@ -131,7 +131,7 @@ impl contracts::NativeContract for Assets {
                     self.assets.insert(id, accounts);
                     self.next_id += 1;
 
-                    Ok(())
+                    Ok(Default::default())
                 } else {
                     Err(TransactionError::SymbolExist)
                 }
@@ -144,7 +144,7 @@ impl contracts::NativeContract for Assets {
                         self.metadata.remove(&id);
                         self.assets.remove(&id);
 
-                        Ok(())
+                        Ok(Default::default())
                     } else {
                         Err(TransactionError::NotAssetOwner)
                     }
@@ -203,7 +203,7 @@ impl contracts::NativeContract for Assets {
                                 info!(" pushed history (dest)");
                             }
 
-                            Ok(())
+                            Ok(Default::default())
                         } else {
                             Err(TransactionError::InsufficientBalance)
                         }

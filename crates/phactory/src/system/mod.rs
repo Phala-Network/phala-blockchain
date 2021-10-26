@@ -6,19 +6,20 @@ use crate::{
     benchmark,
     contracts::{
         pink::{
-            group::GroupKeeper,
+            group::Group,
             messaging::{WorkerPinkReport, WorkerPinkRequest},
         },
         ExecuteEnv, NativeContract,
     },
-    pink::messaging::ContractInfo,
+    pink::{group::GroupKeeper, Pink},
     secret_channel::{PeelingReceiver, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
-use runtime::BlockNumber;
 use core::fmt;
 use log::info;
+use pink::runtime::ExecSideEffects;
+use runtime::BlockNumber;
 use std::collections::BTreeMap;
 
 use crate::contracts;
@@ -46,7 +47,7 @@ use phala_types::{
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
-pub type TransactionResult = Result<(), TransactionError>;
+pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
 #[derive(Encode, Decode, Debug, Clone)]
 pub enum TransactionError {
@@ -67,6 +68,7 @@ pub enum TransactionError {
     FailedToSign,
     BadDecimal,
     DestroyNotAllowed,
+    ChannelError,
     // for pdiem
     BadAccountInfo,
     BadLedgerInfo,
@@ -494,13 +496,49 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
-        let mut env = ExecuteEnv {
-            block: block,
-            contract_groups: &mut self.contract_groups,
-        };
-
-        for contract in self.contracts.values_mut() {
-            contract.process_messages(&mut env);
+        let contract_ids: Vec<_> = self.contracts.keys().cloned().collect();
+        'outer: for key in contract_ids {
+            loop {
+                let contract = match self.contracts.get_mut(&key) {
+                    None => continue 'outer,
+                    Some(v) => v,
+                };
+                let group_id = contract.group_id();
+                let mut env = ExecuteEnv {
+                    block: block,
+                    contract_groups: &mut self.contract_groups,
+                };
+                let result = match contract.process_next_message(&mut env) {
+                    Some(result) => result,
+                    None => break,
+                };
+                handle_contract_command_result(
+                    result,
+                    group_id,
+                    &mut self.contracts,
+                    &mut self.contract_groups,
+                    block,
+                    &self.egress,
+                );
+            }
+            let mut env = ExecuteEnv {
+                block: block,
+                contract_groups: &mut self.contract_groups,
+            };
+            let contract = match self.contracts.get_mut(&key) {
+                None => continue 'outer,
+                Some(v) => v,
+            };
+            let result = contract.on_block_end(&mut env);
+            let group_id = contract.group_id();
+            handle_contract_command_result(
+                result,
+                group_id,
+                &mut self.contracts,
+                &mut self.contract_groups,
+                block,
+                &self.egress,
+            );
         }
 
         Ok(())
@@ -729,36 +767,18 @@ impl<Platform: pal::Platform> System<Platform> {
                     return;
                 }
 
-                let result: Result<(ContractId, EcdhPublicKey), String> = {
-                    let owner = owner.clone();
-                    let contracts = &mut self.contracts;
-                    let contract_groups = &mut self.contract_groups;
-                    let group_id = group_id.clone();
-                    (move || {
-                        let contract_key = sr25519::Pair::restore_from_secret_key(&key);
-                        let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result = contract_groups.instantiate_contract(
-                            group_id,
-                            owner,
-                            wasm_bin,
-                            input_data,
-                            salt,
-                            block.block_number,
-                            block.now_ms,
-                        );
-                        match result {
-                            Err(err) => Err(err.to_string()),
-                            Ok(pink) => {
-                                let address = pink.id();
-                                let pubkey = EcdhPublicKey(ecdh_key.public());
-                                install_contract(contracts, pink, contract_key, ecdh_key, block);
-                                Ok((address, pubkey))
-                            }
-                        }
-                    })()
-                };
-
-                match &result {
+                let contract_key = sr25519::Pair::restore_from_secret_key(&key);
+                let result = self.contract_groups.instantiate_contract(
+                    group_id,
+                    owner.clone(),
+                    wasm_bin,
+                    input_data,
+                    salt,
+                    &contract_key,
+                    block.block_number,
+                    block.now_ms,
+                );
+                match result {
                     Err(err) => {
                         error!(
                             "Instantiate contract error: {}, owner: {:?}, nonce: {}",
@@ -767,28 +787,22 @@ impl<Platform: pal::Platform> System<Platform> {
                             hex::encode(&nonce)
                         );
                     }
-                    Ok(addr) => {
-                        info!(
-                            "Contract instantiated: owner: {:?}, nonce: {}, address: {}, group: {}",
-                            owner,
-                            hex::encode(&nonce),
-                            hex::encode(addr.0),
-                            hex::encode(&group_id),
+                    Ok(effects) => {
+                        let group = self
+                            .contract_groups
+                            .get_group_mut(&group_id)
+                            .expect("Group must exist after instantiate");
+
+                        apply_pink_side_effects(
+                            effects,
+                            &group_id,
+                            &mut self.contracts,
+                            group,
+                            block,
+                            &self.egress,
                         );
                     }
                 }
-
-                let message = WorkerPinkReport::InstantiateStatus {
-                    nonce,
-                    owner: phala_types::messaging::AccountId(owner.into()),
-                    result: result.map(|(id, pubkey)| ContractInfo {
-                        id,
-                        group_id,
-                        pubkey,
-                    }),
-                };
-                info!("pink instantiate status: {:?}", message);
-                self.egress.push_message(&message);
             }
         }
     }
@@ -847,6 +861,101 @@ impl<Platform: pal::Platform> System<Platform> {
         GatekeeperStatus {
             role: role.into(),
             master_public_key,
+        }
+    }
+}
+
+pub fn handle_contract_command_result(
+    result: TransactionResult,
+    group_id: Option<phala_mq::ContractGroupId>,
+    contracts: &mut ContractMap,
+    groups: &mut GroupKeeper,
+    block: &mut BlockInfo,
+    egress: &SignedMessageChannel,
+) {
+    let effects = match result {
+        Err(err) => {
+            error!("Run contract command failed: {:?}", err);
+            return;
+        }
+        Ok(effects) => effects,
+    };
+    if let Some(group_id) = group_id {
+        let group = match groups.get_group_mut(&group_id) {
+            None => {
+                error!(
+                    "BUG: pink group not found, it should always exsists, group_id={:?}",
+                    group_id
+                );
+                return;
+            }
+            Some(group) => group,
+        };
+        apply_pink_side_effects(effects, &group_id, contracts, group, block, egress);
+    }
+}
+
+pub fn apply_pink_side_effects(
+    effects: ExecSideEffects,
+    group_id: &phala_mq::ContractGroupId,
+    contracts: &mut ContractMap,
+    group: &mut Group,
+    block: &mut BlockInfo,
+    egress: &SignedMessageChannel,
+) {
+    let contract_key = group.key().clone();
+    let ecdh_key = contract_key
+        .derive_ecdh_key()
+        .expect("Derive ecdh_key should not fail");
+
+    for (deployer, address) in effects.instantiated {
+        let pink = Pink::from_address(address, group_id.clone());
+        let id = pink.id();
+
+        install_contract(
+            contracts,
+            pink,
+            contract_key.clone(),
+            ecdh_key.clone(),
+            block,
+        );
+
+        group.add_contract(id.clone());
+
+        let message = WorkerPinkReport::PinkInstantiated {
+            id,
+            group_id: group_id.clone(),
+            owner: phala_types::messaging::AccountId(deployer.into()),
+            pubkey: EcdhPublicKey(ecdh_key.public()),
+        };
+
+        info!("pink instantiate status: {:?}", message);
+        egress.push_message(&message);
+    }
+
+    for (address, message) in effects.messages {
+        let pink = Pink::from_address(address.clone(), group_id.clone());
+        let contract = match contracts.get(&pink.id()) {
+            Some(contract) => contract,
+            None => {
+                panic!(
+                    "BUG: Unknown contract sending message, address={:?}",
+                    address
+                );
+            }
+        };
+        use pink::runtime::EgressMessage;
+        match message {
+            EgressMessage::Message(message) => {
+                contract.push_message(message.payload, message.topic);
+            }
+            EgressMessage::OspMessage(message) => {
+                contract.push_osp_message(
+                    message.message.payload,
+                    message.message.topic,
+                    message.remote_pubkey.as_ref(),
+                );
+            }
         }
     }
 }

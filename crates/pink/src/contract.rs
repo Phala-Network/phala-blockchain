@@ -3,7 +3,7 @@ use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{Contracts, PinkEgressMessages, System, Timestamp},
+    runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage,
     types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
 };
@@ -25,6 +25,10 @@ impl Contract {
         Storage::new(Default::default())
     }
 
+    pub fn from_address(address: AccountId) -> Self {
+        Contract { address }
+    }
+
     /// Create a new contract instance.
     ///
     /// # Parameters
@@ -41,38 +45,35 @@ impl Contract {
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<Self, ExecError> {
+    ) -> Result<(Self, ExecSideEffects), ExecError> {
         let code_hash = Hashing::hash(&code);
 
-        let address = storage
-            .execute_with(false, move || -> Result<_, ExecError> {
-                System::set_block_number(block_number);
-                Timestamp::set_timestamp(now);
+        let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
+            System::set_block_number(block_number);
+            Timestamp::set_timestamp(now);
 
-                let result = Contracts::bare_instantiate(
-                    origin.clone(),
-                    ENOUGH,
-                    GAS_LIMIT,
-                    pallet_contracts_primitives::Code::Upload(code.into()),
-                    input_data,
-                    salt.clone(),
-                    false,
-                    true,
-                );
-                match result.result {
-                    Err(err) => {
-                        return Err(ExecError {
-                            source: err,
-                            message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                        });
-                    }
-                    Ok(_) => (),
+            let result = Contracts::bare_instantiate(
+                origin.clone(),
+                ENOUGH,
+                GAS_LIMIT,
+                pallet_contracts_primitives::Code::Upload(code.into()),
+                input_data,
+                salt.clone(),
+                false,
+                true,
+            );
+            match result.result {
+                Err(err) => {
+                    return Err(ExecError {
+                        source: err,
+                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                    });
                 }
-                Ok(Contracts::contract_address(&origin, &code_hash, &salt))
-            })
-            .0?;
-
-        Ok(Self { address })
+                Ok(_) => (),
+            }
+            Ok(Contracts::contract_address(&origin, &code_hash, &salt))
+        });
+        Ok((Self { address: address? }, effects))
     }
 
     pub fn new_with_selector(
@@ -84,7 +85,7 @@ impl Contract {
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<Self, ExecError> {
+    ) -> Result<(Self, ExecSideEffects), ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
@@ -105,10 +106,9 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<(Vec<u8>, PinkEgressMessages), ExecError> {
+    ) -> Result<(Vec<u8>, ExecSideEffects), ExecError> {
         let addr = self.address.clone();
-        let (rv, messages) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
-            System::reset_events();
+        let (rv, effects) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
             let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
@@ -122,7 +122,7 @@ impl Contract {
                 Ok(rv) => Ok(rv),
             }
         });
-        Ok((rv?.data.0, messages))
+        Ok((rv?.data.0, effects))
     }
 
     /// Call a contract method given it's selector
@@ -135,11 +135,12 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<(RV, PinkEgressMessages), ExecError> {
+    ) -> Result<(RV, ExecSideEffects), ExecError> {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (rv, messages) = self.bare_call(storage, origin, input_data, rollback, block_number, now)?;
+        let (rv, messages) =
+            self.bare_call(storage, origin, input_data, rollback, block_number, now)?;
         Ok((
             Decode::decode(&mut &rv[..]).or(Err(ExecError {
                 source: DispatchError::Other("Decode result failed"),

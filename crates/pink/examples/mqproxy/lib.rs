@@ -6,7 +6,7 @@ use ink_lang as ink;
 mod proxy {
     extern crate alloc;
     use alloc::vec::Vec;
-    use pink_extension::{PinkEnvironment, EcdhPublicKey};
+    use pink_extension::{push_message, push_osp_message, EcdhPublicKey, PinkEnvironment};
 
     #[ink(storage)]
     pub struct Proxy {}
@@ -19,12 +19,17 @@ mod proxy {
 
         #[ink(message)]
         pub fn push_message(&self, message: Vec<u8>, topic: Vec<u8>) {
-            self.env().extension().push_message(message, topic).unwrap()
+            push_message(message, topic)
         }
 
         #[ink(message)]
-        pub fn push_osp_message(&self, message: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>) {
-            self.env().extension().push_osp_message(message, topic, remote_pubkey).unwrap()
+        pub fn push_osp_message(
+            &self,
+            message: Vec<u8>,
+            topic: Vec<u8>,
+            remote_pubkey: Option<EcdhPublicKey>,
+        ) {
+            push_osp_message(message, topic, remote_pubkey)
         }
     }
 }

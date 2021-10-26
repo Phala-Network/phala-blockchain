@@ -511,16 +511,21 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_pink_message_received(message: DecodedMessage<WorkerPinkReport>) -> DispatchResult {
+		pub fn on_pink_message_received(
+			message: DecodedMessage<WorkerPinkReport>,
+		) -> DispatchResult {
 			match &message.sender {
 				MessageOrigin::Worker(_) => (),
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				WorkerPinkReport::InstantiateStatus { nonce: _, owner: _, result } => {
-					if let Ok(info) = result {
-						ContractKey::<T>::insert(info.id, info.pubkey);
-					}
+				WorkerPinkReport::PinkInstantiated {
+					id,
+					group_id: _,
+					owner: _,
+					pubkey,
+				} => {
+					ContractKey::<T>::insert(id, pubkey);
 				}
 			}
 			Ok(())

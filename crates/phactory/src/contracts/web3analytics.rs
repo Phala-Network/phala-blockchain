@@ -907,7 +907,7 @@ impl contracts::NativeContract for Web3Analytics {
                     self.no_tracking.remove(&o);
                 }
 
-                Ok(())
+                Ok(Default::default())
             }
         };
 
