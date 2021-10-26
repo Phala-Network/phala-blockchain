@@ -8,12 +8,13 @@ use sp_runtime::DispatchError;
 
 use crate::types::AccountId;
 
+#[derive(Debug)]
 pub enum EgressMessage {
     Message(Message),
     OspMessage(OspMessage),
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ExecSideEffects {
     pub messages: Vec<(AccountId, EgressMessage)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
