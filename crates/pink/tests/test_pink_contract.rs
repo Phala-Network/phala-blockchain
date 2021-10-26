@@ -15,6 +15,8 @@ fn test_ink_flip() {
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
+        0,
+        0,
     )
     .unwrap();
 
@@ -25,6 +27,8 @@ fn test_ink_flip() {
             hex!("2f865bd9"), // get
             (),
             false,
+            0,
+            0,
         )
         .unwrap()
         .0;
@@ -38,6 +42,8 @@ fn test_ink_flip() {
             hex!("633aa551"), // flip
             (),
             false,
+            0,
+            0,
         )
         .unwrap()
         .0;
@@ -49,6 +55,8 @@ fn test_ink_flip() {
             hex!("2f865bd9"), // get
             (),
             false,
+            0,
+            0,
         )
         .unwrap()
         .0;
@@ -62,6 +70,8 @@ fn test_ink_flip() {
             hex!("f7dff04c"), // echo
             (42u32, 24u128),
             false,
+            0,
+            0,
         )
         .unwrap()
         .0;
@@ -85,6 +95,8 @@ fn test_ink_cross_contract_instanciate() {
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
+        0,
+        0,
     )
     .unwrap();
 
@@ -95,6 +107,8 @@ fn test_ink_cross_contract_instanciate() {
         hex!("9bae9d5e"),
         (),
         vec![],
+        0,
+        0,
     )
     .unwrap();
 
@@ -105,6 +119,8 @@ fn test_ink_cross_contract_instanciate() {
             hex!("c3220014"), // get
             (),
             false,
+            0,
+            0,
         )
         .unwrap()
         .0;
@@ -122,6 +138,8 @@ fn test_mq_egress() {
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
+        0,
+        0,
     )
     .unwrap();
 
@@ -132,6 +150,8 @@ fn test_mq_egress() {
             hex!("6495da7f"), // push_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec()),
             false,
+            0,
+            0,
         )
         .unwrap();
     insta::assert_debug_snapshot!(messages);
@@ -143,6 +163,8 @@ fn test_mq_egress() {
             hex!("d09d68e0"), // push_osp_message
             (b"\x42\x42".to_vec(), b"\x24\x24".to_vec(), Some([0u8; 32])),
             false,
+            0,
+            0,
         )
         .unwrap();
     insta::assert_debug_snapshot!(messages);

@@ -16,6 +16,7 @@ use crate::{
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
+use runtime::BlockNumber;
 use core::fmt;
 use log::info;
 use std::collections::BTreeMap;
@@ -379,6 +380,10 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractMap,
     contract_groups: GroupKeeper,
+
+    // Cached for query
+    block_number: BlockNumber,
+    now_ms: u64,
 }
 
 impl<Platform: pal::Platform> System<Platform> {
@@ -418,6 +423,8 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_groups: Default::default(),
+            block_number: 0,
+            now_ms: 0,
         }
     }
 
@@ -432,12 +439,17 @@ impl<Platform: pal::Platform> System<Platform> {
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
         let mut context = contracts::QueryContext {
+            block_number: self.block_number,
+            now_ms: self.now_ms,
             contract_groups: &mut self.contract_groups,
         };
         contract.handle_query(origin, req, &mut context)
     }
 
     pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+        self.block_number = block.block_number;
+        self.now_ms = block.now_ms;
+
         if self.enable_geoprobing {
             geo_probe::process_block(
                 block.block_number,
@@ -725,8 +737,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     (move || {
                         let contract_key = sr25519::Pair::restore_from_secret_key(&key);
                         let ecdh_key = contract_key.derive_ecdh_key().unwrap();
-                        let result = contract_groups
-                            .instantiate_contract(group_id, owner, wasm_bin, input_data, salt);
+                        let result = contract_groups.instantiate_contract(
+                            group_id,
+                            owner,
+                            wasm_bin,
+                            input_data,
+                            salt,
+                            block.block_number,
+                            block.now_ms,
+                        );
                         match result {
                             Err(err) => Err(err.to_string()),
                             Ok(pink) => {
