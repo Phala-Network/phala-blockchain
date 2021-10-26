@@ -519,18 +519,12 @@ pub mod messaging {
     bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
     #[derive(Encode, Decode, Debug)]
     pub enum WorkerPinkReport {
-        InstantiateStatus {
-            nonce: Vec<u8>,
+        PinkInstantiated {
+            id: ContractId,
+            group_id: ContractGroupId,
             owner: AccountId,
-            result: Result<ContractInfo, String>,
+            pubkey: EcdhPublicKey,
         },
-    }
-
-    #[derive(Encode, Decode, Debug)]
-    pub struct ContractInfo {
-        pub id: ContractId,
-        pub group_id: ContractGroupId,
-        pub pubkey: EcdhPublicKey,
     }
 }
 

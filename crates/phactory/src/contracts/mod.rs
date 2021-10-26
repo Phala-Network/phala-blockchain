@@ -31,6 +31,9 @@ fn account_id_from_hex(s: &str) -> Result<AccountId> {
 
 pub use support::*;
 mod support {
+    use phala_crypto::ecdh::EcdhPublicKey;
+    use phala_mq::traits::MessageChannel;
+    use ::pink::runtime::ExecSideEffects;
     use runtime::BlockNumber;
 
     use super::pink::group::GroupKeeper;
@@ -69,7 +72,16 @@ mod support {
             req: OpaqueQuery,
             context: &mut QueryContext,
         ) -> Result<OpaqueReply, OpaqueError>;
-        fn process_messages(&mut self, env: &mut ExecuteEnv);
+        fn group_id(&self) -> Option<phala_mq::ContractGroupId>;
+        fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
+        fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
+        fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>);
+        fn push_osp_message(
+            &self,
+            payload: Vec<u8>,
+            topic: Vec<u8>,
+            remote_pubkey: Option<&EcdhPublicKey>,
+        );
     }
 
     pub trait NativeContract {
@@ -78,13 +90,16 @@ mod support {
         type QResp: Encode + Debug;
 
         fn id(&self) -> ContractId;
+        fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
+            None
+        }
         fn handle_command(
             &mut self,
             _origin: MessageOrigin,
             _cmd: Self::Cmd,
             _context: &mut NativeContext,
         ) -> TransactionResult {
-            Ok(())
+            Ok(Default::default())
         }
         fn handle_query(
             &mut self,
@@ -151,6 +166,10 @@ mod support {
             self.contract.id()
         }
 
+        fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
+            self.contract.group_id()
+        }
+
         fn handle_query(
             &mut self,
             origin: Option<&runtime::AccountId>,
@@ -164,7 +183,7 @@ mod support {
             Ok(response.encode())
         }
 
-        fn process_messages(&mut self, env: &mut ExecuteEnv) {
+        fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult> {
             let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
             let mut context = NativeContext {
                 block: env.block,
@@ -172,26 +191,46 @@ mod support {
                 secret_mq,
                 contract_groups: &mut env.contract_groups,
             };
-            loop {
-                let ok = phala_mq::select! {
-                    next_cmd = self.cmd_rcv_mq => match next_cmd {
-                        Ok((_, cmd, origin)) => {
-                            info!(target: "contract", "Contract {:?} handling command", self.id());
-                            let status = self.contract.handle_command(origin, cmd, &mut context);
-                            if let Err(err) = status {
-                                error!(target: "contract", "Contract {:?} handle command error: {:?}", self.id(), err);
-                            }
-                        }
-                        Err(e) => {
-                            error!(target: "contract", "Read command failed [{}]: {:?}", self.id(), e);
-                        }
-                    },
-                };
-                if ok.is_none() {
-                    break;
-                }
+
+            phala_mq::select! {
+                next_cmd = self.cmd_rcv_mq => match next_cmd {
+                    Ok((_, cmd, origin)) => {
+                        info!(target: "contract", "Contract {:?} handling command", self.id());
+                        self.contract.handle_command(origin, cmd, &mut context)
+                    }
+                    Err(e) => {
+                        Err(TransactionError::ChannelError)
+                    }
+                },
             }
-            self.contract.on_block_end(&mut context)
+        }
+
+        fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult {
+            let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
+            let mut context = NativeContext {
+                block: env.block,
+                mq: &self.send_mq,
+                secret_mq,
+                contract_groups: &mut env.contract_groups,
+            };
+            self.contract.on_block_end(&mut context);
+            Ok(Default::default())
+        }
+
+        fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
+            self.send_mq.push_data(payload, topic)
+        }
+
+        fn push_osp_message(
+            &self,
+            payload: Vec<u8>,
+            topic: Vec<u8>,
+            remote_pubkey: Option<&EcdhPublicKey>,
+        ) {
+            let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
+            secret_mq
+                .bind_remote_key(remote_pubkey)
+                .push_data(payload, topic)
         }
     }
 }

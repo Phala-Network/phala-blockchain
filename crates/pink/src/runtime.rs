@@ -11,7 +11,7 @@ use sp_runtime::{
     Perbill,
 };
 
-pub use extension::{take_mq_egress, PinkEgressMessages};
+pub use extension::{get_side_effects, ExecSideEffects, EgressMessage};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<PinkRuntime>;
 type Block = frame_system::mocking::MockBlock<PinkRuntime>;

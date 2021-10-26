@@ -443,7 +443,7 @@ impl BtcLottery {
                     };
                     round_utxo.insert(btc_address, utxo);
                 }
-                Ok(())
+                Ok(Default::default())
             }
             LotteryUserCommand::SetAdmin { new_admin } => {
                 // TODO: listen to some specific privileged account instead of ALICE
@@ -452,7 +452,7 @@ impl BtcLottery {
                     if self.admin == sender {
                         self.admin = new_admin;
                     }
-                    Ok(())
+                    Ok(Default::default())
                 } else {
                     Err(TransactionError::InvalidAccount)
                 }
@@ -483,6 +483,6 @@ impl BtcLottery {
                 btc_address,
             } => Self::open_lottery(self, context.mq(), round_id, token_id, btc_address),
         }
-        Ok(())
+        Ok(Default::default())
     }
 }

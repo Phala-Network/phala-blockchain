@@ -278,7 +278,7 @@ impl contracts::NativeContract for DataPlaza {
                     seller: address_hex,
                     details,
                 });
-                Ok(())
+                Ok(Default::default())
             }
             Command::OpenOrder(details) => {
                 self.orders.push(Order {
@@ -294,7 +294,7 @@ impl contracts::NativeContract for DataPlaza {
                         result_path: String::new(),
                     },
                 });
-                Ok(())
+                Ok(Default::default())
             }
         }
     }

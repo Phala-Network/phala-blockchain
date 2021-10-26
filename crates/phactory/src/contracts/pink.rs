@@ -2,8 +2,8 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::traits::MessageChannel;
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
+use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 
 #[derive(Debug, Encode, Decode)]
@@ -42,8 +42,8 @@ impl Pink {
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<Self> {
-        let instance = pink::Contract::new(
+    ) -> Result<(Self, ExecSideEffects)> {
+        let (instance, effects) = pink::Contract::new(
             storage,
             origin.clone(),
             wasm_bin,
@@ -53,7 +53,14 @@ impl Pink {
             now,
         )
         .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
-        Ok(Self { group, instance })
+        Ok((Self { group, instance }, effects))
+    }
+
+    pub fn from_address(address: AccountId, group: ContractGroupId) -> Self {
+        Self {
+            instance: pink::Contract::from_address(address),
+            group,
+        }
     }
 }
 
@@ -67,6 +74,10 @@ impl contracts::NativeContract for Pink {
     fn id(&self) -> ContractId {
         let inner: &[u8; 32] = self.instance.address.as_ref();
         inner.into()
+    }
+
+    fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
+        Some(self.group.clone())
     }
 
     fn handle_query(
@@ -116,7 +127,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, messages) = self
+                let (ret, effects) = self
                     .instance
                     .bare_call(
                         storage,
@@ -133,20 +144,9 @@ impl contracts::NativeContract for Pink {
 
                 // TODO.kevin: store the output to some where.
                 let _ = ret;
-
-                for message in messages.messages {
-                    context.mq.push_data(message.payload, message.topic);
-                }
-
-                for message in messages.osp_messages {
-                    context
-                        .secret_mq
-                        .bind_remote_key(message.remote_pubkey.as_ref())
-                        .push_data(message.payload, message.topic);
-                }
+                Ok(effects)
             }
         }
-        Ok(())
     }
 }
 
@@ -162,22 +162,16 @@ fn group_storage<'a>(
 pub mod group {
     use super::Pink;
 
-    use crate::contracts::support::NativeContract as _;
     use anyhow::Result;
-    use phala_mq::{ContractGroupId, ContractId};
-    use pink::types::AccountId;
+    use sp_core::sr25519;
     use runtime::BlockNumber;
     use std::collections::{BTreeMap, BTreeSet};
+    use phala_mq::{ContractGroupId, ContractId};
+    use pink::{runtime::ExecSideEffects, types::AccountId};
 
     #[derive(Default)]
     pub struct GroupKeeper {
         groups: BTreeMap<ContractGroupId, Group>,
-    }
-
-    #[derive(Default)]
-    pub struct Group {
-        storage: pink::Storage,
-        contracts: BTreeSet<ContractId>,
     }
 
     impl GroupKeeper {
@@ -188,11 +182,19 @@ pub mod group {
             wasm_bin: Vec<u8>,
             input_data: Vec<u8>,
             salt: Vec<u8>,
+            contract_key: &sr25519::Pair,
             block_number: BlockNumber,
             now: u64,
-        ) -> Result<Pink> {
-            let group = self.groups.entry(group_id.clone()).or_default();
-            let pink = Pink::instantiate(
+        ) -> Result<ExecSideEffects> {
+            let group = self
+                .groups
+                .entry(group_id.clone())
+                .or_insert_with(|| Group {
+                    storage: Default::default(),
+                    contracts: Default::default(),
+                    key: contract_key.clone(),
+                });
+            let (_, effects) = Pink::instantiate(
                 group_id,
                 &mut group.storage,
                 origin,
@@ -202,8 +204,7 @@ pub mod group {
                 block_number,
                 now,
             )?;
-            group.contracts.insert(pink.id().clone());
-            Ok(pink)
+            Ok(effects)
         }
 
         pub fn get_group_storage_mut(
@@ -211,6 +212,26 @@ pub mod group {
             group_id: &ContractGroupId,
         ) -> Option<&mut pink::Storage> {
             Some(&mut self.groups.get_mut(group_id)?.storage)
+        }
+
+        pub fn get_group_mut(&mut self, group_id: &ContractGroupId) -> Option<&mut Group> {
+            self.groups.get_mut(group_id)
+        }
+    }
+
+    pub struct Group {
+        storage: pink::Storage,
+        contracts: BTreeSet<ContractId>,
+        key: sr25519::Pair,
+    }
+
+    impl Group {
+        pub fn add_contract(&mut self, address: ContractId) {
+            self.contracts.insert(address);
+        }
+
+        pub fn key(&self) -> &sr25519::Pair {
+            &self.key
         }
     }
 }
@@ -222,7 +243,7 @@ pub mod messaging {
     use phala_types::WorkerPublicKey;
     use pink::types::AccountId;
 
-    pub use phala_types::messaging::{ContractInfo, WorkerPinkReport};
+    pub use phala_types::messaging::WorkerPinkReport;
 
     bind_topic!(WorkerPinkRequest, b"phala/pink/worker/request");
     #[derive(Encode, Decode, Debug)]

@@ -99,7 +99,7 @@ impl contracts::NativeContract for Balances {
                         info!("   src: {:>20} -> {:>20}", src0, src0 - value);
                         info!("  dest: {:>20} -> {:>20}", dest0, dest0 + value);
 
-                        Ok(())
+                        Ok(Default::default())
                     } else {
                         Err(TransactionError::InsufficientBalance)
                     }
@@ -127,7 +127,7 @@ impl contracts::NativeContract for Balances {
                             amount: value,
                         };
                         context.mq().push_message(&data);
-                        Ok(())
+                        Ok(Default::default())
                     } else {
                         Err(TransactionError::InsufficientBalance)
                     }
@@ -152,7 +152,7 @@ impl contracts::NativeContract for Balances {
                     info!("   value: {:>20} -> {:>20}", 0, amount);
                 }
                 self.total_issuance += amount;
-                Ok(())
+                Ok(Default::default())
             }
         }
     }
