@@ -496,8 +496,15 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper.emit_random_number(block.block_number);
         }
 
+        // Iterate over all contracts to handle their incoming commands.
+        //
+        // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
+        // So we can not directly itrate over the self.contracts.values_mut() which would keep borrowing on `self.contracts`
+        // in the scope of entire `for loop` body.
         let contract_ids: Vec<_> = self.contracts.keys().cloned().collect();
         'outer: for key in contract_ids {
+            // Inner loop to handle commands. One command per iteration and apply the command side-effects to make it
+            // availabe for next command.
             loop {
                 let contract = match self.contracts.get_mut(&key) {
                     None => continue 'outer,
