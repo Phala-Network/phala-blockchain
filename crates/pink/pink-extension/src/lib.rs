@@ -110,19 +110,6 @@ impl Environment for PinkEnvironment {
     type ChainExtension = <ink_env::DefaultEnvironment as Environment>::ChainExtension;
 }
 
-#[derive(Debug)]
-pub struct ErrorCode(u32);
-
-impl ink_env::chain_extension::FromStatusCode for ErrorCode {
-    fn from_status_code(status_code: u32) -> Result<(), Self> {
-        if status_code == 0 {
-            Ok(())
-        } else {
-            Err(ErrorCode(status_code))
-        }
-    }
-}
-
 fn topics_for(event: impl Topics + Encode) -> Vec<Hash> {
     EmittedEvent::new::<PinkEnvironment, _>(event)
         .topics
