@@ -527,14 +527,17 @@ pub mod pallet {
 		}
 	}
 
-	// TODO.kevin: Move it to mq
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::mq::Config,
 	{
-		pub fn check_message(message: &SignedMessage) -> DispatchResult {
+		pub fn check_message_signature(
+			data: &[u8],
+			signature: &[u8],
+			sender: &MessageOrigin,
+		) -> DispatchResult {
 			let pubkey_copy: ContractPublicKey;
-			let pubkey = match &message.message.sender {
+			let pubkey = match sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
@@ -548,15 +551,17 @@ pub mod pallet {
 				}
 				_ => return Err(Error::<T>::CannotHandleUnknownMessage.into()),
 			};
-			Self::verify_signature(pubkey, message)
+			Self::verify_signature(data, signature, pubkey)
 		}
 
-		fn verify_signature(pubkey: &WorkerPublicKey, message: &SignedMessage) -> DispatchResult {
-			let raw_sig = &message.signature;
-			ensure!(raw_sig.len() == 64, Error::<T>::InvalidSignatureLength);
-			let sig = sp_core::sr25519::Signature::try_from(raw_sig.as_slice())
+		fn verify_signature(
+			data: &[u8],
+			signature: &[u8],
+			pubkey: &WorkerPublicKey,
+		) -> DispatchResult {
+			ensure!(signature.len() == 64, Error::<T>::InvalidSignatureLength);
+			let sig = sp_core::sr25519::Signature::try_from(signature)
 				.or(Err(Error::<T>::MalformedSignature))?;
-			let data = message.data_be_signed();
 			ensure!(
 				sp_io::crypto::sr25519_verify(&sig, &data, pubkey),
 				Error::<T>::InvalidSignature

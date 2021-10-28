@@ -11,7 +11,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{
-		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, Path, SignedMessage,
+		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, MqHash, Path,
+		SignedMessage, SignedMessageV2,
 	};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
@@ -33,6 +34,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type OffchainIngress<T> = StorageMap<_, Twox64Concat, MessageOrigin, u64>;
 
+	/// The last offchain ingress message hash
+	#[pallet::storage]
+	pub type OffchainIngressLastHash<T> = StorageMap<_, Twox64Concat, MessageOrigin, MqHash>;
+
 	#[pallet::storage]
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
@@ -48,6 +53,8 @@ pub mod pallet {
 		BadSender,
 		BadSequence,
 		BadDestination,
+		MqVersionMismatch,
+		MessageHashMismatch,
 	}
 
 	#[pallet::call]
@@ -80,10 +87,70 @@ pub mod pallet {
 				signed_message.sequence == expected_seq,
 				Error::<T>::BadSequence
 			);
+			// If the worker has ever called sync_offchain_message_v2, reject it.
+			ensure!(
+				OffchainIngressLastHash::<T>::get(&sender).is_none(),
+				Error::<T>::MqVersionMismatch
+			);
 			// Validate signature
-			crate::registry::Pallet::<T>::check_message(&signed_message)?;
+			crate::registry::Pallet::<T>::check_message_signature(
+				&signed_message.data_be_signed(),
+				&signed_message.signature,
+				&signed_message.message.sender,
+			)?;
 			// Update ingress
 			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
+			// Call dispatch_message
+			Self::dispatch_message(signed_message.message);
+			Ok(())
+		}
+
+		/// Syncs an unverified offchain message to the message queue
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn sync_offchain_message_v2(
+			origin: OriginFor<T>,
+			signed_message: SignedMessageV2,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Check sender
+			let sender = &signed_message.message.sender;
+			ensure!(sender.is_offchain(), Error::<T>::BadSender);
+
+			// Check destination
+			ensure!(
+				signed_message.message.destination.is_valid(),
+				Error::<T>::BadDestination
+			);
+
+			// Check ingress sequence
+			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
+			ensure!(
+				signed_message.sequence == expected_seq,
+				Error::<T>::BadSequence
+			);
+
+			// Check parent hash
+			if let Some(last_hash) = OffchainIngressLastHash::<T>::get(&sender) {
+				ensure!(
+					signed_message.parent_hash == last_hash,
+					Error::<T>::MessageHashMismatch
+				);
+			}
+
+			// Validate signature
+			crate::registry::Pallet::<T>::check_message_signature(
+				&signed_message.data_be_signed(),
+				&signed_message.signature,
+				&signed_message.message.sender,
+			)?;
+
+			// Update ingress
+			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
+
+			// Update last hash
+			OffchainIngressLastHash::<T>::insert(sender.clone(), signed_message.hash);
+
 			// Call dispatch_message
 			Self::dispatch_message(signed_message.message);
 			Ok(())
