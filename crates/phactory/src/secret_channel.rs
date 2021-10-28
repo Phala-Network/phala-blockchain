@@ -59,6 +59,12 @@ mod sender {
         }
     }
 
+    impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannelBase for BoundSecretMessageChannel<'a, MsgChan> {
+        fn last_hash(&self) -> Option<phala_mq::MqHash> {
+            self.inner.mq.last_hash()
+        }
+    }
+
     impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannel
         for BoundSecretMessageChannel<'a, MsgChan>
     {

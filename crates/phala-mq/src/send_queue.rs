@@ -1,5 +1,5 @@
 use crate::{
-    Message, MessageOrigin, MessageSigner, Mutex, SenderId, SignedMessage, SigningMessage,
+    Message, MessageOrigin, MessageSigner, MqHash, Mutex, SenderId, SignedMessageV2, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use serde::{Deserialize, Serialize};
@@ -7,7 +7,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Serialize, Deserialize)]
 struct Channel {
     sequence: u64,
-    messages: Vec<SignedMessage>,
+    last_hash: Option<MqHash>,
+    messages: Vec<SignedMessageV2>,
     dummy: bool,
 }
 
@@ -53,10 +54,12 @@ impl MessageSendQueue {
     pub fn enqueue_message(
         &self,
         sender: SenderId,
-        constructor: impl FnOnce(u64) -> SignedMessage,
+        constructor: impl FnOnce(u64, Option<MqHash>) -> SignedMessageV2,
     ) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
+        let message = constructor(entry.sequence, entry.last_hash);
+        let hash = message.hash;
         if !entry.dummy {
             let message = constructor(entry.sequence);
 
@@ -79,6 +82,7 @@ impl MessageSendQueue {
             entry.messages.push(message);
         }
         entry.sequence += 1;
+        entry.last_hash = Some(hash);
     }
 
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
@@ -87,7 +91,12 @@ impl MessageSendQueue {
         entry.dummy = dummy;
     }
 
-    pub fn all_messages(&self) -> Vec<SignedMessage> {
+    pub fn last_hash(&self, sender: &SenderId) -> Option<MqHash> {
+        let inner = self.inner.lock();
+        inner.get(sender)?.last_hash
+    }
+
+    pub fn all_messages(&self) -> Vec<SignedMessageV2> {
         let inner = self.inner.lock();
         inner
             .iter()
@@ -95,7 +104,7 @@ impl MessageSendQueue {
             .collect()
     }
 
-    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<SignedMessage>> {
+    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<SignedMessageV2>> {
         let inner = self.inner.lock();
         inner
             .iter()
@@ -103,7 +112,7 @@ impl MessageSendQueue {
             .collect()
     }
 
-    pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
+    pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessageV2> {
         let inner = self.inner.lock();
         inner
             .get(sender)
@@ -158,6 +167,7 @@ mod msg_channel {
             &self,
             payload: alloc::vec::Vec<u8>,
             to: impl Into<Path>,
+            hash: MqHash,
         ) -> SigningMessage<Si> {
             let sender = self.sender.clone();
             let signer = self.signer.clone();
@@ -166,15 +176,27 @@ mod msg_channel {
                 destination: to.into().into(),
                 payload,
             };
-            SigningMessage { message, signer }
+            SigningMessage {
+                message,
+                signer,
+                hash,
+            }
+        }
+    }
+
+    impl<T: MessageSigner + Clone> crate::traits::MessageChannelBase for MessageChannel<T> {
+        fn last_hash(&self) -> Option<MqHash> {
+            self.queue.last_hash(&self.sender)
         }
     }
 
     impl<T: MessageSigner + Clone> crate::traits::MessageChannel for MessageChannel<T> {
-        fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
-            let signing = self.prepare_with_data(payload, to);
+        fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>, hash: MqHash) {
+            let signing = self.prepare_with_data(payload, to, hash);
             self.queue
-                .enqueue_message(self.sender.clone(), move |sequence| signing.sign(sequence))
+                .enqueue_message(self.sender.clone(), move |sequence, parent_hash| {
+                    signing.sign(sequence, parent_hash)
+                })
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
@@ -190,8 +212,9 @@ mod msg_channel {
             &self,
             payload: alloc::vec::Vec<u8>,
             to: impl Into<Path>,
+            hash: MqHash,
         ) -> SigningMessage<Self::Signer> {
-            self.prepare_with_data(payload, to)
+            self.prepare_with_data(payload, to, hash)
         }
     }
 }

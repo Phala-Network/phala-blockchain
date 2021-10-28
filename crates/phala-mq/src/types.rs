@@ -9,9 +9,11 @@ use sp_core::crypto::{AccountId32, UncheckedFrom};
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
+
 pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractClusterId;
+pub use sp_core::H128 as MqHash;
 
 use crate::MessageSigner;
 use serde::{Serialize, Deserialize};
@@ -297,23 +299,71 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
+#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SignedMessageV2 {
+    pub message: Message,
+    pub sequence: u64,
+    pub hash: MqHash,
+    pub parent_hash: Option<MqHash>,
+    pub signature: Vec<u8>,
+}
+
+impl SignedMessageV2 {
+    pub fn data_be_signed(&self) -> Vec<u8> {
+        MessageToBeSignedV2 {
+            message: &self.message,
+            sequence: self.sequence,
+            hash: self.hash,
+            parent_hash: self.parent_hash,
+        }
+        .raw_data()
+    }
+}
+
+#[derive(Encode)]
+pub(crate) struct MessageToBeSignedV2<'a> {
+    pub(crate) message: &'a Message,
+    pub(crate) sequence: u64,
+    pub(crate) hash: MqHash,
+    pub(crate) parent_hash: Option<MqHash>,
+}
+
+impl<'a> MessageToBeSignedV2<'a> {
+    pub(crate) fn raw_data(&self) -> Vec<u8> {
+        self.encode()
+    }
+}
+
+#[cfg(feature = "signers")]
 #[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
 pub struct SigningMessage<Signer> {
     pub message: Message,
+    pub hash: MqHash,
     pub signer: Signer,
 }
 
+#[cfg(feature = "signers")]
 impl<Signer: MessageSigner> SigningMessage<Signer> {
-    pub fn sign(self, sequence: u64) -> SignedMessage {
-        let data = MessageToBeSigned {
+    pub fn sign(self, sequence: u64, parent_hash: Option<MqHash>) -> SignedMessageV2 {
+        let hash = hash(&(sequence, parent_hash, self.hash, &self.message.destination).encode());
+        let data = MessageToBeSignedV2 {
             message: &self.message,
             sequence,
+            hash,
+            parent_hash,
         };
         let signature = self.signer.sign(&data.raw_data());
-        SignedMessage {
+        SignedMessageV2 {
             message: self.message,
             sequence,
             signature,
+            hash,
+            parent_hash,
         }
     }
+}
+
+#[cfg(feature = "signers")]
+pub fn hash(data: &[u8]) -> MqHash {
+    MqHash(sp_core::twox_128(data))
 }

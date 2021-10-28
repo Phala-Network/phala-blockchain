@@ -48,20 +48,32 @@ mod alias {
 pub mod traits {
     use parity_scale_codec::Encode;
 
-    use crate::{BindTopic, Path, SigningMessage};
+    use crate::{BindTopic, MqHash, Path};
+
+    #[cfg(feature = "signers")]
+    use crate::SigningMessage;
+
+    pub trait MessageHashing {
+        fn hash(&self) -> MqHash;
+    }
+
+    pub trait MessageChannelBase {
+        fn last_hash(&self) -> Option<MqHash>;
+    }
 
     /// A MessageChannel is used to push messages into the egress queue, then the messages
     /// are ready to be synchronized to the chain by pherry or prb.
-    pub trait MessageChannel {
+    pub trait MessageChannel: MessageChannelBase {
         /// Push given binary data as message payload into the egress queue.
-        fn push_data(&self, data: alloc::vec::Vec<u8>, topic: impl Into<Path>);
+        fn push_data(&self, data: alloc::vec::Vec<u8>, topic: impl Into<Path>, hash: MqHash);
         /// Same as push_data, except that it a SCALE encodable typed message which will be encoded into binary data.
-        fn push_message_to(&self, message: &impl Encode, topic: impl Into<Path>) {
-            self.push_data(message.encode(), topic)
+        fn push_message_to(&self, message: &impl Encode, topic: impl Into<Path>, hash: MqHash) {
+            self.push_data(message.encode(), topic, hash)
         }
         /// Same as push_message_to, except that the type of message is bound on a topic.
-        fn push_message<M: Encode + BindTopic>(&self, message: &M) {
-            self.push_message_to(message, M::topic())
+        fn push_message<M: Encode + BindTopic + MessageHashing>(&self, message: &M) {
+            let hash = message.hash();
+            self.push_message_to(message, M::topic(), hash)
         }
         fn set_dummy(&self, _dummy: bool) {}
     }
@@ -73,18 +85,33 @@ pub mod traits {
     /// not be known in advance until it about to be pushed out. So we need to pack all stuffs which are required
     /// to make a `SignedMessage` except the sequence into a so-called `SigningMessage` struct and store it for
     /// later pushing.
-    pub trait MessagePrepareChannel {
+    #[cfg(feature = "signers")]
+    pub trait MessagePrepareChannel: MessageChannelBase {
         type Signer;
 
         /// Like push_data but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_with_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>) -> SigningMessage<Self::Signer>;
+        fn prepare_with_data(
+            &self,
+            data: alloc::vec::Vec<u8>,
+            to: impl Into<Path>,
+            hash: MqHash,
+        ) -> SigningMessage<Self::Signer>;
         /// Like push_message_to but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message_to(&self, message: &impl Encode, to: impl Into<Path>) -> SigningMessage<Self::Signer> {
-            self.prepare_with_data(message.encode(), to)
+        fn prepare_message_to(
+            &self,
+            message: &impl Encode,
+            to: impl Into<Path>,
+            hash: MqHash,
+        ) -> SigningMessage<Self::Signer> {
+            self.prepare_with_data(message.encode(), to, hash)
         }
         /// Like push_message but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message<M: Encode + BindTopic>(&self, message: &M) -> SigningMessage<Self::Signer> {
-            self.prepare_message_to(message, M::topic())
+        fn prepare_message<M: Encode + BindTopic + MessageHashing>(
+            &self,
+            message: &M,
+        ) -> SigningMessage<Self::Signer> {
+            let hash = message.hash();
+            self.prepare_message_to(message, M::topic(), hash)
         }
     }
 }
