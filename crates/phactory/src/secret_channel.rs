@@ -14,7 +14,7 @@ mod sender {
     use crate::contracts::Data as OpaqueData;
     use phactory_api::crypto::{ecdh, EncryptedData};
     use phala_crypto::ecdh::EcdhPublicKey;
-    use phala_mq::traits::{MessageChannel, MessageChannelBase, MessagePrepareChannel};
+    use phala_mq::traits::{MessageChannel, MessagePrepareChannel};
     use phala_mq::Path;
 
     pub type KeyPair = ecdh::EcdhKey;
@@ -56,14 +56,6 @@ mod sender {
             } else {
                 super::Payload::Plain(OpaqueData(data))
             }
-        }
-    }
-
-    impl<'a, MsgChan: MessageChannelBase> MessageChannelBase
-        for BoundSecretMessageChannel<'a, MsgChan>
-    {
-        fn last_hash(&self) -> phala_mq::MqHash {
-            self.inner.mq.last_hash()
         }
     }
 

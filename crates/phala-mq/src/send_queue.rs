@@ -184,12 +184,6 @@ mod msg_channel {
         }
     }
 
-    impl<T: MessageSigner + Clone> crate::traits::MessageChannelBase for MessageChannel<T> {
-        fn last_hash(&self) -> MqHash {
-            self.queue.last_hash(&self.sender)
-        }
-    }
-
     impl<T: MessageSigner + Clone> crate::traits::MessageChannel for MessageChannel<T> {
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>, hash: MqHash) {
             let signing = self.prepare_with_data(payload, to, hash);

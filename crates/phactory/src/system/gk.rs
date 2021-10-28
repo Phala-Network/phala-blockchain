@@ -1158,9 +1158,7 @@ pub mod tests {
     use super::{BlockInfo, FixedPoint, MessageChannel, MiningEconomics};
     use fixed_macro::types::U64F64 as fp;
     use parity_scale_codec::{Decode, Encode};
-    use phala_mq::{
-        traits::MessageChannelBase, BindTopic, Message, MessageDispatcher, MessageOrigin, Path,
-    };
+    use phala_mq::{BindTopic, Message, MessageDispatcher, MessageOrigin, Path};
     use phala_types::{messaging as msg, WorkerPublicKey};
     use std::cell::RefCell;
 
@@ -1216,11 +1214,6 @@ pub mod tests {
         }
     }
 
-    impl MessageChannelBase for CollectChannel {
-        fn last_hash(&self) -> phala_mq::MqHash {
-            Default::default()
-        }
-    }
     impl MessageChannel for CollectChannel {
         fn push_data(&self, data: Vec<u8>, to: impl Into<Path>, _hash: phala_mq::MqHash) {
             let message = Message {

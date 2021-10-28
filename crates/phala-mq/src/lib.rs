@@ -65,13 +65,9 @@ pub mod traits {
         fn hash(&self) -> MqHash;
     }
 
-    pub trait MessageChannelBase {
-        fn last_hash(&self) -> MqHash;
-    }
-
     /// A MessageChannel is used to push messages into the egress queue, then the messages
     /// are ready to be synchronized to the chain by pherry or prb.
-    pub trait MessageChannel: MessageChannelBase {
+    pub trait MessageChannel {
         /// Push given binary data as message payload into the egress queue.
         fn push_data(&self, data: alloc::vec::Vec<u8>, topic: impl Into<Path>, hash: MqHash);
         /// Same as push_data, except that it a SCALE encodable typed message which will be encoded into binary data.
@@ -94,7 +90,7 @@ pub mod traits {
     /// to make a `SignedMessage` except the sequence into a so-called `SigningMessage` struct and store it for
     /// later pushing.
     #[cfg(feature = "signers")]
-    pub trait MessagePrepareChannel: MessageChannelBase {
+    pub trait MessagePrepareChannel {
         type Signer;
 
         /// Like push_data but returns the SigningMessage rather than pushes it into the egress queue.
