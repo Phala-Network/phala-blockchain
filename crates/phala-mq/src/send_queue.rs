@@ -71,12 +71,12 @@ impl MessageSendQueue {
                 );
             } else {
                 log::info!(target: "mq",
-                    "Sending message, from={}, to={:?}, seq={}",
-                    message.message.sender,
-                    message.message.destination,
-                    entry.sequence,
-                );
-            }
+                    "Sending message, from={}, to={:?}, seq={}, hash={:?}",
+                message.message.sender,
+                message.message.destination,
+                entry.sequence,
+                &hash,
+            );}
             entry.messages.push(message);
         }
         entry.sequence += 1;
