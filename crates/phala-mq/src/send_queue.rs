@@ -61,8 +61,6 @@ impl MessageSendQueue {
         let message = constructor(entry.sequence, entry.last_hash);
         let hash = message.hash;
         if !entry.dummy {
-            let message = constructor(entry.sequence);
-
             if log::log_enabled!(target: "mq", log::Level::Debug) {
                 log::debug!(target: "mq",
                     "Sending message, from={}, to={:?}, seq={}, payload_hash={}",
@@ -212,9 +210,8 @@ mod msg_channel {
             &self,
             payload: alloc::vec::Vec<u8>,
             to: impl Into<Path>,
-            hash: MqHash,
         ) -> SigningMessage<Self::Signer> {
-            self.prepare_with_data(payload, to, hash)
+            self.prepare_with_data(payload, to, Default::default())
         }
     }
 }

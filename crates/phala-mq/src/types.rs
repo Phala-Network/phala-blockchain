@@ -13,7 +13,7 @@ pub type SenderId = MessageOrigin;
 pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractClusterId;
-pub use sp_core::H128 as MqHash;
+pub use primitive_types::H128 as MqHash;
 
 use crate::MessageSigner;
 use serde::{Serialize, Deserialize};
@@ -345,7 +345,7 @@ pub struct SigningMessage<Signer> {
 #[cfg(feature = "signers")]
 impl<Signer: MessageSigner> SigningMessage<Signer> {
     pub fn sign(self, sequence: u64, parent_hash: Option<MqHash>) -> SignedMessageV2 {
-        let hash = hash(&(sequence, parent_hash, self.hash, &self.message.destination).encode());
+        let hash = hash(&(sequence, parent_hash, self.hash).encode());
         let data = MessageToBeSignedV2 {
             message: &self.message,
             sequence,

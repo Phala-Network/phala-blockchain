@@ -102,24 +102,21 @@ pub mod traits {
             &self,
             data: alloc::vec::Vec<u8>,
             to: impl Into<Path>,
-            hash: MqHash,
         ) -> SigningMessage<Self::Signer>;
         /// Like push_message_to but returns the SigningMessage rather than pushes it into the egress queue.
         fn prepare_message_to(
             &self,
             message: &impl Encode,
             to: impl Into<Path>,
-            hash: MqHash,
         ) -> SigningMessage<Self::Signer> {
-            self.prepare_with_data(message.encode(), to, hash)
+            self.prepare_with_data(message.encode(), to)
         }
         /// Like push_message but returns the SigningMessage rather than pushes it into the egress queue.
         fn prepare_message<M: Encode + BindTopic + MessageHashing>(
             &self,
             message: &M,
         ) -> SigningMessage<Self::Signer> {
-            let hash = message.hash();
-            self.prepare_message_to(message, M::topic(), hash)
+            self.prepare_message_to(message, M::topic())
         }
     }
 }

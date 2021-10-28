@@ -14,7 +14,7 @@ mod sender {
     use crate::contracts::Data as OpaqueData;
     use phactory_api::crypto::{ecdh, EncryptedData};
     use phala_crypto::ecdh::EcdhPublicKey;
-    use phala_mq::traits::{MessageChannel, MessagePrepareChannel};
+    use phala_mq::traits::{MessageChannel, MessageChannelBase, MessagePrepareChannel};
     use phala_mq::Path;
 
     pub type KeyPair = ecdh::EcdhKey;
@@ -59,18 +59,18 @@ mod sender {
         }
     }
 
-    impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannelBase for BoundSecretMessageChannel<'a, MsgChan> {
+    impl<'a, MsgChan: MessageChannelBase> MessageChannelBase
+        for BoundSecretMessageChannel<'a, MsgChan>
+    {
         fn last_hash(&self) -> Option<phala_mq::MqHash> {
             self.inner.mq.last_hash()
         }
     }
 
-    impl<'a, MsgChan: MessageChannel> phala_mq::traits::MessageChannel
-        for BoundSecretMessageChannel<'a, MsgChan>
-    {
-        fn push_data(&self, data: Vec<u8>, to: impl Into<Path>) {
+    impl<'a, MsgChan: MessageChannel> MessageChannel for BoundSecretMessageChannel<'a, MsgChan> {
+        fn push_data(&self, data: Vec<u8>, to: impl Into<Path>, hash: phala_mq::MqHash) {
             let payload = self.encrypt_payload(data);
-            self.inner.mq.push_message_to(&payload, to)
+            self.inner.mq.push_message_to(&payload, to, hash)
         }
     }
 

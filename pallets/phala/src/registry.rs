@@ -26,8 +26,8 @@ pub mod pallet {
 		contract::messaging::ContractEvent,
 		contract::{CodeIndex, ContractInfo},
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
+			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageHashing,
+			MessageOrigin, SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
@@ -50,6 +50,31 @@ pub mod pallet {
 			contract_pubkey: ContractPublicKey,
 			worker_pubkey: WorkerPublicKey,
 		},
+	}
+
+	#[cfg(feature = "std")]
+	impl MessageHashing for RegistryEvent {
+		fn hash(&self) -> messaging::MqHash {
+			use RegistryEvent::*;
+			match self {
+				BenchReport {
+					start_time,
+					iterations: _, // The iterations is varing, don't hash it.
+				} => messaging::hash(&start_time.encode()),
+				MasterPubkey { .. } => messaging::hash(&self.encode()),
+			}
+		}
+	}
+
+	#[cfg(feature = "std")]
+	impl<CodeHash, AccountId> MessageHashing for ContractRegistryEvent<CodeHash, AccountId>
+	where
+		CodeHash: Encode,
+		AccountId: Encode,
+	{
+		fn hash(&self) -> messaging::MqHash {
+			messaging::hash(&self.encode())
+		}
 	}
 
 	#[pallet::config]

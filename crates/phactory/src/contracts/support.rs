@@ -176,7 +176,8 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
     }
 
     fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {
-        self.send_mq.push_data(payload, topic)
+        let hash = (&payload, &topic).using_encoded(phala_mq::hash);
+        self.send_mq.push_data(payload, topic, hash)
     }
 
     fn push_osp_message(
@@ -185,10 +186,11 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
         topic: Vec<u8>,
         remote_pubkey: Option<&EcdhPublicKey>,
     ) {
+        let hash = (&payload, &topic).using_encoded(phala_mq::hash);
         let secret_mq = SecretMessageChannel::new(&self.ecdh_key, &self.send_mq);
         secret_mq
             .bind_remote_key(remote_pubkey)
-            .push_data(payload, topic)
+            .push_data(payload, topic, hash)
     }
 }
 

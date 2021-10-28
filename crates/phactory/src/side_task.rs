@@ -39,7 +39,9 @@ impl TaskWrapper {
         for msg in messages {
             context
                 .send_mq
-                .enqueue_message(msg.message.sender.clone(), |seq| msg.sign(seq));
+                .enqueue_message(msg.message.sender.clone(), |seq, parent_hash| {
+                    msg.sign(seq, parent_hash)
+                });
         }
     }
 }
