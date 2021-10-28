@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Default, Serialize, Deserialize)]
 struct Channel {
     sequence: u64,
-    last_hash: Option<MqHash>,
+    last_hash: MqHash,
     messages: Vec<SignedMessageV2>,
     dummy: bool,
 }
@@ -54,7 +54,7 @@ impl MessageSendQueue {
     pub fn enqueue_message(
         &self,
         sender: SenderId,
-        constructor: impl FnOnce(u64, Option<MqHash>) -> SignedMessageV2,
+        constructor: impl FnOnce(u64, MqHash) -> SignedMessageV2,
     ) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
@@ -80,7 +80,7 @@ impl MessageSendQueue {
             entry.messages.push(message);
         }
         entry.sequence += 1;
-        entry.last_hash = Some(hash);
+        entry.last_hash = hash;
     }
 
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
@@ -89,9 +89,11 @@ impl MessageSendQueue {
         entry.dummy = dummy;
     }
 
-    pub fn last_hash(&self, sender: &SenderId) -> Option<MqHash> {
+    pub fn last_hash(&self, sender: &SenderId) -> MqHash {
         let inner = self.inner.lock();
-        inner.get(sender)?.last_hash
+        inner
+            .get(sender)
+            .map_or(Default::default(), |ch| ch.last_hash)
     }
 
     pub fn all_messages(&self) -> Vec<SignedMessageV2> {
@@ -183,7 +185,7 @@ mod msg_channel {
     }
 
     impl<T: MessageSigner + Clone> crate::traits::MessageChannelBase for MessageChannel<T> {
-        fn last_hash(&self) -> Option<MqHash> {
+        fn last_hash(&self) -> MqHash {
             self.queue.last_hash(&self.sender)
         }
     }

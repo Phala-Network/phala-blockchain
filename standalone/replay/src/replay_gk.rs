@@ -148,8 +148,8 @@ impl ReplayFactory {
 struct ReplayMsgChannel;
 
 impl phala_mq::traits::MessageChannelBase for ReplayMsgChannel {
-    fn last_hash(&self) -> Option<phala_mq::MqHash> {
-        None
+    fn last_hash(&self) -> phala_mq::MqHash {
+        Default::default()
     }
 }
 

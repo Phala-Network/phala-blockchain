@@ -304,7 +304,7 @@ pub struct SignedMessageV2 {
     pub message: Message,
     pub sequence: u64,
     pub hash: MqHash,
-    pub parent_hash: Option<MqHash>,
+    pub parent_hash: MqHash,
     pub signature: Vec<u8>,
 }
 
@@ -325,7 +325,7 @@ pub(crate) struct MessageToBeSignedV2<'a> {
     pub(crate) message: &'a Message,
     pub(crate) sequence: u64,
     pub(crate) hash: MqHash,
-    pub(crate) parent_hash: Option<MqHash>,
+    pub(crate) parent_hash: MqHash,
 }
 
 impl<'a> MessageToBeSignedV2<'a> {
@@ -344,7 +344,7 @@ pub struct SigningMessage<Signer> {
 
 #[cfg(feature = "signers")]
 impl<Signer: MessageSigner> SigningMessage<Signer> {
-    pub fn sign(self, sequence: u64, parent_hash: Option<MqHash>) -> SignedMessageV2 {
+    pub fn sign(self, sequence: u64, parent_hash: MqHash) -> SignedMessageV2 {
         let hash = hash(&(sequence, parent_hash, self.hash).encode());
         let data = MessageToBeSignedV2 {
             message: &self.message,

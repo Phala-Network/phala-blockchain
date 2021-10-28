@@ -66,7 +66,7 @@ pub mod traits {
     }
 
     pub trait MessageChannelBase {
-        fn last_hash(&self) -> Option<MqHash>;
+        fn last_hash(&self) -> MqHash;
     }
 
     /// A MessageChannel is used to push messages into the egress queue, then the messages
