@@ -23,14 +23,14 @@ fn test_send_message() {
 
         let handle00 = queue.channel(runtime.clone(), signer);
 
-        handle00.push_data(b"payload00".to_vec(), b"phala.network/test0".to_vec());
+        handle00.push_data(b"payload00".to_vec(), b"phala.network/test0".to_vec(), Default::default());
 
         let signer = TestSigner(b"key1".to_vec());
 
         let handle01 = queue.channel(runtime.clone(), signer);
-        handle01.push_data(b"payload01".to_vec(), b"phala.network/test1".to_vec());
+        handle01.push_data(b"payload01".to_vec(), b"phala.network/test1".to_vec(), Default::default());
 
-        handle00.push_data(b"payload02".to_vec(), b"phala.network/test1".to_vec());
+        handle00.push_data(b"payload02".to_vec(), b"phala.network/test1".to_vec(), Default::default());
 
         let messages = queue.all_messages();
 
@@ -53,9 +53,9 @@ fn test_send_message() {
         let signer = TestSigner(b"a key".to_vec());
         let handle = queue.channel(worker0.clone(), signer);
 
-        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec());
-        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec());
-        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec());
+        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec(), Default::default());
+        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec(), Default::default());
+        handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec(), Default::default());
 
         assert_eq!(queue.messages(&worker0).len(), 3);
     }
