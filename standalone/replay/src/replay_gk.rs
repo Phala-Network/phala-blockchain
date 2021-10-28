@@ -147,8 +147,14 @@ impl ReplayFactory {
 
 struct ReplayMsgChannel;
 
+impl phala_mq::traits::MessageChannelBase for ReplayMsgChannel {
+    fn last_hash(&self) -> Option<phala_mq::MqHash> {
+        None
+    }
+}
+
 impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
-    fn push_data(&self, _data: Vec<u8>, _to: impl Into<Path>) {}
+    fn push_data(&self, _data: Vec<u8>, _to: impl Into<Path>, _hash: phala_mq::MqHash) {}
 }
 
 pub async fn fetch_genesis_storage(
