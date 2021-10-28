@@ -5,6 +5,14 @@ pub extern crate serde_sgx as serde;
 
 extern crate alloc;
 
+#[cfg(feature = "signers")]
+pub use phala_mq_derive::MessageHashing;
+
+#[cfg(not(feature = "signers"))]
+pub use phala_mq_derive::DummyMessageHashing as MessageHashing;
+
+pub use traits::MessageHashing;
+
 mod signer;
 pub mod types;
 
