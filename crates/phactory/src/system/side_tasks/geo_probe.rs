@@ -163,8 +163,7 @@ pub fn process_block(
             let secret_channel =
                 secret_channel::bind_remote(&egress, &my_ecdh_key, Some(&remote_pubkey));
             let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
-            // 6. send the command
-            // The payload if varing on replay, so don't hash it.
+            //6. send the command
             Ok([secret_channel.prepare_message_to(&msg, topic)])
         });
     }
