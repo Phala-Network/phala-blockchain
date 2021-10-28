@@ -795,9 +795,13 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
     // TODO: Mitigation for #529. It tries to fetch the Metadata v13. Remove once subxt supports
     // Metadata v14.
     let maybe_block_hash = if args.parachain {
-        Some(sp_core::H256::from_str(
-            &args.b529_mitigation_metadata_block,
-        )?)
+        if args.b529_mitigation_metadata_block.is_empty() {
+            None
+        } else {
+            Some(sp_core::H256::from_str(
+                &args.b529_mitigation_metadata_block,
+            )?)
+        }
     } else {
         None
     };
