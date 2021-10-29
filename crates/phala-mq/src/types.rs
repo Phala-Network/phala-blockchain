@@ -1,11 +1,12 @@
-use alloc::vec::Vec;
 use alloc::string::String;
+use alloc::vec::Vec;
 use core::hash::{Hash, Hasher};
 use primitive_types::H256;
 
-use parity_scale_codec::{Decode, Encode};
-use sp_core::crypto::{AccountId32, UncheckedFrom};
 use derive_more::Display;
+use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
+use sp_core::crypto::{AccountId32, UncheckedFrom};
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
@@ -19,7 +20,7 @@ pub fn contract_id256(id: u32) -> ContractId {
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, Debug, Clone, Eq, PartialOrd, Ord, Display)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
@@ -117,7 +118,7 @@ pub struct BadOrigin;
 ///    assert!(a_normal_topic.is_offchain());
 /// ```
 ///
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Hash)]
+#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash)]
 pub struct Topic(Path);
 
 impl core::fmt::Debug for Topic {
@@ -217,7 +218,7 @@ macro_rules! bind_contract32 {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
 pub struct Message {
     pub sender: SenderId,
     pub destination: Topic,
@@ -257,7 +258,7 @@ pub struct DecodedMessage<T> {
     pub payload: T,
 }
 
-#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
 pub struct SignedMessage {
     pub message: Message,
     pub sequence: u64,

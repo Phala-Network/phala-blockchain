@@ -120,6 +120,7 @@ pub use crate::{
 };
 use crate::{
     frame::system::{
+        AccountStoreExt,
         Phase,
         System,
     },

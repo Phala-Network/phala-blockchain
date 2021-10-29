@@ -1,13 +1,14 @@
 use crate::constants::*;
 
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sp_std::{
 	borrow::ToOwned,
 	convert::{TryFrom, TryInto},
 	vec::Vec,
 };
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Attestation {
 	SgxIas {
 		ra_report: Vec<u8>,
@@ -27,7 +28,7 @@ pub trait AttestationValidator {
 	) -> Result<IasFields, Error>;
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub enum Error {
 	PRuntimeRejected,
 	InvalidIASSigningCert,
@@ -39,7 +40,7 @@ pub enum Error {
 	InvalidUserDataHash,
 }
 
-#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, PartialEq, Eq)]
 pub struct IasFields {
 	pub mr_enclave: [u8; 32],
 	pub mr_signer: [u8; 32],

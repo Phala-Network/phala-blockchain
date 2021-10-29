@@ -2,7 +2,6 @@ use crate::types::{Message, MessageToBeSigned, SignedMessage};
 use crate::{MessageOrigin, MessageSigner, Mutex, SenderId};
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 
-
 #[derive(Default)]
 struct Channel {
     sequence: u64,
@@ -64,11 +63,15 @@ impl MessageSendQueue {
 
     pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessage> {
         let inner = self.inner.lock();
-        inner.get(sender).map(|x| x.messages.clone()).unwrap_or_default()
+        inner
+            .get(sender)
+            .map(|x| x.messages.clone())
+            .unwrap_or_default()
     }
 
     pub fn count_messages(&self) -> usize {
-        self.inner.lock()
+        self.inner
+            .lock()
             .iter()
             .map(|(_k, v)| v.messages.len())
             .sum()

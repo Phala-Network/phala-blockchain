@@ -1,6 +1,6 @@
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use alloc::format;
 use codec::{Decode, Encode};
 
 pub use phala_mq::{contract_id256 as id256, ContractId};
@@ -73,5 +73,7 @@ impl From<ContractQueryError> for prpc::server::Error {
 }
 
 pub fn command_topic(id: ContractId) -> Vec<u8> {
-    format!("phala/contract/{}/command", hex::encode(&id)).as_bytes().to_vec()
+    format!("phala/contract/{}/command", hex::encode(&id))
+        .as_bytes()
+        .to_vec()
 }

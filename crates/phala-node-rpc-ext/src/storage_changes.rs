@@ -80,8 +80,8 @@ where
         + HeaderMetadata<Block, Error = sp_blockchain::Error>
         + ProvideRuntimeApi<Block>,
     Block: BlockT + 'static,
-    Client::Api: sp_api::Metadata<Block>
-        + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
+    Client::Api:
+        sp_api::Metadata<Block> + ApiExt<Block, StateBackend = backend::StateBackendFor<BE, Block>>,
     <<Block as BlockT>::Header as Header>::Number: Into<u64>,
 {
     fn header<Client: HeaderBackend<Block>, Block: BlockT>(

@@ -24,8 +24,12 @@ pub mod pallet {
 		},
 		WorkerPublicKey,
 	};
+	use scale_info::TypeInfo;
 	use sp_core::U256;
-	use sp_runtime::{traits::AccountIdConversion, SaturatedConversion};
+	use sp_runtime::{
+		traits::{AccountIdConversion, One, Zero},
+		SaturatedConversion,
+	};
 	use sp_std::cmp;
 
 	use crate::balance_convert::FixedPointConvert;
@@ -36,7 +40,7 @@ pub mod pallet {
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const MINING_PALLETID: PalletId = PalletId(*b"phala/pp");
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
 		Ready,
 		MiningIdle,
@@ -72,7 +76,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
 		p_init: u32,
 		p_instant: u32,
@@ -109,7 +113,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
 		pub state: MinerState,
 		/// The intiial V, in U64F64 bits
@@ -154,25 +158,14 @@ pub mod pallet {
 		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
 	}
 
-	pub trait OnReclaim<AccountId, Balance> {
-		/// Called when the miner has finished reclaiming and a given amount of the stake should be
-		/// returned
-		///
-		/// When called, it's not guaranteed there's still a worker associated to the miner.
-		fn on_reclaim(miner: &AccountId, orig_stake: Balance, slashed: Balance) {}
-
-		// Using miner account as the identity here is necessary because at this point the worker
-		// may be already unbound.
-	}
-
 	pub trait OnStopped<Balance> {
 		/// Called with a miner is stopped and can already calculate the final slash and stake.
 		///
-		/// It guarantees the number will be the same as the parameters in OnReclaim
+		/// It guarantees the number will be the same as the return value of `reclaim()`
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct MinerStats {
 		total_reward: u128,
 	}
@@ -194,7 +187,6 @@ pub mod pallet {
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		type OnReward: OnReward;
 		type OnUnbound: OnUnbound;
-		type OnReclaim: OnReclaim<Self::AccountId, BalanceOf<Self>>;
 		type OnStopped: OnStopped<BalanceOf<Self>>;
 		type OnTreasurySettled: OnUnbalanced<NegativeImbalanceOf<Self>>;
 		// Let the StakePool to take over the slash events.
@@ -203,7 +195,7 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -250,6 +242,14 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type NextSessionId<T> = StorageValue<_, u32, ValueQuery>;
 
+	/// The block number when the mining starts. Used to calculate halving.
+	#[pallet::storage]
+	pub type MiningStartBlock<T: Config> = StorageValue<_, T::BlockNumber>;
+
+	/// The interval of halving (75% decay) in block number.
+	#[pallet::storage]
+	pub type MiningHalvingInterval<T: Config> = StorageValue<_, T::BlockNumber>;
+
 	/// The stakes of miner accounts.
 	///
 	/// Only presents for mining and cooling down miners.
@@ -259,7 +259,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
 		/// Cool down expiration changed. \[period\]
 		CoolDownExpirationChanged(u64),
@@ -281,6 +280,10 @@ pub mod pallet {
 		MinerSettled(T::AccountId, u128, u128),
 		/// Some internal error happened when settling a miner's ledger. \[worker\]
 		InternalErrorMinerSettleFailed(WorkerPublicKey),
+		/// Block subsidy halved by 25%
+		SubsidyBudgetHalved,
+		/// Some internal error happened when trying to halve the subsidy
+		InternalErrorWrongHalvingConfigured,
 	}
 
 	#[pallet::error]
@@ -303,6 +306,7 @@ pub mod pallet {
 		DuplicateBoundWorker,
 		/// Indicating the initial benchmark score is too low to start mining.
 		BenchmarkTooLow,
+		InternalErrorCannotStartWithExistingStake,
 	}
 
 	type BalanceOf<T> =
@@ -321,7 +325,7 @@ pub mod pallet {
 		pub fn set_cool_down_expiration(origin: OriginFor<T>, period: u64) -> DispatchResult {
 			ensure_root(origin)?;
 
-			CoolDownPeriod::<T>::mutate(|p| *p = period);
+			CoolDownPeriod::<T>::put(period);
 			Self::deposit_event(Event::<T>::CoolDownExpirationChanged(period));
 			Ok(())
 		}
@@ -339,29 +343,6 @@ pub mod pallet {
 			// Always notify the subscriber. Please note that even if the miner is not mining, we
 			// still have to notify the subscriber that an unbinding operation has just happened.
 			Self::unbind_miner(&miner, true)
-		}
-
-		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
-		///
-		/// Anyone can reclaim.
-		///
-		/// Requires:
-		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
-		#[pallet::weight(0)]
-		pub fn reclaim(origin: OriginFor<T>, miner: T::AccountId) -> DispatchResult {
-			ensure_signed(origin)?;
-			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
-			miner_info.state = MinerState::Ready;
-			miner_info.cool_down_start = 0u64;
-			Miners::<T>::insert(&miner, &miner_info);
-
-			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
-			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
-
-			T::OnReclaim::on_reclaim(&miner, orig_stake, slashed);
-			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
-			Ok(())
 		}
 
 		/// Triggers a force heartbeat request to all workers by sending a MAX pow target
@@ -418,8 +399,18 @@ pub mod pallet {
 	where
 		BalanceOf<T>: FixedPointConvert,
 	{
-		fn on_finalize(_n: T::BlockNumber) {
+		fn on_finalize(n: T::BlockNumber) {
 			Self::heartbeat_challenge();
+			if let Some(interval) = MiningHalvingInterval::<T>::get() {
+				let block_elapsed = n - MiningStartBlock::<T>::get().unwrap_or_default();
+				// Halve when it reaches the last block in an interval
+				if interval > Zero::zero() && block_elapsed % interval == interval - One::one() {
+					let r = Self::trigger_subsidy_halving();
+					if r.is_err() {
+						Self::deposit_event(Event::<T>::InternalErrorWrongHalvingConfigured);
+					}
+				}
+			}
 		}
 
 		fn on_runtime_upgrade() -> Weight {
@@ -431,6 +422,15 @@ pub mod pallet {
 				w += migrations::initialize::<T>();
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
+			} else if old == 2 {
+				// Triggers GK RepairV event (again) to rescure the slashed miners due to
+				// incorrectly applied tokenomic.
+				w += migrations::repair_v::<T>();
+				// Khala-only halving parameters
+				MiningStartBlock::<T>::put(T::BlockNumber::from(414189u32));
+				MiningHalvingInterval::<T>::put(T::BlockNumber::from(324000u32));
+				STORAGE_VERSION.put::<super::Pallet<T>>();
+				w += T::DbWeight::get().writes(3);
 			}
 			w
 		}
@@ -458,6 +458,16 @@ pub mod pallet {
 				online_target,
 			};
 			Self::push_message(SystemEvent::HeartbeatChallenge(seed_info));
+		}
+
+		fn trigger_subsidy_halving() -> Result<(), ()> {
+			let mut tokenomic = TokenomicParameters::<T>::get().ok_or(())?;
+			let budget_per_block = FixedPoint::from_bits(tokenomic.budget_per_block);
+			let new_budget = budget_per_block * fp!(0.75);
+			tokenomic.budget_per_block = new_budget.to_bits();
+			Self::update_tokenomic_parameters(tokenomic);
+			Self::deposit_event(Event::<T>::SubsidyBudgetHalved);
+			Ok(())
 		}
 
 		pub fn on_mining_message_received(
@@ -512,8 +522,10 @@ pub mod pallet {
 				// worker offline, update bound miner state to unresponsive
 				for worker in event.offline {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						let mut miner_info = match Self::miners(&account) {
+							Some(miner) => miner,
+							None => continue, // Skip non-existing miners
+						};
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -531,8 +543,10 @@ pub mod pallet {
 				// worker recovered to online, update bound miner state to idle
 				for worker in event.recovered_to_online {
 					if let Some(account) = WorkerBindings::<T>::get(&worker) {
-						let mut miner_info =
-							Self::miners(&account).ok_or(Error::<T>::MinerNotFound)?;
+						let mut miner_info = match Self::miners(&account) {
+							Some(miner) => miner,
+							None => continue, // Skip non-existing miners
+						};
 						// Skip non-mining miners
 						if !miner_info.state.is_mining() {
 							continue;
@@ -589,6 +603,24 @@ pub mod pallet {
 			now - miner_info.cool_down_start >= Self::cool_down_period()
 		}
 
+		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
+		///
+		/// Requires:
+		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
+		pub fn reclaim(miner: T::AccountId) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
+			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
+			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
+			miner_info.state = MinerState::Ready;
+			miner_info.cool_down_start = 0u64;
+			Miners::<T>::insert(&miner, &miner_info);
+
+			let orig_stake = Stakes::<T>::take(&miner).unwrap_or_default();
+			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
+
+			Self::deposit_event(Event::<T>::MinerReclaimed(miner, orig_stake, slashed));
+			Ok((orig_stake, slashed))
+		}
+
 		/// Binds a miner to a worker
 		///
 		/// This will bind the miner account to the worker, and then create a `Miners` entry to
@@ -599,6 +631,7 @@ pub mod pallet {
 		/// 1. The worker is alerady registered
 		/// 2. The worker has an initial benchmark
 		/// 3. Both the worker and the miner are not bound
+		/// 4. There's no stake in CD associated with the miner
 		pub fn bind(miner: T::AccountId, pubkey: WorkerPublicKey) -> DispatchResult {
 			let worker =
 				registry::Workers::<T>::get(&pubkey).ok_or(Error::<T>::WorkerNotRegistered)?;
@@ -613,6 +646,12 @@ pub mod pallet {
 				Self::ensure_worker_bound(&pubkey).is_err(),
 				Error::<T>::DuplicateBoundWorker
 			);
+			// Make sure we are not overriding a running miner (even if the worker is unbound)
+			let can_bind = match Miners::<T>::get(&miner) {
+				Some(info) => info.state == MinerState::Ready,
+				None => true,
+			};
+			ensure!(can_bind, Error::<T>::MinerNotReady);
 
 			let now = Self::now_sec();
 			MinerBindings::<T>::insert(&miner, &pubkey);
@@ -674,10 +713,14 @@ pub mod pallet {
 		/// with a close-to-zero score).
 		pub fn start_mining(miner: T::AccountId, stake: BalanceOf<T>) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
-
 			ensure!(
 				Miners::<T>::get(&miner).unwrap().state == MinerState::Ready,
 				Error::<T>::MinerNotReady
+			);
+			// Double check the Stake shouldn't be overrode
+			ensure!(
+				Stakes::<T>::get(&miner) == None,
+				Error::<T>::InternalErrorCannotStartWithExistingStake,
 			);
 
 			let worker_info =
@@ -945,7 +988,7 @@ pub mod pallet {
 	}
 
 	mod migrations {
-		use super::{Config, CoolDownPeriod, TokenomicParameters};
+		use super::{Config, CoolDownPeriod, Pallet, TokenomicParameters};
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::pallet_prelude::*;
 
@@ -991,6 +1034,13 @@ pub mod pallet {
 				kappa: kappa.to_bits(),
 			});
 			T::DbWeight::get().writes(2)
+		}
+
+		pub fn repair_v<T: Config>() -> Weight {
+			use crate::mq::pallet::MessageOriginInfo;
+			use phala_types::messaging::GatekeeperEvent;
+			Pallet::<T>::queue_message(GatekeeperEvent::RepairV);
+			T::DbWeight::get().writes(1)
 		}
 	}
 
@@ -1142,6 +1192,7 @@ pub mod pallet {
 		#[test]
 		fn test_tokenomic() {
 			new_test_ext().execute_with(|| {
+				set_block_1();
 				let params = TokenomicParameters::<Test>::get().unwrap();
 				let tokenomic = Tokenomic::<Test>::new(params);
 				fn pow(x: FixedPoint, n: u32) -> FixedPoint {
@@ -1197,12 +1248,31 @@ pub mod pallet {
 				let rho = FixedPoint::from_bits(tokenomic.params.rho);
 				assert_eq!(pow(rho, HOUR_BLOCKS), fp!(1.00019999999998037056));
 				// Budget per day
-				let budger_per_block = FixedPoint::from_bits(tokenomic.params.budget_per_block);
-				assert_eq!(budger_per_block * 3600 * 24 / 12, fp!(720000));
+				let budget_per_block = FixedPoint::from_bits(tokenomic.params.budget_per_block);
+				assert_eq!(budget_per_block * 3600 * 24 / 12, fp!(720000));
 				// Cost estimation per year
 				assert_eq!(
 					tokenomic.op_cost(2000) / 12 * 3600 * 24 * 365,
 					fp!(171.71874999975847951583)
+				);
+				// Subsidy halving to 75%
+				let _ = take_messages();
+				let _ = take_events();
+				assert_ok!(PhalaMining::trigger_subsidy_halving());
+				let params = TokenomicParameters::<Test>::get().unwrap();
+				assert_eq!(FixedPoint::from_bits(params.budget_per_block), fp!(75));
+				assert_ok!(PhalaMining::trigger_subsidy_halving());
+				let params = TokenomicParameters::<Test>::get().unwrap();
+				assert_eq!(FixedPoint::from_bits(params.budget_per_block), fp!(56.25));
+				let msgs = take_messages();
+				assert_eq!(msgs.len(), 2);
+				let ev = take_events();
+				assert_eq!(
+					ev,
+					vec![
+						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved),
+						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved)
+					]
 				);
 			});
 		}

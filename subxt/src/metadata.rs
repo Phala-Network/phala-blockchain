@@ -27,8 +27,8 @@ use codec::{
     Error as CodecError,
 };
 
+use crate::Encoded;
 use frame_metadata::{
-    DecodeDifferent,
     RuntimeMetadata,
     RuntimeMetadataPrefixed,
     StorageEntryModifier,
@@ -36,9 +36,12 @@ use frame_metadata::{
     StorageHasher,
     META_RESERVED,
 };
+use scale_info::{
+    form::PortableForm,
+    TypeDef,
+    Variant,
+};
 use sp_core::storage::StorageKey;
-
-use crate::Encoded;
 
 /// Metadata error.
 #[derive(Debug, thiserror::Error)]
@@ -76,6 +79,9 @@ pub enum MetadataError {
     /// Constant is not in metadata.
     #[error("Constant {0} not found")]
     ConstantNotFound(&'static str),
+    /// Type id not found in registry.
+    #[error("Type id {0} not found")]
+    TypeIdNotFound(u32),
 }
 
 /// Runtime metadata.
@@ -172,7 +178,7 @@ pub struct ModuleMetadata {
     index: u8,
     name: String,
     storage: HashMap<String, StorageMetadata>,
-    constants: HashMap<String, ModuleConstantMetadata>,
+    constants: HashMap<String, PalletConstantMetadata>,
 }
 
 impl ModuleMetadata {
@@ -186,7 +192,7 @@ impl ModuleMetadata {
     pub fn constant(
         &self,
         key: &'static str,
-    ) -> Result<&ModuleConstantMetadata, MetadataError> {
+    ) -> Result<&PalletConstantMetadata, MetadataError> {
         self.constants
             .get(key)
             .ok_or(MetadataError::ConstantNotFound(key))
@@ -262,7 +268,7 @@ pub struct StorageMetadata {
     module_prefix: String,
     storage_prefix: String,
     modifier: StorageEntryModifier,
-    ty: StorageEntryType,
+    ty: StorageEntryType<PortableForm>,
     default: Vec<u8>,
 }
 
@@ -319,11 +325,14 @@ impl StorageMetadata {
 
     pub fn map<K: Encode>(&self) -> Result<StorageMap<K>, MetadataError> {
         match &self.ty {
-            StorageEntryType::Map { hasher, .. } => {
+            StorageEntryType::Map { hashers, .. } => {
+                if hashers.len() != 1 {
+                    return Err(MetadataError::StorageTypeError)
+                }
                 Ok(StorageMap {
                     _marker: PhantomData,
                     prefix: self.prefix().0,
-                    hasher: hasher.clone(),
+                    hasher: hashers.get(0).expect("It must be ok; qed").clone(),
                 })
             }
             _ => Err(MetadataError::StorageTypeError),
@@ -334,16 +343,15 @@ impl StorageMetadata {
         &self,
     ) -> Result<StorageDoubleMap<K1, K2>, MetadataError> {
         match &self.ty {
-            StorageEntryType::DoubleMap {
-                hasher,
-                key2_hasher,
-                ..
-            } => {
+            StorageEntryType::Map { hashers, .. } => {
+                if hashers.len() != 2 {
+                    return Err(MetadataError::StorageTypeError)
+                }
                 Ok(StorageDoubleMap {
                     _marker: PhantomData,
                     prefix: self.prefix().0,
-                    hasher1: hasher.clone(),
-                    hasher2: key2_hasher.clone(),
+                    hasher1: hashers.get(0).expect("It must be ok; qed").clone(),
+                    hasher2: hashers.get(1).expect("It must be ok; qed").clone(),
                 })
             }
             _ => Err(MetadataError::StorageTypeError),
@@ -480,14 +488,14 @@ impl EventArg {
 }
 
 #[derive(Clone, Debug)]
-pub struct ModuleConstantMetadata {
+pub struct PalletConstantMetadata {
     name: String,
-    ty: String,
+    ty: u32,
     value: Vec<u8>,
     documentation: Vec<String>,
 }
 
-impl ModuleConstantMetadata {
+impl PalletConstantMetadata {
     /// Name
     pub fn name(&self) -> &String {
         &self.name
@@ -499,8 +507,8 @@ impl ModuleConstantMetadata {
     }
 
     /// Type (as defined in the runtime)
-    pub fn ty(&self) -> &String {
-        &self.ty
+    pub fn ty(&self) -> u32 {
+        self.ty
     }
 
     /// Documentation
@@ -529,28 +537,28 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
             return Err(ConversionError::InvalidPrefix.into())
         }
         let meta = match metadata.1 {
-            RuntimeMetadata::V13(meta) => meta,
+            RuntimeMetadata::V14(meta) => meta,
             _ => return Err(ConversionError::InvalidVersion.into()),
         };
+        let types_registrty = meta.types;
         let mut modules = HashMap::new();
         let mut modules_with_calls = HashMap::new();
         let mut modules_with_events = HashMap::new();
         let mut modules_with_errors = HashMap::new();
-        for module in convert(meta.modules)?.into_iter() {
-            let module_name = convert(module.name.clone())?;
+        for module in meta.pallets.into_iter() {
+            let module_name = module.name.clone();
 
             let mut constant_map = HashMap::new();
-            for constant in convert(module.constants)?.into_iter() {
-                let constant_meta = convert_constant(constant)?;
+            for constant in module.constants.into_iter() {
+                let constant_meta = convert_constant(constant);
                 constant_map.insert(constant_meta.name.clone(), constant_meta);
             }
 
             let mut storage_map = HashMap::new();
             if let Some(storage) = module.storage {
-                let storage = convert(storage)?;
-                let module_prefix = convert(storage.prefix)?;
-                for entry in convert(storage.entries)?.into_iter() {
-                    let storage_prefix = convert(entry.name.clone())?;
+                let module_prefix = storage.prefix;
+                for entry in storage.entries.into_iter() {
+                    let storage_prefix = entry.name.clone();
                     let entry = convert_entry(
                         module_prefix.clone(),
                         storage_prefix.clone(),
@@ -571,44 +579,66 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
 
             if let Some(calls) = module.calls {
                 let mut call_map = HashMap::new();
-                for (index, call) in convert(calls)?.into_iter().enumerate() {
-                    let name = convert(call.name)?;
-                    call_map.insert(name, index as u8);
+                let calls = types_registrty
+                    .resolve(calls.ty.id())
+                    .ok_or(MetadataError::TypeIdNotFound(calls.ty.id()))?
+                    .type_def();
+
+                if let TypeDef::Variant(x) = calls {
+                    for v in x.variants().iter() {
+                        call_map.insert(v.name().to_string(), v.index());
+                    }
+                    modules_with_calls.insert(
+                        module_name.clone(),
+                        ModuleWithCalls {
+                            index: module.index,
+                            calls: call_map,
+                        },
+                    );
                 }
-                modules_with_calls.insert(
-                    module_name.clone(),
-                    ModuleWithCalls {
-                        index: module.index,
-                        calls: call_map,
-                    },
-                );
             }
             if let Some(events) = module.event {
                 let mut event_map = HashMap::new();
-                for (index, event) in convert(events)?.into_iter().enumerate() {
-                    event_map.insert(index as u8, convert_event(event)?);
+
+                let events = types_registrty
+                    .resolve(events.ty.id())
+                    .ok_or(MetadataError::TypeIdNotFound(events.ty.id()))?
+                    .type_def();
+
+                if let TypeDef::Variant(x) = events {
+                    for v in x.variants().iter() {
+                        event_map.insert(v.index(), convert_event(v)?);
+                    }
+                    modules_with_events.insert(
+                        module_name.clone(),
+                        ModuleWithEvents {
+                            index: module.index,
+                            name: module_name.clone(),
+                            events: event_map,
+                        },
+                    );
                 }
-                modules_with_events.insert(
-                    module_name.clone(),
-                    ModuleWithEvents {
-                        index: module.index,
-                        name: module_name.clone(),
-                        events: event_map,
-                    },
-                );
             }
-            let mut error_map = HashMap::new();
-            for (index, error) in convert(module.errors)?.into_iter().enumerate() {
-                error_map.insert(index as u8, convert_error(error)?);
+            if let Some(errors) = module.error {
+                let mut error_map = HashMap::new();
+                let errors = types_registrty
+                    .resolve(errors.ty.id())
+                    .ok_or(MetadataError::TypeIdNotFound(errors.ty.id()))?
+                    .type_def();
+                if let TypeDef::Variant(x) = errors {
+                    for v in x.variants().iter() {
+                        error_map.insert(v.index(), v.name().to_string());
+                    }
+                    modules_with_errors.insert(
+                        module_name.clone(),
+                        ModuleWithErrors {
+                            index: module.index,
+                            name: module_name.clone(),
+                            errors: error_map,
+                        },
+                    );
+                }
             }
-            modules_with_errors.insert(
-                module_name.clone(),
-                ModuleWithErrors {
-                    index: module.index,
-                    name: module_name.clone(),
-                    errors: error_map,
-                },
-            );
         }
         Ok(Metadata {
             modules,
@@ -619,22 +649,19 @@ impl TryFrom<RuntimeMetadataPrefixed> for Metadata {
     }
 }
 
-fn convert<B: 'static, O: 'static>(
-    dd: DecodeDifferent<B, O>,
-) -> Result<O, ConversionError> {
-    match dd {
-        DecodeDifferent::Decoded(value) => Ok(value),
-        _ => Err(ConversionError::ExpectedDecoded),
-    }
-}
-
 fn convert_event(
-    event: frame_metadata::EventMetadata,
+    event: &Variant<PortableForm>,
 ) -> Result<ModuleEventMetadata, ConversionError> {
-    let name = convert(event.name)?;
+    let name = event.name().to_string();
     let mut arguments = Vec::new();
-    for arg in convert(event.arguments)? {
-        let arg = arg.parse::<EventArg>()?;
+    for arg in event.fields().iter() {
+        let arg = arg
+            .type_name()
+            .ok_or(ConversionError::InvalidEventArg(
+                arg.ty().id().to_string(),
+                "Type name not exists",
+            ))?
+            .parse::<EventArg>()?;
         arguments.push(arg);
     }
     Ok(ModuleEventMetadata { name, arguments })
@@ -643,35 +670,24 @@ fn convert_event(
 fn convert_entry(
     module_prefix: String,
     storage_prefix: String,
-    entry: frame_metadata::StorageEntryMetadata,
+    entry: frame_metadata::StorageEntryMetadata<PortableForm>,
 ) -> Result<StorageMetadata, ConversionError> {
-    let default = convert(entry.default)?;
     Ok(StorageMetadata {
         module_prefix,
         storage_prefix,
         modifier: entry.modifier,
         ty: entry.ty,
-        default,
+        default: entry.default,
     })
-}
-
-fn convert_error(
-    error: frame_metadata::ErrorMetadata,
-) -> Result<String, ConversionError> {
-    convert(error.name)
 }
 
 fn convert_constant(
-    constant: frame_metadata::ModuleConstantMetadata,
-) -> Result<ModuleConstantMetadata, ConversionError> {
-    let name = convert(constant.name)?;
-    let ty = convert(constant.ty)?;
-    let value = convert(constant.value)?;
-    let documentation = convert(constant.documentation)?;
-    Ok(ModuleConstantMetadata {
-        name,
-        ty,
-        value,
-        documentation,
-    })
+    constant: frame_metadata::PalletConstantMetadata<PortableForm>,
+) -> PalletConstantMetadata {
+    PalletConstantMetadata {
+        name: constant.name,
+        ty: constant.ty.id(),
+        value: constant.value,
+        documentation: constant.docs,
+    }
 }
