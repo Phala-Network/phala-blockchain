@@ -4223,6 +4223,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-node-runtime",
  "sc-executor",
+ "scale-info",
  "sp-application-crypto",
  "sp-consensus-babe",
  "sp-core",
