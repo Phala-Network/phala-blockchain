@@ -103,11 +103,7 @@ pub mod async_side_task {
     impl<const N: usize> AsyncSideTask<Task<()>, N> {
         /// Create a new `AsyncSideTask`.
         ///
-        /// The task will finish at `block_number` + `duration` blocks.
-        ///
         /// The `future` is a future to do an async task (e.g. a http request) to fetch some async resoures.
-        ///
-        /// And process the result in result_process (e.g. report a mq message).
         ///
         /// # Examples
         ///
@@ -120,7 +116,7 @@ pub mod async_side_task {
         ///         [msg_ch.prepare_message(mk_msg_from_ip(ip))]
         ///     },
         /// );
-        /// task_man.add_task_finish_at(cur_block + duration, [mk_default_msg()], |c| task.finish(c));
+        /// task_man.add_task(cur_block, duration, [mk_default_msg()], |c| task.finish(c));
         /// ```
         pub fn spawn(
             future: impl Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
@@ -144,6 +140,37 @@ pub mod async_side_task {
     }
 
     impl super::SideTaskManager {
+        /// Create and start a new `AsyncSideTask`.
+        ///
+        /// The task will finish at `block_number` + `duration` block.
+        /// The `future` is a future to do an async task (e.g. a http request) to fetch some async resoures
+        /// and returns a certain number of mq messages.
+        ///
+        /// * `current_block` - The current block_number.
+        /// * `duration` - Number of blocks that this task persists. The task will be end at `current_block` + `duration`.
+        /// * `default_messages` - The alternative messages used to push out if the async block returns an error or get timed out.
+        /// * `future` - The main async task body.
+        ///
+        /// # Examples
+        ///
+        /// ```ignore
+        /// let mut task_man = SideTaskManager::default();
+        /// let mq = todo!();
+        /// let cur_block = 100;
+        /// let duration = 3;
+        /// task_man.add_async_task(
+        ///     cur_block,
+        ///     duration,
+        ///     [mq.prepare_message("Timed out".to_string())],
+        ///     async {
+        ///         let ip = surf::get("https://ifconfig.me").await.unwrap().body_string().await.unwrap()
+        ///         [mq.prepare_message(mk_msg_from_ip(ip))]
+        ///     },
+        /// );
+        /// ```
+        /// # Note
+        /// DO NOT send mq messages directly inside the async block (future polling). Should return messages instead.
+        ///
         pub fn add_async_task<
             F: Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
             const N: usize,
