@@ -4819,24 +4819,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-kitties"
-version = "3.0.0"
-dependencies = [
- "frame-support",
- "frame-system",
- "pallet-balances",
- "pallet-randomness-collective-flip",
- "parity-scale-codec",
- "phala-pallets",
- "phala-types",
- "scale-info",
- "serde",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-lottery"
 version = "4.0.0-dev"
 dependencies = [
@@ -5509,7 +5491,6 @@ dependencies = [
  "num-bigint 0.4.2",
  "num-traits",
  "pallet-bridge-transfer",
- "pallet-kitties",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -5746,7 +5727,6 @@ dependencies = [
  "pallet-identity",
  "pallet-im-online",
  "pallet-indices",
- "pallet-kitties",
  "pallet-lottery",
  "pallet-membership",
  "pallet-mq-runtime-api",
@@ -9137,6 +9117,7 @@ dependencies = [
  "pallet-staking",
  "parity-scale-codec",
  "phala-node-rpc-ext",
+ "scale-info",
  "serde",
  "serde_json",
  "sp-application-crypto",

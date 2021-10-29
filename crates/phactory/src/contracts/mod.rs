@@ -16,7 +16,6 @@ pub mod balances;
 pub mod btc_lottery;
 pub mod data_plaza;
 // pub mod diem;
-pub mod substrate_kitties;
 pub mod web3analytics;
 pub mod geolocation;
 

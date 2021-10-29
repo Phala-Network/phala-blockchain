@@ -48,7 +48,6 @@ scopeguard   = { version = "1.1", default-features = false }
 # Phala specific
 runtime = { path = "../../standalone/runtime", package = "phala-node-runtime" }
 phala-pallets = { path = "../../pallets/phala", default-features = false }
-pallet-kitties = { path = "../../pallets/kitties", default-features = false }
 bridge-transfer = { package = "pallet-bridge-transfer", path = "../../pallets/bridge_transfer", default-features = false }
 phala-types = { path = "../phala-types", default-features = false, features = ["enable_serde", "pruntime", "sgx"] }
 phactory-api = { path = "./api", default-features = false }
