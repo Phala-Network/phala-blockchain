@@ -7,7 +7,8 @@ edition = "2018"
 [dependencies]
 hex = { version = "0.4", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.101", default-features = false, optional = true }
-codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["full"] }
+codec = { package = "parity-scale-codec", version = "2.3", default-features = false, features = ["full"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive", "serde", "decode"] }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
 
@@ -22,7 +23,6 @@ std = [
 	"codec/std",
 	"full_crypto",
 	"sp-runtime/std",
-	"phala-trie-storage/serde",
 ]
 enable_serde = [
 	"serde/derive",

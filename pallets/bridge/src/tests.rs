@@ -249,7 +249,7 @@ fn add_remove_relayer() {
 }
 
 fn make_proposal(r: Vec<u8>) -> Call {
-	Call::System(system::Call::remark(r))
+	Call::System(system::Call::remark { remark: r })
 }
 
 #[test]

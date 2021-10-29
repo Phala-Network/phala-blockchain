@@ -18,9 +18,10 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	pub use pallet_bridge as bridge;
+	use scale_info::TypeInfo;
 	use sp_arithmetic::traits::SaturatedConversion;
 	use sp_core::U256;
-	use sp_runtime::traits::{CheckedAdd, CheckedSub, Saturating};
+	use sp_runtime::traits::{CheckedAdd, CheckedSub};
 	use sp_std::prelude::*;
 
 	use pallet_mq::MessageOriginInfo;
@@ -35,7 +36,7 @@ pub mod pallet {
 		<T as frame_system::Config>::AccountId,
 	>>::NegativeImbalance;
 
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 	pub struct AssetInfo {
 		pub dest_id: bridge::BridgeChainId,
 		pub asset_identity: Vec<u8>,
@@ -66,7 +67,6 @@ pub mod pallet {
 	}
 
 	#[pallet::event]
-	#[pallet::metadata(BalanceOf<T> = "Balance", bridge::BridgeChainId = "BridgeChainId", bridge::ResourceId = "ResourceId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// [chainId, min_fee, fee_scale]

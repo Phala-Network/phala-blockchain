@@ -16,6 +16,7 @@ pub mod pallet {
 		pallet_prelude::*, traits::StorageVersion, weights::GetDispatchInfo, PalletId, Parameter,
 	};
 	use frame_system::{self as system, pallet_prelude::*};
+	use scale_info::TypeInfo;
 	pub use sp_core::U256;
 	use sp_runtime::traits::{AccountIdConversion, Dispatchable};
 	use sp_runtime::RuntimeDebug;
@@ -40,14 +41,14 @@ pub mod pallet {
 		r_id
 	}
 
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 	pub enum ProposalStatus {
 		Initiated,
 		Approved,
 		Rejected,
 	}
 
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 	pub struct ProposalVotes<AccountId, BlockNumber> {
 		pub votes_for: Vec<AccountId>,
 		pub votes_against: Vec<AccountId>,
@@ -55,7 +56,7 @@ pub mod pallet {
 		pub expiry: BlockNumber,
 	}
 
-	#[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug)]
+	#[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 	pub enum BridgeEvent {
 		FungibleTransfer(BridgeChainId, DepositNonce, ResourceId, U256, Vec<u8>),
 		NonFungibleTransfer(
@@ -70,7 +71,7 @@ pub mod pallet {
 	}
 
 	impl<A: PartialEq, B: PartialOrd + Default> ProposalVotes<A, B> {
-		/// Attempts to mark the proposal as approved or rejected.
+		/// Attempts to mark the proposal as approve or rejected.
 		/// Returns true if the status changes from active.
 		pub fn try_to_complete(&mut self, threshold: u32, total: u32) -> ProposalStatus {
 			if self.votes_for.len() >= threshold as usize {
@@ -138,7 +139,6 @@ pub mod pallet {
 	}
 
 	#[pallet::event]
-	#[pallet::metadata(T::AccountId = "AccountId")]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		/// Vote threshold has changed (new_threshold)

@@ -35,6 +35,7 @@ pub mod pallet {
 		transactional,
 	};
 	use frame_system::pallet_prelude::*;
+	use scale_info::TypeInfo;
 	use sp_runtime::{
 		traits::{Saturating, TrailingZeroInput, Zero},
 		Permill, SaturatedConversion,
@@ -152,7 +153,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
 		/// \[owner, pid\]
 		PoolCreated(T::AccountId, u64),
@@ -1110,7 +1110,7 @@ pub mod pallet {
 			.unwrap_or_default()
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct PoolInfo<AccountId: Default, Balance> {
 		/// Pool ID
 		pub pid: u64,
@@ -1383,7 +1383,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct UserStakeInfo<AccountId: Default, Balance> {
 		/// User account
 		pub user: AccountId,
@@ -1400,7 +1400,7 @@ pub mod pallet {
 		pub reward_debt: Balance,
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct WithdrawInfo<AccountId: Default, Balance> {
 		/// The withdrawal requester
 		pub user: AccountId,
@@ -1852,8 +1852,10 @@ pub mod pallet {
 				assert_eq!(
 					ev,
 					vec![
+						TestEvent::Balances(pallet_balances::Event::Slashed(1, 50000000000000)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000000)),
-						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed(2, 200000000000000)),
+						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000000))
 					]
 				);
 				// Check slash settled. Remaining: 50 PHA, 200 PHA
@@ -1931,12 +1933,15 @@ pub mod pallet {
 					ev,
 					vec![
 						// Account1: ~25 PHA remaining
+						TestEvent::Balances(pallet_balances::Event::Slashed(1, 25000000000000)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 25000000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 25000000000000)),
 						// Account2: ~100 PHA remaining
+						TestEvent::Balances(pallet_balances::Event::Slashed(2, 100000000000000)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 100000000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 100000000000000)),
 						// Account1: ~125 PHA remaining
+						TestEvent::Balances(pallet_balances::Event::Slashed(3, 125000000000001)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
 					]
@@ -2376,9 +2381,11 @@ pub mod pallet {
 					[
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 100 * DOLLARS)),
 						// Staker 2 got 75% * 99 PHA back
+						TestEvent::Balances(pallet_balances::Event::Slashed(2, 99_750000000000)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 99_750000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 74_250000000000)),
 						// Staker 1 got 75% * 1 PHA back
+						TestEvent::Balances(pallet_balances::Event::Slashed(1, 250000000000)),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 250000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 750000000000)),
 					]

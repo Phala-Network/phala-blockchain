@@ -1,22 +1,24 @@
 #![cfg(test)]
 
 use super::mock::{
-	assert_events, balances, event_exists, expect_event, new_test_ext, Balances, Bridge,
-	BridgeTransfer, Call, Event, NativeTokenResourceId, Origin, ProposalLifetime, Test,
-	ENDOWED_BALANCE, RELAYER_A, RELAYER_B, RELAYER_C,
+	assert_events, balances, expect_event, new_test_ext, Balances, Bridge, BridgeTransfer, Call,
+	Event, NativeTokenResourceId, Origin, ProposalLifetime, Test, ENDOWED_BALANCE, RELAYER_A,
+	RELAYER_B, RELAYER_C,
 };
 use super::{bridge, *};
-use frame_support::dispatch::DispatchError;
 use frame_support::{assert_noop, assert_ok};
 
-use codec::Encode;
 use hex_literal::hex;
 
 const TEST_THRESHOLD: u32 = 2;
 
 fn make_transfer_proposal(to: u64, amount: u64) -> Call {
 	let resource_id = NativeTokenResourceId::get();
-	Call::BridgeTransfer(crate::Call::transfer(to, amount.into(), resource_id))
+	Call::BridgeTransfer(crate::Call::transfer {
+		to,
+		amount: amount.into(),
+		rid: resource_id,
+	})
 }
 
 #[test]

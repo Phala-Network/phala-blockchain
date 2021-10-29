@@ -9,7 +9,8 @@ edition = "2018"
 log = "0.4.14"
 hex = { version =  "0.4.3", default-features = false, features = ['alloc'] }
 derive_more = { version = "0.99", default-features = false, features = ["display"] }
-parity-scale-codec = { version = "2.1", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "2.3", default-features = false, features = ["derive"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive", "serde", "decode"] }
 primitive-types = { version = "0.10", default-features = false, features = ["codec", "byteorder"] }
 sp-core = { path = "../../substrate/primitives/core", default-features = false}
 

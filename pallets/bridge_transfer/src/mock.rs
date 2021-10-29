@@ -1,7 +1,5 @@
 #![cfg(test)]
 
-use super::*;
-
 use frame_support::{ord_parameter_types, parameter_types, weights::Weight, PalletId};
 use frame_system::{self as system};
 use hex_literal::hex;
@@ -182,23 +180,6 @@ fn last_event() -> Event {
 
 pub fn expect_event<E: Into<Event>>(e: E) {
 	assert_eq!(last_event(), e.into());
-}
-
-// Asserts that the event was emitted at some point.
-pub fn event_exists<E: Into<Event>>(e: E) {
-	let actual: Vec<Event> = system::Pallet::<Test>::events()
-		.iter()
-		.map(|e| e.event.clone())
-		.collect();
-	let e: Event = e.into();
-	let mut exists = false;
-	for evt in actual {
-		if evt == e {
-			exists = true;
-			break;
-		}
-	}
-	assert!(exists);
 }
 
 // Checks events against the latest. A contiguous set of events must be provided. They must

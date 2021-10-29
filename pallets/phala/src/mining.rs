@@ -24,6 +24,7 @@ pub mod pallet {
 		},
 		WorkerPublicKey,
 	};
+	use scale_info::TypeInfo;
 	use sp_core::U256;
 	use sp_runtime::{
 		traits::{AccountIdConversion, One, Zero},
@@ -39,7 +40,7 @@ pub mod pallet {
 	const DEFAULT_EXPECTED_HEARTBEAT_COUNT: u32 = 20;
 	const MINING_PALLETID: PalletId = PalletId(*b"phala/pp");
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub enum MinerState {
 		Ready,
 		MiningIdle,
@@ -75,7 +76,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct Benchmark {
 		p_init: u32,
 		p_instant: u32,
@@ -112,7 +113,7 @@ pub mod pallet {
 		}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
 	pub struct MinerInfo {
 		pub state: MinerState,
 		/// The intiial V, in U64F64 bits
@@ -164,7 +165,7 @@ pub mod pallet {
 		fn on_stopped(worker: &WorkerPublicKey, orig_stake: Balance, slashed: Balance) {}
 	}
 
-	#[derive(Encode, Decode, Clone, PartialEq, Eq, Default, RuntimeDebug)]
+	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
 	pub struct MinerStats {
 		total_reward: u128,
 	}
@@ -258,7 +259,6 @@ pub mod pallet {
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	#[pallet::metadata(T::AccountId = "AccountId", BalanceOf<T> = "Balance")]
 	pub enum Event<T: Config> {
 		/// Cool down expiration changed. \[period\]
 		CoolDownExpirationChanged(u64),
