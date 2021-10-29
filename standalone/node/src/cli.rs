@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2018-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) 2018-2021 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use sc_cli::{RunCmd, KeySubcommand, SignCmd, VanityCmd, VerifyCmd};
+use sc_cli::{KeySubcommand, RunCmd, SignCmd, VanityCmd, VerifyCmd};
 use structopt::StructOpt;
 
 /// An overarching CLI command definition.
@@ -28,9 +28,6 @@ pub struct Cli {
 	#[allow(missing_docs)]
 	#[structopt(flatten)]
 	pub run: RunCmd,
-	#[allow(missing_docs)]
-	#[structopt(long, help = "Custom block duration in milliseconds (only useful with --dev)")]
-	pub block_millisecs: Option<u64>,
 }
 
 /// Possible subcommands of the main binary.
