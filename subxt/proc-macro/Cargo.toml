@@ -1,7 +1,10 @@
 [package]
 name = "substrate-subxt-proc-macro"
 version = "0.15.0"
-authors = ["David Craven <david@craven.ch>", "Parity Technologies <admin@parity.io>"]
+authors = [
+    "David Craven <david@craven.ch>",
+    "Parity Technologies <admin@parity.io>",
+]
 edition = "2018"
 autotests = false
 
@@ -32,7 +35,7 @@ pretty_assertions = "0.6.1"
 substrate-subxt = { path = ".." }
 trybuild = "1.0.38"
 
-sp-keyring = { version = "3.0.0", path = "../../substrate/primitives/keyring" }
+sp-keyring = { path = "../../substrate/primitives/keyring" }
 
 [[test]]
 name = "balances"

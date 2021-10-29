@@ -1,0 +1,40 @@
+name: Rust
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+
+    - name: setup
+      uses: actions-rs/toolchain@v1
+      with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+          components: rustfmt
+          target: wasm32-unknown-unknown
+
+    - name: download-substrate
+      run: |
+          curl "https://releases.parity.io/substrate/x86_64-debian:stretch/v3.0.0/substrate/substrate" --output substrate --location
+          chmod +x ./substrate
+          mkdir -p ~/.local/bin
+          mv substrate ~/.local/bin
+
+    - name: fmt
+      run: cargo fmt --all -- --check
+
+    - name: build
+      run: cargo build --workspace --verbose
+
+    - name: test
+      run: cargo test --workspace --verbose

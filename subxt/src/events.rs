@@ -86,8 +86,8 @@ dyn_clone::clone_trait_object!(TypeSegmenter);
 
 struct TypeMarker<T>(PhantomData<T>);
 impl<T> TypeSegmenter for TypeMarker<T>
-    where
-        T: Codec + Send + Sync,
+where
+    T: Codec + Send + Sync,
 {
     fn segment(&self, input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), Error> {
         T::decode(input).map_err(Error::from)?.encode_to(output);

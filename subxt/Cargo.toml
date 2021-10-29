@@ -17,7 +17,7 @@ keywords = ["parity", "substrate", "blockchain"]
 include = ["Cargo.toml", "src/**/*.rs", "README.md", "LICENSE"]
 
 [features]
-default = ["tokio02"]
+default = ["tokio1"]
 client = ["substrate-subxt-client"]
 # jsonrpsee can be configured to use tokio02 or tokio1.
 tokio02 = ["jsonrpsee-http-client/tokio02", "jsonrpsee-ws-client/tokio02"]
@@ -25,9 +25,12 @@ tokio1 = ["jsonrpsee-http-client/tokio1", "jsonrpsee-ws-client/tokio1"]
 
 [dependencies]
 async-trait = "0.1.49"
-codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive", "full"] }
+codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = [
+    "derive",
+    "full",
+] }
 dyn-clone = "1.0.4"
-futures =  "0.3.16"
+futures = "0.3.16"
 hex = "0.4.3"
 jsonrpsee-proc-macros = "0.3.0"
 jsonrpsee-ws-client = { version = "0.3.0", default-features = false }
