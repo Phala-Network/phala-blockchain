@@ -16,7 +16,7 @@ pub mod data_plaza;
 // pub mod diem;
 pub mod geolocation;
 pub mod pink;
-pub mod substrate_kitties;
+// pub mod substrate_kitties;
 pub mod web3analytics;
 
 pub use phala_types::contract::*;

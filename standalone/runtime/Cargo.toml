@@ -83,7 +83,6 @@ pallet-transaction-payment = { default-features = false, path = "../../substrate
 pallet-transaction-payment-rpc-runtime-api = { default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { default-features = false, path = "../../substrate/frame/vesting" }
 
-pallet-kitties = { default-features = false, path = "../../pallets/kitties", package = "pallet-kitties" }
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
 pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
 pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
@@ -158,7 +157,6 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-	"pallet-kitties/std",
 	"phala-pallets/std",
 	"pallet-bridge/std",
 	"pallet-bridge-transfer/std",
