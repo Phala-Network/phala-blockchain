@@ -34,7 +34,7 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.1" }
+codec = { package = "parity-scale-codec", version = "2.3" }
 serde = { version = "1.0.102", features = ["derive"] }
 futures = "0.3.16"
 hex-literal = "0.3.1"
@@ -50,6 +50,7 @@ phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 sp-authority-discovery = { path = "../../substrate/primitives/authority-discovery" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
 grandpa-primitives = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
+sp-api = { path = "../../substrate/primitives/api" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
 sp-timestamp = { path = "../../substrate/primitives/timestamp" }
@@ -82,6 +83,7 @@ sc-sync-state-rpc = { version = "0.10.0-dev", path = "../../substrate/client/syn
 
 # frame dependencies
 frame-system = { path = "../../substrate/frame/system" }
+frame-system-rpc-runtime-api = { path = "../../substrate/frame/system/rpc/runtime-api" }
 pallet-transaction-payment = { path = "../../substrate/frame/transaction-payment" }
 pallet-im-online = { default-features = false, path = "../../substrate/frame/im-online" }
 
@@ -120,6 +122,9 @@ regex = "1"
 platforms = "1.1"
 async-std = { version = "1.6.5", features = ["attributes"] }
 soketto = "0.4.2"
+criterion = { version = "0.3.5", features = ["async_tokio"] }
+jsonrpsee-ws-client = { version = "0.3.0", default-features = false, features = ["tokio1"] }
+tokio = { version = "1.10", features = ["macros", "time"] }
 
 [build-dependencies]
 structopt = { version = "0.3.8", optional = true }
@@ -129,6 +134,7 @@ substrate-build-script-utils = { optional = true, path = "../../substrate/utils/
 substrate-frame-cli = { optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 sc-cli = { path = "../../substrate/client/cli", optional = true }
+pallet-balances = { version = "4.0.0-dev", path = "../../substrate/frame/balances" }
 
 [features]
 default = ["cli"]
@@ -153,3 +159,7 @@ try-runtime = [
 	"node-runtime/try-runtime",
 	"try-runtime-cli",
 ]
+
+[[bench]]
+name = "transaction_pool"
+harness = false
