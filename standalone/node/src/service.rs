@@ -93,6 +93,7 @@ pub fn create_extrinsic(
 		)),
 		frame_system::CheckNonce::<node_runtime::Runtime>::from(nonce),
 		frame_system::CheckWeight::<node_runtime::Runtime>::new(),
+		phala_pallets::pallet_mq::CheckMqSequence::<node_runtime::Runtime>::new(),
 		pallet_transaction_payment::ChargeTransactionPayment::<node_runtime::Runtime>::from(tip),
 	);
 
@@ -104,6 +105,7 @@ pub fn create_extrinsic(
 			node_runtime::VERSION.transaction_version,
 			genesis_hash,
 			best_hash,
+			(),
 			(),
 			(),
 			(),
@@ -927,7 +929,7 @@ mod tests {
 				let raw_payload = SignedPayload::from_raw(
 					function,
 					extra,
-					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), ()),
+					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), (), ()),
 				);
 				let signature = raw_payload.using_encoded(|payload| signer.sign(payload));
 				let (function, extra, _) = raw_payload.deconstruct();

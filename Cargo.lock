@@ -6624,6 +6624,7 @@ dependencies = [
  "reqwest",
  "sc-finality-grandpa",
  "sc-rpc-api",
+ "scale-info",
  "serde",
  "serde_json",
  "sp-core",
