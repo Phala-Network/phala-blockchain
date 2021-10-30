@@ -220,21 +220,21 @@ pub mod messaging {
 
     // Messages for Geo Location
     #[derive(Encode, Decode, TypeInfo, Clone, Debug, PartialEq, Eq)]
-    pub struct Geocoding {
+    pub struct CoordinateInfo {
         pub latitude: i32,
         pub longitude: i32,
-        pub region_name: String,
+        pub city_name: String,
     }
 
     bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
-    #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
+    #[derive(Debug, Clone, Encode, Decode)]
     pub enum GeolocationCommand {
-        UpdateGeolocation { geocoding: Option<Geocoding> },
+        UpdateGeolocation { geolocation_info: CoordinateInfo },
     }
 
     impl GeolocationCommand {
-        pub fn update_geolocation(geocoding: Option<Geocoding>) -> Self {
-            Self::UpdateGeolocation { geocoding }
+        pub fn update_geolocation(geolocation_info: CoordinateInfo) -> Self {
+            Self::UpdateGeolocation { geolocation_info }
         }
     }
 
