@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with substrate-subxt.  If not, see <http://www.gnu.org/licenses/>.
 
+use scale_info::TypeInfo;
+
 use sp_runtime::{
     generic::Header,
     traits::{BlakeTwo256, IdentifyAccount, Verify},
@@ -37,7 +39,7 @@ use crate::extra::PhalaExtra;
 /// # Note
 ///
 /// Main difference is `type Address = AccountId`.
-#[derive(Debug, Clone, Eq, PartialEq, Default)]
+#[derive(Debug, Clone, Eq, PartialEq, Default, TypeInfo)]
 pub struct PhalaNodeRuntime;
 
 impl Runtime for PhalaNodeRuntime {
@@ -96,6 +98,7 @@ impl chain_bridge::ChainBridge for PhalaNodeRuntime {}
 pub mod grandpa {
     use super::PhalaNodeRuntime;
     use codec::Encode;
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use pallet_grandpa::fg_primitives::SetId;
     use subxt::{module, system::System, Store};
@@ -122,6 +125,7 @@ pub mod grandpa {
 
 pub mod phala_registry {
     use codec::Encode;
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use phala_pallets::registry::Attestation;
     use phala_types::WorkerRegistrationInfo;
@@ -132,7 +136,7 @@ pub mod phala_registry {
     impl PhalaRegistry for super::PhalaNodeRuntime {}
 
     /// The call to register_worker
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    #[derive(Clone, Debug, PartialEq, Call, Encode, TypeInfo)]
     pub struct RegisterWorkerCall<T: PhalaRegistry> {
         /// Runtime marker
         pub _runtime: PhantomData<T>,
@@ -145,6 +149,7 @@ pub mod phala_registry {
 
 pub mod phala_mq {
     use codec::Encode;
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use subxt::{balances::Balances, module, system::System, Call};
 
@@ -153,7 +158,7 @@ pub mod phala_mq {
     #[module]
     pub trait PhalaMq: System + Balances {}
 
-    #[derive(Clone, Debug, PartialEq, Call, Encode)]
+    #[derive(Clone, Debug, PartialEq, Call, Encode, TypeInfo)]
     pub struct SyncOffchainMessageCall<T: PhalaMq> {
         pub _runtime: PhantomData<T>,
         pub message: SignedMessage,
@@ -162,13 +167,14 @@ pub mod phala_mq {
 
 pub mod mining_staking {
     use codec::Encode;
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use subxt::{balances::Balances, module, system::System, Store};
 
     #[module]
     pub trait MiningStaking: System + Balances {}
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, TypeInfo)]
     pub struct StakedStore<T: MiningStaking> {
         #[store(returns = <T as Balances>::Balance)]
         pub _runtime: PhantomData<T>,
@@ -176,7 +182,7 @@ pub mod mining_staking {
         pub to: T::AccountId,
     }
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, TypeInfo)]
     pub struct StakeReceivedStore<T: MiningStaking> {
         #[store(returns = <T as Balances>::Balance)]
         pub _runtime: PhantomData<T>,
@@ -199,6 +205,7 @@ pub mod chain_bridge {
 pub mod parachain_info {
     use super::PhalaNodeRuntime;
     use codec::Encode;
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use subxt::{module, system::System, Store};
 
@@ -208,7 +215,7 @@ pub mod parachain_info {
     pub trait ParachainInfo: System {}
     impl ParachainInfo for PhalaNodeRuntime {}
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, TypeInfo)]
     pub struct ParachainIdStore<T: ParachainInfo> {
         #[store(returns = ParachainId)]
         /// Runtime marker.
@@ -227,12 +234,13 @@ pub mod parachain_info {
 pub mod parachain_system {
     use super::PhalaNodeRuntime;
     use codec::{Decode, Encode};
+    use scale_info::TypeInfo;
     use core::marker::PhantomData;
     use subxt::{module, system::System, Store};
 
     pub type HeadData = Vec<u8>;
 
-    #[derive(PartialEq, Eq, Clone, Encode, Decode, Debug, Default)]
+    #[derive(PartialEq, Eq, Clone, Encode, Decode, Debug, Default, TypeInfo)]
     pub struct PersistedValidationData<H, N> {
         /// The parent head-data.
         pub parent_head: HeadData,
@@ -248,7 +256,7 @@ pub mod parachain_system {
     pub trait ParachainSystem: System {}
     impl ParachainSystem for PhalaNodeRuntime {}
 
-    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode)]
+    #[derive(Clone, Debug, Eq, PartialEq, Store, Encode, TypeInfo)]
     pub struct ValidationDataStore<T: ParachainSystem> {
         #[store(returns = PersistedValidationData<T::Hash, T::BlockNumber>)]
         pub _runtime: PhantomData<T>,

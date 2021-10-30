@@ -2,6 +2,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use subxt::balances::Balances;
 use subxt::extrinsic::*;
@@ -11,20 +12,20 @@ use sp_runtime::generic::Era;
 use sp_runtime::traits::SignedExtension;
 use sp_runtime::transaction_validity::TransactionValidityError;
 
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, TypeInfo)]
 pub struct EraInfo<Hash> {
     pub period: u64,
     pub phase: u64,
     pub birth_hash: Hash,
 }
 
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, Default)]
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, Default, TypeInfo)]
 pub struct ExtraConfig<Hash> {
     pub tip: u64,
     pub era: Option<EraInfo<Hash>>,
 }
 
-#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug)]
+#[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, TypeInfo)]
 pub struct PhalaExtra<T: System> {
     spec_version: u32,
     tx_version: u32,
@@ -33,7 +34,7 @@ pub struct PhalaExtra<T: System> {
     config: ExtraConfig<T::Hash>,
 }
 
-impl<T: System + Balances + Clone + Debug + Eq + Send + Sync> SignedExtra<T> for PhalaExtra<T>
+impl<T: System + Balances + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtra<T> for PhalaExtra<T>
 where
     <T as Balances>::Balance: From<u64>,
 {
@@ -88,7 +89,7 @@ where
     }
 }
 
-impl<T: System + Balances + Clone + Debug + Eq + Send + Sync> SignedExtension for PhalaExtra<T>
+impl<T: System + Balances + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtension for PhalaExtra<T>
 where
     <T as Balances>::Balance: From<u64>,
 {

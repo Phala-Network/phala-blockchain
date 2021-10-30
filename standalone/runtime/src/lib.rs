@@ -366,9 +366,9 @@ impl pallet_scheduler::Config for Runtime {
 parameter_types! {
 	// NOTE: Currently it is not possible to change the epoch duration after the chain has started.
 	//       Attempting to do so will brick block production.
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS;
-	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
-	pub const ReportLongevity: u64 =
+	pub EpochDuration: u64 = EpochDurationInSlots::get();
+	pub ExpectedBlockTime: Moment = MillisecsPerBlock::get();
+	pub ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
 }
 
@@ -447,7 +447,7 @@ impl pallet_transaction_payment::Config for Runtime {
 }
 
 parameter_types! {
-	pub const MinimumPeriod: Moment = SLOT_DURATION / 2;
+	pub MinimumPeriod: Moment = SlotDuration::get() / 2;
 }
 
 impl pallet_timestamp::Config for Runtime {
@@ -554,8 +554,8 @@ impl pallet_staking::Config for Runtime {
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
-	pub const SignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_BLOCKS / 4;
+	pub SignedPhase: u32 = EpochDurationInBlocks::get() / 4;
+	pub UnsignedPhase: u32 = EpochDurationInBlocks::get() / 4;
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 10;
@@ -596,7 +596,7 @@ pub const MAX_NOMINATIONS: u32 = <NposSolution16 as sp_npos_elections::NposSolut
 
 /// The numbers configured here could always be more than the the maximum limits of staking pallet
 /// to ensure election snapshot will not run out of memory. For now, we set them to smaller values
-/// since the staking is bounded and the weight pipeline takes hours for this single pallet.
+/// since the staking is bounded and the weight pipeline takes Hours::get() for this single pallet.
 pub struct BenchmarkConfig;
 impl pallet_election_provider_multi_phase::BenchmarkingConfig for BenchmarkConfig {
 	const VOTERS: [u32; 2] = [1000, 2000];
@@ -679,13 +679,13 @@ impl pallet_bags_list::Config for Runtime {
 }
 
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-	pub const VotingPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * 24 * 60 * MINUTES;
+	pub LaunchPeriod: BlockNumber = 28 * 24 * 60 * Minutes::get();
+	pub VotingPeriod: BlockNumber = 28 * 24 * 60 * Minutes::get();
+	pub FastTrackVotingPeriod: BlockNumber = 3 * 24 * 60 * Minutes::get();
 	pub const InstantAllowed: bool = true;
 	pub const MinimumDeposit: Balance = 100 * DOLLARS;
-	pub const EnactmentPeriod: BlockNumber = 30 * 24 * 60 * MINUTES;
-	pub const CooloffPeriod: BlockNumber = 28 * 24 * 60 * MINUTES;
+	pub EnactmentPeriod: BlockNumber = 30 * 24 * 60 * Minutes::get();
+	pub CooloffPeriod: BlockNumber = 28 * 24 * 60 * Minutes::get();
 	// One cent: $10,000 / MB
 	pub const PreimageByteDeposit: Balance = 1 * CENTS;
 	pub const MaxVotes: u32 = 100;
@@ -745,7 +745,7 @@ impl pallet_democracy::Config for Runtime {
 }
 
 parameter_types! {
-	pub const CouncilMotionDuration: BlockNumber = 5 * DAYS;
+	pub CouncilMotionDuration: BlockNumber = 5 * Days::get();
 	pub const CouncilMaxProposals: u32 = 100;
 	pub const CouncilMaxMembers: u32 = 100;
 }
@@ -768,7 +768,7 @@ parameter_types! {
 	pub const VotingBondBase: Balance = deposit(1, 64);
 	// additional data per vote is 32 bytes (account id).
 	pub const VotingBondFactor: Balance = deposit(0, 32);
-	pub const TermDuration: BlockNumber = 7 * DAYS;
+	pub TermDuration: BlockNumber = 7 * Days::get();
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 7;
 	pub const ElectionsPhragmenPalletId: LockIdentifier = *b"phrelect";
@@ -798,7 +798,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 }
 
 parameter_types! {
-	pub const TechnicalMotionDuration: BlockNumber = 5 * DAYS;
+	pub TechnicalMotionDuration: BlockNumber = 5 * Days::get();
 	pub const TechnicalMaxProposals: u32 = 100;
 	pub const TechnicalMaxMembers: u32 = 100;
 }
@@ -836,16 +836,16 @@ impl pallet_membership::Config<pallet_membership::Instance1> for Runtime {
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 1 * DOLLARS;
-	pub const SpendPeriod: BlockNumber = 1 * DAYS;
+	pub SpendPeriod: BlockNumber = 1 * Days::get();
 	pub const Burn: Permill = Permill::from_percent(50);
-	pub const TipCountdown: BlockNumber = 1 * DAYS;
+	pub TipCountdown: BlockNumber = 1 * Days::get();
 	pub const TipFindersFee: Percent = Percent::from_percent(20);
 	pub const TipReportDepositBase: Balance = 1 * DOLLARS;
 	pub const DataDepositPerByte: Balance = 1 * CENTS;
 	pub const BountyDepositBase: Balance = 1 * DOLLARS;
-	pub const BountyDepositPayoutDelay: BlockNumber = 1 * DAYS;
+	pub BountyDepositPayoutDelay: BlockNumber = 1 * Days::get();
 	pub const TreasuryPalletId: PalletId = PalletId(*b"py/trsry");
-	pub const BountyUpdatePeriod: BlockNumber = 14 * DAYS;
+	pub BountyUpdatePeriod: BlockNumber = 14 * Days::get();
 	pub const MaximumReasonLength: u32 = 16384;
 	pub const BountyCuratorDeposit: Permill = Permill::from_percent(50);
 	pub const BountyValueMinimum: Balance = 5 * DOLLARS;
@@ -1062,10 +1062,10 @@ parameter_types! {
 	pub const CandidateDeposit: Balance = 10 * DOLLARS;
 	pub const WrongSideDeduction: Balance = 2 * DOLLARS;
 	pub const MaxStrikes: u32 = 10;
-	pub const RotationPeriod: BlockNumber = 80 * HOURS;
+	pub RotationPeriod: BlockNumber = 80 * Hours::get();
 	pub const PeriodSpend: Balance = 500 * DOLLARS;
-	pub const MaxLockDuration: BlockNumber = 36 * 30 * DAYS;
-	pub const ChallengePeriod: BlockNumber = 7 * DAYS;
+	pub MaxLockDuration: BlockNumber = 36 * 30 * Days::get();
+	pub ChallengePeriod: BlockNumber = 7 * Days::get();
 	pub const MaxCandidateIntake: u32 = 10;
 	pub const SocietyPalletId: PalletId = PalletId(*b"py/socie");
 }
@@ -1150,7 +1150,7 @@ impl pallet_bridge_transfer::Config for Runtime {
 }
 
 parameter_types! {
-	pub ExpectedBlockTimeSec: u32 = SECS_PER_BLOCK as u32;
+	pub ExpectedBlockTimeSec: u32 = SecsPerBlock::get() as u32;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
 	pub const MiningGracePeriod: u64 = 7 * 24 * 3600;
