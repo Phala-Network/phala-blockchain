@@ -25,7 +25,7 @@ use node_runtime::{
 	AuthorityDiscoveryConfig, BabeConfig, BalancesConfig, CouncilConfig,
 	DemocracyConfig,GrandpaConfig, ImOnlineConfig, SessionConfig, SessionKeys, StakerStatus,
 	StakingConfig, ElectionsConfig, IndicesConfig, SocietyConfig, SudoConfig, SystemConfig,
-	TechnicalCommitteeConfig, wasm_binary_unwrap, KittyStorageConfig,
+	TechnicalCommitteeConfig, wasm_binary_unwrap,
 	PhalaRegistryConfig,
 };
 use node_runtime::Block;
@@ -332,10 +332,6 @@ pub fn testnet_genesis(
 					x.5.clone(),
 				))
 			}).collect::<Vec<_>>(),
-		},
-		kitty_storage: KittyStorageConfig {
-			// Now we have 4 contracts but reserver 10 for convenience
-			contract_keys: std::iter::repeat(raw_dev_sr25519_pubkey.to_vec()).take(10).collect(),
 		},
 		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
