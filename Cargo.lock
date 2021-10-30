@@ -1128,6 +1128,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "csv",
+ "futures 0.3.17",
  "itertools",
  "lazy_static",
  "num-traits",
@@ -1140,6 +1141,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -4557,6 +4559,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-bags-list"
+version = "4.0.0-dev"
+dependencies = [
+ "frame-benchmarking",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-tracing",
+]
+
+[[package]]
 name = "pallet-balances"
 version = "4.0.0-dev"
 dependencies = [
@@ -5606,18 +5627,22 @@ version = "3.0.0"
 dependencies = [
  "assert_cmd",
  "async-std",
+ "criterion",
  "frame-benchmarking-cli",
  "frame-system",
+ "frame-system-rpc-runtime-api",
  "futures 0.3.17",
  "hex-literal",
  "jsonrpc-core 14.2.0",
  "jsonrpc-pubsub 14.2.0",
+ "jsonrpsee-ws-client",
  "log",
  "nix",
  "node-executor",
  "node-inspect",
  "node-primitives",
  "node-rpc",
+ "pallet-balances",
  "pallet-im-online",
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -5651,6 +5676,7 @@ dependencies = [
  "serde",
  "serde_json",
  "soketto 0.4.2",
+ "sp-api",
  "sp-authority-discovery",
  "sp-authorship",
  "sp-consensus",
@@ -5669,6 +5695,7 @@ dependencies = [
  "substrate-build-script-utils",
  "substrate-frame-cli",
  "tempfile",
+ "tokio",
  "try-runtime-cli",
 ]
 
@@ -5715,6 +5742,7 @@ dependencies = [
  "pallet-authority-discovery",
  "pallet-authorship",
  "pallet-babe",
+ "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
  "pallet-bridge",
@@ -5753,6 +5781,7 @@ dependencies = [
  "parity-scale-codec",
  "phala-pallets",
  "phala-types",
+ "scale-info",
  "sp-api",
  "sp-authority-discovery",
  "sp-block-builder",
