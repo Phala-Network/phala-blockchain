@@ -2,13 +2,13 @@
 
 extern crate alloc;
 
-use std::convert::TryInto;
-
 use alloc::vec::Vec;
-use ink_env::{
-    emit_event, test::EmittedEvent, topics::state::HasRemainingTopics, Environment, Topics,
-};
+use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics};
+
 use scale::{Decode, Encode};
+
+#[cfg(feature = "std")]
+use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
 
 const PHALA_MESSAGE_TOPIC: &[u8] = b"phala.mq.message";
 const PHALA_OSP_MESSAGE_TOPIC: &[u8] = b"phala.mq.osp_message";
@@ -46,6 +46,7 @@ impl Topics for Message {
     }
 }
 
+#[cfg(feature = "std")]
 impl Message {
     pub fn event_topic() -> Hash {
         topics_for(Self::default())[0]
@@ -70,6 +71,7 @@ impl Topics for OspMessage {
     }
 }
 
+#[cfg(feature = "std")]
 impl OspMessage {
     pub fn event_topic() -> Hash {
         topics_for(Self::default())[0]
@@ -110,6 +112,7 @@ impl Environment for PinkEnvironment {
     type ChainExtension = <ink_env::DefaultEnvironment as Environment>::ChainExtension;
 }
 
+#[cfg(feature = "std")]
 fn topics_for(event: impl Topics + Encode) -> Vec<Hash> {
     EmittedEvent::new::<PinkEnvironment, _>(event)
         .topics
