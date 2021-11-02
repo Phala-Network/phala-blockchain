@@ -109,22 +109,26 @@ sp-trie = { default-features = false, path = "../../substrate/primitives/trie", 
 
 [dev-dependencies]
 sc-keystore = { path = "../../substrate/client/keystore" }
+sc-client-db = { path = "../../substrate/client/db" }
 sc-consensus = { path = "../../substrate/client/consensus/common" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
 sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
-sc-service-test = { version = "2.0.0", path = "../../substrate/client/service/test" }
-futures = "0.3.4"
+sc-service-test = { path = "../../substrate/client/service/test" }
+sp-tracing = { path = "../../substrate/primitives/tracing" }
+futures = "0.3.16"
 tempfile = "3.1.0"
-assert_cmd = "1.0"
+assert_cmd = "2.0.2"
 nix = "0.19"
 serde_json = "1.0"
 regex = "1"
 platforms = "1.1"
-async-std = { version = "1.6.5", features = ["attributes"] }
+async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
-criterion = { version = "0.3.5", features = ["async_tokio"] }
-jsonrpsee-ws-client = { version = "0.3.0", default-features = false, features = ["tokio1"] }
+criterion = { version = "0.3.5", features = [ "async_tokio" ] }
 tokio = { version = "1.10", features = ["macros", "time"] }
+jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = ["tokio1"] }
+wait-timeout = "0.2"
+remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
 
 [build-dependencies]
 structopt = { version = "0.3.8", optional = true }
