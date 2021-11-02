@@ -59,7 +59,6 @@ impl Contract {
                 pallet_contracts_primitives::Code::Upload(code.into()),
                 input_data,
                 salt.clone(),
-                false,
                 true,
             );
             match result.result {

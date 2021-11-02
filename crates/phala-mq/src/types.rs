@@ -9,9 +9,9 @@ use sp_core::crypto::{AccountId32, UncheckedFrom};
 
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
-pub use primitive_types::H256 as ContractId;
-pub use primitive_types::H256 as AccountId;
-pub use primitive_types::H256 as ContractGroupId;
+pub use sp_core::H256 as ContractId;
+pub use sp_core::H256 as AccountId;
+pub use sp_core::H256 as ContractGroupId;
 
 use crate::MessageSigner;
 

@@ -26,10 +26,10 @@ pub fn get_side_effects() -> ExecSideEffects {
         if let super::Event::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
-                ContractEvent::Instantiated(deployer, address) => {
+                ContractEvent::Instantiated { deployer, contract: address } => {
                     result.instantiated.push((deployer, address))
                 }
-                ContractEvent::ContractEmitted(address, data) => {
+                ContractEvent::ContractEmitted { contract: address, data} => {
                     if event.topics.len() != 1 {
                         continue;
                     }

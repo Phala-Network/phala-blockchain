@@ -104,14 +104,6 @@ impl Config for PinkRuntime {
     type Event = Event;
     type Call = Call;
     type CallFilter = frame_support::traits::Everything;
-    type RentPayment = ();
-    type SignedClaimHandicap = SignedClaimHandicap;
-    type TombstoneDeposit = TombstoneDeposit;
-    type DepositPerContract = DepositPerContract;
-    type DepositPerStorageByte = DepositPerStorageByte;
-    type DepositPerStorageItem = DepositPerStorageItem;
-    type RentFraction = RentFraction;
-    type SurchargeReward = SurchargeReward;
     type CallStack = [Frame<Self>; 31];
     type WeightPrice = Self;
     type WeightInfo = ();
@@ -119,6 +111,7 @@ impl Config for PinkRuntime {
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
+    type ContractDeposit = ();
 }
 
 #[cfg(test)]

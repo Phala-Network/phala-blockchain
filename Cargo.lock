@@ -7087,6 +7087,7 @@ dependencies = [
  "pink-extension",
  "pretty_assertions 0.7.2",
  "pwasm-utils 0.16.0",
+ "scale-info 1.0.0",
  "serde",
  "serde_json",
  "sha2 0.9.8",
