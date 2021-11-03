@@ -51,7 +51,7 @@ sp-runtime = { path = "../substrate/primitives/runtime" }
 sp-std = { path = "../substrate/primitives/std" }
 sp-version = { path = "../substrate/primitives/version" }
 
-frame-metadata = { git = "https://github.com/paritytech/frame-metadata.git" }
+frame-metadata = { version = "14" }
 frame-support = { path = "../substrate/frame/support" }
 pallet-indices = { path = "../substrate/frame/indices" }
 pallet-staking = { path = "../substrate/frame/staking" }
