@@ -39,13 +39,13 @@ use std::sync::Arc;
 
 /// The full client type definition.
 pub type FullClient =
-sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
-grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
 type LightClient =
-sc_service::TLightClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+	sc_service::TLightClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 /// The transaction pool type defintion.
 pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 
@@ -646,7 +646,7 @@ pub fn new_light_base(
 
 		let config = grandpa::Config {
 			gossip_duration: std::time::Duration::from_millis(333),
-			justification_period: 512,
+			justification_period: 1,
 			name: Some(name),
 			observer_enabled: false,
 			keystore: None,
@@ -833,8 +833,8 @@ mod tests {
 						.unwrap();
 
 					if let Some(babe_pre_digest) =
-					sc_consensus_babe::authorship::claim_slot(slot.into(), &epoch, &keystore)
-						.map(|(digest, _)| digest)
+						sc_consensus_babe::authorship::claim_slot(slot.into(), &epoch, &keystore)
+							.map(|(digest, _)| digest)
 					{
 						break (babe_pre_digest, epoch_descriptor)
 					}
@@ -860,8 +860,8 @@ mod tests {
 						.propose(inherent_data, digest, std::time::Duration::from_secs(1), None)
 						.await
 				})
-					.expect("Error making test block")
-					.block;
+				.expect("Error making test block")
+				.block;
 
 				let (new_header, new_body) = new_block.deconstruct();
 				let pre_hash = new_header.hash();
@@ -874,10 +874,10 @@ mod tests {
 					&alice.to_public_crypto_pair(),
 					&to_sign,
 				)
-					.unwrap()
-					.unwrap()
-					.try_into()
-					.unwrap();
+				.unwrap()
+				.unwrap()
+				.try_into()
+				.unwrap();
 				let item = <DigestItem as CompatibleDigestItem>::babe_seal(signature);
 				slot += 1;
 

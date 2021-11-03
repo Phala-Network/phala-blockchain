@@ -336,12 +336,12 @@ pub fn testnet_genesis(
 		staking: StakingConfig {
 			validator_count: initial_authorities.len() as u32,
 			minimum_validator_count: initial_authorities.len() as u32,
+			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
+			slash_reward_fraction: Perbill::from_percent(10),
 			stakers: initial_authorities.iter().map(|x| {
 				(x.0.clone(), x.1.clone(), STASH, StakerStatus::Validator)
 			}).collect(),
-			invulnerables: initial_authorities.iter().map(|x| x.0.clone()).collect(),
-			slash_reward_fraction: Perbill::from_percent(10),
-			.. Default::default()
+			..Default::default()
 		},
 		democracy: DemocracyConfig::default(),
 		elections: ElectionsConfig {

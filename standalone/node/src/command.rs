@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) 2017-2021 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{chain_spec, service, Cli, Subcommand};
+use crate::{chain_spec, service, service::new_partial, Cli, Subcommand};
 use node_executor::ExecutorDispatch;
 use node_runtime::{Block, RuntimeApi};
-use sc_cli::{Result, SubstrateCli, RuntimeVersion, Role, ChainSpec};
+use sc_cli::{ChainSpec, Result, Role, RuntimeVersion, SubstrateCli};
 use sc_service::PartialComponents;
-use crate::service::new_partial;
 
 impl SubstrateCli for Cli {
 	fn impl_name() -> String {
@@ -49,20 +48,25 @@ impl SubstrateCli for Cli {
 	}
 
 	fn load_spec(&self, id: &str) -> std::result::Result<Box<dyn sc_service::ChainSpec>, String> {
-		Ok(match id {
+		let spec = match id {
+			"" =>
+				return Err(
+					"Please specify which chain you want to run, e.g. --dev or --chain=local"
+						.into(),
+				),
 			"dev" => match self.block_millisecs {
 				Some(block_millisecs) => Box::new(chain_spec::development_config_custom_block_duration(block_millisecs)),
 				None => Box::new(chain_spec::development_config()),
 			}
 			"local" => Box::new(chain_spec::local_testnet_config()),
 			"fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
-			"" | "phala" | "phala_testnet" => Box::new(chain_spec::phala_testnet_config()?),
+			"phala" | "phala_testnet" => Box::new(chain_spec::phala_testnet_config()?),
 			"phala-local" | "phala_testnet-local" => Box::new(chain_spec::phala_testnet_local_config()),
 			"staging" => Box::new(chain_spec::staging_testnet_config()),
-			path => Box::new(chain_spec::ChainSpec::from_json_file(
-				std::path::PathBuf::from(path),
-			)?),
-		})
+			path =>
+				Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
+		};
+		Ok(spec)
 	}
 
 	fn native_runtime_version(_: &Box<dyn ChainSpec>) -> &'static RuntimeVersion {
@@ -82,7 +86,7 @@ pub fn run() -> Result<()> {
 					Role::Light => service::new_light(config),
 					_ => service::new_full(config),
 				}
-					.map_err(sc_cli::Error::Service)
+				.map_err(sc_cli::Error::Service)
 			})
 		},
 		Some(Subcommand::Inspect(cmd)) => {
