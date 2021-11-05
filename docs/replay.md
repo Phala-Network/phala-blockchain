@@ -2,7 +2,7 @@
 
 ## Overview
 
-`replay` is a utility program designed to reproduce the tokenomic computation ouside a Gatekeeper. It comes with the following features:
+`replay` is an utility program designed to reproduce the tokenomic computation outside a Gatekeeper. It comes with the following features:
 
 - Fetch chain blocks and Replay the tokenomic computuing just in-place without pRuntime needed.
 - Provide a HTTP api to query worker's instant mining state.
