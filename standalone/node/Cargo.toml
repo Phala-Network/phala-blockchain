@@ -33,23 +33,23 @@ required-features = ["cli"]
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
+phala-pallets = { path = "../../pallets/phala" }
+
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.1" }
-serde = { version = "1.0.102", features = ["derive"] }
+codec = { package = "parity-scale-codec", version = "2.3" }
+serde = { version = "1.0.126", features = ["derive"] }
 futures = "0.3.16"
-hex-literal = "0.3.1"
-jsonrpc-core = "14.2.0"
-jsonrpc-pubsub = "14.2.0"
+hex-literal = "0.3.3"
 log = "0.4.8"
 rand = "0.7.2"
 structopt = { version = "0.3.8", optional = true }
-
-phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 
 # primitives
 sp-authority-discovery = { path = "../../substrate/primitives/authority-discovery" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
 grandpa-primitives = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
+sp-api = { path = "../../substrate/primitives/api" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }
 sp-timestamp = { path = "../../substrate/primitives/timestamp" }
@@ -59,6 +59,8 @@ sp-keyring = { path = "../../substrate/primitives/keyring" }
 sp-keystore = { path = "../../substrate/primitives/keystore" }
 sp-consensus = { path = "../../substrate/primitives/consensus/common" }
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
+sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool" }
+sp-transaction-storage-proof = { path = "../../substrate/primitives/transaction-storage-proof" }
 
 # client dependencies
 sc-client-api = { path = "../../substrate/client/api" }
@@ -66,7 +68,6 @@ sc-chain-spec = { path = "../../substrate/client/chain-spec" }
 sc-consensus = { path = "../../substrate/client/consensus/common" }
 sc-transaction-pool = { path = "../../substrate/client/transaction-pool" }
 sc-transaction-pool-api = { path = "../../substrate/client/transaction-pool/api" }
-sp-transaction-storage-proof = { version = "4.0.0-dev", path = "../../substrate/primitives/transaction-storage-proof" }
 sc-network = { path = "../../substrate/client/network" }
 sc-consensus-slots = { path = "../../substrate/client/consensus/slots" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
@@ -75,21 +76,22 @@ grandpa = { package = "sc-finality-grandpa", path = "../../substrate/client/fina
 sc-rpc = { path = "../../substrate/client/rpc" }
 sc-basic-authorship = { path = "../../substrate/client/basic-authorship" }
 sc-service = { default-features = false, path = "../../substrate/client/service" }
-sc-executor = { path = "../../substrate/client/executor" }
 sc-telemetry = { path = "../../substrate/client/telemetry" }
+sc-executor = { path = "../../substrate/client/executor" }
 sc-authority-discovery = { path = "../../substrate/client/authority-discovery" }
-sc-sync-state-rpc = { version = "0.10.0-dev", path = "../../substrate/client/sync-state-rpc" }
+sc-sync-state-rpc = { path = "../../substrate/client/sync-state-rpc" }
 
 # frame dependencies
 frame-system = { path = "../../substrate/frame/system" }
+frame-system-rpc-runtime-api = { path = "../../substrate/frame/system/rpc/runtime-api" }
 pallet-transaction-payment = { path = "../../substrate/frame/transaction-payment" }
 pallet-im-online = { default-features = false, path = "../../substrate/frame/im-online" }
 
 # node-specific dependencies
-node-runtime = { version = "2.0.0", package = "phala-node-runtime", path = "../runtime" }
-node-rpc = { version = "2.0.0", path = "../rpc" }
-node-primitives = { version = "2.0.0", path = "../../substrate/bin/node/primitives" }
-node-executor = { version = "2.0.0", path = "../executor" }
+node-runtime = { path = "../runtime", package = "phala-node-runtime" }
+node-rpc = { path = "../rpc" }
+node-primitives = { path = "../../substrate/bin/node/primitives" }
+node-executor = { path = "../executor" }
 
 # CLI-specific dependencies
 sc-cli = { optional = true, path = "../../substrate/client/cli" }
@@ -97,29 +99,34 @@ frame-benchmarking-cli = { optional = true, path = "../../substrate/utils/frame/
 node-inspect = { optional = true, path = "../../substrate/bin/node/inspect" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 
-phala-pallets = { path = "../../pallets/phala" }
-
 [target.'cfg(target_arch="x86_64")'.dependencies]
-node-executor = { version = "2.0.0", path = "../executor", features = [ "wasmtime" ] }
-sc-cli = { optional = true, path = "../../substrate/client/cli", features = [ "wasmtime" ] }
-sc-service = { default-features = false, path = "../../substrate/client/service", features = [ "wasmtime" ] }
+node-executor = { path = "../executor", features = ["wasmtime"] }
+sc-cli = { optional = true, path = "../../substrate/client/cli", features = ["wasmtime"] }
+sc-service = { default-features = false, path = "../../substrate/client/service", features = ["wasmtime"] }
 sp-trie = { default-features = false, path = "../../substrate/primitives/trie", features = ["memory-tracker"] }
 
 [dev-dependencies]
 sc-keystore = { path = "../../substrate/client/keystore" }
+sc-client-db = { path = "../../substrate/client/db" }
 sc-consensus = { path = "../../substrate/client/consensus/common" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
 sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
-sc-service-test = { version = "2.0.0", path = "../../substrate/client/service/test" }
-futures = "0.3.4"
+sc-service-test = { path = "../../substrate/client/service/test" }
+sp-tracing = { path = "../../substrate/primitives/tracing" }
+futures = "0.3.16"
 tempfile = "3.1.0"
-assert_cmd = "1.0"
+assert_cmd = "2.0.2"
 nix = "0.19"
 serde_json = "1.0"
 regex = "1"
 platforms = "1.1"
-async-std = { version = "1.6.5", features = ["attributes"] }
+async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
+criterion = { version = "0.3.5", features = [ "async_tokio" ] }
+tokio = { version = "1.10", features = ["macros", "time"] }
+jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = ["tokio1"] }
+wait-timeout = "0.2"
+remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
 
 [build-dependencies]
 structopt = { version = "0.3.8", optional = true }
@@ -129,6 +136,7 @@ substrate-build-script-utils = { optional = true, path = "../../substrate/utils/
 substrate-frame-cli = { optional = true, path = "../../substrate/utils/frame/frame-utilities-cli" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 sc-cli = { path = "../../substrate/client/cli", optional = true }
+pallet-balances = { path = "../../substrate/frame/balances" }
 
 [features]
 default = ["cli"]
@@ -149,7 +157,8 @@ runtime-benchmarks = [
 ]
 # Enable features that allow the runtime to be tried and debugged. Name might be subject to change
 # in the near future.
-try-runtime = [
-	"node-runtime/try-runtime",
-	"try-runtime-cli",
-]
+try-runtime = ["node-runtime/try-runtime", "try-runtime-cli"]
+
+[[bench]]
+name = "transaction_pool"
+harness = false

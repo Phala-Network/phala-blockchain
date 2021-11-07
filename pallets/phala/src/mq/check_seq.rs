@@ -3,6 +3,7 @@ use super::{Call, CallMatcher, Config, IntoH256, OffchainIngress};
 use codec::{Decode, Encode};
 use frame_support::weights::DispatchInfo;
 use phala_types::messaging::MessageOrigin;
+use scale_info::TypeInfo;
 use sp_runtime::traits::{DispatchInfoOf, Dispatchable, SignedExtension};
 use sp_runtime::transaction_validity::{
 	InvalidTransaction, TransactionValidity, TransactionValidityError, ValidTransaction,
@@ -18,7 +19,8 @@ use sp_std::vec::Vec;
 /// When a message comes to the transaction pool, we drop it immediately if its sequence is
 /// less than the expected one. Otherwise we keep the message in the pool for a while, hoping there
 /// will be a sequence of continuous messages to be included in the future block.
-#[derive(Encode, Decode, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq)]
+#[scale_info(skip_type_params(T))]
 pub struct CheckMqSequence<T>(PhantomData<T>);
 
 pub fn tag(sender: &MessageOrigin, seq: u64) -> Vec<u8> {
@@ -73,7 +75,7 @@ where
 		_len: usize,
 	) -> Result<(), TransactionValidityError> {
 		let signed_message = match T::CallMatcher::match_call(call) {
-			Some(Call::sync_offchain_message(signed_message)) => signed_message,
+			Some(Call::sync_offchain_message { signed_message }) => signed_message,
 			_ => return Ok(()),
 		};
 		let sender = &signed_message.message.sender;
@@ -99,7 +101,7 @@ where
 		_len: usize,
 	) -> TransactionValidity {
 		let signed_message = match T::CallMatcher::match_call(call) {
-			Some(Call::sync_offchain_message(signed_message)) => signed_message,
+			Some(Call::sync_offchain_message { signed_message }) => signed_message,
 			_ => return Ok(ValidTransaction::default()),
 		};
 		let sender = &signed_message.message.sender;
@@ -169,14 +171,16 @@ mod tests {
 	}
 
 	fn sync_msg_call(i: u8, seq: u64) -> TestCall {
-		TestCall::PhalaMq(Call::<Test>::sync_offchain_message(SignedMessage {
-			message: Message::new(
-				MessageOrigin::Worker(worker_pubkey(i)),
-				Topic::new(*b""),
-				Vec::new(),
-			),
-			sequence: seq,
-			signature: Vec::new(),
-		}))
+		TestCall::PhalaMq(Call::<Test>::sync_offchain_message {
+			signed_message: SignedMessage {
+				message: Message::new(
+					MessageOrigin::Worker(worker_pubkey(i)),
+					Topic::new(*b""),
+					Vec::new(),
+				),
+				sequence: seq,
+				signature: Vec::new(),
+			},
+		})
 	}
 }

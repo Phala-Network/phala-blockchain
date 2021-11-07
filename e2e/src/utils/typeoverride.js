@@ -1,7 +1,7 @@
 const types = {
     "Address": "MultiAddress",
     "LookupSource": "MultiAddress",
-    "RawSolution": "RawSolutionWith24",
+    "RawSolution": "RawSolutionWith16",
     "BridgeChainId": "u8",
     "BridgeEvent": {
         "_enum": {

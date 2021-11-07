@@ -53,7 +53,7 @@ pub enum Error {
     Metadata(#[from] MetadataError),
     /// Unregistered type sizes.
     #[error(
-    "The following types do not have a type size registered: \
+        "The following types do not have a type size registered: \
             {0:?} \
          Use `ClientBuilder::register_type_size` to register missing type sizes."
     )]
@@ -99,6 +99,9 @@ pub enum RuntimeError {
     /// Module error.
     #[error("Runtime module error: {0}")]
     Module(ModuleError),
+    /// Module error and the error is not found in metadata.
+    #[error("Runtime module error (missing metadata): {0}")]
+    ModuleMissingMetadata(ModuleError),
     /// At least one consumer is remaining so the account cannot be destroyed.
     #[error("At least one consumer is remaining so the account cannot be destroyed.")]
     ConsumerRemaining,
@@ -129,11 +132,20 @@ impl RuntimeError {
                 message: _,
             } => {
                 let module = metadata.module_with_errors(index)?;
-                let error = module.error(error)?;
-                Ok(Self::Module(ModuleError {
-                    module: module.name().to_string(),
-                    error: error.to_string(),
-                }))
+                match module.error(error) {
+                    Ok(e) => {
+                        Ok(Self::Module(ModuleError {
+                            module: module.name().to_string(),
+                            error: e.to_string(),
+                        }))
+                    }
+                    Err(e) => {
+                        Ok(Self::ModuleMissingMetadata(ModuleError {
+                            module: module.name().to_string(),
+                            error: e.to_string(),
+                        }))
+                    }
+                }
             }
             DispatchError::BadOrigin => Ok(Self::BadOrigin),
             DispatchError::CannotLookup => Ok(Self::CannotLookup),

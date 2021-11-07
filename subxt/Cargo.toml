@@ -25,7 +25,8 @@ tokio1 = ["jsonrpsee-http-client/tokio1", "jsonrpsee-ws-client/tokio1"]
 
 [dependencies]
 async-trait = "0.1.49"
-codec = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive", "full"] }
+codec = { package = "parity-scale-codec", version = "2.3", default-features = false, features = ["derive", "full"] }
+scale-info = { version = '1.0', default-features = false, features = ['derive'] }
 dyn-clone = "1.0.4"
 futures =  "0.3.16"
 hex = "0.4.3"
@@ -50,7 +51,7 @@ sp-runtime = { path = "../substrate/primitives/runtime" }
 sp-std = { path = "../substrate/primitives/std" }
 sp-version = { path = "../substrate/primitives/version" }
 
-frame-metadata = { path = "../substrate/frame/metadata" }
+frame-metadata = { version = "14" }
 frame-support = { path = "../substrate/frame/support" }
 pallet-indices = { path = "../substrate/frame/indices" }
 pallet-staking = { path = "../substrate/frame/staking" }

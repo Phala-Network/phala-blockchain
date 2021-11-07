@@ -13,7 +13,8 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.2", default-features = false, features = ["derive", "max-encoded-len"] }
+codec = { package = "parity-scale-codec", version = "2.3", default-features = false, features = ["derive", "max-encoded-len"] }
+scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 static_assertions = "1.1.0"
 hex-literal = "0.3.1"
 log = { version = "0.4.14", default-features = false }
@@ -25,7 +26,7 @@ sp-authority-discovery = { default-features = false, path = "../../substrate/pri
 sp-consensus-babe = { default-features = false, path = "../../substrate/primitives/consensus/babe" }
 sp-block-builder = { default-features = false, path = "../../substrate/primitives/block-builder" }
 sp-inherents = { default-features = false, path = "../../substrate/primitives/inherents" }
-node-primitives = { version = "2.0.0", default-features = false, path = "../../substrate/bin/node/primitives" }
+node-primitives = { default-features = false, path = "../../substrate/bin/node/primitives" }
 sp-offchain = { default-features = false, path = "../../substrate/primitives/offchain" }
 sp-core = { default-features = false, path = "../../substrate/primitives/core" }
 sp-std = { default-features = false, path = "../../substrate/primitives/std" }
@@ -37,6 +38,7 @@ sp-session = { default-features = false, path = "../../substrate/primitives/sess
 sp-transaction-pool = { default-features = false, path = "../../substrate/primitives/transaction-pool" }
 sp-version = { default-features = false, path = "../../substrate/primitives/version" }
 sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
+sp-io = { default-features = false, path = "../../substrate/primitives/io" }
 
 # frame dependencies
 frame-executive = { default-features = false, path = "../../substrate/frame/executive" }
@@ -50,6 +52,7 @@ frame-try-runtime = { default-features = false, path = "../../substrate/frame/tr
 pallet-authority-discovery = { default-features = false, path = "../../substrate/frame/authority-discovery" }
 pallet-authorship = { default-features = false, path = "../../substrate/frame/authorship" }
 pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
+pallet-bags-list = { default-features = false, path = "../../substrate/frame/bags-list" }
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 pallet-bounties = { default-features = false, path = "../../substrate/frame/bounties" }
 pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
@@ -83,7 +86,6 @@ pallet-transaction-payment = { default-features = false, path = "../../substrate
 pallet-transaction-payment-rpc-runtime-api = { default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { default-features = false, path = "../../substrate/frame/vesting" }
 
-pallet-kitties = { default-features = false, path = "../../pallets/kitties", package = "pallet-kitties" }
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
 pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
 pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
@@ -92,9 +94,6 @@ native-nostd-hasher = { path = "../../native-nostd-hasher", optional = true }
 
 [build-dependencies]
 substrate-wasm-builder = { path = "../../substrate/utils/wasm-builder", optional = true }
-
-[dev-dependencies]
-sp-io = { path = "../../substrate/primitives/io" }
 
 [features]
 default = ["std", "include-wasm"]
@@ -107,10 +106,12 @@ std = [
 	"pallet-authorship/std",
 	"sp-consensus-babe/std",
 	"pallet-babe/std",
+	"pallet-bags-list/std",
 	"pallet-balances/std",
 	"pallet-bounties/std",
 	"sp-block-builder/std",
 	"codec/std",
+	'scale-info/std',
 	"pallet-collective/std",
 	"pallet-democracy/std",
 	"pallet-elections-phragmen/std",
@@ -158,7 +159,7 @@ std = [
 	"log/std",
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
-	"pallet-kitties/std",
+	"sp-io/std",
 	"phala-pallets/std",
 	"pallet-bridge/std",
 	"pallet-bridge-transfer/std",
@@ -171,6 +172,7 @@ runtime-benchmarks = [
 	"pallet-election-provider-multi-phase/runtime-benchmarks",
 	"sp-runtime/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",

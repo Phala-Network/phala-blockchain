@@ -86,8 +86,8 @@ dyn_clone::clone_trait_object!(TypeSegmenter);
 
 struct TypeMarker<T>(PhantomData<T>);
 impl<T> TypeSegmenter for TypeMarker<T>
-    where
-        T: Codec + Send + Sync,
+where
+    T: Codec + Send + Sync,
 {
     fn segment(&self, input: &mut &[u8], output: &mut Vec<u8>) -> Result<(), Error> {
         T::decode(input).map_err(Error::from)?.encode_to(output);
@@ -357,14 +357,13 @@ pub enum Raw {
 mod tests {
     use super::*;
     use frame_metadata::{
-        DecodeDifferent,
-        ErrorMetadata,
-        EventMetadata,
         ExtrinsicMetadata,
-        ModuleMetadata,
+        PalletErrorMetadata,
+        PalletEventMetadata,
+        PalletMetadata,
         RuntimeMetadata,
         RuntimeMetadataPrefixed,
-        RuntimeMetadataV13,
+        RuntimeMetadataV14,
         META_RESERVED,
     };
     use std::convert::TryFrom;
@@ -395,80 +394,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(output, vec![1, 0]);
-    }
-
-    #[test]
-    fn test_decode_system_events_and_error() {
-        let decoder = EventsDecoder::<TestRuntime>::new(
-            Metadata::try_from(RuntimeMetadataPrefixed(
-                META_RESERVED,
-                RuntimeMetadata::V13(RuntimeMetadataV13 {
-                    modules: DecodeDifferent::Decoded(vec![ModuleMetadata {
-                        name: DecodeDifferent::Decoded("System".to_string()),
-                        storage: None,
-                        calls: None,
-                        event: Some(DecodeDifferent::Decoded(vec![
-                            EventMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "ExtrinsicSuccess".to_string(),
-                                ),
-                                arguments: DecodeDifferent::Decoded(vec![
-                                    "DispatchInfo".to_string()
-                                ]),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                            EventMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "ExtrinsicFailed".to_string(),
-                                ),
-                                arguments: DecodeDifferent::Decoded(vec![
-                                    "DispatchError".to_string(),
-                                    "DispatchInfo".to_string(),
-                                ]),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                        ])),
-                        constants: DecodeDifferent::Decoded(vec![]),
-                        errors: DecodeDifferent::Decoded(vec![
-                            ErrorMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "InvalidSpecName".to_string(),
-                                ),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                            ErrorMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "SpecVersionNeedsToIncrease".to_string(),
-                                ),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                            ErrorMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "FailedToExtractRuntimeVersion".to_string(),
-                                ),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                            ErrorMetadata {
-                                name: DecodeDifferent::Decoded(
-                                    "NonDefaultComposite".to_string(),
-                                ),
-                                documentation: DecodeDifferent::Decoded(vec![]),
-                            },
-                        ]),
-                        index: 0,
-                    }]),
-                    extrinsic: ExtrinsicMetadata {
-                        version: 0,
-                        signed_extensions: vec![],
-                    },
-                }),
-            ))
-            .unwrap(),
-            EventTypeRegistry::new(),
-        );
-
-        // [(ApplyExtrinsic(0), Event(RawEvent { module: "System", variant: "ExtrinsicSuccess", data: "482d7c09000000000200" })), (ApplyExtrinsic(1), Error(Module(ModuleError { module: "System", error: "NonDefaultComposite" }))), (ApplyExtrinsic(2), Error(Module(ModuleError { module: "System", error: "NonDefaultComposite" })))]
-        let input = hex::decode("0c00000000000000482d7c0900000000020000000100000000010300035884723300000000000000000200000000010300035884723300000000000000").unwrap();
-        decoder.decode_events(&mut &input[..]).unwrap();
     }
 }

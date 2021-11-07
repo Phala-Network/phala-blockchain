@@ -180,7 +180,6 @@ macro_rules! function {
     }};
 }
 
-
 #[macro_export]
 macro_rules! select_ignore_errors {
     (
