@@ -16,3 +16,6 @@
 [submodule "subxt"]
 	path = subxt
 	url = https://github.com/Phala-Network/substrate-subxt.git
+[submodule "standalone/prouter/i2pd"]
+	path = standalone/prouter/i2pd
+	url = https://github.com/Soptq/i2pd.git

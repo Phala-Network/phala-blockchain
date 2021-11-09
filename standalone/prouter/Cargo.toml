@@ -1,0 +1,17 @@
+[package]
+name = "prouter"
+version = "0.1.0"
+authors = ["Soptq <sooptq@gmail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = "1.0"
+tokio = { version = "1.9.0", features = ["full"] }
+structopt = { version = "0.3" }
+phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
+phactory-pal = { path = "../../crates/phactory/pal" }
+
+[build-dependencies]
+bindgen = "0.59.1"
