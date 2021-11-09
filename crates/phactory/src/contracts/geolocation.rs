@@ -169,7 +169,8 @@ impl contracts::NativeContract for Geolocation {
         }
     }
 
-    fn on_block_end(&mut self, context: &mut NativeContext) {
+    fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
         self.guard(&context.block.block_number);
+        Ok(Default::default())
     }
 }

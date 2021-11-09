@@ -16,8 +16,13 @@ pub struct ExecError {
     message: String,
 }
 
+struct Hooks {
+    on_block_end: Option<u32>,
+}
+
 pub struct Contract {
     pub address: AccountId,
+    hooks: Hooks,
 }
 
 impl Contract {
@@ -26,7 +31,10 @@ impl Contract {
     }
 
     pub fn from_address(address: AccountId) -> Self {
-        Contract { address }
+        Contract {
+            address,
+            hooks: todo!(),
+        }
     }
 
     /// Create a new contract instance.
@@ -72,7 +80,7 @@ impl Contract {
             }
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         });
-        Ok((Self { address: address? }, effects))
+        Ok((Self { address: address?, hooks: todo!()  }, effects))
     }
 
     pub fn new_with_selector(
@@ -147,6 +155,31 @@ impl Contract {
             }))?,
             messages,
         ))
+    }
+
+    /// Called by on each block end by the runtime
+    pub fn on_block_end(
+        &mut self,
+        storage: &mut Storage,
+        block_number: BlockNumber,
+        now: u64,
+    ) -> Result<ExecSideEffects, ExecError> {
+        if let Some(selector) = self.hooks.on_block_end {
+            let mut input_data = vec![];
+            selector.encode_to(&mut input_data);
+
+            let (_rv, effects) = self.bare_call(
+                storage,
+                Default::default(),
+                input_data,
+                false,
+                block_number,
+                now,
+            )?;
+            Ok(effects)
+        } else {
+            Ok(Default::default())
+        }
     }
 }
 

@@ -33,7 +33,6 @@ pub use support::*;
 mod support {
     use phala_crypto::ecdh::EcdhPublicKey;
     use phala_mq::traits::MessageChannel;
-    use ::pink::runtime::ExecSideEffects;
     use runtime::BlockNumber;
 
     use super::pink::group::GroupKeeper;
@@ -107,7 +106,9 @@ mod support {
             req: Self::QReq,
             context: &mut QueryContext,
         ) -> Self::QResp;
-        fn on_block_end(&mut self, _context: &mut NativeContext) {}
+        fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
+            Ok(Default::default())
+        }
     }
 
     pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
@@ -213,8 +214,7 @@ mod support {
                 secret_mq,
                 contract_groups: &mut env.contract_groups,
             };
-            self.contract.on_block_end(&mut context);
-            Ok(Default::default())
+            self.contract.on_block_end(&mut context)
         }
 
         fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {

@@ -148,6 +148,19 @@ impl contracts::NativeContract for Pink {
             }
         }
     }
+
+    fn on_block_end(&mut self, context: &mut contracts::NativeContext) -> TransactionResult {
+        let storage = group_storage(&mut context.contract_groups, &self.group)
+            .expect("Pink group should always exists!");
+        let effects = self
+            .instance
+            .on_block_end(storage, context.block.block_number, context.block.now_ms)
+            .map_err(|err| {
+                log::error!("Pink [{:?}] on_block_end exec error: {:?}", self.id(), err);
+                TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
+            })?;
+        Ok(effects)
+    }
 }
 
 fn group_storage<'a>(
@@ -163,11 +176,11 @@ pub mod group {
     use super::Pink;
 
     use anyhow::Result;
-    use sp_core::sr25519;
-    use runtime::BlockNumber;
-    use std::collections::{BTreeMap, BTreeSet};
     use phala_mq::{ContractGroupId, ContractId};
     use pink::{runtime::ExecSideEffects, types::AccountId};
+    use runtime::BlockNumber;
+    use sp_core::sr25519;
+    use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default)]
     pub struct GroupKeeper {
