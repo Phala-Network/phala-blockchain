@@ -33,6 +33,7 @@ members = [
 	"crates/pink",
 	"crates/pink/pink-extension",
 	"crates/phaxt",
+	"crates/pink/pink-extension/macro",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",

@@ -10,6 +10,8 @@ use scale::{Decode, Encode};
 #[cfg(feature = "std")]
 use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
 
+pub use pink_extension_macro::contract;
+
 const PHALA_MESSAGE_TOPIC: &[u8] = b"phala.mq.message";
 const PHALA_OSP_MESSAGE_TOPIC: &[u8] = b"phala.mq.osp_message";
 
