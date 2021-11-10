@@ -13,8 +13,8 @@ exclude = [
 
 members = [
 	"standalone/executor",
-#	"standalone/prouter",
 	"standalone/rpc",
+#	"standalone/prouter",
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
