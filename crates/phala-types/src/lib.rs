@@ -427,20 +427,20 @@ pub mod messaging {
     }
 
     // Messages: Distribution of master key and contract keys
-    bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
+    bind_topic!(KeyDistribution<CodeHash, BlockNumber>, b"phala/gatekeeper/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum KeyDistribution {
+    pub enum KeyDistribution<CodeHash, BlockNumber> {
         MasterKeyDistribution(DispatchMasterKeyEvent),
-        ContractKeyDistribution(DispatchContractKeyEvent),
+        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber>),
     }
 
-    impl KeyDistribution {
+    impl<CodeHash, BlockNumber> KeyDistribution<CodeHash, BlockNumber> {
         pub fn master_key_distribution(
             dest: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> KeyDistribution {
+        ) -> KeyDistribution<CodeHash, BlockNumber> {
             KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
@@ -449,8 +449,16 @@ pub mod messaging {
             })
         }
 
-        pub fn contract_key_distribution(seed: Seed) -> KeyDistribution {
-            KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent { seed })
+        pub fn contract_key_distribution(
+            seed: Seed,
+            code_hash: CodeHash,
+            expiration: BlockNumber,
+        ) -> KeyDistribution<CodeHash, BlockNumber> {
+            KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
+                seed,
+                code_hash,
+                expiration,
+            })
         }
     }
 
@@ -470,10 +478,10 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
-    pub struct DispatchContractKeyEvent {
+    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber> {
         pub seed: Seed,
-        // TODO(shelven): enable key expiration
-        // pub timeout: BlockNumber,
+        pub code_hash: CodeHash,
+        pub expiration: BlockNumber,
     }
 
     // Messages: Gatekeeper

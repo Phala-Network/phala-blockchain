@@ -39,10 +39,11 @@ use phala_serde_more as more;
 use phala_types::{
     contract,
     messaging::{
-        DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge,
-        KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        DispatchContractKeyEvent, DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch,
+        HeartbeatChallenge, KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent,
+        WorkerEvent,
     },
-    EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -376,6 +377,10 @@ impl WorkerIdentityKey {
     }
 }
 
+type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
+type OnchainContractMap = BTreeMap<ContractPublicKey, Box<dyn contracts::Contract + Send>>;
+type ContractKey = sr25519::Pair;
+
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
@@ -388,7 +393,7 @@ pub struct System<Platform> {
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
-    key_distribution_events: TypedReceiver<KeyDistribution>,
+    key_distribution_events: TypedReceiver<KeyDistribution<chain::Hash, chain::BlockNumber>>,
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -402,6 +407,9 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_groups: GroupKeeper,
+
+    pub(crate) onchain_contracts: OnchainContractMap,
+    contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
 
     // Cached for query
     block_number: BlockNumber,
@@ -446,6 +454,8 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_groups: Default::default(),
+            onchain_contracts: Default::default(),
+            contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
         }
@@ -520,7 +530,7 @@ impl<Platform: pal::Platform> System<Platform> {
         // Iterate over all contracts to handle their incoming commands.
         //
         // Since the wasm contracts can instantiate new contracts, it means that it will mutate the `self.contracts`.
-        // So we can not directly itrate over the self.contracts.values_mut() which would keep borrowing on `self.contracts`
+        // So we can not directly iterate over the self.contracts.values_mut() which would keep borrowing on `self.contracts`
         // in the scope of entire `for loop` body.
         let contract_ids: Vec<_> = self.contracts.keys().cloned().collect();
         'outer: for key in contract_ids {
@@ -751,16 +761,18 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_key_distribution_event(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: KeyDistribution,
+        event: KeyDistribution<chain::Hash, chain::BlockNumber>,
     ) {
         info!("Incoming key distribution event: {:?}", event);
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
                 self.process_master_key_distribution(origin, dispatch_master_key_event)
             }
-            KeyDistribution::ContractKeyDistribution(seed) => {}
+            KeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
+                self.process_contract_key_distribution(block, origin, dispatch_contract_key_event)
+            }
         }
     }
 
@@ -866,6 +878,33 @@ impl<Platform: pal::Platform> System<Platform> {
                 .expect("Master key seed must be correct; qed.");
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);
+        }
+    }
+
+    fn process_contract_key_distribution(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber>,
+    ) {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return;
+        };
+
+        let contract_key = ContractKey::restore_from_seed(&event.seed);
+        let contract_pubkey = contract_key.public();
+        let code = chain_state::read_contract_code(block.storage, event.code_hash);
+        if let Some(code) = code {
+            if !self.contract_keys.contains_key(&contract_pubkey) {
+                self.contract_keys.insert(contract_pubkey, contract_key);
+                // TODO(shelven): install the contract from chain
+            }
+        } else {
+            warn!(
+                "Contract code not found for {}",
+                hex::encode(contract_key.public())
+            );
         }
     }
 
@@ -1042,8 +1081,8 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::storage_prefix;
-    use crate::storage::Storage;
+    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+    use crate::storage::{Storage, StorageExt};
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -1071,6 +1110,12 @@ pub mod chain_state {
                 )
             })
             .unwrap_or(None)
+    }
+
+    pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
+        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PristineCode", &code_hash);
+        let code: Option<Vec<u8>> = chain_storage.get_decoded(&key).unwrap_or(None);
+        code
     }
 }
 

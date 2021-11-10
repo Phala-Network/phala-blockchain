@@ -11,9 +11,8 @@ use phala_types::{
     contract::contract_topic,
     contract::messaging::ContractEvent,
     messaging::{
-        ContractInfo, GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent,
-        MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent,
-        WorkerEventWithKey,
+        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
+        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -212,8 +211,8 @@ where
         let mut data = self.master_key.dump_secret_key().to_vec();
 
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
-        self.egress
-            .push_message(&KeyDistribution::master_key_distribution(
+        self.egress.push_message(
+            &KeyDistribution::<chain::Hash, chain::BlockNumber>::master_key_distribution(
                 *pubkey,
                 my_ecdh_key
                     .public()
@@ -222,7 +221,8 @@ where
                     .expect("should never fail given pubkey with correct length; qed;"),
                 data,
                 iv,
-            ));
+            ),
+        );
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -347,7 +347,7 @@ where
                 self.egress
                     .push_message(&ContractRegistryEvent::ContractPubkey {
                         contract_pubkey: contract_key.public(),
-                        contract_info: contract_info,
+                        contract_info: contract_info.clone(),
                     });
                 // then distribute contract key to the worker
                 let ecdh_key = self
@@ -359,6 +359,8 @@ where
                     .bind_remote_key(Some(&deploy_worker.0))
                     .push_message(&KeyDistribution::contract_key_distribution(
                         contract_key.dump_seed(),
+                        contract_info.code_hash,
+                        0,
                     ));
                 // finally, make the call
                 let remote_ecdh_key = contract_key
