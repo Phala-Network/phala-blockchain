@@ -46,10 +46,7 @@ impl Contract {
             let on_block_end = result
                 .result
                 .ok()
-                .map(|ret| {
-                    assert!(ret.data.len() > 0);
-                    Decode::decode(&mut &ret.data[..]).ok()
-                })
+                .map(|ret| Decode::decode(&mut &ret.data[..]).ok())
                 .flatten();
             Ok(Contract {
                 address,
