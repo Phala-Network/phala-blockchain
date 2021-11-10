@@ -916,7 +916,15 @@ pub fn apply_pink_side_effects(
         .expect("Derive ecdh_key should not fail");
 
     for (deployer, address) in effects.instantiated {
-        let pink = Pink::from_address(address, group_id.clone());
+        let result = Pink::from_address(address, group_id.clone(), &mut group.storage);
+        let pink = match result {
+            Ok(pink) => pink,
+            Err(err) => {
+                error!("Failed to wrap ink contract into Pink: {}", err);
+                continue;
+            }
+        };
+
         let id = pink.id();
 
         install_contract(
@@ -941,8 +949,8 @@ pub fn apply_pink_side_effects(
     }
 
     for (address, message) in effects.messages {
-        let pink = Pink::from_address(address.clone(), group_id.clone());
-        let contract = match contracts.get(&pink.id()) {
+        let id = Pink::address_to_id(&address);
+        let contract = match contracts.get(&id) {
             Some(contract) => contract,
             None => {
                 panic!(

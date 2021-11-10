@@ -80,7 +80,10 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
             let selector = selector.hex_suffixed();
             quote! {
                 #[no_mangle]
-                pub static PINK_ON_BLOCK_END_SELECTOR: u32  = #selector;
+                fn pink_on_block_end_selector() {
+                    let selector = #selector;
+                    ink_env::return_value(Default::default(), &selector);
+                }
             }
         }
         None => quote! {},

@@ -16,10 +16,12 @@ pub struct ExecError {
     message: String,
 }
 
+#[derive(Debug)]
 struct Hooks {
     on_block_end: Option<u32>,
 }
 
+#[derive(Debug)]
 pub struct Contract {
     pub address: AccountId,
     hooks: Hooks,
@@ -30,11 +32,31 @@ impl Contract {
         Storage::new(Default::default())
     }
 
-    pub fn from_address(address: AccountId) -> Self {
-        Contract {
-            address,
-            hooks: todo!(),
-        }
+    pub fn from_address(address: AccountId, storage: &mut Storage) -> Result<Self, ExecError> {
+        let (contract, _effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
+            let result = Contracts::bare_call(
+                Default::default(),
+                address.clone(),
+                0,
+                GAS_LIMIT * 2,
+                Some("pink_on_block_end_selector"),
+                Default::default(),
+                true,
+            );
+            let on_block_end = result
+                .result
+                .ok()
+                .map(|ret| {
+                    assert!(ret.data.len() > 0);
+                    Decode::decode(&mut &ret.data[..]).ok()
+                })
+                .flatten();
+            Ok(Contract {
+                address,
+                hooks: Hooks { on_block_end },
+            })
+        });
+        contract
     }
 
     /// Create a new contract instance.
@@ -80,7 +102,11 @@ impl Contract {
             }
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         });
-        Ok((Self { address: address?, hooks: todo!()  }, effects))
+        Ok((
+            Self::from_address(address?, storage)
+                .expect("Contract from address should always success."),
+            effects,
+        ))
     }
 
     pub fn new_with_selector(
@@ -118,7 +144,8 @@ impl Contract {
         let (rv, effects) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, input_data, true);
+            let result =
+                Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, None, input_data, true);
             match result.result {
                 Err(err) => {
                     return Err(ExecError {
@@ -166,7 +193,7 @@ impl Contract {
     ) -> Result<ExecSideEffects, ExecError> {
         if let Some(selector) = self.hooks.on_block_end {
             let mut input_data = vec![];
-            selector.encode_to(&mut input_data);
+            selector.to_be_bytes().encode_to(&mut input_data);
 
             let (_rv, effects) = self.bare_call(
                 storage,

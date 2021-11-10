@@ -199,7 +199,7 @@ mod support {
                         info!(target: "contract", "Contract {:?} handling command", self.id());
                         self.contract.handle_command(origin, cmd, &mut context)
                     }
-                    Err(e) => {
+                    Err(_e) => {
                         Err(TransactionError::ChannelError)
                     }
                 },

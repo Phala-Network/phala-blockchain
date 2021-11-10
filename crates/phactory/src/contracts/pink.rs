@@ -56,11 +56,19 @@ impl Pink {
         Ok((Self { group, instance }, effects))
     }
 
-    pub fn from_address(address: AccountId, group: ContractGroupId) -> Self {
-        Self {
-            instance: pink::Contract::from_address(address),
-            group,
-        }
+    pub fn from_address(
+        address: AccountId,
+        group: ContractGroupId,
+        storage: &mut pink::Storage,
+    ) -> Result<Self> {
+        let instance = pink::Contract::from_address(address, storage)
+            .map_err(|err| anyhow!("{:?}", err))?;
+        Ok(Self { instance, group })
+    }
+
+    pub fn address_to_id(address: &AccountId) -> ContractId {
+        let inner: &[u8; 32] = address.as_ref();
+        inner.into()
     }
 }
 
@@ -72,8 +80,7 @@ impl contracts::NativeContract for Pink {
     type QResp = Result<Response, QueryError>;
 
     fn id(&self) -> ContractId {
-        let inner: &[u8; 32] = self.instance.address.as_ref();
-        inner.into()
+        Pink::address_to_id(&self.instance.address)
     }
 
     fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
@@ -233,7 +240,7 @@ pub mod group {
     }
 
     pub struct Group {
-        storage: pink::Storage,
+        pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         key: sr25519::Pair,
     }
