@@ -1,0 +1,13 @@
+---
+source: crates/pink/tests/test_pink_contract.rs
+expression: contract
+
+---
+Contract {
+    address: ad25bb2fd8ea45a7a191bac0968e41eff75dc45efdf5cd66f1a179998521ce8b (5FyjMEiX...),
+    hooks: Hooks {
+        on_block_end: Some(
+            2188995711,
+        ),
+    },
+}

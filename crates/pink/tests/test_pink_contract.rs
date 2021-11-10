@@ -18,7 +18,8 @@ fn test_ink_flip() {
         0,
         0,
     )
-    .unwrap().0;
+    .unwrap()
+    .0;
 
     let result: bool = contract
         .call_with_selector(
@@ -110,7 +111,8 @@ fn test_ink_cross_contract_instanciate() {
         0,
         0,
     )
-    .unwrap().0;
+    .unwrap()
+    .0;
 
     let result: bool = contract
         .call_with_selector(
@@ -169,5 +171,27 @@ fn test_mq_egress() {
             0,
         )
         .unwrap();
+    insta::assert_debug_snapshot!(effects);
+}
+
+#[test]
+fn test_on_block_end() {
+    let mut storage = Contract::new_storage();
+    let (mut contract, _effects) = Contract::new_with_selector(
+        &mut storage,
+        ALICE.clone(),
+        include_bytes!("./fixtures/hooks_test/hooks_test.wasm").to_vec(),
+        hex!("ed4b9d1b"), // init_value
+        (),
+        vec![],
+        1,
+        0,
+    )
+    .unwrap();
+
+    insta::assert_debug_snapshot!(contract);
+
+    let effects = contract.on_block_end(&mut storage, 1, 1).unwrap();
+
     insta::assert_debug_snapshot!(effects);
 }
