@@ -8,10 +8,12 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
+env_logger = "0.9.0"
+log = "0.4"
 tokio = { version = "1.9.0", features = ["full"] }
 structopt = { version = "0.3" }
-phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
-phactory-pal = { path = "../../crates/phactory/pal" }
+text_io = "0.1.9"
+rust-ini = "0.17"
 
 [build-dependencies]
 bindgen = "0.59.1"
