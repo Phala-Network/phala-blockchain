@@ -1,23 +1,18 @@
-use anyhow::{anyhow, Result};
-use core::marker::PhantomData;
+use anyhow::Result;
 use log::{error, info};
-use sp_core::H256;
 use std::time::Duration;
 
 use crate::{
-    chain_client::mq_next_sequence,
-    extra::{EraInfo, ExtraConfig},
+    chain_client::{mq_next_sequence, update_signer_nonce},
+    types::{ParachainApi, PrClient, Signer, SrSigner},
 };
-use sp_runtime::generic::Era;
-use subxt::Signer;
 
-use super::{chain_client::update_signer_nonce, runtimes, PrClient, SrSigner, XtClient};
 
 // TODO.kevin: This struct is no longer needed. Just use a simple function to do the job.
 /// Hold everything needed to sync some egress messages back to the blockchain
 pub struct MsgSync<'a> {
     /// Subxt client
-    client: &'a XtClient,
+    api: &'a ParachainApi,
     /// pRuntime client
     pr: &'a PrClient,
     /// SR25519 signer with a nonce
@@ -35,7 +30,7 @@ pub struct MsgSync<'a> {
 impl<'a> MsgSync<'a> {
     /// Creates a new MsgSync object
     pub fn new(
-        client: &'a XtClient,
+        api: &'a ParachainApi,
         pr: &'a PrClient,
         signer: &'a mut SrSigner,
         tip: u64,
@@ -43,7 +38,7 @@ impl<'a> MsgSync<'a> {
         max_sync_msgs_per_round: u64,
     ) -> Self {
         Self {
-            client,
+            api,
             pr,
             signer,
             nonce_updated: false,
@@ -64,40 +59,13 @@ impl<'a> MsgSync<'a> {
 
         self.maybe_update_signer_nonce().await?;
 
-        let era = if self.longevity > 0 {
-            let header = self
-                .client
-                .header(<Option<H256>>::None)
-                .await?
-                .ok_or_else(|| anyhow!("No header"))?;
-            let number = header.number as u64;
-            let period = self.longevity;
-            let phase = number % period;
-            let era = Era::Mortal(period, phase);
-            info!(
-                "update era: block={}, period={}, phase={}, birth={}, death={}",
-                number,
-                period,
-                phase,
-                era.birth(number),
-                era.death(number)
-            );
-            Some(EraInfo {
-                period,
-                phase,
-                birth_hash: header.hash(),
-            })
-        } else {
-            None
-        };
-
         let mut sync_msgs_count = 0;
 
         'sync_outer: for (sender, messages) in messages {
             if messages.is_empty() {
                 continue;
             }
-            let min_seq = mq_next_sequence(self.client, &sender).await?;
+            let min_seq = mq_next_sequence(self.api, &sender).await?;
 
             info!("Next seq for {} is {}", sender, min_seq);
 
@@ -115,26 +83,19 @@ impl<'a> MsgSync<'a> {
                 );
                 info!("Submitting message: {}", msg_info);
                 let extrinsic = self
-                    .client
-                    .create_signed(
-                        runtimes::phala_mq::SyncOffchainMessageCall {
-                            _runtime: PhantomData,
-                            message,
-                        },
-                        self.signer,
-                        ExtraConfig {
-                            tip: self.tip,
-                            era: era.clone(),
-                        },
-                    )
+                    .api
+                    .tx()
+                    .phala_mq()
+                    .sync_offchain_message(message.into())
+                    .create_signed(self.signer)
                     .await;
                 self.signer.increment_nonce();
                 match extrinsic {
                     Ok(extrinsic) => {
-                        let client = self.client.clone();
+                        let api = ParachainApi::from(self.api.client.clone());
                         tokio::spawn(async move {
                             const TIMEOUT: u64 = 120;
-                            let fut = client.submit_extrinsic(extrinsic);
+                            let fut = api.client.rpc().submit_extrinsic(extrinsic);
                             let result =
                                 tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
                             match result {
@@ -169,7 +130,7 @@ impl<'a> MsgSync<'a> {
     /// The nonce will only be updated once during the lifetime of MsgSync struct.
     async fn maybe_update_signer_nonce(&mut self) -> Result<()> {
         if !self.nonce_updated {
-            update_signer_nonce(self.client, self.signer).await?;
+            update_signer_nonce(self.api, &mut *self.signer).await?;
             self.nonce_updated = true;
         }
         Ok(())

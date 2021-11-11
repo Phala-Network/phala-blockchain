@@ -83,9 +83,8 @@ pub struct SyncHeaderReq {
     pub authority_set_change: Option<AuthoritySetChange>,
 }
 
-// TODO.kevin: import it from some other crate
 #[derive(Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
-pub struct ParaId(u32);
+pub struct ParaId(pub u32);
 
 impl ParaId {
     pub fn new(n: u32) -> ParaId {
