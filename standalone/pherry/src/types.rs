@@ -4,28 +4,24 @@ use phactory_api::{
 };
 use serde::{Deserialize, Serialize};
 use sp_core::sr25519;
-use sp_runtime::{generic::SignedBlock, OpaqueExtrinsic};
+use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
 
-pub use sp_rpc::number::NumberOrHex;
+pub use sp_core::storage::{StorageData, StorageKey};
 
-// Node Runtime
+pub use phaxt::khala::runtime_types::phala_mq::types::*;
+pub use phaxt::*;
+pub use sp_runtime::generic::Block;
+pub use subxt::{rpc::NumberOrHex, Signer};
+pub use phaxt;
 
-use crate::runtimes::PhalaNodeRuntime;
-pub type Runtime = PhalaNodeRuntime;
-pub type Header = <Runtime as subxt::system::System>::Header;
-pub type Hash = <Runtime as subxt::system::System>::Hash;
-pub type Hashing = <Runtime as subxt::system::System>::Hashing;
-pub type OpaqueBlock = sp_runtime::generic::Block<Header, OpaqueExtrinsic>;
-pub type OpaqueSignedBlock = SignedBlock<OpaqueBlock>;
-pub type BlockNumber = <Runtime as subxt::system::System>::BlockNumber;
-
-pub type XtClient = subxt::Client<Runtime>;
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<Runtime, sr25519::Pair>;
+pub type SrSigner = subxt::PairSigner<khala::DefaultConfig, sr25519::Pair>;
+
+pub type SignedBlock<Hdr, Ext> = SpSignedBlock<Block<Hdr, Ext>>;
 
 #[derive(Clone, Debug)]
 pub struct BlockWithChanges {
-    pub block: OpaqueSignedBlock,
+    pub block: SignedBlock<Header, OpaqueExtrinsic>,
     pub storage_changes: StorageChanges,
 }
 
@@ -42,7 +38,7 @@ pub struct NotifyReq {
 
 pub mod utils {
     use super::StorageProof;
-    use subxt::ReadProof;
+    use phaxt::subxt::ReadProof;
     pub fn raw_proof<T>(read_proof: ReadProof<T>) -> StorageProof {
         read_proof.proof.into_iter().map(|p| p.0).collect()
     }

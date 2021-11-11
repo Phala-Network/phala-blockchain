@@ -3,11 +3,13 @@
 exclude = [
 	"substrate",
 	"subxt",
+	"subxt2",
 	"webpki",
 	"ring",
 	"native-nostd-hasher",
 	"standalone/pruntime",
 	"crates/pink/examples/mqproxy",
+	"crates/phaxt",
 ]
 
 members = [

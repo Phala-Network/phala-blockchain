@@ -11,9 +11,13 @@ use phala_mq::MessageDispatcher;
 use phala_mq::Path;
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
-use pherry::chain_client::StorageKey;
-use pherry::types::{BlockNumber, BlockWithChanges, Hashing, NumberOrHex, XtClient};
+use phaxt::rpc::ExtraRpcExt as _;
+use pherry::types::{
+    phaxt, subxt, BlockNumber, BlockWithChanges, Hashing, NumberOrHex, ParachainApi, StorageKey,
+};
 use tokio::sync::{mpsc, Mutex};
+
+use crate::Args;
 
 struct EventRecord {
     sequence: i64,
@@ -148,30 +152,34 @@ impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
 }
 
 pub async fn fetch_genesis_storage(
-    client: &XtClient,
+    api: &ParachainApi,
     pos: BlockNumber,
 ) -> Result<Vec<(Vec<u8>, Vec<u8>)>> {
     let pos = subxt::BlockNumber::from(NumberOrHex::Number(pos.into()));
-    let hash = client.block_hash(Some(pos)).await?;
-    let response = client.rpc.storage_pairs(StorageKey(vec![]), hash).await?;
+    let hash = api.client.rpc().block_hash(Some(pos)).await?;
+    let response = api
+        .client
+        .extra_rpc()
+        .storage_pairs(StorageKey(vec![]), hash)
+        .await?;
     let storage = response.into_iter().map(|(k, v)| (k.0, v.0)).collect();
     Ok(storage)
 }
 
-async fn finalized_number(client: &XtClient) -> Result<BlockNumber> {
-    let hash = client.rpc.finalized_head().await?;
-    let header = client.rpc.header(Some(hash)).await?;
+async fn finalized_number(api: &ParachainApi) -> Result<BlockNumber> {
+    let hash = api.client.rpc().finalized_head().await?;
+    let header = api.client.rpc().header(Some(hash)).await?;
     Ok(header.ok_or(anyhow::anyhow!("Header not found"))?.number)
 }
 
 async fn wait_for_block(
-    client: &XtClient,
+    api: &ParachainApi,
     block: BlockNumber,
     assume_finalized: u32,
 ) -> Result<()> {
     loop {
-        let finalized = finalized_number(client).await.unwrap_or(0);
-        let state = client.rpc.system_sync_state().await?;
+        let finalized = finalized_number(api).await.unwrap_or(0);
+        let state = api.client.extra_rpc().system_sync_state().await?;
         if block <= state.current_block as BlockNumber && block <= finalized.max(assume_finalized) {
             return Ok(());
         }
@@ -186,19 +194,18 @@ async fn wait_for_block(
     }
 }
 
-pub async fn replay(
-    node_uri: String,
-    genesis_block: BlockNumber,
-    db_uri: String,
-    bind_addr: String,
-    assume_finalized: u32,
-) -> Result<()> {
-    let mut client = pherry::subxt_connect(&node_uri, None)
-        .await
-        .expect("Failed to connect to substrate");
-    log::info!("Connected to substrate at: {}", node_uri);
+pub async fn replay(args: Args) -> Result<()> {
+    let db_uri = args.persist_events_to;
+    let bind_addr = args.bind_addr;
+    let assume_finalized = args.assume_finalized;
 
-    let genesis_state = fetch_genesis_storage(&client, genesis_block).await?;
+    let mut api: ParachainApi = pherry::subxt_connect(&args.node_uri)
+        .await
+        .expect("Failed to connect to substrate")
+        .into();
+    log::info!("Connected to substrate at: {}", args.node_uri);
+
+    let genesis_state = fetch_genesis_storage(&api, args.start_at).await?;
     let event_tx = if !db_uri.is_empty() {
         let (event_tx, event_rx) = mpsc::channel(1024 * 5);
         let _db_task =
@@ -217,18 +224,18 @@ pub async fn replay(
         }
     });
 
-    let mut block_number = genesis_block + 1;
+    let mut block_number = args.start_at + 1;
 
     loop {
         loop {
-            if let Err(err) = wait_for_block(&client, block_number, assume_finalized).await {
+            if let Err(err) = wait_for_block(&api, block_number, assume_finalized).await {
                 log::error!("{}", err);
                 if restart_required(&err) {
                     break;
                 }
             }
             log::info!("Fetching block {}", block_number);
-            match pherry::get_block_with_storage_changes(&client, Some(block_number)).await {
+            match pherry::get_block_with_storage_changes(&api, Some(block_number)).await {
                 Ok(block) => {
                     log::info!("Replaying block {}", block_number);
                     factory
@@ -249,17 +256,17 @@ pub async fn replay(
             }
         }
 
-        client = loop {
+        api = loop {
             log::info!("Reconnecting to substrate");
-            let client = match pherry::subxt_connect(&node_uri, None).await {
-                Ok(client) => client,
+            let api = match pherry::subxt_connect(&args.node_uri).await {
+                Ok(client) => client.into(),
                 Err(err) => {
                     log::error!("Failed to connect to substrate: {}", err);
                     tokio::time::sleep(Duration::from_secs(5)).await;
                     continue;
                 }
             };
-            break client;
+            break api;
         }
     }
 }
