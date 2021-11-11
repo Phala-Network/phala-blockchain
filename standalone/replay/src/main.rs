@@ -4,7 +4,7 @@ use structopt::StructOpt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "replay")]
-struct Args {
+pub struct Args {
     #[structopt(
         default_value = "ws://localhost:9944",
         long,
@@ -46,13 +46,5 @@ async fn main() {
     env_logger::init();
 
     let args = Args::from_args();
-    replay_gk::replay(
-        args.node_uri,
-        args.start_at,
-        args.persist_events_to,
-        args.bind_addr,
-        args.assume_finalized,
-    )
-    .await
-    .expect("Failed to run replay");
+    replay_gk::replay(args).await.expect("Failed to run replay");
 }

@@ -1,6 +1,5 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use log::{debug, error, info, warn};
-use phala_pallets::registry::Attestation;
 use sp_core::crypto::AccountId32;
 use std::cmp;
 use std::str::FromStr;
@@ -9,23 +8,23 @@ use structopt::StructOpt;
 use tokio::time::sleep;
 
 use codec::Decode;
-use core::marker::PhantomData;
+use phaxt::rpc::ExtraRpcExt as _;
+use phaxt::subxt;
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
 mod error;
-mod extra;
+// mod extra;
 mod msg_sync;
 mod notify_client;
-mod runtimes;
 
 pub mod chain_client;
 pub mod types;
 
 use crate::error::Error;
 use crate::types::{
-    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, NumberOrHex, OpaqueSignedBlock,
-    PrClient, Runtime, SrSigner, XtClient,
+    BlockNumber, BlockWithChanges, Hash, Header, NotifyReq, NumberOrHex, ParachainApi, PrClient,
+    RelaychainApi, SignedBlock, SrSigner,
 };
 use phactory_api::blocks::{
     self, AuthoritySet, AuthoritySetChange, BlockHeaderWithChanges, HeaderToSync, StorageProof,
@@ -132,9 +131,6 @@ struct Args {
     )]
     operator: Option<String>,
 
-    #[structopt(long = "parachain", help = "Parachain mode")]
-    parachain: bool,
-
     #[structopt(
         long,
         help = "The first parent header to be synced, default to auto-determine"
@@ -170,13 +166,6 @@ struct Args {
     )]
     max_sync_msgs_per_round: u64,
 
-    #[structopt(
-        default_value = "0x5429c83d1da5a9e9cebe51cd4e060a6ad9cec88432ce5f43b1cd2aa82fbb264c",
-        long,
-        help = "Fetch the metadata at this relaychain block. Mitigation for #529. Only used with --parachain"
-    )]
-    b529_mitigation_metadata_block: String,
-
     #[structopt(long, help = "Auto restart self after an error occurred")]
     auto_restart: bool,
 
@@ -199,21 +188,29 @@ struct BlockSyncState {
     authory_set_state: Option<(BlockNumber, SetId)>,
 }
 
-async fn get_header_hash(client: &XtClient, h: Option<u32>) -> Result<Hash> {
+async fn get_header_hash<T: subxt::Config>(
+    client: &subxt::Client<T>,
+    h: Option<u32>,
+) -> Result<T::Hash> {
     let pos = h.map(|h| subxt::BlockNumber::from(NumberOrHex::Number(h.into())));
     let hash = match pos {
         Some(_) => client
+            .rpc()
             .block_hash(pos)
             .await?
             .ok_or(Error::BlockHashNotFound)?,
-        None => client.finalized_head().await?,
+        None => client.rpc().finalized_head().await?,
     };
     Ok(hash)
 }
 
-async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<(OpaqueSignedBlock, Hash)> {
+async fn get_block_at<T: subxt::Config>(
+    client: &subxt::Client<T>,
+    h: Option<u32>,
+) -> Result<(SignedBlock<T::Header, T::Extrinsic>, T::Hash)> {
     let hash = get_header_hash(client, h).await?;
     let block = client
+        .rpc()
         .block(Some(hash.clone()))
         .await?
         .ok_or(Error::BlockNotFound)?;
@@ -222,10 +219,10 @@ async fn get_block_at(client: &XtClient, h: Option<u32>) -> Result<(OpaqueSigned
 }
 
 async fn get_block_without_storage_changes(
-    client: &XtClient,
+    api: &RelaychainApi,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
-    let (block, hash) = get_block_at(&client, h).await?;
+    let (block, hash) = get_block_at(&api.client, h).await?;
     info!("get_block: Got block {:?} hash {}", h, hash.to_string());
     return Ok(BlockWithChanges {
         block,
@@ -234,59 +231,65 @@ async fn get_block_without_storage_changes(
 }
 
 pub async fn get_block_with_storage_changes(
-    client: &XtClient,
+    api: &ParachainApi,
     h: Option<u32>,
 ) -> Result<BlockWithChanges> {
-    let (block, hash) = get_block_at(&client, h).await?;
+    let (block, hash) = get_block_at(&api.client, h).await?;
     info!(
         "get_block (w/changes): Got block {:?} hash {}",
         h,
         hash.to_string()
     );
     let hash = block.block.header.hash();
-    let storage_changes = chain_client::fetch_storage_changes(&client, &hash).await?;
+    let storage_changes = chain_client::fetch_storage_changes(&api, &hash).await?;
     return Ok(BlockWithChanges {
         block,
         storage_changes,
     });
 }
 
-async fn get_authority_with_proof_at(client: &XtClient, hash: Hash) -> Result<AuthoritySetChange> {
-    use subxt::Store;
+async fn get_authority_with_proof_at(
+    api: &RelaychainApi,
+    hash: Hash,
+) -> Result<AuthoritySetChange> {
     // Storage
     let authority_set_key = StorageKey(GRANDPA_AUTHORITIES_KEY.to_vec());
-    let id_key = runtimes::grandpa::CurrentSetIdStore::<Runtime>::new()
-        .key(&client.metadata())
-        .expect("Must have grandpa::CurrentSetId");
+    let id_key = phaxt::storage_key(phaxt::kusama::grandpa::storage::CurrentSetId);
     // Authority set
-    let value = chain_client::get_storage(&client, Some(hash), authority_set_key.clone())
+    let value = api
+        .client
+        .rpc()
+        .storage(&authority_set_key, Some(hash))
         .await?
-        .expect("No authority key found");
+        .expect("No authority key found")
+        .0;
     let list: AuthorityList = VersionedAuthorityList::decode(&mut value.as_slice())
         .expect("Failed to decode VersionedAuthorityList")
         .into();
+
     // Set id
-    let id = client
-        .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+    let id = api
+        .storage()
+        .grandpa()
+        .current_set_id(Some(hash))
         .await
         .map_err(|_| Error::NoSetIdAtBlock)?;
     // Proof
     let proof =
-        chain_client::read_proofs(&client, Some(hash), vec![authority_set_key, id_key]).await?;
+        chain_client::read_proofs(&api, Some(hash), vec![authority_set_key, id_key]).await?;
     Ok(AuthoritySetChange {
         authority_set: AuthoritySet { list, id },
         authority_proof: proof,
     })
 }
 
-async fn get_paraid(
-    client: &XtClient,
-    hash: Option<Hash>,
-) -> Result<runtimes::parachain_info::ParachainId, Error> {
-    client
-        .fetch_or_default(&runtimes::parachain_info::ParachainIdStore::new(), hash)
+async fn get_paraid(api: &ParachainApi, hash: Option<Hash>) -> Result<u32, Error> {
+    api.storage()
+        .parachain_info()
+        .parachain_id(hash)
         .await
         .or(Err(Error::ParachainIdNotFound))
+        .map(|id| id.0)
 }
 
 /// Returns the next set_id change by a binary search on the known blocks
@@ -294,7 +297,7 @@ async fn get_paraid(
 /// `known_blocks` must have at least one block with block justification, otherwise raise an error
 /// `NoJustificationInRange`. If there's no set_id change in the given blocks, it returns None.
 async fn bisec_setid_change(
-    client: &XtClient,
+    api: &RelaychainApi,
     last_set: (BlockNumber, SetId),
     known_blocks: &Vec<BlockWithChanges>,
 ) -> Result<Option<BlockNumber>> {
@@ -314,8 +317,10 @@ async fn bisec_setid_change(
     while l <= r {
         let mid = (l + r) / 2;
         let hash = headers[mid as usize].hash();
-        let set_id = client
-            .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), Some(hash))
+        let set_id = api
+            .storage()
+            .grandpa()
+            .current_set_id(Some(hash))
             .await
             .map_err(|_| Error::NoSetIdAtBlock)?;
         // Left: set_id == last_id, Right: set_id > last_id
@@ -399,13 +404,12 @@ async fn sync_events_only(
 const GRANDPA_ENGINE_ID: sp_runtime::ConsensusEngineId = *b"FRNK";
 
 async fn batch_sync_block(
-    client: &XtClient,
-    paraclient: &XtClient,
+    api: &RelaychainApi,
+    paraclient: &ParachainApi,
     pr: &PrClient,
     sync_state: &mut BlockSyncState,
     batch_window: usize,
     info: &prpc::PhactoryInfo,
-    parachain: bool,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -423,9 +427,11 @@ async fn batch_sync_block(
         } else {
             // Construct the authority set from the last block we have synced (the genesis)
             let number = &block_buf.first().unwrap().block.block.header.number - 1;
-            let hash = client.block_hash(Some(number.into())).await?;
-            let set_id = client
-                .fetch_or_default(&runtimes::grandpa::CurrentSetIdStore::new(), hash)
+            let hash = api.client.rpc().block_hash(Some(number.into())).await?;
+            let set_id = api
+                .storage()
+                .grandpa()
+                .current_set_id(hash)
                 .await
                 .map_err(|_| Error::NoSetIdAtBlock)?;
             let set = (number, set_id);
@@ -433,7 +439,7 @@ async fn batch_sync_block(
             set
         };
         // Find the next set id change
-        let set_id_change_at = bisec_setid_change(client, last_set, block_buf).await?;
+        let set_id_change_at = bisec_setid_change(api, last_set, block_buf).await?;
         let last_number_in_buff = block_buf.last().unwrap().block.block.header.number;
         // Search
         // Find the longest batch within the window
@@ -502,8 +508,7 @@ async fn batch_sync_block(
         let mut authrotiy_change: Option<AuthoritySetChange> = None;
         if let Some(change_at) = set_id_change_at {
             if change_at == last_header_number {
-                authrotiy_change =
-                    Some(get_authority_with_proof_at(&client, last_header_hash).await?);
+                authrotiy_change = Some(get_authority_with_proof_at(&api, last_header_hash).await?);
             }
         }
 
@@ -522,25 +527,18 @@ async fn batch_sync_block(
         info!("  ..sync_header: {:?}", r);
         next_headernum = r.synced_to + 1;
 
-        if parachain {
-            let hdr_synced_to = sync_parachain_header(
-                pr,
-                client,
-                paraclient,
-                last_header_hash,
-                next_para_headernum,
-            )
-            .await?;
-            next_para_headernum = hdr_synced_to + 1;
-            let mut para_blocks = Vec::new();
-            if next_blocknum <= hdr_synced_to {
-                for b in next_blocknum..=hdr_synced_to {
-                    let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
-                    para_blocks.push(block.clone());
-                }
+        let hdr_synced_to =
+            sync_parachain_header(pr, api, paraclient, last_header_hash, next_para_headernum)
+                .await?;
+        next_para_headernum = hdr_synced_to + 1;
+        let mut para_blocks = Vec::new();
+        if next_blocknum <= hdr_synced_to {
+            for b in next_blocknum..=hdr_synced_to {
+                let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
+                para_blocks.push(block.clone());
             }
-            block_batch = para_blocks;
         }
+        block_batch = para_blocks;
 
         let dispatch_window = batch_window - 1;
         while !block_batch.is_empty() {
@@ -576,28 +574,27 @@ async fn batch_sync_block(
 
 async fn sync_parachain_header(
     pr: &PrClient,
-    client: &XtClient,
-    paraclient: &XtClient,
+    api: &RelaychainApi,
+    para_api: &ParachainApi,
     last_header_hash: Hash,
     next_headernum: BlockNumber,
 ) -> Result<BlockNumber> {
-    let para_id = get_paraid(paraclient, None).await?;
-    let para_head_storage_key = chain_client::paras_heads_key(&para_id);
+    let para_id = get_paraid(para_api, None).await?;
+    let para_head_storage_key = chain_client::paras_heads_key(para_id);
 
-    let raw_header = chain_client::get_storage(
-        &client,
-        Some(last_header_hash),
-        para_head_storage_key.clone(),
-    )
-    .await?;
+    let raw_header = api
+        .client
+        .rpc()
+        .storage(&para_head_storage_key, Some(last_header_hash))
+        .await?;
 
     let raw_header = if let Some(hdr) = raw_header {
-        hdr
+        hdr.0
     } else {
         return Ok(0);
     };
 
-    let para_fin_header_data = chain_client::get_parachain_heads(raw_header.clone())?;
+    let para_fin_header_data = chain_client::decode_parachain_heads(raw_header.clone())?;
 
     let para_fin_header =
         sp_runtime::generic::Header::<BlockNumber, sp_runtime::traits::BlakeTwo256>::decode(
@@ -611,12 +608,9 @@ async fn sync_parachain_header(
         para_fin_block_number
     );
 
-    let header_proof = chain_client::read_proof(
-        &client,
-        Some(last_header_hash),
-        para_head_storage_key.clone(),
-    )
-    .await?;
+    let header_proof =
+        chain_client::read_proof(api, Some(last_header_hash), para_head_storage_key.clone())
+            .await?;
 
     if next_headernum > para_fin_block_number {
         return Ok(next_headernum - 1);
@@ -624,7 +618,7 @@ async fn sync_parachain_header(
     let mut para_headers = Vec::new();
     for b in next_headernum..=para_fin_block_number {
         let num = subxt::BlockNumber::from(NumberOrHex::Number(b.into()));
-        let hash = paraclient.block_hash(Some(num)).await?;
+        let hash = para_api.client.rpc().block_hash(Some(num)).await?;
         let hash = match hash {
             Some(hash) => hash,
             None => {
@@ -632,7 +626,9 @@ async fn sync_parachain_header(
                 return Ok(next_headernum - 1);
             }
         };
-        let header = paraclient
+        let header = para_api
+            .client
+            .rpc()
             .header(Some(hash))
             .await?
             .ok_or(Error::BlockNotFound)?;
@@ -649,46 +645,49 @@ async fn sync_parachain_header(
 /// standalone blockchain, and resolve to the last relay chain block before the frist parachain
 /// parent block. This behavior matches the one on PRB.
 async fn resolve_start_header(
-    paraclient: &XtClient,
-    is_parachain: bool,
+    para_api: &ParachainApi,
     start_header: Option<BlockNumber>,
 ) -> Result<BlockNumber> {
     if let Some(start_header) = start_header {
         return Ok(start_header);
     }
-    if !is_parachain {
-        return Ok(0);
-    }
-    let h1 = paraclient
+    let h1 = para_api
+        .client
+        .rpc()
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(1))))
         .await?;
-    let validation_data = paraclient
-        .fetch_or_default(&runtimes::parachain_system::ValidationDataStore::new(), h1)
+    let validation_data = para_api
+        .storage()
+        .parachain_system()
+        .validation_data(h1)
         .await
-        .or(Err(Error::ParachainValidationDataNotFound))?;
+        .ok()
+        .flatten()
+        .ok_or(Error::ParachainValidationDataNotFound)?;
     Ok((validation_data.relay_parent_number - 1) as BlockNumber)
 }
 
 async fn init_runtime(
-    client: &XtClient,
-    paraclient: &XtClient,
+    api: &RelaychainApi,
+    para_api: &ParachainApi,
     pr: &PrClient,
     skip_ra: bool,
     use_dev_key: bool,
     inject_key: &str,
     operator: Option<AccountId32>,
-    is_parachain: bool,
     start_header: BlockNumber,
 ) -> Result<InitRuntimeResponse> {
-    let genesis_block = get_block_at(client, Some(start_header)).await?.0.block;
-    let hash = client
+    let genesis_block = get_block_at(&api.client, Some(start_header)).await?.0.block;
+    let hash = api
+        .client
+        .rpc()
         .block_hash(Some(subxt::BlockNumber::from(NumberOrHex::Number(
             start_header as _,
         ))))
         .await?
         .expect("No genesis block?");
-    let set_proof = get_authority_with_proof_at(client, hash).await?;
-    let genesis_state = chain_client::fetch_genesis_storage(paraclient).await?;
+    let set_proof = get_authority_with_proof_at(api, hash).await?;
+    let genesis_state = chain_client::fetch_genesis_storage(para_api).await?;
     let genesis_info = blocks::GenesisBlockInfo {
         block_header: genesis_block.header,
         authority_set: set_proof.authority_set,
@@ -714,14 +713,14 @@ async fn init_runtime(
             debug_set_key,
             genesis_state,
             operator,
-            is_parachain,
+            true,
         ))
         .await?;
     Ok(resp)
 }
 
 async fn register_worker(
-    paraclient: &XtClient,
+    para_api: &ParachainApi,
     encoded_runtime_info: Vec<u8>,
     attestation: prpc::Attestation,
     signer: &mut SrSigner,
@@ -729,18 +728,21 @@ async fn register_worker(
     let payload = attestation
         .payload
         .ok_or(anyhow!("Missing attestation payload"))?;
-    let call = runtimes::phala_registry::RegisterWorkerCall {
-        _runtime: PhantomData,
-        pruntime_info: Decode::decode(&mut &encoded_runtime_info[..])
-            .map_err(|_| anyhow!("Decode pruntime info failed"))?,
-        attestation: Attestation::SgxIas {
+    let pruntime_info = Decode::decode(&mut &encoded_runtime_info[..])
+        .map_err(|_| anyhow!("Decode pruntime info failed"))?;
+    let attestation =
+        phaxt::khala::runtime_types::phala_pallets::utils::attestation::Attestation::SgxIas {
             ra_report: payload.report.as_bytes().to_vec(),
             signature: payload.signature,
             raw_signing_cert: payload.signing_cert,
-        },
-    };
-    chain_client::update_signer_nonce(paraclient, signer).await?;
-    let ret = paraclient.watch(call, signer).await;
+        };
+    chain_client::update_signer_nonce(para_api, signer).await?;
+    let ret = para_api
+        .tx()
+        .phala_registry()
+        .register_worker(pruntime_info, attestation)
+        .sign_and_submit_then_watch(signer)
+        .await;
     if ret.is_err() {
         error!("FailedToCallRegisterWorker: {:?}", ret);
         return Err(anyhow!(Error::FailedToCallRegisterWorker));
@@ -751,7 +753,7 @@ async fn register_worker(
 
 async fn try_register_worker(
     pr: &PrClient,
-    paraclient: &XtClient,
+    paraclient: &ParachainApi,
     signer: &mut SrSigner,
 ) -> Result<()> {
     let info = pr.get_runtime_info(()).await?;
@@ -764,9 +766,9 @@ async fn try_register_worker(
 
 const DEV_KEY: &str = "0000000000000000000000000000000000000000000000000000000000000001";
 
-async fn wait_until_synced(client: &XtClient) -> Result<()> {
+async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Result<()> {
     loop {
-        let state = client.rpc.system_sync_state().await?;
+        let state = client.extra_rpc().system_sync_state().await?;
         info!(
             "Checking synced: current={} highest={:?}",
             state.current_block, state.highest_block
@@ -780,51 +782,31 @@ async fn wait_until_synced(client: &XtClient) -> Result<()> {
     }
 }
 
-pub async fn subxt_connect(uri: &str, hash: Option<sp_core::H256>) -> Result<XtClient> {
-    let client = subxt::ClientBuilder::<Runtime>::new()
+pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<T>> {
+    subxt::ClientBuilder::new()
         .set_url(uri)
-        .skip_type_sizes_check()
-        .build_at(hash)
-        .await?;
-    Ok(client)
+        .build()
+        .await
+        .context("Connect to substrate")
 }
 
 async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
     // Connect to substrate
 
-    // TODO: Mitigation for #529. It tries to fetch the Metadata v13. Remove once subxt supports
-    // Metadata v14.
-    let maybe_block_hash = if args.parachain {
-        if args.b529_mitigation_metadata_block.is_empty() {
-            None
-        } else {
-            Some(sp_core::H256::from_str(
-                &args.b529_mitigation_metadata_block,
-            )?)
-        }
-    } else {
-        None
-    };
+    let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?.into();
+    info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
 
-    let client = subxt_connect(&args.substrate_ws_endpoint, maybe_block_hash).await?;
-    info!("Connected to substrate at: {}", args.substrate_ws_endpoint);
-
-    let paraclient = if args.parachain {
-        let paraclient = subxt_connect(&args.collator_ws_endpoint, None).await?;
-        info!(
-            "Connected to parachain node at: {}",
-            args.collator_ws_endpoint
-        );
-        paraclient
-    } else {
-        client.clone()
-    };
+    let para_api: ParachainApi = subxt_connect(&args.collator_ws_endpoint).await?.into();
+    info!(
+        "Connected to parachain node at: {}",
+        args.collator_ws_endpoint
+    );
 
     if !args.no_wait {
         // Don't start our worker until the substrate node is synced
         info!("Waiting for substrate to sync blocks...");
-        wait_until_synced(&client).await?;
-        wait_until_synced(&paraclient).await?;
+        wait_until_synced(&api.client).await?;
+        wait_until_synced(&para_api.client).await?;
         info!("Substrate sync blocks done");
     }
 
@@ -851,18 +833,16 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
                     Some(parsed_operator)
                 }
             };
-            let start_header =
-                resolve_start_header(&paraclient, args.parachain, args.start_header).await?;
+            let start_header = resolve_start_header(&para_api, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
-                &client,
-                &paraclient,
+                &api,
+                &para_api,
                 &pr,
                 !args.ra,
                 args.use_dev_key,
                 &args.inject_key,
                 operator,
-                args.parachain,
                 start_header,
             )
             .await?;
@@ -900,7 +880,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
 
     if args.no_sync {
         if !args.no_register {
-            try_register_worker(&pr, &paraclient, &mut signer).await?;
+            try_register_worker(&pr, &para_api, &mut signer).await?;
             flags.worker_registered = true;
         }
         warn!("Block sync disabled.");
@@ -930,7 +910,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
         .await
         .ok();
 
-        let latest_block = get_block_at(&client, None).await?.0.block;
+        let latest_block = get_block_at(&api.client, None).await?.0.block;
         // remove the blocks not needed in the buffer. info.blocknum is the next required block
         while let Some(ref b) = sync_state.blocks.first() {
             if b.block.block.header.number >= info.blocknum {
@@ -939,26 +919,14 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
             sync_state.blocks.remove(0);
         }
 
-        if args.parachain {
-            info!(
-                "try to sync blocks. next required: (relay_header={}, para_header={}, body={}), relay finalized tip: {}, buffered: {}",
-                info.headernum, info.para_headernum, info.blocknum, latest_block.header.number, sync_state.blocks.len());
-        } else {
-            info!(
-                "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
-                info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
-        }
+        info!(
+            "try to sync blocks. next required: (relay_header={}, para_header={}, body={}), relay finalized tip: {}, buffered: {}",
+            info.headernum, info.para_headernum, info.blocknum, latest_block.header.number, sync_state.blocks.len());
 
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
-            None => {
-                if args.parachain {
-                    info.headernum
-                } else {
-                    info.blocknum
-                }
-            }
+            None => info.headernum,
         };
 
         let (batch_end, more_blocks) = {
@@ -973,11 +941,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
 
         // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
-            let block = if args.parachain {
-                get_block_without_storage_changes(&client, Some(b)).await?
-            } else {
-                get_block_with_storage_changes(&client, Some(b)).await?
-            };
+            let block = get_block_without_storage_changes(&api, Some(b)).await?;
             if block.block.justifications.is_some() {
                 debug!(
                     "block with justification at: {}",
@@ -987,11 +951,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
             sync_state.blocks.push(block.clone());
         }
 
-        let next_headernum = if args.parachain {
-            info.para_headernum
-        } else {
-            info.headernum
-        };
+        let next_headernum = info.para_headernum;
 
         // if the header syncs faster than the event, let the events to catch up
         if next_headernum > info.blocknum {
@@ -1000,13 +960,12 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
 
         // send the blocks to pRuntime in batch
         let synced_blocks = batch_sync_block(
-            &client,
-            &paraclient,
+            &api,
+            &para_api,
             &pr,
             &mut sync_state,
             args.sync_blocks,
             &info,
-            args.parachain,
         )
         .await?;
 
@@ -1014,7 +973,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
         if synced_blocks == 0 && !more_blocks {
             if !initial_sync_finished && !args.no_register {
                 if !flags.worker_registered {
-                    try_register_worker(&pr, &paraclient, &mut signer).await?;
+                    try_register_worker(&pr, &para_api, &mut signer).await?;
                     flags.worker_registered = true;
                 }
             }
@@ -1033,7 +992,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_msg_submit {
                 let mut msg_sync = msg_sync::MsgSync::new(
-                    &paraclient,
+                    &para_api,
                     &pr,
                     &mut signer,
                     args.tip,
