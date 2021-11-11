@@ -17,14 +17,14 @@ pub struct ExecError {
 }
 
 #[derive(Debug)]
-struct Hooks {
+struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
 #[derive(Debug)]
 pub struct Contract {
     pub address: AccountId,
-    hooks: Hooks,
+    hooks: HookSelectors,
 }
 
 impl Contract {
@@ -38,7 +38,7 @@ impl Contract {
                 Default::default(),
                 address.clone(),
                 0,
-                GAS_LIMIT * 2,
+                GAS_LIMIT,
                 Some("pink_on_block_end_selector"),
                 Default::default(),
                 true,
@@ -50,7 +50,7 @@ impl Contract {
                 .flatten();
             Ok(Contract {
                 address,
-                hooks: Hooks { on_block_end },
+                hooks: HookSelectors { on_block_end },
             })
         });
         contract
@@ -141,8 +141,7 @@ impl Contract {
         let (rv, effects) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            let result =
-                Contracts::bare_call(origin, addr, 0, GAS_LIMIT * 2, None, input_data, true);
+            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true);
             match result.result {
                 Err(err) => {
                     return Err(ExecError {
