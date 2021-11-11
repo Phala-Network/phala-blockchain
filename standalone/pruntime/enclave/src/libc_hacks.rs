@@ -67,10 +67,8 @@ pub extern "C" fn posix_memalign(memptr: *mut *mut c_void, align: size_t, size: 
         if ptr.is_null() && size > 0 {
             libc::ENOMEM
         } else {
-            unsafe {
-                // Initialize the alloced memory to avoid non-deterministic behaivor as much as possible.
-                sgx_libc::memset(ptr, 0, size);
-            }
+            // Initialize the alloced memory to avoid non-deterministic behaivor as much as possible.
+            sgx_libc::memset(ptr, 0, size);
             *memptr = ptr;
             0
         }
@@ -99,6 +97,11 @@ pub extern "C" fn writev(fd: c_int, iov: *const iovec, iovcnt: c_int) -> ssize_t
     assert_eq_size!(libc::iovec, sgx_libc::iovec);
 
     unsafe { ocall::writev(fd, iov as _, iovcnt) }
+}
+
+#[no_mangle]
+pub extern "C" fn lseek64(fd: c_int, offset: libc::off64_t, whence: c_int) -> libc::off64_t {
+    unsafe { ocall::lseek64(fd, offset, whence) }
 }
 
 #[no_mangle]
