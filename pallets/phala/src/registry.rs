@@ -98,7 +98,7 @@ pub mod pallet {
 
 	/// The contract counter.
 	#[pallet::storage]
-	pub type ContractCounter<T> = StorageValue<_, u64, ValueQuery>;
+	pub type ContractGroupCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
@@ -391,7 +391,7 @@ pub mod pallet {
 				Error::<T>::CodeNotFound
 			);
 
-			let counter = ContractCounter::<T>::mutate(|counter| {
+			let counter = ContractGroupCounter::<T>::mutate(|counter| {
 				*counter += 1;
 				*counter
 			});
