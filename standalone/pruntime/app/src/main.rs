@@ -97,9 +97,9 @@ lazy_static! {
         )
     };
     static ref ALLOW_CORS: bool =
-        { env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "" };
+        env::var("ALLOW_CORS").unwrap_or_else(|_| "".to_string()) != "";
     static ref ENABLE_KICK_API: bool =
-        { env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != "" };
+        env::var("ENABLE_KICK_API").unwrap_or_else(|_| "".to_string()) != "";
 }
 
 fn destroy_enclave() {

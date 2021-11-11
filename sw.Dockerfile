@@ -11,7 +11,7 @@ RUN bash /root/02_pip.sh
 ADD ./dockerfile.d/03_sdk.sh /root
 RUN bash /root/03_sdk.sh
 
-ARG RUST_TOOLCHAIN='nightly-2021-09-01'
+ARG RUST_TOOLCHAIN='nightly-2021-11-11'
 ADD ./dockerfile.d/05_rust.sh /root
 RUN bash /root/05_rust.sh
 
