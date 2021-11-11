@@ -37,7 +37,7 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract,
+    contract::{self, CodeIndex},
     messaging::{
         DispatchContractKeyEvent, DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch,
         HeartbeatChallenge, KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent,
@@ -894,17 +894,22 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let contract_key = ContractKey::restore_from_seed(&event.seed);
         let contract_pubkey = contract_key.public();
-        let code = chain_state::read_contract_code(block.storage, event.code_hash);
-        if let Some(code) = code {
-            if !self.contract_keys.contains_key(&contract_pubkey) {
-                self.contract_keys.insert(contract_pubkey, contract_key);
-                // TODO(shelven): install the contract from chain
+        match event.code_index {
+            CodeIndex::NativeCode(contract_id) => {}
+            CodeIndex::WasmCode(code_hash) => {
+                let code = chain_state::read_contract_code(block.storage, code_hash);
+                if let Some(code) = code {
+                    if !self.contract_keys.contains_key(&contract_pubkey) {
+                        self.contract_keys.insert(contract_pubkey, contract_key);
+                        // TODO(shelven): install the contract from chain
+                    }
+                } else {
+                    warn!(
+                        "Contract code not found for {}",
+                        hex::encode(contract_key.public())
+                    );
+                }
             }
-        } else {
-            warn!(
-                "Contract code not found for {}",
-                hex::encode(contract_key.public())
-            );
         }
     }
 

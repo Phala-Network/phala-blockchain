@@ -24,7 +24,7 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::ContractEvent,
-		contract::ContractInfo,
+		contract::{CodeIndex, ContractId32, ContractInfo},
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
 			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
@@ -95,6 +95,10 @@ pub mod pallet {
 	/// A mapping from an original code hash to the original code, untouched by instrumentation.
 	#[pallet::storage]
 	pub type PristineCode<T: Config> = StorageMap<_, Identity, CodeHash<T>, Vec<u8>>;
+
+	/// A list of all the available natives contracts
+	#[pallet::storage]
+	pub type NativeContractCode<T: Config> = StorageValue<_, Vec<ContractId32>, ValueQuery>;
 
 	/// The contract counter.
 	#[pallet::storage]
@@ -178,6 +182,7 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Contract related
 		CodeNotFound,
+		NativeContractNotFound,
 		DuplicatedContractPubkey,
 	}
 
@@ -380,26 +385,38 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			// #[pallet::compact] endowment: BalanceOf<T>,
 			// #[pallet::compact] gas_limit: Weight,
-			code_hash: CodeHash<T>,
+			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
 			deploy_worker: Option<WorkerPublicKey>,
 		) -> DispatchResult {
 			let owner = ensure_signed(origin)?;
-			ensure!(
-				PristineCode::<T>::contains_key(code_hash),
-				Error::<T>::CodeNotFound
-			);
 
-			let counter = ContractGroupCounter::<T>::mutate(|counter| {
-				*counter += 1;
-				*counter
+			match code_index {
+				CodeIndex::NativeCode(contract_id) => {
+					let native_contracts = NativeContractCode::<T>::get();
+					ensure!(
+						native_contracts.contains(&contract_id),
+						Error::<T>::NativeContractNotFound
+					)
+				}
+				CodeIndex::WasmCode(code_hash) => {
+					ensure!(
+						PristineCode::<T>::contains_key(code_hash),
+						Error::<T>::CodeNotFound
+					);
+				}
+			}
+
+			let group_counter = ContractGroupCounter::<T>::mutate(|group_counter| {
+				*group_counter += 1;
+				*group_counter
 			});
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
-				code_hash,
+				code_index,
 				owner,
-				counter,
+				group_counter,
 				salt,
 			};
 			Self::push_message(ContractEvent::instantiate_code(

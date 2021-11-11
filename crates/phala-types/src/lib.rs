@@ -23,7 +23,7 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract;
+    use crate::contract::{self, CodeIndex};
     pub use phala_mq::types::*;
     pub use phala_mq::{bind_contract32, bind_topic};
 
@@ -451,12 +451,12 @@ pub mod messaging {
 
         pub fn contract_key_distribution(
             seed: Seed,
-            code_hash: CodeHash,
+            code_index: CodeIndex<CodeHash>,
             expiration: BlockNumber,
         ) -> KeyDistribution<CodeHash, BlockNumber> {
             KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
                 seed,
-                code_hash,
+                code_index,
                 expiration,
             })
         }
@@ -477,10 +477,10 @@ pub mod messaging {
         pub iv: AeadIV,
     }
 
-    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq)]
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
     pub struct DispatchContractKeyEvent<CodeHash, BlockNumber> {
         pub seed: Seed,
-        pub code_hash: CodeHash,
+        pub code_index: CodeIndex<CodeHash>,
         pub expiration: BlockNumber,
     }
 

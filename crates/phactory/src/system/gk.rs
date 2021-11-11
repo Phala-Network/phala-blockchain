@@ -359,7 +359,7 @@ where
                     .bind_remote_key(Some(&deploy_worker.0))
                     .push_message(&KeyDistribution::contract_key_distribution(
                         contract_key.dump_seed(),
-                        contract_info.code_hash,
+                        contract_info.code_index,
                         0,
                     ));
                 // finally, make the call

@@ -18,6 +18,12 @@ pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+pub enum CodeIndex<CodeHash> {
+    NativeCode(ContractId32),
+    WasmCode(CodeHash),
+}
+
 pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
@@ -54,10 +60,10 @@ pub mod messaging {
 /// On-chain contract registration info
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct ContractInfo<CodeHash, AccountId> {
-    pub code_hash: CodeHash,
+    pub code_index: CodeIndex<CodeHash>,
     pub owner: AccountId,
-    /// Contract counter of the contract
-    pub counter: u64,
+    /// Contract group counter of the contract
+    pub group_counter: u64,
     pub salt: Vec<u8>,
 }
 
