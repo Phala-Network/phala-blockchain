@@ -5,15 +5,16 @@ pub mod kusama {}
 
 mod convert;
 mod workaround;
+
+pub mod extra;
 pub mod rpc;
 pub mod khala_config;
-
 pub use khala_config::*;
-pub use subxt;
 
-pub type ParachainApi = khala::RuntimeApi<khala::DefaultConfig>;
+pub type ParachainApi = khala::RuntimeApi<khala_config::KhalaConfig>;
 pub type RelaychainApi = kusama::RuntimeApi<kusama::DefaultConfig>;
 
+pub use subxt;
 pub use subxt::sp_core::storage::{StorageData, StorageKey};
 
 pub fn storage_key<T: subxt::StorageEntry>(entry: T) -> StorageKey {

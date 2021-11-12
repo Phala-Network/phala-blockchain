@@ -1,12 +1,13 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use log::{error, info};
+use sp_runtime::generic::Era;
 use std::time::Duration;
 
 use crate::{
     chain_client::{mq_next_sequence, update_signer_nonce},
-    types::{ParachainApi, PrClient, Signer, SrSigner},
+    types::{Hash, ParachainApi, PrClient, Signer, SrSigner},
 };
-
+use phaxt::extra::{EraInfo, ExtraConfig};
 
 // TODO.kevin: This struct is no longer needed. Just use a simple function to do the job.
 /// Hold everything needed to sync some egress messages back to the blockchain
@@ -59,6 +60,35 @@ impl<'a> MsgSync<'a> {
 
         self.maybe_update_signer_nonce().await?;
 
+        let era = if self.longevity > 0 {
+            let header = self
+                .api
+                .client
+                .rpc()
+                .header(<Option<Hash>>::None)
+                .await?
+                .ok_or_else(|| anyhow!("No header"))?;
+            let number = header.number as u64;
+            let period = self.longevity;
+            let phase = number % period;
+            let era = Era::Mortal(period, phase);
+            info!(
+                "update era: block={}, period={}, phase={}, birth={}, death={}",
+                number,
+                period,
+                phase,
+                era.birth(number),
+                era.death(number)
+            );
+            Some(EraInfo {
+                period,
+                phase,
+                birth_hash: header.hash(),
+            })
+        } else {
+            None
+        };
+
         let mut sync_msgs_count = 0;
 
         'sync_outer: for (sender, messages) in messages {
@@ -87,7 +117,13 @@ impl<'a> MsgSync<'a> {
                     .tx()
                     .phala_mq()
                     .sync_offchain_message(message.into())
-                    .create_signed(self.signer)
+                    .create_signed(
+                        self.signer,
+                        ExtraConfig {
+                            tip: self.tip,
+                            era: era.clone(),
+                        },
+                    )
                     .await;
                 self.signer.increment_nonce();
                 match extrinsic {

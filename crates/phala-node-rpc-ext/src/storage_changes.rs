@@ -1,4 +1,5 @@
 use super::*;
+pub use ext_types::*;
 
 /// State RPC errors.
 #[derive(Debug, thiserror::Error)]
@@ -40,31 +41,6 @@ impl From<Error> for jsonrpc_core::Error {
         }
     }
 }
-
-/// Storage key.
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub struct StorageKey(#[serde(with = "impl_serde::serialize")] Vec<u8>);
-
-/// Storage value.
-pub type StorageValue = StorageKey;
-
-/// In memory array of storage values.
-pub type StorageCollection<K, V> = Vec<(K, Option<V>)>;
-
-/// In memory arrays of storage values for multiple child tries.
-pub type ChildStorageCollection<K, V> = Vec<(K, StorageCollection<K, V>)>;
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-#[serde(rename_all = "camelCase")]
-pub struct StorageChanges {
-    /// A value of `None` means that it was deleted.
-    pub main_storage_changes: StorageCollection<StorageKey, StorageValue>,
-    /// All changes to the child storages.
-    pub child_storage_changes: ChildStorageCollection<StorageKey, StorageValue>,
-}
-
-/// Response for the `pha_getStorageChanges` RPC.
-pub type GetStorageChangesResponse = Vec<StorageChanges>;
 
 pub(super) fn get_storage_changes<Client, BE, Block>(
     client: &Client,
