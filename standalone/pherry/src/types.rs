@@ -8,14 +8,13 @@ use sp_runtime::{generic::SignedBlock as SpSignedBlock, OpaqueExtrinsic};
 
 pub use sp_core::storage::{StorageData, StorageKey};
 
-pub use phaxt::khala::runtime_types::phala_mq::types::*;
-pub use phaxt::*;
+pub use phaxt::{self, *};
 pub use sp_runtime::generic::Block;
 pub use subxt::{rpc::NumberOrHex, Signer};
-pub use phaxt;
+pub use khala::runtime_types::phala_mq::types::*;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<khala::DefaultConfig, sr25519::Pair>;
+pub type SrSigner = subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<Block<Hdr, Ext>>;
 

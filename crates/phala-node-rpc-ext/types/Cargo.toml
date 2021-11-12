@@ -1,0 +1,10 @@
+[package]
+name = "phala-node-rpc-ext-types"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+impl-serde = "0.3.1"
+scale-info = { version = "1.0.0", default-features = false }
+scale = { package = "parity-scale-codec", version = "2.2" }

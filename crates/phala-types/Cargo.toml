@@ -23,6 +23,7 @@ std = [
 	"codec/std",
 	"full_crypto",
 	"sp-runtime/std",
+	"sp-core/std",
 ]
 enable_serde = [
 	"serde/derive",

@@ -14,7 +14,6 @@ use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
 use sp_finality_grandpa::{AuthorityList, SetId, VersionedAuthorityList, GRANDPA_AUTHORITIES_KEY};
 
 mod error;
-// mod extra;
 mod msg_sync;
 mod notify_client;
 

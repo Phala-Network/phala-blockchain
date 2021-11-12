@@ -1,11 +1,12 @@
-use crate::Hash;
-use phala_node_rpc_ext::GetStorageChangesResponse;
+use phala_node_rpc_ext_types::GetStorageChangesResponse;
 use serde::{Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
     sp_core::storage::{StorageData, StorageKey},
     Client, Error, RpcClient, Config
 };
+
+use crate::Hash;
 
 pub trait ExtraRpcExt {
     fn extra_rpc(&self) -> ExtraRpcClient;
