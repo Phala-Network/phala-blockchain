@@ -1314,6 +1314,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "chameleon"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12bd83544cd11113170ce1eee45383928f3f720bc8b305af18c2a3da3547e1ae"
+
+[[package]]
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1397,7 +1403,7 @@ dependencies = [
  "ansi_term 0.11.0",
  "atty",
  "bitflags",
- "strsim",
+ "strsim 0.8.0",
  "textwrap",
  "unicode-width",
  "vec_map",
@@ -1875,6 +1881,41 @@ dependencies = [
  "rand_core 0.5.1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "darling"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "757c0ded2af11d8e739c4daea1ac623dd1624b06c844cf3f5a39f1bdbd99bb12"
+dependencies = [
+ "darling_core",
+ "darling_macro",
+]
+
+[[package]]
+name = "darling_core"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2c34d8efb62d0c2d7f60ece80f75e5c63c1588ba68032740494b0b9a996466e3"
+dependencies = [
+ "fnv",
+ "ident_case",
+ "proc-macro2 1.0.32",
+ "quote 1.0.10",
+ "strsim 0.10.0",
+ "syn 1.0.81",
+]
+
+[[package]]
+name = "darling_macro"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ade7bff147130fe5e6d39f089c6bd49ec0250f35d70b2eebf72afdfc919f15cc"
+dependencies = [
+ "darling_core",
+ "quote 1.0.10",
+ "syn 1.0.81",
 ]
 
 [[package]]
@@ -3347,6 +3388,12 @@ dependencies = [
  "tokio 1.13.0",
  "tokio-native-tls",
 ]
+
+[[package]]
+name = "ident_case"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b9e0384b61958566e926dc50660321d12159025e767c18e043daf26b70104c39"
 
 [[package]]
 name = "idna"
@@ -6690,6 +6737,7 @@ dependencies = [
  "pallet-mq-runtime-api",
  "parity-scale-codec",
  "phala-mq",
+ "phala-node-rpc-ext-types",
  "phala-pallets",
  "sc-client-api",
  "sc-rpc",
@@ -6700,6 +6748,14 @@ dependencies = [
  "sp-blockchain",
  "sp-runtime",
  "thiserror",
+]
+
+[[package]]
+name = "phala-node-rpc-ext-types"
+version = "0.1.0"
+dependencies = [
+ "impl-serde",
+ "serde",
 ]
 
 [[package]]
@@ -6852,6 +6908,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "phaxt"
+version = "0.1.0"
+dependencies = [
+ "parity-scale-codec",
+ "phala-node-rpc-ext-types",
+ "phala-types",
+ "scale-info 1.0.0",
+ "serde",
+ "serde_json",
+ "subxt",
+]
+
+[[package]]
 name = "pherry"
 version = "0.1.1"
 dependencies = [
@@ -6874,6 +6943,7 @@ dependencies = [
  "phala-pallets",
  "phala-trie-storage",
  "phala-types",
+ "phaxt",
  "rand 0.8.4",
  "reqwest",
  "sc-finality-grandpa",
@@ -6887,7 +6957,6 @@ dependencies = [
  "sp-rpc",
  "sp-runtime",
  "structopt",
- "substrate-subxt",
  "tokio 1.13.0",
 ]
 
@@ -7775,8 +7844,10 @@ dependencies = [
  "actix-rt",
  "actix-web",
  "anyhow",
+ "bytes 1.1.0",
  "chrono",
  "env_logger 0.9.0",
+ "hex",
  "log",
  "parity-scale-codec",
  "phactory",
@@ -7785,9 +7856,9 @@ dependencies = [
  "phala-types",
  "pherry",
  "serde_json",
+ "sp-core",
  "sqlx",
  "structopt",
- "substrate-subxt",
  "tokio 1.13.0",
 ]
 
@@ -10379,6 +10450,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
 
 [[package]]
+name = "strsim"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
 name = "structopt"
 version = "0.3.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10508,54 +10585,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "substrate-subxt"
-version = "0.15.0"
-dependencies = [
- "async-trait",
- "dyn-clone",
- "frame-metadata",
- "frame-support",
- "futures 0.3.17",
- "hex",
- "jsonrpsee-http-client",
- "jsonrpsee-proc-macros",
- "jsonrpsee-types",
- "jsonrpsee-ws-client",
- "log",
- "num-traits",
- "pallet-indices",
- "pallet-staking",
- "parity-scale-codec",
- "phala-node-rpc-ext",
- "scale-info 1.0.0",
- "serde",
- "serde_json",
- "sp-application-crypto",
- "sp-core",
- "sp-rpc",
- "sp-runtime",
- "sp-std 4.0.0-dev",
- "sp-version",
- "substrate-subxt-proc-macro",
- "thiserror",
- "url 2.2.2",
-]
-
-[[package]]
-name = "substrate-subxt-proc-macro"
-version = "0.15.0"
-dependencies = [
- "async-trait",
- "heck",
- "proc-macro-crate 0.1.5",
- "proc-macro-error 1.0.4",
- "proc-macro2 1.0.32",
- "quote 1.0.10",
- "syn 1.0.81",
- "synstructure",
-]
-
-[[package]]
 name = "substrate-test-client"
 version = "2.0.1"
 dependencies = [
@@ -10660,6 +10689,70 @@ name = "subtle"
 version = "2.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6bdef32e8150c2a081110b42772ffe7d7c9032b606bc226c8260fd97e0976601"
+
+[[package]]
+name = "subxt"
+version = "0.15.0"
+dependencies = [
+ "async-trait",
+ "bitvec 0.20.4",
+ "chameleon",
+ "frame-metadata",
+ "futures 0.3.17",
+ "hex",
+ "jsonrpsee-http-client",
+ "jsonrpsee-proc-macros",
+ "jsonrpsee-types",
+ "jsonrpsee-ws-client",
+ "log",
+ "num-traits",
+ "parity-scale-codec",
+ "scale-info 1.0.0",
+ "serde",
+ "serde_json",
+ "sp-arithmetic 4.0.0-dev",
+ "sp-core",
+ "sp-runtime",
+ "sp-version",
+ "subxt-macro",
+ "thiserror",
+ "url 2.2.2",
+]
+
+[[package]]
+name = "subxt-codegen"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "darling",
+ "frame-metadata",
+ "heck",
+ "parity-scale-codec",
+ "proc-macro-crate 0.1.5",
+ "proc-macro-error 1.0.4",
+ "proc-macro2 1.0.32",
+ "quote 1.0.10",
+ "scale-info 1.0.0",
+ "syn 1.0.81",
+]
+
+[[package]]
+name = "subxt-macro"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "darling",
+ "frame-metadata",
+ "heck",
+ "parity-scale-codec",
+ "proc-macro-crate 0.1.5",
+ "proc-macro-error 1.0.4",
+ "proc-macro2 1.0.32",
+ "quote 1.0.10",
+ "scale-info 1.0.0",
+ "subxt-codegen",
+ "syn 1.0.81",
+]
 
 [[package]]
 name = "surf"

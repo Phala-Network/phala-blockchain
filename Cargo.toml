@@ -8,7 +8,6 @@ exclude = [
 	"native-nostd-hasher",
 	"standalone/pruntime",
 	"crates/pink/examples/mqproxy",
-	"crates/phaxt",
 ]
 
 members = [
