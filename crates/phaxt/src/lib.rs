@@ -1,9 +1,11 @@
 #[subxt::subxt(runtime_metadata_path = "metadata_files/khala_metadata.scale")]
-pub mod khala {}
+pub mod khala {
+    #[subxt(substitute_type = "phala_mq::types::SignedMessage")]
+    pub use phala_types::messaging::SignedMessage;
+}
 #[subxt::subxt(runtime_metadata_path = "metadata_files/kusama_metadata.scale")]
 pub mod kusama {}
 
-mod convert;
 mod workaround;
 
 pub mod extra;
