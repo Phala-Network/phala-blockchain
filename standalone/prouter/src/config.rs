@@ -4,8 +4,8 @@ use ini::Ini;
 use anyhow::Result;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
-use std::path::PathBuf;
 use std::path::Path;
+use std::path::PathBuf;
 
 use crate::utils::get_relative_filepath_str;
 
@@ -121,16 +121,14 @@ pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: Option<String>) -> 
     let tunconf_path = get_relative_filepath_str(&datadir, "tunnels.conf")?;
 
     let mut conf = match existed_tunconf {
-        Some(path) => {
-            match Ini::load_from_file("conf.ini") {
-                Ok(ini) => ini,
-                Err(e) => {
-                    warn!("Failed to load the existed tunnel file: {}", e);
-                    Ini::new()
-                }
+        Some(path) => match Ini::load_from_file("conf.ini") {
+            Ok(ini) => ini,
+            Err(e) => {
+                warn!("Failed to load the existed tunnel file: {}", e);
+                Ini::new()
             }
         },
-        _ => {Ini::new()}
+        _ => Ini::new(),
     };
 
     conf.with_section(Some("PNetwork"))
