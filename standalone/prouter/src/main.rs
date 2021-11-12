@@ -34,10 +34,13 @@ struct Args {
     pruntime_endpoint: String,
 
     #[structopt(long, default_value = "600")]
-    graceful_shutdown_interval: u64,
+    shutdown_interval: u64,
 
     #[structopt(long, default_value = "./pdata")]
-    prouter_datadir: String,
+    datadir: String,
+
+    #[structopt(long, help = "Your custom tunnels file that contains other tunnels. PRouter will merge your tunnels with the Phala Network tunnel.")]
+    existed_tunconf: Option<String>,
 }
 
 fn preprocess_path(path_str: &String) -> Result<PathBuf> {
@@ -82,11 +85,11 @@ pub async fn prouter_main() -> Result<()> {
     let args = Args::from_args();
 
     // init path
-    let datadir = preprocess_path(&args.prouter_datadir)?;
+    let datadir = preprocess_path(&args.datadir)?;
 
     // init conf
     init_prouter_conf(&datadir)?;
-    init_tunnels_conf(&datadir)?;
+    init_tunnels_conf(&datadir, args.existed_tunconf)?;
 
     // init I2PD
     let mut i2pd = I2PD::new("PRouter".parse()?);
@@ -116,9 +119,9 @@ pub async fn prouter_main() -> Result<()> {
     info!("Accepts tunnels are closed");
 
     let now: DateTime<Utc> = Utc::now();
-    let sleep = sleep(Duration::from_secs(args.graceful_shutdown_interval));
+    let sleep = sleep(Duration::from_secs(args.shutdown_interval));
     info!("");
-    info!("\u{23F3} Shutting down after {} seconds [from {}]", &args.graceful_shutdown_interval, now.to_rfc2822());
+    info!("\u{23F3} Shutting down after {} seconds [from {}]", &args.shutdown_interval, now.to_rfc2822());
     info!("");
 
     select! {
