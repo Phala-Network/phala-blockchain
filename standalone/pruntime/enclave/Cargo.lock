@@ -16,6 +16,7 @@ dependencies = [
  "lazy_static",
  "libc",
  "log",
+ "once_cell",
  "parity-scale-codec",
  "parking_lot_core",
  "phactory",
@@ -2630,6 +2631,9 @@ name = "once_cell"
 version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "692fcb63b64b1758029e0a96ee63e049ce8c5948587f2f7208df04625e5f6b56"
+dependencies = [
+ "parking_lot",
+]
 
 [[package]]
 name = "oorandom"
