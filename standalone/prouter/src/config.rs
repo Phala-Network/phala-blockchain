@@ -2,7 +2,10 @@ extern crate ini;
 use ini::Ini;
 
 use anyhow::Result;
+#[allow(unused_imports)]
+use log::{debug, error, info, warn};
 use std::path::PathBuf;
+use std::path::Path;
 
 use crate::utils::get_relative_filepath_str;
 
@@ -114,10 +117,22 @@ pub fn init_prouter_conf(datadir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn init_tunnels_conf(datadir: &PathBuf) -> Result<()> {
+pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: Option<String>) -> Result<()> {
     let tunconf_path = get_relative_filepath_str(&datadir, "tunnels.conf")?;
 
-    let mut conf = Ini::new();
+    let mut conf = match existed_tunconf {
+        Some(path) => {
+            match Ini::load_from_file("conf.ini") {
+                Ok(ini) => ini,
+                Err(e) => {
+                    warn!("Failed to load the existed tunnel file: {}", e);
+                    Ini::new()
+                }
+            }
+        },
+        _ => {Ini::new()}
+    };
+
     conf.with_section(Some("PNetwork"))
         .set("type", "http")
         .set("host", "127.0.0.1")
