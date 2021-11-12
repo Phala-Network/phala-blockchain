@@ -3,7 +3,6 @@
 exclude = [
 	"substrate",
 	"subxt",
-	"subxt2",
 	"webpki",
 	"ring",
 	"native-nostd-hasher",
