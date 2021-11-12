@@ -131,6 +131,9 @@ struct Args {
     )]
     operator: Option<String>,
 
+    #[structopt(long = "parachain", help = "Parachain mode")]
+    parachain: bool,
+
     #[structopt(
         long,
         help = "The first parent header to be synced, default to auto-determine"
@@ -241,7 +244,7 @@ pub async fn get_block_with_storage_changes(
         hash.to_string()
     );
     let hash = block.block.header.hash();
-    let storage_changes = chain_client::fetch_storage_changes(&api, &hash).await?;
+    let storage_changes = chain_client::fetch_storage_changes(api, &hash).await?;
     return Ok(BlockWithChanges {
         block,
         storage_changes,
@@ -410,6 +413,7 @@ async fn batch_sync_block(
     sync_state: &mut BlockSyncState,
     batch_window: usize,
     info: &prpc::PhactoryInfo,
+    parachain: bool,
 ) -> Result<usize> {
     let block_buf = &mut sync_state.blocks;
     if block_buf.is_empty() {
@@ -527,18 +531,20 @@ async fn batch_sync_block(
         info!("  ..sync_header: {:?}", r);
         next_headernum = r.synced_to + 1;
 
-        let hdr_synced_to =
-            sync_parachain_header(pr, api, paraclient, last_header_hash, next_para_headernum)
-                .await?;
-        next_para_headernum = hdr_synced_to + 1;
-        let mut para_blocks = Vec::new();
-        if next_blocknum <= hdr_synced_to {
-            for b in next_blocknum..=hdr_synced_to {
-                let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
-                para_blocks.push(block.clone());
+        if parachain {
+            let hdr_synced_to =
+                sync_parachain_header(pr, api, paraclient, last_header_hash, next_para_headernum)
+                    .await?;
+            next_para_headernum = hdr_synced_to + 1;
+            let mut para_blocks = Vec::new();
+            if next_blocknum <= hdr_synced_to {
+                for b in next_blocknum..=hdr_synced_to {
+                    let block = get_block_with_storage_changes(&paraclient, Some(b)).await?;
+                    para_blocks.push(block.clone());
+                }
             }
+            block_batch = para_blocks;
         }
-        block_batch = para_blocks;
 
         let dispatch_window = batch_window - 1;
         while !block_batch.is_empty() {
@@ -646,10 +652,14 @@ async fn sync_parachain_header(
 /// parent block. This behavior matches the one on PRB.
 async fn resolve_start_header(
     para_api: &ParachainApi,
+    is_parachain: bool,
     start_header: Option<BlockNumber>,
 ) -> Result<BlockNumber> {
     if let Some(start_header) = start_header {
         return Ok(start_header);
+    }
+    if !is_parachain {
+        return Ok(0);
     }
     let h1 = para_api
         .client
@@ -675,6 +685,7 @@ async fn init_runtime(
     use_dev_key: bool,
     inject_key: &str,
     operator: Option<AccountId32>,
+    is_parachain: bool,
     start_header: BlockNumber,
 ) -> Result<InitRuntimeResponse> {
     let genesis_block = get_block_at(&api.client, Some(start_header)).await?.0.block;
@@ -713,7 +724,7 @@ async fn init_runtime(
             debug_set_key,
             genesis_state,
             operator,
-            true,
+            is_parachain,
         ))
         .await?;
     Ok(resp)
@@ -796,7 +807,12 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
     let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?.into();
     info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
 
-    let para_api: ParachainApi = subxt_connect(&args.collator_ws_endpoint).await?.into();
+    let para_uri: &str = if args.parachain {
+        &args.collator_ws_endpoint
+    } else {
+        &args.substrate_ws_endpoint
+    };
+    let para_api: ParachainApi = subxt_connect(para_uri).await?.into();
     info!(
         "Connected to parachain node at: {}",
         args.collator_ws_endpoint
@@ -833,7 +849,8 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
                     Some(parsed_operator)
                 }
             };
-            let start_header = resolve_start_header(&para_api, args.start_header).await?;
+            let start_header =
+                resolve_start_header(&para_api, args.parachain, args.start_header).await?;
             info!("Resolved start header at {}", start_header);
             let runtime_info = init_runtime(
                 &api,
@@ -843,6 +860,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
                 args.use_dev_key,
                 &args.inject_key,
                 operator,
+                args.parachain,
                 start_header,
             )
             .await?;
@@ -919,14 +937,26 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
             sync_state.blocks.remove(0);
         }
 
-        info!(
-            "try to sync blocks. next required: (relay_header={}, para_header={}, body={}), relay finalized tip: {}, buffered: {}",
-            info.headernum, info.para_headernum, info.blocknum, latest_block.header.number, sync_state.blocks.len());
+        if args.parachain {
+            info!(
+                "try to sync blocks. next required: (relay_header={}, para_header={}, body={}), relay finalized tip: {}, buffered: {}",
+                info.headernum, info.para_headernum, info.blocknum, latest_block.header.number, sync_state.blocks.len());
+        } else {
+            info!(
+                "try to sync blocks. next required: (body={}, header={}), finalized tip: {}, buffered: {}",
+                info.blocknum, info.headernum, latest_block.header.number, sync_state.blocks.len());
+        }
 
         // fill the sync buffer to catch up the chain tip
         let next_block = match sync_state.blocks.last() {
             Some(b) => b.block.block.header.number + 1,
-            None => info.headernum,
+            None => {
+                if args.parachain {
+                    info.headernum
+                } else {
+                    info.blocknum
+                }
+            }
         };
 
         let (batch_end, more_blocks) = {
@@ -941,7 +971,13 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
 
         // TODO.kevin: batch request blocks and changes.
         for b in next_block..=batch_end {
-            let block = get_block_without_storage_changes(&api, Some(b)).await?;
+            let block = if args.parachain {
+                get_block_without_storage_changes(&api, Some(b)).await?
+            } else {
+                // api and para_api are connected to the same node in solochain mode
+                get_block_with_storage_changes(&para_api, Some(b)).await?
+            };
+
             if block.block.justifications.is_some() {
                 debug!(
                     "block with justification at: {}",
@@ -966,6 +1002,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
             &mut sync_state,
             args.sync_blocks,
             &info,
+            args.parachain,
         )
         .await?;
 

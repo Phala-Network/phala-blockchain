@@ -1,5 +1,5 @@
 use crate::{
-    types::{utils::raw_proof, Hash, RelaychainApi, ParachainApi, StorageKey},
+    types::{utils::raw_proof, Hash, ParachainApi, RelaychainApi, StorageKey},
     Error,
 };
 use anyhow::{anyhow, Result};
@@ -9,7 +9,7 @@ use phactory_api::blocks::StorageProof;
 use phala_node_rpc_ext::MakeInto as _;
 use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
-use phaxt::{subxt, rpc::ExtraRpcExt as _};
+use phaxt::{rpc::ExtraRpcExt as _, subxt};
 use serde_json::to_value;
 use subxt::Signer;
 
