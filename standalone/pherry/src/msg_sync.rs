@@ -116,7 +116,7 @@ impl<'a> MsgSync<'a> {
                     .api
                     .tx()
                     .phala_mq()
-                    .sync_offchain_message(message.into())
+                    .sync_offchain_message(message)
                     .create_signed(
                         self.signer,
                         ExtraConfig {
