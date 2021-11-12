@@ -1196,9 +1196,10 @@ pub mod pallet {
 			// deposit it to the Treasury.
 			let price = self.share_price()?;
 			let amount = bmul(shares, &price);
-			// In case `amount` is a little bit larger than `free_stake`. It also implies that
-			// amount will never exceed user.stake.
-			let amount = amount.min(self.free_stake);
+			// In case `amount` is a little bit larger than `free_stake` or `user.locked`. Note
+			// that it should never really exceed `user.locked` because we ask the caller to ensure
+			// the share to remove is not greater than user's shares.
+			let amount = amount.min(self.free_stake).min(user.locked);
 			// Remove shares and stake from the user record
 			let user_shares = user.shares.checked_sub(&shares)?;
 			let (user_shares, shares_dust) = extract_dust(user_shares);
