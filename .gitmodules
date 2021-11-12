@@ -13,6 +13,6 @@
 [submodule "standalone/pruntime/rizin"]
 	path = standalone/pruntime/rizin
 	url = https://github.com/rizinorg/rizin
-[submodule "subxt2"]
-	path = subxt2
-	url = https://github.com/kvinwang/subxt
+[submodule "subxt"]
+	path = subxt
+	url = https://github.com/Phala-Network/substrate-subxt.git
