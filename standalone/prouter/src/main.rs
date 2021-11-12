@@ -2,25 +2,25 @@
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
-mod types;
 mod config;
+mod types;
 mod utils;
 
-use anyhow::{Result, Error};
+use anyhow::{Error, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 use structopt::StructOpt;
+use tokio::select;
 use tokio::signal;
 use tokio::time::{sleep, Duration};
-use tokio::select;
 
 use chrono::{DateTime, Utc};
 
-use types::I2PD;
 use config::*;
+use types::I2PD;
 use utils::*;
 
 #[derive(Debug, StructOpt)]
@@ -39,7 +39,10 @@ struct Args {
     #[structopt(long, default_value = "./pdata")]
     datadir: String,
 
-    #[structopt(long, help = "Your custom tunnels file that contains other tunnels. PRouter will merge your tunnels with the Phala Network tunnel.")]
+    #[structopt(
+        long,
+        help = "Your custom tunnels file that contains other tunnels. PRouter will merge your tunnels with the Phala Network tunnel."
+    )]
     existed_tunconf: Option<String>,
 }
 
@@ -60,7 +63,11 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
 async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     let client_tunnels_info = i2pd.get_client_tunnels_info()?;
     let server_tunnels_info = i2pd.get_server_tunnels_info()?;
-    info!("Client Tunnels Count: {}, Server Tunnels Count: {}", client_tunnels_info.len(), server_tunnels_info.len());
+    info!(
+        "Client Tunnels Count: {}, Server Tunnels Count: {}",
+        client_tunnels_info.len(),
+        server_tunnels_info.len()
+    );
     info!("Client Tunnels:");
     for (i, client_tun) in client_tunnels_info.iter().enumerate() {
         info!("\t\u{1F3AF}{} => {}", client_tun.0, client_tun.1);
@@ -105,7 +112,10 @@ pub async fn prouter_main() -> Result<()> {
     i2pd.init();
     info!("PRouter is starting...");
     i2pd.start();
-    info!("PRouter is successfully started, logging into {}", get_relative_filepath_str(&datadir, "prouter.log")?);
+    info!(
+        "PRouter is successfully started, logging into {}",
+        get_relative_filepath_str(&datadir, "prouter.log")?
+    );
     info!("Press CTRL-C to gracefully shutdown");
     info!(" ");
 
@@ -121,7 +131,11 @@ pub async fn prouter_main() -> Result<()> {
     let now: DateTime<Utc> = Utc::now();
     let sleep = sleep(Duration::from_secs(args.shutdown_interval));
     info!("");
-    info!("\u{23F3} Shutting down after {} seconds [from {}]", &args.shutdown_interval, now.to_rfc2822());
+    info!(
+        "\u{23F3} Shutting down after {} seconds [from {}]",
+        &args.shutdown_interval,
+        now.to_rfc2822()
+    );
     info!("");
 
     select! {
