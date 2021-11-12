@@ -34,6 +34,7 @@ members = [
 	"crates/phala-allocator",
 	"crates/pink",
 	"crates/pink/pink-extension",
+	"crates/phaxt",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",

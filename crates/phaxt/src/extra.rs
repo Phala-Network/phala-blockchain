@@ -1,16 +1,14 @@
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-use subxt::balances::Balances;
 use subxt::extrinsic::*;
-use subxt::system::System;
-
-use sp_runtime::generic::Era;
-use sp_runtime::traits::SignedExtension;
-use sp_runtime::transaction_validity::TransactionValidityError;
+use subxt::Config;
+use subxt::sp_runtime::generic::Era;
+use subxt::sp_runtime::traits::SignedExtension;
+use subxt::sp_runtime::transaction_validity::TransactionValidityError;
 
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, TypeInfo)]
 pub struct EraInfo<Hash> {
@@ -26,7 +24,7 @@ pub struct ExtraConfig<Hash> {
 }
 
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, TypeInfo)]
-pub struct PhalaExtra<T: System> {
+pub struct PhalaExtra<T: Config> {
     spec_version: u32,
     tx_version: u32,
     nonce: T::Index,
@@ -34,19 +32,18 @@ pub struct PhalaExtra<T: System> {
     config: ExtraConfig<T::Hash>,
 }
 
-impl<T: System + Balances + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtra<T> for PhalaExtra<T>
-where
-    <T as Balances>::Balance: From<u64>,
+impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtra<T>
+    for PhalaExtra<T>
 {
     type Extra = (
         CheckSpecVersion<T>,
         CheckTxVersion<T>,
         CheckGenesis<T>,
-        CheckEra<T>,
+        CheckMortality<T>,
         CheckNonce<T>,
         CheckWeight<T>,
         // NOTE: skipped the ZST CheckMqSequence<T> here.
-        ChargeTransactionPayment<T>,
+        ChargeTransactionPayment,
     );
     type Config = ExtraConfig<T::Hash>;
 
@@ -80,7 +77,7 @@ where
             CheckSpecVersion(PhantomData, self.spec_version),
             CheckTxVersion(PhantomData, self.tx_version),
             CheckGenesis(PhantomData, self.genesis_hash),
-            CheckEra((era, PhantomData), birth_hash),
+            CheckMortality((era, PhantomData), birth_hash),
             CheckNonce(self.nonce),
             CheckWeight(PhantomData),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
@@ -89,9 +86,8 @@ where
     }
 }
 
-impl<T: System + Balances + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtension for PhalaExtra<T>
-where
-    <T as Balances>::Balance: From<u64>,
+impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtension
+    for PhalaExtra<T>
 {
     const IDENTIFIER: &'static str = "PhalaExtra";
     type AccountId = T::AccountId;
