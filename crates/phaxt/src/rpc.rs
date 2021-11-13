@@ -1,35 +1,37 @@
 use phala_node_rpc_ext_types::GetStorageChangesResponse;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
     sp_core::storage::{StorageData, StorageKey},
-    Client, Error, RpcClient, Config
+    Client, Config, Error, RpcClient,
 };
 
-use crate::Hash;
-
 pub trait ExtraRpcExt {
-    fn extra_rpc(&self) -> ExtraRpcClient;
+    type Config: Config;
+    fn extra_rpc(&self) -> ExtraRpcClient<Self::Config>;
 }
 
 impl<C: Config> ExtraRpcExt for Client<C> {
-    fn extra_rpc(&self) -> ExtraRpcClient {
+    type Config = C;
+    fn extra_rpc(&self) -> ExtraRpcClient<Self::Config> {
         ExtraRpcClient {
             client: &self.rpc().client,
+            _config: Default::default(),
         }
     }
 }
 
-pub struct ExtraRpcClient<'a> {
+pub struct ExtraRpcClient<'a, Config> {
     client: &'a RpcClient,
+    _config: std::marker::PhantomData<Config>,
 }
 
-impl<'a> ExtraRpcClient<'a> {
+impl<'a, T: Config> ExtraRpcClient<'a, T> {
     /// Query storage changes
     pub async fn get_storage_changes(
         &self,
-        from: &Hash,
-        to: &Hash,
+        from: &T::Hash,
+        to: &T::Hash,
     ) -> Result<GetStorageChangesResponse, Error> {
         let params = &[to_json_value(from)?, to_json_value(to)?];
         self.client
@@ -42,7 +44,7 @@ impl<'a> ExtraRpcClient<'a> {
     pub async fn storage_pairs(
         &self,
         prefix: StorageKey,
-        hash: Option<Hash>,
+        hash: Option<T::Hash>,
     ) -> Result<Vec<(StorageKey, StorageData)>, Error> {
         let params = &[to_json_value(prefix)?, to_json_value(hash)?];
         let data = self.client.request("state_getPairs", params).await?;
@@ -52,6 +54,21 @@ impl<'a> ExtraRpcClient<'a> {
     /// Fetch block syncing status
     pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
         Ok(self.client.request("system_syncState", &[]).await?)
+    }
+}
+
+impl<'a, T: Config> ExtraRpcClient<'a, T>
+where
+    T::AccountId: Serialize,
+    T::Index: DeserializeOwned,
+{
+    /// Reads the next nonce of an account, considering the pending extrinsics in the txpool
+    pub async fn account_nonce(&self, account: &T::AccountId) -> Result<T::Index, Error> {
+        let params = &[to_json_value(account)?];
+        Ok(self
+            .client
+            .request("system_accountNextIndex", params)
+            .await?)
     }
 }
 
