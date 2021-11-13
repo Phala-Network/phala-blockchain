@@ -105,12 +105,7 @@ pub fn decode_parachain_heads(head: Vec<u8>) -> Result<Vec<u8>, Error> {
 /// Updates the nonce from the mempool
 pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut SrSigner) -> Result<()> {
     let account_id = signer.account_id().clone();
-    let nonce = api
-        .storage()
-        .system()
-        .account(account_id.clone(), None)
-        .await?
-        .nonce;
+    let nonce = api.client.extra_rpc().account_nonce(&account_id).await?;
     signer.set_nonce(nonce);
     log::info!("Fetch account {} nonce={}", account_id, nonce);
     Ok(())
