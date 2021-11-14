@@ -78,6 +78,61 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     }
 
     loop {
+        let network_status = i2pd.get_network_status()?;
+        info!("Network Status: {}", network_status);
+        let tunnel_creation_success_rate = i2pd.get_tunnel_creation_success_rate()?;
+        info!(
+            "Tunnel Creation Success Rate: {}%",
+            tunnel_creation_success_rate
+        );
+        let received_byte = i2pd.get_received_byte()?;
+        let in_bandwidth = i2pd.get_in_bandwidth()?;
+        info!(
+            "Received Bytes: {} ({})",
+            format_traffic(received_byte)?,
+            format_bandwidth(in_bandwidth)?
+        );
+        let sent_byte = i2pd.get_sent_byte()?;
+        let out_bandwidth = i2pd.get_out_bandwidth()?;
+        info!(
+            "Sent Bytes: {} ({})",
+            format_traffic(sent_byte)?,
+            format_bandwidth(out_bandwidth)?
+        );
+        let transit_byte = i2pd.get_transit_byte()?;
+        let transit_bandwidth = i2pd.get_transit_bandwidth()?;
+        info!(
+            "Transit Bytes: {} ({})",
+            format_traffic(transit_byte)?,
+            format_bandwidth(transit_bandwidth)?
+        );
+        let httpproxy_enabled = i2pd.is_httpproxy_enabled()?;
+        info!(
+            "HTTP Proxy: {}",
+            if httpproxy_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
+        );
+        let socksproxy_enabled = i2pd.is_socksproxy_enabled()?;
+        info!(
+            "SOCKS Proxy: {}",
+            if socksproxy_enabled {
+                "Enabled"
+            } else {
+                "Disabled"
+            }
+        );
+        let bob_enabled = i2pd.is_bob_enabled()?;
+        info!("BOB: {}", if bob_enabled { "Enabled" } else { "Disabled" });
+        let sam_enabled = i2pd.is_sam_enabled()?;
+        info!("SAM: {}", if sam_enabled { "Enabled" } else { "Disabled" });
+        let i2cp_enabled = i2pd.is_i2cp_enabled()?;
+        info!(
+            "I2CP: {}",
+            if i2cp_enabled { "Enabled" } else { "Disabled" }
+        );
         sleep(Duration::from_secs(10)).await;
     }
     // Will never return
