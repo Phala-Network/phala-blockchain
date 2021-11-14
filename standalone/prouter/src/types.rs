@@ -78,7 +78,7 @@ impl I2PD {
 
     pub fn load_private_keys_from_file(&self, check_existence: bool) -> Result<String> {
         let opt_datadir = self.argv.get("datadir");
-        match opt_datadir {
+        return match opt_datadir {
             Some(datadir) => {
                 let mut keyfile_path = PathBuf::from(&datadir);
                 keyfile_path.push("pnetwork.key");
@@ -115,13 +115,13 @@ impl I2PD {
                 let identity: String = c_str_identity.to_str()?.to_owned();
 
                 info!("Loaded PNetwork identity: {:?}", identity);
-                return Ok(identity);
+                Ok(identity)
             }
             None => {
                 info!("You must specify datadir before loading private keys");
-                return Err(anyhow!("Missing datadir"));
+                Err(anyhow!("Missing datadir"))
             }
-        }
+        };
     }
 
     fn get_client_tunnel_name_by_id(&self, index: i32) -> Result<String> {
@@ -181,6 +181,9 @@ impl I2PD {
     ///
 
     pub fn init(&self) {
+        if self.is_running {
+            return;
+        }
         let args_str = self.argv_to_string();
         let args_c_str =
             CString::new(args_str).expect("String should be able to be converted into CString");
@@ -195,34 +198,197 @@ impl I2PD {
     }
 
     pub fn start(&mut self) {
+        if self.is_running {
+            return;
+        }
         self.is_running = true;
         unsafe { C_StartI2P() };
     }
 
     pub fn close_accepts_tunnels(&self) {
+        if !self.is_running {
+            return;
+        }
         unsafe { C_CloseAcceptsTunnels() };
     }
 
     pub fn stop(&mut self) {
+        if !self.is_running {
+            return;
+        }
         self.is_running = false;
         unsafe { C_StopI2P() };
+    }
+
+    ///
+    /// Fetch status
+    ///
+
+    pub fn get_network_status(&self) -> Result<String> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let ptr_status: *const c_char = unsafe { C_GetNetworkStatus() };
+        if ptr_status.is_null() {
+            error!("Th e status returned from C is corrupted");
+            return Err(anyhow!("The status returned from C is corrupted"));
+        }
+
+        let c_str_status = unsafe { CStr::from_ptr(ptr_status) };
+        let status: String = c_str_status.to_str()?.to_owned();
+
+        Ok(status)
+    }
+
+    pub fn get_tunnel_creation_success_rate(&self) -> Result<i32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let rate: i32 = unsafe { C_GetTunnelCreationSuccessRate() };
+
+        Ok(rate)
+    }
+
+    pub fn get_received_byte(&self) -> Result<u64> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let byte: u64 = unsafe { C_GetReceivedByte() };
+
+        Ok(byte)
+    }
+
+    pub fn get_in_bandwidth(&self) -> Result<u32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let bandwidth: u32 = unsafe { C_GetInBandwidth() };
+
+        Ok(bandwidth)
+    }
+
+    pub fn get_sent_byte(&self) -> Result<u64> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let byte: u64 = unsafe { C_GetSentByte() };
+
+        Ok(byte)
+    }
+
+    pub fn get_out_bandwidth(&self) -> Result<u32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let bandwidth: u32 = unsafe { C_GetOutBandwidth() };
+
+        Ok(bandwidth)
+    }
+
+    pub fn get_transit_byte(&self) -> Result<u64> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let byte: u64 = unsafe { C_GetTransitByte() };
+
+        Ok(byte)
+    }
+
+    pub fn get_transit_bandwidth(&self) -> Result<u32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let bandwidth: u32 = unsafe { C_GetTransitBandwidth() };
+
+        Ok(bandwidth)
+    }
+
+    pub fn is_httpproxy_enabled(&self) -> Result<bool> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let enabled: i32 = unsafe { C_IsHTTPProxyEnabled() };
+
+        Ok(enabled == 1)
+    }
+
+    pub fn is_socksproxy_enabled(&self) -> Result<bool> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let enabled: i32 = unsafe { C_IsSOCKSProxyEnabled() };
+
+        Ok(enabled == 1)
+    }
+
+    pub fn is_bob_enabled(&self) -> Result<bool> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let enabled: i32 = unsafe { C_IsBOBEnabled() };
+
+        Ok(enabled == 1)
+    }
+
+    pub fn is_sam_enabled(&self) -> Result<bool> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let enabled: i32 = unsafe { C_IsSAMEnabled() };
+
+        Ok(enabled == 1)
+    }
+
+    pub fn is_i2cp_enabled(&self) -> Result<bool> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+
+        let enabled: i32 = unsafe { C_IsI2CPEnabled() };
+
+        Ok(enabled == 1)
     }
 
     ///
     /// Fetch tunnels info
     ///
 
-    pub fn get_client_tunnels_count(&self) -> i32 {
-        return unsafe { C_GetClientTunnelsCount() };
+    pub fn get_client_tunnels_count(&self) -> Result<i32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let count: i32 = unsafe { C_GetClientTunnelsCount() };
+
+        Ok(count)
     }
 
-    pub fn get_server_tunnels_count(&self) -> i32 {
-        return unsafe { C_GetServerTunnelsCount() };
+    pub fn get_server_tunnels_count(&self) -> Result<i32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let count: i32 = unsafe { C_GetServerTunnelsCount() };
+
+        Ok(count)
     }
 
     pub fn get_client_tunnels_info(&self) -> Result<Vec<TunnelInfo>> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
         let mut client_tunnels_info = Vec::<TunnelInfo>::new();
-        let client_tunnels_count = self.get_client_tunnels_count();
+        let client_tunnels_count = self.get_client_tunnels_count()?;
         for index in 0..client_tunnels_count {
             info!("client {}", index);
             let name = self.get_client_tunnel_name_by_id(index)?;
@@ -234,8 +400,11 @@ impl I2PD {
     }
 
     pub fn get_server_tunnels_info(&self) -> Result<Vec<TunnelInfo>> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
         let mut server_tunnels_info = Vec::<TunnelInfo>::new();
-        let server_tunnels_count = self.get_server_tunnels_count();
+        let server_tunnels_count = self.get_server_tunnels_count()?;
         for index in 0..server_tunnels_count {
             let name = self.get_server_tunnel_name_by_id(index)?;
             let ident = self.get_server_tunnel_ident_by_id(index)?;
