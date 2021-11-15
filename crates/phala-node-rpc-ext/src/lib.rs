@@ -103,6 +103,7 @@ where
 
     fn get_storage_changes_at(&self, block: Block::Hash) -> Result<String, StorageChangesError> {
         let changes = self.get_storage_changes(block, block)?;
+        // get_storage_changes never returns empty vec without error.
         let encoded = changes[0].encode();
         Ok(impl_serde::serialize::to_hex(&encoded, false))
     }
