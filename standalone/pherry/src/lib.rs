@@ -1027,15 +1027,15 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
 
             // Now we are idle. Let's try to sync the egress messages.
             if !args.no_msg_submit {
-                let mut msg_sync = msg_sync::MsgSync::new(
+                msg_sync::maybe_sync_mq_egress(
                     &para_api,
                     &pr,
                     &mut signer,
                     args.tip,
                     args.longevity,
                     args.max_sync_msgs_per_round,
-                );
-                msg_sync.maybe_sync_mq_egress().await?;
+                )
+                .await?;
             }
             flags.restart_failure_count = 0;
             info!("Waiting for new blocks");
