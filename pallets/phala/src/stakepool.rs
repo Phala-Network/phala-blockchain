@@ -665,28 +665,6 @@ pub mod pallet {
 			MiningEnabled::<T>::put(enable);
 			Ok(())
 		}
-
-		/// Reconciles the locked releasing stake as described in issue 500
-		///
-		/// The data is a vector of `(pid, worker_pubkey, orig_stake, slashed)` that was supposed
-		/// to be triggered by `reclaim` on the miners in CD. This function should be called with
-		/// the bug analysis result, as described in:
-		/// <https://github.com/Phala-Network/phala-blockchain/issues/500>
-		///
-		/// The backfill will only be called once and will be removed in the next runtime upgrade
-		/// after it's used.
-		#[pallet::weight(0)]
-		#[transactional]
-		pub fn backfill_issue500_reclaim(
-			origin: OriginFor<T>,
-			data: Vec<(u64, WorkerPublicKey, BalanceOf<T>, BalanceOf<T>)>,
-		) -> DispatchResult {
-			T::BackfillOrigin::ensure_origin(origin)?;
-			for (pid, worker_pubkey, orig_stake, slashed) in data {
-				Self::handle_reclaim(pid, orig_stake, slashed);
-			}
-			Ok(())
-		}
 	}
 
 	impl<T: Config> Pallet<T>
@@ -2930,55 +2908,6 @@ pub mod pallet {
 				);
 				let miner = PhalaMining::miners(subaccount).unwrap();
 				assert_eq!(miner.state, mining::MinerState::MiningCoolingDown);
-			});
-		}
-
-		#[test]
-		fn issue500_backfill() {
-			new_test_ext().execute_with(|| {
-				set_block_1();
-				// Only callable by backfill origin
-				assert_noop!(
-					PhalaStakePool::backfill_issue500_reclaim(Origin::signed(1), vec![]),
-					DispatchError::BadOrigin
-				);
-				// Simulate a case of issue #500. We cannot reproduce it because it's alreayd fixed.
-				//
-				// To simulate, we start a worker normally, but then increase the `releasing_stake`
-				// and `total_stake` in the pool, and user's locked amount, just like they have
-				// stopped the worker, remove it, add it back, and start it (where the stake is
-				// frozen).
-				setup_workers(1);
-				setup_pool_with_workers(1, &[1]); // pid=0
-				assert_ok!(PhalaStakePool::contribute(
-					Origin::signed(2),
-					0,
-					1500 * DOLLARS
-				));
-				assert_ok!(PhalaStakePool::start_mining(
-					Origin::signed(1),
-					0,
-					worker_pubkey(1),
-					1500 * DOLLARS
-				));
-				const MISSING_STAKE: u128 = 100 * DOLLARS;
-				StakePools::<Test>::mutate(0, |pool| {
-					let pool = pool.as_mut().unwrap();
-					pool.total_stake += MISSING_STAKE;
-					pool.releasing_stake += MISSING_STAKE;
-				});
-				PoolStakers::<Test>::mutate(&(0, 2), |user| {
-					let user = user.as_mut().unwrap();
-					user.locked += MISSING_STAKE;
-				});
-				assert_ok!(PhalaStakePool::backfill_issue500_reclaim(
-					Origin::root(),
-					vec![(0, worker_pubkey(1), MISSING_STAKE, 0)]
-				));
-				let pool = PhalaStakePool::stake_pools(0).unwrap();
-				assert_eq!(pool.total_stake, 1600 * DOLLARS);
-				assert_eq!(pool.free_stake, MISSING_STAKE);
-				assert_eq!(pool.releasing_stake, 0);
 			});
 		}
 
