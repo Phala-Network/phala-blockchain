@@ -31,6 +31,7 @@ use phactory_api::blocks::{
 use phactory_api::prpc::{self, InitRuntimeResponse};
 use phactory_api::pruntime_client;
 
+use msg_sync::{Error as MsgSyncError, Receiver, Sender};
 use notify_client::NotifyClient;
 
 #[derive(Debug, StructOpt)]
@@ -177,6 +178,9 @@ struct Args {
         help = "Max auto restart retries if it continiously failing. Only used with --auto-restart"
     )]
     max_restart_retries: u32,
+
+    #[structopt(long, help = "Restart if number of rpc errors reaches the threshold")]
+    restart_on_rpc_error_threshold: Option<u64>,
 }
 
 struct RunningFlags {
@@ -800,7 +804,11 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
         .context("Connect to substrate")
 }
 
-async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
+async fn bridge(
+    args: &Args,
+    flags: &mut RunningFlags,
+    err_report: Sender<MsgSyncError>,
+) -> Result<()> {
     // Connect to substrate
 
     let api: RelaychainApi = subxt_connect(&args.substrate_ws_endpoint).await?.into();
@@ -1034,6 +1042,7 @@ async fn bridge(args: &Args, flags: &mut RunningFlags) -> Result<()> {
                     args.tip,
                     args.longevity,
                     args.max_sync_msgs_per_round,
+                    err_report.clone(),
                 )
                 .await?;
             }
@@ -1061,6 +1070,36 @@ fn preprocess_args(args: &mut Args) {
     }
 }
 
+async fn collect_async_errors(
+    mut threshold: Option<u64>,
+    mut err_receiver: Receiver<MsgSyncError>,
+) {
+    let threshold_bak = threshold.unwrap_or_default();
+    loop {
+        match err_receiver.recv().await {
+            Some(error) => match error {
+                MsgSyncError::BadSignature => {
+                    warn!("tx received bad signature, restarting...");
+                    return;
+                }
+                MsgSyncError::OtherRpcError => {
+                    if let Some(threshold) = &mut threshold {
+                        if *threshold == 0 {
+                            warn!("{} tx errors reported, restarting...", threshold_bak);
+                            return;
+                        }
+                        *threshold -= 1;
+                    }
+                }
+            },
+            None => {
+                warn!("All senders gone, this should never happen!");
+                return;
+            }
+        }
+    }
+}
+
 pub async fn pherry_main() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
@@ -1076,14 +1115,23 @@ pub async fn pherry_main() {
     };
 
     loop {
-        if let Err(err) = bridge(&args, &mut flags).await {
-            info!("bridge() exited with error: {:?}", err);
-            if !args.auto_restart || flags.restart_failure_count > args.max_restart_retries {
-                std::process::exit(if flags.worker_registered { 1 } else { 2 });
+        let (sender, receiver) = msg_sync::create_report_channel();
+        let threshold = args.restart_on_rpc_error_threshold;
+        tokio::select! {
+            res = bridge(&args, &mut flags, sender) => {
+                if let Err(err) = res {
+                    info!("bridge() exited with error: {:?}", err);
+                } else {
+                    break;
+                }
             }
-            flags.restart_failure_count += 1;
-            sleep(Duration::from_secs(2)).await;
-            info!("Restarting...");
+            () = collect_async_errors(threshold, receiver) => ()
+        };
+        if !args.auto_restart || flags.restart_failure_count > args.max_restart_retries {
+            std::process::exit(if flags.worker_registered { 1 } else { 2 });
         }
+        flags.restart_failure_count += 1;
+        sleep(Duration::from_secs(2)).await;
+        info!("Restarting...");
     }
 }
