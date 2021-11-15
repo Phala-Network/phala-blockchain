@@ -39,5 +39,5 @@ pub fn format_traffic(bytes: u64) -> Result<String> {
 }
 
 pub fn format_bandwidth(bandwidth: u32) -> Result<String> {
-    Ok(format!("{} KiB/s", bandwidth as f32 / 1024f32))
+    Ok(format!("{:.3} KiB/s", bandwidth as f32 / 1024f32))
 }

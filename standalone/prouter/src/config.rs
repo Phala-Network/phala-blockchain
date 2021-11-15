@@ -117,11 +117,11 @@ pub fn init_prouter_conf(datadir: &PathBuf) -> Result<()> {
     Ok(())
 }
 
-pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: Option<String>) -> Result<()> {
+pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: &Option<String>, pruntime_host: &String, pruntime_port: &String, ignore_pnetwork: &bool,) -> Result<()> {
     let tunconf_path = get_relative_filepath_str(&datadir, "tunnels.conf")?;
 
     let mut conf = match existed_tunconf {
-        Some(path) => match Ini::load_from_file("conf.ini") {
+        Some(path) => match Ini::load_from_file(&path) {
             Ok(ini) => ini,
             Err(e) => {
                 warn!("Failed to load the existed tunnel file: {}", e);
@@ -131,11 +131,17 @@ pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: Option<String>) -> 
         _ => Ini::new(),
     };
 
-    conf.with_section(Some("PNetwork"))
-        .set("type", "http")
-        .set("host", "127.0.0.1")
-        .set("port", "8000")
-        .set("keys", "pnetwork.key");
+    if !ignore_pnetwork {
+        conf.with_section(Some("PNetwork"))
+            .set("type", "http")
+            .set("host", pruntime_host)
+            .set("port", pruntime_port)
+            .set("keys", "pnetwork.key")
+            .set("inbound.length", "3")
+            .set("inbound.quantity", "5")
+            .set("outbound.length", "3")
+            .set("outbound.quantity", "5");
+    }
 
     conf.write_to_file(tunconf_path)?;
 
