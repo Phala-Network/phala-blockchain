@@ -27,17 +27,25 @@ use utils::*;
 #[structopt(name = "prouter")]
 struct Args {
     #[structopt(
-        default_value = "http://localhost:8000",
-        long,
-        help = "pRuntime http endpoint"
+        default_value = "127.0.0.1",
+        long
     )]
-    pruntime_endpoint: String,
+    pruntime_host: String,
+
+    #[structopt(
+        default_value = "8000",
+        long
+    )]
+    pruntime_port: String,
 
     #[structopt(long, default_value = "600")]
     shutdown_interval: u64,
 
     #[structopt(long, default_value = "./pdata")]
     datadir: String,
+
+    #[structopt(long)]
+    ignore_pnetwork: bool,
 
     #[structopt(
         long,
@@ -62,76 +70,84 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
 
 async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     let client_tunnels_info = i2pd.get_client_tunnels_info()?;
+    let http_proxy_info = i2pd.get_http_proxy_info()?;
+    let socks_proxy_info = i2pd.get_socks_proxy_info()?;
     let server_tunnels_info = i2pd.get_server_tunnels_info()?;
     info!(
-        "Client Tunnels Count: {}, Server Tunnels Count: {}",
+        "📦 Client Tunnels Count: {}, Server Tunnels Count: {}",
         client_tunnels_info.len(),
         server_tunnels_info.len()
     );
-    info!("Client Tunnels:");
-    for (i, client_tun) in client_tunnels_info.iter().enumerate() {
-        info!("\t\u{1F3AF}{} => {}", client_tun.0, client_tun.1);
+    info!("🚇 Client Tunnels:");
+    if let Ok(http_proxy_tun) = i2pd.get_http_proxy_info() {
+        info!("\t✅ {} => {}", http_proxy_tun.0, http_proxy_tun.1);
     }
-    info!("Server Tunnels:");
+    if let Ok(socks_proxy_tun) = i2pd.get_socks_proxy_info() {
+        info!("\t✅ {} => {}", socks_proxy_tun.0, socks_proxy_tun.1);
+    }
+    for (i, client_tun) in client_tunnels_info.iter().enumerate() {
+        info!("\t✅ {} => {}", client_tun.0, client_tun.1);
+    }
+    info!("🚇 Server Tunnels:");
     for (i, server_tun) in server_tunnels_info.iter().enumerate() {
-        info!("\t\u{1F91D} {} <= {}", server_tun.0, server_tun.1);
+        info!("\t✅ {} <= {}", server_tun.0, server_tun.1);
     }
 
     loop {
         let network_status = i2pd.get_network_status()?;
-        info!("Network Status: {}", network_status);
+        info!("💡 Network Status: {}", network_status);
         let tunnel_creation_success_rate = i2pd.get_tunnel_creation_success_rate()?;
         info!(
-            "Tunnel Creation Success Rate: {}%",
+            "🛠 Tunnel Creation Success Rate: {}%",
             tunnel_creation_success_rate
         );
         let received_byte = i2pd.get_received_byte()?;
         let in_bandwidth = i2pd.get_in_bandwidth()?;
         info!(
-            "Received Bytes: {} ({})",
+            "📥 Received Bytes: {} ({})",
             format_traffic(received_byte)?,
             format_bandwidth(in_bandwidth)?
         );
         let sent_byte = i2pd.get_sent_byte()?;
         let out_bandwidth = i2pd.get_out_bandwidth()?;
         info!(
-            "Sent Bytes: {} ({})",
+            "📤 Sent Bytes: {} ({})",
             format_traffic(sent_byte)?,
             format_bandwidth(out_bandwidth)?
         );
         let transit_byte = i2pd.get_transit_byte()?;
         let transit_bandwidth = i2pd.get_transit_bandwidth()?;
         info!(
-            "Transit Bytes: {} ({})",
+            "👺 Transit Bytes: {} ({})",
             format_traffic(transit_byte)?,
             format_bandwidth(transit_bandwidth)?
         );
         let httpproxy_enabled = i2pd.is_httpproxy_enabled()?;
         info!(
-            "HTTP Proxy: {}",
+            "🤝 HTTP Proxy: {}",
             if httpproxy_enabled {
-                "Enabled"
+                "Enabled 🟢"
             } else {
-                "Disabled"
+                "Disabled 🔴"
             }
         );
         let socksproxy_enabled = i2pd.is_socksproxy_enabled()?;
         info!(
-            "SOCKS Proxy: {}",
+            "🤝 SOCKS Proxy: {}",
             if socksproxy_enabled {
-                "Enabled"
+                "Enabled 🟢"
             } else {
-                "Disabled"
+                "Disabled 🔴"
             }
         );
         let bob_enabled = i2pd.is_bob_enabled()?;
-        info!("BOB: {}", if bob_enabled { "Enabled" } else { "Disabled" });
+        info!("🤝 BOB: {}", if bob_enabled { "Enabled 🟢" } else { "Disabled 🔴" });
         let sam_enabled = i2pd.is_sam_enabled()?;
-        info!("SAM: {}", if sam_enabled { "Enabled" } else { "Disabled" });
+        info!("🤝 SAM: {}", if sam_enabled { "Enabled 🟢" } else { "Disabled 🔴" });
         let i2cp_enabled = i2pd.is_i2cp_enabled()?;
         info!(
-            "I2CP: {}",
-            if i2cp_enabled { "Enabled" } else { "Disabled" }
+            "🤝 I2CP: {}",
+            if i2cp_enabled { "Enabled 🟢" } else { "Disabled 🔴" }
         );
         sleep(Duration::from_secs(10)).await;
     }
@@ -151,7 +167,7 @@ pub async fn prouter_main() -> Result<()> {
 
     // init conf
     init_prouter_conf(&datadir)?;
-    init_tunnels_conf(&datadir, args.existed_tunconf)?;
+    init_tunnels_conf(&datadir, &args.existed_tunconf, &args.pruntime_host, &args.pruntime_port, &args.ignore_pnetwork)?;
 
     // init I2PD
     let mut i2pd = I2PD::new("PRouter".parse()?);
@@ -187,7 +203,7 @@ pub async fn prouter_main() -> Result<()> {
     let sleep = sleep(Duration::from_secs(args.shutdown_interval));
     info!("");
     info!(
-        "\u{23F3} Shutting down after {} seconds [from {}]",
+        "⏳ Shutting down after {} seconds [from {}]",
         &args.shutdown_interval,
         now.to_rfc2822()
     );
