@@ -399,6 +399,38 @@ impl I2PD {
         Ok(client_tunnels_info)
     }
 
+    pub fn get_http_proxy_info(&self) -> Result<TunnelInfo> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let ptr_ident: *const c_char = unsafe { C_GetHTTPProxyIdent () };
+        if ptr_ident.is_null() {
+            error!("The ident returned from C is corrupted");
+            return Err(anyhow!("The ident returned from C is corrupted"));
+        }
+
+        let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
+        let ident: String = c_str_ident.to_str()?.to_owned();
+
+        Ok(TunnelInfo("HTTP Proxy".to_string(), ident))
+    }
+
+    pub fn get_socks_proxy_info(&self) -> Result<TunnelInfo> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let ptr_ident: *const c_char = unsafe { C_GetSOCKSProxyIdent () };
+        if ptr_ident.is_null() {
+            error!("The ident returned from C is corrupted");
+            return Err(anyhow!("The ident returned from C is corrupted"));
+        }
+
+        let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
+        let ident: String = c_str_ident.to_str()?.to_owned();
+
+        Ok(TunnelInfo("SOCKS Proxy".to_string(), ident))
+    }
+
     pub fn get_server_tunnels_info(&self) -> Result<Vec<TunnelInfo>> {
         if !self.is_running {
             return Err(anyhow!("I2PD is not running"));
