@@ -6694,6 +6694,7 @@ dependencies = [
  "sc-client-api",
  "sc-rpc",
  "sc-transaction-pool-api",
+ "scale-info 1.0.0",
  "serde",
  "sp-api",
  "sp-blockchain",

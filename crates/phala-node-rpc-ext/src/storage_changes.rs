@@ -1,3 +1,6 @@
+use codec::{Decode, Encode};
+use scale_info::TypeInfo;
+
 use super::*;
 
 /// State RPC errors.
@@ -42,7 +45,7 @@ impl From<Error> for jsonrpc_core::Error {
 }
 
 /// Storage key.
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode, TypeInfo)]
 pub struct StorageKey(#[serde(with = "impl_serde::serialize")] Vec<u8>);
 
 /// Storage value.
@@ -54,7 +57,7 @@ pub type StorageCollection<K, V> = Vec<(K, Option<V>)>;
 /// In memory arrays of storage values for multiple child tries.
 pub type ChildStorageCollection<K, V> = Vec<(K, StorageCollection<K, V>)>;
 
-#[derive(Serialize, Deserialize, Clone, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug, Encode, Decode, TypeInfo)]
 #[serde(rename_all = "camelCase")]
 pub struct StorageChanges {
     /// A value of `None` means that it was deleted.
