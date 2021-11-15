@@ -8,6 +8,16 @@ use crate::{
     types::{Hash, ParachainApi, PrClient, Signer, SrSigner},
 };
 use phaxt::extra::{EraInfo, ExtraConfig};
+pub use tokio::sync::mpsc::{channel, Receiver, Sender};
+
+pub enum Error {
+    BadSignature, // Might due to runtime updated.
+    OtherRpcError,
+}
+
+pub fn create_report_channel() -> (Sender<Error>, Receiver<Error>) {
+    channel(1024)
+}
 
 pub async fn maybe_sync_mq_egress(
     api: &ParachainApi,
@@ -16,6 +26,7 @@ pub async fn maybe_sync_mq_egress(
     tip: u64,
     longevity: u64,
     max_sync_msgs_per_round: u64,
+    err_report: Sender<Error>,
 ) -> Result<()> {
     // Send the query
     let messages = pr.get_egress_messages(()).await?.decode_messages()?;
@@ -94,6 +105,7 @@ pub async fn maybe_sync_mq_egress(
             match extrinsic {
                 Ok(extrinsic) => {
                     let api = ParachainApi::from(api.client.clone());
+                    let err_report = err_report.clone();
                     tokio::spawn(async move {
                         const TIMEOUT: u64 = 120;
                         let fut = api.client.rpc().submit_extrinsic(extrinsic);
@@ -101,9 +113,23 @@ pub async fn maybe_sync_mq_egress(
                         match result {
                             Err(_) => {
                                 error!("Submit message timed out: {}", msg_info);
+                                let _ = err_report.send(Error::OtherRpcError).await;
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
+                                use jsonrpsee_types::Error as RpcError;
+                                use phaxt::subxt::Error as SubxtError;
+                                let report = match err {
+                                    SubxtError::Rpc(RpcError::Request(err)) => {
+                                        if err.contains("bad signature") {
+                                            Error::BadSignature
+                                        } else {
+                                            Error::OtherRpcError
+                                        }
+                                    }
+                                    _ => Error::OtherRpcError,
+                                };
+                                let _ = err_report.send(report).await;
                             }
                             Ok(Ok(hash)) => {
                                 info!("Message submited: {} xt-hash={:?}", msg_info, hash);
