@@ -1,0 +1,21 @@
+---
+source: crates/phactory/src/system/mod.rs
+expression: effects
+
+---
+ExecSideEffects {
+    pink_events: [
+        (
+            e3f30e9fdd495e274a437ebf039139ecfb6ff87b824d6de0282107a6c1494e17 (5HDavttx...),
+            OnBlockEndSelector(
+                2188995711,
+            ),
+        ),
+    ],
+    instantiated: [
+        (
+            0000000000000000000000000000000000000000000000000000000000000000 (5C4hrfjw...),
+            e3f30e9fdd495e274a437ebf039139ecfb6ff87b824d6de0282107a6c1494e17 (5HDavttx...),
+        ),
+    ],
+}

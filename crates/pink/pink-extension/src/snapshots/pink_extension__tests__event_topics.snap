@@ -1,6 +1,6 @@
 ---
 source: crates/pink/pink-extension/src/lib.rs
-expression: "super::Message::event_topic()"
+expression: "super::PinkEvent::event_topic()"
 
 ---
 [
@@ -11,16 +11,16 @@ expression: "super::Message::event_topic()"
     108,
     97,
     46,
-    109,
-    113,
+    112,
+    105,
+    110,
+    107,
     46,
-    109,
     101,
-    115,
-    115,
-    97,
-    103,
+    118,
     101,
+    110,
+    116,
     0,
     0,
     0,

@@ -89,6 +89,9 @@ phala-async-executor = { path = '../phala-async-executor' }
 # for geo probing
 maxminddb = "0.17"
 
+[dev-dependencies]
+insta = "1.7.2"
+
 [features]
 default = [
     "sp-runtime-interface/disable_target_static_assertions",

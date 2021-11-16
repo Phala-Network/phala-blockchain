@@ -1050,3 +1050,67 @@ pub mod chain_state {
             .unwrap_or(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_on_block_end() {
+        let contract_key = sp_core::Pair::from_seed(&Default::default());
+        let mut contracts = ContractMap::default();
+        let mut groupkeeper = GroupKeeper::default();
+        let wasm_bin = pink::include_test_wasm("hooks_test");
+        let group_id = phala_mq::ContractGroupId(Default::default());
+        let effects = groupkeeper
+            .instantiate_contract(
+                group_id,
+                Default::default(),
+                wasm_bin,
+                vec![0xed, 0x4b, 0x9d, 0x1b],
+                Default::default(),
+                &contract_key,
+                1,
+                1,
+            )
+            .unwrap();
+        insta::assert_debug_snapshot!(effects);
+
+        let group = groupkeeper.get_group_mut(&group_id).unwrap();
+        let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
+        let signer = sp_core::Pair::from_seed(&Default::default());
+        let egress = builder
+            .send_mq
+            .channel(MessageOrigin::Worker(Default::default()), signer);
+        let mut block_info = builder.build();
+
+        apply_pink_side_effects(
+            effects,
+            &group_id,
+            &mut contracts,
+            group,
+            &mut block_info,
+            &egress,
+        );
+
+        insta::assert_display_snapshot!(contracts.len());
+
+        let mut env = ExecuteEnv {
+            block: &block_info,
+            contract_groups: &mut &mut groupkeeper,
+        };
+
+        for contract in contracts.values_mut() {
+            let effects = contract.on_block_end(&mut env).unwrap();
+            insta::assert_debug_snapshot!(effects);
+        }
+
+        let messages: Vec<_> = builder
+            .send_mq
+            .all_messages()
+            .into_iter()
+            .map(|msg| (msg.sequence, msg.message))
+            .collect();
+        insta::assert_debug_snapshot!(messages);
+    }
+}
