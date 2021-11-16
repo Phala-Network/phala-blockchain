@@ -1060,7 +1060,7 @@ mod tests {
         let contract_key = sp_core::Pair::from_seed(&Default::default());
         let mut contracts = ContractMap::default();
         let mut groupkeeper = GroupKeeper::default();
-        let wasm_bin = pink::include_test_wasm("hooks_test");
+        let wasm_bin = pink::load_test_wasm("hooks_test");
         let group_id = phala_mq::ContractGroupId(Default::default());
         let effects = groupkeeper
             .instantiate_contract(
