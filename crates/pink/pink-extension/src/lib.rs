@@ -12,25 +12,34 @@ use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
 
 pub use pink_extension_macro::contract;
 
-const PHALA_MESSAGE_TOPIC: &[u8] = b"phala.mq.message";
-const PHALA_OSP_MESSAGE_TOPIC: &[u8] = b"phala.mq.osp_message";
+const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 
-#[derive(Encode, Decode, Default, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub struct Message {
     pub payload: Vec<u8>,
     pub topic: Vec<u8>,
 }
 
-#[derive(Encode, Decode, Default, Debug)]
+#[derive(Encode, Decode, Debug)]
 pub struct OspMessage {
     pub message: Message,
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
-impl Topics for Message {
+#[derive(Encode, Decode, Debug)]
+pub enum PinkEvent {
+    /// Contract pushed a raw message
+    Message(Message),
+    /// Contract pushed an osp message
+    OspMessage(OspMessage),
+    /// Contract has an on_block_end ink message and will emit this event on instantiation.
+    OnBlockEndSelector(u32),
+}
+
+impl Topics for PinkEvent {
     type RemainingTopics = [HasRemainingTopics; 1];
 
     fn topics<E, B>(
@@ -43,40 +52,15 @@ impl Topics for Message {
     {
         builder
             .build::<Self>()
-            .push_topic(&PHALA_MESSAGE_TOPIC)
+            .push_topic(&PINK_EVENT_TOPIC)
             .finish()
     }
 }
 
 #[cfg(feature = "std")]
-impl Message {
+impl PinkEvent {
     pub fn event_topic() -> Hash {
-        topics_for(Self::default())[0]
-    }
-}
-
-impl Topics for OspMessage {
-    type RemainingTopics = [HasRemainingTopics; 1];
-
-    fn topics<E, B>(
-        &self,
-        builder: ink_env::topics::TopicsBuilder<ink_env::topics::state::Uninit, E, B>,
-    ) -> <B as ink_env::topics::TopicsBuilderBackend<E>>::Output
-    where
-        E: Environment,
-        B: ink_env::topics::TopicsBuilderBackend<E>,
-    {
-        builder
-            .build::<Self>()
-            .push_topic(&PHALA_OSP_MESSAGE_TOPIC)
-            .finish()
-    }
-}
-
-#[cfg(feature = "std")]
-impl OspMessage {
-    pub fn event_topic() -> Hash {
-        topics_for(Self::default())[0]
+        topics_for(Self::OnBlockEndSelector(0))[0]
     }
 }
 
@@ -84,17 +68,23 @@ impl OspMessage {
 ///
 /// Most phala system topics accept vanilla messages
 pub fn push_message(payload: Vec<u8>, topic: Vec<u8>) {
-    emit_event::<PinkEnvironment, _>(Message { payload, topic })
+    emit_event::<PinkEnvironment, _>(PinkEvent::Message(Message { payload, topic }))
 }
 
 /// Push a message to a topic accepting optinal secret messages
 ///
 /// Contract commands topic accept osp messages
 pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>) {
-    emit_event::<PinkEnvironment, _>(OspMessage {
+    emit_event::<PinkEnvironment, _>(PinkEvent::OspMessage(OspMessage {
         message: Message { payload, topic },
         remote_pubkey,
-    })
+    }))
+}
+
+/// Turn on on_block_end feature and set it's selector
+///
+pub fn set_on_block_end_selector(selector: u32) {
+    emit_event::<PinkEnvironment, _>(PinkEvent::OnBlockEndSelector(selector))
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -132,7 +122,6 @@ fn topics_for(event: impl Topics + Encode) -> Vec<Hash> {
 mod tests {
     #[test]
     fn test_event_topics() {
-        insta::assert_debug_snapshot!(super::Message::event_topic());
-        insta::assert_debug_snapshot!(super::OspMessage::event_topic());
+        insta::assert_debug_snapshot!(super::PinkEvent::event_topic());
     }
 }

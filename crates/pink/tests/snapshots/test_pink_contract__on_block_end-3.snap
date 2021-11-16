@@ -6,16 +6,19 @@ expression: effects
 ExecSideEffects {
     pink_events: [
         (
-            039fee9d7ce83a75f3e236161a8f7cf0f7c4ba5e1aa4a8eea659c5d98b04f186 (5C9TWZop...),
+            b81c488581e2d18bdb886027d0b848b76f2376723c9b2fadf5ccc5b23a2ea038 (5GE751Bk...),
             Message(
                 Message {
                     payload: [
-                        66,
-                        66,
+                        102,
+                        111,
+                        111,
                     ],
                     topic: [
-                        36,
-                        36,
+                        47,
+                        98,
+                        97,
+                        114,
                     ],
                 },
             ),

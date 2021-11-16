@@ -81,6 +81,7 @@ mod support {
             topic: Vec<u8>,
             remote_pubkey: Option<&EcdhPublicKey>,
         );
+        fn set_on_block_end_selector(&mut self, selector: u32);
     }
 
     pub trait NativeContract {
@@ -109,6 +110,7 @@ mod support {
         fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
             Ok(Default::default())
         }
+        fn set_on_block_end_selector(&mut self, _selector: u32) {}
     }
 
     pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
@@ -215,6 +217,10 @@ mod support {
                 contract_groups: &mut env.contract_groups,
             };
             self.contract.on_block_end(&mut context)
+        }
+
+        fn set_on_block_end_selector(&mut self, selector: u32) {
+            self.contract.set_on_block_end_selector(selector)
         }
 
         fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>) {

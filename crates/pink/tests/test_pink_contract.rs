@@ -1,6 +1,7 @@
 use frame_support::assert_ok;
 use hex_literal::hex;
 use pink::Contract;
+use pink_extension::PinkEvent;
 use sp_runtime::AccountId32;
 
 pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
@@ -177,7 +178,7 @@ fn test_mq_egress() {
 #[test]
 fn test_on_block_end() {
     let mut storage = Contract::new_storage();
-    let (mut contract, _effects) = Contract::new_with_selector(
+    let (mut contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/hooks_test/hooks_test.wasm").to_vec(),
@@ -190,6 +191,16 @@ fn test_on_block_end() {
     .unwrap();
 
     insta::assert_debug_snapshot!(contract);
+
+    insta::assert_debug_snapshot!(effects);
+
+    for (account, event) in effects.pink_events {
+        if let PinkEvent::OnBlockEndSelector(selector) = event {
+            if account == contract.address {
+                contract.set_on_block_end_selector(selector);
+            }
+        }
+    }
 
     let effects = contract.on_block_end(&mut storage, 1, 1).unwrap();
 

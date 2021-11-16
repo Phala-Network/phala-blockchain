@@ -1,9 +1,12 @@
+use std::convert::TryFrom;
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
+use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 use syn::{parse_macro_input, Result};
 
-use ink_lang_ir::{HexLiteral as _, Selector};
+use ink_lang_ir::{HexLiteral as _, ImplItem, Selector};
 
 #[proc_macro_attribute]
 pub fn contract(arg: TokenStream, input: TokenStream) -> TokenStream {
@@ -72,27 +75,42 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
                         item_method.attrs = attrs;
                     }
                 }
-            }
-        }
-    }
-    let export_selector = match block_end_selector {
-        Some(selector) => {
-            let selector = selector.hex_suffixed();
-            quote! {
-                #[no_mangle]
-                fn pink_on_block_end_selector() {
-                    let selector = #selector;
-                    ink_env::return_value(Default::default(), &selector);
+
+                if let Some(selector) = block_end_selector {
+                    // if on_block_end defined, instert set_on_block_end_selector in front of each constructor.
+                    for item in item_impl.items.iter_mut() {
+                        if let Ok(ImplItem::Constructor(_)) = ImplItem::try_from(item.clone()) {
+                            if let syn::ImplItem::Method(item_method) = item {
+                                let crate_pink_extenson = find_crate_name("pink-extension")?;
+                                let selector = selector.hex_suffixed();
+                                item_method.block.stmts.insert(
+                                    0,
+                                    syn::parse_quote! {
+                                        #crate_pink_extenson::set_on_block_end_selector(#selector);
+                                    },
+                                );
+                            }
+                        }
+                    }
                 }
             }
         }
-        None => quote! {},
-    };
-
+    }
+    let crate_ink_lang = find_crate_name("ink_lang")?;
     Ok(quote! {
-        #export_selector
-
-        #[ink_lang::contract(#config)]
+        #[#crate_ink_lang::contract(#config)]
         #module
     })
+}
+
+fn find_crate_name(origin: &str) -> Result<syn::Ident> {
+    use proc_macro2::Span;
+    let name = match crate_name(origin) {
+        Ok(FoundCrate::Itself) => syn::Ident::new("crate", Span::call_site()),
+        Ok(FoundCrate::Name(alias)) => syn::Ident::new(&alias, Span::call_site()),
+        Err(e) => {
+            return Err(syn::Error::new(Span::call_site(), &e));
+        }
+    };
+    Ok(name)
 }

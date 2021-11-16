@@ -2,21 +2,15 @@ use frame_support::log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
-use pink_extension::{Message, OspMessage};
+use pink_extension::{Message, OspMessage, PinkEvent};
 use scale::Decode;
 use sp_runtime::DispatchError;
 
 use crate::types::AccountId;
 
-#[derive(Debug)]
-pub enum EgressMessage {
-    Message(Message),
-    OspMessage(OspMessage),
-}
-
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
-    pub messages: Vec<(AccountId, EgressMessage)>,
+    pub pink_events: Vec<(AccountId, PinkEvent)>,
     pub instantiated: Vec<(AccountId, AccountId)>,
 }
 
@@ -26,29 +20,24 @@ pub fn get_side_effects() -> ExecSideEffects {
         if let super::Event::Contracts(ink_event) = event.event {
             use pallet_contracts::Event as ContractEvent;
             match ink_event {
-                ContractEvent::Instantiated { deployer, contract: address } => {
-                    result.instantiated.push((deployer, address))
-                }
-                ContractEvent::ContractEmitted { contract: address, data} => {
+                ContractEvent::Instantiated {
+                    deployer,
+                    contract: address,
+                } => result.instantiated.push((deployer, address)),
+                ContractEvent::ContractEmitted {
+                    contract: address,
+                    data,
+                } => {
                     if event.topics.len() != 1 {
                         continue;
                     }
-                    if event.topics[0].0 == pink_extension::Message::event_topic() {
-                        match pink_extension::Message::decode(&mut &data[..]) {
-                            Ok(msg) => {
-                                result.messages.push((address, EgressMessage::Message(msg)));
+                    if event.topics[0].0 == pink_extension::PinkEvent::event_topic() {
+                        match pink_extension::PinkEvent::decode(&mut &data[..]) {
+                            Ok(event) => {
+                                result.pink_events.push((address, event));
                             }
                             Err(_) => {
-                                error!("Contract emitted invalid message");
-                            }
-                        }
-                    } else if event.topics[0].0 == pink_extension::OspMessage::event_topic() {
-                        match pink_extension::OspMessage::decode(&mut &data[..]) {
-                            Ok(msg) => {
-                                result.messages.push((address, EgressMessage::OspMessage(msg)));
-                            }
-                            Err(_) => {
-                                error!("Contract emitted invalid osp message");
+                                error!("Contract emitted an invalid pink event");
                             }
                         }
                     }
