@@ -188,7 +188,7 @@ pub mod pallet {
 		BenchmarkMissing,
 		WorkerExists,
 		WorkerDoesNotExist,
-		WorerInAnotherPool,
+		WorkerInAnotherPool,
 		UnauthorizedOperator,
 		UnauthorizedPoolOwner,
 		/// The stake capacity is set too low for the existing stake
@@ -356,7 +356,7 @@ pub mod pallet {
 			// - The worker is already in `PoolInfo::worker` list
 			let lookup_pid =
 				WorkerAssignments::<T>::get(worker).ok_or(Error::<T>::WorkerDoesNotExist)?;
-			ensure!(pid == lookup_pid, Error::<T>::WorerInAnotherPool);
+			ensure!(pid == lookup_pid, Error::<T>::WorkerInAnotherPool);
 			// Remove the worker from the pool (notification suspended)
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
 			mining::pallet::Pallet::<T>::unbind_miner(&sub_account, false)?;
