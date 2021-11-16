@@ -19,7 +19,7 @@ pink-extension-macro = { path = "./macro" }
 insta = "1.7.2"
 
 [features]
-default = ["std"]
+default = ["std", "runtime_utils"]
 std = [
     "ink_metadata/std",
     "ink_env/std",
@@ -28,4 +28,5 @@ std = [
     "scale/std",
     "scale-info/std",
 ]
+runtime_utils = ["std"]
 ink-as-dependency = []
