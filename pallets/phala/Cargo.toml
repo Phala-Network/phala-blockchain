@@ -55,23 +55,23 @@ rand = "0.7.3"
 [features]
 default = ['std']
 std = [
-    "codec/std",
-    "scale-info/std",
-    "sp-runtime/std",
-    "frame-support/std",
-    "frame-system/std",
-    "sp-io/std",
-    "sp-std/std",
-    "sp-core/full_crypto",
-    "frame-benchmarking/std",
-    "pallet-balances/std",
-    "log/std",
+	"codec/std",
+	"scale-info/std",
+	"sp-runtime/std",
+	"frame-support/std",
+	"frame-system/std",
+	"sp-io/std",
+	"sp-std/std",
+	"sp-core/full_crypto",
+	"frame-benchmarking/std",
+	"pallet-balances/std",
+	"log/std",
 	"phala-types/enable_serde",
 ]
 runtime-benchmarks = [
-    "frame-benchmarking"
+	"frame-benchmarking"
 ]
 try-runtime = ["frame-support/try-runtime"]
 native = [
-    "sp-application-crypto/full_crypto",
+	"sp-application-crypto/full_crypto",
 ]
