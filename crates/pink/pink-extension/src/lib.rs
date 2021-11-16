@@ -7,7 +7,7 @@ use ink_env::{emit_event, topics::state::HasRemainingTopics, Environment, Topics
 
 use scale::{Decode, Encode};
 
-#[cfg(feature = "std")]
+#[cfg(feature = "runtime_utils")]
 use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
 
 pub use pink_extension_macro::contract;
@@ -57,7 +57,7 @@ impl Topics for PinkEvent {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "runtime_utils")]
 impl PinkEvent {
     pub fn event_topic() -> Hash {
         topics_for(Self::OnBlockEndSelector(0))[0]
@@ -104,7 +104,7 @@ impl Environment for PinkEnvironment {
     type ChainExtension = <ink_env::DefaultEnvironment as Environment>::ChainExtension;
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "runtime_utils")]
 fn topics_for(event: impl Topics + Encode) -> Vec<Hash> {
     EmittedEvent::new::<PinkEnvironment, _>(event)
         .topics
