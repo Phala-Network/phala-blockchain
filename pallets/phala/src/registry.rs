@@ -24,7 +24,7 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::ContractEvent,
-		contract::{CodeIndex, ContractId32, ContractInfo},
+		contract::{CodeIndex, ContractInfo},
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
 			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
@@ -45,6 +45,10 @@ pub mod pallet {
 		ContractPubkey {
 			contract_pubkey: ContractPublicKey,
 			contract_info: ContractInfo<CodeHash, AccountId>,
+		},
+		ContractDeployed {
+			contract_pubkey: ContractPublicKey,
+			worker_pubkey: WorkerPublicKey,
 		},
 	}
 
@@ -95,10 +99,6 @@ pub mod pallet {
 	/// A mapping from an original code hash to the original code, untouched by instrumentation.
 	#[pallet::storage]
 	pub type PristineCode<T: Config> = StorageMap<_, Identity, CodeHash<T>, Vec<u8>>;
-
-	/// A list of all the available natives contracts
-	#[pallet::storage]
-	pub type NativeContractCode<T: Config> = StorageValue<_, Vec<ContractId32>, ValueQuery>;
 
 	/// The contract counter.
 	#[pallet::storage]
@@ -182,13 +182,10 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Contract related
 		CodeNotFound,
-		NativeContractNotFound,
 		DuplicatedContractPubkey,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
-	type BalanceOf<T> =
-		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -393,13 +390,7 @@ pub mod pallet {
 			let owner = ensure_signed(origin)?;
 
 			match code_index {
-				CodeIndex::NativeCode(contract_id) => {
-					let native_contracts = NativeContractCode::<T>::get();
-					ensure!(
-						native_contracts.contains(&contract_id),
-						Error::<T>::NativeContractNotFound
-					)
-				}
+				CodeIndex::NativeCode(_) => {}
 				CodeIndex::WasmCode(code_hash) => {
 					ensure!(
 						PristineCode::<T>::contains_key(code_hash),
@@ -631,6 +622,12 @@ pub mod pallet {
 						return Err(Error::<T>::DuplicatedContractPubkey.into());
 					}
 					Contracts::<T>::insert(&contract_pubkey, &contract_info);
+				}
+				ContractRegistryEvent::ContractDeployed {
+					contract_pubkey,
+					worker_pubkey,
+				} => {
+					ContractDeployment::<T>::insert(&contract_pubkey, &worker_pubkey);
 				}
 			}
 			Ok(())

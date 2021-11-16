@@ -350,6 +350,7 @@ where
                         contract_info: contract_info.clone(),
                     });
                 // then distribute contract key to the worker
+                // and update the on-chain deployment state
                 let ecdh_key = self
                     .master_key
                     .derive_ecdh_key()
@@ -362,6 +363,12 @@ where
                         contract_info.code_index,
                         0,
                     ));
+                self.egress.push_message(
+                    &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
+                        contract_pubkey: contract_key.public(),
+                        worker_pubkey: deploy_worker.clone(),
+                    },
+                );
                 // finally, make the call
                 let remote_ecdh_key = contract_key
                     .derive_ecdh_key()
