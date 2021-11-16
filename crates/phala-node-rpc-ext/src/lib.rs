@@ -8,7 +8,6 @@ use pallet_mq_runtime_api::MqApi;
 use sc_client_api::blockchain::{HeaderBackend, HeaderMetadata};
 use sc_client_api::{backend, Backend, BlockBackend, StorageProvider};
 use sc_transaction_pool_api::{InPoolTransaction, TransactionPool};
-use serde::{Deserialize, Serialize};
 use sp_api::{ApiExt, Core, ProvideRuntimeApi, StateBackend};
 use sp_runtime::traits::Header;
 use sp_runtime::{generic::BlockId, traits::Block as BlockT};
