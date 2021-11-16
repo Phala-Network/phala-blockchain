@@ -916,15 +916,7 @@ pub fn apply_pink_side_effects(
         .expect("Derive ecdh_key should not fail");
 
     for (deployer, address) in effects.instantiated {
-        let result = Pink::from_address(address, group_id.clone(), &mut group.storage);
-        let pink = match result {
-            Ok(pink) => pink,
-            Err(err) => {
-                error!("Failed to wrap ink contract into Pink: {}", err);
-                continue;
-            }
-        };
-
+        let pink = Pink::from_address(address, group_id.clone());
         let id = pink.id();
 
         install_contract(
@@ -948,28 +940,31 @@ pub fn apply_pink_side_effects(
         egress.push_message(&message);
     }
 
-    for (address, message) in effects.messages {
+    for (address, event) in effects.pink_events {
         let id = Pink::address_to_id(&address);
-        let contract = match contracts.get(&id) {
+        let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
             None => {
                 panic!(
-                    "BUG: Unknown contract sending message, address={:?}",
+                    "BUG: Unknown contract sending pink event, address={:?}",
                     address
                 );
             }
         };
-        use pink::runtime::EgressMessage;
-        match message {
-            EgressMessage::Message(message) => {
+        use pink::runtime::PinkEvent;
+        match event {
+            PinkEvent::Message(message) => {
                 contract.push_message(message.payload, message.topic);
             }
-            EgressMessage::OspMessage(message) => {
+            PinkEvent::OspMessage(message) => {
                 contract.push_osp_message(
                     message.message.payload,
                     message.message.topic,
                     message.remote_pubkey.as_ref(),
                 );
+            }
+            PinkEvent::OnBlockEndSelector(selector) => {
+                contract.set_on_block_end_selector(selector);
             }
         }
     }

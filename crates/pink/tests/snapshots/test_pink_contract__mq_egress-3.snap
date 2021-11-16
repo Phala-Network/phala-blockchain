@@ -4,9 +4,9 @@ expression: effects
 
 ---
 ExecSideEffects {
-    messages: [
+    pink_events: [
         (
-            d7b800810f95b0fa550332988b032812f6708a632b30735abcb9467e8d262f70 (5GwYp55a...),
+            039fee9d7ce83a75f3e236161a8f7cf0f7c4ba5e1aa4a8eea659c5d98b04f186 (5C9TWZop...),
             OspMessage(
                 OspMessage {
                     message: Message {

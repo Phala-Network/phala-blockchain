@@ -4,10 +4,8 @@ expression: contract
 
 ---
 Contract {
-    address: ad25bb2fd8ea45a7a191bac0968e41eff75dc45efdf5cd66f1a179998521ce8b (5FyjMEiX...),
-    hooks: Hooks {
-        on_block_end: Some(
-            2188995711,
-        ),
+    address: b81c488581e2d18bdb886027d0b848b76f2376723c9b2fadf5ccc5b23a2ea038 (5GE751Bk...),
+    hooks: HookSelectors {
+        on_block_end: None,
     },
 }

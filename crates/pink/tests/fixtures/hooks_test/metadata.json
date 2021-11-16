@@ -1,6 +1,7 @@
 {
+  "metadataVersion": "0.1.0",
   "source": {
-    "hash": "0x106290f714bc0703ba90f5da017ccd94f0fb68ef9534405efe0bf7ca1036637b",
+    "hash": "0x1fa8e0bf652901c9acbb13922bae9addfb833e659183381d6134ef266e722eb4",
     "language": "ink! 3.0.0-rc6",
     "compiler": "rustc 1.57.0-nightly"
   },
@@ -11,39 +12,37 @@
       "Kevin Wang <wy721@qq.com>"
     ]
   },
-  "V1": {
-    "spec": {
-      "constructors": [
-        {
-          "args": [],
-          "docs": [],
-          "name": [
-            "default"
-          ],
-          "selector": "0xed4b9d1b"
-        }
-      ],
-      "docs": [],
-      "events": [],
-      "messages": [
-        {
-          "args": [],
-          "docs": [],
-          "mutates": false,
-          "name": [
-            "on_block_end"
-          ],
-          "payable": false,
-          "returnType": null,
-          "selector": "0x82796c7f"
-        }
-      ]
-    },
-    "storage": {
-      "struct": {
-        "fields": []
+  "spec": {
+    "constructors": [
+      {
+        "args": [],
+        "docs": [],
+        "name": [
+          "default"
+        ],
+        "selector": "0xed4b9d1b"
       }
-    },
-    "types": []
-  }
+    ],
+    "docs": [],
+    "events": [],
+    "messages": [
+      {
+        "args": [],
+        "docs": [],
+        "mutates": false,
+        "name": [
+          "on_block_end"
+        ],
+        "payable": false,
+        "returnType": null,
+        "selector": "0x82796c7f"
+      }
+    ]
+  },
+  "storage": {
+    "struct": {
+      "fields": []
+    }
+  },
+  "types": []
 }

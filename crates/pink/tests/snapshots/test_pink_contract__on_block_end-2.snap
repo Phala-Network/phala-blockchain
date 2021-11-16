@@ -4,25 +4,18 @@ expression: effects
 
 ---
 ExecSideEffects {
-    messages: [
+    pink_events: [
         (
-            ad25bb2fd8ea45a7a191bac0968e41eff75dc45efdf5cd66f1a179998521ce8b (5FyjMEiX...),
-            Message(
-                Message {
-                    payload: [
-                        102,
-                        111,
-                        111,
-                    ],
-                    topic: [
-                        47,
-                        98,
-                        97,
-                        114,
-                    ],
-                },
+            b81c488581e2d18bdb886027d0b848b76f2376723c9b2fadf5ccc5b23a2ea038 (5GE751Bk...),
+            OnBlockEndSelector(
+                2188995711,
             ),
         ),
     ],
-    instantiated: [],
+    instantiated: [
+        (
+            0101010101010101010101010101010101010101010101010101010101010101 (5C62Ck4U...),
+            b81c488581e2d18bdb886027d0b848b76f2376723c9b2fadf5ccc5b23a2ea038 (5GE751Bk...),
+        ),
+    ],
 }

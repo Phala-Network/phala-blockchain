@@ -56,14 +56,9 @@ impl Pink {
         Ok((Self { group, instance }, effects))
     }
 
-    pub fn from_address(
-        address: AccountId,
-        group: ContractGroupId,
-        storage: &mut pink::Storage,
-    ) -> Result<Self> {
-        let instance = pink::Contract::from_address(address, storage)
-            .map_err(|err| anyhow!("{:?}", err))?;
-        Ok(Self { instance, group })
+    pub fn from_address(address: AccountId, group: ContractGroupId) -> Self {
+        let instance = pink::Contract::from_address(address);
+        Self { instance, group }
     }
 
     pub fn address_to_id(address: &AccountId) -> ContractId {
@@ -167,6 +162,10 @@ impl contracts::NativeContract for Pink {
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
             })?;
         Ok(effects)
+    }
+
+    fn set_on_block_end_selector(&mut self, selector: u32) {
+        self.instance.set_on_block_end_selector(selector)
     }
 }
 

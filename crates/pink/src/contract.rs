@@ -16,7 +16,7 @@ pub struct ExecError {
     message: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
@@ -32,28 +32,11 @@ impl Contract {
         Storage::new(Default::default())
     }
 
-    pub fn from_address(address: AccountId, storage: &mut Storage) -> Result<Self, ExecError> {
-        let (contract, _effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
-            let result = Contracts::bare_call(
-                Default::default(),
-                address.clone(),
-                0,
-                GAS_LIMIT,
-                Some("pink_on_block_end_selector"),
-                Default::default(),
-                true,
-            );
-            let on_block_end = result
-                .result
-                .ok()
-                .map(|ret| Decode::decode(&mut &ret.data[..]).ok())
-                .flatten();
-            Ok(Contract {
-                address,
-                hooks: HookSelectors { on_block_end },
-            })
-        });
-        contract
+    pub fn from_address(address: AccountId) -> Self {
+        Contract {
+            address,
+            hooks: Default::default(),
+        }
     }
 
     /// Create a new contract instance.
@@ -100,8 +83,7 @@ impl Contract {
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         });
         Ok((
-            Self::from_address(address?, storage)
-                .expect("Contract from address should always success."),
+            Self::from_address(address?),
             effects,
         ))
     }
@@ -203,6 +185,10 @@ impl Contract {
         } else {
             Ok(Default::default())
         }
+    }
+
+    pub fn set_on_block_end_selector(&mut self, selector: u32) {
+        self.hooks.on_block_end = Some(selector)
     }
 }
 
