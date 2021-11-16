@@ -213,7 +213,7 @@ mod tests {
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
                 let result =
-                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
+                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, params, false)
                         .result
                         .unwrap();
                 assert!(result.is_success());
