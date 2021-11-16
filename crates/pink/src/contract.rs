@@ -123,7 +123,7 @@ impl Contract {
         let (rv, effects) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true);
+            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT, input_data, true);
             match result.result {
                 Err(err) => {
                     return Err(ExecError {
