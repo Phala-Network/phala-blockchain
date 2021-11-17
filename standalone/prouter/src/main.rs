@@ -296,6 +296,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
 
     // initializing I2PD
     let mut i2pd = I2PD::new("PRouter".parse()?);
+    i2pd.add_config("datadir".parse()?, pathbuf_to_string(abs_datadir_path.clone())?);
     i2pd.add_config("conf".parse()?, conf_path);
 
     if args.join_pnetwork {
