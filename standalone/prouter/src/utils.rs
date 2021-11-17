@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use std::path::PathBuf;
 
-pub fn get_relative_filepath(path: &PathBuf, filename: &str) -> PathBuf {
+pub fn push(path: &PathBuf, filename: &str) -> PathBuf {
     let mut path_dup = path.clone();
     path_dup.push(filename);
 
@@ -17,7 +17,7 @@ pub fn pathbuf_to_string(path: PathBuf) -> Result<String> {
     Ok(ret)
 }
 
-pub fn get_relative_filepath_str(path: &PathBuf, filename: &str) -> Result<String> {
+pub fn push_str(path: &PathBuf, filename: &str) -> Result<String> {
     let mut path_dup = path.clone();
     path_dup.push(filename);
 
