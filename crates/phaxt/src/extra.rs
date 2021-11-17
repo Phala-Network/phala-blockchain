@@ -29,7 +29,7 @@ pub struct PhalaExtra<T: Config> {
     tx_version: u32,
     nonce: T::Index,
     genesis_hash: T::Hash,
-    config: ExtraConfig<T::Hash>,
+    additional_params: ExtraConfig<T::Hash>,
 }
 
 impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedExtra<T>
@@ -45,26 +45,26 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
         // NOTE: skipped the ZST CheckMqSequence<T> here.
         ChargeTransactionPayment,
     );
-    type Config = ExtraConfig<T::Hash>;
+    type Parameters = ExtraConfig<T::Hash>;
 
     fn new(
         spec_version: u32,
         tx_version: u32,
         nonce: T::Index,
         genesis_hash: T::Hash,
-        config: Self::Config,
+        additional_params: Self::Parameters,
     ) -> Self {
         PhalaExtra {
             spec_version,
             tx_version,
             nonce,
             genesis_hash,
-            config,
+            additional_params,
         }
     }
 
     fn extra(&self) -> Self::Extra {
-        let (era, birth_hash) = match self.config.era {
+        let (era, birth_hash) = match self.additional_params.era {
             None => (Era::Immortal, self.genesis_hash),
             Some(EraInfo {
                 period,
@@ -81,7 +81,7 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
             CheckNonce(self.nonce),
             CheckWeight(PhantomData),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
-            ChargeTransactionPayment(self.config.tip.into()),
+            ChargeTransactionPayment(self.additional_params.tip.into()),
         )
     }
 }
