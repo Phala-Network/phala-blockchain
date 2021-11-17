@@ -784,7 +784,7 @@ async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Resul
             state.current_block, state.highest_block
         );
         if let Some(highest) = state.highest_block {
-            if highest - state.current_block <= 2 {
+            if highest - state.current_block <= 8 {
                 return Ok(());
             }
         }
