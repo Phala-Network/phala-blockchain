@@ -128,7 +128,7 @@ where
             .map_err(|e| Error::invalid_block(parent_id, e))?;
 
         let storage_changes = api
-            .into_storage_changes(&state, None, parent_hash)
+            .into_storage_changes(&state, parent_hash)
             .map_err(|e| Error::invalid_block(parent_id, e))?;
 
         changes.push(StorageChanges {

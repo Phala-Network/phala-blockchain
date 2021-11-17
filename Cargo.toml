@@ -36,6 +36,7 @@ members = [
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",
+	"pallets/utility",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]

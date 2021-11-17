@@ -40,7 +40,7 @@ phala-pallets = { path = "../../pallets/phala" }
 codec = { package = "parity-scale-codec", version = "2.3" }
 serde = { version = "1.0.126", features = ["derive"] }
 futures = "0.3.16"
-hex-literal = "0.3.3"
+hex-literal = "0.3.4"
 log = "0.4.8"
 rand = "0.7.2"
 structopt = { version = "0.3.8", optional = true }
@@ -112,11 +112,13 @@ sc-consensus = { path = "../../substrate/client/consensus/common" }
 sc-consensus-babe = { path = "../../substrate/client/consensus/babe" }
 sc-consensus-epochs = { path = "../../substrate/client/consensus/epochs" }
 sc-service-test = { path = "../../substrate/client/service/test" }
+sc-block-builder = { path = "../../substrate/client/block-builder" }
 sp-tracing = { path = "../../substrate/primitives/tracing" }
+sp-blockchain = { path = "../../substrate/primitives/blockchain" }
 futures = "0.3.16"
 tempfile = "3.1.0"
 assert_cmd = "2.0.2"
-nix = "0.19"
+nix = "0.23"
 serde_json = "1.0"
 regex = "1"
 platforms = "1.1"
@@ -127,9 +129,10 @@ tokio = { version = "1.10", features = ["macros", "time"] }
 jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = ["tokio1"] }
 wait-timeout = "0.2"
 remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
+pallet-timestamp = { path = "../../substrate/frame/timestamp" }
 
 [build-dependencies]
-structopt = { version = "0.3.8", optional = true }
+structopt = { version = "0.3.25", optional = true }
 node-inspect = { optional = true, path = "../../substrate/bin/node/inspect" }
 frame-benchmarking-cli = { optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
 substrate-build-script-utils = { optional = true, path = "../../substrate/utils/build-script-utils" }
@@ -161,4 +164,8 @@ try-runtime = ["node-runtime/try-runtime", "try-runtime-cli"]
 
 [[bench]]
 name = "transaction_pool"
+harness = false
+
+[[bench]]
+name = "block_production"
 harness = false

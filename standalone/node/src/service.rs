@@ -26,11 +26,11 @@ use futures::prelude::*;
 use node_executor::ExecutorDispatch;
 use node_primitives::Block;
 use node_runtime::RuntimeApi;
-use sc_client_api::{BlockBackend, ExecutorProvider, RemoteBackend};
+use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::{Event, NetworkService};
-use sc_service::{config::Configuration, error::Error as ServiceError, PruningMode, RpcHandlers, TaskManager};
+use sc_service::{config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
 use sp_core::crypto::Pair;
@@ -39,13 +39,12 @@ use std::sync::Arc;
 
 /// The full client type definition.
 pub type FullClient =
-	sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+sc_service::TFullClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
 type FullBackend = sc_service::TFullBackend<Block>;
 type FullSelectChain = sc_consensus::LongestChain<FullBackend, Block>;
 type FullGrandpaBlockImport =
-	grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
-type LightClient =
-	sc_service::TLightClient<Block, RuntimeApi, NativeElseWasmExecutor<ExecutorDispatch>>;
+grandpa::GrandpaBlockImport<FullBackend, Block, FullClient, FullSelectChain>;
+
 /// The transaction pool type defintion.
 pub type TransactionPool = sc_transaction_pool::FullPool<Block, FullClient>;
 
@@ -105,7 +104,6 @@ pub fn create_extrinsic(
 			node_runtime::VERSION.transaction_version,
 			genesis_hash,
 			best_hash,
-			(),
 			(),
 			(),
 			(),
@@ -173,7 +171,7 @@ pub fn new_partial(
 	let client = Arc::new(client);
 
 	let telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", worker.run());
+		task_manager.spawn_handle().spawn("telemetry", None, worker.run());
 		telemetry
 	});
 
@@ -308,6 +306,8 @@ pub struct NewFullBase {
 	pub network: Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
 	/// The transaction pool of the node.
 	pub transaction_pool: Arc<TransactionPool>,
+	/// The rpc handlers of the node.
+	pub rpc_handlers: RpcHandlers,
 }
 
 /// Creates a full service from the configuration.
@@ -346,7 +346,6 @@ pub fn new_full_base(
 			transaction_pool: transaction_pool.clone(),
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
-			on_demand: None,
 			block_announce_validator_builder: None,
 			warp_sync: Some(warp_sync),
 		})?;
@@ -368,7 +367,7 @@ pub fn new_full_base(
 	let enable_grandpa = !config.disable_grandpa;
 	let prometheus_registry = config.prometheus_registry().cloned();
 
-	let _rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
+	let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
 		config,
 		backend,
 		client: client.clone(),
@@ -377,8 +376,6 @@ pub fn new_full_base(
 		rpc_extensions_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
-		on_demand: None,
-		remote_blockchain: None,
 		system_rpc_tx,
 		telemetry: telemetry.as_mut(),
 	})?;
@@ -444,7 +441,11 @@ pub fn new_full_base(
 		};
 
 		let babe = sc_consensus_babe::start_babe(babe_config)?;
-		task_manager.spawn_essential_handle().spawn_blocking("babe-proposer", babe);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"babe-proposer",
+			Some("block-authoring"),
+			babe,
+		);
 	}
 
 	// Spawn authority discovery module.
@@ -471,9 +472,11 @@ pub fn new_full_base(
 				prometheus_registry.clone(),
 			);
 
-		task_manager
-			.spawn_handle()
-			.spawn("authority-discovery-worker", authority_discovery_worker.run());
+		task_manager.spawn_handle().spawn(
+			"authority-discovery-worker",
+			Some("networking"),
+			authority_discovery_worker.run(),
+		);
 	}
 
 	// if the node isn't actively participating in consensus then it doesn't
@@ -511,13 +514,15 @@ pub fn new_full_base(
 
 		// the GRANDPA voter task is considered infallible, i.e.
 		// if it fails we take down the service with it.
-		task_manager
-			.spawn_essential_handle()
-			.spawn_blocking("grandpa-voter", grandpa::run_grandpa_voter(grandpa_config)?);
+		task_manager.spawn_essential_handle().spawn_blocking(
+			"grandpa-voter",
+			None,
+			grandpa::run_grandpa_voter(grandpa_config)?,
+		);
 	}
 
 	network_starter.start_network();
-	Ok(NewFullBase { task_manager, client, network, transaction_pool })
+	Ok(NewFullBase { task_manager, client, network, transaction_pool, rpc_handlers })
 }
 
 /// Builds a new service for a full client.
@@ -525,186 +530,9 @@ pub fn new_full(config: Configuration) -> Result<TaskManager, ServiceError> {
 	new_full_base(config, |_, _| ()).map(|NewFullBase { task_manager, .. }| task_manager)
 }
 
-/// Creates a light service from the configuration.
-pub fn new_light_base(
-	mut config: Configuration,
-) -> Result<
-	(
-		TaskManager,
-		RpcHandlers,
-		Arc<LightClient>,
-		Arc<NetworkService<Block, <Block as BlockT>::Hash>>,
-		Arc<
-			sc_transaction_pool::LightPool<Block, LightClient, sc_network::config::OnDemand<Block>>,
-		>,
-	),
-	ServiceError,
-> {
-	let telemetry = config
-		.telemetry_endpoints
-		.clone()
-		.filter(|x| !x.is_empty())
-		.map(|endpoints| -> Result<_, sc_telemetry::Error> {
-			let worker = TelemetryWorker::new(16)?;
-			let telemetry = worker.handle().new_telemetry(endpoints);
-			Ok((worker, telemetry))
-		})
-		.transpose()?;
-
-	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
-		config.wasm_method,
-		config.default_heap_pages,
-		config.max_runtime_instances,
-	);
-
-	let (client, backend, keystore_container, mut task_manager, on_demand) =
-		sc_service::new_light_parts::<Block, RuntimeApi, _>(
-			&config,
-			telemetry.as_ref().map(|(_, telemetry)| telemetry.handle()),
-			executor,
-		)?;
-
-	let mut telemetry = telemetry.map(|(worker, telemetry)| {
-		task_manager.spawn_handle().spawn("telemetry", worker.run());
-		telemetry
-	});
-
-	config.network.extra_sets.push(grandpa::grandpa_peers_set_config());
-
-	let select_chain = sc_consensus::LongestChain::new(backend.clone());
-
-	let transaction_pool = Arc::new(sc_transaction_pool::BasicPool::new_light(
-		config.transaction_pool.clone(),
-		config.prometheus_registry(),
-		task_manager.spawn_essential_handle(),
-		client.clone(),
-		on_demand.clone(),
-	));
-
-	let (grandpa_block_import, grandpa_link) = grandpa::block_import(
-		client.clone(),
-		&(client.clone() as Arc<_>),
-		select_chain.clone(),
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-	let justification_import = grandpa_block_import.clone();
-
-	let (babe_block_import, babe_link) = sc_consensus_babe::block_import(
-		sc_consensus_babe::Config::get_or_compute(&*client)?,
-		grandpa_block_import,
-		client.clone(),
-	)?;
-
-	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = sc_consensus_babe::import_queue(
-		babe_link,
-		babe_block_import,
-		Some(Box::new(justification_import)),
-		client.clone(),
-		select_chain,
-		move |_, ()| async move {
-			let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
-
-			let slot =
-				sp_consensus_babe::inherents::InherentDataProvider::from_timestamp_and_duration(
-					*timestamp,
-					slot_duration,
-				);
-
-			let uncles =
-				sp_authorship::InherentDataProvider::<<Block as BlockT>::Header>::check_inherents();
-
-			Ok((timestamp, slot, uncles))
-		},
-		&task_manager.spawn_essential_handle(),
-		config.prometheus_registry(),
-		sp_consensus::NeverCanAuthor,
-		telemetry.as_ref().map(|x| x.handle()),
-	)?;
-
-	let warp_sync = Arc::new(grandpa::warp_proof::NetworkProvider::new(
-		backend.clone(),
-		grandpa_link.shared_authority_set().clone(),
-		Vec::default(),
-	));
-
-	let (network, system_rpc_tx, network_starter) =
-		sc_service::build_network(sc_service::BuildNetworkParams {
-			config: &config,
-			client: client.clone(),
-			transaction_pool: transaction_pool.clone(),
-			spawn_handle: task_manager.spawn_handle(),
-			import_queue,
-			on_demand: Some(on_demand.clone()),
-			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
-		})?;
-
-	let enable_grandpa = !config.disable_grandpa;
-	if enable_grandpa {
-		let name = config.network.node_name.clone();
-
-		let config = grandpa::Config {
-			gossip_duration: std::time::Duration::from_millis(333),
-			justification_period: 1,
-			name: Some(name),
-			observer_enabled: false,
-			keystore: None,
-			local_role: config.role.clone(),
-			telemetry: telemetry.as_ref().map(|x| x.handle()),
-		};
-
-		task_manager.spawn_handle().spawn_blocking(
-			"grandpa-observer",
-			grandpa::run_grandpa_observer(config, grandpa_link, network.clone())?,
-		);
-	}
-
-	if config.offchain_worker.enabled {
-		sc_service::build_offchain_workers(
-			&config,
-			task_manager.spawn_handle(),
-			client.clone(),
-			network.clone(),
-		);
-	}
-
-	let light_deps = node_rpc::LightDeps {
-		remote_blockchain: backend.remote_blockchain(),
-		fetcher: on_demand.clone(),
-		client: client.clone(),
-		pool: transaction_pool.clone(),
-	};
-
-	let rpc_extensions = node_rpc::create_light(light_deps);
-
-	let rpc_handlers = sc_service::spawn_tasks(sc_service::SpawnTasksParams {
-		on_demand: Some(on_demand),
-		remote_blockchain: Some(backend.remote_blockchain()),
-		rpc_extensions_builder: Box::new(sc_service::NoopRpcExtensionBuilder(rpc_extensions)),
-		client: client.clone(),
-		transaction_pool: transaction_pool.clone(),
-		keystore: keystore_container.sync_keystore(),
-		config,
-		backend,
-		system_rpc_tx,
-		network: network.clone(),
-		task_manager: &mut task_manager,
-		telemetry: telemetry.as_mut(),
-	})?;
-
-	network_starter.start_network();
-	Ok((task_manager, rpc_handlers, client, network, transaction_pool))
-}
-
-/// Builds a new service for a light client.
-pub fn new_light(config: Configuration) -> Result<TaskManager, ServiceError> {
-	new_light_base(config).map(|(task_manager, _, _, _, _)| task_manager)
-}
-
 #[cfg(test)]
 mod tests {
-	use crate::service::{new_full_base, new_light_base, NewFullBase};
+	use crate::service::{new_full_base, NewFullBase};
 	use codec::Encode;
 	use node_primitives::{Block, DigestItem, Signature};
 	use node_runtime::{
@@ -719,7 +547,7 @@ mod tests {
 	use sc_service_test::TestNetNode;
 	use sc_transaction_pool_api::{ChainEvent, MaintainedTransactionPool};
 	use sp_consensus::{BlockOrigin, Environment, Proposer};
-	use sp_core::{crypto::Pair as CryptoPair, Public, H256};
+	use sp_core::{crypto::Pair as CryptoPair, Public};
 	use sp_inherents::InherentDataProvider;
 	use sp_keyring::AccountKeyring;
 	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
@@ -780,15 +608,6 @@ mod tests {
 				);
 				Ok((node, setup_handles.unwrap()))
 			},
-			|config| {
-				let (keep_alive, _, client, network, transaction_pool) = new_light_base(config)?;
-				Ok(sc_service_test::TestNetComponents::new(
-					keep_alive,
-					client,
-					network,
-					transaction_pool,
-				))
-			},
 			|service, &mut (ref mut block_import, ref babe_link)| {
 				let parent_id = BlockId::number(service.client().chain_info().best_number);
 				let parent_header = service.client().header(&parent_id).unwrap().unwrap();
@@ -807,7 +626,7 @@ mod tests {
 					None,
 				);
 
-				let mut digest = Digest::<H256>::default();
+				let mut digest = Digest::default();
 
 				// even though there's only one authority some slots might be empty,
 				// so we must keep trying the next slots until we can claim one.
@@ -833,8 +652,8 @@ mod tests {
 						.unwrap();
 
 					if let Some(babe_pre_digest) =
-						sc_consensus_babe::authorship::claim_slot(slot.into(), &epoch, &keystore)
-							.map(|(digest, _)| digest)
+					sc_consensus_babe::authorship::claim_slot(slot.into(), &epoch, &keystore)
+						.map(|(digest, _)| digest)
 					{
 						break (babe_pre_digest, epoch_descriptor)
 					}
@@ -860,8 +679,8 @@ mod tests {
 						.propose(inherent_data, digest, std::time::Duration::from_secs(1), None)
 						.await
 				})
-				.expect("Error making test block")
-				.block;
+					.expect("Error making test block")
+					.block;
 
 				let (new_header, new_body) = new_block.deconstruct();
 				let pre_hash = new_header.hash();
@@ -874,10 +693,10 @@ mod tests {
 					&alice.to_public_crypto_pair(),
 					&to_sign,
 				)
-				.unwrap()
-				.unwrap()
-				.try_into()
-				.unwrap();
+					.unwrap()
+					.unwrap()
+					.try_into()
+					.unwrap();
 				let item = <DigestItem as CompatibleDigestItem>::babe_seal(signature);
 				slot += 1;
 
@@ -914,7 +733,6 @@ mod tests {
 				let check_era = frame_system::CheckEra::from(Era::Immortal);
 				let check_nonce = frame_system::CheckNonce::from(index);
 				let check_weight = frame_system::CheckWeight::new();
-				let check_mq_sequence = phala_pallets::mq::CheckMqSequence::new();
 				let payment = pallet_transaction_payment::ChargeTransactionPayment::from(0);
 				let extra = (
 					check_spec_version,
@@ -923,13 +741,12 @@ mod tests {
 					check_era,
 					check_nonce,
 					check_weight,
-					check_mq_sequence,
 					payment,
 				);
 				let raw_payload = SignedPayload::from_raw(
 					function,
 					extra,
-					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), (), ()),
+					(spec_version, transaction_version, genesis_hash, genesis_hash, (), (), ()),
 				);
 				let signature = raw_payload.using_encoded(|payload| signer.sign(payload));
 				let (function, extra, _) = raw_payload.deconstruct();
@@ -952,15 +769,6 @@ mod tests {
 					new_full_base(config, |_, _| ())?;
 				Ok(sc_service_test::TestNetComponents::new(
 					task_manager,
-					client,
-					network,
-					transaction_pool,
-				))
-			},
-			|config| {
-				let (keep_alive, _, client, network, transaction_pool) = new_light_base(config)?;
-				Ok(sc_service_test::TestNetComponents::new(
-					keep_alive,
 					client,
 					network,
 					transaction_pool,
