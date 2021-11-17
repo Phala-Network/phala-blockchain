@@ -1,22 +1,28 @@
 extern crate ini;
 use ini::Ini;
 
+use crate::Args;
 use anyhow::Result;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::path::Path;
 use std::path::PathBuf;
+use tokio::join;
 
-use crate::utils::get_relative_filepath_str;
+use crate::utils::push_str;
 
-pub fn init_prouter_conf(datadir: &PathBuf) -> Result<()> {
-    let prouterconf_path = get_relative_filepath_str(&datadir, "i2pd.conf")?;
-    let tunconf_path = get_relative_filepath_str(&datadir, "tunnels.conf")?;
-    let tundir = get_relative_filepath_str(&datadir, "tunnels.d")?;
-    let pidfile = get_relative_filepath_str(&datadir, "prouter.pid")?;
-    let certsdir = get_relative_filepath_str(&datadir, "certificates")?;
-    let logfile = get_relative_filepath_str(&datadir, "prouter.log")?;
+pub fn init_prouter_conf(
+    abs_datadir: &PathBuf,
+    tunconf_path: String,
+    args: &Args,
+) -> Result<String> {
+    let conf_path = push_str(&abs_datadir, "i2pd.conf")?;
+    let tundir = push_str(&abs_datadir, "tunnels.d")?;
+    let pidfile = push_str(&abs_datadir, "prouter.pid")?;
+    let certsdir = push_str(&abs_datadir, "certificates")?;
+    let logfile = push_str(&abs_datadir, "prouter.log")?;
 
+    // Construct default config
     let mut conf = Ini::new();
     conf.with_section(None::<String>)
         .set("tunconf", tunconf_path)
@@ -112,30 +118,38 @@ pub fn init_prouter_conf(datadir: &PathBuf) -> Result<()> {
         .set("yggdrasil", "false")
         .set("yggaddress", "");
 
-    conf.write_to_file(prouterconf_path)?;
+    // overriding
+    if let Some(override_conf) = &args.override_i2pd {
+        if let Ok(o_ini) = Ini::load_from_file(&override_conf) {
+            for (sec, prop) in o_ini.iter() {
+                for (k, v) in prop.iter() {
+                    conf.with_section(sec).set(k, v);
+                }
+            }
+        }
+    }
 
-    Ok(())
+    conf.write_to_file(conf_path.clone())?;
+
+    Ok(conf_path)
 }
 
-pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: &Option<String>, pruntime_host: &String, pruntime_port: &String, ignore_pnetwork: &bool,) -> Result<()> {
-    let tunconf_path = get_relative_filepath_str(&datadir, "tunnels.conf")?;
+pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
+    let tunconf_path = push_str(&abs_datadir, "tunnels.conf")?;
 
-    let mut conf = match existed_tunconf {
+    let mut conf = match &args.override_tun {
         Some(path) => match Ini::load_from_file(&path) {
             Ok(ini) => ini,
-            Err(e) => {
-                warn!("Failed to load the existed tunnel file: {}", e);
-                Ini::new()
-            }
+            Err(e) => Ini::new(),
         },
         _ => Ini::new(),
     };
 
-    if !ignore_pnetwork {
+    if args.join_pnetwork {
         conf.with_section(Some("PNetwork"))
             .set("type", "http")
-            .set("host", pruntime_host)
-            .set("port", pruntime_port)
+            .set("host", args.pnetwork_host.clone())
+            .set("port", args.pnetwork_port.clone())
             .set("keys", "pnetwork.key")
             .set("inbound.length", "3")
             .set("inbound.quantity", "5")
@@ -143,7 +157,7 @@ pub fn init_tunnels_conf(datadir: &PathBuf, existed_tunconf: &Option<String>, pr
             .set("outbound.quantity", "5");
     }
 
-    conf.write_to_file(tunconf_path)?;
+    conf.write_to_file(tunconf_path.clone())?;
 
-    Ok(())
+    Ok(tunconf_path)
 }

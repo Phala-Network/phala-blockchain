@@ -799,4 +799,10 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
         let echo_msg = request.echo_msg;
         Ok(pb::EchoMessage { echo_msg })
     }
+
+    fn derive_ident_sk(&mut self, request: pb::DeriveIdentSkRequest) -> RpcResult<pb::DeriveIdentSkResponse> {
+        let system = self.phactory.system()?;
+        let derive_key = system.identity_key.derive_sr25519_pair(&[&request.info]).expect("should not fail with valid key");
+        Ok(pb::DeriveIdentSkResponse { sk: derive_key.dump_secret_key().to_vec() })
+    }
 }

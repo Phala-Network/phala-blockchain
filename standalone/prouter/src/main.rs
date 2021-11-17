@@ -3,10 +3,10 @@
 #![allow(non_snake_case)]
 
 mod config;
-mod types;
+mod i2pd;
 mod utils;
 
-use anyhow::{Error, Result};
+use anyhow::{anyhow, Error, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::fs;
@@ -16,42 +16,101 @@ use structopt::StructOpt;
 use tokio::select;
 use tokio::signal;
 use tokio::time::{sleep, Duration};
+extern crate rand;
 
 use chrono::{DateTime, Utc};
 
 use config::*;
-use types::I2PD;
+use i2pd::I2PD;
 use utils::*;
+
+use crate::prpc::phactory_api_client::PhactoryApiClient;
+use phactory_api::prpc::{self};
+use phactory_api::pruntime_client;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "prouter")]
-struct Args {
+pub struct Args {
+    ///
+    /// pRuntime Setting
+    ///
+    #[structopt(long, help = "Set and pRouter will work without pRuntime")]
+    no_pruntime: bool,
+
+    #[structopt(
+        default_value = "http://localhost:8000",
+        long,
+        help = "Endpoint of pRuntime that pRouter could communicate with"
+    )]
+    pruntime_endpoint: String,
+
+    ///
+    /// Phala Node Setting
+    ///
+    #[structopt(
+        long,
+        help = "Set and pRouter will work without Phala node rpc websocket endpoint"
+    )]
+    no_pnode: bool,
+
+    #[structopt(
+        default_value = "http://localhost:8000",
+        long,
+        help = "Phala node rpc websocket endpoint"
+    )]
+    pnode_ws_endpoint: String,
+
+    ///
+    /// Phala Network Setting
+    ///
+    #[structopt(long, help = "Join Phala Network?")]
+    join_pnetwork: bool,
+
     #[structopt(
         default_value = "127.0.0.1",
-        long
+        long,
+        help = "Host for the public API, without `http://` prefix. Required to support http protocol"
     )]
-    pruntime_host: String,
+    pnetwork_host: String,
 
     #[structopt(
         default_value = "8000",
-        long
+        long,
+        help = "Port for the public API. Required to support http protocol"
     )]
-    pruntime_port: String,
+    pnetwork_port: String,
 
-    #[structopt(long, default_value = "600")]
+    ///
+    /// Router Setting
+    ///
+    #[structopt(
+        long,
+        default_value = "600",
+        help = "Seconds of pRouter gracefully shutting down"
+    )]
     shutdown_interval: u64,
 
-    #[structopt(long, default_value = "./pdata")]
+    #[structopt(long, default_value = "./pdata", help = "Path to store pRouter data")]
     datadir: String,
 
-    #[structopt(long)]
-    ignore_pnetwork: bool,
+    #[structopt(long, help = "Override default i2pd config file to provided")]
+    override_i2pd: Option<String>,
 
     #[structopt(
         long,
-        help = "Your custom tunnels file that contains other tunnels. PRouter will merge your tunnels with the Phala Network tunnel."
+        help = "Override default tunnels config file to provided. You need to prepare your own key file, path is relative to datadir"
     )]
-    existed_tunconf: Option<String>,
+    override_tun: Option<String>,
+
+    #[structopt(long, help = "Auto restart self after an error occurred")]
+    auto_restart: bool,
+
+    #[structopt(
+        default_value = "10",
+        long,
+        help = "Max auto restart retries if it continuously failing. Only used with --auto-restart"
+    )]
+    max_restart_retries: u32,
 }
 
 fn preprocess_path(path_str: &String) -> Result<PathBuf> {
@@ -95,7 +154,11 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
 
     loop {
         let network_status = i2pd.get_network_status()?;
-        info!("💡 Network Status: {}", network_status);
+        info!("💡 Network Status: {}", &network_status);
+        if network_status.to_lowercase().contains("error") {
+            warn!("Error happened: {}", &network_status);
+            return Err(anyhow!("{}", network_status));
+        }
         let tunnel_creation_success_rate = i2pd.get_tunnel_creation_success_rate()?;
         info!(
             "🛠 Tunnel Creation Success Rate: {}%",
@@ -141,58 +204,51 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
             }
         );
         let bob_enabled = i2pd.is_bob_enabled()?;
-        info!("🤝 BOB: {}", if bob_enabled { "Enabled 🟢" } else { "Disabled 🔴" });
+        info!(
+            "🤝 BOB: {}",
+            if bob_enabled {
+                "Enabled 🟢"
+            } else {
+                "Disabled 🔴"
+            }
+        );
         let sam_enabled = i2pd.is_sam_enabled()?;
-        info!("🤝 SAM: {}", if sam_enabled { "Enabled 🟢" } else { "Disabled 🔴" });
+        info!(
+            "🤝 SAM: {}",
+            if sam_enabled {
+                "Enabled 🟢"
+            } else {
+                "Disabled 🔴"
+            }
+        );
         let i2cp_enabled = i2pd.is_i2cp_enabled()?;
         info!(
             "🤝 I2CP: {}",
-            if i2cp_enabled { "Enabled 🟢" } else { "Disabled 🔴" }
+            if i2cp_enabled {
+                "Enabled 🟢"
+            } else {
+                "Disabled 🔴"
+            }
         );
         sleep(Duration::from_secs(10)).await;
     }
     // Will never return
 }
 
-pub async fn prouter_main() -> Result<()> {
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .parse_default_env()
-        .init();
-
-    let args = Args::from_args();
-
-    // init path
-    let datadir = preprocess_path(&args.datadir)?;
-
-    // init conf
-    init_prouter_conf(&datadir)?;
-    init_tunnels_conf(&datadir, &args.existed_tunconf, &args.pruntime_host, &args.pruntime_port, &args.ignore_pnetwork)?;
-
-    // init I2PD
-    let mut i2pd = I2PD::new("PRouter".parse()?);
-    i2pd.add_config("datadir".parse()?, pathbuf_to_string(datadir.clone())?);
-    i2pd.add_config(
-        "conf".parse()?,
-        get_relative_filepath_str(&datadir, "i2pd.conf")?,
-    );
-
-    let pnetwork_identity = i2pd.load_private_keys_from_file(true)?;
-
+pub async fn daemon_run(mut i2pd: I2PD, args: &Args) -> Result<()> {
     info!("PRouter is initializing...");
     i2pd.init();
     info!("PRouter is starting...");
     i2pd.start();
-    info!(
-        "PRouter is successfully started, logging into {}",
-        get_relative_filepath_str(&datadir, "prouter.log")?
-    );
+    info!("PRouter is successfully started");
     info!("Press CTRL-C to gracefully shutdown");
     info!(" ");
 
     select! {
         _ = signal::ctrl_c() => {},
-        _ = display_prouter_info(&i2pd) => {},
+        ret = display_prouter_info(&i2pd) => {
+            return ret;
+        },
     };
 
     info!("PRouter is gracefully shutting down...");
@@ -223,9 +279,89 @@ pub async fn prouter_main() -> Result<()> {
     Ok(())
 }
 
+pub async fn prouter_main(args: &Args) -> Result<()> {
+    let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
+    let pnetwork_ident_sk: Vec<u8>;
+
+    if !args.no_pruntime {
+        pr = Some(pruntime_client::new_pruntime_client(
+            args.pruntime_endpoint.clone(),
+        ));
+    }
+
+    // generating conf
+    let abs_datadir_path = preprocess_path(&args.datadir)?;
+    let tunconf_path = init_tunnels_conf(&abs_datadir_path, args)?;
+    let conf_path = init_prouter_conf(&abs_datadir_path, tunconf_path, args)?;
+
+    // initializing I2PD
+    let mut i2pd = I2PD::new("PRouter".parse()?);
+    i2pd.add_config("conf".parse()?, conf_path);
+
+    if args.join_pnetwork {
+        if !args.no_pruntime {
+            // Wait until pruntime is initialized
+            loop {
+                let info = pr
+                    .as_ref()
+                    .expect("guaranteed to be initialized")
+                    .get_info(())
+                    .await?;
+                if !info.initialized {
+                    warn!("pRuntime is not initialized. Waiting...");
+                } else {
+                    info!("pRuntime already initialized.");
+                    break;
+                }
+                sleep(Duration::from_secs(5)).await;
+            }
+            // Get derived identity for pnetwork
+            pnetwork_ident_sk = pr
+                .expect("guaranteed to be initialized")
+                .derive_ident_sk(prpc::DeriveIdentSkRequest {
+                    info: b"pNetwork".to_vec(),
+                })
+                .await?
+                .sk;
+        } else {
+            // Random generate
+            pnetwork_ident_sk = (0..64).map(|_| rand::random::<u8>()).collect();
+        }
+        i2pd::generate_ident_to_file(
+            &abs_datadir_path,
+            "pnetwork.key".to_string(),
+            pnetwork_ident_sk,
+        )?;
+    }
+
+    let mut restart_failure_count: u32 = 0;
+    loop {
+        if let Err(err) = daemon_run(i2pd.clone(), args).await {
+            info!("daemon_run() exited with error: {:?}", err);
+            if !args.auto_restart || restart_failure_count > args.max_restart_retries {
+                std::process::exit(1);
+            }
+            restart_failure_count += 1;
+            sleep(Duration::from_secs(2)).await;
+            info!("Restarting...");
+        } else {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() {
-    match prouter_main().await {
+    env_logger::builder()
+        .filter_level(log::LevelFilter::Info)
+        .parse_default_env()
+        .init();
+
+    let args = Args::from_args();
+
+    match prouter_main(&args).await {
         Ok(()) => {}
         Err(e) => panic!("Fetal error: {:?}", e),
     };
