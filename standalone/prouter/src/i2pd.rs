@@ -6,7 +6,6 @@ use std::ffi::CStr;
 use std::ffi::CString;
 use std::os::raw::c_char;
 use std::path::PathBuf;
-use text_io::read;
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -37,12 +36,34 @@ enum PROUTER_CRYPTO_KEY_TYPE {
 #[derive(Debug)]
 pub struct TunnelInfo(pub String, pub String);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct I2PD {
     argc: i32,
     argv: HashMap<String, String>,
     app_name: String,
     is_running: bool,
+}
+
+pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u8>) -> Result<()> {
+    let mut keyfile_path = abs_datadir.clone();
+    keyfile_path.push(filename);
+
+    let c_str_sk = CString::new(sk).expect("sk should be able to be converted into CString");
+    let c_sk: *const c_char = c_str_sk.as_ptr() as *const c_char;
+
+    let c_str_filename = CString::new(String::from(keyfile_path.to_string_lossy()))
+        .expect("String should be able to be converted into CString");
+    let c_filename: *const c_char = c_str_filename.as_ptr() as *const c_char;
+    unsafe {
+        C_GenerateIdentToFile(
+            c_filename,
+            c_sk,
+            PROUTER_SIGNING_KEY_TYPE::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519 as u16,
+            PROUTER_CRYPTO_KEY_TYPE::CRYPTO_KEY_TYPE_ELGAMAL as u16,
+        )
+    };
+
+    Ok(())
 }
 
 impl I2PD {
@@ -74,54 +95,6 @@ impl I2PD {
     pub fn add_config(&mut self, key: String, data: String) {
         self.argv.insert(key, data);
         self.argc += 1;
-    }
-
-    pub fn load_private_keys_from_file(&self, check_existence: bool) -> Result<String> {
-        let opt_datadir = self.argv.get("datadir");
-        return match opt_datadir {
-            Some(datadir) => {
-                let mut keyfile_path = PathBuf::from(&datadir);
-                keyfile_path.push("pnetwork.key");
-                if check_existence && !keyfile_path.as_path().exists() {
-                    loop {
-                        info!("There is no detected keyfile in data directory. Enter `yes` to continue and create a new keyfile and `no` to abort.");
-                        let user_response: String = read!("{}\n");
-                        match user_response.as_str().to_lowercase().as_str() {
-                            "yes" => break,
-                            "no" => {
-                                return Err(anyhow!("Private key loading aborted"));
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                let c_str = CString::new(String::from(keyfile_path.to_string_lossy()))
-                    .expect("String should be able to be converted into CString");
-                let c_filename: *const c_char = c_str.as_ptr() as *const c_char;
-                let ptr_identity: *const c_char = unsafe {
-                    C_LoadPrivateKeysFromFile(
-                        c_filename,
-                        PROUTER_SIGNING_KEY_TYPE::SIGNING_KEY_TYPE_EDDSA_SHA512_ED25519 as u16,
-                        PROUTER_CRYPTO_KEY_TYPE::CRYPTO_KEY_TYPE_ELGAMAL as u16,
-                    )
-                };
-                if ptr_identity.is_null() {
-                    error!("The keyfile returned from C is corrupted");
-                    return Err(anyhow!("The keyfile is corrupted"));
-                }
-
-                let c_str_identity = unsafe { CStr::from_ptr(ptr_identity) };
-                let identity: String = c_str_identity.to_str()?.to_owned();
-
-                info!("Loaded PNetwork identity: {:?}", identity);
-                Ok(identity)
-            }
-            None => {
-                info!("You must specify datadir before loading private keys");
-                Err(anyhow!("Missing datadir"))
-            }
-        };
     }
 
     fn get_client_tunnel_name_by_id(&self, index: i32) -> Result<String> {
@@ -403,7 +376,7 @@ impl I2PD {
         if !self.is_running {
             return Err(anyhow!("I2PD is not running"));
         }
-        let ptr_ident: *const c_char = unsafe { C_GetHTTPProxyIdent () };
+        let ptr_ident: *const c_char = unsafe { C_GetHTTPProxyIdent() };
         if ptr_ident.is_null() {
             error!("The ident returned from C is corrupted");
             return Err(anyhow!("The ident returned from C is corrupted"));
@@ -419,7 +392,7 @@ impl I2PD {
         if !self.is_running {
             return Err(anyhow!("I2PD is not running"));
         }
-        let ptr_ident: *const c_char = unsafe { C_GetSOCKSProxyIdent () };
+        let ptr_ident: *const c_char = unsafe { C_GetSOCKSProxyIdent() };
         if ptr_ident.is_null() {
             error!("The ident returned from C is corrupted");
             return Err(anyhow!("The ident returned from C is corrupted"));
