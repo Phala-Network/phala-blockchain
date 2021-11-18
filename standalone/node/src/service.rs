@@ -30,7 +30,7 @@ use sc_client_api::{BlockBackend, ExecutorProvider};
 use sc_consensus_babe::{self, SlotProportion};
 use sc_executor::NativeElseWasmExecutor;
 use sc_network::{Event, NetworkService};
-use sc_service::{config::Configuration, error::Error as ServiceError, RpcHandlers, TaskManager};
+use sc_service::{config::Configuration, error::Error as ServiceError, PruningMode, RpcHandlers, TaskManager};
 use sc_telemetry::{Telemetry, TelemetryWorker};
 use sp_api::ProvideRuntimeApi;
 use sp_core::crypto::Pair;
@@ -104,6 +104,7 @@ pub fn create_extrinsic(
 			node_runtime::VERSION.transaction_version,
 			genesis_hash,
 			best_hash,
+			(),
 			(),
 			(),
 			(),
