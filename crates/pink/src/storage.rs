@@ -1,8 +1,8 @@
-use crate::{runtime::ExecSideEffects, types::{BlockNumber, Hash, Hashing}};
-use sp_state_machine::{
-    disabled_changes_trie_state, Backend as StorageBackend, Ext, OverlayedChanges,
-    StorageTransactionCache,
+use crate::{
+    runtime::ExecSideEffects,
+    types::{BlockNumber, Hash, Hashing},
 };
+use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
 
@@ -33,18 +33,16 @@ where
         }
     }
 
-    pub fn execute_with<R>(&mut self, rollback: bool, f: impl FnOnce() -> R) -> (R, ExecSideEffects) {
+    pub fn execute_with<R>(
+        &mut self,
+        rollback: bool,
+        f: impl FnOnce() -> R,
+    ) -> (R, ExecSideEffects) {
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
 
         self.overlay.start_transaction();
         let mut cache = StorageTransactionCache::default();
-        let mut ext = Ext::new(
-            &mut self.overlay,
-            &mut cache,
-            backend,
-            disabled_changes_trie_state::<_, BlockNumber>(),
-            None,
-        );
+        let mut ext = Ext::new(&mut self.overlay, &mut cache, backend, None);
         let r = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
             let r = f();

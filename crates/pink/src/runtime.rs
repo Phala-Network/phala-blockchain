@@ -224,7 +224,7 @@ mod tests {
     pub mod exec {
         use sp_runtime::traits::BlakeTwo256;
         use sp_state_machine::{
-            disabled_changes_trie_state, Backend, Ext, OverlayedChanges, StorageTransactionCache,
+            Backend, Ext, OverlayedChanges, StorageTransactionCache,
         };
         pub type InMemoryBackend = sp_state_machine::InMemoryBackend<BlakeTwo256>;
 
@@ -235,13 +235,7 @@ mod tests {
             let mut overlay = OverlayedChanges::default();
             overlay.start_transaction();
             let mut cache = StorageTransactionCache::default();
-            let mut ext = Ext::new(
-                &mut overlay,
-                &mut cache,
-                backend,
-                disabled_changes_trie_state::<_, u64>(),
-                None,
-            );
+            let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
             let r = sp_externalities::set_and_run_with_externalities(&mut ext, f);
             overlay
                 .commit_transaction()

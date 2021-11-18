@@ -81,7 +81,7 @@ pallet-sudo = { default-features = false, path = "../../substrate/frame/sudo" }
 pallet-timestamp = { default-features = false, path = "../../substrate/frame/timestamp" }
 pallet-tips = { default-features = false, path = "../../substrate/frame/tips" }
 pallet-treasury = { default-features = false, path = "../../substrate/frame/treasury" }
-pallet-utility = { default-features = false, path = "../../substrate/frame/utility" }
+pallet-utility = { default-features = false, path = "../../pallets/utility" }
 pallet-transaction-payment = { default-features = false, path = "../../substrate/frame/transaction-payment" }
 pallet-transaction-payment-rpc-runtime-api = { default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { default-features = false, path = "../../substrate/frame/vesting" }

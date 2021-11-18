@@ -37,6 +37,7 @@ async-io = { version = "1.6" }
 
 aho-corasick = { version = "0.7.18", features = ["sgx_trts"] }
 parking_lot_core = { version = "0.8.5", features = ["phala-sgx"] }
+cpufeatures = { version = "0.2", default-features = false, features = ["phala-sgx"] }
 once_cell = { version = "1.8.0", default-features = false, features = ["parking_lot"] }
 
 [target.'cfg(not(target_env = "sgx"))'.dependencies]
