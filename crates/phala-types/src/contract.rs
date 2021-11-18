@@ -2,6 +2,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 use crate::ContractPublicKey;
 
@@ -18,7 +19,7 @@ pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub enum CodeIndex<CodeHash> {
     NativeCode(ContractId32),
     WasmCode(CodeHash),
@@ -55,7 +56,7 @@ pub mod messaging {
 }
 
 /// On-chain contract registration info
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(Encode, Decode, Clone, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
     pub owner: AccountId,
     /// Contract group counter of the contract
