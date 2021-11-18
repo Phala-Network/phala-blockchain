@@ -37,7 +37,7 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, CodeIndex},
+    contract::{self, CodeIndex, ContractInfo},
     messaging::{
         DispatchContractKeyEvent, DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch,
         HeartbeatChallenge, KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent,
@@ -378,7 +378,6 @@ impl WorkerIdentityKey {
 }
 
 type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
-type OnchainContractMap = BTreeMap<ContractPublicKey, Box<dyn contracts::Contract + Send>>;
 type ContractKey = sr25519::Pair;
 
 #[derive(Serialize, Deserialize)]
@@ -407,8 +406,6 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_groups: GroupKeeper,
-
-    pub(crate) onchain_contracts: OnchainContractMap,
     contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
 
     // Cached for query
@@ -454,7 +451,6 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_groups: Default::default(),
-            onchain_contracts: Default::default(),
             contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
@@ -603,7 +599,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
-            // TODO.shelven: remove this assertion after we enable master key rotation
+            // TODO(shelven): remove this assertion after we enable master key rotation
             assert_eq!(my_master_key.to_raw_vec(), master_key.to_raw_vec());
         }
     }
@@ -894,14 +890,53 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let contract_key = ContractKey::restore_from_seed(&event.seed);
         let contract_pubkey = contract_key.public();
+        let contract_info = chain_state::read_contract_info(block.storage, contract_pubkey.clone())
+            .expect("contract public key is uploaded before distribution; qed.");
         match event.code_index {
-            CodeIndex::NativeCode(contract_id) => {}
+            CodeIndex::NativeCode(_contract_id) => {
+                // TODO(shelven): launch native code instance
+            }
             CodeIndex::WasmCode(code_hash) => {
                 let code = chain_state::read_contract_code(block.storage, code_hash);
                 if let Some(code) = code {
                     if !self.contract_keys.contains_key(&contract_pubkey) {
-                        self.contract_keys.insert(contract_pubkey, contract_key);
-                        // TODO(shelven): install the contract from chain
+                        self.contract_keys
+                            .insert(contract_pubkey, contract_key.clone());
+                        let result = self.contract_groups.instantiate_contract(
+                            chain::Hash::from_low_u64_be(contract_info.group_counter),
+                            contract_info.owner.clone(),
+                            code,
+                            contract_info.instantiate_data,
+                            contract_info.salt,
+                            &contract_key,
+                            block.block_number,
+                            block.now_ms,
+                        );
+                        match result {
+                            Err(err) => {
+                                error!(
+                                    "Instantiate contract error: {}, owner: {:?}",
+                                    err, contract_info.owner,
+                                );
+                            }
+                            Ok(effects) => {
+                                let group_id =
+                                    chain::Hash::from_low_u64_be(contract_info.group_counter);
+                                let group = self
+                                    .contract_groups
+                                    .get_group_mut(&group_id)
+                                    .expect("Group must exist after instantiate");
+
+                                apply_pink_side_effects(
+                                    effects,
+                                    &group_id,
+                                    &mut self.contracts,
+                                    group,
+                                    block,
+                                    &self.egress,
+                                );
+                            }
+                        }
                     }
                 } else {
                     warn!(
@@ -1121,6 +1156,15 @@ pub mod chain_state {
         let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PristineCode", &code_hash);
         let code: Option<Vec<u8>> = chain_storage.get_decoded(&key).unwrap_or(None);
         code
+    }
+
+    pub fn read_contract_info(
+        chain_storage: &Storage,
+        contract_pubkey: ContractPublicKey,
+    ) -> Option<ContractInfo<chain::Hash, chain::AccountId>> {
+        let key =
+            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"Contracts", &contract_pubkey);
+        chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
 

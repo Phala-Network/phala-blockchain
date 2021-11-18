@@ -405,14 +405,14 @@ pub mod pallet {
 			});
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
-				code_index,
 				owner,
 				group_counter,
 				salt,
+				code_index,
+				instantiate_data: data,
 			};
 			Self::push_message(ContractEvent::instantiate_code(
 				contract_info,
-				data,
 				deploy_worker,
 			));
 

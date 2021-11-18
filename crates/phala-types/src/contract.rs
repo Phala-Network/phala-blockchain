@@ -37,7 +37,6 @@ pub mod messaging {
     pub enum ContractEvent<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            data: Vec<u8>,
             deploy_worker: Option<WorkerPublicKey>,
         },
     }
@@ -45,12 +44,10 @@ pub mod messaging {
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
-            data: Vec<u8>,
             deploy_worker: Option<WorkerPublicKey>,
         ) -> Self {
             ContractEvent::InstantiateCode {
                 contract_info,
-                data,
                 deploy_worker,
             }
         }
@@ -60,11 +57,12 @@ pub mod messaging {
 /// On-chain contract registration info
 #[derive(Encode, Decode, Clone, Debug)]
 pub struct ContractInfo<CodeHash, AccountId> {
-    pub code_index: CodeIndex<CodeHash>,
     pub owner: AccountId,
     /// Contract group counter of the contract
     pub group_counter: u64,
     pub salt: Vec<u8>,
+    pub code_index: CodeIndex<CodeHash>,
+    pub instantiate_data: Vec<u8>,
 }
 
 /// Contract query request parameters, to be encrypted.

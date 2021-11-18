@@ -8,7 +8,6 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
-    contract::contract_topic,
     contract::messaging::ContractEvent,
     messaging::{
         GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
@@ -22,7 +21,6 @@ use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
 use crate::{
     contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
-    contracts::pink::Command as ContractCommand,
     secret_channel::SecretMessageChannel,
     types::BlockInfo,
 };
@@ -324,7 +322,6 @@ where
         match event {
             ContractEvent::InstantiateCode {
                 contract_info,
-                data,
                 deploy_worker,
             } => {
                 // TODO(shelven): enable Worker assignment
@@ -369,18 +366,6 @@ where
                         worker_pubkey: deploy_worker.clone(),
                     },
                 );
-                // finally, make the call
-                let remote_ecdh_key = contract_key
-                    .derive_ecdh_key()
-                    .expect("should never fail with valid key; qed.");
-                let instantiate_command = ContractCommand::InkMessage {
-                    nonce: vec![],
-                    message: data,
-                };
-                let topic = contract_topic(&contract_key.public());
-                secret_mq
-                    .bind_remote_key(Some(&remote_ecdh_key.public()))
-                    .push_message_to(&instantiate_command, &topic[..]);
             }
         }
     }
