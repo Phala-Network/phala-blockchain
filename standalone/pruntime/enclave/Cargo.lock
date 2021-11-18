@@ -10,6 +10,7 @@ dependencies = [
  "anyhow",
  "async-io",
  "base64 0.13.0",
+ "cpufeatures",
  "env_logger",
  "hex",
  "http_req",
@@ -812,7 +813,7 @@ dependencies = [
 [[package]]
 name = "cpufeatures"
 version = "0.2.1"
-source = "git+https://github.com/Phala-Network/cpufeatures-sgx.git?branch=phala#874ad8a23d2e08dfc214ff3af11bb42c6bf32fbc"
+source = "git+https://github.com/Phala-Network/cpufeatures-sgx.git?branch=phala#cda6eaba732a06da89a0711bee6d49e0ea1980b8"
 dependencies = [
  "libc",
  "sgx_trts 1.1.4",
