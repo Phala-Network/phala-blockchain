@@ -7022,6 +7022,7 @@ dependencies = [
  "frame-system",
  "futures 0.3.17",
  "hex",
+ "jsonrpsee-types 0.4.1",
  "log",
  "pallet-balances",
  "pallet-grandpa",
