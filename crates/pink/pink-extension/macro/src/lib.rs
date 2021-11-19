@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
-use syn::{parse_macro_input, Result};
+use syn::{Result, parse_macro_input, spanned::Spanned};
 
 use ink_lang_ir::{HexLiteral as _, ImplItem, Selector};
 
@@ -48,6 +48,18 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
                         }
 
                         if is_on_block_end {
+                            if item_method.sig.inputs.len() != 1 {
+                                return Err(syn::Error::new(
+                                    item_method.sig.inputs.last().unwrap().span(),
+                                    "on_block_end could have no arguments",
+                                ));
+                            }
+                            if !matches!(item_method.sig.output, syn::ReturnType::Default) {
+                                return Err(syn::Error::new(
+                                    item_method.sig.output.span(),
+                                    "on_block_end should return no value",
+                                ));
+                            }
                             attrs.push(syn::parse_quote! {
                                 #[ink(message)]
                             });
