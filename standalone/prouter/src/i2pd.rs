@@ -66,6 +66,58 @@ pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u
     Ok(())
 }
 
+fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {
+    let ptr_name: *const c_char = unsafe { C_GetClientTunnelsName(index) };
+    if ptr_name.is_null() {
+        error!("The name returned from C is corrupted");
+        return Err(anyhow!("The name returned from C is corrupted"));
+    }
+
+    let c_str_name = unsafe { CStr::from_ptr(ptr_name) };
+    let name: String = c_str_name.to_str()?.to_owned();
+
+    Ok(name)
+}
+
+fn get_client_tunnel_ident_by_id(index: i32) -> Result<String> {
+    let ptr_ident: *const c_char = unsafe { C_GetClientTunnelsIdent(index) };
+    if ptr_ident.is_null() {
+        error!("The ident returned from C is corrupted");
+        return Err(anyhow!("The ident returned from C is corrupted"));
+    }
+
+    let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
+    let ident: String = c_str_ident.to_str()?.to_owned();
+
+    Ok(ident)
+}
+
+fn get_server_tunnel_name_by_id(index: i32) -> Result<String> {
+    let ptr_name: *const c_char = unsafe { C_GetServerTunnelsName(index) };
+    if ptr_name.is_null() {
+        error!("The name returned from C is corrupted");
+        return Err(anyhow!("The name returned from C is corrupted"));
+    }
+
+    let c_str_name = unsafe { CStr::from_ptr(ptr_name) };
+    let name: String = c_str_name.to_str()?.to_owned();
+
+    Ok(name)
+}
+
+fn get_server_tunnel_ident_by_id(index: i32) -> Result<String> {
+    let ptr_ident: *const c_char = unsafe { C_GetServerTunnelsIdent(index) };
+    if ptr_ident.is_null() {
+        error!("The ident returned from C is corrupted");
+        return Err(anyhow!("The ident returned from C is corrupted"));
+    }
+
+    let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
+    let ident: String = c_str_ident.to_str()?.to_owned();
+
+    Ok(ident)
+}
+
 impl I2PD {
     pub fn new(app_name: String) -> I2PD {
         I2PD {
@@ -95,58 +147,6 @@ impl I2PD {
     pub fn add_config(&mut self, key: String, data: String) {
         self.argv.insert(key, data);
         self.argc += 1;
-    }
-
-    fn get_client_tunnel_name_by_id(&self, index: i32) -> Result<String> {
-        let ptr_name: *const c_char = unsafe { C_GetClientTunnelsName(index) };
-        if ptr_name.is_null() {
-            error!("The name returned from C is corrupted");
-            return Err(anyhow!("The name returned from C is corrupted"));
-        }
-
-        let c_str_name = unsafe { CStr::from_ptr(ptr_name) };
-        let name: String = c_str_name.to_str()?.to_owned();
-
-        Ok(name)
-    }
-
-    fn get_client_tunnel_ident_by_id(&self, index: i32) -> Result<String> {
-        let ptr_ident: *const c_char = unsafe { C_GetClientTunnelsIdent(index) };
-        if ptr_ident.is_null() {
-            error!("The ident returned from C is corrupted");
-            return Err(anyhow!("The ident returned from C is corrupted"));
-        }
-
-        let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
-        let ident: String = c_str_ident.to_str()?.to_owned();
-
-        Ok(ident)
-    }
-
-    fn get_server_tunnel_name_by_id(&self, index: i32) -> Result<String> {
-        let ptr_name: *const c_char = unsafe { C_GetServerTunnelsName(index) };
-        if ptr_name.is_null() {
-            error!("The name returned from C is corrupted");
-            return Err(anyhow!("The name returned from C is corrupted"));
-        }
-
-        let c_str_name = unsafe { CStr::from_ptr(ptr_name) };
-        let name: String = c_str_name.to_str()?.to_owned();
-
-        Ok(name)
-    }
-
-    fn get_server_tunnel_ident_by_id(&self, index: i32) -> Result<String> {
-        let ptr_ident: *const c_char = unsafe { C_GetServerTunnelsIdent(index) };
-        if ptr_ident.is_null() {
-            error!("The ident returned from C is corrupted");
-            return Err(anyhow!("The ident returned from C is corrupted"));
-        }
-
-        let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
-        let ident: String = c_str_ident.to_str()?.to_owned();
-
-        Ok(ident)
     }
 
     ///
@@ -364,8 +364,8 @@ impl I2PD {
         let client_tunnels_count = self.get_client_tunnels_count()?;
         for index in 0..client_tunnels_count {
             info!("client {}", index);
-            let name = self.get_client_tunnel_name_by_id(index)?;
-            let ident = self.get_client_tunnel_ident_by_id(index)?;
+            let name = get_client_tunnel_name_by_id(index)?;
+            let ident = get_client_tunnel_ident_by_id(index)?;
             client_tunnels_info.push(TunnelInfo(name, ident));
         }
 
@@ -411,11 +411,61 @@ impl I2PD {
         let mut server_tunnels_info = Vec::<TunnelInfo>::new();
         let server_tunnels_count = self.get_server_tunnels_count()?;
         for index in 0..server_tunnels_count {
-            let name = self.get_server_tunnel_name_by_id(index)?;
-            let ident = self.get_server_tunnel_ident_by_id(index)?;
+            let name = get_server_tunnel_name_by_id(index)?;
+            let ident = get_server_tunnel_ident_by_id(index)?;
             server_tunnels_info.push(TunnelInfo(name, ident));
         }
 
         Ok(server_tunnels_info)
+    }
+
+    pub fn get_inbound_tunnels_count(&self) -> Result<i32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let count: i32 = unsafe { C_GetInboundTunnelsCount() };
+
+        Ok(count)
+    }
+
+    pub fn get_outbound_tunnels_count(&self) -> Result<i32> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let count: i32 = unsafe { C_GetOutboundTunnelsCount() };
+
+        Ok(count)
+    }
+
+    pub fn get_inbound_tunnel_formatted_info(&self, index: i32) -> Result<String> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let ptr_info: *const c_char = unsafe { C_GetInboundTunnelsFormattedInfo(index) };
+        if ptr_info.is_null() {
+            error!("The info returned from C is corrupted");
+            return Err(anyhow!("The info returned from C is corrupted"));
+        }
+
+        let c_str_info = unsafe { CStr::from_ptr(ptr_info) };
+        let info: String = c_str_info.to_str()?.to_owned();
+
+        Ok(info)
+    }
+
+    pub fn get_outbound_tunnel_formatted_info(&self, index: i32) -> Result<String> {
+        if !self.is_running {
+            return Err(anyhow!("I2PD is not running"));
+        }
+        let ptr_info: *const c_char = unsafe { C_GetOutboundTunnelsFormattedInfo(index) };
+        if ptr_info.is_null() {
+            error!("The info returned from C is corrupted");
+            return Err(anyhow!("The info returned from C is corrupted"));
+        }
+
+        let c_str_info = unsafe { CStr::from_ptr(ptr_info) };
+        let info: String = c_str_info.to_str()?.to_owned();
+
+        Ok(info)
     }
 }
