@@ -270,6 +270,9 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 "RA is disallowed when debug_set_key is enabled",
             ));
         }
+        if !skip_ra {
+            self.platform.quote_test().map_err(from_debug)?;
+        }
 
         let (identity_key, ecdh_key) = rt_data.decode_keys();
 
