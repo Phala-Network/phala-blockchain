@@ -85,6 +85,11 @@ impl RA for SgxPlatform {
     ) -> Result<(String, String, String), Self::Error> {
         create_attestation_report(data, sgx_quote_sign_type_t::SGX_LINKABLE_SIGNATURE)
     }
+
+    fn quote_test(&self) -> Result<(), Self::Error> {
+        let _ = init_quote()?;
+        Ok(())
+    }
 }
 
 impl Machine for SgxPlatform {
@@ -386,22 +391,16 @@ fn as_u32_le(array: &[u8; 4]) -> u32 {
 }
 
 #[allow(const_err)]
-pub fn create_attestation_report(
+fn create_attestation_report(
     data: &[u8],
     sign_type: sgx_quote_sign_type_t,
 ) -> Result<(String, String, String)> {
-    let data_len = data.len();
-    if data_len > SGX_REPORT_DATA_SIZE {
-        return Err(anyhow!("data length over 64 bytes"));
-    }
+    let quote_vec = create_quote_vec(data, sign_type)?;
+    let (attn_report, sig, cert) = get_report_from_intel(quote_vec)?;
+    Ok((attn_report, sig, cert))
+}
 
-    // Workflow:
-    // (1) ocall to get the target_info structure (ti) and epid group id (eg)
-    // (1.5) get sigrl
-    // (2) call sgx_create_report with ti+data, produce an sgx_report_t
-    // (3) ocall to sgx_get_quote to generate (*mut sgx-quote_t, uint32_t)
-
-    // (1) get ti + eg
+fn init_quote() -> Result<(sgx_target_info_t, sgx_epid_group_id_t)> {
     let mut ti: sgx_target_info_t = sgx_target_info_t::default();
     let mut eg: sgx_epid_group_id_t = sgx_epid_group_id_t::default();
     let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
@@ -425,6 +424,23 @@ pub fn create_attestation_report(
         error!("sgx_init_quote rt = {:?}", rt);
         return Err(anyhow::Error::msg(rt).context("init quote"));
     }
+    Ok((ti, eg))
+}
+
+fn create_quote_vec(data: &[u8], sign_type: sgx_quote_sign_type_t) -> Result<Vec<u8>> {
+    let data_len = data.len();
+    if data_len > SGX_REPORT_DATA_SIZE {
+        return Err(anyhow!("data length over 64 bytes"));
+    }
+
+    // Workflow:
+    // (1) ocall to get the target_info structure (ti) and epid group id (eg)
+    // (1.5) get sigrl
+    // (2) call sgx_create_report with ti+data, produce an sgx_report_t
+    // (3) ocall to sgx_get_quote to generate (*mut sgx-quote_t, uint32_t)
+
+    // (1) get ti + eg
+    let (ti, eg) = init_quote()?;
 
     let eg_num = as_u32_le(&eg);
 
@@ -478,6 +494,7 @@ pub fn create_attestation_report(
     let maxlen = RET_QUOTE_BUF_LEN;
     let p_quote_len = &mut quote_len as *mut u32;
 
+    let mut rt: sgx_status_t = sgx_status_t::SGX_ERROR_UNEXPECTED;
     let result = unsafe {
         ocall_get_quote(
             &mut rt as *mut sgx_status_t,
@@ -554,9 +571,7 @@ pub fn create_attestation_report(
         return Err(anyhow::Error::msg("Quote is tampered"));
     }
 
-    let quote_vec: Vec<u8> = return_quote_buf[..quote_len as usize].to_vec();
-    let (attn_report, sig, cert) = get_report_from_intel(quote_vec)?;
-    Ok((attn_report, sig, cert))
+    Ok(return_quote_buf[..quote_len as usize].to_vec())
 }
 
 fn generate_seal_key() -> [u8; 16] {
