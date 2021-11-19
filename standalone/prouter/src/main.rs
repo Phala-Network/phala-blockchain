@@ -230,6 +230,21 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
                 "Disabled 🔴"
             }
         );
+
+        let inbound_tunnels_count = i2pd.get_inbound_tunnels_count()?;
+        info!("✨ {} Inbound tunnels", &inbound_tunnels_count);
+        for index in 0..inbound_tunnels_count {
+            let raw_info = i2pd.get_inbound_tunnel_formatted_info(index)?;
+            info!("\t⛓{}", raw_info.replace("&#8658;", "->"));
+        }
+
+        let outbound_tunnels_count = i2pd.get_outbound_tunnels_count()?;
+        info!("✨ {} Outbound tunnels", &outbound_tunnels_count);
+        for index in 0..outbound_tunnels_count {
+            let raw_info = i2pd.get_outbound_tunnel_formatted_info(index)?;
+            info!("\t⛓{}", raw_info.replace("&#8658;", "->"));
+        }
+
         sleep(Duration::from_secs(10)).await;
     }
     // Will never return
@@ -247,7 +262,10 @@ pub async fn daemon_run(mut i2pd: I2PD, args: &Args) -> Result<()> {
     select! {
         _ = signal::ctrl_c() => {},
         ret = display_prouter_info(&i2pd) => {
-            return ret;
+            if ret.is_err() {
+                i2pd.stop();
+                return ret;
+            }
         },
     };
 
