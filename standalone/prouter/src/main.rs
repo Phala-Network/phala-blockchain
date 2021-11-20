@@ -6,7 +6,7 @@ mod config;
 mod i2pd;
 mod utils;
 
-use anyhow::{anyhow, Error, Result};
+use anyhow::{anyhow, Context, Error, Result};
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::fs;
@@ -18,6 +18,9 @@ use tokio::signal;
 use tokio::time::{sleep, Duration};
 extern crate rand;
 
+use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
+use phaxt::{ParachainApi, RelaychainApi, subxt};
+
 use chrono::{DateTime, Utc};
 
 use config::*;
@@ -27,6 +30,7 @@ use utils::*;
 use crate::prpc::phactory_api_client::PhactoryApiClient;
 use phactory_api::prpc::{self};
 use phactory_api::pruntime_client;
+use phaxt::rpc::ExtraRpcExt;
 
 #[derive(Debug, StructOpt)]
 #[structopt(name = "prouter")]
@@ -54,11 +58,33 @@ pub struct Args {
     no_pnode: bool,
 
     #[structopt(
-        default_value = "http://localhost:8000",
+        default_value = "ws://localhost:9944",
         long,
-        help = "Phala node rpc websocket endpoint"
+        help = "Substrate rpc websocket endpoint"
     )]
-    pnode_ws_endpoint: String,
+    substrate_ws_endpoint: String,
+
+    #[structopt(
+        default_value = "ws://localhost:9977",
+        long,
+        help = "Parachain collator rpc websocket endpoint"
+    )]
+    collator_ws_endpoint: String,
+
+    #[structopt(long = "parachain", help = "Parachain mode")]
+    parachain: bool,
+
+    #[structopt(long, help = "Don't wait the substrate nodes to sync blocks")]
+    no_wait: bool,
+
+    #[structopt(
+        required = true,
+        default_value = "//Alice",
+        short = "m",
+        long = "mnemonic",
+        help = "Controller SR25519 private key mnemonic, private key seed, or derive path"
+    )]
+    mnemonic: String,
 
     ///
     /// Phala Network Setting
@@ -297,9 +323,64 @@ pub async fn daemon_run(mut i2pd: I2PD, args: &Args) -> Result<()> {
     Ok(())
 }
 
+async fn wait_until_synced<T: subxt::Config>(client: &subxt::Client<T>) -> Result<()> {
+    loop {
+        let state = client.extra_rpc().system_sync_state().await?;
+        info!(
+            "Checking synced: current={} highest={:?}",
+            state.current_block, state.highest_block
+        );
+        if let Some(highest) = state.highest_block {
+            if highest - state.current_block <= 2 {
+                return Ok(());
+            }
+        }
+        sleep(Duration::from_secs(5)).await;
+    }
+}
+
+pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<T>> {
+    subxt::ClientBuilder::new()
+        .set_url(uri)
+        .build()
+        .await
+        .context("Connect to substrate")
+}
+
 pub async fn prouter_main(args: &Args) -> Result<()> {
     let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
+    let mut api: Option<RelaychainApi> = None;
+    let mut para_api: Option<ParachainApi> = None;
+    let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
+        .expect("Bad privkey derive path");
+    let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> = subxt::PairSigner::new(pair); // Only usable when registering worker
+
     let pnetwork_ident_sk: Vec<u8>;
+
+    // Connect to substrate
+    if !args.no_pnode {
+        api= Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
+        info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
+
+        let para_uri: &str = if args.parachain {
+            &args.collator_ws_endpoint
+        } else {
+            &args.substrate_ws_endpoint
+        };
+        para_api = Some(subxt_connect(para_uri).await?.into());
+        info!(
+            "Connected to parachain node at: {}",
+            args.collator_ws_endpoint
+        );
+
+        if !args.no_wait {
+            // Don't start our worker until the substrate node is synced
+            info!("Waiting for substrate to sync blocks...");
+            wait_until_synced(&(api.expect("Api should be initialized here")).client).await?;
+            wait_until_synced(&(para_api.expect("ParaApi should be initialized here")).client).await?;
+            info!("Substrate sync blocks done");
+        }
+    }
 
     if !args.no_pruntime {
         pr = Some(pruntime_client::new_pruntime_client(
