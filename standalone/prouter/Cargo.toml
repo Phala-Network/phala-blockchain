@@ -15,9 +15,10 @@ structopt = { version = "0.3" }
 rust-ini = "0.17"
 chrono = "0.4.19"
 rand = "0.8.4"
+sp-core = { path = "../../substrate/primitives/core" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phactory-pal = { path = "../../crates/phactory/pal" }
-#phaxt = { path = "../../crates/phaxt" }
+phaxt = { path = "../../crates/phaxt" }
 
 [build-dependencies]
 bindgen = "0.59.1"
