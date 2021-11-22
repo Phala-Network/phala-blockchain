@@ -5,6 +5,7 @@
 mod config;
 mod i2pd;
 mod utils;
+mod reseeder;
 
 use anyhow::{anyhow, Context, Error, Result};
 #[allow(unused_imports)]
@@ -26,6 +27,7 @@ use chrono::{DateTime, Utc};
 use config::*;
 use i2pd::I2PD;
 use utils::*;
+use reseeder::SU3File;
 
 use crate::prpc::phactory_api_client::PhactoryApiClient;
 use phactory_api::prpc::{self};
@@ -348,6 +350,11 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
 }
 
 pub async fn prouter_main(args: &Args) -> Result<()> {
+    // let mut f = SU3File::new("sooptq@gmail.com")?;
+    // f.reseed("./pdata/netDb")?;
+    // let path = Path::new("./test.su3");
+    // f.write(path.to_path_buf())?;
+    // return Ok(());
     let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
     let mut api: Option<RelaychainApi> = None;
     let mut para_api: Option<ParachainApi> = None;
