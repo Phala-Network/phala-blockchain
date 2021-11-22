@@ -19,6 +19,9 @@ sp-core = { path = "../../substrate/primitives/core" }
 phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
 phactory-pal = { path = "../../crates/phactory/pal" }
 phaxt = { path = "../../crates/phaxt" }
+zip = "0.5.13"
+glob = "0.3.0"
+byteorder = "1.4.3"
 
 [build-dependencies]
 bindgen = "0.59.1"
