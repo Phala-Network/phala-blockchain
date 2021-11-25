@@ -333,8 +333,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             macro_rules! install_contract {
                 ($id: expr, $inner: expr) => {{
                     let contract_id = contract::id256($id);
-                    let sender = MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, identity_key.clone());
+                    let sender = phala_mq::MessageOrigin::native_contract($id);
+                    let mq = send_mq.channel(sender, identity_key.clone().into());
                     // TODO.kevin: use real contract key
                     let contract_key = ecdh_key.clone();
                     let cmd_mq = PeelingReceiver::new_secret(
@@ -374,10 +374,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             //     contracts::DATA_PLAZA,
             //     contracts::data_plaza::DataPlaza::new()
             // );
-            // install_contract!(
-            //     contracts::GEOLOCATION,
-            //     contracts::geolocation::Geolocation::new()
-            // );
+            install_contract!(
+                contracts::GEOLOCATION,
+                contracts::geolocation::Geolocation::new()
+            );
         }
 
         let mut runtime_state = RuntimeState {
