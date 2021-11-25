@@ -83,7 +83,7 @@ struct RuntimeState {
     #[serde(with = "more::todo")]
     storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
 
-    #[serde(with = "more::todo")]
+    // TODO.kevin: use a better serialization approach
     chain_storage: Storage,
 
     #[serde(with = "more::scale_hex")]

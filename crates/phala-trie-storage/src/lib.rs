@@ -5,6 +5,8 @@ extern crate alloc;
 #[cfg(feature = "serde")]
 pub mod ser;
 
+use core::iter::FromIterator;
+
 use alloc::vec::Vec;
 
 use parity_scale_codec::Codec;
@@ -105,6 +107,10 @@ where
 
     /// Return storage pairs which start with given storage key prefix
     pub fn pairs(&self, prefix: impl AsRef<[u8]>) -> Vec<(Vec<u8>, Vec<u8>)> {
+        self.pairs_into(prefix)
+    }
+
+    fn pairs_into<R: FromIterator<(Vec<u8>, Vec<u8>)>>(&self, prefix: impl AsRef<[u8]>) -> R {
         self.0
             .keys(prefix.as_ref())
             .into_iter()
@@ -115,3 +121,35 @@ where
             .collect()
     }
 }
+
+#[cfg(feature = "serde")]
+const _: () = {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    impl<H: Hasher> Serialize for TrieStorage<H>
+    where
+        H::Out: Codec + Serialize + Ord,
+    {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            self.pairs(b"").serialize(serializer)
+        }
+    }
+
+    impl<'de, H: Hasher> Deserialize<'de> for TrieStorage<H>
+    where
+        H::Out: Codec + Deserialize<'de> + Ord,
+    {
+        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let pairs: Vec<(Vec<u8>, Vec<u8>)> = Deserialize::deserialize(deserializer)?;
+            let mut storage = TrieStorage::default();
+            storage.load(pairs.into_iter());
+            Ok(storage)
+        }
+    }
+};
