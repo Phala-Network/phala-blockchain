@@ -3,6 +3,7 @@ extern crate alloc;
 
 pub mod scale_hex;
 
+// TODO.kevin: better name
 #[cfg(feature = "crypto")]
 pub mod sr25519_hex;
 

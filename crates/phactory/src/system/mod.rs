@@ -33,9 +33,10 @@ use phala_crypto::{
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{
-    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
-    MessageSendQueue, SignedMessageChannel, TypedReceiver,
+    checkpoint_helper::subscribe_default, traits::MessageChannel, BadOrigin, BindTopic, ContractId,
+    MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
+use phala_serde_more as more;
 use phala_types::{
     contract,
     messaging::{
@@ -44,10 +45,9 @@ use phala_types::{
     },
     EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
+use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
-use serde::{Deserialize, Serialize};
-use phala_serde_more as more;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -361,14 +361,10 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 
 type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
 
-fn subscribe_default<T: BindTopic>() -> TypedReceiver<T> {
-    todo!("TODO.kevin.must")
-}
-
 mod ecdh_serde {
     use super::EcdhKey;
-    use serde::{Deserializer, Serializer};
     use phala_serde_more as more;
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S>(ecdh: &EcdhKey, serializer: S) -> Result<S::Ok, S::Error>
     where

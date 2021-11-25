@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "sgx")]
 pub extern crate serde_sgx as serde;
@@ -14,6 +14,9 @@ mod dispatcher;
 mod send_queue;
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 mod simple_mpsc;
+
+#[cfg(feature = "checkpoint")]
+pub mod checkpoint_helper;
 
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::{MessageDispatcher, TypedReceiveError, TypedReceiver};
