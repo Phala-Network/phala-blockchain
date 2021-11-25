@@ -146,7 +146,6 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     system: Option<system::System<Platform>>,
-    #[serde(with = "more::todo")]
     side_task_man: SideTaskManager,
 }
 
