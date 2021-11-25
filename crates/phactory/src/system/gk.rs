@@ -4,6 +4,7 @@ use phala_crypto::{
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
+use phala_serde_more as more;
 use phala_types::{
     messaging::{
         GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
@@ -13,7 +14,6 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519};
-use phala_serde_more as more;
 
 use crate::{
     contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
@@ -875,12 +875,12 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
 }
 
 mod tokenomic {
+    use super::serde_fp;
     pub use fixed::types::U64F64 as FixedPoint;
     use fixed_macro::types::U64F64 as fp;
     use fixed_sqrt::FixedSqrt as _;
     use phala_types::messaging::TokenomicParameters;
     use serde::{Deserialize, Serialize};
-    use super::serde_fp;
 
     fn square(v: FixedPoint) -> FixedPoint {
         v * v
@@ -1098,22 +1098,24 @@ mod tokenomic {
 }
 
 mod serde_fp {
-    use serde::{Deserialize, Deserializer, Serializer, Serialize};
     use super::FixedPoint;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     pub fn serialize<S>(value: &FixedPoint, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
         let bits: u128 = value.to_bits();
-        bits.serialize(serializer)
+        // u128 is not supported by messagepack, so we encode it via bytes
+        bits.to_be_bytes().serialize(serializer)
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<FixedPoint, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let bits = u128::deserialize(deserializer)?;
+        let bytes = Deserialize::deserialize(deserializer)?;
+        let bits = u128::from_be_bytes(bytes);
         Ok(FixedPoint::from_bits(bits))
     }
 }
@@ -1974,5 +1976,21 @@ pub mod tests {
         // Should repaired and rewarded
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(200.00021447729505831407));
         assert_eq!(r.get_worker(1).tokenomic.v, fp!(200.00021447729505831407));
+    }
+
+    #[test]
+    fn serde_fp_works() {
+        use serde::{Deserialize, Serialize};
+        #[derive(Serialize, Deserialize)]
+        struct Wrapper(#[serde(with = "super::serde_fp")] FixedPoint);
+
+        let fp = Wrapper(fp!(1.23456789));
+        let fp_serde = serde_json::to_string(&fp).unwrap();
+        let fp_de: Wrapper = serde_json::from_str(&fp_serde).unwrap();
+        assert_eq!(fp.0, fp_de.0);
+
+        let fp_serde = rmp_serde::to_vec(&fp).unwrap();
+        let fp_de: Wrapper = rmp_serde::from_slice(&fp_serde).unwrap();
+        assert_eq!(fp.0, fp_de.0);
     }
 }

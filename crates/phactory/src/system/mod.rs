@@ -1085,10 +1085,10 @@ mod tests {
 
         let group = groupkeeper.get_group_mut(&group_id).unwrap();
         let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
-        let signer = sp_core::Pair::from_seed(&Default::default());
+        let signer = sr25519::Pair::from_seed(&Default::default());
         let egress = builder
             .send_mq
-            .channel(MessageOrigin::Worker(Default::default()), signer);
+            .channel(MessageOrigin::Worker(Default::default()), signer.into());
         let mut block_info = builder.build();
 
         apply_pink_side_effects(
