@@ -384,7 +384,6 @@ pub struct System<Platform> {
     // Gatekeeper
     #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
-    #[serde(with = "more::todo")]
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     #[serde(with = "more::todo")]

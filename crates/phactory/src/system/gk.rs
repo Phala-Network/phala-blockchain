@@ -11,7 +11,9 @@ use phala_types::{
     },
     EcdhPublicKey, WorkerPublicKey,
 };
+use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519};
+use phala_serde_more as more;
 
 use crate::{
     contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
@@ -54,7 +56,7 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
@@ -91,7 +93,9 @@ impl WorkerInfo {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Gatekeeper<MsgChan> {
+    #[serde(with = "more::key_bytes")]
     master_key: sr25519::Pair,
     master_pubkey_on_chain: bool,
     registered_on_chain: bool,
@@ -280,7 +284,9 @@ where
                 let tmp_key = crate::new_sr25519_key().derive_ecdh_key().unwrap();
                 let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress);
 
-                secret_mq.bind_remote_key(Some(&worker.0)).push_message(&message);
+                secret_mq
+                    .bind_remote_key(Some(&worker.0))
+                    .push_message(&message);
             }
         }
     }
@@ -373,6 +379,7 @@ impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct MiningEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -872,6 +879,8 @@ mod tokenomic {
     use fixed_macro::types::U64F64 as fp;
     use fixed_sqrt::FixedSqrt as _;
     use phala_types::messaging::TokenomicParameters;
+    use serde::{Deserialize, Serialize};
+    use super::serde_fp;
 
     fn square(v: FixedPoint) -> FixedPoint {
         v * v
@@ -886,25 +895,34 @@ mod tokenomic {
         }
     }
 
-    #[derive(Default, Debug, Clone, Copy)]
+    #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
     pub struct TokenomicInfo {
+        #[serde(with = "serde_fp")]
         pub v: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub v_init: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub payable: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
         pub iteration_last: u64,
         pub challenge_time_last: u64,
+        #[serde(with = "serde_fp")]
         pub p_bench: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub p_instant: FixedPoint,
         pub confidence_level: u8,
 
+        #[serde(with = "serde_fp")]
         pub last_payout: FixedPoint,
         pub last_payout_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub total_payout: FixedPoint,
         pub total_payout_count: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub last_slash: FixedPoint,
         pub last_slash_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub total_slash: FixedPoint,
         pub total_slash_count: chain::BlockNumber,
     }
@@ -934,15 +952,23 @@ mod tokenomic {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct Params {
+        #[serde(with = "serde_fp")]
         rho: FixedPoint,
+        #[serde(with = "serde_fp")]
         slash_rate: FixedPoint,
+        #[serde(with = "serde_fp")]
         budget_per_block: FixedPoint,
+        #[serde(with = "serde_fp")]
         v_max: FixedPoint,
+        #[serde(with = "serde_fp")]
         cost_k: FixedPoint,
+        #[serde(with = "serde_fp")]
         cost_b: FixedPoint,
+        #[serde(with = "serde_fp")]
         treasury_ration: FixedPoint,
+        #[serde(with = "serde_fp")]
         payout_ration: FixedPoint,
         pub heartbeat_window: u32,
     }
@@ -1068,6 +1094,27 @@ mod tokenomic {
             let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp!(1.2));
         }
+    }
+}
+
+mod serde_fp {
+    use serde::{Deserialize, Deserializer, Serializer, Serialize};
+    use super::FixedPoint;
+
+    pub fn serialize<S>(value: &FixedPoint, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bits: u128 = value.to_bits();
+        bits.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<FixedPoint, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bits = u128::deserialize(deserializer)?;
+        Ok(FixedPoint::from_bits(bits))
     }
 }
 
