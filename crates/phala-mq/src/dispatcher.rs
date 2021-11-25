@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 
 use alloc::{collections::BTreeMap, vec::Vec};
+use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
 use crate::types::{Message, Path};

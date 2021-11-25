@@ -1,8 +1,9 @@
 use crate::storage::Storage;
 use ::chain::BlockNumber;
-use phala_mq::MessageSendQueue;
+use phala_mq::{MessageSendQueue, Sr25519Signer};
+use serde::{Deserialize, Serialize};
 
-type SigningMessage = phala_mq::SigningMessage<sp_core::sr25519::Pair>;
+type SigningMessage = phala_mq::SigningMessage<Sr25519Signer>;
 
 pub struct PollContext<'a> {
     pub block_number: BlockNumber,
@@ -10,10 +11,19 @@ pub struct PollContext<'a> {
     pub storage: &'a Storage,
 }
 
+type OnFinish = Box<dyn FnOnce(&PollContext) -> Option<Vec<SigningMessage>> + Send + 'static>;
+
+#[derive(Serialize, Deserialize)]
 struct TaskWrapper {
-    on_finish: Box<dyn FnOnce(&PollContext) -> Option<Vec<SigningMessage>> + Send + 'static>,
+    #[serde(skip)]
+    #[serde(default = "zombie")]
+    on_finish: OnFinish,
     default_messages: Vec<SigningMessage>,
     end_block: BlockNumber,
+}
+
+fn zombie() -> OnFinish {
+    Box::new(|_| None)
 }
 
 impl TaskWrapper {
@@ -27,7 +37,7 @@ impl TaskWrapper {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub struct SideTaskManager {
     tasks: Vec<TaskWrapper>,
 }
@@ -182,7 +192,9 @@ pub mod async_side_task {
             future: F,
         ) {
             let task = AsyncSideTask::spawn(future);
-            self.add_task(current_block, duration, default_messages, |context| task.finish(context));
+            self.add_task(current_block, duration, default_messages, |context| {
+                task.finish(context)
+            });
         }
     }
 }

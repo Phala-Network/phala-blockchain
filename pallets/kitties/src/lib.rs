@@ -128,9 +128,10 @@ decl_module! {
 
 			<Nonce>::mutate(|n| *n += 1);
 
-			Self::push_command(KittiesCommand::Created(sender, random_hash));
+			todo!("adapt the new native contract design")
+			// Self::push_command(KittiesCommand::Created(sender, random_hash));
 
-			Ok(())
+			// Ok(())
 		}
 
 		#[weight = 0]

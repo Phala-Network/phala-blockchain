@@ -2,8 +2,9 @@ use crate::{
     Message, MessageOrigin, MessageSigner, Mutex, SenderId, SignedMessage, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
+use serde::{Deserialize, Serialize};
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct Channel {
     sequence: u64,
     messages: Vec<SignedMessage>,
@@ -13,6 +14,29 @@ struct Channel {
 #[derive(Clone, Default)]
 pub struct MessageSendQueue {
     inner: Arc<Mutex<BTreeMap<SenderId, Channel>>>,
+}
+
+impl Serialize for MessageSendQueue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let inner = self.inner.lock();
+        let inner = &*inner;
+        inner.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSendQueue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let inner = BTreeMap::<SenderId, Channel>::deserialize(deserializer)?;
+        Ok(MessageSendQueue {
+            inner: Arc::new(Mutex::new(inner)),
+        })
+    }
 }
 
 impl MessageSendQueue {
@@ -99,14 +123,16 @@ mod msg_channel {
     use super::*;
     use crate::{types::Path, MessageSigner, SenderId};
 
-    #[derive(Clone)]
-    pub struct MessageChannel<Si: MessageSigner> {
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct MessageChannel<Si> {
+        #[serde(skip)]
+        #[serde(default = "get_global_message_send_queue")]
         queue: MessageSendQueue,
         sender: SenderId,
         signer: Si,
     }
 
-    impl<Si: MessageSigner> MessageChannel<Si> {
+    impl<Si> MessageChannel<Si> {
         pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
             MessageChannel {
                 queue,
@@ -137,9 +163,7 @@ mod msg_channel {
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
             let signing = self.prepare_with_data(payload, to);
             self.queue
-                .enqueue_message(self.sender.clone(), move |sequence| {
-                    signing.sign(sequence)
-                })
+                .enqueue_message(self.sender.clone(), move |sequence| signing.sign(sequence))
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
@@ -158,5 +182,70 @@ mod msg_channel {
         ) -> SigningMessage<Self::Signer> {
             self.prepare_with_data(payload, to)
         }
+    }
+
+    // const _: () = {
+    //     use core::fmt;
+    //     use serde::ser::SerializeStruct;
+    //     use core::marker::PhantomData;
+    //     use serde::de::{self, SeqAccess, Visitor};
+
+    //     impl<Signer: Serialize> Serialize for MessageChannel<Signer> {
+    //         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    //         where
+    //             S: serde::Serializer,
+    //         {
+    //             let mut state = serializer.serialize_struct("MessageChannel", 2)?;
+    //             state.serialize_field("sender", &self.sender)?;
+    //             state.serialize_field("signer", &self.signer)?;
+    //             state.end()
+    //         }
+    //     }
+
+    //     impl<'de, Signer: Deserialize<'de>> Deserialize<'de> for MessageChannel<Signer> {
+    //         fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    //         where
+    //             D: serde::Deserializer<'de>,
+    //         {
+    //             const FIELDS: &[&str] = &["sender", "signer"];
+    //             deserializer.deserialize_struct("MessageChannel", FIELDS, MessageChannelVisitor<Signer>)
+    //         }
+    //     }
+
+    //     #[derive(Default)]
+    //     struct MessageChannelVisitor<Signer>(PhantomData<Signer>);
+
+    //     impl<'de, Signer> Visitor<'de> for MessageChannelVisitor<Signer>
+    //     where
+    //         Signer: Deserialize<'de>,
+    //     {
+    //         type Value = MessageChannel<Signer>;
+
+    //         fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    //             formatter.write_str("struct MessageChannel")
+    //         }
+
+    //         fn visit_seq<V>(self, mut seq: V) -> Result<Self::Value, V::Error>
+    //         where
+    //             V: SeqAccess<'de>,
+    //         {
+    //             let sender = seq
+    //                 .next_element()?
+    //                 .ok_or_else(|| de::Error::invalid_length(0, &self))?;
+    //             let signer = seq
+    //                 .next_element()?
+    //                 .ok_or_else(|| de::Error::invalid_length(1, &self))?;
+    //             let queue = global_message_send_queue();
+    //             Ok(MessageChannel::new(queue, sender, signer))
+    //         }
+    //     }
+    // };
+
+    // fn global_message_dispatcher() -> MessageSendQueue {
+    //     todo!("TODO.kevin.must")
+    // }
+
+    fn get_global_message_send_queue() -> MessageSendQueue {
+        todo!("TODO.kevin.must")
     }
 }

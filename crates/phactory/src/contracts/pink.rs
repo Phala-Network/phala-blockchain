@@ -5,6 +5,7 @@ use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
+use phala_serde_more as more;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -185,10 +186,12 @@ pub mod group {
     use phala_mq::{ContractGroupId, ContractId};
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
+    use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use std::collections::{BTreeMap, BTreeSet};
+    use phala_serde_more as more;
 
-    #[derive(Default)]
+    #[derive(Default, Serialize, Deserialize)]
     pub struct GroupKeeper {
         groups: BTreeMap<ContractGroupId, Group>,
     }
@@ -238,9 +241,12 @@ pub mod group {
         }
     }
 
+    #[derive(Serialize, Deserialize)]
     pub struct Group {
+        #[serde(with = "more::todo")]
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
+        #[serde(with = "more::sr25519_hex")]
         key: sr25519::Pair,
     }
 

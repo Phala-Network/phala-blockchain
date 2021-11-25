@@ -38,9 +38,8 @@ pub use alias::*;
 
 #[cfg(all(feature = "queue", feature = "signers"))]
 mod alias {
-    use super::*;
-    use sp_core::sr25519;
-    pub type SignedMessageChannel = MessageChannel<sr25519::Pair>;
+    pub use crate::signer::signers::Sr25519Signer;
+    pub type SignedMessageChannel = crate::MessageChannel<Sr25519Signer>;
 }
 
 pub mod traits {

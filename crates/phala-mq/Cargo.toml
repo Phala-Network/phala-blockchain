@@ -12,11 +12,16 @@ derive_more = { version = "0.99", default-features = false, features = ["display
 parity-scale-codec = { version = "2.3", default-features = false, features = ["derive"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
 sp-core = { path = "../../substrate/primitives/core", default-features = false }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 spin = { version = "0.9", default-features = false, features = ["mutex", "use_ticket_mutex"], optional = true }
+phala-serde-more = { path = "../phala-serde-more", default-features = false }
 
 [features]
 default = ["dispatcher", "queue", "signers"]
 dispatcher = ["spin"]
 queue = ["spin"]
-signers = ["sp-core/full_crypto"]
+signers = [
+    "sp-core/full_crypto",
+    "phala-serde-more/crypto",
+]

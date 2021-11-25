@@ -59,7 +59,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     pub fn get_info(&self) -> pb::PhactoryInfo {
-        let initialized = self.runtime_info.is_some();
+        let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
         let system = self.system.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
@@ -240,7 +240,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         operator: Option<chain::AccountId>,
         debug_set_key: ::core::option::Option<Vec<u8>>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        if self.runtime_info.is_some() {
+        if self.system.is_some() {
             return Err(from_display("Runtime already initialized"));
         }
 
@@ -353,32 +353,31 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 }};
             }
 
-            install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-            install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+            // install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
+            // install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
             // TODO.kevin:
             // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-            // TODO: Migrate kitty to MetadataV14
             // install_contract!(
             //     contracts::SUBSTRATE_KITTIES,
             //     contracts::substrate_kitties::SubstrateKitties::new()
             // );
             // install_contract!(
             //     contracts::BTC_LOTTERY,
-            //     contracts::btc_lottery::BtcLottery::new(Some(identity_key.clone()))
+            //     contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
             // );
             // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
             // install_contract!(
             //     contracts::WEB3_ANALYTICS,
             //     contracts::web3analytics::Web3Analytics::new()
             // );
-            install_contract!(
-                contracts::DATA_PLAZA,
-                contracts::data_plaza::DataPlaza::new()
-            );
-            install_contract!(
-                contracts::GEOLOCATION,
-                contracts::geolocation::Geolocation::new()
-            );
+            // install_contract!(
+            //     contracts::DATA_PLAZA,
+            //     contracts::data_plaza::DataPlaza::new()
+            // );
+            // install_contract!(
+            //     contracts::GEOLOCATION,
+            //     contracts::geolocation::Geolocation::new()
+            // );
         }
 
         let mut runtime_state = RuntimeState {

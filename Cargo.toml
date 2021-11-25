@@ -34,6 +34,7 @@ members = [
 	"crates/pink/pink-extension",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
+	"crates/phala-serde-more",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",

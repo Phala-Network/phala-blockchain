@@ -14,6 +14,8 @@ pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractGroupId;
 
 use crate::MessageSigner;
+use serde::{Serialize, Deserialize};
+use phala_serde_more as more;
 
 pub fn contract_id256(id: u32) -> ContractId {
     ContractId::from_low_u64_be(id as u64)
@@ -23,21 +25,27 @@ pub fn contract_id256(id: u32) -> ContractId {
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display)]
+#[derive(Serialize, Deserialize)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
+    #[serde(with = "more::scale_hex")]
     Pallet(Vec<u8>),
     /// A confidential contract
     #[display(fmt = "Contract({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_hex")]
     Contract(ContractId),
     /// A pRuntime worker
     #[display(fmt = "Worker({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_hex")]
     Worker(sp_core::sr25519::Public),
     /// A user
     #[display(fmt = "AccountId({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_hex")]
     AccountId(AccountId),
     /// A remote location (parachain, etc.)
     #[display(fmt = "MultiLocation({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_hex")]
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
@@ -120,8 +128,8 @@ pub struct BadOrigin;
 ///    assert!(a_normal_topic.is_offchain());
 /// ```
 ///
-#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash)]
-pub struct Topic(Path);
+#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct Topic(#[serde(with = "more::scale_hex")] Path);
 
 impl core::fmt::Debug for Topic {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -220,7 +228,7 @@ macro_rules! bind_contract32 {
     }
 }
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub sender: SenderId,
     pub destination: Topic,
@@ -260,7 +268,7 @@ pub struct DecodedMessage<T> {
     pub payload: T,
 }
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedMessage {
     pub message: Message,
     pub sequence: u64,
@@ -289,7 +297,7 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
 pub struct SigningMessage<Signer> {
     pub message: Message,
     pub signer: Signer,

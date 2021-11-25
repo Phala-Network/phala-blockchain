@@ -46,6 +46,8 @@ use phala_types::{
 };
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
+use serde::{Deserialize, Serialize};
+use phala_serde_more as more;
 
 pub type TransactionResult = Result<pink::runtime::ExecSideEffects, TransactionError>;
 
@@ -90,7 +92,7 @@ impl From<BadOrigin> for TransactionError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
@@ -98,13 +100,13 @@ struct BenchState {
     duration: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 enum MiningState {
     Mining,
     Paused,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MiningInfo {
     session_id: u32,
     state: MiningState,
@@ -113,9 +115,9 @@ struct MiningInfo {
 }
 
 // Minimum worker state machine can be reused to replay in GK.
-// TODO: shrink size
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct WorkerState {
+    #[serde(with = "more::sr25519_public_hex")]
     pubkey: WorkerPublicKey,
     hashed_id: U256,
     registered: bool,
@@ -359,6 +361,32 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 
 type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
 
+fn subscribe_default<T: BindTopic>() -> TypedReceiver<T> {
+    todo!("TODO.kevin.must")
+}
+
+mod ecdh_serde {
+    use super::EcdhKey;
+    use serde::{Deserializer, Serializer};
+    use phala_serde_more as more;
+
+    pub fn serialize<S>(ecdh: &EcdhKey, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        more::scale_hex::serialize(&ecdh.secret(), serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<EcdhKey, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secret = more::scale_hex::deserialize(deserializer)?;
+        Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
@@ -367,20 +395,35 @@ pub struct System<Platform> {
     geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
+    #[serde(skip)]
+    #[serde(default = "subscribe_default")]
     system_events: TypedReceiver<SystemEvent>,
+    #[serde(skip)]
+    #[serde(default = "subscribe_default")]
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
+    #[serde(skip)]
+    #[serde(default = "subscribe_default")]
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
+    #[serde(skip)]
+    #[serde(default = "subscribe_default")]
     key_distribution_events: TypedReceiver<KeyDistribution>,
+    #[serde(with = "more::todo")]
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
+    #[serde(with = "more::sr25519_hex")]
     pub(crate) identity_key: sr25519::Pair,
+    #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
     // Gatekeeper
+    #[serde(with = "more::todo")]
     master_key: Option<sr25519::Pair>,
+    #[serde(with = "more::todo")]
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
+    #[serde(with = "more::todo")]
     pub(crate) contracts: ContractMap,
+    #[serde(with = "more::todo")]
     contract_groups: GroupKeeper,
 
     // Cached for query
@@ -409,7 +452,7 @@ impl<Platform: pal::Platform> System<Platform> {
             sealing_path,
             enable_geoprobing,
             geoip_city_db,
-            egress: send_mq.channel(sender, identity_key.clone()),
+            egress: send_mq.channel(sender, identity_key.clone().into()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
@@ -597,7 +640,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.master_key
                     .as_ref()
                     .expect("checked master key above; qed.")
-                    .clone(),
+                    .clone()
+                    .into(),
             ),
         );
         self.gatekeeper = Some(gatekeeper);
@@ -982,14 +1026,13 @@ pub fn install_contract<Contract>(
 {
     let contract_id = contract.id();
     let sender = MessageOrigin::Contract(contract_id);
-    let mq = block.send_mq.channel(sender, contract_key);
-    let contract_key = ecdh_key.clone();
+    let mq = block.send_mq.channel(sender, contract_key.into());
     let cmd_mq = PeelingReceiver::new_secret(
         block
             .recv_mq
             .subscribe(contract::command_topic(contract_id))
             .into(),
-        contract_key,
+        ecdh_key.clone(),
     );
     let wrapped = Box::new(contracts::NativeCompatContract::new(
         contract,
