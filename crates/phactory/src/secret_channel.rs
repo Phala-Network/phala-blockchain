@@ -248,14 +248,14 @@ pub(crate) mod ecdh_serde {
     where
         S: Serializer,
     {
-        more::scale_hex::serialize(&ecdh.secret(), serializer)
+        more::scale_bytes::serialize(&ecdh.secret(), serializer)
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<EcdhKey, D::Error>
     where
         D: Deserializer<'de>,
     {
-        let secret = more::scale_hex::deserialize(deserializer)?;
+        let secret = more::scale_bytes::deserialize(deserializer)?;
         Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
     }
 }

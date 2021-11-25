@@ -245,7 +245,7 @@ pub mod group {
     pub struct Group {
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
-        #[serde(with = "more::sr25519_hex")]
+        #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
     }
 

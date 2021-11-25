@@ -1,21 +1,20 @@
 #![no_std]
 extern crate alloc;
 
-pub mod scale_hex;
-
-// TODO.kevin: better name
-#[cfg(feature = "crypto")]
-pub mod sr25519_hex;
+pub mod scale_bytes;
 
 #[cfg(feature = "crypto")]
-pub mod sr25519_public_hex;
+pub mod key_bytes;
+
+#[cfg(feature = "crypto")]
+pub mod option_key_bytes;
+
+#[cfg(feature = "crypto")]
+pub mod pubkey_bytes;
 
 pub mod todo {
 
-    use serde::{de, Deserializer, Serializer};
-    use sp_core::sr25519;
-
-    use crate::scale_hex::HexBytesVisitor;
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S: Serializer, T>(data: &T, ser: S) -> Result<S::Ok, S::Error> {
         todo!("TODO.kevin.must")

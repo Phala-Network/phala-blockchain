@@ -29,23 +29,23 @@ pub fn contract_id256(id: u32) -> ContractId {
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     Pallet(Vec<u8>),
     /// A confidential contract
     #[display(fmt = "Contract({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     Contract(ContractId),
     /// A pRuntime worker
     #[display(fmt = "Worker({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     Worker(sp_core::sr25519::Public),
     /// A user
     #[display(fmt = "AccountId({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     AccountId(AccountId),
     /// A remote location (parachain, etc.)
     #[display(fmt = "MultiLocation({})", "hex::encode(_0)")]
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
@@ -129,7 +129,7 @@ pub struct BadOrigin;
 /// ```
 ///
 #[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
-pub struct Topic(#[serde(with = "more::scale_hex")] Path);
+pub struct Topic(#[serde(with = "more::scale_bytes")] Path);
 
 impl core::fmt::Debug for Topic {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {

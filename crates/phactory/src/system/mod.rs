@@ -117,7 +117,7 @@ struct MiningInfo {
 // Minimum worker state machine can be reused to replay in GK.
 #[derive(Debug, Serialize, Deserialize)]
 struct WorkerState {
-    #[serde(with = "more::sr25519_public_hex")]
+    #[serde(with = "more::pubkey_bytes")]
     pubkey: WorkerPublicKey,
     hashed_id: U256,
     registered: bool,
@@ -376,13 +376,13 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
-    #[serde(with = "more::sr25519_hex")]
+    #[serde(with = "more::key_bytes")]
     pub(crate) identity_key: sr25519::Pair,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
     // Gatekeeper
-    #[serde(with = "more::todo")]
+    #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
     #[serde(with = "more::todo")]
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,

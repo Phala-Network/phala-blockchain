@@ -67,7 +67,7 @@ pub struct BridgeInfo<T: Config> {
         deserialize = "T::Header: ::serde::de::DeserializeOwned"
     ))]
     last_finalized_block_header: T::Header,
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     current_set: AuthoritySet,
 }
 

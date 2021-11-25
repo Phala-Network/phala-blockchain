@@ -19,7 +19,7 @@ pub mod signers {
 
     #[derive(Serialize, Deserialize, Clone)]
     pub struct Sr25519Signer {
-        #[serde(with = "more::sr25519_hex")]
+        #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
     }
 

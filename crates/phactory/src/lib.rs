@@ -84,7 +84,7 @@ struct RuntimeState {
     // TODO.kevin: use a better serialization approach
     chain_storage: Storage,
 
-    #[serde(with = "more::scale_hex")]
+    #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
 }
 
