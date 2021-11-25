@@ -7151,6 +7151,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "paste",
+ "phala-trie-storage",
  "pink-extension",
  "pretty_assertions 0.7.2",
  "pwasm-utils 0.16.0",

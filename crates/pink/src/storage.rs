@@ -1,8 +1,13 @@
 use crate::{
     runtime::ExecSideEffects,
-    types::{BlockNumber, Hash, Hashing},
+    types::{Hash, Hashing},
 };
-use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
+use phala_trie_storage::load_trie_backend;
+use serde::{Deserialize, Serialize};
+use sp_state_machine::{
+    Backend as StorageBackend, Ext, OverlayedChanges, StorageKey, StorageTransactionCache,
+    StorageValue,
+};
 
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
 
@@ -84,5 +89,26 @@ where
         let (root, transaction) = self.changes_transaction();
         self.commit_transaction(root, transaction);
         self.clear_changes();
+    }
+}
+
+impl Serialize for Storage<InMemoryBackend> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        // TODO.kevin.must: flush changes to backend
+        self.backend.pairs().serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Storage<InMemoryBackend> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let pairs: Vec<(StorageKey, StorageValue)> = serde::Deserialize::deserialize(deserializer)?;
+        let backend = load_trie_backend(pairs.into_iter());
+        Ok(Self::new(backend))
     }
 }

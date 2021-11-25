@@ -243,7 +243,6 @@ pub mod group {
 
     #[derive(Serialize, Deserialize)]
     pub struct Group {
-        #[serde(with = "more::todo")]
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         #[serde(with = "more::sr25519_hex")]

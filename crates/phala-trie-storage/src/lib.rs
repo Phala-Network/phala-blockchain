@@ -38,25 +38,33 @@ where
     }
 }
 
+pub fn load_trie_backend<H: Hasher>(
+    pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>,
+) -> TrieBackend<MemoryDB<H>, H>
+where
+    H::Out: Codec,
+{
+    let mut root = Default::default();
+    let mut mdb = Default::default();
+    {
+        let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
+        for (key, value) in pairs {
+            if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
+                panic!("Insert item into trie DB should not fail");
+            }
+        }
+    }
+    TrieBackend::new(mdb, root)
+}
+
 impl<H: Hasher> TrieStorage<H>
 where
     H::Out: Codec + Ord,
 {
     /// Overwrite all data in the trie DB with given key/value pairs.
     pub fn load(&mut self, pairs: impl Iterator<Item = (impl AsRef<[u8]>, impl AsRef<[u8]>)>) {
-        let trie_be = core::mem::take(self).0;
-        let mut root = Default::default();
-        let mut mdb = trie_be.into_storage();
-        mdb.clear();
-        {
-            let mut trie_db = TrieDBMut::new(&mut mdb, &mut root);
-            for (key, value) in pairs {
-                if trie_db.insert(key.as_ref(), value.as_ref()).is_err() {
-                    panic!("Insert item into trie DB should not fail");
-                }
-            }
-        }
-        let _ = core::mem::replace(&mut self.0, TrieBackend::new(mdb, root));
+        let trie = load_trie_backend(pairs);
+        let _ = core::mem::replace(&mut self.0, trie);
     }
 
     /// Calculate the new state root given storage changes. Returns the new root and a transaction to apply.

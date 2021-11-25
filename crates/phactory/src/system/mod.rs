@@ -419,7 +419,6 @@ pub struct System<Platform> {
 
     #[serde(with = "more::todo")]
     pub(crate) contracts: ContractMap,
-    #[serde(with = "more::todo")]
     contract_groups: GroupKeeper,
 
     // Cached for query
