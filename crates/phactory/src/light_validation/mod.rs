@@ -46,7 +46,9 @@ use anyhow::Result;
 use error::JustificationError;
 use justification::GrandpaJustification;
 use log::{error, info};
+use serde::{Deserialize, Serialize};
 use storage_proof::{StorageProof, StorageProofChecker};
+use phala_serde_more as more;
 
 use finality_grandpa::voter_set::VoterSet;
 use num::AsPrimitive;
@@ -58,9 +60,14 @@ use sp_runtime::EncodedJustification;
 
 pub use types::{AuthoritySet, AuthoritySetChange};
 
-#[derive(Encode, Decode, Clone, PartialEq)]
+#[derive(Encode, Decode, Clone, PartialEq, Serialize, Deserialize)]
 pub struct BridgeInfo<T: Config> {
+    #[serde(bound(
+        serialize = "T::Header: ::serde::Serialize",
+        deserialize = "T::Header: ::serde::de::DeserializeOwned"
+    ))]
     last_finalized_block_header: T::Header,
+    #[serde(with = "more::scale_hex")]
     current_set: AuthoritySet,
 }
 
@@ -83,9 +90,13 @@ impl Config for chain::Runtime {
     type Block = chain::Block;
 }
 
-#[derive(Encode, Decode, Clone)]
+#[derive(Encode, Decode, Clone, Serialize, Deserialize)]
 pub struct LightValidation<T: Config> {
     num_bridges: BridgeId,
+    #[serde(bound(
+        serialize = "T::Header: ::serde::Serialize",
+        deserialize = "T::Header: ::serde::de::DeserializeOwned"
+    ))]
     tracked_bridges: BTreeMap<BridgeId, BridgeInfo<T>>,
 }
 

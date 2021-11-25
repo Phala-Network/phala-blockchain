@@ -311,13 +311,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
-            Box::new(ParachainSynchronizer::new(
+            Synchronizer::new_parachain(
                 light_client,
                 main_bridge,
                 next_headernum,
-            )) as _
+            )
         } else {
-            Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
+            Synchronizer::new_solochain(light_client, main_bridge)
         };
 
         let send_mq = MessageSendQueue::default();

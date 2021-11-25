@@ -28,13 +28,14 @@ use sp_core::{crypto::Pair, sr25519, H256};
 
 // use pink::InkModule;
 
-use phactory_api::ecall_args::{InitArgs, git_revision};
 use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
+use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory_api::prpc::InitRuntimeResponse;
 use phactory_api::storage_sync::{
-    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
+    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer, Synchronizer,
 };
 
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
     aead,
     ecdh::EcdhKey,
@@ -42,16 +43,15 @@ use phala_crypto::{
 };
 use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
-use phala_types::WorkerRegistrationInfo;
-use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
-use types::Error;
 use phala_serde_more as more;
+use phala_types::WorkerRegistrationInfo;
+use types::Error;
 
-pub use system::gk;
-pub use storage::{Storage, StorageExt};
-pub use types::BlockInfo;
-pub use side_task::SideTaskManager;
 pub use contracts::pink;
+pub use side_task::SideTaskManager;
+pub use storage::{Storage, StorageExt};
+pub use system::gk;
+pub use types::BlockInfo;
 
 pub mod benchmark;
 
@@ -62,15 +62,14 @@ mod light_validation;
 mod prpc_service;
 mod rpc_types;
 mod secret_channel;
+mod side_task;
 mod storage;
 mod system;
 mod types;
-mod side_task;
 
 // TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
-
 
 #[derive(Serialize, Deserialize)]
 struct RuntimeState {
@@ -80,8 +79,7 @@ struct RuntimeState {
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    #[serde(with = "more::todo")]
-    storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
+    storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
 
     // TODO.kevin: use a better serialization approach
     chain_storage: Storage,
@@ -171,7 +169,11 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
     pub fn init(&mut self, args: InitArgs) {
         if args.git_revision != git_revision() {
-            panic!("git revision mismatch: {}(app) vs {}(enclave)", args.git_revision, git_revision());
+            panic!(
+                "git revision mismatch: {}(app) vs {}(enclave)",
+                args.git_revision,
+                git_revision()
+            );
         }
 
         if args.init_bench {
@@ -275,7 +277,6 @@ fn generate_random_info() -> [u8; 32] {
     rand.fill(&mut nonce_vec).unwrap();
     nonce_vec
 }
-
 
 // --------------------------------
 

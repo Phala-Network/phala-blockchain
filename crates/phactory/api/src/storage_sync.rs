@@ -8,6 +8,7 @@ use alloc::vec::Vec;
 use chain::Hash;
 use derive_more::Display;
 use parity_scale_codec::Encode;
+use serde::{Deserialize, Serialize};
 
 type Storage = phala_trie_storage::TrieStorage<RuntimeHasher>;
 
@@ -94,6 +95,7 @@ pub trait StorageSynchronizer {
     ) -> Result<()>;
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct BlockSyncState<Validator> {
     validator: Validator,
     main_bridge: u64,
@@ -222,6 +224,8 @@ pub struct Counters {
     pub next_block_number: chain::BlockNumber,
 }
 
+
+#[derive(Serialize, Deserialize)]
 pub struct SolochainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
     state_roots: VecDeque<Hash>,
@@ -273,6 +277,8 @@ impl<Validator: BlockValidator> StorageSynchronizer for SolochainSynchronizer<Va
     }
 }
 
+
+#[derive(Serialize, Deserialize)]
 pub struct ParachainSynchronizer<Validator> {
     sync_state: BlockSyncState<Validator>,
     last_relaychain_state_root: Option<Hash>,
@@ -371,5 +377,70 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
     ) -> Result<()> {
         self.sync_state
             .feed_block(block, &mut self.para_state_roots, storage)
+    }
+}
+
+#[derive(Serialize, Deserialize)]
+pub enum Synchronizer<Validator> {
+    Solo(SolochainSynchronizer<Validator>),
+    Para(ParachainSynchronizer<Validator>),
+}
+
+impl<Validator: BlockValidator> Synchronizer<Validator> {
+    pub fn new_parachain(
+        validator: Validator,
+        main_bridge: u64,
+        headernum_next: chain::BlockNumber,
+    ) -> Self {
+        Self::Para(ParachainSynchronizer::new(validator, main_bridge, headernum_next))
+    }
+
+    pub fn new_solochain(validator: Validator, main_bridge: u64) -> Self {
+        Self::Solo(SolochainSynchronizer::new(validator, main_bridge))
+    }
+
+    pub fn as_dyn(&self) -> &dyn StorageSynchronizer {
+        match self {
+            Self::Solo(s) => s,
+            Self::Para(p) => p,
+        }
+    }
+
+    pub fn as_dyn_mut(&mut self) -> &mut dyn StorageSynchronizer {
+        match self {
+            Self::Solo(s) => s,
+            Self::Para(p) => p,
+        }
+    }
+}
+
+impl<Validator: BlockValidator> StorageSynchronizer for Synchronizer<Validator> {
+    fn counters(&self) -> Counters {
+        self.as_dyn().counters()
+    }
+
+    fn sync_header(
+        &mut self,
+        headers: Vec<HeaderToSync>,
+        authority_set_change: Option<AuthoritySetChange>,
+    ) -> Result<chain::BlockNumber> {
+        self.as_dyn_mut().sync_header(headers, authority_set_change)
+    }
+
+    fn sync_parachain_header(
+        &mut self,
+        headers: Vec<chain::Header>,
+        proof: StorageProof,
+        storage_key: &[u8],
+    ) -> Result<chain::BlockNumber> {
+        self.as_dyn_mut().sync_parachain_header(headers, proof, storage_key)
+    }
+
+    fn feed_block(
+        &mut self,
+        block: &BlockHeaderWithChanges,
+        storage: &mut Storage,
+    ) -> Result<()> {
+        self.as_dyn_mut().feed_block(block, storage)
     }
 }
