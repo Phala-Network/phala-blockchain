@@ -1,6 +1,6 @@
 pub use {
+    dispatcher::{subscribe_bound_default, subscribe_default_typed, using as using_dispatcher},
     send_mq::{default_send_mq, using as using_send_mq},
-    dispatcher::{subscribe_default, using as using_dispatcher},
 };
 
 mod send_mq {
@@ -23,8 +23,8 @@ mod send_mq {
 }
 
 mod dispatcher {
+    use crate::{BindTopic, MessageDispatcher, Path, TypedReceiver};
     use parity_scale_codec::Decode;
-    use crate::{BindTopic, MessageDispatcher, TypedReceiver};
 
     environmental::environmental!(global_dispatcher: MessageDispatcher);
 
@@ -39,8 +39,13 @@ mod dispatcher {
         global_dispatcher::with(f)
     }
 
-    pub fn subscribe_default<T: BindTopic + Decode>() -> TypedReceiver<T> {
+    pub fn subscribe_bound_default<T: BindTopic + Decode>() -> TypedReceiver<T> {
         with(|dispatcher| dispatcher.subscribe_bound())
-            .expect("subscribe_default called without using a global dispatcher")
+            .expect("subscribe_bound_default called without using a global dispatcher")
+    }
+
+    pub fn subscribe_default_typed<T: Decode>(path: impl Into<Path>) -> TypedReceiver<T> {
+        with(move |dispatcher| dispatcher.subscribe(path).into())
+            .expect("subscribe_default_typed called without using a global dispatcher")
     }
 }

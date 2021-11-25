@@ -97,7 +97,8 @@ mod receiver {
     use core::marker::PhantomData;
     use parity_scale_codec::Decode;
     use phactory_api::crypto::ecdh;
-    use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
+    use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
+    use serde::{Deserialize, Serialize};
     pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
 
     pub trait Peeler {
@@ -116,7 +117,9 @@ mod receiver {
         }
     }
 
+    #[derive(Serialize, Deserialize)]
     pub struct SecretPeeler<T> {
+        #[serde(with = "super::ecdh_serde")]
         ecdh_key: ecdh::EcdhKey,
         _t: PhantomData<T>,
     }
@@ -197,5 +200,62 @@ mod receiver {
         pub fn peek_ind(&self) -> Result<Option<u64>, ReceiveError> {
             self.receiver.peek_ind()
         }
+    }
+
+    const _: () = {
+        use phala_mq::checkpoint_helper::subscribe_default_typed;
+        use serde::Serializer;
+
+        impl<Msg, Wrp, Plr> Serialize for PeelingReceiver<Msg, Wrp, Plr>
+        where
+            Plr: Serialize,
+        {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                self.peeler.serialize(serializer)
+            }
+        }
+
+        impl<'de, Msg, Wrp, Plr> Deserialize<'de> for PeelingReceiver<Msg, Wrp, Plr>
+        where
+            Plr: Deserialize<'de>,
+            Msg: BindTopic,
+            Wrp: Decode,
+        {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: serde::Deserializer<'de>,
+            {
+                let peeler: Plr = Deserialize::deserialize(deserializer)?;
+                Ok(PeelingReceiver {
+                    peeler,
+                    receiver: subscribe_default_typed(Msg::topic()),
+                    _msg: Default::default(),
+                })
+            }
+        }
+    };
+}
+
+pub(crate) mod ecdh_serde {
+    use crate::EcdhKey;
+    use phala_serde_more as more;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(ecdh: &EcdhKey, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        more::scale_hex::serialize(&ecdh.secret(), serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<EcdhKey, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let secret = more::scale_hex::deserialize(deserializer)?;
+        Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
     }
 }

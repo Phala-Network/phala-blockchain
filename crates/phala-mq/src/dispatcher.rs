@@ -1,7 +1,6 @@
 use core::marker::PhantomData;
 
 use alloc::{collections::BTreeMap, vec::Vec};
-use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
 use crate::types::{Message, Path};
@@ -129,6 +128,30 @@ impl<T: Decode> From<Receiver<Message>> for TypedReceiver<T> {
     }
 }
 
+#[cfg(feature = "checkpoint")]
+const _: () = {
+    use serde::{Deserialize, Serialize, Serializer};
+    use crate::checkpoint_helper::subscribe_bound_default;
+
+    impl<T> Serialize for TypedReceiver<T> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            serializer.serialize_unit()
+        }
+    }
+
+    impl<'de, T: BindTopic + Decode> Deserialize<'de> for TypedReceiver<T> {
+        fn deserialize<D>(_deserializer: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            Ok(subscribe_bound_default())
+        }
+    }
+};
+
 #[macro_export]
 macro_rules! select {
     (
@@ -167,7 +190,6 @@ macro_rules! select {
         rv
     }};
 }
-
 
 #[macro_export]
 macro_rules! function {

@@ -12,7 +12,7 @@ use crate::{
         ExecuteEnv, NativeContract,
     },
     pink::{group::GroupKeeper, Pink},
-    secret_channel::{PeelingReceiver, SecretReceiver},
+    secret_channel::{ecdh_serde, PeelingReceiver, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
@@ -33,8 +33,8 @@ use phala_crypto::{
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{
-    checkpoint_helper::subscribe_default, traits::MessageChannel, BadOrigin, BindTopic, ContractId,
-    MessageDispatcher, MessageOrigin, MessageSendQueue, SignedMessageChannel, TypedReceiver,
+    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
+    MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
 use phala_serde_more as more;
 use phala_types::{
@@ -361,27 +361,6 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 
 type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
 
-mod ecdh_serde {
-    use super::EcdhKey;
-    use phala_serde_more as more;
-    use serde::{Deserializer, Serializer};
-
-    pub fn serialize<S>(ecdh: &EcdhKey, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        more::scale_hex::serialize(&ecdh.secret(), serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<EcdhKey, D::Error>
-    where
-        D: Deserializer<'de>,
-    {
-        let secret = more::scale_hex::deserialize(deserializer)?;
-        Ok(EcdhKey::from_secret(&secret).or(Err(serde::de::Error::custom("invalid ECDH key")))?)
-    }
-}
-
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
@@ -391,19 +370,10 @@ pub struct System<Platform> {
     geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
-    #[serde(skip)]
-    #[serde(default = "subscribe_default")]
     system_events: TypedReceiver<SystemEvent>,
-    #[serde(skip)]
-    #[serde(default = "subscribe_default")]
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
-    #[serde(skip)]
-    #[serde(default = "subscribe_default")]
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
-    #[serde(skip)]
-    #[serde(default = "subscribe_default")]
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    #[serde(with = "more::todo")]
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
     #[serde(with = "more::sr25519_hex")]
