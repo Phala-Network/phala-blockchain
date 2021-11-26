@@ -151,7 +151,9 @@ mod receiver {
         }
     }
 
+    #[derive(Serialize, Deserialize)]
     pub struct PeelingReceiver<Msg, Wrp, Plr> {
+        #[serde(bound(serialize = "", deserialize = ""))]
         receiver: TypedReceiver<Wrp>,
         peeler: Plr,
         _msg: PhantomData<Msg>,
@@ -201,42 +203,6 @@ mod receiver {
             self.receiver.peek_ind()
         }
     }
-
-    const _: () = {
-        use phala_mq::checkpoint_helper::subscribe_default_typed;
-        use serde::Serializer;
-
-        impl<Msg, Wrp, Plr> Serialize for PeelingReceiver<Msg, Wrp, Plr>
-        where
-            Plr: Serialize,
-        {
-            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: Serializer,
-            {
-                self.peeler.serialize(serializer)
-            }
-        }
-
-        impl<'de, Msg, Wrp, Plr> Deserialize<'de> for PeelingReceiver<Msg, Wrp, Plr>
-        where
-            Plr: Deserialize<'de>,
-            Msg: BindTopic,
-            Wrp: Decode,
-        {
-            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: serde::Deserializer<'de>,
-            {
-                let peeler: Plr = Deserialize::deserialize(deserializer)?;
-                Ok(PeelingReceiver {
-                    peeler,
-                    receiver: subscribe_default_typed(Msg::topic()),
-                    _msg: Default::default(),
-                })
-            }
-        }
-    };
 }
 
 pub(crate) mod ecdh_serde {

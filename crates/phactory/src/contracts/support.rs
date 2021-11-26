@@ -1,6 +1,7 @@
 use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
+use serde::{Deserialize, Serialize};
 
 use super::pink::group::GroupKeeper;
 use super::*;
