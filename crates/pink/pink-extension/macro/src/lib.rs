@@ -65,7 +65,7 @@ fn patch_or_err(input: TokenStream2, config: TokenStream2) -> Result<TokenStream
                             });
 
                             let method_name = item_method.sig.ident.to_string();
-                            let selector = Selector::new(method_name.as_bytes()).into_be_u32();
+                            let selector = Selector::compute(method_name.as_bytes()).into_be_u32();
                             let literal_selector = selector.hex_suffixed();
 
                             attrs.push(syn::parse_quote! {

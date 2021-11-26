@@ -99,7 +99,7 @@ frame-benchmarking-cli = { optional = true, path = "../../substrate/utils/frame/
 node-inspect = { optional = true, path = "../../substrate/bin/node/inspect" }
 try-runtime-cli = { optional = true, path = "../../substrate/utils/frame/try-runtime/cli" }
 
-[target.'cfg(target_arch="x86_64")'.dependencies]
+[target.'cfg(any(target_arch="x86_64", target_arch="aarch64"))'.dependencies]
 node-executor = { path = "../executor", features = ["wasmtime"] }
 sc-cli = { optional = true, path = "../../substrate/client/cli", features = ["wasmtime"] }
 sc-service = { default-features = false, path = "../../substrate/client/service", features = ["wasmtime"] }

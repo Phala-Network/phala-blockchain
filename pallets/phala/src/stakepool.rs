@@ -1831,9 +1831,13 @@ pub mod pallet {
 				assert_eq!(
 					ev,
 					vec![
-						TestEvent::Balances(pallet_balances::Event::Slashed(1, 50000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 1, amount: 50000000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 50000000000000)),
-						TestEvent::Balances(pallet_balances::Event::Slashed(2, 200000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 2, amount: 200000000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 200000000000000))
 					]
 				);
@@ -1912,15 +1916,21 @@ pub mod pallet {
 					ev,
 					vec![
 						// Account1: ~25 PHA remaining
-						TestEvent::Balances(pallet_balances::Event::Slashed(1, 25000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 1, amount: 25000000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 25000000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 25000000000000)),
 						// Account2: ~100 PHA remaining
-						TestEvent::Balances(pallet_balances::Event::Slashed(2, 100000000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 2, amount: 100000000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 100000000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 100000000000000)),
 						// Account1: ~125 PHA remaining
-						TestEvent::Balances(pallet_balances::Event::Slashed(3, 125000000000001)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 3, amount: 125000000000001
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 3, 125000000000001)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 3, 125000000000000))
 					]
@@ -1992,8 +2002,8 @@ pub mod pallet {
 				// Mined 500 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(500).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(500u32).to_bits(),
 					treasury: 0,
 				}]);
 				// Should result in 100, 400 PHA pending reward for staker1 & 2
@@ -2010,11 +2020,13 @@ pub mod pallet {
 				assert_eq!(
 					take_events().as_slice(),
 					[
-						TestEvent::Balances(pallet_balances::Event::<Test>::Transfer(
-							PhalaMining::account_id(),
-							1,
-							100 * DOLLARS
-						)),
+						TestEvent::Balances(
+							pallet_balances::Event::<Test>::Transfer {
+								from: PhalaMining::account_id(),
+								to: 1,
+								amount: 100 * DOLLARS
+							}
+						),
 						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 100 * DOLLARS))
 					]
 				);
@@ -2027,8 +2039,8 @@ pub mod pallet {
 				// Mined 500 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(500).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(500u32).to_bits(),
 					treasury: 0,
 				}]);
 				// Should result in 100, 800 PHA pending reward for staker1 & 2
@@ -2059,8 +2071,8 @@ pub mod pallet {
 				// Mined 800 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(800).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(800u32).to_bits(),
 					treasury: 0,
 				}]);
 				assert_ok!(PhalaStakePool::claim_rewards(Origin::signed(1), 0, 1));
@@ -2117,7 +2129,7 @@ pub mod pallet {
 				// Inject 100 pico PHA payout to trigger dust removal (99 after convering to fp)
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
 					payout: 100u128.to_fixed().to_bits(),
 					treasury: 0,
 				}]);
@@ -2141,8 +2153,8 @@ pub mod pallet {
 				let _ = take_events();
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(500).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(500u32).to_bits(),
 					treasury: 0,
 				}]);
 				let ev = take_events();
@@ -2162,8 +2174,8 @@ pub mod pallet {
 				let _ = take_events();
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(500).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(500u32).to_bits(),
 					treasury: 0,
 				}]);
 				let ev = take_events();
@@ -2191,8 +2203,8 @@ pub mod pallet {
 				));
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(500).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(500u32).to_bits(),
 					treasury: 0,
 				}]);
 				assert_ok!(Balances::set_balance(
@@ -2360,11 +2372,15 @@ pub mod pallet {
 					[
 						TestEvent::PhalaStakePool(Event::PoolSlashed(0, 100 * DOLLARS)),
 						// Staker 2 got 75% * 99 PHA back
-						TestEvent::Balances(pallet_balances::Event::Slashed(2, 99_750000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 2, amount: 99_750000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 2, 99_750000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 2, 74_250000000000)),
 						// Staker 1 got 75% * 1 PHA back
-						TestEvent::Balances(pallet_balances::Event::Slashed(1, 250000000000)),
+						TestEvent::Balances(pallet_balances::Event::Slashed {
+							who: 1, amount: 250000000000
+						}),
 						TestEvent::PhalaStakePool(Event::SlashSettled(0, 1, 250000000000)),
 						TestEvent::PhalaStakePool(Event::Withdrawal(0, 1, 750000000000)),
 					]
@@ -2557,8 +2573,8 @@ pub mod pallet {
 				// Mined 100 PHA
 				PhalaStakePool::on_reward(&vec![SettleInfo {
 					pubkey: worker_pubkey(1),
-					v: FixedPoint::from_num(1).to_bits(),
-					payout: FixedPoint::from_num(100).to_bits(),
+					v: FixedPoint::from_num(1u32).to_bits(),
+					payout: FixedPoint::from_num(100u32).to_bits(),
 					treasury: 0,
 				}]);
 				// Both owner and staker2 can claim 50 PHA
@@ -2569,9 +2585,17 @@ pub mod pallet {
 				assert_matches!(
 					ev.as_slice(),
 					[
-						TestEvent::Balances(pallet_balances::Event::Transfer(_, 1, 50000000000000)),
+						TestEvent::Balances(
+							pallet_balances::Event::Transfer {
+								from: _, to: 1, amount: 50000000000000
+							}
+						),
 						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 1, 50000000000000)),
-						TestEvent::Balances(pallet_balances::Event::Transfer(_, 2, 49999999999999)),
+						TestEvent::Balances(
+							pallet_balances::Event::Transfer {
+								from: _, to: 2, amount: 49999999999999
+							}
+						),
 						TestEvent::PhalaStakePool(Event::RewardsWithdrawn(0, 2, 49999999999999))
 					]
 				);

@@ -39,6 +39,7 @@ sp-transaction-pool = { default-features = false, path = "../../substrate/primit
 sp-version = { default-features = false, path = "../../substrate/primitives/version" }
 sp-npos-elections = { default-features = false, path = "../../substrate/primitives/npos-elections" }
 sp-io = { default-features = false, path = "../../substrate/primitives/io" }
+sp-sandbox = { default-features = false, path = "../../substrate/primitives/sandbox", optional = true }
 
 # frame dependencies
 frame-executive = { default-features = false, path = "../../substrate/frame/executive" }
@@ -96,7 +97,7 @@ native-nostd-hasher = { path = "../../native-nostd-hasher", optional = true }
 substrate-wasm-builder = { path = "../../substrate/utils/wasm-builder", optional = true }
 
 [features]
-default = ["std", "include-wasm"]
+default = ["std", "include-wasm", "sp-sandbox"]
 include-wasm = ["substrate-wasm-builder"]
 native-nostd = ["native-nostd-hasher"]
 with-tracing = ["frame-executive/with-tracing"]
@@ -236,3 +237,9 @@ try-runtime = [
 	"pallet-vesting/try-runtime",
 	"phala-pallets/try-runtime",
 ]
+
+# Force `sp-sandbox` to call into the host resident executor. One still need to make sure
+# that `sc-executor` gets the `wasmer-sandbox` feature which happens automatically when
+# specified on the command line.
+# Don't use that on a production chain.
+wasmer-sandbox = ["sp-sandbox/wasmer-sandbox"]
