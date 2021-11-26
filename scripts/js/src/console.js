@@ -10,6 +10,7 @@ const phalaTypes = require('@phala/typedefs').khalaDev;
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
+const { poolSubAccount } = require('./utils/palletUtils');
 
 function run(afn) {
     function runner(...args) {
@@ -225,6 +226,17 @@ chain
         const call = tokenomic.createUpdateCall(api, typedP);
         console.log('Call:', call.toHex());
     }));
+
+chain
+    .command('stake-pool-subaccount')
+    .argument('<pid>', 'pid')
+    .argument('<worker-pubkey>', 'the worker public key')
+    .description('generate the stake pool subaccount by pid and worker pubkey')
+    .action(run(async (pid, workerPubkey) => {
+        const api = await substrateApi();
+        const subAccount = poolSubAccount(api, pid, workerPubkey);
+        console.log(subAccount.toHuman());
+    }))
 
 // pRuntime operations
 const pruntime = program
