@@ -38,6 +38,7 @@ impl-serde = "0.3.1"
 hex = "0.4.3"
 serde = { version = "1.0.101", features = ["derive"] }
 serde_json = "1.0.67"
+phala-serde-more = { path = "../phala-serde-more" }
 
 phala-trie-storage = { path = "../phala-trie-storage" }
 pink-extension = { path = "pink-extension" }

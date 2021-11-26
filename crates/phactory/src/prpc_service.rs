@@ -342,13 +342,13 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                             .into(),
                         contract_key,
                     );
-                    let wrapped = Box::new(contracts::NativeCompatContract::new(
+                    let wrapped = contracts::NativeCompatContract::new(
                         $inner,
                         mq,
                         cmd_mq,
                         ecdh_key.clone(),
-                    ));
-                    contracts.insert(contract_id, wrapped);
+                    );
+                    contracts.insert(wrapped);
                 }};
             }
 

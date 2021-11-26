@@ -984,6 +984,7 @@ pub fn install_contract<Contract>(
 ) where
     Contract: NativeContract + Send + 'static,
     <Contract as NativeContract>::Cmd: Send,
+    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>
 {
     let contract_id = contract.id();
     let sender = MessageOrigin::Contract(contract_id);
@@ -995,13 +996,13 @@ pub fn install_contract<Contract>(
             .into(),
         ecdh_key.clone(),
     );
-    let wrapped = Box::new(contracts::NativeCompatContract::new(
+    let wrapped = contracts::NativeCompatContract::new(
         contract,
         mq,
         cmd_mq,
         ecdh_key.clone(),
-    ));
-    contracts.insert(contract_id, wrapped);
+    );
+    contracts.insert(wrapped);
 }
 
 #[derive(Encode, Decode, Debug)]

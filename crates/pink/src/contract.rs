@@ -7,6 +7,8 @@ use crate::{
     storage,
     types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
 };
+use serde::{Deserialize, Serialize};
+use phala_serde_more as more;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
@@ -16,13 +18,14 @@ pub struct ExecError {
     message: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize, Deserialize)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Contract {
+    #[serde(with = "more::scale_bytes")]
     pub address: AccountId,
     hooks: HookSelectors,
 }
