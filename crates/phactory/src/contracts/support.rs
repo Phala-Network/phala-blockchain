@@ -80,32 +80,14 @@ pub trait NativeContract {
     fn set_on_block_end_selector(&mut self, _selector: u32) {}
 }
 
-pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
-where
-    Cmd: Decode + Debug,
-    CmdWrp: Decode + Debug,
-    CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd>,
-    QReq: Decode + Debug,
-    QResp: Encode + Debug,
-    Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp>,
-{
+pub struct NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr> {
     contract: Con,
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: PeelingReceiver<Cmd, CmdWrp, CmdPlr>,
     ecdh_key: KeyPair,
 }
 
-impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
-    NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
-where
-    Cmd: Decode + Debug,
-    CmdWrp: Decode + Debug,
-    CmdPlr: Peeler<Wrp = CmdWrp, Msg = Cmd>,
-    QReq: Decode + Debug,
-    QResp: Encode + Debug,
-    Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp>,
-    Cmd: Decode + Debug,
-{
+impl<Con, Cmd, CmdWrp, CmdPlr> NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr> {
     pub fn new(
         contract: Con,
         send_mq: SignedMessageChannel,
@@ -122,7 +104,7 @@ where
 }
 
 impl<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp> Contract
-    for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr, QReq, QResp>
+    for NativeCompatContract<Con, Cmd, CmdWrp, CmdPlr>
 where
     Cmd: Decode + Debug,
     CmdWrp: Decode + Debug,
