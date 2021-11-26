@@ -82,18 +82,20 @@ pub trait NativeContract {
     fn set_on_block_end_selector(&mut self, _selector: u32) {}
 }
 
-pub struct NativeCompatContract<Con, Cmd> {
+#[derive(Serialize, Deserialize)]
+pub struct NativeCompatContract<Con: NativeContract> {
     contract: Con,
     send_mq: SignedMessageChannel,
-    cmd_rcv_mq: SecretReceiver<Cmd>,
+    cmd_rcv_mq: SecretReceiver<Con::Cmd>,
+    #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
 }
 
-impl<Con, Cmd> NativeCompatContract<Con, Cmd> {
+impl<Con: NativeContract> NativeCompatContract<Con> {
     pub fn new(
         contract: Con,
         send_mq: SignedMessageChannel,
-        cmd_rcv_mq: SecretReceiver<Cmd>,
+        cmd_rcv_mq: SecretReceiver<Con::Cmd>,
         ecdh_key: KeyPair,
     ) -> Self {
         NativeCompatContract {
@@ -105,15 +107,7 @@ impl<Con, Cmd> NativeCompatContract<Con, Cmd> {
     }
 }
 
-impl<Con, Cmd, QReq, QResp> Contract
-    for NativeCompatContract<Con, Cmd>
-where
-    Cmd: Decode + Debug,
-    QReq: Decode + Debug,
-    QResp: Encode + Debug,
-    Con: NativeContract<Cmd = Cmd, QReq = QReq, QResp = QResp> + Send,
-    Cmd: Decode + Debug,
-{
+impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
     fn id(&self) -> ContractId {
         self.contract.id()
     }
