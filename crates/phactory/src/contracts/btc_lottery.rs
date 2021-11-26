@@ -77,7 +77,7 @@ pub struct BtcLottery {
     lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKeyWrapper>>,
     tx_set: Vec<Vec<u8>>,
     sequence: SequenceType, // Starting from zero
-    seed: Option<Vec<u8>>,  // TODO: replace it with a seed.
+    seed: Option<Vec<u8>>,
     /// round_id => (txid, vout, amount)?
     utxo: BTreeMap<u32, BTreeMap<AddressString, (Txid, u32, u64)>>,
     admin: AccountId,

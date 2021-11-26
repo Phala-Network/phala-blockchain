@@ -1873,10 +1873,10 @@ dependencies = [
 [[package]]
 name = "http_req"
 version = "0.8.1"
-source = "git+https://github.com/Phala-Network/http_req-sgx.git?branch=phala#e2a44dfb0f02afa791bf40bbe6aa4a1acdf0f16c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e6cd45a270dff33553602fd84beb02c89460ee32db638715f10d9060389fd6a"
 dependencies = [
  "rustls 0.19.1",
- "sgx_tstd",
  "unicase",
  "webpki 0.21.4",
  "webpki-roots 0.21.1",

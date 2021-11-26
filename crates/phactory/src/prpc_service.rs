@@ -364,11 +364,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 contracts::BTC_LOTTERY,
                 contracts::btc_lottery::BtcLottery::new(Some(identity_key.to_raw_vec()))
             );
-            // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
-            // install_contract!(
-            //     contracts::WEB3_ANALYTICS,
-            //     contracts::web3analytics::Web3Analytics::new()
-            // );
+            install_contract!(
+                contracts::WEB3_ANALYTICS,
+                contracts::web3analytics::Web3Analytics::new()
+            );
             install_contract!(
                 contracts::DATA_PLAZA,
                 contracts::data_plaza::DataPlaza::new()
