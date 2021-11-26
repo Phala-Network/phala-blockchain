@@ -9,10 +9,10 @@ use crate::{
             group::Group,
             messaging::{WorkerPinkReport, WorkerPinkRequest},
         },
-        ExecuteEnv, NativeContract, ContractsKeeper
+        ContractsKeeper, ExecuteEnv, NativeContract,
     },
     pink::{group::GroupKeeper, Pink},
-    secret_channel::{ecdh_serde, PeelingReceiver, SecretReceiver},
+    secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
@@ -988,7 +988,7 @@ pub fn install_contract<Contract>(
     let contract_id = contract.id();
     let sender = MessageOrigin::Contract(contract_id);
     let mq = block.send_mq.channel(sender, contract_key.into());
-    let cmd_mq = PeelingReceiver::new_secret(
+    let cmd_mq = SecretReceiver::new_secret(
         block
             .recv_mq
             .subscribe(contract::command_topic(contract_id))

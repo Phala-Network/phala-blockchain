@@ -1,7 +1,7 @@
 use crate::system::System;
 
 use super::*;
-use crate::secret_channel::PeelingReceiver;
+use crate::secret_channel::SecretReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
@@ -336,7 +336,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                     let mq = send_mq.channel(sender, identity_key.clone().into());
                     // TODO.kevin: use real contract key
                     let contract_key = ecdh_key.clone();
-                    let cmd_mq = PeelingReceiver::new_secret(
+                    let cmd_mq = SecretReceiver::new_secret(
                         recv_mq
                             .subscribe(contract::command_topic(contract_id))
                             .into(),

@@ -1,4 +1,4 @@
-use crate::secret_channel::{KeyPair, Peeler, PeelingReceiver, SecretMessageChannel};
+use crate::secret_channel::{KeyPair, Peeler, SecretMessageChannel};
 use std::convert::TryFrom as _;
 use std::fmt::Debug;
 
