@@ -19,7 +19,6 @@ type ContractMap = BTreeMap<ContractId, AnyContract>;
 
 #[derive(Serialize, Deserialize)]
 pub enum AnyContract {
-    #[serde(with = "more::todo")]
     Pink(Compat<Pink>),
     #[serde(with = "more::todo")]
     DataPlaza(Compat<DataPlaza>),
@@ -107,7 +106,7 @@ impl From<Compat<Geolocation>> for AnyContract {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct ContractsKeeper(ContractMap);
 
 impl ContractsKeeper {

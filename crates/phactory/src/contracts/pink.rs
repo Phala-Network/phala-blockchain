@@ -6,6 +6,7 @@ use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 use phala_serde_more as more;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -28,6 +29,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct Pink {
     instance: pink::Contract,
     group: ContractGroupId,

@@ -383,7 +383,6 @@ pub struct System<Platform> {
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
-    #[serde(with = "more::todo")]
     pub(crate) contracts: ContractsKeeper,
     contract_groups: GroupKeeper,
 
