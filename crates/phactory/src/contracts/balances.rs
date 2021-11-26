@@ -17,6 +17,7 @@ use phala_types::messaging::{BalancesCommand, BalancesTransfer};
 
 pub type Command = BalancesCommand<chain::AccountId, chain::Balance>;
 
+#[derive(Debug, Encode, Decode)]
 pub struct Balances {
     total_issuance: chain::Balance,
     accounts: BTreeMap<AccountId, chain::Balance>,

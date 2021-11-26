@@ -352,27 +352,27 @@ impl<Platform: pal::Platform> Phactory<Platform> {
                 }};
             }
 
-            // install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-            // install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
+            install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
+            install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
             // TODO.kevin:
             // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
             // install_contract!(
             //     contracts::SUBSTRATE_KITTIES,
             //     contracts::substrate_kitties::SubstrateKitties::new()
             // );
-            // install_contract!(
-            //     contracts::BTC_LOTTERY,
-            //     contracts::btc_lottery::BtcLottery::new(Some(id_pair.clone()))
-            // );
+            install_contract!(
+                contracts::BTC_LOTTERY,
+                contracts::btc_lottery::BtcLottery::new(Some(identity_key.to_raw_vec()))
+            );
             // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
             // install_contract!(
             //     contracts::WEB3_ANALYTICS,
             //     contracts::web3analytics::Web3Analytics::new()
             // );
-            // install_contract!(
-            //     contracts::DATA_PLAZA,
-            //     contracts::data_plaza::DataPlaza::new()
-            // );
+            install_contract!(
+                contracts::DATA_PLAZA,
+                contracts::data_plaza::DataPlaza::new()
+            );
             install_contract!(
                 contracts::GEOLOCATION,
                 contracts::geolocation::Geolocation::new()

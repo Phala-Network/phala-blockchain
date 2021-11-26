@@ -2,7 +2,6 @@ use phala_mq::ContractId;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
-use phala_serde_more as more;
 
 use super::{Contract, NativeCompatContract as Compat};
 use crate::contracts::{
@@ -21,15 +20,10 @@ type ContractMap = BTreeMap<ContractId, AnyContract>;
 pub enum AnyContract {
     Pink(Compat<Pink>),
     DataPlaza(Compat<DataPlaza>),
-    #[serde(with = "more::todo")]
     Balances(Compat<Balances>),
-    #[serde(with = "more::todo")]
     Assets(Compat<Assets>),
-    #[serde(with = "more::todo")]
-    Ｗeb3Analytics(Compat<Web3Analytics>),
-    #[serde(with = "more::todo")]
+    Web3Analytics(Compat<Web3Analytics>),
     BtcLottery(Compat<BtcLottery>),
-    #[serde(with = "more::todo")]
     Geolocation(Compat<Geolocation>),
 }
 
@@ -42,7 +36,7 @@ impl Deref for AnyContract {
             AnyContract::DataPlaza(c) => c,
             AnyContract::Balances(c) => c,
             AnyContract::Assets(c) => c,
-            AnyContract::Ｗeb3Analytics(c) => c,
+            AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
         }
@@ -56,7 +50,7 @@ impl DerefMut for AnyContract {
             AnyContract::DataPlaza(c) => c,
             AnyContract::Balances(c) => c,
             AnyContract::Assets(c) => c,
-            AnyContract::Ｗeb3Analytics(c) => c,
+            AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
         }
@@ -89,7 +83,7 @@ impl From<Compat<Assets>> for AnyContract {
 
 impl From<Compat<Web3Analytics>> for AnyContract {
     fn from(c: Compat<Web3Analytics>) -> Self {
-        AnyContract::Ｗeb3Analytics(c)
+        AnyContract::Web3Analytics(c)
     }
 }
 
