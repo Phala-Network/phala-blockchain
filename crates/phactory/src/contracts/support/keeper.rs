@@ -20,7 +20,6 @@ type ContractMap = BTreeMap<ContractId, AnyContract>;
 #[derive(Serialize, Deserialize)]
 pub enum AnyContract {
     Pink(Compat<Pink>),
-    #[serde(with = "more::todo")]
     DataPlaza(Compat<DataPlaza>),
     #[serde(with = "more::todo")]
     Balances(Compat<Balances>),

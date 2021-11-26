@@ -7,6 +7,7 @@ use super::pink::group::GroupKeeper;
 use super::*;
 use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
+use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a> {
     pub block: &'a BlockInfo<'a>,
@@ -84,6 +85,11 @@ pub trait NativeContract {
 
 #[derive(Serialize, Deserialize)]
 pub struct NativeCompatContract<Con: NativeContract> {
+    #[serde(bound(
+        serialize = "Con: Encode",
+        deserialize = "Con: Decode"
+    ))]
+    #[serde(with = "more::scale_bytes")]
     contract: Con,
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: SecretReceiver<Con::Cmd>,

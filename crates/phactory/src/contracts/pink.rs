@@ -29,7 +29,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Encode, Decode)]
 pub struct Pink {
     instance: pink::Contract,
     group: ContractGroupId,

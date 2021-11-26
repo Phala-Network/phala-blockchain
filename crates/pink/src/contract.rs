@@ -18,14 +18,13 @@ pub struct ExecError {
     message: String,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Encode, Decode)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Encode, Decode)]
 pub struct Contract {
-    #[serde(with = "more::scale_bytes")]
     pub address: AccountId,
     hooks: HookSelectors,
 }
