@@ -9,7 +9,7 @@ use crate::{
             group::Group,
             messaging::{WorkerPinkReport, WorkerPinkRequest},
         },
-        ExecuteEnv, NativeContract,
+        ExecuteEnv, NativeContract, ContractsKeeper
     },
     pink::{group::GroupKeeper, Pink},
     secret_channel::{ecdh_serde, PeelingReceiver, SecretReceiver},
@@ -20,7 +20,6 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
-use std::collections::BTreeMap;
 
 use crate::contracts;
 use crate::pal;
@@ -359,8 +358,6 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
-type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
-
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
@@ -387,7 +384,7 @@ pub struct System<Platform> {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     #[serde(with = "more::todo")]
-    pub(crate) contracts: ContractMap,
+    pub(crate) contracts: ContractsKeeper,
     contract_groups: GroupKeeper,
 
     // Cached for query
@@ -405,7 +402,7 @@ impl<Platform: pal::Platform> System<Platform> {
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        contracts: ContractMap,
+        contracts: ContractsKeeper,
     ) -> Self {
         let pubkey = identity_key.clone().public();
         let sender = MessageOrigin::Worker(pubkey);
@@ -883,7 +880,7 @@ impl<Platform: pal::Platform> System<Platform> {
 pub fn handle_contract_command_result(
     result: TransactionResult,
     group_id: Option<phala_mq::ContractGroupId>,
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     groups: &mut GroupKeeper,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
@@ -913,7 +910,7 @@ pub fn handle_contract_command_result(
 pub fn apply_pink_side_effects(
     effects: ExecSideEffects,
     group_id: &phala_mq::ContractGroupId,
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     group: &mut Group,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
@@ -979,7 +976,7 @@ pub fn apply_pink_side_effects(
 }
 
 pub fn install_contract<Contract>(
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     contract: Contract,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
@@ -1065,7 +1062,7 @@ mod tests {
     #[test]
     fn test_on_block_end() {
         let contract_key = sp_core::Pair::from_seed(&Default::default());
-        let mut contracts = ContractMap::default();
+        let mut contracts = ContractsKeeper::default();
         let mut groupkeeper = GroupKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let group_id = phala_mq::ContractGroupId(Default::default());

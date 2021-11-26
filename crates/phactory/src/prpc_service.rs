@@ -323,8 +323,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let send_mq = MessageSendQueue::default();
         let mut recv_mq = MessageDispatcher::default();
 
-        let mut contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
-            Default::default();
+        let mut contracts = contracts::ContractsKeeper::default();
 
         if self.dev_mode {
             // Install contracts when running in dev_mode.

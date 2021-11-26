@@ -135,25 +135,29 @@ enum RuntimeDataSeal {
 }
 
 #[derive(Serialize, Deserialize)]
+enum StateVersion {
+    V0,
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct Phactory<Platform> {
-    version: u32,
+    version: StateVersion,
     platform: Platform,
     args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
-    #[serde(with = "serde_bytes")]
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    system: Option<system::System<Platform>>,
     side_task_man: SideTaskManager,
+    system: Option<system::System<Platform>>,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
         let machine_id = platform.machine_id();
         Phactory {
-            version: 0,
+            version: StateVersion::V0,
             platform,
             args: Default::default(),
             skip_ra: false,
