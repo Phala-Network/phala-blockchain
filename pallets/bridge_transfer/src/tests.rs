@@ -345,11 +345,11 @@ fn transfer() {
 		assert_eq!(Balances::free_balance(&bridge_id), ENDOWED_BALANCE - 10);
 		assert_eq!(Balances::free_balance(RELAYER_A), ENDOWED_BALANCE + 10);
 
-		assert_events(vec![Event::Balances(balances::Event::Transfer(
-			Bridge::account_id(),
-			RELAYER_A,
-			10,
-		))]);
+		assert_events(vec![Event::Balances(balances::Event::Transfer {
+			from: Bridge::account_id(),
+			to: RELAYER_A,
+			amount: 10,
+		})]);
 	})
 }
 
@@ -499,11 +499,11 @@ fn create_successful_transfer_proposal() {
 			Event::Bridge(bridge::Event::VoteAgainst(src_id, prop_id, RELAYER_B)),
 			Event::Bridge(bridge::Event::VoteFor(src_id, prop_id, RELAYER_C)),
 			Event::Bridge(bridge::Event::ProposalApproved(src_id, prop_id)),
-			Event::Balances(balances::Event::Transfer(
-				Bridge::account_id(),
-				RELAYER_A,
-				10,
-			)),
+			Event::Balances(balances::Event::Transfer {
+				from: Bridge::account_id(),
+				to: RELAYER_A,
+				amount: 10,
+			}),
 			Event::Bridge(bridge::Event::ProposalSucceeded(src_id, prop_id)),
 		]);
 	})
