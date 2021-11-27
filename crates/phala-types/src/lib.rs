@@ -3,6 +3,7 @@ extern crate alloc;
 
 pub mod contract;
 
+use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
@@ -599,6 +600,13 @@ pub struct WorkerRegistrationInfo<AccountId> {
     pub genesis_block_hash: H256,
     pub features: Vec<u32>,
     pub operator: Option<AccountId>,
+}
+
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct PhalaNetworkIdentBindingInfo {
+    pub pubkey: WorkerPublicKey,
+    pub pnetwork_ident: String,
+    pub version: u32,
 }
 
 #[derive(Encode, Decode, Debug, Default, TypeInfo)]

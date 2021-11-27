@@ -4,6 +4,7 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::Encode;
+	use codec::alloc::string::String;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -27,6 +28,7 @@ pub mod pallet {
 			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		PhalaNetworkIdentBindingInfo
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -101,6 +103,11 @@ pub mod pallet {
 	pub type RelaychainGenesisBlockHashAllowList<T: Config> =
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
+	/// Mapping from worker pubkey to Phala Network identity
+	#[pallet::storage]
+	pub type PhalaNetworkIdent<T: Config> =
+	StorageMap<_, Twox64Concat, WorkerPublicKey, PhalaNetworkIdentInfo>;
+
 	#[pallet::event]
 	pub enum Event {
 		GatekeeperAdded(WorkerPublicKey),
@@ -141,6 +148,8 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
+		// PRouter related
+		PRouterIdentMismatch,
 	}
 
 	#[pallet::call]
@@ -334,6 +343,42 @@ pub mod pallet {
 				pubkey,
 				WorkerEvent::BenchStart { duration },
 			));
+			Ok(())
+		}
+
+		/// (called by a prouter on behalf of a worker)
+		#[pallet::weight(0)]
+		pub fn bind_worker_pnetwork_ident(
+			origin: OriginFor<T>,
+			pnetwork_ident_info: PhalaNetworkIdentBindingInfo,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+			// Update the registry
+			let pubkey = pnetwork_ident_info.pubkey;
+			let pnetwork_ident = pnetwork_ident_info.pnetwork_ident;
+			let mut pnetwork_ident_mismatch: bool = false;
+
+			PhalaNetworkIdent::<T>::mutate(pubkey, |v| {
+				match v {
+					Some(ident_info) => {
+						// Existed, will 1. check pnetwork ident is the same;
+						if ident_info.pnetwork_ident != pnetwork_ident {
+							pnetwork_ident_mismatch = true;
+						}
+					}
+					None => {
+						// Case 2 - New binding
+						*v = Some(PhalaNetworkIdentInfo {
+							pubkey,
+							pnetwork_ident,
+							version: 0
+						});
+					}
+				}
+			});
+
+			ensure!(!pnetwork_ident_mismatch, Error::<T>::PRouterIdentMismatch);
+
 			Ok(())
 		}
 
@@ -666,6 +711,13 @@ pub mod pallet {
 		// scoring
 		pub initial_score: Option<u32>,
 		features: Vec<u32>,
+	}
+
+	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
+	pub struct PhalaNetworkIdentInfo {
+		pubkey: WorkerPublicKey,
+		pnetwork_ident: String,
+		version: u32,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {
