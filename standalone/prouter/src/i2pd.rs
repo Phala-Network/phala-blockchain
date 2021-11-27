@@ -44,17 +44,18 @@ pub struct I2PD {
     is_running: bool,
 }
 
-pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u8>) -> Result<()> {
+pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u8>) -> Result<String> {
     let mut keyfile_path = abs_datadir.clone();
     keyfile_path.push(filename);
 
-    let c_str_sk = CString::new(sk).expect("sk should be able to be converted into CString");
-    let c_sk: *const c_char = c_str_sk.as_ptr() as *const c_char;
+    // let c_str_sk = CString::new(sk).expect("sk should be able to be converted into CString");
+
+    let c_sk: *const c_char = sk.as_ptr() as *const c_char;
 
     let c_str_filename = CString::new(String::from(keyfile_path.to_string_lossy()))
         .expect("String should be able to be converted into CString");
     let c_filename: *const c_char = c_str_filename.as_ptr() as *const c_char;
-    unsafe {
+    let ptr_ident: *const c_char = unsafe {
         C_GenerateIdentToFile(
             c_filename,
             c_sk,
@@ -63,7 +64,16 @@ pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u
         )
     };
 
-    Ok(())
+    if ptr_ident.is_null() {
+        error!("The ident returned from C is corrupted");
+        return Err(anyhow!("The ident returned from C is corrupted"));
+    }
+
+    let c_str_ident = unsafe { CStr::from_ptr(ptr_ident) };
+    // Ok(c_str_ident.to_bytes().to_owned())
+    let ident: String = c_str_ident.to_str()?.to_owned();
+
+    Ok(ident)
 }
 
 fn get_client_tunnel_name_by_id(index: i32) -> Result<String> {

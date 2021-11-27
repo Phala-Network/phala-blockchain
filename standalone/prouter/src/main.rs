@@ -6,8 +6,10 @@ mod config;
 mod i2pd;
 mod utils;
 mod reseeder;
+mod translator;
 
 use anyhow::{anyhow, Context, Error, Result};
+use codec::Decode;
 #[allow(unused_imports)]
 use log::{debug, error, info, warn};
 use std::fs;
@@ -28,6 +30,7 @@ use config::*;
 use i2pd::I2PD;
 use utils::*;
 use reseeder::SU3File;
+use phaxt::subxt::Signer;
 
 use crate::prpc::phactory_api_client::PhactoryApiClient;
 use phactory_api::prpc::{self};
@@ -349,6 +352,41 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
         .context("Connect to substrate")
 }
 
+/// Updates the nonce from the mempool
+pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>) -> Result<()> {
+    let account_id = signer.account_id().clone();
+    let nonce = api.client.extra_rpc().account_nonce(&account_id).await?;
+    signer.set_nonce(nonce);
+    log::info!("Fetch account {} nonce={}", account_id, nonce);
+    Ok(())
+}
+
+async fn bind_worker_pnetwork_ident(
+    para_api: &ParachainApi,
+    pubkey: &phaxt::khala::runtime_types::sp_core::sr25519::Public,
+    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
+    pnetwork_ident: &String,
+) -> Result<()> {
+    let data = phaxt::khala::runtime_types::phala_types::PhalaNetworkIdentBindingInfo{
+            pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0),
+            pnetwork_ident: pnetwork_ident.clone(),
+            version: 0
+        };
+    update_signer_nonce(para_api, signer).await?;
+    let ret = para_api
+        .tx()
+        .phala_registry()
+        .bind_worker_pnetwork_ident(data)
+        .sign_and_submit_then_watch(signer)
+        .await;
+    if ret.is_err() {
+        error!("FailedToCallBindWorkerPNetworkIdent: {:?}", ret);
+        return Err(anyhow!("failed to call bind_worker_pnetwork_ident"));
+    }
+    signer.increment_nonce();
+    Ok(())
+}
+
 pub async fn prouter_main(args: &Args) -> Result<()> {
     // let mut f = SU3File::new("sooptq@gmail.com")?;
     // f.reseed("./pdata/netDb")?;
@@ -363,6 +401,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
     let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> = subxt::PairSigner::new(pair); // Only usable when registering worker
 
     let pnetwork_ident_sk: Vec<u8>;
+    let mut pnetwork_ident: String = Default::default();
 
     // Connect to substrate
     if !args.no_pnode {
@@ -383,8 +422,8 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
         if !args.no_wait {
             // Don't start our worker until the substrate node is synced
             info!("Waiting for substrate to sync blocks...");
-            wait_until_synced(&(api.expect("Api should be initialized here")).client).await?;
-            wait_until_synced(&(para_api.expect("ParaApi should be initialized here")).client).await?;
+            wait_until_synced(&api.as_ref().expect("Api should be initialized here").client).await?;
+            wait_until_synced(&para_api.as_ref().expect("ParaApi should be initialized here").client).await?;
             info!("Substrate sync blocks done");
         }
     }
@@ -423,7 +462,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
                 sleep(Duration::from_secs(5)).await;
             }
             // Get derived identity for pnetwork
-            pnetwork_ident_sk = pr
+            pnetwork_ident_sk = pr.as_ref()
                 .expect("guaranteed to be initialized")
                 .derive_ident_sk(prpc::DeriveIdentSkRequest {
                     info: b"pNetwork".to_vec(),
@@ -432,13 +471,37 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
                 .sk;
         } else {
             // Random generate
+            info!("No pRuntime, using random pubkey instead");
             pnetwork_ident_sk = (0..64).map(|_| rand::random::<u8>()).collect();
         }
-        i2pd::generate_ident_to_file(
+        pnetwork_ident = i2pd::generate_ident_to_file(
             &abs_datadir_path,
             "pnetwork.key".to_string(),
             pnetwork_ident_sk,
         )?;
+    }
+
+    if args.join_pnetwork && !args.no_pnode && !args.no_pruntime {
+        // bind our ident
+        info!("Binding Phala Network identity: {}", &pnetwork_ident);
+        let info = &pr.as_ref().expect("guaranteed to be initialized").get_runtime_info(()).await?;
+        let pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public = Decode::decode(&mut &info.encoded_public_key[..])
+            .map_err(|_| anyhow!("Decode pruntime info failed"))?;
+        bind_worker_pnetwork_ident(
+            &para_api.as_ref().expect("guaranteed to be initialized"),
+            &pubkey,
+            &mut signer,
+            &pnetwork_ident
+        ).await?;
+
+        // if let Some(pnetwork_ident_onchain) = Some(
+        //     translator::get_pnetwork_ident_by_pk(
+        //         &mut para_api.as_ref().expect("guaranteed to be initialized"),
+        //         pubkey.0
+        //     ).await.ok_or(anyhow!("Failed to fetch onchain storage"))?) {
+        //     info!("{}", pnetwork_ident_onchain)
+        // }
+
     }
 
     let mut restart_failure_count: u32 = 0;
