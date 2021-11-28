@@ -11,6 +11,7 @@ const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 const { poolSubAccount } = require('./utils/palletUtils');
+const { decorateStakePool } = require('./utils/displayUtils');
 
 function run(afn) {
     function runner(...args) {
@@ -74,9 +75,12 @@ function pruntimeApi() {
 }
 
 async function substrateApi() {
-    const { substrateWsEndpoint } = program.opts();
+    const { substrateWsEndpoint, at } = program.opts();
     const wsProvider = new WsProvider(substrateWsEndpoint);
     const api = await ApiPromise.create({ provider: wsProvider, types: phalaTypes });
+    if (at) {
+        return await api.at(at);
+    }
     return api;
 }
 
@@ -93,6 +97,7 @@ const CONTRACT_PDIEM = 5;
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
     .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--at <hash>', 'access the state at a certain block', null)
     .option('--json', 'output regular json', false);
 
 // Blockchain operations
@@ -236,7 +241,17 @@ chain
         const api = await substrateApi();
         const subAccount = poolSubAccount(api, pid, workerPubkey);
         console.log(subAccount.toHuman());
-    }))
+    }));
+
+chain
+    .command('stake-pool')
+    .argument('<pid>', 'pid')
+    .description('get the stake pool info')
+    .action(run(async (pid) => {
+        const api = await substrateApi();
+        const pool = await api.query.phalaStakePool.stakePools(pid);
+        printObject(decorateStakePool(pool.unwrap()));
+    }));
 
 // pRuntime operations
 const pruntime = program
