@@ -15,4 +15,9 @@ function loadJson(path) {
     return JSON.parse(data);
 }
 
-module.exports = { normalizeHex, praseBn, loadJson };
+function writeJson(path, obj) {
+    const data = JSON.stringify(obj, undefined, 2);
+    fs.writeFileSync(path, data, {encoding: 'utf-8'});
+}
+
+module.exports = { normalizeHex, praseBn, loadJson, writeJson };
