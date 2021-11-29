@@ -24,7 +24,6 @@ mod send_mq {
 
 mod dispatcher {
     use crate::{Message, MessageDispatcher, Path, dispatcher::Receiver};
-    use parity_scale_codec::Decode;
 
     environmental::environmental!(global_dispatcher: MessageDispatcher);
 

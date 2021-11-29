@@ -11,13 +11,18 @@ extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
+use pal::Platform;
 use rand::*;
-use serde::{Deserialize, Serialize};
+use serde::{
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    ser::{SerializeSeq, SerializeStruct},
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 
 use crate::light_validation::LightValidation;
-use std::collections::BTreeMap;
 use std::path::PathBuf;
 use std::str;
+use std::{collections::BTreeMap, marker::PhantomData};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -140,6 +145,7 @@ enum StateVersion {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     version: StateVersion,
     platform: Platform,
@@ -150,6 +156,8 @@ pub struct Phactory<Platform> {
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
     side_task_man: SideTaskManager,
+    // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
+    #[serde(skip)]
     system: Option<system::System<Platform>>,
 }
 
@@ -256,6 +264,55 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         match data {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
+    }
+}
+
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
+    pub fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_seq(Some(2))?;
+        state.serialize_element(&self)?;
+        state.serialize_element(&self.system)?;
+        state.end()
+    }
+
+    pub fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct PhactoryVisitor<Platform>(PhantomData<Platform>);
+
+        impl<'de, Platform: pal::Platform + Serialize + DeserializeOwned> Visitor<'de>
+            for PhactoryVisitor<Platform>
+        {
+            type Value = Phactory<Platform>;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str("Phactory")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let mut factory: Self::Value = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Decode Phactory failed"))?;
+
+                let runtime_state = if let Some(state) = &mut factory.runtime_state {
+                    state
+                } else {
+                    return Ok(factory);
+                };
+
+                let recv_mq = &mut runtime_state.recv_mq;
+                let send_mq = &mut runtime_state.send_mq;
+                let system = phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                    phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                        seq.next_element()?
+                            .ok_or_else(|| de::Error::custom("Decode System failed"))
+                    })
+                })?;
+                // TODO.kevin.must: benchmark and other global states
+                factory.system = system;
+                Ok(factory)
+            }
+        }
+
+        deserializer.deserialize_seq(PhactoryVisitor(PhantomData))
     }
 }
 
