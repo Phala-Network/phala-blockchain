@@ -377,7 +377,6 @@ impl I2PD {
         let mut client_tunnels_info = Vec::<TunnelInfo>::new();
         let client_tunnels_count = self.get_client_tunnels_count()?;
         for index in 0..client_tunnels_count {
-            info!("client {}", index);
             let name = get_client_tunnel_name_by_id(index)?;
             let ident = get_client_tunnel_ident_by_id(index)?;
             client_tunnels_info.push(TunnelInfo(name, ident));
