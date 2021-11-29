@@ -8,7 +8,8 @@ pub async fn get_pnetwork_ident_by_pk(api: &mut &ParachainApi, pubkey: [u8; 32])
         .storage()
         .phala_registry()
         .phala_network_ident_iter(None)
-        .await.ok()?;
+        .await
+        .ok()?;
 
     while let Some((_, ident_info)) = phala_network_ident_storage_iter.next().await.ok()? {
         if ident_info.pubkey.0 == pubkey {
@@ -17,4 +18,11 @@ pub async fn get_pnetwork_ident_by_pk(api: &mut &ParachainApi, pubkey: [u8; 32])
     }
 
     None
+}
+
+pub fn block_get_pnetwork_ident_by_pk(api: &mut &ParachainApi, pubkey: [u8; 32]) -> Option<String> {
+    return match tokio::runtime::Runtime::new() {
+        Ok(r) => r.block_on(get_pnetwork_ident_by_pk(api, pubkey)),
+        Err(_) => None,
+    };
 }

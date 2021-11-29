@@ -1,12 +1,30 @@
+#![feature(decl_macro)]
 #![allow(non_upper_case_globals)]
 #![allow(non_camel_case_types)]
 #![allow(non_snake_case)]
 
+#[macro_use]
+extern crate rocket;
+#[macro_use]
+extern crate rocket_contrib;
+extern crate rocket_cors;
+#[macro_use]
+extern crate lazy_static;
+extern crate serde;
+extern crate serde_json;
+#[macro_use]
+extern crate serde_derive;
+
 mod config;
 mod i2pd;
-mod utils;
 mod reseeder;
+mod server;
 mod translator;
+mod types;
+mod utils;
+
+use std::sync::{Arc, Mutex};
+use std::thread;
 
 use anyhow::{anyhow, Context, Error, Result};
 use codec::Decode;
@@ -21,16 +39,16 @@ use tokio::signal;
 use tokio::time::{sleep, Duration};
 extern crate rand;
 
+use phaxt::{subxt, ParachainApi, RelaychainApi};
 use sp_core::{crypto::Pair, sr25519, storage::StorageKey};
-use phaxt::{ParachainApi, RelaychainApi, subxt};
 
 use chrono::{DateTime, Utc};
 
 use config::*;
 use i2pd::I2PD;
-use utils::*;
-use reseeder::SU3File;
 use phaxt::subxt::Signer;
+use reseeder::SU3File;
+use utils::*;
 
 use crate::prpc::phactory_api_client::PhactoryApiClient;
 use phactory_api::prpc::{self};
@@ -158,6 +176,11 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
     Ok(absolute_path)
 }
 
+lazy_static! {
+    static ref API: Arc<Mutex<Option<RelaychainApi>>> = Arc::new(Mutex::new(None));
+    static ref PARA_API: Arc<Mutex<Option<ParachainApi>>> = Arc::new(Mutex::new(None));
+}
+
 async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
     let client_tunnels_info = i2pd.get_client_tunnels_info()?;
     let http_proxy_info = i2pd.get_http_proxy_info()?;
@@ -266,14 +289,14 @@ async fn display_prouter_info(i2pd: &I2PD) -> Result<()> {
         info!("✨ {} Inbound tunnels", &inbound_tunnels_count);
         for index in 0..inbound_tunnels_count {
             let raw_info = i2pd.get_inbound_tunnel_formatted_info(index)?;
-            info!("\t⛓{}", raw_info.replace("&#8658;", "->"));
+            info!("\t⛓ {}", raw_info.replace("&#8658;", "->"));
         }
 
         let outbound_tunnels_count = i2pd.get_outbound_tunnels_count()?;
         info!("✨ {} Outbound tunnels", &outbound_tunnels_count);
         for index in 0..outbound_tunnels_count {
             let raw_info = i2pd.get_outbound_tunnel_formatted_info(index)?;
-            info!("\t⛓{}", raw_info.replace("&#8658;", "->"));
+            info!("\t⛓ {}", raw_info.replace("&#8658;", "->"));
         }
 
         sleep(Duration::from_secs(10)).await;
@@ -353,7 +376,10 @@ pub async fn subxt_connect<T: subxt::Config>(uri: &str) -> Result<subxt::Client<
 }
 
 /// Updates the nonce from the mempool
-pub async fn update_signer_nonce(api: &ParachainApi, signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>) -> Result<()> {
+pub async fn update_signer_nonce(
+    api: &ParachainApi,
+    signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
+) -> Result<()> {
     let account_id = signer.account_id().clone();
     let nonce = api.client.extra_rpc().account_nonce(&account_id).await?;
     signer.set_nonce(nonce);
@@ -367,11 +393,11 @@ async fn bind_worker_pnetwork_ident(
     signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
     pnetwork_ident: &String,
 ) -> Result<()> {
-    let data = phaxt::khala::runtime_types::phala_types::PhalaNetworkIdentBindingInfo{
-            pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0),
-            pnetwork_ident: pnetwork_ident.clone(),
-            version: 0
-        };
+    let data = phaxt::khala::runtime_types::phala_types::PhalaNetworkIdentBindingInfo {
+        pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0),
+        pnetwork_ident: pnetwork_ident.clone(),
+        version: 0,
+    };
     update_signer_nonce(para_api, signer).await?;
     let ret = para_api
         .tx()
@@ -388,121 +414,136 @@ async fn bind_worker_pnetwork_ident(
 }
 
 pub async fn prouter_main(args: &Args) -> Result<()> {
-    // let mut f = SU3File::new("sooptq@gmail.com")?;
-    // f.reseed("./pdata/netDb")?;
-    // let path = Path::new("./test.su3");
-    // f.write(path.to_path_buf())?;
-    // return Ok(());
-    let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
-    let mut api: Option<RelaychainApi> = None;
-    let mut para_api: Option<ParachainApi> = None;
-    let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
-        .expect("Bad privkey derive path");
-    let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> = subxt::PairSigner::new(pair); // Only usable when registering worker
-
-    let pnetwork_ident_sk: Vec<u8>;
-    let mut pnetwork_ident: String = Default::default();
-
-    // Connect to substrate
-    if !args.no_pnode {
-        api= Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
-        info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
-
-        let para_uri: &str = if args.parachain {
-            &args.collator_ws_endpoint
-        } else {
-            &args.substrate_ws_endpoint
-        };
-        para_api = Some(subxt_connect(para_uri).await?.into());
-        info!(
-            "Connected to parachain node at: {}",
-            args.collator_ws_endpoint
-        );
-
-        if !args.no_wait {
-            // Don't start our worker until the substrate node is synced
-            info!("Waiting for substrate to sync blocks...");
-            wait_until_synced(&api.as_ref().expect("Api should be initialized here").client).await?;
-            wait_until_synced(&para_api.as_ref().expect("ParaApi should be initialized here").client).await?;
-            info!("Substrate sync blocks done");
-        }
-    }
-
-    if !args.no_pruntime {
-        pr = Some(pruntime_client::new_pruntime_client(
-            args.pruntime_endpoint.clone(),
-        ));
-    }
-
-    // generating conf
-    let abs_datadir_path = preprocess_path(&args.datadir)?;
-    let tunconf_path = init_tunnels_conf(&abs_datadir_path, args)?;
-    let conf_path = init_prouter_conf(&abs_datadir_path, tunconf_path, args)?;
-
-    // initializing I2PD
     let mut i2pd = I2PD::new("PRouter".parse()?);
-    i2pd.add_config("datadir".parse()?, pathbuf_to_string(abs_datadir_path.clone())?);
-    i2pd.add_config("conf".parse()?, conf_path);
+    {
+        // let mut f = SU3File::new("sooptq@gmail.com")?;
+        // f.reseed("./pdata/netDb")?;
+        // let path = Path::new("./test.su3");
+        // f.write(path.to_path_buf())?;
+        // return Ok(());
+        let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
+        // let mut api: Option<RelaychainApi> = None;
+        // let mut para_api: Option<ParachainApi> = None;
+        let mut api = API.lock().unwrap();
+        let mut para_api = PARA_API.lock().unwrap();
+        let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
+            .expect("Bad privkey derive path");
+        let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> =
+            subxt::PairSigner::new(pair); // Only usable when registering worker
 
-    if args.join_pnetwork {
+        let pnetwork_ident_sk: Vec<u8>;
+        let mut pnetwork_ident: String = Default::default();
+
+        // Connect to substrate
+        if !args.no_pnode {
+            // api= Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
+            *api = Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
+            info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
+
+            let para_uri: &str = if args.parachain {
+                &args.collator_ws_endpoint
+            } else {
+                &args.substrate_ws_endpoint
+            };
+            // para_api = Some(subxt_connect(para_uri).await?.into());
+            *para_api = Some(subxt_connect(para_uri).await?.into());
+            info!(
+                "Connected to parachain node at: {}",
+                args.collator_ws_endpoint
+            );
+
+            if !args.no_wait {
+                // Don't start our worker until the substrate node is synced
+                info!("Waiting for substrate to sync blocks...");
+                wait_until_synced(&api.as_ref().expect("Api should be initialized here").client)
+                    .await?;
+                wait_until_synced(
+                    &para_api
+                        .as_ref()
+                        .expect("ParaApi should be initialized here")
+                        .client,
+                )
+                .await?;
+                info!("Substrate sync blocks done");
+            }
+        }
+
         if !args.no_pruntime {
-            // Wait until pruntime is initialized
-            loop {
-                let info = pr
+            pr = Some(pruntime_client::new_pruntime_client(
+                args.pruntime_endpoint.clone(),
+            ));
+        }
+
+        // generating conf
+        let abs_datadir_path = preprocess_path(&args.datadir)?;
+        let tunconf_path = init_tunnels_conf(&abs_datadir_path, args)?;
+        let conf_path = init_prouter_conf(&abs_datadir_path, tunconf_path, args)?;
+
+        // initializing I2PD
+        i2pd.add_config(
+            "datadir".parse()?,
+            pathbuf_to_string(abs_datadir_path.clone())?,
+        );
+        i2pd.add_config("conf".parse()?, conf_path);
+
+        if args.join_pnetwork {
+            if !args.no_pruntime {
+                // Wait until pruntime is initialized
+                loop {
+                    let info = pr
+                        .as_ref()
+                        .expect("guaranteed to be initialized")
+                        .get_info(())
+                        .await?;
+                    if !info.initialized {
+                        warn!("pRuntime is not initialized. Waiting...");
+                    } else {
+                        info!("pRuntime already initialized.");
+                        break;
+                    }
+                    sleep(Duration::from_secs(5)).await;
+                }
+                // Get derived identity for pnetwork
+                pnetwork_ident_sk = pr
                     .as_ref()
                     .expect("guaranteed to be initialized")
-                    .get_info(())
-                    .await?;
-                if !info.initialized {
-                    warn!("pRuntime is not initialized. Waiting...");
-                } else {
-                    info!("pRuntime already initialized.");
-                    break;
-                }
-                sleep(Duration::from_secs(5)).await;
+                    .derive_ident_sk(prpc::DeriveIdentSkRequest {
+                        info: b"pNetwork".to_vec(),
+                    })
+                    .await?
+                    .sk;
+            } else {
+                // Random generate
+                info!("No pRuntime, using random pubkey instead");
+                pnetwork_ident_sk = (0..64).map(|_| rand::random::<u8>()).collect();
             }
-            // Get derived identity for pnetwork
-            pnetwork_ident_sk = pr.as_ref()
-                .expect("guaranteed to be initialized")
-                .derive_ident_sk(prpc::DeriveIdentSkRequest {
-                    info: b"pNetwork".to_vec(),
-                })
-                .await?
-                .sk;
-        } else {
-            // Random generate
-            info!("No pRuntime, using random pubkey instead");
-            pnetwork_ident_sk = (0..64).map(|_| rand::random::<u8>()).collect();
+            pnetwork_ident = i2pd::generate_ident_to_file(
+                &abs_datadir_path,
+                "pnetwork.key".to_string(),
+                pnetwork_ident_sk,
+            )?;
         }
-        pnetwork_ident = i2pd::generate_ident_to_file(
-            &abs_datadir_path,
-            "pnetwork.key".to_string(),
-            pnetwork_ident_sk,
-        )?;
-    }
 
-    if args.join_pnetwork && !args.no_pnode && !args.no_pruntime {
-        // bind our ident
-        info!("Binding Phala Network identity: {}", &pnetwork_ident);
-        let info = &pr.as_ref().expect("guaranteed to be initialized").get_runtime_info(()).await?;
-        let pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public = Decode::decode(&mut &info.encoded_public_key[..])
-            .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-        bind_worker_pnetwork_ident(
-            &para_api.as_ref().expect("guaranteed to be initialized"),
-            &pubkey,
-            &mut signer,
-            &pnetwork_ident
-        ).await?;
-
-        // if let Some(pnetwork_ident_onchain) = Some(
-        //     translator::get_pnetwork_ident_by_pk(
-        //         &mut para_api.as_ref().expect("guaranteed to be initialized"),
-        //         pubkey.0
-        //     ).await.ok_or(anyhow!("Failed to fetch onchain storage"))?) {
-        //     info!("{}", pnetwork_ident_onchain)
-        // }
-
-    }
+        if args.join_pnetwork && !args.no_pnode && !args.no_pruntime {
+            // bind our ident
+            info!("Binding Phala Network identity: {}", &pnetwork_ident);
+            let info = &pr
+                .as_ref()
+                .expect("guaranteed to be initialized")
+                .get_runtime_info(())
+                .await?;
+            let pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public =
+                Decode::decode(&mut &info.encoded_public_key[..])
+                    .map_err(|_| anyhow!("Decode pruntime info failed"))?;
+            bind_worker_pnetwork_ident(
+                &para_api.as_ref().expect("guaranteed to be initialized"),
+                &pubkey,
+                &mut signer,
+                &pnetwork_ident,
+            )
+            .await?;
+        }
+    } // unlock api and para_api
 
     let mut restart_failure_count: u32 = 0;
     loop {
@@ -530,9 +571,19 @@ async fn main() {
         .init();
 
     let args = Args::from_args();
-
+    let api = Arc::clone(&*API);
+    let para_api = Arc::clone(&*PARA_API);
+    let rocket = thread::Builder::new()
+        .name("rocket".into())
+        .spawn(move || {
+            server::rocket(api, para_api).launch();
+        })
+        .expect("Failed to launch Rocket");
     match prouter_main(&args).await {
-        Ok(()) => {}
+        Ok(()) => {
+            std::process::exit(0);
+        }
         Err(e) => panic!("Fetal error: {:?}", e),
     };
+    let _ = rocket.join();
 }

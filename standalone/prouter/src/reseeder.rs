@@ -1,13 +1,12 @@
 use anyhow::{anyhow, Result};
-use std::time::{SystemTime, UNIX_EPOCH};
-use std::fs;
-use std::fs::read;
-use std::path::{Path, PathBuf};
+use byteorder::{BigEndian, WriteBytesExt};
 use glob::glob;
 use rand::seq::SliceRandom;
+use std::fs;
+use std::fs::read;
 use std::io::{BufReader, Read, Write};
-use byteorder::{BigEndian, WriteBytesExt};
-
+use std::path::{Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // match SystemTime::now().duration_since(UNIX_EPOCH) {
 //     Ok(n) => println!("1970-01-01 00:00:00 UTC was {} seconds ago!", n.as_secs()),
@@ -36,11 +35,14 @@ impl SU3File {
             signature_type: 6, // 0x0006
             signature_length: 512,
             version_length: 16, // 0x10
-            file_type: 0, // 0x00
-            content_type: 3, // 0x03
+            file_type: 0,       // 0x00
+            content_type: 3,    // 0x03
             content: Vec::<u8>::new(),
             content_length: 0,
-            version: SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs().to_string()
+            version: SystemTime::now()
+                .duration_since(UNIX_EPOCH)?
+                .as_secs()
+                .to_string(),
         })
     }
 
@@ -98,10 +100,18 @@ impl SU3File {
         let mut zip = zip::ZipWriter::new(std::io::Cursor::new(write_buffer));
 
         for file_path in &dat_files {
-            let file_name = file_path.file_name().ok_or(anyhow!("Can't fetch netDb filenames"))?;
+            let file_name = file_path
+                .file_name()
+                .ok_or(anyhow!("Can't fetch netDb filenames"))?;
             let mut file = fs::File::open(&file_path)?;
             file.read_to_end(&mut read_buffer);
-            zip.start_file(file_name.to_str().ok_or(anyhow!("Can't recognize netDb filenames"))?, zip::write::FileOptions::default().compression_method(zip::CompressionMethod::Stored))?;
+            zip.start_file(
+                file_name
+                    .to_str()
+                    .ok_or(anyhow!("Can't recognize netDb filenames"))?,
+                zip::write::FileOptions::default()
+                    .compression_method(zip::CompressionMethod::Stored),
+            )?;
             zip.write_all(&*read_buffer)?;
             read_buffer.clear();
         }
