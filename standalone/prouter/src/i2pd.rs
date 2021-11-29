@@ -44,7 +44,11 @@ pub struct I2PD {
     is_running: bool,
 }
 
-pub fn generate_ident_to_file(abs_datadir: &PathBuf, filename: String, sk: Vec<u8>) -> Result<String> {
+pub fn generate_ident_to_file(
+    abs_datadir: &PathBuf,
+    filename: String,
+    sk: Vec<u8>,
+) -> Result<String> {
     let mut keyfile_path = abs_datadir.clone();
     keyfile_path.push(filename);
 
