@@ -80,6 +80,15 @@ struct Args {
 
     #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
+
+    /// Checkpoint file path, if empty, will disable checkpoint
+    #[structopt(short = "s", long)]
+    checkpoint_file: String,
+
+    /// Checkpoint interval in seconds, default to 5 minutes
+    #[structopt(long)]
+    #[structopt(default_value = "300")]
+    checkpoint_interval: u64,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -642,12 +651,14 @@ fn main() {
         git_revision: git_revision(),
         enable_geoprobing: args.enable_geoprobing,
         geoip_city_db: args.geoip_city_db,
+        checkpoint_file: args.checkpoint_file,
+        checkpoint_interval: args.checkpoint_interval,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
     let result = unsafe { ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len()) };
 
-    if result != sgx_status_t::SGX_SUCCESS {
+    if result != sgx_status_t::SGX_SUCCESS || retval != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
     }
 

@@ -20,7 +20,7 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::path::PathBuf;
+use std::{fs::File, path::PathBuf};
 use std::str;
 use std::{collections::BTreeMap, marker::PhantomData};
 
@@ -51,6 +51,7 @@ use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
 use types::Error;
+use std::time::Instant;
 
 pub use contracts::pink;
 pub use side_task::SideTaskManager;
@@ -159,6 +160,10 @@ pub struct Phactory<Platform> {
     // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
     #[serde(skip)]
     system: Option<system::System<Platform>>,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    last_checkpoint: Instant,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -175,6 +180,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_state: None,
             system: None,
             side_task_man: Default::default(),
+            last_checkpoint: Instant::now(),
         }
     }
 
@@ -192,6 +198,10 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         }
 
         self.args = args;
+    }
+
+    pub fn set_checkpoint_interval(&mut self, interval: u64) {
+        self.args.checkpoint_interval = interval;
     }
 
     fn init_runtime_data(
@@ -268,14 +278,47 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 }
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
-    pub fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+    pub fn take_checkpoint(&mut self) -> anyhow::Result<()> {
+        use serde_cbor::ser::IoWrite;
+        use serde_cbor::Serializer;
+
+        let tmpfile = format!("{}.tmp", self.args.checkpoint_file);
+        let file = File::create(&tmpfile)?;
+        let mut serializer = Serializer::new(IoWrite::new(file));
+        self.dump_state(&mut serializer)?;
+        drop(serializer);
+        std::fs::rename(&tmpfile, &self.args.checkpoint_file)?;
+        info!("Checkpoint saved to {}", self.args.checkpoint_file);
+        self.last_checkpoint = Instant::now();
+        Ok(())
+    }
+
+    pub fn restore_from_checkpoint(checkpoint_file: &str) -> anyhow::Result<Option<Self>> {
+        use serde_cbor::Deserializer;
+        use serde_cbor::de::IoRead;
+
+        let file = match File::open(checkpoint_file) {
+            Ok(file) => file,
+            Err(err) => {
+                if err.kind() == std::io::ErrorKind::NotFound {
+                    return Ok(None);
+                }
+                return Err(anyhow!("Failed to open checkpoint file: {}", err));
+            }
+        };
+        let mut de = Deserializer::new(IoRead::new(file));
+        let factory = Self::load_state(&mut de)?;
+        Ok(Some(factory))
+    }
+
+    fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut state = serializer.serialize_seq(Some(2))?;
         state.serialize_element(&self)?;
         state.serialize_element(&self.system)?;
         state.end()
     }
 
-    pub fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+    fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct PhactoryVisitor<Platform>(PhantomData<Platform>);
 
         impl<'de, Platform: pal::Platform + Serialize + DeserializeOwned> Visitor<'de>

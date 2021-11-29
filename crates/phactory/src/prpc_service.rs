@@ -1,3 +1,4 @@
+
 use crate::system::System;
 
 use super::*;
@@ -8,6 +9,7 @@ use pb::{
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
+use std::fs::File;
 
 type RpcResult<T> = Result<T, RpcError>;
 
@@ -45,7 +47,7 @@ fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages
     messages
 }
 
-impl<Platform: pal::Platform> Phactory<Platform> {
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     fn runtime_state(&mut self) -> RpcResult<&mut RuntimeState> {
         self.runtime_state
             .as_mut()
@@ -226,9 +228,23 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             last_block = block.block_header.number;
         }
 
+        if let Err(e) = self.maybe_take_checkpoint() {
+            error!("Failed to take checkpoint: {:?}", e);
+        }
+
         Ok(pb::SyncedTo {
             synced_to: last_block,
         })
+    }
+
+    fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
+        if self.args.checkpoint_file.is_empty() {
+            return Ok(());
+        }
+        if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
+            return Ok(());
+        }
+        self.take_checkpoint()
     }
 
     fn init_runtime(
@@ -701,7 +717,7 @@ pub struct RpcService<'a, Platform> {
 }
 
 /// A server that process all RPCs.
-impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<'_, Platform> {
     /// Get basic information about Phactory state.
     fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(self.phactory.get_info())

@@ -23,7 +23,7 @@ pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_SIGRL_ENDPOINT: &str = env!("IAS_SIGRL_ENDPOINT");
 pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct SgxPlatform;
 
 fn to_tstd_path(path: &std::path::Path) -> &sgx_tstd::path::Path {

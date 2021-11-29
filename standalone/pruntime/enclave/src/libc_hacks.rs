@@ -125,6 +125,13 @@ pub extern "C" fn realpath(pathname: *const c_char, resolved: *mut c_char) -> *m
 }
 
 #[no_mangle]
+pub extern "C" fn rename(oldpath: *const c_char, newpath: *const c_char) -> c_int {
+    unsafe {
+        ocall::rename(oldpath, newpath)
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn getcwd(mut buf: *mut c_char, size: size_t) -> *mut c_char {
     // Enclave have no working directory, let's return "(unreachable)"
     /*

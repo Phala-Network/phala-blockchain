@@ -25,6 +25,12 @@ pub struct InitArgs {
 
     /// Geoip database path
     pub geoip_city_db: String,
+
+    /// Checkpoint file path, if empty, will disable checkpoint
+    pub checkpoint_file: String,
+
+    /// Checkpoint interval in seconds
+    pub checkpoint_interval: u64,
 }
 
 pub fn git_revision() -> String {

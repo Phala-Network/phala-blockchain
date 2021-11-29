@@ -33,6 +33,7 @@ phala-allocator = { path = "../../../crates/phala-allocator" }
 http_req    = { version = "0.8.1", default-features = false, features = ["rust-tls"]}
 
 async-io = { version = "1.6" }
+serde = { version = "1.0", default-features = false, features = ["derive"] }
 
 # to patch them to work in sgx
 ppv-lite86 = { version = "0.2", default-features = false, features = ["phala-sgx"] }
