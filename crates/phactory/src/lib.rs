@@ -11,18 +11,17 @@ extern crate lazy_static;
 extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
-use pal::Platform;
 use rand::*;
 use serde::{
     de::{self, DeserializeOwned, SeqAccess, Visitor},
-    ser::{SerializeSeq, SerializeStruct},
+    ser::SerializeSeq,
     Deserialize, Deserializer, Serialize, Serializer,
 };
 
 use crate::light_validation::LightValidation;
+use std::marker::PhantomData;
+use std::path::PathBuf;
 use std::str;
-use std::{collections::BTreeMap, marker::PhantomData};
-use std::{fs::File, path::PathBuf};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -36,9 +35,7 @@ use sp_core::{crypto::Pair, sr25519, H256};
 use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
 use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory_api::prpc::InitRuntimeResponse;
-use phactory_api::storage_sync::{
-    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer, Synchronizer,
-};
+use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
 
 use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
@@ -46,7 +43,7 @@ use phala_crypto::{
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
@@ -366,9 +363,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
-                let version: u32 = seq.next_element()?.ok_or_else(|| {
-                    de::Error::custom("Checkpoint version missing")
-                })?;
+                let version: u32 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
                 if version > CHECKPOINT_VERSION {
                     return Err(de::Error::custom(format!(
                         "Checkpoint version {} is not supported",

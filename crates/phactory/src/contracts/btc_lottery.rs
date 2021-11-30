@@ -18,7 +18,7 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
 use phala_mq::traits::MessageChannel;
 use phala_mq::{MessageOrigin, SignedMessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use sp_core::{crypto::Pair, hashing::blake2_256, sr25519, U256};
+use sp_core::{hashing::blake2_256, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
 
 use bitcoin;

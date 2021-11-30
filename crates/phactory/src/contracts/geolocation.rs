@@ -148,7 +148,7 @@ impl contracts::NativeContract for Geolocation {
                 let region_names: Vec<String> = self.region_map.keys().cloned().collect();
                 Ok(Response::GetAvailableRegionName { region_names })
             }
-            Request::GetAccountsInRegion { region_name } => {
+            Request::GetAccountsInRegion { region_name: _ } => {
                 // TODO(soptq): Authorization
                 Err(Error::Unimplemented)
                 // if let Some(workers) = self.city_distribution.get(&region_name) {

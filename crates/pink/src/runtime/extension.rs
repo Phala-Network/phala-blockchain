@@ -2,7 +2,7 @@ use frame_support::log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
-use pink_extension::{Message, OspMessage, PinkEvent};
+use pink_extension::PinkEvent;
 use scale::Decode;
 use sp_runtime::DispatchError;
 

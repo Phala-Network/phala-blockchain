@@ -97,7 +97,7 @@ mod receiver {
     use core::marker::PhantomData;
     use parity_scale_codec::Decode;
     use phactory_api::crypto::ecdh;
-    use phala_mq::{BindTopic, MessageOrigin, ReceiveError, TypedReceiver};
+    use phala_mq::{MessageOrigin, ReceiveError, TypedReceiver};
     use serde::{Deserialize, Serialize};
     pub type SecretReceiver<Msg> = PeelingReceiver<Msg, Payload<Msg>, SecretPeeler<Msg>>;
 

@@ -32,7 +32,6 @@ pub mod pallet {
 			Currency, Imbalance, LockIdentifier, LockableCurrency, OnUnbalanced, StorageVersion,
 			UnixTime, WithdrawReasons,
 		},
-		transactional,
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;

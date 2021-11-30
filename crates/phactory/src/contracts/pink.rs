@@ -5,8 +5,6 @@ use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
-use phala_serde_more as more;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {

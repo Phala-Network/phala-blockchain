@@ -7,15 +7,13 @@ use crate::{
     storage,
     types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
 };
-use serde::{Deserialize, Serialize};
-use phala_serde_more as more;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
 #[derive(Debug)]
 pub struct ExecError {
-    source: DispatchError,
-    message: String,
+    pub source: DispatchError,
+    pub message: String,
 }
 
 #[derive(Debug, Default, Encode, Decode)]

@@ -9,7 +9,6 @@ use pb::{
 };
 use phactory_api::{blocks, crypto, prpc as pb};
 use phala_types::{contract, WorkerPublicKey};
-use std::fs::File;
 
 type RpcResult<T> = Result<T, RpcError>;
 
