@@ -110,10 +110,11 @@ impl RuntimeState {
     }
 }
 
-pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
-pub const CHECKPOINT_FILE: &str = "checkpoint.seal";
-pub const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
-pub const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
+const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
+const CHECKPOINT_FILE: &str = "checkpoint.seal";
+const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
+const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
+const CHECKPOINT_VERSION: u32 = 1;
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
@@ -143,14 +144,8 @@ enum RuntimeDataSeal {
 }
 
 #[derive(Serialize, Deserialize)]
-enum StateVersion {
-    V0,
-}
-
-#[derive(Serialize, Deserialize)]
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
-    version: StateVersion,
     platform: Platform,
     args: InitArgs,
     skip_ra: bool,
@@ -172,7 +167,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
         let machine_id = platform.machine_id();
         Phactory {
-            version: StateVersion::V0,
             platform,
             args: Default::default(),
             skip_ra: false,
@@ -311,7 +305,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         drop(serializer);
 
         let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
-        std::fs::rename(&checkpoint_file, &backup)?;
+        let _ = std::fs::rename(&checkpoint_file, &backup);
         std::fs::rename(&tmpfile, &checkpoint_file)?;
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
@@ -352,6 +346,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut state = serializer.serialize_seq(None)?;
+        state.serialize_element(&CHECKPOINT_VERSION)?;
         state.serialize_element(&self)?;
         state.serialize_element(&benchmark::dump_state())?;
         state.serialize_element(&self.system)?;
@@ -371,6 +366,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let version: u32 = seq.next_element()?.ok_or_else(|| {
+                    de::Error::custom("Checkpoint version missing")
+                })?;
+                if version > CHECKPOINT_VERSION {
+                    return Err(de::Error::custom(format!(
+                        "Checkpoint version {} is not supported",
+                        version
+                    )));
+                }
                 let mut factory: Self::Value = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
