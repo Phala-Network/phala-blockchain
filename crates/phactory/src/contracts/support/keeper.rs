@@ -115,4 +115,12 @@ impl ContractsKeeper {
     pub fn get_mut(&mut self, id: &ContractId) -> Option<&mut AnyContract> {
         self.0.get_mut(id)
     }
+
+    pub fn values_mut(&mut self) -> impl Iterator<Item = &mut AnyContract> {
+        self.0.values_mut()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
