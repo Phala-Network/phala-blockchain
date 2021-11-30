@@ -597,7 +597,6 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
     return new Process([
         `${workDir}/app`, [
             '--cores=0',	// Disable benchmark
-            '--enable-geoprobing'
         ], {
             cwd: workDir,
             env: {
