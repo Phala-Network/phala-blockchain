@@ -238,7 +238,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
-        if self.args.checkpoint_file.is_empty() {
+        if !self.args.enable_checkpoint {
             return Ok(());
         }
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
@@ -413,7 +413,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
-            self.args.enable_geoprobing,
+            false,
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,

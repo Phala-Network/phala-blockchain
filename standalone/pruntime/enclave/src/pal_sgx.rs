@@ -10,13 +10,13 @@ use rand::RngCore as _;
 
 use sgx_tcrypto::*;
 use sgx_tse::*;
-use sgx_tstd::io::ErrorKind;
+use sgx_tstd::io::{ErrorKind, Read as _, Write as _};
 use sgx_tstd::os::unix::prelude::OsStrExt as _;
-use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write};
+use sgx_tstd::sgxfs::{read as sgxfs_read, write as sgxfs_write, SgxFile};
 use sgx_types::*;
 use std::convert::TryFrom;
 
-use phactory_pal::{Machine, MemoryStats, MemoryUsage, Sealing, RA};
+use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 
 pub const IAS_HOST: &str = env!("IAS_HOST");
@@ -30,6 +30,20 @@ fn to_tstd_path(path: &std::path::Path) -> &sgx_tstd::path::Path {
     let bytes = path.as_os_str().as_bytes();
     let os_str = sgx_tstd::ffi::OsStr::from_bytes(bytes);
     sgx_tstd::path::Path::new(os_str)
+}
+
+fn to_std_err(err: sgx_tstd::io::Error) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::Other,
+        format!("{}", err),
+    )
+}
+
+fn pfs_key(key: &[u8]) -> sgx_key_128bit_t {
+    let mut fs_key = sgx_key_128bit_t::default();
+    let hash = blake2_rfc::blake2b::blake2b(16, &[], key);
+    fs_key.copy_from_slice(hash.as_bytes());
+    fs_key
 }
 
 impl SgxPlatform {
@@ -73,6 +87,63 @@ impl Sealing for SgxPlatform {
                 }
             }
         }
+    }
+}
+
+pub struct ProtectedFile(SgxFile);
+
+impl std::io::Read for ProtectedFile {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        self.0.read(buf).map_err(to_std_err)
+    }
+}
+
+impl std::io::Write for ProtectedFile {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.write(buf).map_err(to_std_err)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.0.flush().map_err(to_std_err)
+    }
+}
+
+impl ProtectedFileSystem for SgxPlatform {
+    type IoError = std::io::Error;
+
+    type ReadFile = ProtectedFile;
+
+    type WriteFile = ProtectedFile;
+
+    fn open_protected_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        key: &[u8],
+    ) -> Result<Option<Self::ReadFile>, Self::IoError> {
+        let key = pfs_key(key);
+        let path = to_tstd_path(path.as_ref());
+        let file = match SgxFile::open_ex(path, &key) {
+            Ok(file) => file,
+            Err(err) => {
+                if matches!(err.kind(), ErrorKind::NotFound) {
+                    return Ok(None);
+                }
+                return Err(to_std_err(err));
+            }
+        };
+        Ok(Some(ProtectedFile(file)))
+    }
+
+    fn create_protected_file(
+        &self,
+        path: impl AsRef<std::path::Path>,
+        key: &[u8],
+    ) -> Result<Self::WriteFile, Self::IoError> {
+        let key = pfs_key(key);
+        let path = to_tstd_path(path.as_ref());
+        let file = SgxFile::create_ex(path, &key)
+            .map_err(to_std_err)?;
+        Ok(ProtectedFile(file))
     }
 }
 

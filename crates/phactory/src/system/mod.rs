@@ -362,9 +362,9 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
-    sealing_path: String,
+    pub(crate) sealing_path: String,
     enable_geoprobing: bool,
-    geoip_city_db: String,
+    pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,

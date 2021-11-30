@@ -112,6 +112,23 @@ pub extern "C" fn stat64(path: *const c_char, buf: *mut libc::stat64) -> c_int {
 }
 
 #[no_mangle]
+pub extern "C" fn lstat64(path: *const c_char, buf: *mut libc::stat64) -> c_int {
+    assert_eq_size!(libc::stat64, sgx_libc::stat64);
+
+    unsafe { ocall::lstat64(path, buf as _) }
+}
+
+#[no_mangle]
+pub extern "C" fn symlink(target: *const c_char, linkpath: *const c_char) -> c_int {
+    unsafe { ocall::symlink(target, linkpath) }
+}
+
+#[no_mangle]
+pub extern "C" fn unlink(pathname: *const c_char) -> c_int {
+    unsafe { ocall::unlink(pathname) }
+}
+
+#[no_mangle]
 pub extern "C" fn realpath(pathname: *const c_char, resolved: *mut c_char) -> *mut c_char {
     let path = unsafe { ocall::realpath(pathname) };
     if path.is_null() || resolved.is_null() {

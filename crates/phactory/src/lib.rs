@@ -110,8 +110,9 @@ impl RuntimeState {
     }
 }
 
-/// Master key filepath
 pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
+pub const CHECKPOINT_FILE: &str = "checkpoint.seal";
+pub const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
@@ -200,9 +201,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
     }
 
-    pub fn set_checkpoint(&mut self, file: String, interval: u64) {
-        self.args.checkpoint_file = file;
-        self.args.checkpoint_interval = interval;
+    pub fn set_args(&mut self, args: InitArgs) {
+        self.args = args;
+        if let Some(system) = &mut self.system {
+            system.sealing_path = self.args.sealing_path.clone();
+            system.geoip_city_db = self.args.geoip_city_db.clone();
+        }
     }
 
     fn init_runtime_data(
@@ -213,7 +217,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let data = if let Some(identity_sk) = predefined_identity_key {
             self.save_runtime_data(genesis_block_hash, identity_sk, true)?
         } else {
-            match self.load_runtime_data() {
+            match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
@@ -264,10 +268,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Ok(data)
     }
 
-    fn load_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
-        let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
-        let data = self
-            .platform
+    fn load_runtime_data(
+        platform: &Platform,
+        sealing_path: &str,
+    ) -> Result<PersistentRuntimeData, Error> {
+        let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+        let data = platform
             .unseal_data(filepath)
             .map_err(Into::into)?
             .ok_or(Error::PersistentRuntimeNotFound)?;
@@ -283,28 +289,56 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         use serde_cbor::ser::IoWrite;
         use serde_cbor::Serializer;
 
-        let tmpfile = format!("{}.tmp", self.args.checkpoint_file);
-        let file = File::create(&tmpfile)?;
+        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
+            key.dump_secret_key().to_vec()
+        } else {
+            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
+        };
+
+        let checkpoint_file = PathBuf::from(&self.args.sealing_path).join(CHECKPOINT_FILE);
+        // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
+        let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
+        if tmpfile.is_symlink() {
+            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+        }
+        let file = self
+            .platform
+            .create_protected_file(&tmpfile, &key)
+            .map_err(|err| anyhow!("{:?}", err))?;
         let mut serializer = Serializer::new(IoWrite::new(file));
         self.dump_state(&mut serializer)?;
         drop(serializer);
-        std::fs::rename(&tmpfile, &self.args.checkpoint_file)?;
-        info!("Checkpoint saved to {}", self.args.checkpoint_file);
+        std::fs::rename(&tmpfile, &checkpoint_file)?;
+        info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
         Ok(())
     }
 
-    pub fn restore_from_checkpoint(checkpoint_file: &str) -> anyhow::Result<Option<Self>> {
+    pub fn restore_from_checkpoint(
+        platform: &Platform,
+        sealing_path: &str,
+    ) -> anyhow::Result<Option<Self>> {
         use serde_cbor::de::IoRead;
         use serde_cbor::Deserializer;
 
-        let file = match File::open(checkpoint_file) {
-            Ok(file) => file,
+        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
+        let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
+        let tmpfile = PathBuf::from(&sealing_path).join(TMP_CHECKPOINT_FILE);
+
+        // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump_the checkpoint.
+        if tmpfile.is_symlink() || tmpfile.exists() {
+            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+        }
+        std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
+        scopeguard::defer! {
+            let _ = std::fs::remove_file(&tmpfile);
+        }
+
+        let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
+            Ok(Some(file)) => file,
+            Ok(None) => return Ok(None),
             Err(err) => {
-                if err.kind() == std::io::ErrorKind::NotFound {
-                    return Ok(None);
-                }
-                return Err(anyhow!("Failed to open checkpoint file: {}", err));
+                return Err(anyhow!("Failed to open checkpoint file: {:?}", err));
             }
         };
         let mut de = Deserializer::new(IoRead::new(file));

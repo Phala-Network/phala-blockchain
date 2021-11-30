@@ -70,12 +70,11 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter))
         .init();
 
-    if !args.checkpoint_file.is_empty() {
-        match Phactory::restore_from_checkpoint(&args.checkpoint_file) {
+    if args.enable_checkpoint {
+        match Phactory::restore_from_checkpoint(&SgxPlatform, &args.sealing_path) {
             Ok(Some(mut factory)) => {
-                info!("Loaded checkpoint from {}", args.checkpoint_file);
-                // checkpoint config could be overritten safely
-                factory.set_checkpoint(args.checkpoint_file, args.checkpoint_interval);
+                info!("Loaded checkpoint");
+                factory.set_args(args.clone());
                 *APPLICATION.lock().unwrap() = factory;
                 return sgx_status_t::SGX_SUCCESS;
             }
@@ -84,7 +83,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
                 return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
             }
             Ok(None) => {
-                info!("No checkpoint found in {}", args.checkpoint_file);
+                info!("No checkpoint found");
             },
         }
     } else {

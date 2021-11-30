@@ -74,17 +74,12 @@ struct Args {
     #[structopt(long)]
     init_bench: bool,
 
-    /// Enable geolocaltion report
-    #[structopt(long)]
-    enable_geoprobing: bool,
-
     #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
 
-    /// Checkpoint file path, if empty, will disable checkpoint.
-    #[structopt(short = "s", long)]
-    #[structopt(default_value = "checkpoint.bin")]
-    checkpoint_file: String,
+    /// Disable checkpoint
+    #[structopt(long)]
+    disable_checkpoint: bool,
 
     /// Checkpoint interval in seconds, default to 5 minutes
     #[structopt(long)]
@@ -642,15 +637,6 @@ fn main() {
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
     let sealing_path: path::PathBuf = path.join(*ENCLAVE_STATE_FILE_PATH);
-    let checkpoint_file = if args.checkpoint_file.is_empty() {
-        Default::default()
-    } else {
-        sealing_path
-            .join(&args.checkpoint_file)
-            .to_str()
-            .unwrap()
-            .to_string()
-    };
     let sealing_path = String::from(sealing_path.to_str().unwrap());
     let log_filter = std::env::var("RUST_LOG").unwrap_or_else(|_| "info".into());
     let init_args = InitArgs {
@@ -659,9 +645,8 @@ fn main() {
         init_bench: args.init_bench,
         version: env!("CARGO_PKG_VERSION").into(),
         git_revision: git_revision(),
-        enable_geoprobing: args.enable_geoprobing,
         geoip_city_db: args.geoip_city_db,
-        checkpoint_file,
+        enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
     };
     info!("init_args: {:#?}", init_args);

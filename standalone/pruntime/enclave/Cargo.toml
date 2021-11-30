@@ -21,6 +21,7 @@ base64      = "0.13.0"
 rand        = "0.7.3"
 hex         = "0.4"
 anyhow      = "1.0"
+blake2-rfc  = "0.2.18"
 lazy_static = { version = "1.4.0", default-features = false, features = ["spin_no_std"] }
 parity-scale-codec = { version = "2", default-features = false }
 
