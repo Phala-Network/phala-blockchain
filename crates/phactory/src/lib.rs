@@ -406,6 +406,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         deserializer.deserialize_seq(PhactoryVisitor(PhantomData))
     }
+
+    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
+        if let Some(system) = self.system.as_mut() {
+            system.commit_changes()?;
+        }
+        Ok(())
+    }
 }
 
 fn new_sr25519_key() -> sr25519::Pair {

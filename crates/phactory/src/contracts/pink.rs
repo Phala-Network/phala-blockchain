@@ -241,6 +241,13 @@ pub mod group {
         pub fn get_group_mut(&mut self, group_id: &ContractGroupId) -> Option<&mut Group> {
             self.groups.get_mut(group_id)
         }
+
+        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+            for group in self.groups.values_mut() {
+                group.commit_changes()?;
+            }
+            Ok(())
+        }
     }
 
     #[derive(Serialize, Deserialize)]
@@ -258,6 +265,11 @@ pub mod group {
 
         pub fn key(&self) -> &sr25519::Pair {
             &self.key
+        }
+
+        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+            self.storage.commit_changes();
+            Ok(())
         }
     }
 }

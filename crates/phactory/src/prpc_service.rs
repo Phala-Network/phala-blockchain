@@ -244,6 +244,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
+        self.commit_storage_changes()?;
         self.take_checkpoint()
     }
 

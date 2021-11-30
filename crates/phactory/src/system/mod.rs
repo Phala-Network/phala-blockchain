@@ -874,6 +874,10 @@ impl<Platform: pal::Platform> System<Platform> {
             master_public_key,
         }
     }
+
+    pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+        self.contract_groups.commit_changes()
+    }
 }
 
 pub fn handle_contract_command_result(
@@ -983,7 +987,7 @@ pub fn install_contract<Contract>(
 ) where
     Contract: NativeContract + Send + 'static,
     <Contract as NativeContract>::Cmd: Send,
-    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>
+    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
 {
     let contract_id = contract.id();
     let sender = MessageOrigin::Contract(contract_id);
@@ -995,12 +999,7 @@ pub fn install_contract<Contract>(
             .into(),
         ecdh_key.clone(),
     );
-    let wrapped = contracts::NativeCompatContract::new(
-        contract,
-        mq,
-        cmd_mq,
-        ecdh_key.clone(),
-    );
+    let wrapped = contracts::NativeCompatContract::new(contract, mq, cmd_mq, ecdh_key.clone());
     contracts.insert(wrapped);
 }
 
