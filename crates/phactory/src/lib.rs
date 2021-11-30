@@ -200,7 +200,8 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
     }
 
-    pub fn set_checkpoint_interval(&mut self, interval: u64) {
+    pub fn set_checkpoint(&mut self, file: String, interval: u64) {
+        self.args.checkpoint_file = file;
         self.args.checkpoint_interval = interval;
     }
 

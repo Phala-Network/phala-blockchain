@@ -74,8 +74,8 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
         match Phactory::restore_from_checkpoint(&args.checkpoint_file) {
             Ok(Some(mut factory)) => {
                 info!("Loaded checkpoint from {}", args.checkpoint_file);
-                // checkpoint_interval could be overridden safely
-                factory.set_checkpoint_interval(args.checkpoint_interval);
+                // checkpoint config could be overritten safely
+                factory.set_checkpoint(args.checkpoint_file, args.checkpoint_interval);
                 *APPLICATION.lock().unwrap() = factory;
                 return sgx_status_t::SGX_SUCCESS;
             }
