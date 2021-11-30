@@ -20,9 +20,9 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::{fs::File, path::PathBuf};
 use std::str;
 use std::{collections::BTreeMap, marker::PhantomData};
+use std::{fs::File, path::PathBuf};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -50,8 +50,8 @@ use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
 use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
-use types::Error;
 use std::time::Instant;
+use types::Error;
 
 pub use contracts::pink;
 pub use side_task::SideTaskManager;
@@ -295,8 +295,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     pub fn restore_from_checkpoint(checkpoint_file: &str) -> anyhow::Result<Option<Self>> {
-        use serde_cbor::Deserializer;
         use serde_cbor::de::IoRead;
+        use serde_cbor::Deserializer;
 
         let file = match File::open(checkpoint_file) {
             Ok(file) => file,
@@ -313,8 +313,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut state = serializer.serialize_seq(Some(2))?;
+        let mut state = serializer.serialize_seq(None)?;
         state.serialize_element(&self)?;
+        state.serialize_element(&benchmark::dump_state())?;
         state.serialize_element(&self.system)?;
         state.end()
     }
@@ -334,24 +335,29 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
                 let mut factory: Self::Value = seq
                     .next_element()?
-                    .ok_or_else(|| de::Error::custom("Decode Phactory failed"))?;
+                    .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
 
-                let runtime_state = if let Some(state) = &mut factory.runtime_state {
-                    state
-                } else {
-                    return Ok(factory);
+                let state = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
+                benchmark::restore_state(state);
+
+                factory.system = {
+                    let runtime_state = factory
+                        .runtime_state
+                        .as_mut()
+                        .ok_or(de::Error::custom("Missing runtime_state"))?;
+
+                    let recv_mq = &mut runtime_state.recv_mq;
+                    let send_mq = &mut runtime_state.send_mq;
+                    let seq = &mut seq;
+                    phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                        phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                            seq.next_element()?
+                                .ok_or_else(|| de::Error::custom("Missing System"))
+                        })
+                    })?
                 };
-
-                let recv_mq = &mut runtime_state.recv_mq;
-                let send_mq = &mut runtime_state.send_mq;
-                let system = phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
-                    phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
-                        seq.next_element()?
-                            .ok_or_else(|| de::Error::custom("Decode System failed"))
-                    })
-                })?;
-                // TODO.kevin.must: benchmark and other global states
-                factory.system = system;
                 Ok(factory)
             }
         }
