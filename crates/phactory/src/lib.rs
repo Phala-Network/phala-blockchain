@@ -113,6 +113,7 @@ impl RuntimeState {
 pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
 pub const CHECKPOINT_FILE: &str = "checkpoint.seal";
 pub const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
+pub const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
@@ -308,6 +309,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let mut serializer = Serializer::new(IoWrite::new(file));
         self.dump_state(&mut serializer)?;
         drop(serializer);
+
+        let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
+        std::fs::rename(&checkpoint_file, &backup)?;
         std::fs::rename(&tmpfile, &checkpoint_file)?;
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
