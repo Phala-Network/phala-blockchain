@@ -326,7 +326,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             },
         };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
-        let tmpfile = PathBuf::from(&sealing_path).join(TMP_CHECKPOINT_FILE);
+        let tmpfile = PathBuf::from(sealing_path).join(TMP_CHECKPOINT_FILE);
 
         // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump_the checkpoint.
         if tmpfile.is_symlink() || tmpfile.exists() {
@@ -352,8 +352,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut state = serializer.serialize_seq(None)?;
         state.serialize_element(&CHECKPOINT_VERSION)?;
-        state.serialize_element(&self)?;
         state.serialize_element(&benchmark::dump_state())?;
+        state.serialize_element(&self)?;
         state.serialize_element(&self.system)?;
         state.end()
     }
@@ -380,14 +380,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                         version
                     )));
                 }
-                let mut factory: Self::Value = seq
-                    .next_element()?
-                    .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
 
                 let state = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
                 benchmark::restore_state(state);
+
+                let mut factory: Self::Value = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
 
                 factory.system = {
                     let runtime_state = factory
