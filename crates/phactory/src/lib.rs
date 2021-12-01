@@ -278,9 +278,6 @@ impl<Platform: pal::Platform> Phactory<Platform> {
 
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     pub fn take_checkpoint(&mut self) -> anyhow::Result<()> {
-        use serde_cbor::ser::IoWrite;
-        use serde_cbor::Serializer;
-
         let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
             key.dump_secret_key().to_vec()
         } else {
@@ -297,13 +294,30 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .platform
             .create_protected_file(&tmpfile, &key)
             .map_err(|err| anyhow!("{:?}", err))?;
-        let mut serializer = Serializer::new(IoWrite::new(file));
-        self.dump_state(&mut serializer)?;
-        drop(serializer);
 
-        let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
-        let _ = std::fs::rename(&checkpoint_file, &backup);
-        std::fs::rename(&tmpfile, &checkpoint_file)?;
+        {
+            // Do serialization
+
+            struct PhactoryDumper<'a, Platform>(&'a Phactory<Platform>);
+            impl<Platform: pal::Platform + Serialize + DeserializeOwned> Serialize
+                for PhactoryDumper<'_, Platform>
+            {
+                fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+                    self.0.dump_state(serializer)
+                }
+            }
+
+            ciborium::ser::into_writer(&PhactoryDumper(self), file)
+                .context("dump phactory state")?;
+        }
+
+        {
+            // Post-process filenames
+
+            let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
+            let _ = std::fs::rename(&checkpoint_file, &backup);
+            std::fs::rename(&tmpfile, &checkpoint_file)?;
+        }
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
         Ok(())
@@ -313,16 +327,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         platform: &Platform,
         sealing_path: &str,
     ) -> anyhow::Result<Option<Self>> {
-        use serde_cbor::de::IoRead;
-        use serde_cbor::Deserializer;
-
         let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
             Ok(data) => data,
-            Err(err) => {
-                match err {
-                    Error::PersistentRuntimeNotFound => return Ok(None),
-                    _ => return Err(err.into()),
-                }
+            Err(err) => match err {
+                Error::PersistentRuntimeNotFound => return Ok(None),
+                _ => return Err(err.into()),
             },
         };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
@@ -344,9 +353,22 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 return Err(anyhow!("Failed to open checkpoint file: {:?}", err));
             }
         };
-        let mut de = Deserializer::new(IoRead::new(file));
-        let factory = Self::load_state(&mut de)?;
-        Ok(Some(factory))
+
+        {
+            struct PhactoryLoader<Platform>(Phactory<Platform>);
+            impl<'de, Platform: pal::Platform + Serialize + DeserializeOwned> Deserialize<'de>
+                for PhactoryLoader<Platform>
+            {
+                fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+                    let factory = Phactory::load_state(deserializer)?;
+                    Ok(Self(factory))
+                }
+            }
+
+            let loader: PhactoryLoader<_> =
+                ciborium::de::from_reader(file).context("load phactory state")?;
+            Ok(Some(loader.0))
+        }
     }
 
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
