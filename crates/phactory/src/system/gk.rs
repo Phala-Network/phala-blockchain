@@ -1979,7 +1979,7 @@ pub mod tests {
     }
 
     #[test]
-    fn serde_fp_works() {
+    fn serde_fp_works_for_msgpack() {
         use serde::{Deserialize, Serialize};
         #[derive(Serialize, Deserialize)]
         struct Wrapper(#[serde(with = "super::serde_fp")] FixedPoint);
@@ -1991,6 +1991,19 @@ pub mod tests {
 
         let fp_serde = rmp_serde::to_vec(&fp).unwrap();
         let fp_de: Wrapper = rmp_serde::from_slice(&fp_serde).unwrap();
+        assert_eq!(fp.0, fp_de.0);
+    }
+
+    #[test]
+    fn serde_fp_works_for_cbor() {
+        use serde::{Deserialize, Serialize};
+        #[derive(Serialize, Deserialize)]
+        struct Wrapper(#[serde(with = "super::serde_fp")] FixedPoint);
+
+        let mut buf = Vec::new();
+        let fp = Wrapper(fp!(1.23456789));
+        ciborium::ser::into_writer(&fp, &mut buf).unwrap();
+        let fp_de: Wrapper = ciborium::de::from_reader(&*buf).unwrap();
         assert_eq!(fp.0, fp_de.0);
     }
 }

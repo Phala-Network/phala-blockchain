@@ -97,7 +97,6 @@ impl Serialize for Storage<InMemoryBackend> {
     where
         S: serde::Serializer,
     {
-        // TODO.kevin.must: flush changes to backend
         self.backend.pairs().serialize(serializer)
     }
 }
