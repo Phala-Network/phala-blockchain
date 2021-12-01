@@ -335,6 +335,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             },
         };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
+        let checkpoint_file = if checkpoint_file.exists() {
+            checkpoint_file
+        } else {
+            PathBuf::from(sealing_path).join(BACKUP_CHECKPOINT_FILE)
+        };
         let tmpfile = PathBuf::from(sealing_path).join(TMP_CHECKPOINT_FILE);
 
         // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump_the checkpoint.
