@@ -316,7 +316,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         use serde_cbor::de::IoRead;
         use serde_cbor::Deserializer;
 
-        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
+        let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
+            Ok(data) => data,
+            Err(err) => {
+                match err {
+                    Error::PersistentRuntimeNotFound => return Ok(None),
+                    _ => return Err(err.into()),
+                }
+            },
+        };
         let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
         let tmpfile = PathBuf::from(&sealing_path).join(TMP_CHECKPOINT_FILE);
 
