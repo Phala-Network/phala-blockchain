@@ -16,9 +16,8 @@ mod send_mq {
     }
 
     pub fn default_send_mq() -> MessageSendQueue {
-        global_send_mq::with(|mq| mq.clone()).unwrap_or_else(|| {
-            panic!("default_send_mq is called without using a global_send_mq");
-        })
+        global_send_mq::with(|mq| mq.clone())
+            .expect("default_send_mq is called without using a global_send_mq")
     }
 }
 
