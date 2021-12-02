@@ -571,6 +571,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.master_key = Some(master_key);
 
             if need_restart {
+                crate::maybe_remove_checkpoints(&self.sealing_path);
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {

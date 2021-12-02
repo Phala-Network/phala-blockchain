@@ -113,6 +113,17 @@ const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
 const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
 const CHECKPOINT_VERSION: u32 = 1;
 
+fn maybe_remove_checkpoints(basedir: &str) {
+    for filename in [CHECKPOINT_FILE, BACKUP_CHECKPOINT_FILE].iter() {
+        let path = PathBuf::from(basedir).join(filename);
+        if path.exists() {
+            if let Err(e) = std::fs::remove_file(&path) {
+                error!("failed to remove {}: {}", path.display(), e);
+            }
+        }
+    }
+}
+
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
     genesis_block_hash: H256,
