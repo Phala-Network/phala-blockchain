@@ -33,7 +33,7 @@ macro_rules! not_allowed {
         not_allowed!(-1)
     };
     ($rv: expr) => {{
-        error!("NOT ALLOED TO CALL {}", function!());
+        error!("NOT ALLOWED TO CALL {}", function!());
         set_errno(libc::EPERM);
         ($rv) as _
     }};
