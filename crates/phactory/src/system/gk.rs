@@ -331,14 +331,11 @@ where
                 }
                 let deploy_worker = deploy_worker.expect("verified not none; qed.");
 
-                let sender = match origin.account() {
-                    Ok(sender) => sender,
-                    Err(_) => {
-                        error!("Attempt to instantiate pink from Bad origin: {}", origin);
-                        return;
-                    }
-                };
-                assert!(sender == contract_info.owner);
+                assert!(
+                    origin.is_pallet(),
+                    "Attempt to instantiate pink from bad origin"
+                );
+
                 // first, update the on-chain ContractPubkey
                 let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
@@ -356,7 +353,7 @@ where
                 secret_mq
                     .bind_remote_key(Some(&deploy_worker.0))
                     .push_message(&KeyDistribution::contract_key_distribution(
-                        contract_key.dump_seed(),
+                        contract_key.dump_secret_key(),
                         contract_info.code_index,
                         0,
                     ));

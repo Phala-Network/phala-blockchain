@@ -888,7 +888,7 @@ impl<Platform: pal::Platform> System<Platform> {
             return;
         };
 
-        let contract_key = ContractKey::restore_from_seed(&event.seed);
+        let contract_key = ContractKey::restore_from_secret_key(&event.secret_key);
         let contract_pubkey = contract_key.public();
         let contract_info = chain_state::read_contract_info(block.storage, contract_pubkey.clone())
             .expect("contract public key is uploaded before distribution; qed.");

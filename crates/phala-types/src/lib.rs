@@ -450,12 +450,12 @@ pub mod messaging {
         }
 
         pub fn contract_key_distribution(
-            seed: Seed,
+            secret_key: Sr25519SecretKey,
             code_index: CodeIndex<CodeHash>,
             expiration: BlockNumber,
         ) -> KeyDistribution<CodeHash, BlockNumber> {
             KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
-                seed,
+                secret_key,
                 code_index,
                 expiration,
             })
@@ -463,7 +463,7 @@ pub mod messaging {
     }
 
     type AeadIV = [u8; 12];
-    type Seed = [u8; 32];
+    type Sr25519SecretKey = [u8; 64];
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
@@ -479,7 +479,7 @@ pub mod messaging {
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
     pub struct DispatchContractKeyEvent<CodeHash, BlockNumber> {
-        pub seed: Seed,
+        pub secret_key: Sr25519SecretKey,
         pub code_index: CodeIndex<CodeHash>,
         pub expiration: BlockNumber,
     }
