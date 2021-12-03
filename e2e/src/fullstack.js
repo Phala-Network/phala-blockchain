@@ -597,6 +597,7 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
     return new Process([
         `${workDir}/app`, [
             '--cores=0',	// Disable benchmark
+            '--checkpoint-interval=0',	// Save checkpoint at each block
         ], {
             cwd: workDir,
             env: {
