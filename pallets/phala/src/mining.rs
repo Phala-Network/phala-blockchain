@@ -388,7 +388,7 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Updates the tokenomic parameters in the end of this block
+		/// Updates the tokenomic parameters at the end of this block
 		#[pallet::weight(1)]
 		pub fn update_tokenomic(
 			origin: OriginFor<T>,
