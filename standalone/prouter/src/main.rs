@@ -438,7 +438,6 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
             } else {
                 &args.substrate_ws_endpoint
             };
-
             *para_api = Some(subxt_connect(para_uri).await?.into());
             info!(
                 "Connected to parachain node at: {}",
