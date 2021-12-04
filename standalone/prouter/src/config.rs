@@ -21,6 +21,7 @@ pub fn init_prouter_conf(
     let pidfile = push_str(&abs_datadir, "prouter.pid")?;
     let certsdir = push_str(&abs_datadir, "certificates")?;
     let logfile = push_str(&abs_datadir, "prouter.log")?;
+    let su3file = push_str(&abs_datadir, "prouter.su3")?;
 
     // Construct default config
     let mut conf = Ini::new();
@@ -38,29 +39,30 @@ pub fn init_prouter_conf(
         .set("ipv4", "true")
         .set("ipv6", "false")
         .set("ssu", "true")
-        .set("bandwidth", "L")
+        .set("bandwidth", "X")
         .set("share", "100")
+        .set("netid", "2")
         .set("notransit", "false")
-        .set("floodfill", "false");
+        .set("floodfill", "true");
 
     conf.with_section(Some("httpproxy"))
         .set("enabled", "true")
         .set("address", "127.0.0.1")
         .set("port", "4444")
         .set("addresshelper", "true")
-        .set("inbound.length", "3")
-        .set("inbound.quantity", "5")
-        .set("outbound.length", "3")
-        .set("outbound.quantity", "5");
+        .set("inbound.length", "1")
+        .set("inbound.quantity", "16")
+        .set("outbound.length", "1")
+        .set("outbound.quantity", "16");
 
     conf.with_section(Some("socksproxy"))
         .set("enabled", "true")
         .set("address", "127.0.0.1")
         .set("port", "4447")
-        .set("inbound.length", "3")
-        .set("inbound.quantity", "5")
-        .set("outbound.length", "3")
-        .set("outbound.quantity", "5");
+        .set("inbound.length", "1")
+        .set("inbound.quantity", "16")
+        .set("outbound.length", "1")
+        .set("outbound.quantity", "16");
 
     conf.with_section(Some("sam"))
         .set("enabled", "true")
@@ -86,6 +88,8 @@ pub fn init_prouter_conf(
 
     conf.with_section(Some("reseed"))
         .set("verify", "false")
+        // .set("urls", "")
+        // .set("file", su3file)
         .set("threshold", "25");
 
     conf.with_section(Some("addressbook"));
@@ -108,9 +112,9 @@ pub fn init_prouter_conf(
 
     conf.with_section(Some("exploratory"))
         .set("inbound.length", "2")
-        .set("inbound.quantity", "3")
+        .set("inbound.quantity", "16")
         .set("outbound.length", "2")
-        .set("outbound.quantity", "3");
+        .set("outbound.quantity", "16");
 
     conf.with_section(Some("persist")).set("profiles", "true");
 
