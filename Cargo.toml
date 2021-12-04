@@ -14,7 +14,6 @@ exclude = [
 members = [
 	"standalone/executor",
 	"standalone/rpc",
-#	"standalone/prouter",
 	"standalone/node",
 	"standalone/runtime",
 	"standalone/pherry",
