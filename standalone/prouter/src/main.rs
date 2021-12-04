@@ -168,7 +168,7 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
     if !path.exists() {
         fs::create_dir(&path)?;
     }
-    // Convert to absolute path
+    // Convert to absolute path for i2pd config
     let absolute_path = path
         .canonicalize()
         .expect("Any path should always be able to converted into a absolute path");
@@ -176,6 +176,7 @@ fn preprocess_path(path_str: &String) -> Result<PathBuf> {
     Ok(absolute_path)
 }
 
+// static API references for multi thread accessing in rocket server
 lazy_static! {
     static ref API: Arc<Mutex<Option<RelaychainApi>>> = Arc::new(Mutex::new(None));
     static ref PARA_API: Arc<Mutex<Option<ParachainApi>>> = Arc::new(Mutex::new(None));
@@ -416,14 +417,7 @@ async fn bind_worker_pnetwork_ident(
 pub async fn prouter_main(args: &Args) -> Result<()> {
     let mut i2pd = I2PD::new("PRouter".parse()?);
     {
-        // let mut f = SU3File::new("sooptq@gmail.com")?;
-        // f.reseed("./pdata/netDb")?;
-        // let path = Path::new("./test.su3");
-        // f.write(path.to_path_buf())?;
-        // return Ok(());
         let mut pr: Option<PhactoryApiClient<pruntime_client::RpcRequest>> = None;
-        // let mut api: Option<RelaychainApi> = None;
-        // let mut para_api: Option<ParachainApi> = None;
         let mut api = API.lock().unwrap();
         let mut para_api = PARA_API.lock().unwrap();
         let pair = <sr25519::Pair as Pair>::from_string(&args.mnemonic, None)
@@ -436,7 +430,6 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
 
         // Connect to substrate
         if !args.no_pnode {
-            // api= Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
             *api = Some(subxt_connect(&args.substrate_ws_endpoint).await?.into());
             info!("Connected to relaychain at: {}", args.substrate_ws_endpoint);
 
@@ -445,7 +438,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
             } else {
                 &args.substrate_ws_endpoint
             };
-            // para_api = Some(subxt_connect(para_uri).await?.into());
+
             *para_api = Some(subxt_connect(para_uri).await?.into());
             info!(
                 "Connected to parachain node at: {}",
