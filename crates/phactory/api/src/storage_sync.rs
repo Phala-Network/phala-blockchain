@@ -132,7 +132,10 @@ where
         authority_set_change: Option<AuthoritySetChange>,
         state_roots: &mut VecDeque<Hash>,
     ) -> Result<chain::BlockNumber> {
-        let first_header = headers.first().ok_or(Error::EmptyRequest)?;
+        let first_header = match headers.first() {
+            Some(header) => header,
+            None => return Ok(self.header_number_next - 1),
+        };
         if first_header.header.number != self.header_number_next {
             return Err(Error::BlockNumberMismatch);
         }
@@ -331,7 +334,10 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
         proof: StorageProof,
         storage_key: &[u8],
     ) -> Result<chain::BlockNumber> {
-        let first_hdr = headers.first().ok_or(Error::EmptyRequest)?;
+        let first_hdr = match headers.first() {
+            Some(hdr) => hdr,
+            None => return Ok(self.para_header_number_next - 1)
+        };
         if self.para_header_number_next != first_hdr.number {
             return Err(Error::BlockNumberMismatch);
         }
