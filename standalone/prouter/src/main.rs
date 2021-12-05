@@ -500,7 +500,7 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
                     .as_ref()
                     .expect("guaranteed to be initialized")
                     .derive_ident_sk(prpc::DeriveIdentSkRequest {
-                        info: b"pNetwork".to_vec(),
+                        info: b"pnetwork".to_vec(),
                     })
                     .await?
                     .sk;
