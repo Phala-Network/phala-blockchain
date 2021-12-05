@@ -10,10 +10,11 @@ use core::iter::FromIterator;
 use alloc::vec::Vec;
 
 use parity_scale_codec::Codec;
+use serde::{Serialize, Serializer, Deserializer, Deserialize};
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMut, MemoryDB, TrieMut};
+use sp_trie::{trie_types::TrieDBMut, MemoryDB, TrieMut, HashDBT};
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -55,6 +56,43 @@ where
         }
     }
     TrieBackend::new(mdb, root)
+}
+
+pub fn serialize_trie_backend<H: Hasher, S>(
+    trie: &TrieBackend<MemoryDB<H>, H>,
+    serializer: S,
+) -> Result<S::Ok, S::Error>
+where
+    H::Out: Codec + Serialize,
+    S: Serializer,
+{
+    let root = trie.root();
+    let kvs: Vec<_> = trie
+        .backend_storage()
+        .clone()
+        .drain()
+        .into_iter()
+        .map(|it| it.1)
+        .collect();
+    (root, kvs).serialize(serializer)
+}
+
+pub fn deserialize_trie_backend<'de, H: Hasher, De>(
+    deserializer: De,
+) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>
+where
+    H::Out: Codec + Deserialize<'de>,
+    De: Deserializer<'de>,
+{
+    let (root, kvs): (H::Out, Vec<(Vec<u8>, i32)>) = Deserialize::deserialize(deserializer)?;
+    let mut mdb = MemoryDB::default();
+    for value in kvs {
+        for _ in 0..value.1 {
+            mdb.insert((&[], None), &value.0);
+        }
+    }
+    let backend = TrieBackend::new(mdb, root);
+    Ok(backend)
 }
 
 impl<H: Hasher> TrieStorage<H>
@@ -132,8 +170,6 @@ where
 
 #[cfg(feature = "serde")]
 const _: () = {
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
     impl<H: Hasher> Serialize for TrieStorage<H>
     where
         H::Out: Codec + Serialize + Ord,
@@ -142,7 +178,7 @@ const _: () = {
         where
             S: Serializer,
         {
-            self.pairs(b"").serialize(serializer)
+            serialize_trie_backend(&self.0, serializer)
         }
     }
 
@@ -154,10 +190,7 @@ const _: () = {
         where
             D: Deserializer<'de>,
         {
-            let pairs: Vec<(Vec<u8>, Vec<u8>)> = Deserialize::deserialize(deserializer)?;
-            let mut storage = TrieStorage::default();
-            storage.load(pairs.into_iter());
-            Ok(storage)
+            Ok(Self(deserialize_trie_backend(deserializer)?))
         }
     }
 };

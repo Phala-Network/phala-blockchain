@@ -2,12 +2,9 @@ use crate::{
     runtime::ExecSideEffects,
     types::{Hash, Hashing},
 };
-use phala_trie_storage::load_trie_backend;
+use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
 use serde::{Deserialize, Serialize};
-use sp_state_machine::{
-    Backend as StorageBackend, Ext, OverlayedChanges, StorageKey, StorageTransactionCache,
-    StorageValue,
-};
+use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
 
@@ -97,7 +94,8 @@ impl Serialize for Storage<InMemoryBackend> {
     where
         S: serde::Serializer,
     {
-        self.backend.pairs().serialize(serializer)
+        let trie = self.backend.as_trie_backend().unwrap();
+        serialize_trie_backend(trie, serializer)
     }
 }
 
@@ -106,8 +104,6 @@ impl<'de> Deserialize<'de> for Storage<InMemoryBackend> {
     where
         D: serde::Deserializer<'de>,
     {
-        let pairs: Vec<(StorageKey, StorageValue)> = serde::Deserialize::deserialize(deserializer)?;
-        let backend = load_trie_backend(pairs.into_iter());
-        Ok(Self::new(backend))
+        Ok(Self::new(deserialize_trie_backend(deserializer)?))
     }
 }
