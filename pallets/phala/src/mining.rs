@@ -206,6 +206,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type TokenomicParameters<T> = StorageValue<_, TokenomicParams>;
 
+	/// The scheduled new tokenomic params to update at the end of this block.
+	#[pallet::storage]
+	pub type ScheduledTokenomicUpdate<T> = StorageValue<_, TokenomicParams>;
+
 	/// Total online miners
 	///
 	/// Increased when a miner is turned to MininIdle; decreased when turned to CoolingDown
@@ -284,6 +288,8 @@ pub mod pallet {
 		SubsidyBudgetHalved,
 		/// Some internal error happened when trying to halve the subsidy
 		InternalErrorWrongHalvingConfigured,
+		/// Tokenomic parameter changed.
+		TokenomicParametersChanged,
 	}
 
 	#[pallet::error]
@@ -382,14 +388,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Updates the tokenomic parameters
+		/// Updates the tokenomic parameters at the end of this block
 		#[pallet::weight(1)]
 		pub fn update_tokenomic(
 			origin: OriginFor<T>,
 			new_params: TokenomicParams,
 		) -> DispatchResult {
 			T::UpdateTokenomicOrigin::ensure_origin(origin)?;
-			Self::update_tokenomic_parameters(new_params);
+			ScheduledTokenomicUpdate::<T>::put(new_params);
 			Ok(())
 		}
 	}
@@ -401,6 +407,11 @@ pub mod pallet {
 	{
 		fn on_finalize(n: T::BlockNumber) {
 			Self::heartbeat_challenge();
+			// Apply tokenomic update if possible
+			if let Some(tokenomic) = ScheduledTokenomicUpdate::<T>::take() {
+				Self::update_tokenomic_parameters(tokenomic);
+			}
+			// Apply subsidy
 			if let Some(interval) = MiningHalvingInterval::<T>::get() {
 				let block_elapsed = n - MiningStartBlock::<T>::get().unwrap_or_default();
 				// Halve when it reaches the last block in an interval
@@ -465,8 +476,8 @@ pub mod pallet {
 			let budget_per_block = FixedPoint::from_bits(tokenomic.budget_per_block);
 			let new_budget = budget_per_block * fp!(0.75);
 			tokenomic.budget_per_block = new_budget.to_bits();
-			Self::update_tokenomic_parameters(tokenomic);
 			Self::deposit_event(Event::<T>::SubsidyBudgetHalved);
+			Self::update_tokenomic_parameters(tokenomic);
 			Ok(())
 		}
 
@@ -814,6 +825,7 @@ pub mod pallet {
 		fn update_tokenomic_parameters(params: TokenomicParams) {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
+			Self::deposit_event(Event::<T>::TokenomicParametersChanged);
 		}
 
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
@@ -1271,9 +1283,26 @@ pub mod pallet {
 					ev,
 					vec![
 						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved),
-						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved)
+						TestEvent::PhalaMining(Event::<Test>::TokenomicParametersChanged),
+						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved),
+						TestEvent::PhalaMining(Event::<Test>::TokenomicParametersChanged),
 					]
 				);
+			});
+		}
+
+		#[test]
+		fn tokenomic_update_is_postponed() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				let tokenomic = TokenomicParameters::<Test>::get().unwrap();
+				assert_ok!(PhalaMining::update_tokenomic(Origin::root(), tokenomic));
+				let ev = take_events();
+				assert_eq!(ev.len(), 0);
+				PhalaMining::on_finalize(1);
+				let ev = take_events();
+				assert_eq!(ev.len(), 1);
+				assert_eq!(ScheduledTokenomicUpdate::<Test>::get(), None);
 			});
 		}
 
