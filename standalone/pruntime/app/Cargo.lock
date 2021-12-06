@@ -2817,6 +2817,7 @@ dependencies = [
  "phala-node-runtime",
  "phala-trie-storage",
  "phala-types",
+ "primitive-types",
  "prost",
  "prpc",
  "prpc-build",
@@ -2845,10 +2846,13 @@ name = "phala-mq"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "environmental",
  "hex",
  "log 0.4.14",
  "parity-scale-codec",
+ "phala-serde-more",
  "scale-info",
+ "serde",
  "sp-core",
  "spin 0.9.2",
 ]
@@ -2956,6 +2960,16 @@ dependencies = [
  "untrusted",
  "webpki 0.22.0",
  "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "phala-serde-more"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
 ]
 
 [[package]]
