@@ -301,25 +301,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if tmpfile.is_symlink() {
             std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
         }
-        let file = self
-            .platform
-            .create_protected_file(&tmpfile, &key)
-            .map_err(|err| anyhow!("{:?}", err))?;
 
         {
             // Do serialization
+            let file = self
+                .platform
+                .create_protected_file(&tmpfile, &key)
+                .map_err(|err| anyhow!("{:?}", err))?;
 
-            struct PhactoryDumper<'a, Platform>(&'a Phactory<Platform>);
-            impl<Platform: pal::Platform + Serialize + DeserializeOwned> Serialize
-                for PhactoryDumper<'_, Platform>
-            {
-                fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-                    self.0.dump_state(serializer)
-                }
-            }
-
-            ciborium::ser::into_writer(&PhactoryDumper(self), file)
-                .context("dump phactory state")?;
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))?;
         }
 
         {
@@ -370,23 +360,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        {
-            struct PhactoryLoader<Platform>(Phactory<Platform>);
-            impl<'de, Platform: pal::Platform + Serialize + DeserializeOwned> Deserialize<'de>
-                for PhactoryLoader<Platform>
-            {
-                fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-                    let factory = Phactory::load_state(deserializer)?;
-                    Ok(Self(factory))
-                }
-            }
-
-            let loader: PhactoryLoader<_> =
-                ciborium::de::from_reader(file).context("load phactory state")?;
-            Ok(Some(loader.0))
-        }
+        let loader: PhactoryLoader<_> = serde_cbor::de::from_reader(file)?;
+        Ok(Some(loader.0))
     }
 
+    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
+        if let Some(system) = self.system.as_mut() {
+            system.commit_changes()?;
+        }
+        Ok(())
+    }
+}
+
+impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
     fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
         let mut state = serializer.serialize_seq(None)?;
         state.serialize_element(&CHECKPOINT_VERSION)?;
@@ -399,9 +385,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         struct PhactoryVisitor<Platform>(PhantomData<Platform>);
 
-        impl<'de, Platform: pal::Platform + Serialize + DeserializeOwned> Visitor<'de>
-            for PhactoryVisitor<Platform>
-        {
+        impl<'de, Platform: Serialize + DeserializeOwned> Visitor<'de> for PhactoryVisitor<Platform> {
             type Value = Phactory<Platform>;
 
             fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
@@ -450,12 +434,19 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         deserializer.deserialize_seq(PhactoryVisitor(PhantomData))
     }
+}
 
-    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
-        if let Some(system) = self.system.as_mut() {
-            system.commit_changes()?;
-        }
-        Ok(())
+struct PhactoryDumper<'a, Platform>(&'a Phactory<Platform>);
+impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Platform> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.dump_state(serializer)
+    }
+}
+struct PhactoryLoader<Platform>(Phactory<Platform>);
+impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let factory = Phactory::load_state(deserializer)?;
+        Ok(Self(factory))
     }
 }
 
