@@ -223,13 +223,13 @@ chain
 chain
     .command('update-tokenomic')
     .argument('<json>', 'tokenomic parameter json file path')
-    .description('create a call to update tokenomic parameters')
+    .description('create a call to update tokenomic parameters and print the raw call')
     .action(run(async (path) => {
         const p = loadJson(path);
         const api = await substrateApi();
         const typedP = tokenomic.humanToTyped(api, p);
         const call = tokenomic.createUpdateCall(api, typedP);
-        console.log('Call:', call.toHex());
+        console.log('Raw Call:', call.method.toHex());
     }));
 
 chain
