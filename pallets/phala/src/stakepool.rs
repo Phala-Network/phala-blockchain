@@ -179,6 +179,17 @@ pub mod pallet {
 		RewardDismissedDust(u64, BalanceOf<T>),
 		/// Some dust stake is removed. \[user, amount\]
 		DustRemoved(T::AccountId, BalanceOf<T>),
+		/// A worker is removed from a pool.
+		PoolWorkerRemoved {
+			pid: u64,
+			worker: WorkerPublicKey
+		},
+		/// A withdrawal request is queued
+		WithdrawalQueued {
+			pid: u64,
+			user: T::AccountId,
+			shares: BalanceOf<T>,
+		}
 	}
 
 	#[pallet::error]
@@ -554,25 +565,7 @@ pub mod pallet {
 			// https://github.com/Phala-Network/phala-blockchain/issues/490
 
 			let mut pool_info = Self::ensure_pool(pid)?;
-			let now = <T as registry::Config>::UnixTime::now()
-				.as_secs()
-				.saturated_into::<u64>();
-
-			// if withdraw_queue is not empty, means pool doesn't have free stake now, just add withdraw to queue
-			if !pool_info.withdraw_queue.is_empty() {
-				// Remove the existing withdraw request in the queue if there is any.
-				pool_info
-					.withdraw_queue
-					.retain(|withdraw| withdraw.user != who);
-				pool_info.withdraw_queue.push_back(WithdrawInfo {
-					user: who,
-					shares,
-					start_time: now,
-				});
-				Self::maybe_add_withdraw_queue(now, pool_info.pid);
-			} else {
-				Self::try_withdraw(&mut pool_info, &mut user_info, shares);
-			}
+			Self::try_withdraw(&mut pool_info, &mut user_info, shares);
 
 			PoolStakers::<T>::insert(&info_key, &user_info);
 			StakePools::<T>::insert(&pid, &pool_info);
@@ -805,6 +798,11 @@ pub mod pallet {
 			// Some locked assets haven't been withdrawn (unlocked) to user, add it to the withdraw
 			// queue. When the pool has free stake again, the withdrawal will be fulfilled.
 			if queued_shares > Zero::zero() {
+				// Remove the existing withdraw request in the queue if there is any.
+				pool_info
+					.withdraw_queue
+					.retain(|withdraw| withdraw.user != user_info.user);
+				// Push the request
 				let now = <T as registry::Config>::UnixTime::now()
 					.as_secs()
 					.saturated_into::<u64>();
@@ -814,6 +812,11 @@ pub mod pallet {
 					start_time: now,
 				});
 				Self::maybe_add_withdraw_queue(now, pool_info.pid);
+				Self::deposit_event(Event::<T>::WithdrawalQueued{
+					pid: pool_info.pid,
+					user: user_info.user.clone(),
+					shares: queued_shares,
+				});
 			}
 			// Update the pending reward after changing the staked amount
 			pool_info.reset_pending_reward(user_info);
@@ -950,6 +953,10 @@ pub mod pallet {
 			StakePools::<T>::mutate(pid, |value| {
 				if let Some(pool) = value {
 					pool.remove_worker(worker);
+					Self::deposit_event(Event::<T>::PoolWorkerRemoved {
+						pid,
+						worker: worker.clone()
+					});
 				}
 			});
 		}
