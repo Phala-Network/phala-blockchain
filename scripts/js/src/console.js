@@ -272,8 +272,8 @@ chain
                     if (sender == "Gatekeeper") {
                         const destination = message.destination.toHuman();
                         const sequence = args[0].sequence;
-                        const payload_hash = blake2AsHex(message.payload);
-                        console.log(`sequence=${sequence}, destination=${destination} payload_hash=${payload_hash}`);
+                        const payloadHash = blake2AsHex(message.payload);
+                        console.log(`sequence=${sequence}, destination=${destination} payload_hash=${payloadHash}`);
                     }
                 }
             });
