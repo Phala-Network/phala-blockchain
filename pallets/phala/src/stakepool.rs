@@ -181,7 +181,7 @@ pub mod pallet {
 		DustRemoved(T::AccountId, BalanceOf<T>),
 		/// A worker is removed from a pool.
 		PoolWorkerRemoved { pid: u64, worker: WorkerPublicKey },
-		/// A withdrawal request is queued
+		/// A withdrawal request is queued by adding or replacing an old one.
 		WithdrawalQueued {
 			pid: u64,
 			user: T::AccountId,
