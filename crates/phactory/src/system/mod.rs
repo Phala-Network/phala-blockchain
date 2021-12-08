@@ -239,7 +239,7 @@ impl WorkerState {
         log_on: bool,
     ) {
         if log_on {
-            info!(
+            debug!(
                 "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
                 block.block_number, seed_info, self.registered, self.mining_state
             );

@@ -232,7 +232,7 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
-        info!("Incoming gatekeeper event: {:?}", event);
+        debug!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
@@ -471,6 +471,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
         let report = processor.report;
 
         if !report.is_empty() {
+            debug!(target: "mining", "Report: {:?}", report);
             self.egress.push_message(&report);
         }
     }
@@ -494,20 +495,20 @@ where
             let ok = phala_mq::select! {
                 message = self.state.mining_events => match message {
                     Ok((_, event, origin)) => {
-                        debug!("Processing mining report: {:?}, origin: {}",  event, origin);
+                        trace!(target: "mining", "Processing mining report: {:?}, origin: {}",  event, origin);
                         self.process_mining_report(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.state.system_events => match message {
                     Ok((_, event, origin)) => {
-                        debug!("Processing system event: {:?}, origin: {}",  event, origin);
+                        trace!(target: "mining", "Processing system event: {:?}, origin: {}",  event, origin);
                         self.process_system_event(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.state.gatekeeper_events => match message {
@@ -515,7 +516,7 @@ where
                         self.process_gatekeeper_event(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
             };
@@ -535,7 +536,7 @@ where
 
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
-            debug!(
+            trace!(target: "mining",
                 "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
@@ -545,7 +546,8 @@ where
                 .on_block_processed(self.block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] Mining already stopped, do nothing.",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -554,7 +556,8 @@ where
 
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -572,7 +575,8 @@ where
                 if self.block.block_number - hb_sent_at
                     > self.state.tokenomic_params.heartbeat_window
                 {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
                         hex::encode(&worker_info.state.pubkey),
                         self.block.block_number,
@@ -590,7 +594,8 @@ where
 
             let params = &self.state.tokenomic_params;
             if worker_info.unresponsive {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -598,7 +603,8 @@ where
                     .tokenomic
                     .update_v_slash(params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] case1: Idle, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -625,6 +631,7 @@ where
                     Some(info) => info,
                     None => {
                         error!(
+                            target: "mining",
                             "Unknown worker {} sent a {:?}",
                             hex::encode(worker_pubkey),
                             event
@@ -636,9 +643,9 @@ where
                 worker_info.last_heartbeat_for_block = challenge_block;
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
-                    error!("Fatal error: Unexpected heartbeat {:?}", event);
-                    error!("Sent from worker {}", hex::encode(worker_pubkey));
-                    error!("Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
+                    error!(target: "mining", "Fatal error: Unexpected heartbeat {:?}", event);
+                    error!(target: "mining", "Sent from worker {}", hex::encode(worker_pubkey));
+                    error!(target: "mining", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
                     // The state has been poisoned. Make no sence to keep moving on.
                     panic!("GK or Worker state poisoned");
                 }
@@ -649,7 +656,8 @@ where
                 let mining_state = if let Some(state) = &worker_info.state.mining_state {
                     state
                 } else {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] Mining already stopped, ignore the heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -657,7 +665,8 @@ where
                 };
 
                 if session_id != mining_state.session_id {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] Heartbeat response to previous mining sessions, ignore it.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -672,13 +681,18 @@ where
                 tokenomic.iteration_last = iterations;
 
                 let payout = if worker_info.unresponsive {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
                     fp!(0)
                 } else {
-                    debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
+                    trace!(
+                        target: "mining",
+                        "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.state.tokenomic_params,
                         self.sum_share,
@@ -725,7 +739,6 @@ where
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
-            debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, log_on);
@@ -809,7 +822,6 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
-        info!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::NewRandomNumber(_random_number_event) => {
                 // Handled by Gatekeeper.
@@ -818,6 +830,7 @@ where
                 if origin.is_pallet() {
                     self.state.tokenomic_params = params.into();
                     info!(
+                        target: "mining",
                         "Tokenomic parameter updated: {:#?}",
                         &self.state.tokenomic_params
                     );
@@ -825,7 +838,7 @@ where
             }
             GatekeeperEvent::RepairV => {
                 if origin.is_pallet() {
-                    info!("Repairing V");
+                    info!(target: "mining", "Repairing V");
                     // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
                     // not being applied.
                     //
@@ -869,7 +882,7 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _challenge_time: u64,
         _iterations: u64,
     ) {
-        debug!("Worker should emit heartbeat for {}", challenge_block);
+        trace!(target: "mining", "Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
         self.challenge_received = true;
     }
