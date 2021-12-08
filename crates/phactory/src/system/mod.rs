@@ -364,10 +364,12 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
 #[serde(transparent)]
 pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
+// By mocking the public key of the identity key pair, we can pretend to be the first Gatekeeper on Khala
+// for "shadow-gk" simulation.
 #[cfg(feature = "shadow-gk")]
 impl WorkerIdentityKey {
     pub(crate) fn public(&self) -> sr25519::Public {
-        // The first GK on khala
+        // The pubkey of the first GK on khala
         sr25519::Public(hex_literal::hex!(
             "60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"
         ))

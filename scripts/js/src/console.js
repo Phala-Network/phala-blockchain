@@ -254,7 +254,7 @@ chain
     }));
 
 chain
-    .command('grap-gk-egress')
+    .command('grab-gk-egress')
     .description('get the stake pool info')
     .option('--from <start_block>', 'Start block', '0')
     .option('--to <end_block>', 'End block', null)
