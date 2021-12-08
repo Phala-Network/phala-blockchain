@@ -54,7 +54,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
 
 		/// The currency in which fees are paid and contract balances are held.
 		type Currency: Currency<Self::AccountId>;
@@ -141,8 +141,11 @@ pub mod pallet {
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
-	pub enum Event {
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
+		CodeUploaded(CodeHash<T>),
+		ContractInstantiated(ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>),
 	}
 
 	#[pallet::error]
@@ -374,6 +377,7 @@ pub mod pallet {
 			ensure_signed(origin)?;
 			let code_hash = T::Hashing::hash(&code.encode());
 			PristineCode::<T>::insert(&code_hash, &code);
+			Self::deposit_event(Event::CodeUploaded(code_hash));
 			Ok(())
 		}
 
@@ -622,6 +626,10 @@ pub mod pallet {
 						return Err(Error::<T>::DuplicatedContractPubkey.into());
 					}
 					Contracts::<T>::insert(&contract_pubkey, &contract_info);
+					Self::deposit_event(Event::ContractInstantiated(
+						contract_pubkey,
+						contract_info,
+					));
 				}
 				ContractRegistryEvent::ContractDeployed {
 					contract_pubkey,
