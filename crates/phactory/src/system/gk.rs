@@ -27,7 +27,7 @@ use std::{
 };
 
 use fixed_macro::types::U64F64 as fp;
-use log::debug;
+use log::{debug, info, trace};
 use phactory_api::prpc as pb;
 pub use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -306,6 +306,7 @@ where
         // instead of checking the origin, we directly verify the random to avoid access storage
         if expect_random != event.random_number {
             error!("Fatal error: Expect random number {:?}", expect_random);
+            #[cfg(not(feature = "shadow-gk"))]
             panic!("GK state poisoned");
         }
     }

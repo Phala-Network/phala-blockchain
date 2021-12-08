@@ -104,3 +104,4 @@ default = [
     "sp-io/disable_oom",
     "sp-io/disable_allocator",
 ]
+shadow-gk = []
