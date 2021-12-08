@@ -358,6 +358,22 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
+#[derive(
+    Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From,
+)]
+#[serde(transparent)]
+pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
+
+#[cfg(feature = "shadow-gk")]
+impl WorkerIdentityKey {
+    pub(crate) fn public(&self) -> sr25519::Public {
+        // The first GK on khala
+        sr25519::Public(hex_literal::hex!(
+            "60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"
+        ))
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
@@ -373,8 +389,7 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
-    #[serde(with = "more::key_bytes")]
-    pub(crate) identity_key: sr25519::Pair,
+    pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
@@ -403,16 +418,17 @@ impl<Platform: pal::Platform> System<Platform> {
         recv_mq: &mut MessageDispatcher,
         contracts: ContractsKeeper,
     ) -> Self {
-        let pubkey = identity_key.clone().public();
+        let identity_key = WorkerIdentityKey(identity_key);
+        let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key, &platform);
+        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
 
         System {
             platform,
             sealing_path,
             enable_geoprobing,
             geoip_city_db,
-            egress: send_mq.channel(sender, identity_key.clone().into()),
+            egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),

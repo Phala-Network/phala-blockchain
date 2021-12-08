@@ -59,12 +59,23 @@ impl MessageSendQueue {
         let entry = inner.entry(sender).or_default();
         if !entry.dummy {
             let message = constructor(entry.sequence);
-            log::info!(target: "mq",
-                "Sending message, from={}, to={:?}, seq={}",
-                message.message.sender,
-                message.message.destination,
-                entry.sequence,
-            );
+
+            if log::log_enabled!(target: "mq", log::Level::Debug) {
+                log::debug!(target: "mq",
+                    "Sending message, from={}, to={:?}, seq={}, payload_hash={}",
+                    message.message.sender,
+                    message.message.destination,
+                    entry.sequence,
+                    hex::encode(sp_core::blake2_256(&message.message.payload)),
+                );
+            } else {
+                log::info!(target: "mq",
+                    "Sending message, from={}, to={:?}, seq={}",
+                    message.message.sender,
+                    message.message.destination,
+                    entry.sequence,
+                );
+            }
             entry.messages.push(message);
         }
         entry.sequence += 1;
