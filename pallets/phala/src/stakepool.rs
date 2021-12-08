@@ -180,16 +180,13 @@ pub mod pallet {
 		/// Some dust stake is removed. \[user, amount\]
 		DustRemoved(T::AccountId, BalanceOf<T>),
 		/// A worker is removed from a pool.
-		PoolWorkerRemoved {
-			pid: u64,
-			worker: WorkerPublicKey
-		},
+		PoolWorkerRemoved { pid: u64, worker: WorkerPublicKey },
 		/// A withdrawal request is queued
 		WithdrawalQueued {
 			pid: u64,
 			user: T::AccountId,
 			shares: BalanceOf<T>,
-		}
+		},
 	}
 
 	#[pallet::error]
@@ -812,7 +809,7 @@ pub mod pallet {
 					start_time: now,
 				});
 				Self::maybe_add_withdraw_queue(now, pool_info.pid);
-				Self::deposit_event(Event::<T>::WithdrawalQueued{
+				Self::deposit_event(Event::<T>::WithdrawalQueued {
 					pid: pool_info.pid,
 					user: user_info.user.clone(),
 					shares: queued_shares,
@@ -955,7 +952,7 @@ pub mod pallet {
 					pool.remove_worker(worker);
 					Self::deposit_event(Event::<T>::PoolWorkerRemoved {
 						pid,
-						worker: worker.clone()
+						worker: worker.clone(),
 					});
 				}
 			});
@@ -2569,6 +2566,46 @@ pub mod pallet {
 				assert_eq!(user2.locked, 0);
 				assert_eq!(user2.shares, 0);
 				assert_eq!(Balances::locks(2), vec![]);
+			});
+		}
+
+		#[test]
+		fn double_withdraw_cancel_the_first() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				setup_workers(2);
+				setup_pool_with_workers(1, &[1, 2]); // pid = 0
+
+				// Stake 1000 PHA, and start a miner with 500 PHA as stake
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					500 * DOLLARS
+				));
+				// Request to withdraw 100 PHA
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					100 * DOLLARS
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.withdraw_queue.len(), 1);
+				assert_eq!(pool.withdraw_queue.get(0).unwrap().shares, 100 * DOLLARS);
+				// Request to withdraw 200 PHA again
+				assert_ok!(PhalaStakePool::withdraw(
+					Origin::signed(2),
+					0,
+					200 * DOLLARS
+				));
+				let pool = PhalaStakePool::stake_pools(0).unwrap();
+				assert_eq!(pool.withdraw_queue.len(), 1);
+				assert_eq!(pool.withdraw_queue.get(0).unwrap().shares, 200 * DOLLARS);
 			});
 		}
 
