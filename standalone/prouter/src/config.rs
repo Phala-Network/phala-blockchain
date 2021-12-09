@@ -105,11 +105,6 @@ pub fn init_prouter_conf(
         .set("enabled", "false")
         .set("hidden", "false");
 
-    // conf.with_section(Some("websocket"))
-    //     .set("enabled", "false")
-    //     .set("address", "127.0.0.1")
-    //     .set("port", "7666");
-
     conf.with_section(Some("exploratory"))
         .set("inbound.length", "2")
         .set("inbound.quantity", "16")
@@ -149,12 +144,13 @@ pub fn init_tunnels_conf(abs_datadir: &PathBuf, args: &Args) -> Result<String> {
         _ => Ini::new(),
     };
 
-    if args.join_pnetwork {
-        conf.with_section(Some("PNetwork"))
+    if args.custom_endpoint.is_none() {
+        // need to use i2p to proxy local API
+        conf.with_section(Some("Phala Network"))
             .set("type", "http")
-            .set("host", args.pnetwork_host.clone())
-            .set("port", args.pnetwork_port.clone())
-            .set("keys", "pnetwork.key")
+            .set("host", args.phala_exposed_host.clone())
+            .set("port", args.phala_exposed_port.clone())
+            .set("keys", "phala.key")
             .set("inbound.length", "3")
             .set("inbound.quantity", "5")
             .set("outbound.length", "3")

@@ -800,15 +800,12 @@ impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
         Ok(pb::EchoMessage { echo_msg })
     }
 
-    fn derive_ident_sk(&mut self, request: pb::DeriveIdentSkRequest) -> RpcResult<pb::DeriveIdentSkResponse> {
-        // white list
-        let permitted_derivation_info: [&[u8]; 1] = [b"pnetwork"];
-        if !permitted_derivation_info.contains(&(&request.info[..])) {
-            return Err(from_display("Untrusted input"));
-        }
-
+    fn derive_phala_i2p_key(&mut self, _: ()) -> RpcResult<pb::DerivePhalaI2pKeyResponse> {
         let system = self.phactory.system()?;
-        let derive_key = system.identity_key.derive_sr25519_pair(&[&request.info]).expect("should not fail with valid key");
-        Ok(pb::DeriveIdentSkResponse { sk: derive_key.dump_secret_key().to_vec() })
+        let derive_key = system
+            .identity_key
+            .derive_sr25519_pair(&[b"PhalaI2PKey"])
+            .expect("should not fail with valid key");
+        Ok(pb::DerivePhalaI2pKeyResponse { phala_i2p_key: derive_key.dump_secret_key().to_vec() })
     }
 }

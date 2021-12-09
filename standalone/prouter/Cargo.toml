@@ -4,37 +4,35 @@ version = "0.1.0"
 authors = ["Soptq <sooptq@gmail.com>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-anyhow = "1.0"
-env_logger = "0.9.0"
-log = "0.4"
-tokio = { version = "1.9.0", features = ["full"] }
-structopt = { version = "0.3" }
-rust-ini = "0.17"
-chrono = "0.4.19"
-rand = "0.8.4"
-sp-core = { path = "../../substrate/primitives/core" }
-phala-types = { path = "../../crates/phala-types" }
-phactory-api = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
-phactory-pal = { path = "../../crates/phactory/pal" }
-phaxt = { path = "../../crates/phaxt" }
-codec = { package = 'parity-scale-codec', version = "2.3" }
-zip = "0.5.13"
-glob = "0.3.0"
-byteorder = "1.4.3"
-hex = { version = "*" }
+anyhow          = "1.0"
+env_logger      = "0.9.0"
+log             = "0.4"
+tokio           = { version = "1.9.0", features = ["full"] }
+structopt       = { version = "0.3" }
+rust-ini        = "0.17"
+chrono          = "0.4.19"
+rand            = "0.8.4"
+sp-core         = { path = "../../substrate/primitives/core" }
+phala-types     = { path = "../../crates/phala-types" }
+phactory-api    = { path = "../../crates/phactory/api", features = ["pruntime-client"] }
+phactory-pal    = { path = "../../crates/phactory/pal" }
+phaxt           = { path = "../../crates/phaxt" }
+codec           = { package = 'parity-scale-codec', version = "2.3" }
+zip             = "0.5.13"
+glob            = "0.3.0"
+byteorder       = "1.4.3"
+hex             = { version = "*" }
 
-rocket         = "0.4.7"
-rocket_contrib = { version = "0.4.5", features = ["json"]}
-rocket_cors = "0.5.2"
-serde     = "1.0"
-serde_json = "1.0"
-serde_derive = "1.0"
+rocket          = "0.4.7"
+rocket_contrib  = { version = "0.4.5", features = ["json"]}
+rocket_cors     = "0.5.2"
+serde           = "1.0"
+serde_json      = "1.0"
+serde_derive    = "1.0"
 
-lazy_static = "1.1.0"
-reqwest = { version = "0.11.6", features = ["blocking"]}
+lazy_static     = "1.1.0"
+reqwest         = { version = "0.11.6", features = ["blocking"]}
 
 [build-dependencies]
-bindgen = "0.59.1"
+bindgen         = "0.59.1"

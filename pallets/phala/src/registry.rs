@@ -4,7 +4,6 @@ pub use self::pallet::*;
 #[frame_support::pallet]
 pub mod pallet {
 	use codec::Encode;
-	use codec::alloc::string::String;
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
@@ -28,7 +27,7 @@ pub mod pallet {
 			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
-		PhalaNetworkIdentBindingInfo
+		EndpointType, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo}
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -105,8 +104,8 @@ pub mod pallet {
 
 	/// Mapping from worker pubkey to Phala Network identity
 	#[pallet::storage]
-	pub type PhalaNetworkIdent<T: Config> =
-	StorageMap<_, Twox64Concat, WorkerPublicKey, PhalaNetworkIdentInfo>;
+	pub type PhalaEndpoints<T: Config> =
+	StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
 
 	#[pallet::event]
 	pub enum Event {
@@ -148,8 +147,6 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
-		// PRouter related
-		PRouterIdentMismatch,
 	}
 
 	#[pallet::call]
@@ -348,36 +345,66 @@ pub mod pallet {
 
 		/// (called by a prouter on behalf of a worker)
 		#[pallet::weight(0)]
-		pub fn bind_worker_pnetwork_ident(
+		pub fn bind_worker_endpoint(
 			origin: OriginFor<T>,
-			pnetwork_ident_info: PhalaNetworkIdentBindingInfo,
+			pubkey: WorkerPublicKey,
+			endpoint: Vec<u8>,
+			endpoint_type: EndpointType,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
-			// Update the registry
-			let pubkey = pnetwork_ident_info.pubkey;
-			let pnetwork_ident = pnetwork_ident_info.pnetwork_ident;
-			let mut pnetwork_ident_mismatch: bool = false;
-
-			PhalaNetworkIdent::<T>::mutate(pubkey, |v| {
+			PhalaEndpoints::<T>::mutate(pubkey, |v| {
 				match v {
-					Some(ident_info) => {
-						// Existed, will 1. check pnetwork ident is the same;
-						if ident_info.pnetwork_ident != pnetwork_ident {
-							pnetwork_ident_mismatch = true;
+					Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(endpoint_onchain))) => {
+						// WorkerEndpoint V1 existed, it is a I2P endpoint.
+						match endpoint_type {
+							EndpointType::I2P => {
+								// bind endpoint is also a I2P endpoint
+								endpoint_onchain.endpoint = endpoint
+							}
+							EndpointType::Http => {
+								// bind endpoint is a Http endpoint
+								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
+									pubkey,
+									endpoint
+								})))
+							}
 						}
-					}
+					},
+					Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(endpoint_onchain))) => {
+						// WorkerEndpoint V1 existed, it is a Http endpoint.
+						match endpoint_type {
+							EndpointType::I2P => {
+								// bind endpoint is a I2P endpoint
+								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
+									pubkey,
+									endpoint
+								})))
+							}
+							EndpointType::Http => {
+								// bind endpoint is a Http endpoint
+								endpoint_onchain.endpoint = endpoint
+							}
+						}
+					},
 					None => {
-						// Case 2 - New binding
-						*v = Some(PhalaNetworkIdentInfo {
-							pubkey,
-							pnetwork_ident,
-							version: 0
-						});
+						// New binding
+						match endpoint_type {
+							EndpointType::I2P => {
+								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
+									pubkey,
+									endpoint
+								})))
+							}
+							EndpointType::Http => {
+								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
+									pubkey,
+									endpoint
+								})))
+							}
+						}
 					}
 				}
 			});
-
-			ensure!(!pnetwork_ident_mismatch, Error::<T>::PRouterIdentMismatch);
 
 			Ok(())
 		}
@@ -711,13 +738,6 @@ pub mod pallet {
 		// scoring
 		pub initial_score: Option<u32>,
 		features: Vec<u32>,
-	}
-
-	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
-	pub struct PhalaNetworkIdentInfo {
-		pubkey: WorkerPublicKey,
-		pnetwork_ident: String,
-		version: u32,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {

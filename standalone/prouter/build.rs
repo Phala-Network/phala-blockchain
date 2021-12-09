@@ -2,13 +2,24 @@ extern crate bindgen;
 
 use std::env;
 use std::path::PathBuf;
+use std::process::Command;
 
-fn main() {
+fn main() -> std::io::Result<()> {
+    // Build i2pd library
+    let mut i2pd_directory = env::current_dir()?.clone();
+    i2pd_directory.push("i2pd");
+
+    Command::new("make")
+        .env("USE_STATIC", "yes")
+        .arg("wrapper")
+        .current_dir(&i2pd_directory)
+        .status().expect("i2pd should be compiled with no error");
+
     // Link i2pd library
     // #cgo CXXFLAGS: -I${SRCDIR}/../i18n -I${SRCDIR}/../libi2pd_client -I${SRCDIR}/../libi2pd -g -Wall -Wextra -Wno-unused-parameter -pedantic -Wno-psabi -fPIC -D__AES__ -maes
     // #cgo LDFLAGS: -L${SRCDIR}/../ -l:libi2pd.a -l:libi2pdlang.a -latomic -lcrypto -lssl -lz -lboost_system -lboost_date_time -lboost_filesystem -lboost_program_options -lpthread -lstdc++
     println!("cargo:rustc-link-search=native=/usr/lib/");
-    println!("cargo:rustc-link-search=native=./lib/");
+    println!("cargo:rustc-link-search=native={}/", &i2pd_directory.display());
 
     println!("cargo:rustc-link-lib=static=stdc++");
     println!("cargo:rustc-link-lib=static=atomic");
@@ -48,4 +59,6 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
+
+    Ok(())
 }

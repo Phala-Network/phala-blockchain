@@ -47,14 +47,14 @@ pub struct I2PD {
 pub fn generate_ident_to_file(
     abs_datadir: &PathBuf,
     filename: String,
-    sk: Vec<u8>,
+    phala_i2p_key: Vec<u8>,
 ) -> Result<String> {
     let mut keyfile_path = abs_datadir.clone();
     keyfile_path.push(filename);
 
     // let c_str_sk = CString::new(sk).expect("sk should be able to be converted into CString");
 
-    let c_sk: *const c_char = sk.as_ptr() as *const c_char;
+    let c_sk: *const c_char = phala_i2p_key.as_ptr() as *const c_char;
 
     let c_str_filename = CString::new(String::from(keyfile_path.to_string_lossy()))
         .expect("String should be able to be converted into CString");
@@ -153,7 +153,7 @@ impl I2PD {
         for (key, data) in &self.argv {
             concat_string.push_str(format!(" --{}={}", key, data).as_str());
         }
-        info!("PRouter call parameter: {:?}", &concat_string);
+        info!("PRouter invoked parameters: {:?}", &concat_string);
 
         concat_string
     }
@@ -163,10 +163,7 @@ impl I2PD {
         self.argc += 1;
     }
 
-    ///
-    /// Basic control API for I2PD
-    ///
-
+    // Basic control API for I2PD
     pub fn init(&self) {
         if self.is_running {
             return;
@@ -207,10 +204,7 @@ impl I2PD {
         unsafe { C_StopI2P() };
     }
 
-    ///
-    /// Fetch status
-    ///
-
+    //Fetch status
     pub fn get_network_status(&self) -> Result<String> {
         if !self.is_running {
             return Err(anyhow!("I2PD is not running"));
@@ -348,10 +342,7 @@ impl I2PD {
         Ok(enabled == 1)
     }
 
-    ///
-    /// Fetch tunnels info
-    ///
-
+    // Fetch tunnels info
     pub fn get_client_tunnels_count(&self) -> Result<i32> {
         if !self.is_running {
             return Err(anyhow!("I2PD is not running"));

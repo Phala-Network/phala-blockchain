@@ -3,7 +3,6 @@ extern crate alloc;
 
 pub mod contract;
 
-use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use core::fmt::Debug;
@@ -603,10 +602,34 @@ pub struct WorkerRegistrationInfo<AccountId> {
 }
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
-pub struct PhalaNetworkIdentBindingInfo {
-    pub pubkey: WorkerPublicKey,
-    pub pnetwork_ident: String,
-    pub version: u32,
+pub enum EndpointType {
+    I2P,
+    Http,
+}
+
+#[derive(Encode, Decode, TypeInfo, Clone, Debug)]
+pub enum VersionedWorkerEndpoint {
+    V1(WorkerEndpointV1::WorkerEndpoint)
+}
+
+pub mod WorkerEndpointV1 {
+    use alloc::vec::Vec;
+    use codec::{Decode, Encode};
+    use core::fmt::Debug;
+    use scale_info::TypeInfo;
+    use sp_core::sr25519::Public as WorkerPublicKey;
+
+    #[derive(Encode, Decode, TypeInfo, Clone, Debug)]
+    pub enum WorkerEndpoint {
+        I2P(PhalaEndpointInfo),
+        Http(PhalaEndpointInfo)
+    }
+
+    #[derive(Encode, Decode, TypeInfo, Clone, Debug)]
+    pub struct PhalaEndpointInfo {
+        pub pubkey: WorkerPublicKey,
+        pub endpoint: Vec<u8>,
+    }
 }
 
 #[derive(Encode, Decode, Debug, Default, TypeInfo)]

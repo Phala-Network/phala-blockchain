@@ -110,28 +110,31 @@ pub struct Args {
     mnemonic: String,
 
     ///
-    /// Phala Network Setting
+    /// Provide custom public endpoint. Will disable i2p router if this field is provided
     ///
-    #[structopt(long, help = "Join Phala Network?")]
-    join_pnetwork: bool,
+    #[structopt(
+        long,
+        help = "Provide custom public endpoint. E.g. http://xxx.xxx:3333"
+    )]
+    custom_endpoint: Option<String>,
+
+    ///
+    /// PRouter Settings
+    ///
+    #[structopt(long, help = "Auto restart self after an error occurred")]
+    auto_restart: bool,
 
     #[structopt(
-        default_value = "127.0.0.1",
+        default_value = "10",
         long,
-        help = "Host for the public API, without `http://` prefix. Required to support http protocol"
+        help = "Max auto restart retries if it continuously failing. Only used with --auto-restart"
     )]
-    pnetwork_host: String,
-
-    #[structopt(
-        default_value = "8000",
-        long,
-        help = "Port for the public API. Required to support http protocol"
-    )]
-    pnetwork_port: String,
+    max_restart_retries: u32,
 
     ///
-    /// Router Setting
+    /// I2P Router Setting, Only effective with I2P endpoint
     ///
+
     #[structopt(
         long,
         default_value = "600",
@@ -151,15 +154,19 @@ pub struct Args {
     )]
     override_tun: Option<String>,
 
-    #[structopt(long, help = "Auto restart self after an error occurred")]
-    auto_restart: bool,
+    #[structopt(
+        default_value = "127.0.0.1",
+        long,
+        help = "Host for the public API, without `http://` prefix. Required to support http protocol"
+    )]
+    phala_exposed_host: String,
 
     #[structopt(
-        default_value = "10",
+        default_value = "8000",
         long,
-        help = "Max auto restart retries if it continuously failing. Only used with --auto-restart"
+        help = "Port for the public API. Required to support http protocol"
     )]
-    max_restart_retries: u32,
+    phala_exposed_port: String,
 }
 
 fn preprocess_path(path_str: &String) -> Result<PathBuf> {
@@ -388,27 +395,26 @@ pub async fn update_signer_nonce(
     Ok(())
 }
 
-async fn bind_worker_pnetwork_ident(
+async fn bind_worker_endpoint(
     para_api: &ParachainApi,
     pubkey: &phaxt::khala::runtime_types::sp_core::sr25519::Public,
     signer: &mut subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>,
-    pnetwork_ident: &String,
+    endpoint: &Vec<u8>,
 ) -> Result<()> {
-    let data = phaxt::khala::runtime_types::phala_types::PhalaNetworkIdentBindingInfo {
-        pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0),
-        pnetwork_ident: pnetwork_ident.clone(),
-        version: 0,
-    };
+    let pubkey = phaxt::khala::runtime_types::sp_core::sr25519::Public(pubkey.0);
+    let endpoint = endpoint.clone();
+    let endpoint_type = phaxt::khala::runtime_types::phala_types::EndpointType::I2P;
+
     update_signer_nonce(para_api, signer).await?;
     let ret = para_api
         .tx()
         .phala_registry()
-        .bind_worker_pnetwork_ident(data)
+        .bind_worker_endpoint(pubkey, endpoint, endpoint_type)
         .sign_and_submit_then_watch(signer)
         .await;
     if ret.is_err() {
-        error!("FailedToCallBindWorkerPNetworkIdent: {:?}", ret);
-        return Err(anyhow!("failed to call bind_worker_pnetwork_ident"));
+        error!("FailedToCallBindWorkerEndpoint: {:?}", ret);
+        return Err(anyhow!("failed to call bind_worker_endpoint"));
     }
     signer.increment_nonce();
     Ok(())
@@ -425,8 +431,8 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
         let mut signer: subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair> =
             subxt::PairSigner::new(pair); // Only usable when registering worker
 
-        let pnetwork_ident_sk: Vec<u8>;
-        let mut pnetwork_ident: String = Default::default();
+        let mut endpoint: Vec<u8> = Default::default();
+        let mut no_bind: bool = false;
 
         // Connect to substrate
         if !args.no_pnode {
@@ -458,67 +464,81 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
                 .await?;
                 info!("Substrate sync blocks done");
             }
+        } else {
+            no_bind = true;
         }
 
+        // connect to pruntime (need pruntime to be initialized first)
         if !args.no_pruntime {
             pr = Some(pruntime_client::new_pruntime_client(
                 args.pruntime_endpoint.clone(),
             ));
+            // Wait until pruntime is initialized
+            loop {
+                let info = pr
+                    .as_ref()
+                    .expect("guaranteed to be initialized")
+                    .get_info(())
+                    .await?;
+                if !info.initialized {
+                    warn!("pRuntime is not initialized. Waiting...");
+                } else {
+                    info!("pRuntime already initialized.");
+                    break;
+                }
+                sleep(Duration::from_secs(5)).await;
+            }
         }
 
-        // generating conf
+        // Start i2pd
+        // 1. generate config files
         let abs_datadir_path = preprocess_path(&args.datadir)?;
         let tunconf_path = init_tunnels_conf(&abs_datadir_path, args)?;
         let conf_path = init_prouter_conf(&abs_datadir_path, tunconf_path, args)?;
-
-        // initializing I2PD
+        // 2. get endpoint
+        let phala_i2p_key: Vec<u8>;
+        if args.custom_endpoint.is_none() {
+            if args.no_pruntime {
+                // Random generate, it will not go on-chain
+                no_bind = true;
+                info!("No pRuntime, using random pubkey instead");
+                phala_i2p_key = (0..64).map(|_| rand::random::<u8>()).collect();
+            } else {
+                if !args.no_pruntime {
+                    phala_i2p_key = pr
+                        .as_ref()
+                        .expect("guaranteed to be initialized")
+                        .derive_phala_i2p_key(())
+                        .await?
+                        .phala_i2p_key;
+                } else {
+                    error!("No pRuntime but i2p endpoint is used!");
+                    return Err(anyhow!("No pRuntime but i2p endpoint is used"));
+                }
+            }
+            let i2p_endpoint = i2pd::generate_ident_to_file(
+                &abs_datadir_path,
+                "phala.key".to_string(),
+                phala_i2p_key,
+            )?;
+            endpoint = format!("{}:{}", i2p_endpoint, args.phala_exposed_port).into_bytes();
+        } else {
+            endpoint = args
+                .custom_endpoint
+                .as_ref()
+                .expect("Should never fail")
+                .clone()
+                .into_bytes();
+        }
+        // 3. initializing i2pd
         i2pd.add_config(
             "datadir".parse()?,
             pathbuf_to_string(abs_datadir_path.clone())?,
         );
         i2pd.add_config("conf".parse()?, conf_path);
-
-        if args.join_pnetwork {
-            if !args.no_pruntime {
-                // Wait until pruntime is initialized
-                loop {
-                    let info = pr
-                        .as_ref()
-                        .expect("guaranteed to be initialized")
-                        .get_info(())
-                        .await?;
-                    if !info.initialized {
-                        warn!("pRuntime is not initialized. Waiting...");
-                    } else {
-                        info!("pRuntime already initialized.");
-                        break;
-                    }
-                    sleep(Duration::from_secs(5)).await;
-                }
-                // Get derived identity for pnetwork
-                pnetwork_ident_sk = pr
-                    .as_ref()
-                    .expect("guaranteed to be initialized")
-                    .derive_ident_sk(prpc::DeriveIdentSkRequest {
-                        info: b"pnetwork".to_vec(),
-                    })
-                    .await?
-                    .sk;
-            } else {
-                // Random generate
-                info!("No pRuntime, using random pubkey instead");
-                pnetwork_ident_sk = (0..64).map(|_| rand::random::<u8>()).collect();
-            }
-            pnetwork_ident = i2pd::generate_ident_to_file(
-                &abs_datadir_path,
-                "pnetwork.key".to_string(),
-                pnetwork_ident_sk,
-            )?;
-        }
-
-        if args.join_pnetwork && !args.no_pnode && !args.no_pruntime {
-            // bind our ident
-            info!("Binding Phala Network identity: {}", &pnetwork_ident);
+        // 4. bind worker endpoint
+        if !no_bind {
+            info!("Binding Endpoint: {}", String::from_utf8_lossy(&endpoint));
             let info = &pr
                 .as_ref()
                 .expect("guaranteed to be initialized")
@@ -527,11 +547,11 @@ pub async fn prouter_main(args: &Args) -> Result<()> {
             let pubkey: phaxt::khala::runtime_types::sp_core::sr25519::Public =
                 Decode::decode(&mut &info.encoded_public_key[..])
                     .map_err(|_| anyhow!("Decode pruntime info failed"))?;
-            bind_worker_pnetwork_ident(
+            bind_worker_endpoint(
                 &para_api.as_ref().expect("guaranteed to be initialized"),
                 &pubkey,
                 &mut signer,
-                &pnetwork_ident,
+                &endpoint,
             )
             .await?;
         }
