@@ -273,7 +273,7 @@ chain
                         const destination = message.destination.toHuman();
                         const sequence = args[0].sequence;
                         const payloadHash = blake2AsHex(message.payload);
-                        console.log(`sequence=${sequence}, destination=${destination} payload_hash=${payloadHash}`);
+                        console.log(`block=${blockNumber}, seq=${sequence}, to=${destination}, payload_hash=${payloadHash}`);
                     }
                 }
             });
