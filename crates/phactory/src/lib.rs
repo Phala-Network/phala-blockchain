@@ -295,6 +295,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
         };
 
+        info!("Taking checkpoint...");
         let checkpoint_file = PathBuf::from(&self.args.sealing_path).join(CHECKPOINT_FILE);
         // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
         let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
@@ -314,7 +315,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         {
             // Post-process filenames
-
             let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
             let _ = std::fs::rename(&checkpoint_file, &backup);
             std::fs::rename(&tmpfile, &checkpoint_file)?;
@@ -343,7 +343,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
         let tmpfile = PathBuf::from(sealing_path).join(TMP_CHECKPOINT_FILE);
 
-        // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump_the checkpoint.
+        // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump the checkpoint.
         if tmpfile.is_symlink() || tmpfile.exists() {
             std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
         }

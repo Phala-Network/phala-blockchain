@@ -1,6 +1,6 @@
 pub use {
     dispatcher::{subscribe_default, using as using_dispatcher},
-    send_mq::{default_send_mq, using as using_send_mq},
+    send_mq::{global_send_mq, using as using_send_mq},
 };
 
 mod send_mq {
@@ -15,9 +15,9 @@ mod send_mq {
         global_send_mq::using(mq, f)
     }
 
-    pub fn default_send_mq() -> MessageSendQueue {
+    pub fn global_send_mq() -> MessageSendQueue {
         global_send_mq::with(|mq| mq.clone())
-            .expect("default_send_mq is called without using a global_send_mq")
+            .expect("global_send_mq is called without using a global_send_mq")
     }
 }
 
@@ -39,6 +39,6 @@ mod dispatcher {
 
     pub fn subscribe_default(path: impl Into<Path>) -> Receiver<Message> {
         with(move |dispatcher| dispatcher.subscribe(path))
-            .expect("subscribe_default_typed called without using a global dispatcher")
+            .expect("subscribe_default called without using a global dispatcher")
     }
 }

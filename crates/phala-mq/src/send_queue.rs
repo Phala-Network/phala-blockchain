@@ -137,7 +137,7 @@ mod msg_channel {
     #[derive(Clone, Serialize, Deserialize)]
     pub struct MessageChannel<Si> {
         #[serde(skip)]
-        #[serde(default = "crate::checkpoint_helper::default_send_mq")]
+        #[serde(default = "crate::checkpoint_helper::global_send_mq")]
         queue: MessageSendQueue,
         sender: SenderId,
         signer: Si,

@@ -121,7 +121,7 @@ impl From<CodecError> for TypedReceiveError {
 #[derive(Serialize, Deserialize)]
 pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
-    #[serde(bound(serialize = "", deserialize = ""))]
+    #[serde(skip)]
     _t: PhantomData<T>,
 }
 
