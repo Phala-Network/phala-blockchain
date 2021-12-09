@@ -386,6 +386,8 @@ impl<Validator: BlockValidator> StorageSynchronizer for ParachainSynchronizer<Va
     }
 }
 
+// We create this new type to help serialize the original dyn StorageSynchronizer.
+// Because it it impossible to impl Serialize/Deserialize for dyn StorageSynchronizer.
 #[derive(Serialize, Deserialize)]
 pub enum Synchronizer<Validator> {
     Solo(SolochainSynchronizer<Validator>),

@@ -15,6 +15,13 @@ type OnFinish = Box<dyn FnOnce(&PollContext) -> Option<Vec<SigningMessage>> + Se
 
 #[derive(Serialize, Deserialize)]
 struct TaskWrapper {
+    /// We do not serialize the on_finish closure, because it is not serializable. When restoring, we
+    /// recreate the on_finish with a so-called zombie closure which will output None messages. This
+    /// acts as if the task was never finished and it will emit the default_messages at the end_block
+    /// it has schaduled.
+    /// Note: As a result, if the underlying async task is already finished but not being polled out
+    /// yet at the checkpoint time, the async result will also be discarded. When restoring from that
+    /// checkpoint the default_messages will be emitted.
     #[serde(skip)]
     #[serde(default = "zombie")]
     on_finish: OnFinish,
