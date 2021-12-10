@@ -29,7 +29,7 @@ pub struct AssetMetadataBalance {
     balance: chain::Balance,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Assets {
     next_id: u32,
     assets: BTreeMap<u32, BTreeMap<AccountId, chain::Balance>>,

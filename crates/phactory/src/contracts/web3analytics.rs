@@ -212,6 +212,7 @@ pub enum Response {
     Error(String),
 }
 
+#[derive(Encode, Decode)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,
@@ -223,6 +224,7 @@ pub struct Web3Analytics {
     total_stat: HourlyPageViewStat,
 
     key: Vec<u8>,
+    #[codec(skip)]
     parser: woothee::parser::Parser,
 
     no_tracking: BTreeMap<AccountId, bool>,

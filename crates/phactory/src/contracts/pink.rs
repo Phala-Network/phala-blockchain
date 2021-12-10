@@ -27,6 +27,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
+#[derive(Encode, Decode)]
 pub struct Pink {
     instance: pink::Contract,
     group: ContractGroupId,
@@ -185,10 +186,12 @@ pub mod group {
     use phala_mq::{ContractGroupId, ContractId};
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
+    use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use std::collections::{BTreeMap, BTreeSet};
+    use phala_serde_more as more;
 
-    #[derive(Default)]
+    #[derive(Default, Serialize, Deserialize)]
     pub struct GroupKeeper {
         groups: BTreeMap<ContractGroupId, Group>,
     }
@@ -236,11 +239,20 @@ pub mod group {
         pub fn get_group_mut(&mut self, group_id: &ContractGroupId) -> Option<&mut Group> {
             self.groups.get_mut(group_id)
         }
+
+        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+            for group in self.groups.values_mut() {
+                group.commit_changes()?;
+            }
+            Ok(())
+        }
     }
 
+    #[derive(Serialize, Deserialize)]
     pub struct Group {
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
+        #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
     }
 
@@ -251,6 +263,11 @@ pub mod group {
 
         pub fn key(&self) -> &sr25519::Pair {
             &self.key
+        }
+
+        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+            self.storage.commit_changes();
+            Ok(())
         }
     }
 }

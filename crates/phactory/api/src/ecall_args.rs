@@ -2,6 +2,7 @@
 use parity_scale_codec::{Encode, Decode};
 use alloc::string::{String, ToString};
 
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Encode, Decode, Default, Clone)]
 pub struct InitArgs {
     /// The GK master key sealing path.
@@ -19,11 +20,14 @@ pub struct InitArgs {
     /// The git commit hash which this binary was built from.
     pub git_revision: String,
 
-    /// Enable geolocation report
-    pub enable_geoprobing: bool,
-
     /// Geoip database path
     pub geoip_city_db: String,
+
+    /// Enable checkpoint
+    pub enable_checkpoint: bool,
+
+    /// Checkpoint interval in seconds
+    pub checkpoint_interval: u64,
 }
 
 pub fn git_revision() -> String {

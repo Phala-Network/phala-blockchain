@@ -4,7 +4,7 @@ const { program } = require('commander');
 const axios = require('axios').default;
 const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
-const { cryptoWaitReady } = require('@polkadot/util-crypto');
+const { cryptoWaitReady, blake2AsHex } = require('@polkadot/util-crypto');
 const phalaTypes = require('@phala/typedefs').khalaDev;
 
 const { FixedPointConverter } = require('./utils/fixedUtils');
@@ -251,6 +251,37 @@ chain
         const api = await substrateApi();
         const pool = await api.query.phalaStakePool.stakePools(pid);
         printObject(decorateStakePool(pool.unwrap()));
+    }));
+
+chain
+    .command('grab-gk-egress')
+    .description('get the stake pool info')
+    .option('--from <start_block>', 'Start block', '0')
+    .option('--to <end_block>', 'End block', null)
+    .action(run(async (opt) => {
+        const api = await substrateApi();
+        var blockNumber = parseInt(opt.from);
+
+        while (true) {
+            const hash = await api.rpc.chain.getBlockHash(blockNumber);
+            const singedBlock = await api.rpc.chain.getBlock(hash);
+            singedBlock.block.extrinsics.forEach(({method: { args, method, section }}) => {
+                if (method === 'syncOffchainMessage' && section === 'phalaMq') {
+                    const message = args[0].message;
+                    const sender = message.sender.toString();
+                    if (sender == "Gatekeeper") {
+                        const destination = message.destination.toHuman();
+                        const sequence = args[0].sequence;
+                        const payloadHash = blake2AsHex(message.payload);
+                        console.log(`block=${blockNumber}, seq=${sequence}, to=${destination}, payload_hash=${payloadHash}`);
+                    }
+                }
+            });
+            blockNumber += 1;
+            if (opt.to && blockNumber > opt.to) {
+                break;
+            }
+        }
     }));
 
 // pRuntime operations

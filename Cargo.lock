@@ -1314,6 +1314,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "ciborium"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0c137568cc60b904a7724001b35ce2630fd00d5d84805fbb608ab89509d788f"
+dependencies = [
+ "ciborium-io",
+ "ciborium-ll",
+ "serde",
+]
+
+[[package]]
+name = "ciborium-io"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "346de753af073cc87b52b2083a506b38ac176a44cfb05497b622e27be899b369"
+
+[[package]]
+name = "ciborium-ll"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "213030a2b5a4e0c0892b6652260cf6ccac84827b83a85a534e178e3906c4cf1b"
+dependencies = [
+ "ciborium-io",
+ "half",
+]
+
+[[package]]
 name = "cid"
 version = "0.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6577,6 +6604,7 @@ dependencies = [
  "bitcoin",
  "bitcoin_hashes",
  "chrono",
+ "ciborium",
  "csv-core",
  "derive_more",
  "finality-grandpa",
@@ -6604,6 +6632,7 @@ dependencies = [
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
+ "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
  "pink",
@@ -6611,12 +6640,15 @@ dependencies = [
  "rand 0.7.3",
  "regex",
  "ring 0.16.20",
+ "rmp-serde",
+ "ron",
  "rust-crypto",
  "rustls 0.19.1",
  "scopeguard",
  "serde",
  "serde_cbor",
  "serde_json",
+ "serde_path_to_error",
  "sp-application-crypto",
  "sp-core",
  "sp-externalities",
@@ -6648,6 +6680,7 @@ dependencies = [
  "phala-node-runtime",
  "phala-trie-storage",
  "phala-types",
+ "primitive-types",
  "prost 0.8.0",
  "prpc",
  "prpc-build",
@@ -6699,10 +6732,13 @@ name = "phala-mq"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "environmental",
  "hex",
  "log",
  "parity-scale-codec",
+ "phala-serde-more",
  "scale-info",
+ "serde",
  "sp-core",
  "spin 0.9.2",
 ]
@@ -6945,6 +6981,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "phala-serde-more"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
+]
+
+[[package]]
 name = "phala-trie-storage"
 version = "0.1.0"
 dependencies = [
@@ -7149,6 +7195,8 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "paste",
+ "phala-serde-more",
+ "phala-trie-storage",
  "pink-extension",
  "pretty_assertions 0.7.2",
  "pwasm-utils 0.16.0",
@@ -8045,6 +8093,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "rmp"
+version = "0.8.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f55e5fa1446c4d5dd1f5daeed2a4fe193071771a2636274d0d7a3b082aa7ad6"
+dependencies = [
+ "byteorder",
+ "num-traits",
+]
+
+[[package]]
+name = "rmp-serde"
+version = "0.15.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "723ecff9ad04f4ad92fe1c8ca6c20d2196d9286e9c60727c4cb5511629260e9d"
+dependencies = [
+ "byteorder",
+ "rmp",
+ "serde",
+]
+
+[[package]]
 name = "rocksdb"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8052,6 +8121,17 @@ checksum = "7a62eca5cacf2c8261128631bed9f045598d40bfbe4b29f5163f0f802f8f44a7"
 dependencies = [
  "libc",
  "librocksdb-sys",
+]
+
+[[package]]
+name = "ron"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b861ecaade43ac97886a512b360d01d66be9f41f3c61088b42cedf92e03d678"
+dependencies = [
+ "base64 0.13.0",
+ "bitflags",
+ "serde",
 ]
 
 [[package]]
@@ -9367,6 +9447,15 @@ checksum = "d0ffa0837f2dfa6fb90868c2b5468cad482e175f7dad97e7421951e663f2b527"
 dependencies = [
  "itoa",
  "ryu",
+ "serde",
+]
+
+[[package]]
+name = "serde_path_to_error"
+version = "0.1.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d0421d4f173fab82d72d6babf36d57fae38b994ca5c2d78e704260ba6d12118b"
+dependencies = [
  "serde",
 ]
 

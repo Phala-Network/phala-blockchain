@@ -10,6 +10,7 @@ dependencies = [
  "anyhow",
  "async-io",
  "base64 0.13.0",
+ "blake2-rfc",
  "cpufeatures",
  "env_logger",
  "hex",
@@ -27,6 +28,7 @@ dependencies = [
  "phala-async-executor",
  "ppv-lite86",
  "rand 0.7.3",
+ "serde",
  "sgx_libc 1.1.4",
  "sgx_tcrypto",
  "sgx_tprotected_fs",
@@ -1873,10 +1875,10 @@ dependencies = [
 [[package]]
 name = "http_req"
 version = "0.8.1"
-source = "git+https://github.com/Phala-Network/http_req-sgx.git?branch=phala#e2a44dfb0f02afa791bf40bbe6aa4a1acdf0f16c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e6cd45a270dff33553602fd84beb02c89460ee32db638715f10d9060389fd6a"
 dependencies = [
  "rustls 0.19.1",
- "sgx_tstd",
  "unicase",
  "webpki 0.21.4",
  "webpki-roots 0.21.1",
@@ -3481,6 +3483,7 @@ dependencies = [
  "phala-mq",
  "phala-node-runtime",
  "phala-pallets",
+ "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
  "pink",
@@ -3522,6 +3525,7 @@ dependencies = [
  "phala-node-runtime",
  "phala-trie-storage",
  "phala-types",
+ "primitive-types",
  "prost",
  "prpc",
  "prpc-build",
@@ -3570,10 +3574,13 @@ name = "phala-mq"
 version = "0.1.0"
 dependencies = [
  "derive_more",
+ "environmental",
  "hex",
  "log",
  "parity-scale-codec",
+ "phala-serde-more",
  "scale-info",
+ "serde",
  "sp-core",
  "spin 0.9.2",
 ]
@@ -3683,6 +3690,16 @@ dependencies = [
  "untrusted",
  "webpki 0.22.0",
  "webpki 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "phala-serde-more"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "parity-scale-codec",
+ "serde",
+ "sp-core",
 ]
 
 [[package]]
@@ -3802,6 +3819,8 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "paste",
+ "phala-serde-more",
+ "phala-trie-storage",
  "pink-extension",
  "pretty_assertions",
  "pwasm-utils 0.16.0",

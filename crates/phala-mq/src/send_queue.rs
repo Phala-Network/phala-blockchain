@@ -2,8 +2,9 @@ use crate::{
     Message, MessageOrigin, MessageSigner, Mutex, SenderId, SignedMessage, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
+use serde::{Deserialize, Serialize};
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 struct Channel {
     sequence: u64,
     messages: Vec<SignedMessage>,
@@ -13,6 +14,29 @@ struct Channel {
 #[derive(Clone, Default)]
 pub struct MessageSendQueue {
     inner: Arc<Mutex<BTreeMap<SenderId, Channel>>>,
+}
+
+impl Serialize for MessageSendQueue {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let inner = self.inner.lock();
+        let inner = &*inner;
+        inner.serialize(serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for MessageSendQueue {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let inner = BTreeMap::<SenderId, Channel>::deserialize(deserializer)?;
+        Ok(MessageSendQueue {
+            inner: Arc::new(Mutex::new(inner)),
+        })
+    }
 }
 
 impl MessageSendQueue {
@@ -35,12 +59,23 @@ impl MessageSendQueue {
         let entry = inner.entry(sender).or_default();
         if !entry.dummy {
             let message = constructor(entry.sequence);
-            log::info!(target: "mq",
-                "Sending message, from={}, to={:?}, seq={}",
-                message.message.sender,
-                message.message.destination,
-                entry.sequence,
-            );
+
+            if log::log_enabled!(target: "mq", log::Level::Debug) {
+                log::debug!(target: "mq",
+                    "Sending message, from={}, to={:?}, seq={}, payload_hash={}",
+                    message.message.sender,
+                    message.message.destination,
+                    entry.sequence,
+                    hex::encode(sp_core::blake2_256(&message.message.payload)),
+                );
+            } else {
+                log::info!(target: "mq",
+                    "Sending message, from={}, to={:?}, seq={}",
+                    message.message.sender,
+                    message.message.destination,
+                    entry.sequence,
+                );
+            }
             entry.messages.push(message);
         }
         entry.sequence += 1;
@@ -99,14 +134,16 @@ mod msg_channel {
     use super::*;
     use crate::{types::Path, MessageSigner, SenderId};
 
-    #[derive(Clone)]
-    pub struct MessageChannel<Si: MessageSigner> {
+    #[derive(Clone, Serialize, Deserialize)]
+    pub struct MessageChannel<Si> {
+        #[serde(skip)]
+        #[serde(default = "crate::checkpoint_helper::global_send_mq")]
         queue: MessageSendQueue,
         sender: SenderId,
         signer: Si,
     }
 
-    impl<Si: MessageSigner> MessageChannel<Si> {
+    impl<Si> MessageChannel<Si> {
         pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
             MessageChannel {
                 queue,
@@ -137,9 +174,7 @@ mod msg_channel {
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>) {
             let signing = self.prepare_with_data(payload, to);
             self.queue
-                .enqueue_message(self.sender.clone(), move |sequence| {
-                    signing.sign(sequence)
-                })
+                .enqueue_message(self.sender.clone(), move |sequence| signing.sign(sequence))
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.

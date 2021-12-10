@@ -1,7 +1,7 @@
 use super::{NativeContext, TransactionError, TransactionResult};
 use csv_core::{ReadRecordResult, Reader};
 use log::info;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::contracts;
 use parity_scale_codec::{Decode, Encode};
@@ -87,11 +87,11 @@ pub enum Response {
     Get(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct DataPlaza {
     items: Vec<Item>,
     orders: Vec<Order>,
-    dataset: HashMap<String, Vec<u8>>,
+    dataset: BTreeMap<String, Vec<u8>>,
 }
 
 impl DataPlaza {
@@ -99,7 +99,7 @@ impl DataPlaza {
         Self {
             items: Vec::<Item>::new(),
             orders: Vec::<Order>::new(),
-            dataset: HashMap::<String, Vec<u8>>::new(),
+            dataset: BTreeMap::<String, Vec<u8>>::new(),
         }
     }
 
@@ -139,7 +139,7 @@ impl DataPlaza {
 
     fn compute(order: &mut Order, dataset: &[u8], query: &[u8]) -> Vec<u8> {
         // process query
-        let mut targets = HashSet::<Vec<u8>>::new();
+        let mut targets = BTreeSet::<Vec<u8>>::new();
         let mut out = Vec::<u8>::new();
         let mut matched_rows = 0;
         {

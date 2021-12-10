@@ -70,6 +70,26 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(&args.log_filter))
         .init();
 
+    if args.enable_checkpoint {
+        match Phactory::restore_from_checkpoint(&SgxPlatform, &args.sealing_path) {
+            Ok(Some(mut factory)) => {
+                info!("Loaded checkpoint");
+                factory.set_args(args.clone());
+                *APPLICATION.lock().unwrap() = factory;
+                return sgx_status_t::SGX_SUCCESS;
+            }
+            Err(err) => {
+                error!("Failed to load checkpoint: {:?}", err);
+                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+            }
+            Ok(None) => {
+                info!("No checkpoint found");
+            },
+        }
+    } else {
+        info!("No checkpoint file specified.");
+    }
+
     APPLICATION.lock().unwrap().init(args.clone());
 
     info!("Enclave init OK");

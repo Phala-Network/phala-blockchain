@@ -12,16 +12,16 @@ pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
 #[derive(Debug)]
 pub struct ExecError {
-    source: DispatchError,
-    message: String,
+    pub source: DispatchError,
+    pub message: String,
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Encode, Decode)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Encode, Decode)]
 pub struct Contract {
     pub address: AccountId,
     hooks: HookSelectors,

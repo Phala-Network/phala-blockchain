@@ -1,4 +1,4 @@
-#![no_std]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(feature = "sgx")]
 pub extern crate serde_sgx as serde;
@@ -14,6 +14,9 @@ mod dispatcher;
 mod send_queue;
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 mod simple_mpsc;
+
+#[cfg(feature = "checkpoint")]
+pub mod checkpoint_helper;
 
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::{MessageDispatcher, TypedReceiveError, TypedReceiver};
@@ -38,9 +41,8 @@ pub use alias::*;
 
 #[cfg(all(feature = "queue", feature = "signers"))]
 mod alias {
-    use super::*;
-    use sp_core::sr25519;
-    pub type SignedMessageChannel = MessageChannel<sr25519::Pair>;
+    pub use crate::signer::signers::Sr25519Signer;
+    pub type SignedMessageChannel = crate::MessageChannel<Sr25519Signer>;
 }
 
 pub mod traits {

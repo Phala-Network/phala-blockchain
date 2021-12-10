@@ -9,10 +9,10 @@ use crate::{
             group::Group,
             messaging::{WorkerPinkReport, WorkerPinkRequest},
         },
-        ExecuteEnv, NativeContract,
+        ContractsKeeper, ExecuteEnv, NativeContract,
     },
     pink::{group::GroupKeeper, Pink},
-    secret_channel::{PeelingReceiver, SecretReceiver},
+    secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
 use anyhow::Result;
@@ -20,7 +20,6 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
-use std::collections::BTreeMap;
 
 use crate::contracts;
 use crate::pal;
@@ -36,6 +35,7 @@ use phala_mq::{
     traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
     MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
+use phala_serde_more as more;
 use phala_types::{
     contract,
     messaging::{
@@ -44,6 +44,7 @@ use phala_types::{
     },
     EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
+use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
 use sp_core::{hashing::blake2_256, sr25519, Pair, U256};
 
@@ -90,7 +91,7 @@ impl From<BadOrigin> for TransactionError {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct BenchState {
     start_block: chain::BlockNumber,
     start_time: u64,
@@ -98,13 +99,13 @@ struct BenchState {
     duration: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 enum MiningState {
     Mining,
     Paused,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct MiningInfo {
     session_id: u32,
     state: MiningState,
@@ -113,9 +114,9 @@ struct MiningInfo {
 }
 
 // Minimum worker state machine can be reused to replay in GK.
-// TODO: shrink size
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 struct WorkerState {
+    #[serde(with = "more::pubkey_bytes")]
     pubkey: WorkerPublicKey,
     hashed_id: U256,
     registered: bool,
@@ -238,7 +239,7 @@ impl WorkerState {
         log_on: bool,
     ) {
         if log_on {
-            info!(
+            debug!(
                 "System::handle_heartbeat_challenge({}, {:?}), registered={:?}, mining_state={:?}",
                 block.block_number, seed_info, self.registered, self.mining_state
             );
@@ -357,14 +358,31 @@ impl WorkerStateMachineCallback for WorkerSMDelegate<'_> {
     }
 }
 
-type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
+#[derive(
+    Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From,
+)]
+#[serde(transparent)]
+pub(crate) struct WorkerIdentityKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
+// By mocking the public key of the identity key pair, we can pretend to be the first Gatekeeper on Khala
+// for "shadow-gk" simulation.
+#[cfg(feature = "shadow-gk")]
+impl WorkerIdentityKey {
+    pub(crate) fn public(&self) -> sr25519::Public {
+        // The pubkey of the first GK on khala
+        sr25519::Public(hex_literal::hex!(
+            "60067697c486c809737e50d30a67480c5f0cede44be181b96f7d59bc2116a850"
+        ))
+    }
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
     // Configuration
-    sealing_path: String,
+    pub(crate) sealing_path: String,
     enable_geoprobing: bool,
-    geoip_city_db: String,
+    pub(crate) geoip_city_db: String,
     // Messageing
     egress: SignedMessageChannel,
     system_events: TypedReceiver<SystemEvent>,
@@ -373,14 +391,16 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
-    pub(crate) identity_key: sr25519::Pair,
+    pub(crate) identity_key: WorkerIdentityKey,
+    #[serde(with = "ecdh_serde")]
     pub(crate) ecdh_key: EcdhKey,
     worker_state: WorkerState,
     // Gatekeeper
+    #[serde(with = "more::option_key_bytes")]
     master_key: Option<sr25519::Pair>,
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
-    pub(crate) contracts: ContractMap,
+    pub(crate) contracts: ContractsKeeper,
     contract_groups: GroupKeeper,
 
     // Cached for query
@@ -398,18 +418,19 @@ impl<Platform: pal::Platform> System<Platform> {
         ecdh_key: EcdhKey,
         send_mq: &MessageSendQueue,
         recv_mq: &mut MessageDispatcher,
-        contracts: ContractMap,
+        contracts: ContractsKeeper,
     ) -> Self {
-        let pubkey = identity_key.clone().public();
+        let identity_key = WorkerIdentityKey(identity_key);
+        let pubkey = identity_key.public();
         let sender = MessageOrigin::Worker(pubkey);
-        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key, &platform);
+        let master_key = master_key::try_unseal(sealing_path.clone(), &identity_key.0, &platform);
 
         System {
             platform,
             sealing_path,
             enable_geoprobing,
             geoip_city_db,
-            egress: send_mq.channel(sender, identity_key.clone()),
+            egress: send_mq.channel(sender, identity_key.clone().0.into()),
             system_events: recv_mq.subscribe_bound(),
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
@@ -568,6 +589,7 @@ impl<Platform: pal::Platform> System<Platform> {
             self.master_key = Some(master_key);
 
             if need_restart {
+                crate::maybe_remove_checkpoints(&self.sealing_path);
                 panic!("Received master key, please restart pRuntime and pherry");
             }
         } else if let Some(my_master_key) = &self.master_key {
@@ -597,7 +619,8 @@ impl<Platform: pal::Platform> System<Platform> {
                 self.master_key
                     .as_ref()
                     .expect("checked master key above; qed.")
-                    .clone(),
+                    .clone()
+                    .into(),
             ),
         );
         self.gatekeeper = Some(gatekeeper);
@@ -870,12 +893,16 @@ impl<Platform: pal::Platform> System<Platform> {
             master_public_key,
         }
     }
+
+    pub fn commit_changes(&mut self) -> anyhow::Result<()> {
+        self.contract_groups.commit_changes()
+    }
 }
 
 pub fn handle_contract_command_result(
     result: TransactionResult,
     group_id: Option<phala_mq::ContractGroupId>,
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     groups: &mut GroupKeeper,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
@@ -905,7 +932,7 @@ pub fn handle_contract_command_result(
 pub fn apply_pink_side_effects(
     effects: ExecSideEffects,
     group_id: &phala_mq::ContractGroupId,
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     group: &mut Group,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
@@ -971,7 +998,7 @@ pub fn apply_pink_side_effects(
 }
 
 pub fn install_contract<Contract>(
-    contracts: &mut ContractMap,
+    contracts: &mut ContractsKeeper,
     contract: Contract,
     contract_key: sr25519::Pair,
     ecdh_key: EcdhKey,
@@ -979,25 +1006,20 @@ pub fn install_contract<Contract>(
 ) where
     Contract: NativeContract + Send + 'static,
     <Contract as NativeContract>::Cmd: Send,
+    contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
 {
     let contract_id = contract.id();
     let sender = MessageOrigin::Contract(contract_id);
-    let mq = block.send_mq.channel(sender, contract_key);
-    let contract_key = ecdh_key.clone();
-    let cmd_mq = PeelingReceiver::new_secret(
+    let mq = block.send_mq.channel(sender, contract_key.into());
+    let cmd_mq = SecretReceiver::new_secret(
         block
             .recv_mq
             .subscribe(contract::command_topic(contract_id))
             .into(),
-        contract_key,
-    );
-    let wrapped = Box::new(contracts::NativeCompatContract::new(
-        contract,
-        mq,
-        cmd_mq,
         ecdh_key.clone(),
-    ));
-    contracts.insert(contract_id, wrapped);
+    );
+    let wrapped = contracts::NativeCompatContract::new(contract, mq, cmd_mq, ecdh_key.clone());
+    contracts.insert(wrapped);
 }
 
 #[derive(Encode, Decode, Debug)]
@@ -1058,7 +1080,7 @@ mod tests {
     #[test]
     fn test_on_block_end() {
         let contract_key = sp_core::Pair::from_seed(&Default::default());
-        let mut contracts = ContractMap::default();
+        let mut contracts = ContractsKeeper::default();
         let mut groupkeeper = GroupKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let group_id = phala_mq::ContractGroupId(Default::default());
@@ -1078,10 +1100,10 @@ mod tests {
 
         let group = groupkeeper.get_group_mut(&group_id).unwrap();
         let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
-        let signer = sp_core::Pair::from_seed(&Default::default());
+        let signer = sr25519::Pair::from_seed(&Default::default());
         let egress = builder
             .send_mq
-            .channel(MessageOrigin::Worker(Default::default()), signer);
+            .channel(MessageOrigin::Worker(Default::default()), signer.into());
         let mut block_info = builder.build();
 
         apply_pink_side_effects(

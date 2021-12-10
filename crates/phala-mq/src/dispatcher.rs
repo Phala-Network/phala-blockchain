@@ -1,6 +1,7 @@
 use core::marker::PhantomData;
 
 use alloc::{collections::BTreeMap, vec::Vec};
+use serde::{Deserialize, Serialize};
 
 use crate::simple_mpsc::{channel, ReceiveError, Receiver as RawReceiver, Sender, Seq};
 use crate::types::{Message, Path};
@@ -21,7 +22,24 @@ pub struct MessageDispatcher {
     //match_subscribers: Vec<Matcher, Vec<Sender<Message>>>,
 }
 
-pub type Receiver<T> = RawReceiver<(u64, T)>;
+pub struct Receiver<T> {
+    inner: RawReceiver<(u64, T)>,
+    topic: Vec<u8>,
+}
+
+impl core::ops::Deref for Receiver<Message> {
+    type Target = RawReceiver<(u64, Message)>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl core::ops::DerefMut for Receiver<Message> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
+    }
+}
 
 impl MessageDispatcher {
     pub fn new() -> Self {
@@ -34,10 +52,14 @@ impl MessageDispatcher {
     /// Subscribe messages which are sent to `path`.
     /// Returns a Receiver channel end.
     pub fn subscribe(&mut self, path: impl Into<Path>) -> Receiver<Message> {
+        let path = path.into();
         let (rx, tx) = channel();
-        let entry = self.subscribers.entry(path.into()).or_default();
+        let entry = self.subscribers.entry(path.clone()).or_default();
         entry.push(tx);
-        rx
+        Receiver {
+            inner: rx,
+            topic: path,
+        }
     }
 
     /// Subscribe messages which implementing BindTopic
@@ -96,8 +118,10 @@ impl From<CodecError> for TypedReceiveError {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct TypedReceiver<T> {
     queue: Receiver<Message>,
+    #[serde(skip)]
     _t: PhantomData<T>,
 }
 
@@ -127,6 +151,31 @@ impl<T: Decode> From<Receiver<Message>> for TypedReceiver<T> {
         }
     }
 }
+
+#[cfg(feature = "checkpoint")]
+const _: () = {
+    use crate::checkpoint_helper::subscribe_default;
+    use serde::Serializer;
+
+    impl Serialize for Receiver<Message> {
+        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            self.topic.serialize(serializer)
+        }
+    }
+
+    impl<'de> Deserialize<'de> for Receiver<Message> {
+        fn deserialize<D>(de: D) -> Result<Self, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let topic: Vec<u8> = Deserialize::deserialize(de)?;
+            Ok(subscribe_default(topic))
+        }
+    }
+};
 
 #[macro_export]
 macro_rules! select {
@@ -166,7 +215,6 @@ macro_rules! select {
         rv
     }};
 }
-
 
 #[macro_export]
 macro_rules! function {

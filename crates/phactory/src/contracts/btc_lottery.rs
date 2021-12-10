@@ -14,11 +14,11 @@ use std::{
 use anyhow::Result;
 use lazy_static;
 use log::error;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, Output};
 use phala_mq::traits::MessageChannel;
 use phala_mq::{MessageOrigin, SignedMessageChannel};
 use rand::{rngs::StdRng, seq::IteratorRandom, SeedableRng};
-use sp_core::{crypto::Pair, hashing::blake2_256, sr25519, U256};
+use sp_core::{hashing::blake2_256, U256};
 use sp_runtime_interface::pass_by::PassByInner as _;
 
 use bitcoin;
@@ -45,15 +45,41 @@ lazy_static! {
     static ref TYPE_NF_BIT: U256 = U256::from(1) << 255;
 }
 
+struct PrivateKeyWrapper(PrivateKey);
+impl From<PrivateKey> for PrivateKeyWrapper {
+    fn from(pk: PrivateKey) -> Self {
+        PrivateKeyWrapper(pk)
+    }
+}
+
+impl Encode for PrivateKeyWrapper {
+    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
+        (self.0.network.magic(), self.0.to_bytes()).encode_to(dest)
+    }
+}
+
+impl Decode for PrivateKeyWrapper {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, CodecError> {
+        let (magic, bytes): (u32, Vec<u8>) = Decode::decode(input)?;
+        let network =
+            Network::from_magic(magic).ok_or(CodecError::from("invalid network magic"))?;
+        return Ok(PrivateKeyWrapper(
+            PrivateKey::from_slice(&bytes, network)
+                .or(Err(CodecError::from("invalid private key")))?,
+        ));
+    }
+}
+
+#[derive(Encode, Decode)]
 pub struct BtcLottery {
     round_id: u32,
     token_set: BTreeMap<u32, Vec<String>>,
-    lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKey>>,
+    lottery_set: BTreeMap<u32, BTreeMap<String, PrivateKeyWrapper>>,
     tx_set: Vec<Vec<u8>>,
-    sequence: SequenceType,        // Starting from zero
-    secret: Option<sr25519::Pair>, // TODO: replace it with a seed.
+    sequence: SequenceType, // Starting from zero
+    seed: Option<Vec<u8>>,
     /// round_id => (txid, vout, amount)?
-    utxo: BTreeMap<u32, BTreeMap<Address, (Txid, u32, u64)>>,
+    utxo: BTreeMap<u32, BTreeMap<AddressString, (Txid, u32, u64)>>,
     admin: AccountId,
 }
 
@@ -106,19 +132,16 @@ pub enum Response {
 
 impl BtcLottery {
     /// Initializes the contract
-    pub fn new(secret: Option<sr25519::Pair>) -> Self {
-        let token_set = BTreeMap::<u32, Vec<String>>::new();
-        let lottery_set = BTreeMap::<u32, BTreeMap<String, PrivateKey>>::new();
-        let utxo = BTreeMap::<u32, BTreeMap<Address, (Txid, u32, u64)>>::new();
+    pub fn new(seed: Option<Vec<u8>>) -> Self {
         let admin = account_id_from_hex(ALICE).expect("Bad initial admin hex");
         BtcLottery {
             round_id: 0,
-            token_set,
-            lottery_set,
+            token_set: Default::default(),
+            lottery_set: Default::default(),
             tx_set: Vec::new(),
             sequence: 0,
-            secret,
-            utxo,
+            seed,
+            utxo: Default::default(),
             admin,
         }
     }
@@ -132,8 +155,8 @@ impl BtcLottery {
     }
 
     fn check_secret_key(&self) -> bool {
-        if self.secret.is_none() {
-            error!("Empty secret key");
+        if self.seed.is_none() {
+            error!("Empty seed");
             false
         } else {
             true
@@ -153,7 +176,7 @@ impl BtcLottery {
         }
         if !self.token_set.contains_key(&round_id) && !self.lottery_set.contains_key(&round_id) {
             let _sequence = self.sequence;
-            let secret = self.secret.as_ref().expect("Key is checked; qed.");
+            let seed = self.seed.as_ref().expect("Key is checked; qed.");
             let token_round_id: U256 = U256::from(round_id) << 128;
             let mut round_token = Vec::new();
             for token_no in 1..=total_count {
@@ -162,8 +185,8 @@ impl BtcLottery {
                 round_token.push(token_id);
             }
             info!("new_round: n round_token: {}", round_token.len());
-            let mut lottery_token = BTreeMap::<String, PrivateKey>::new();
-            let raw_seed = blake2_256(&Encode::encode(&(secret.to_raw_vec(), round_id)));
+            let mut lottery_token = BTreeMap::<String, PrivateKeyWrapper>::new();
+            let raw_seed = blake2_256(&Encode::encode(&(seed, round_id)));
             let mut r: StdRng = SeedableRng::from_seed(raw_seed);
             let sample = round_token
                 .iter()
@@ -189,10 +212,10 @@ impl BtcLottery {
                 let public_key = PublicKey::from_private_key(&secp, &sk);
                 let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
                 address_set.push(prize_addr.to_string().as_bytes().to_vec());
-                lottery_token.insert(String::from(winner_id), sk);
+                lottery_token.insert(String::from(winner_id), sk.into());
                 salt += 1;
             }
-            self.lottery_set.insert(round_id, lottery_token);
+            self.lottery_set.insert(round_id, lottery_token.into());
             self.token_set.insert(round_id, round_token);
             self.round_id = round_id;
 
@@ -250,12 +273,13 @@ impl BtcLottery {
                 }
             } else {
                 let secp = Secp256k1::new();
-                let private_key: PrivateKey = *self
+                let private_key: PrivateKey = self
                     .lottery_set
                     .get(&round_id)
                     .expect("round_id is known in the lottery_set; qed")
                     .get(&token_id)
-                    .expect("token_id is known in the lottery_set; qed");
+                    .expect("token_id is known in the lottery_set; qed")
+                    .0;
                 let public_key = PublicKey::from_private_key(&secp, &private_key);
                 let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
                 let round_utxo = self
@@ -263,7 +287,7 @@ impl BtcLottery {
                     .get(&round_id)
                     .expect("round_id is known in the utxo; qed");
                 let (txid, vout, amount) = round_utxo
-                    .get(&prize_addr)
+                    .get(&prize_addr.to_string())
                     .expect("address is known in the utxo; qed");
                 let mut tx = Transaction {
                     input: vec![TxIn {
@@ -381,7 +405,7 @@ impl contracts::NativeContract for BtcLottery {
                     let mut address_set = Vec::new();
                     for (_, private_key) in temp.iter() {
                         let secp = Secp256k1::new();
-                        let public_key = PublicKey::from_private_key(&secp, private_key);
+                        let public_key = PublicKey::from_private_key(&secp, &private_key.0);
                         let prize_addr = Address::p2pkh(&public_key, Network::Bitcoin);
                         address_set.push(prize_addr.to_string());
                     }
@@ -441,7 +465,7 @@ impl BtcLottery {
                         Occupied(_entry) => return Err(TransactionError::BadCommand),
                         Vacant(entry) => entry.insert(Default::default()),
                     };
-                    round_utxo.insert(btc_address, utxo);
+                    round_utxo.insert(btc_address.to_string(), utxo);
                 }
                 Ok(Default::default())
             }
