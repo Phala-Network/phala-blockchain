@@ -23,7 +23,7 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::{self, CodeIndex};
+    use crate::contract::{self, ContractInfo};
     pub use phala_mq::types::*;
     pub use phala_mq::{bind_contract32, bind_topic};
 
@@ -427,20 +427,19 @@ pub mod messaging {
     }
 
     // Messages: Distribution of master key and contract keys
-    bind_topic!(KeyDistribution<CodeHash, BlockNumber>, b"phala/gatekeeper/key");
+    bind_topic!(KeyDistribution, b"phala/gatekeeper/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum KeyDistribution<CodeHash, BlockNumber> {
+    pub enum KeyDistribution {
         MasterKeyDistribution(DispatchMasterKeyEvent),
-        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber>),
     }
 
-    impl<CodeHash, BlockNumber> KeyDistribution<CodeHash, BlockNumber> {
+    impl KeyDistribution {
         pub fn master_key_distribution(
             dest: WorkerPublicKey,
             ecdh_pubkey: EcdhPublicKey,
             encrypted_master_key: Vec<u8>,
             iv: AeadIV,
-        ) -> KeyDistribution<CodeHash, BlockNumber> {
+        ) -> KeyDistribution {
             KeyDistribution::MasterKeyDistribution(DispatchMasterKeyEvent {
                 dest,
                 ecdh_pubkey,
@@ -448,15 +447,23 @@ pub mod messaging {
                 iv,
             })
         }
+    }
 
+    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
+    }
+
+    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
         pub fn contract_key_distribution(
             secret_key: Sr25519SecretKey,
-            code_index: CodeIndex<CodeHash>,
+            contract_info: ContractInfo<CodeHash, AccountId>,
             expiration: BlockNumber,
-        ) -> KeyDistribution<CodeHash, BlockNumber> {
-            KeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
+        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
                 secret_key,
-                code_index,
+                contract_info,
                 expiration,
             })
         }
@@ -478,9 +485,9 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber> {
+    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
         pub secret_key: Sr25519SecretKey,
-        pub code_index: CodeIndex<CodeHash>,
+        pub contract_info: ContractInfo<CodeHash, AccountId>,
         pub expiration: BlockNumber,
     }
 

@@ -10,8 +10,9 @@ use phala_serde_more as more;
 use phala_types::{
     contract::messaging::ContractEvent,
     messaging::{
-        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
-        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
+        SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -209,8 +210,8 @@ where
         let mut data = self.master_key.dump_secret_key().to_vec();
 
         aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
-        self.egress.push_message(
-            &KeyDistribution::<chain::Hash, chain::BlockNumber>::master_key_distribution(
+        self.egress
+            .push_message(&KeyDistribution::master_key_distribution(
                 *pubkey,
                 my_ecdh_key
                     .public()
@@ -219,8 +220,7 @@ where
                     .expect("should never fail given pubkey with correct length; qed;"),
                 data,
                 iv,
-            ),
-        );
+            ));
     }
 
     pub fn process_messages(&mut self, block: &BlockInfo<'_>) {
@@ -352,9 +352,9 @@ where
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
                 secret_mq
                     .bind_remote_key(Some(&deploy_worker.0))
-                    .push_message(&KeyDistribution::contract_key_distribution(
+                    .push_message(&ContractKeyDistribution::contract_key_distribution(
                         contract_key.dump_secret_key(),
-                        contract_info.code_index,
+                        contract_info.clone(),
                         0,
                     ));
                 self.egress.push_message(

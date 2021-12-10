@@ -98,7 +98,7 @@ pub mod pallet {
 
 	/// A mapping from an original code hash to the original code, untouched by instrumentation.
 	#[pallet::storage]
-	pub type PristineCode<T: Config> = StorageMap<_, Identity, CodeHash<T>, Vec<u8>>;
+	pub type PristineCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
 	/// The contract counter.
 	#[pallet::storage]

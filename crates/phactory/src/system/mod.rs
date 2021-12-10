@@ -39,9 +39,9 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, CodeIndex, ContractInfo},
     messaging::{
-        DispatchContractKeyEvent, DispatchMasterKeyEvent, GatekeeperChange, GatekeeperLaunch,
-        HeartbeatChallenge, KeyDistribution, MiningReportEvent, NewGatekeeperEvent, SystemEvent,
-        WorkerEvent,
+        ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        NewGatekeeperEvent, SystemEvent, WorkerEvent,
     },
     ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
@@ -392,7 +392,9 @@ pub struct System<Platform> {
     system_events: TypedReceiver<SystemEvent>,
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
-    key_distribution_events: TypedReceiver<KeyDistribution<chain::Hash, chain::BlockNumber>>,
+    key_distribution_events: TypedReceiver<KeyDistribution>,
+    contract_key_distribution_events:
+        SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
     pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -440,6 +442,16 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
+            contract_key_distribution_events: SecretReceiver::new_secret(
+                recv_mq
+                    .subscribe(ContractKeyDistribution::<
+                        chain::Hash,
+                        chain::BlockNumber,
+                        chain::AccountId,
+                    >::topic())
+                    .into(),
+                ecdh_key.clone(),
+            ),
             pink_events: SecretReceiver::new_secret(
                 recv_mq.subscribe(WorkerPinkRequest::topic()).into(),
                 ecdh_key.clone(),
@@ -505,6 +517,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 },
                 (event, origin) = self.key_distribution_events => {
                     self.process_key_distribution_event(block, origin, event);
+                },
+                (event, origin) = self.contract_key_distribution_events => {
+                    self.process_contract_key_distribution_event(block, origin, event);
                 },
                 (event, origin) = self.pink_events => {
                     self.process_pink_event(block, origin, event);
@@ -757,16 +772,27 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_key_distribution_event(
         &mut self,
-        block: &mut BlockInfo,
+        _block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: KeyDistribution<chain::Hash, chain::BlockNumber>,
+        event: KeyDistribution,
     ) {
         info!("Incoming key distribution event: {:?}", event);
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
                 self.process_master_key_distribution(origin, dispatch_master_key_event)
             }
-            KeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
+        }
+    }
+
+    fn process_contract_key_distribution_event(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>,
+    ) {
+        info!("Incoming contract key distribution event: {:?}", event);
+        match event {
+            ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
                 self.process_contract_key_distribution(block, origin, dispatch_contract_key_event)
             }
         }
@@ -881,7 +907,7 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber>,
+        event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber, chain::AccountId>,
     ) {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
@@ -890,9 +916,8 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let contract_key = ContractKey::restore_from_secret_key(&event.secret_key);
         let contract_pubkey = contract_key.public();
-        let contract_info = chain_state::read_contract_info(block.storage, contract_pubkey.clone())
-            .expect("contract public key is uploaded before distribution; qed.");
-        match event.code_index {
+        let contract_info = event.contract_info;
+        match contract_info.code_index {
             CodeIndex::NativeCode(_contract_id) => {
                 // TODO(shelven): launch native code instance
             }
@@ -940,7 +965,8 @@ impl<Platform: pal::Platform> System<Platform> {
                     }
                 } else {
                     warn!(
-                        "Contract code not found for {}",
+                        "Code 0x{} not found for contract 0x{}",
+                        hex::encode(code_hash),
                         hex::encode(contract_key.public())
                     );
                 }
@@ -1154,10 +1180,18 @@ pub mod chain_state {
 
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
         let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PristineCode", &code_hash);
-        let code: Option<Vec<u8>> = chain_storage.get_decoded(&key).unwrap_or(None);
-        code
+        chain_storage
+            .get(&key)
+            .map(|v| {
+                Some(
+                    Vec::<u8>::decode(&mut &v[..])
+                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
+                )
+            })
+            .unwrap_or(None)
     }
 
+    #[allow(dead_code)]
     pub fn read_contract_info(
         chain_storage: &Storage,
         contract_pubkey: ContractPublicKey,
