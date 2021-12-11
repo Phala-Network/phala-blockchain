@@ -73,7 +73,7 @@ fn get_contract_key(
         .expect("should not fail with valid info")
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,

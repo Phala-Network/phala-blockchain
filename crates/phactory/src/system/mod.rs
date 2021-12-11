@@ -20,6 +20,7 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
+use std::collections::BTreeMap;
 
 use crate::contracts;
 use crate::pal;
@@ -377,8 +378,11 @@ impl WorkerIdentityKey {
     }
 }
 
-type ContractMap = BTreeMap<ContractId, Box<dyn contracts::Contract + Send>>;
-type ContractKey = sr25519::Pair;
+#[derive(
+    Serialize, Deserialize, Clone, derive_more::Deref, derive_more::DerefMut, derive_more::From,
+)]
+#[serde(transparent)]
+pub(crate) struct ContractKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
@@ -914,7 +918,8 @@ impl<Platform: pal::Platform> System<Platform> {
             return;
         };
 
-        let contract_key = ContractKey::restore_from_secret_key(&event.secret_key);
+        let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
+        let contract_key = ContractKey(keypair);
         let contract_pubkey = contract_key.public();
         let contract_info = event.contract_info;
         match contract_info.code_index {
