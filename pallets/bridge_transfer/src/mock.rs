@@ -29,7 +29,7 @@ frame_support::construct_runtime!(
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: bridge_transfer::{Pallet, Call, Storage, Event<T>},
 		PhalaMq: mq::{Pallet, Call, Storage},
-		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
+		PhalaRegistry: reg::{Pallet, Call, Event<T>, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 	}
 );
@@ -137,6 +137,7 @@ parameter_types! {
 
 impl reg::Config for Test {
 	type Event = Event;
+	type Currency = Balances;
 	type AttestationValidator = reg::IasValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;

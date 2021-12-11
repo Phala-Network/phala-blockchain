@@ -34,7 +34,7 @@ frame_support::construct_runtime!(
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 		// Pallets to test
 		PhalaMq: mq::{Pallet, Call},
-		PhalaRegistry: registry::{Pallet, Event, Storage, Config<T>},
+		PhalaRegistry: registry::{Pallet, Event<T>, Storage, Config<T>},
 		PhalaMining: mining::{Pallet, Event<T>, Storage, Config},
 		PhalaStakePool: stakepool::{Pallet, Event<T>},
 		PhalaOneshotTransfer: ott::{Pallet, Event<T>},
@@ -121,6 +121,7 @@ impl mq::CallMatcher<Test> for MqCallMatcher {
 
 impl registry::Config for Test {
 	type Event = Event;
+	type Currency = Balances;
 	type AttestationValidator = MockValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
