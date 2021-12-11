@@ -324,7 +324,7 @@ where
                 contract_info,
                 deploy_worker,
             } => {
-                // TODO(shelven): enable Worker assignment
+                // TODO(shelven): enable random Worker assignment
                 if deploy_worker.is_none() {
                     info!("have to specify deploy_worker for now");
                     return;

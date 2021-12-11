@@ -423,19 +423,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(0)]
-		pub fn call_contract(
-			origin: OriginFor<T>,
-			// dest: <T::Lookup as StaticLookup>::Source,
-			// #[pallet::compact] value: BalanceOf<T>,
-			// #[pallet::compact] gas_limit: Weight,
-			data: Vec<u8>,
-		) -> DispatchResult {
-			ensure_signed(origin)?;
-			// TODO(shelven)
-			Ok(())
-		}
-
 		/// Registers a pRuntime image as the canonical runtime with its digest.
 		#[pallet::weight(0)]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
