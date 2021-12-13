@@ -4,8 +4,6 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-use crate::ContractPublicKey;
-
 pub use phala_mq::{contract_id256 as id256, ContractId};
 
 pub type ContractId32 = u32;
@@ -124,12 +122,6 @@ impl From<ContractQueryError> for prpc::server::Error {
 
 pub fn command_topic(id: ContractId) -> Vec<u8> {
     format!("phala/contract/{}/command", hex::encode(&id))
-        .as_bytes()
-        .to_vec()
-}
-
-pub fn contract_topic(contract_pubkey: &ContractPublicKey) -> Vec<u8> {
-    format!("phala/contract/{}/command", hex::encode(contract_pubkey))
         .as_bytes()
         .to_vec()
 }
