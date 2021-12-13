@@ -766,7 +766,6 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: KeyDistribution,
     ) {
-        info!("Incoming key distribution event: {:?}", event);
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
                 self.process_master_key_distribution(origin, dispatch_master_key_event)
@@ -780,7 +779,6 @@ impl<Platform: pal::Platform> System<Platform> {
         origin: MessageOrigin,
         event: ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>,
     ) {
-        info!("Incoming contract key distribution event: {:?}", event);
         match event {
             ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
                 self.process_contract_key_distribution(block, origin, dispatch_contract_key_event)
