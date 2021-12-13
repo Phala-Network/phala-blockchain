@@ -20,10 +20,7 @@ use serde::{Deserialize, Serialize};
 use sp_application_crypto::Pair;
 use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
-use crate::{
-    secret_channel::SecretMessageChannel,
-    types::BlockInfo,
-};
+use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -288,9 +285,9 @@ where
                 // first, update the on-chain ContractPubkey
                 let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
-                    .push_message(&ContractRegistryEvent::ContractPubkey {
-                        contract_pubkey: contract_key.public(),
-                        contract_info: contract_info.clone(),
+                    .push_message(&ContractRegistryEvent::PubkeyAvailable {
+                        pubkey: contract_key.public(),
+                        info: contract_info.clone(),
                     });
                 // then distribute contract key to the worker
                 // and update the on-chain deployment state

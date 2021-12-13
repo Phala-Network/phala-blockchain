@@ -42,9 +42,9 @@ pub mod pallet {
 	bind_topic!(ContractRegistryEvent<CodeHash, AccountId>, b"^phala/registry/contract");
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum ContractRegistryEvent<CodeHash, AccountId> {
-		ContractPubkey {
-			contract_pubkey: ContractPublicKey,
-			contract_info: ContractInfo<CodeHash, AccountId>,
+		PubkeyAvailable {
+			pubkey: ContractPublicKey,
+			info: ContractInfo<CodeHash, AccountId>,
 		},
 		ContractDeployed {
 			contract_pubkey: ContractPublicKey,
@@ -605,18 +605,12 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				ContractRegistryEvent::ContractPubkey {
-					contract_pubkey,
-					contract_info,
-				} => {
-					if Contracts::<T>::contains_key(contract_pubkey) {
+				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
+					if Contracts::<T>::contains_key(pubkey) {
 						return Err(Error::<T>::DuplicatedContractPubkey.into());
 					}
-					Contracts::<T>::insert(&contract_pubkey, &contract_info);
-					Self::deposit_event(Event::ContractInstantiated(
-						contract_pubkey,
-						contract_info,
-					));
+					Contracts::<T>::insert(&pubkey, &info);
+					Self::deposit_event(Event::ContractInstantiated(pubkey, info));
 				}
 				ContractRegistryEvent::ContractDeployed {
 					contract_pubkey,
