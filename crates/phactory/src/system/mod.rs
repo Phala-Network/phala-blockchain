@@ -4,13 +4,7 @@ mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{
-        pink::{
-            group::Group,
-            messaging::{WorkerPinkReport, WorkerPinkRequest},
-        },
-        ContractsKeeper, ExecuteEnv, NativeContract,
-    },
+    contracts::{pink::group::Group, ContractsKeeper, ExecuteEnv, NativeContract},
     pink::{group::GroupKeeper, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
@@ -42,7 +36,7 @@ use phala_types::{
     messaging::{
         ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerEvent,
+        NewGatekeeperEvent, SystemEvent, WorkerEvent, WorkerPinkReport,
     },
     ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
 };
@@ -399,7 +393,6 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     contract_key_distribution_events:
         SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
-    pink_events: SecretReceiver<WorkerPinkRequest>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
@@ -454,10 +447,6 @@ impl<Platform: pal::Platform> System<Platform> {
                         chain::AccountId,
                     >::topic())
                     .into(),
-                ecdh_key.clone(),
-            ),
-            pink_events: SecretReceiver::new_secret(
-                recv_mq.subscribe(WorkerPinkRequest::topic()).into(),
                 ecdh_key.clone(),
             ),
             identity_key,
@@ -524,9 +513,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 },
                 (event, origin) = self.contract_key_distribution_events => {
                     self.process_contract_key_distribution_event(block, origin, event);
-                },
-                (event, origin) = self.pink_events => {
-                    self.process_pink_event(block, origin, event);
                 },
             };
             if ok.is_none() {
@@ -802,80 +788,6 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_pink_event(
-        &mut self,
-        block: &mut BlockInfo,
-        origin: MessageOrigin,
-        event: WorkerPinkRequest,
-    ) {
-        match event {
-            WorkerPinkRequest::Instantiate {
-                group_id,
-                worker,
-                nonce,
-                owner,
-                wasm_bin,
-                input_data,
-                salt,
-                key,
-            } => {
-                if worker != self.worker_state.pubkey {
-                    return;
-                }
-
-                info!(
-                    "Incoming pink instantiate event: origin={}, onwer={}, nonce={}, contract_size={}",
-                    origin,
-                    owner,
-                    hex::encode(&nonce),
-                    wasm_bin.len(),
-                );
-
-                if !origin.is_gatekeeper() && !origin.is_pallet() {
-                    error!("Attempt to instantiate a pink instance from out of GK!");
-                    return;
-                }
-
-                let contract_key = sr25519::Pair::restore_from_secret_key(&key);
-                let result = self.contract_groups.instantiate_contract(
-                    group_id,
-                    owner.clone(),
-                    wasm_bin,
-                    input_data,
-                    salt,
-                    &contract_key,
-                    block.block_number,
-                    block.now_ms,
-                );
-                match result {
-                    Err(err) => {
-                        error!(
-                            "Instantiate contract error: {}, owner: {:?}, nonce: {}",
-                            err,
-                            owner,
-                            hex::encode(&nonce)
-                        );
-                    }
-                    Ok(effects) => {
-                        let group = self
-                            .contract_groups
-                            .get_group_mut(&group_id)
-                            .expect("Group must exist after instantiate");
-
-                        apply_pink_side_effects(
-                            effects,
-                            &group_id,
-                            &mut self.contracts,
-                            group,
-                            block,
-                            &self.egress,
-                        );
-                    }
-                }
-            }
-        }
-    }
-
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
@@ -1066,7 +978,6 @@ pub fn apply_pink_side_effects(
         );
 
         group.add_contract(id.clone());
-
         let message = WorkerPinkReport::PinkInstantiated {
             id,
             group_id: group_id.clone(),

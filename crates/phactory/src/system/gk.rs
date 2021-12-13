@@ -1,6 +1,6 @@
 use super::{TypedReceiver, WorkerState};
 use chain::pallet_registry::ContractRegistryEvent;
-use parity_scale_codec::{Decode, Encode};
+use parity_scale_codec::Encode;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -21,7 +21,6 @@ use sp_application_crypto::Pair;
 use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
 use crate::{
-    contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
     secret_channel::SecretMessageChannel,
     types::BlockInfo,
 };
@@ -119,7 +118,6 @@ pub(crate) struct Gatekeeper<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
-    pink_requests: TypedReceiver<GKPinkRequest>, // TODO: a contract manager type?
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
@@ -144,7 +142,6 @@ where
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
             contract_events: recv_mq.subscribe_bound(),
-            pink_requests: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
             mining_economics: MiningEconomics::new(recv_mq, egress),
@@ -235,9 +232,6 @@ where
                 (event, origin) = self.gatekeeper_events => {
                     self.process_gatekeeper_event(origin, event);
                 },
-                (request, origin) = self.pink_requests => {
-                    self.process_pink_requests(origin, request);
-                },
                 (event, origin) = self.contract_events => {
                     self.process_contract_event(origin, event);
                 },
@@ -264,51 +258,6 @@ where
             }
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
-            }
-        }
-    }
-
-    fn process_pink_requests(&mut self, origin: MessageOrigin, request: GKPinkRequest) {
-        info!("Incoming pink request: {:?}", request);
-        match request {
-            GKPinkRequest::Instantiate {
-                group_id,
-                worker,
-                wasm_bin,
-                input_data,
-            } => {
-                // TODO: Do some contract management logic
-                let owner = match origin.account() {
-                    Ok(owner) => owner,
-                    Err(_) => {
-                        error!("Attempt to instantiate pink from Bad origin: {}", origin);
-                        return;
-                    }
-                };
-
-                use hex_literal::hex;
-                let contract_key = crate::new_sr25519_key();
-
-                let message = WorkerPinkRequest::Instantiate {
-                    group_id: group_id.unwrap_or(
-                        hex!("0000000000000000000000000000000000000000000000000000000000000001")
-                            .into(),
-                    ),
-                    worker: worker.clone(),
-                    nonce: hex!("0001").into(),
-                    owner,
-                    wasm_bin,
-                    input_data,
-                    salt: vec![],
-                    key: contract_key.dump_secret_key(),
-                };
-
-                let tmp_key = crate::new_sr25519_key().derive_ecdh_key().unwrap();
-                let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress);
-
-                secret_mq
-                    .bind_remote_key(Some(&worker.0))
-                    .push_message(&message);
             }
         }
     }
