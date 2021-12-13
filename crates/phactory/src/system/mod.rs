@@ -796,7 +796,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
+            panic!("System state poisoned");
         };
 
         let my_pubkey = self.identity_key.public();
@@ -827,7 +827,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            return;
+            panic!("System state poisoned");
         };
 
         let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
