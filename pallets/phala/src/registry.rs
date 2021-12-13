@@ -375,7 +375,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
 			ensure_signed(origin)?;
-			let code_hash = T::Hashing::hash(&code.encode());
+			let code_hash = T::Hashing::hash(&code);
 			ContractCode::<T>::insert(&code_hash, &code);
 			Self::deposit_event(Event::CodeUploaded(code_hash));
 			Ok(())
