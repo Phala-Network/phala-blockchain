@@ -844,9 +844,11 @@ impl<Platform: pal::Platform> System<Platform> {
                     if !self.contract_keys.contains_key(&contract_pubkey) {
                         self.contract_keys
                             .insert(contract_pubkey, contract_key.clone());
+
+                        let group_id = chain::Hash::from_low_u64_be(contract_info.group_id);
                         let result = self.contract_groups.instantiate_contract(
-                            chain::Hash::from_low_u64_be(contract_info.group_counter),
-                            contract_info.owner.clone(),
+                            group_id,
+                            contract_info.deployer.clone(),
                             code,
                             contract_info.instantiate_data,
                             contract_info.salt,
@@ -857,13 +859,11 @@ impl<Platform: pal::Platform> System<Platform> {
                         match result {
                             Err(err) => {
                                 error!(
-                                    "Instantiate contract error: {}, owner: {:?}",
-                                    err, contract_info.owner,
+                                    "Instantiate contract error: {}, deployer: {:?}",
+                                    err, contract_info.deployer,
                                 );
                             }
                             Ok(effects) => {
-                                let group_id =
-                                    chain::Hash::from_low_u64_be(contract_info.group_counter);
                                 let group = self
                                     .contract_groups
                                     .get_group_mut(&group_id)
@@ -1095,7 +1095,7 @@ pub mod chain_state {
     }
 
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"PristineCode", &code_hash);
+        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"ContractCode", &code_hash);
         chain_storage
             .get(&key)
             .map(|v| {

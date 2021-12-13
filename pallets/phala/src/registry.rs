@@ -98,7 +98,7 @@ pub mod pallet {
 
 	/// A mapping from an original code hash to the original code, untouched by instrumentation.
 	#[pallet::storage]
-	pub type PristineCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
+	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
 	/// The contract counter.
 	#[pallet::storage]
@@ -376,7 +376,7 @@ pub mod pallet {
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
 			ensure_signed(origin)?;
 			let code_hash = T::Hashing::hash(&code.encode());
-			PristineCode::<T>::insert(&code_hash, &code);
+			ContractCode::<T>::insert(&code_hash, &code);
 			Self::deposit_event(Event::CodeUploaded(code_hash));
 			Ok(())
 		}
@@ -391,26 +391,26 @@ pub mod pallet {
 			salt: Vec<u8>,
 			deploy_worker: Option<WorkerPublicKey>,
 		) -> DispatchResult {
-			let owner = ensure_signed(origin)?;
+			let deployer = ensure_signed(origin)?;
 
 			match code_index {
 				CodeIndex::NativeCode(_) => {}
 				CodeIndex::WasmCode(code_hash) => {
 					ensure!(
-						PristineCode::<T>::contains_key(code_hash),
+						ContractCode::<T>::contains_key(code_hash),
 						Error::<T>::CodeNotFound
 					);
 				}
 			}
 
-			let group_counter = ContractGroupCounter::<T>::mutate(|group_counter| {
+			let group_id = ContractGroupCounter::<T>::mutate(|group_counter| {
 				*group_counter += 1;
 				*group_counter
 			});
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
-				owner,
-				group_counter,
+				deployer,
+				group_id,
 				salt,
 				code_index,
 				instantiate_data: data,

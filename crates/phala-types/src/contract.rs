@@ -56,9 +56,9 @@ pub mod messaging {
 /// On-chain contract registration info
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
-    pub owner: AccountId,
+    pub deployer: AccountId,
     /// Contract group counter of the contract
-    pub group_counter: u64,
+    pub group_id: u64,
     pub salt: Vec<u8>,
     pub code_index: CodeIndex<CodeHash>,
     pub instantiate_data: Vec<u8>,
