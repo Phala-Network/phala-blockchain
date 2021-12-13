@@ -42,7 +42,7 @@ pub trait Contract {
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError>;
-    fn group_id(&self) -> Option<phala_mq::ContractGroupId>;
+    fn group_id(&self) -> phala_mq::ContractGroupId;
     fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
     fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
     fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>);
@@ -55,15 +55,29 @@ pub trait Contract {
     fn set_on_block_end_selector(&mut self, selector: u32);
 }
 
+#[derive(Encode, Decode, Clone, Debug, Copy, derive_more::From)]
+pub struct NativeContractId(sp_core::H256);
+
+impl From<&[u8; 32]> for NativeContractId {
+    fn from(bytes: &[u8; 32]) -> Self {
+        NativeContractId(bytes.into())
+    }
+}
+
+impl NativeContractId {
+    pub fn to_contract_id(&self, group: &phala_mq::ContractGroupId) -> phala_mq::ContractId {
+        let mut buffer = group.encode();
+        self.0.encode_to(&mut buffer);
+        sp_core::blake2_256(&buffer).into()
+    }
+}
+
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
     type QResp: Encode + Debug;
 
-    fn id(&self) -> ContractId;
-    fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
-        None
-    }
+    fn id(&self) -> NativeContractId;
     fn handle_command(
         &mut self,
         _origin: MessageOrigin,
@@ -96,6 +110,8 @@ pub struct NativeCompatContract<Con: NativeContract> {
     cmd_rcv_mq: SecretReceiver<Con::Cmd>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
+    group_id: phala_mq::ContractGroupId,
+    contract_id: phala_mq::ContractId,
 }
 
 impl<Con: NativeContract> NativeCompatContract<Con> {
@@ -104,23 +120,27 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
         send_mq: SignedMessageChannel,
         cmd_rcv_mq: SecretReceiver<Con::Cmd>,
         ecdh_key: KeyPair,
+        group_id: phala_mq::ContractGroupId,
+        contract_id: phala_mq::ContractId,
     ) -> Self {
         NativeCompatContract {
             contract,
             send_mq,
             cmd_rcv_mq,
             ecdh_key,
+            group_id,
+            contract_id,
         }
     }
 }
 
 impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
     fn id(&self) -> ContractId {
-        self.contract.id()
+        self.contract_id
     }
 
-    fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
-        self.contract.group_id()
+    fn group_id(&self) -> phala_mq::ContractGroupId {
+        self.group_id
     }
 
     fn handle_query(

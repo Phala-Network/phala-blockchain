@@ -27,9 +27,10 @@ pub mod pallet {
 		contract::{CodeIndex, ContractInfo},
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
+			SignedMessage, SystemEvent, WorkerEvent, WorkerContractReport,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -624,18 +625,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_pink_message_received(
-			message: DecodedMessage<WorkerPinkReport>,
+		pub fn on_worker_contract_message_received(
+			message: DecodedMessage<WorkerContractReport>,
 		) -> DispatchResult {
 			match &message.sender {
 				MessageOrigin::Worker(_) => (),
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				WorkerPinkReport::PinkInstantiated {
+				WorkerContractReport::ContractInstantiated {
 					id,
 					group_id: _,
-					owner: _,
+					deployer: _,
 					pubkey,
 				} => {
 					ContractKey::<T>::insert(id, pubkey);

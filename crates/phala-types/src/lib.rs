@@ -571,13 +571,13 @@ pub mod messaging {
 
     // Pink messages
 
-    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
+    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerPinkReport {
-        PinkInstantiated {
+    pub enum WorkerContractReport {
+        ContractInstantiated {
             id: ContractId,
             group_id: ContractGroupId,
-            owner: AccountId,
+            deployer: AccountId,
             pubkey: EcdhPublicKey,
         },
     }

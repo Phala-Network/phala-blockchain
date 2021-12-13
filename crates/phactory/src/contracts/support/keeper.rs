@@ -130,6 +130,10 @@ impl ContractsKeeper {
         self.0.get_mut(id)
     }
 
+    pub fn get(&self, id: &ContractId) -> Option<&AnyContract> {
+        self.0.get(id)
+    }
+
     #[cfg(test)]
     pub fn values_mut(&mut self) -> impl Iterator<Item = &mut AnyContract> {
         self.0.values_mut()

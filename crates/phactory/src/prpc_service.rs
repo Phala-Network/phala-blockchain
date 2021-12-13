@@ -1,7 +1,6 @@
 use crate::system::System;
 
 use super::*;
-use crate::secret_channel::SecretReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
@@ -332,66 +331,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         let send_mq = MessageSendQueue::default();
-        let mut recv_mq = MessageDispatcher::default();
+        let recv_mq = MessageDispatcher::default();
 
-        let mut contracts = contracts::ContractsKeeper::default();
-
-        if self.dev_mode {
-            // Install contracts when running in dev_mode.
-            info!("Install contracts in dev mode");
-
-            macro_rules! install_contract {
-                ($id: expr, $inner: expr) => {{
-                    let contract_id = contract::id256($id);
-                    let sender = phala_mq::MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, identity_key.clone().into());
-                    // TODO.kevin: use real contract key
-                    let contract_key = ecdh_key.clone();
-                    let cmd_mq = SecretReceiver::new_secret(
-                        recv_mq
-                            .subscribe(contract::command_topic(contract_id))
-                            .into(),
-                        contract_key,
-                    );
-                    let wrapped =
-                        contracts::NativeCompatContract::new($inner, mq, cmd_mq, ecdh_key.clone());
-                    contracts.insert(wrapped);
-                }};
-            }
-
-            install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-            install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-            // TODO.kevin:
-            // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-            // install_contract!(
-            //     contracts::SUBSTRATE_KITTIES,
-            //     contracts::substrate_kitties::SubstrateKitties::new()
-            // );
-            install_contract!(
-                contracts::BTC_LOTTERY,
-                contracts::btc_lottery::BtcLottery::new(Some(identity_key.to_raw_vec()))
-            );
-            install_contract!(
-                contracts::WEB3_ANALYTICS,
-                contracts::web3analytics::Web3Analytics::new()
-            );
-            install_contract!(
-                contracts::DATA_PLAZA,
-                contracts::data_plaza::DataPlaza::new()
-            );
-            install_contract!(
-                contracts::GEOLOCATION,
-                contracts::geolocation::Geolocation::new()
-            );
-            install_contract!(
-                contracts::GUESS_NUMBER,
-                contracts::guess_number::GuessNumber::new()
-            );
-            install_contract!(
-                contracts::BTC_PRICE_BOT,
-                contracts::btc_price_bot::BtcPriceBot::new()
-            );
-        }
+        let contracts = contracts::ContractsKeeper::default();
 
         let mut runtime_state = RuntimeState {
             send_mq,

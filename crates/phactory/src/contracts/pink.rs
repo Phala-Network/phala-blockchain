@@ -2,7 +2,7 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
+use phala_mq::{ContractGroupId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 
@@ -62,7 +62,7 @@ impl Pink {
         Self { instance, group }
     }
 
-    pub fn address_to_id(address: &AccountId) -> ContractId {
+    pub fn address_to_id(address: &AccountId) -> contracts::NativeContractId {
         let inner: &[u8; 32] = address.as_ref();
         inner.into()
     }
@@ -75,12 +75,8 @@ impl contracts::NativeContract for Pink {
 
     type QResp = Result<Response, QueryError>;
 
-    fn id(&self) -> ContractId {
-        Pink::address_to_id(&self.instance.address)
-    }
-
-    fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
-        Some(self.group.clone())
+    fn id(&self) -> contracts::NativeContractId {
+        Pink::address_to_id(&self.instance.address).into()
     }
 
     fn handle_query(
@@ -208,13 +204,7 @@ pub mod group {
             now: u64,
         ) -> Result<ExecSideEffects> {
             let group = self
-                .groups
-                .entry(group_id.clone())
-                .or_insert_with(|| Group {
-                    storage: Default::default(),
-                    contracts: Default::default(),
-                    key: contract_key.clone(),
-                });
+                .get_group_or_default_mut(&group_id, contract_key);
             let (_, effects) = Pink::instantiate(
                 group_id,
                 &mut group.storage,
@@ -239,6 +229,20 @@ pub mod group {
             self.groups.get_mut(group_id)
         }
 
+        pub fn get_group_or_default_mut(
+            &mut self,
+            group_id: &ContractGroupId,
+            contract_key: &sr25519::Pair,
+        ) -> &mut Group {
+            self.groups
+                .entry(group_id.clone())
+                .or_insert_with(|| Group {
+                    storage: Default::default(),
+                    contracts: Default::default(),
+                    key: contract_key.clone(),
+                })
+        }
+
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
             for group in self.groups.values_mut() {
                 group.commit_changes()?;
@@ -256,8 +260,9 @@ pub mod group {
     }
 
     impl Group {
-        pub fn add_contract(&mut self, address: ContractId) {
-            self.contracts.insert(address);
+        /// Add a new contract to the group. Returns true if the contract is new.
+        pub fn add_contract(&mut self, address: ContractId) -> bool {
+            self.contracts.insert(address)
         }
 
         pub fn key(&self) -> &sr25519::Pair {
