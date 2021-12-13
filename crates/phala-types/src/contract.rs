@@ -28,7 +28,7 @@ pub mod messaging {
     use codec::{Decode, Encode};
 
     use super::ContractInfo;
-    use crate::WorkerPublicKey;
+    use crate::{EcdhPublicKey, WorkerPublicKey};
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
@@ -36,14 +36,14 @@ pub mod messaging {
     pub enum ContractEvent<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: Option<WorkerPublicKey>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
         },
     }
 
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: Option<WorkerPublicKey>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
         ) -> Self {
             ContractEvent::InstantiateCode {
                 contract_info,

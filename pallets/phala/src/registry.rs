@@ -389,7 +389,7 @@ pub mod pallet {
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
-			deploy_worker: Option<WorkerPublicKey>,
+			deploy_worker: WorkerPublicKey,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
 
@@ -402,6 +402,9 @@ pub mod pallet {
 					);
 				}
 			}
+
+			let worker_info =
+				Workers::<T>::try_get(&deploy_worker).or(Err(Error::<T>::WorkerNotFound))?;
 
 			let group_id = ContractGroupCounter::<T>::mutate(|group_counter| {
 				*group_counter += 1;
@@ -417,7 +420,7 @@ pub mod pallet {
 			};
 			Self::push_message(ContractEvent::instantiate_code(
 				contract_info,
-				deploy_worker,
+				(worker_info.pubkey, worker_info.ecdh_pubkey),
 			));
 
 			Ok(())

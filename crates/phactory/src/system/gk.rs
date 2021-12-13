@@ -270,12 +270,9 @@ where
                 contract_info,
                 deploy_worker,
             } => {
-                // TODO(shelven): enable random Worker assignment
-                if deploy_worker.is_none() {
-                    info!("have to specify deploy_worker for now");
-                    return;
-                }
-                let deploy_worker = deploy_worker.expect("verified not none; qed.");
+                // TODO(shelven): enable multiple workers assignment
+                let worker_pubkey = deploy_worker.0;
+                let ecdh_pubkey = deploy_worker.1;
 
                 assert!(
                     origin.is_pallet(),
@@ -297,7 +294,7 @@ where
                     .expect("should never fail with valid master key; qed.");
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
                 secret_mq
-                    .bind_remote_key(Some(&deploy_worker.0))
+                    .bind_remote_key(Some(&ecdh_pubkey.0))
                     .push_message(&ContractKeyDistribution::contract_key_distribution(
                         contract_key.dump_secret_key(),
                         contract_info.clone(),
@@ -306,7 +303,7 @@ where
                 self.egress.push_message(
                     &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
                         contract_pubkey: contract_key.public(),
-                        worker_pubkey: deploy_worker.clone(),
+                        worker_pubkey: worker_pubkey,
                     },
                 );
             }
