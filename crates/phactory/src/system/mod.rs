@@ -1079,7 +1079,7 @@ pub fn apply_pink_side_effects(
     }
 
     for (address, event) in effects.pink_events {
-        let id = Pink::address_to_id(&address);
+        let id = Pink::address_to_id(&address, &group_id);
         let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
             None => {

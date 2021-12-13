@@ -62,9 +62,10 @@ impl Pink {
         Self { instance, group }
     }
 
-    pub fn address_to_id(address: &AccountId) -> ContractId {
-        let inner: &[u8; 32] = address.as_ref();
-        inner.into()
+    pub fn address_to_id(address: &AccountId, group: &ContractGroupId) -> ContractId {
+        let mut buffer: Vec<u8> = group.encode();
+        address.encode_to(&mut buffer);
+        sp_core::blake2_256(&buffer).into()
     }
 }
 
@@ -76,7 +77,7 @@ impl contracts::NativeContract for Pink {
     type QResp = Result<Response, QueryError>;
 
     fn id(&self) -> ContractId {
-        Pink::address_to_id(&self.instance.address)
+        Pink::address_to_id(&self.instance.address, &self.group)
     }
 
     fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
