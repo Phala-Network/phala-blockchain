@@ -95,21 +95,22 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, _messages) = self
-                    .instance
-                    .bare_call(
-                        storage,
-                        origin.clone(),
-                        input_data,
-                        true,
-                        context.block_number,
-                        context.now_ms,
-                    )
-                    .map_err(|err| {
-                        log::error!("Pink [{:?}] query exec error: {:?}", self.id(), err);
-                        QueryError::RuntimeError(format!("Call contract method failed: {:?}", err))
-                    })?;
-                return Ok(Response::InkMessageReturn(ret));
+                let call_result = self.instance.bare_call(
+                    storage,
+                    origin.clone(),
+                    input_data,
+                    true,
+                    context.block_number,
+                    context.now_ms,
+                );
+                let ink_result = match call_result {
+                    Ok((ink_result, _effect)) => ink_result,
+                    Err(ink_result) => {
+                        log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                        ink_result
+                    }
+                };
+                return Ok(Response::InkMessageReturn(ink_result.encode()));
             }
         }
     }
@@ -184,12 +185,12 @@ pub mod group {
 
     use anyhow::Result;
     use phala_mq::{ContractGroupId, ContractId};
+    use phala_serde_more as more;
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use std::collections::{BTreeMap, BTreeSet};
-    use phala_serde_more as more;
 
     #[derive(Default, Serialize, Deserialize)]
     pub struct GroupKeeper {
