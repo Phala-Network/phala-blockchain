@@ -72,12 +72,16 @@ impl NativeContractId {
     }
 }
 
+pub trait NativeContractMore {
+    fn id(&self) -> NativeContractId;
+    fn set_on_block_end_selector(&mut self, _selector: u32) {}
+}
+
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
     type QResp: Encode + Debug;
 
-    fn id(&self) -> NativeContractId;
     fn handle_command(
         &mut self,
         _origin: MessageOrigin,
@@ -95,15 +99,61 @@ pub trait NativeContract {
     fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
         Ok(Default::default())
     }
-    fn set_on_block_end_selector(&mut self, _selector: u32) {}
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode)]
+pub struct NativeContractWrapper<Con> {
+    inner: Con,
+    id: sp_core::H256,
+}
+
+impl<Con> NativeContractWrapper<Con> {
+    pub fn new(inner: Con, deployer: sp_core::H256, salt: &[u8], id: u32) -> Self {
+        let mut buffer = deployer.encode();
+        buffer.extend_from_slice(&id.to_be_bytes());
+        buffer.extend_from_slice(salt);
+        let id = sp_core::blake2_256(&buffer).into();
+        NativeContractWrapper { inner, id }
+    }
+}
+
+impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
+    type Cmd = Con::Cmd;
+    type QReq = Con::QReq;
+    type QResp = Con::QResp;
+
+    fn handle_command(
+        &mut self,
+        origin: MessageOrigin,
+        cmd: Self::Cmd,
+        context: &mut NativeContext,
+    ) -> TransactionResult {
+        self.inner.handle_command(origin, cmd, context)
+    }
+
+    fn handle_query(
+        &mut self,
+        origin: Option<&runtime::AccountId>,
+        req: Self::QReq,
+        context: &mut QueryContext,
+    ) -> Self::QResp {
+        self.inner.handle_query(origin, req, context)
+    }
+
+    fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
+        self.inner.on_block_end(context)
+    }
+}
+
+impl<Con: NativeContract> NativeContractMore for NativeContractWrapper<Con> {
+    fn id(&self) -> NativeContractId {
+        self.id.into()
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct NativeCompatContract<Con: NativeContract> {
-    #[serde(bound(
-        serialize = "Con: Encode",
-        deserialize = "Con: Decode"
-    ))]
+    #[serde(bound(serialize = "Con: Encode", deserialize = "Con: Decode"))]
     #[serde(with = "more::scale_bytes")]
     contract: Con,
     send_mq: SignedMessageChannel,
@@ -134,7 +184,7 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
     }
 }
 
-impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
+impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract<Con> {
     fn id(&self) -> ContractId {
         self.contract_id
     }

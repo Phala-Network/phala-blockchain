@@ -6,6 +6,8 @@ use phala_mq::{ContractGroupId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 
+use super::NativeContractMore;
+
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
     InkMessage { nonce: Vec<u8>, message: Vec<u8> },
@@ -74,10 +76,6 @@ impl contracts::NativeContract for Pink {
     type QReq = Query;
 
     type QResp = Result<Response, QueryError>;
-
-    fn id(&self) -> contracts::NativeContractId {
-        Pink::address_to_id(&self.instance.address).into()
-    }
 
     fn handle_query(
         &mut self,
@@ -158,6 +156,12 @@ impl contracts::NativeContract for Pink {
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
             })?;
         Ok(effects)
+    }
+}
+
+impl NativeContractMore for Pink {
+    fn id(&self) -> contracts::NativeContractId {
+        Pink::address_to_id(&self.instance.address).into()
     }
 
     fn set_on_block_end_selector(&mut self, selector: u32) {

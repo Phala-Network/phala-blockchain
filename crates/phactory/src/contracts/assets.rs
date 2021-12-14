@@ -96,10 +96,6 @@ impl contracts::NativeContract for Assets {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::NativeContractId {
-        contracts::id256(contracts::ASSETS).into()
-    }
-
     fn handle_command(
         &mut self,
         origin: MessageOrigin,

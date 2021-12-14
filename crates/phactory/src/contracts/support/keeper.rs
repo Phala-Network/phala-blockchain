@@ -3,18 +3,18 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
-use super::{Contract, NativeCompatContract as Compat};
+use super::{Contract, NativeCompatContract, NativeContractWrapper};
 use crate::contracts::{
-    assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
-    data_plaza::DataPlaza, geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
-    web3analytics::Web3Analytics,
+    assets::Assets, balances::Balances, btc_lottery::BtcLottery, data_plaza::DataPlaza,
+    geolocation::Geolocation, pink::Pink, web3analytics::Web3Analytics,
 };
 
 type ContractMap = BTreeMap<ContractId, AnyContract>;
+type Compat<T> = NativeCompatContract<NativeContractWrapper<T>>;
 
 #[derive(Serialize, Deserialize)]
 pub enum AnyContract {
-    Pink(Compat<Pink>),
+    Pink(NativeCompatContract<Pink>),
     DataPlaza(Compat<DataPlaza>),
     Balances(Compat<Balances>),
     Assets(Compat<Assets>),
@@ -59,8 +59,8 @@ impl DerefMut for AnyContract {
     }
 }
 
-impl From<Compat<Pink>> for AnyContract {
-    fn from(c: Compat<Pink>) -> Self {
+impl From<NativeCompatContract<Pink>> for AnyContract {
+    fn from(c: NativeCompatContract<Pink>) -> Self {
         AnyContract::Pink(c)
     }
 }

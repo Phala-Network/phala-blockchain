@@ -4,7 +4,9 @@ mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{pink::group::Group, ContractsKeeper, ExecuteEnv, NativeContract},
+    contracts::{
+        pink::group::Group, ContractsKeeper, ExecuteEnv, NativeContract, NativeContractMore,
+    },
     pink::{group::GroupKeeper, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
@@ -852,20 +854,40 @@ impl<Platform: pal::Platform> System<Platform> {
         match contract_info.code_index {
             CodeIndex::NativeCode(contract_id) => {
                 use contracts::*;
+                let salt = contract_info.salt;
+                let deployer = phala_types::messaging::AccountId(contract_info.deployer.into());
 
-                macro_rules! install {
-                    ($contract: expr) => {{
-                        let ecdh_key = contract_key
-                            .derive_ecdh_key()
-                            .expect("Derive ecdh_key should not fail");
-                        install_contract(
-                            &mut self.contracts,
-                            $contract,
-                            contract_key.0.clone(),
-                            ecdh_key,
-                            block,
-                            group_id,
-                        )?
+                macro_rules! match_and_install_contract {
+                    ($(($id: path, $contract: expr)),*) => {{
+                        match contract_id {
+                            $(
+                                $id => {
+                                    let ecdh_key = contract_key
+                                        .derive_ecdh_key()
+                                        .expect("Derive ecdh_key should not fail");
+                                    let contract = NativeContractWrapper::new(
+                                        $contract,
+                                        deployer,
+                                        &salt,
+                                        $id,
+                                    );
+                                    install_contract(
+                                        &mut self.contracts,
+                                        contract,
+                                        contract_key.0.clone(),
+                                        ecdh_key,
+                                        block,
+                                        group_id,
+                                    )?
+                                }
+                            )*
+                            _ => {
+                                anyhow::bail!(
+                                    "Invalid contract id: {:?}",
+                                    contract_id
+                                );
+                            }
+                        }
                     }};
                 }
 
@@ -874,18 +896,13 @@ impl<Platform: pal::Platform> System<Platform> {
                     .derive_ecdh_key()
                     .or(Err(anyhow::anyhow!("Invalid contract key")))?;
 
-                let contract_id = match contract_id {
-                    DATA_PLAZA => install!(data_plaza::DataPlaza::new()),
-                    BALANCES => install!(balances::Balances::new()),
-                    ASSETS => install!(assets::Assets::new()),
-                    BTC_LOTTERY => {
-                        install!(btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec())))
-                    }
-                    WEB3_ANALYTICS => install!(web3analytics::Web3Analytics::new()),
-                    GEOLOCATION => install!(geolocation::Geolocation::new()),
-                    _ => {
-                        anyhow::bail!("Invalid contract id: {:?}", contract_id);
-                    }
+                let contract_id = match_and_install_contract! {
+                    (DATA_PLAZA, data_plaza::DataPlaza::new()),
+                    (BALANCES, balances::Balances::new()),
+                    (ASSETS, assets::Assets::new()),
+                    (BTC_LOTTERY, btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
+                    (WEB3_ANALYTICS, web3analytics::Web3Analytics::new()),
+                    (GEOLOCATION, geolocation::Geolocation::new())
                 };
 
                 self.contract_groups
@@ -895,7 +912,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let message = WorkerContractReport::ContractInstantiated {
                     id: contract_id,
                     group_id,
-                    deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
+                    deployer,
                     pubkey: EcdhPublicKey(ecdh_key.public()),
                 };
                 info!("Native contract instantiate status: {:?}", message);
@@ -1066,8 +1083,8 @@ pub fn apply_pink_side_effects(
             Some(contract) => contract,
             None => {
                 panic!(
-                    "BUG: Unknown contract sending pink event, address={:?}",
-                    address
+                    "BUG: Unknown contract sending pink event, address={:?}, group_id={:?}",
+                    address, group_id
                 );
             }
         };
@@ -1100,7 +1117,7 @@ pub fn install_contract<Contract>(
     group_id: phala_mq::ContractGroupId,
 ) -> anyhow::Result<contracts::ContractId>
 where
-    Contract: NativeContract + Send + 'static,
+    Contract: NativeContract + NativeContractMore + Send + 'static,
     <Contract as NativeContract>::Cmd: Send,
     contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
 {
