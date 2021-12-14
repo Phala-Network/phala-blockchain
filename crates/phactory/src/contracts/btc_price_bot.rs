@@ -164,7 +164,7 @@ impl contracts::NativeContract for BtcPriceBot {
                 let duration = 2;
 
                 let mq = context.mq().clone();
-                let my_id = self.id();
+                let my_id = context.self_id;
 
                 let default_messages = [mq.prepare_message_to(&(), "^phala/mq/blockhole")];
 
@@ -241,7 +241,7 @@ impl contracts::NativeContract for BtcPriceBot {
                     price
                 );
 
-                if origin != MessageOrigin::native_contract(contracts::BTC_PRICE_BOT) {
+                if origin != MessageOrigin::Contract(context.self_id) {
                     return Err(TransactionError::BadOrigin);
                 }
 
