@@ -9,13 +9,13 @@ use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
 use phala_serde_more as more;
 
-pub struct ExecuteEnv<'a> {
-    pub block: &'a BlockInfo<'a>,
+pub struct ExecuteEnv<'a, 'b> {
+    pub block: &'a mut BlockInfo<'b>,
     pub contract_groups: &'a mut GroupKeeper,
 }
 
-pub struct NativeContext<'a> {
-    pub block: &'a BlockInfo<'a>,
+pub struct NativeContext<'a, 'b> {
+    pub block: &'a mut BlockInfo<'b>,
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
     pub contract_groups: &'a mut GroupKeeper,
@@ -27,7 +27,7 @@ pub struct QueryContext<'a> {
     pub contract_groups: &'a mut GroupKeeper,
 }
 
-impl NativeContext<'_> {
+impl NativeContext<'_, '_> {
     pub fn mq(&self) -> &SignedMessageChannel {
         self.mq
     }
