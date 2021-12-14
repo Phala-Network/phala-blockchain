@@ -1245,7 +1245,7 @@ mod tests {
 
         apply_pink_side_effects(
             effects,
-            &group_id,
+            group_id,
             &mut contracts,
             group,
             &mut block_info,
