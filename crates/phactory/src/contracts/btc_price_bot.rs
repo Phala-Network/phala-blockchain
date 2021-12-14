@@ -71,7 +71,8 @@ pub enum Response {
     Price(String),
 }
 
-#[derive(Encode, Decode, Debug)]
+#[derive(Encode, Decode, Debug, thiserror::Error)]
+#[error("{:?}", self)]
 pub enum Error {
     OriginUnavailable,
     NotAuthorized,
@@ -186,7 +187,7 @@ impl contracts::NativeContract for BtcPriceBot {
                         {
                             Ok(r) => r,
                             Err(err) => {
-                                return Err(Error::NetworkUnavailable);
+                                return Err(Error::NetworkUnavailable.into());
                             }
                         };
                         let result = match resp.body_string().await {
@@ -198,8 +199,7 @@ impl contracts::NativeContract for BtcPriceBot {
                         log::info!("Side task got BTC price: {}", result);
 
                         let price: BtcPrice = serde_json::from_str(result.as_str())
-                            .expect("broken BTC price result")
-                            .map_err(|_| Error::BadBtcPrice);
+                            .or(Err(Error::BadBtcPrice))?;
                         let text = format!("BTC price: ${}", price.usd);
                         let uri = format!(
                             "https://api.telegram.org/bot{}/{}",
@@ -214,7 +214,7 @@ impl contracts::NativeContract for BtcPriceBot {
                         {
                             Ok(r) => r,
                             Err(err) => {
-                                return Err(Error::NetworkUnavailable);
+                                return Err(Error::NetworkUnavailable.into());
                             }
                         };
                         let result = match resp.body_string().await {
