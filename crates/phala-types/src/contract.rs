@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-pub use phala_mq::{contract_id256 as id256, ContractId};
+pub use phala_mq::ContractId;
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;

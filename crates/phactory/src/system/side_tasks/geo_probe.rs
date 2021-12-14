@@ -97,8 +97,10 @@ pub fn process_block(
 
         let egress = egress.clone();
         let duration = PROBE_DURATION;
-
-        let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
+        fn get_geo_contract_id() -> phala_mq::ContractId {
+            todo!("TODO.kevin: get contract id from some where")
+        }
+        let topic = contract::command_topic(get_geo_contract_id());
         let my_ecdh_key = identity_key
             .derive_ecdh_key()
             .expect("Should never failed with valid identity key; qed.");
@@ -162,7 +164,6 @@ pub fn process_block(
             // 5. construct the secret message channel
             let secret_channel =
                 secret_channel::bind_remote(&egress, &my_ecdh_key, Some(&remote_pubkey));
-            let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
             //6. send the command
             Ok([secret_channel.prepare_message_to(&msg, topic)])
         });
