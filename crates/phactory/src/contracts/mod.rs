@@ -19,6 +19,9 @@ pub mod pink;
 // pub mod substrate_kitties;
 pub mod web3analytics;
 
+pub mod btc_price_bot;
+pub mod guess_number;
+
 pub use phala_types::contract::*;
 
 fn account_id_from_hex(s: &str) -> Result<AccountId> {

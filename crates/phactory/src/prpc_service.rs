@@ -1,4 +1,3 @@
-
 use crate::system::System;
 
 use super::*;
@@ -327,11 +326,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
-            Synchronizer::new_parachain(
-                light_client,
-                main_bridge,
-                next_headernum,
-            )
+            Synchronizer::new_parachain(light_client, main_bridge, next_headernum)
         } else {
             Synchronizer::new_solochain(light_client, main_bridge)
         };
@@ -358,12 +353,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                             .into(),
                         contract_key,
                     );
-                    let wrapped = contracts::NativeCompatContract::new(
-                        $inner,
-                        mq,
-                        cmd_mq,
-                        ecdh_key.clone(),
-                    );
+                    let wrapped =
+                        contracts::NativeCompatContract::new($inner, mq, cmd_mq, ecdh_key.clone());
                     contracts.insert(wrapped);
                 }};
             }
@@ -391,6 +382,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             install_contract!(
                 contracts::GEOLOCATION,
                 contracts::geolocation::Geolocation::new()
+            );
+            install_contract!(
+                contracts::GUESS_NUMBER,
+                contracts::guess_number::GuessNumber::new()
+            );
+            install_contract!(
+                contracts::BTC_PRICE_BOT,
+                contracts::btc_price_bot::BtcPriceBot::new()
             );
         }
 
@@ -717,7 +716,9 @@ pub struct RpcService<'a, Platform> {
 }
 
 /// A server that process all RPCs.
-impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi for RpcService<'_, Platform> {
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
+    for RpcService<'_, Platform>
+{
     /// Get basic information about Phactory state.
     fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(self.phactory.get_info())

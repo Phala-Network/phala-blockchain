@@ -5,13 +5,9 @@ use std::ops::{Deref, DerefMut};
 
 use super::{Contract, NativeCompatContract as Compat};
 use crate::contracts::{
-    pink::Pink,
-    data_plaza::DataPlaza,
-    balances::Balances,
-    assets::Assets,
+    assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
+    data_plaza::DataPlaza, geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
     web3analytics::Web3Analytics,
-    btc_lottery::BtcLottery,
-    geolocation::Geolocation,
 };
 
 type ContractMap = BTreeMap<ContractId, AnyContract>;
@@ -25,6 +21,8 @@ pub enum AnyContract {
     Web3Analytics(Compat<Web3Analytics>),
     BtcLottery(Compat<BtcLottery>),
     Geolocation(Compat<Geolocation>),
+    GuessNumber(Compat<GuessNumber>),
+    BtcPriceBot(Compat<BtcPriceBot>),
 }
 
 impl Deref for AnyContract {
@@ -39,6 +37,8 @@ impl Deref for AnyContract {
             AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
+            AnyContract::GuessNumber(c) => c,
+            AnyContract::BtcPriceBot(c) => c,
         }
     }
 }
@@ -53,6 +53,8 @@ impl DerefMut for AnyContract {
             AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
+            AnyContract::GuessNumber(c) => c,
+            AnyContract::BtcPriceBot(c) => c,
         }
     }
 }
@@ -96,6 +98,18 @@ impl From<Compat<BtcLottery>> for AnyContract {
 impl From<Compat<Geolocation>> for AnyContract {
     fn from(c: Compat<Geolocation>) -> Self {
         AnyContract::Geolocation(c)
+    }
+}
+
+impl From<Compat<GuessNumber>> for AnyContract {
+    fn from(c: Compat<GuessNumber>) -> Self {
+        AnyContract::GuessNumber(c)
+    }
+}
+
+impl From<Compat<BtcPriceBot>> for AnyContract {
+    fn from(c: Compat<BtcPriceBot>) -> Self {
+        AnyContract::BtcPriceBot(c)
     }
 }
 
