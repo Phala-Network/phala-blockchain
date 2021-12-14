@@ -166,10 +166,7 @@ impl contracts::NativeContract for BtcPriceBot {
                 let mq = context.mq().clone();
                 let my_id = self.id();
 
-                let command = Command::UpdateBtcPrice { price: None };
-                let default_message = Payload::Plain(command);
-                let default_messages =
-                    [mq.prepare_message_to(&default_message, command_topic(my_id.clone()))];
+                let default_messages = [mq.prepare_message_to(&(), "^phala/mq/blockhole")];
 
                 context.block.side_task_man.add_async_task(
                     block_number,
@@ -198,8 +195,8 @@ impl contracts::NativeContract for BtcPriceBot {
                         };
                         log::info!("Side task got BTC price: {}", result);
 
-                        let price: BtcPrice = serde_json::from_str(result.as_str())
-                            .or(Err(Error::BadBtcPrice))?;
+                        let price: BtcPrice =
+                            serde_json::from_str(result.as_str()).or(Err(Error::BadBtcPrice))?;
                         let text = format!("BTC price: ${}", price.usd);
                         let uri = format!(
                             "https://api.telegram.org/bot{}/{}",
@@ -225,9 +222,8 @@ impl contracts::NativeContract for BtcPriceBot {
                         };
                         log::info!("Side task sent BTC price: {}", result);
 
-                        let price = Some(price.usd.to_string());
+                        let price = price.usd.to_string();
                         log::info!("Side task reporting price: {:?}", &price);
-                        // Send the price to the contract to store it via mq, no matter whether it was success or fail.
                         let command = Command::UpdateBtcPrice { price };
                         let message = Payload::Plain(command);
 
@@ -240,7 +236,7 @@ impl contracts::NativeContract for BtcPriceBot {
             // Handle the price updating request from the side-task
             Command::UpdateBtcPrice { price } => {
                 log::info!(
-                    "UpdateBtcPrice received, origin={}, price={:?}",
+                    "UpdateBtcPrice received, origin={}, price={}",
                     origin,
                     price
                 );
@@ -249,9 +245,7 @@ impl contracts::NativeContract for BtcPriceBot {
                     return Err(TransactionError::BadOrigin);
                 }
 
-                if let Some(price) = price {
-                    self.price = price;
-                }
+                self.price = price;
                 Ok(Default::default())
             }
         }
