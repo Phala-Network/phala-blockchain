@@ -19,6 +19,7 @@ pub struct NativeContext<'a, 'b> {
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
     pub contract_groups: &'a mut GroupKeeper,
+    pub self_id: ContractId,
 }
 
 pub struct QueryContext<'a> {
@@ -142,6 +143,7 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
             mq: &self.send_mq,
             secret_mq,
             contract_groups: &mut env.contract_groups,
+            self_id: self.id(),
         };
 
         phala_mq::select! {
@@ -164,6 +166,7 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
             mq: &self.send_mq,
             secret_mq,
             contract_groups: &mut env.contract_groups,
+            self_id: self.id(),
         };
         self.contract.on_block_end(&mut context)
     }
