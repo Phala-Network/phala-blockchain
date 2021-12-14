@@ -69,11 +69,6 @@ impl PartialEq for MessageOrigin {
 }
 
 impl MessageOrigin {
-    /// Builds a new native confidential contract `MessageOrigin`
-    pub fn native_contract(id: u32) -> Self {
-        Self::Contract(contract_id256(id))
-    }
-
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
         matches!(self, Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper)

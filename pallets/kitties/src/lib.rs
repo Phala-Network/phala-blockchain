@@ -185,9 +185,13 @@ impl<T: Config> Module<T> {
 
 impl<T: Config> Module<T> {
 	pub fn on_message_received(message: DecodedMessage<KittyTransfer<T::AccountId>>) -> DispatchResult {
-		const CONTRACT_ID: u32 = 6;
+		// TODO: Since the contract can be deployed multiple instances now.
+		// This pallet need to adapt to support multiple instances. 
 
-		if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
+		// if message.sender != MessageOrigin::native_contract(CONTRACT_ID) {
+		// 	return Err(Error::<T>::NotAllowed.into());
+		// }
+		if true {
 			return Err(Error::<T>::NotAllowed.into());
 		}
 
