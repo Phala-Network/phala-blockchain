@@ -858,7 +858,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let deployer = phala_types::messaging::AccountId(contract_info.deployer.into());
 
                 macro_rules! match_and_install_contract {
-                    ($(($id: path, $contract: expr)),*) => {{
+                    ($(($id: path => $contract: expr)),*) => {{
                         match contract_id {
                             $(
                                 $id => {
@@ -897,12 +897,12 @@ impl<Platform: pal::Platform> System<Platform> {
                     .or(Err(anyhow::anyhow!("Invalid contract key")))?;
 
                 let contract_id = match_and_install_contract! {
-                    (DATA_PLAZA, data_plaza::DataPlaza::new()),
-                    (BALANCES, balances::Balances::new()),
-                    (ASSETS, assets::Assets::new()),
-                    (BTC_LOTTERY, btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
-                    (WEB3_ANALYTICS, web3analytics::Web3Analytics::new()),
-                    (GEOLOCATION, geolocation::Geolocation::new())
+                    (DATA_PLAZA => data_plaza::DataPlaza::new()),
+                    (BALANCES => balances::Balances::new()),
+                    (ASSETS => assets::Assets::new()),
+                    (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
+                    (WEB3_ANALYTICS => web3analytics::Web3Analytics::new()),
+                    (GEOLOCATION => geolocation::Geolocation::new())
                 };
 
                 self.contract_groups
