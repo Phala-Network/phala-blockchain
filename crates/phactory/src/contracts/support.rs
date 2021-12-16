@@ -9,16 +9,17 @@ use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
 use phala_serde_more as more;
 
-pub struct ExecuteEnv<'a> {
-    pub block: &'a BlockInfo<'a>,
+pub struct ExecuteEnv<'a, 'b> {
+    pub block: &'a mut BlockInfo<'b>,
     pub contract_groups: &'a mut GroupKeeper,
 }
 
-pub struct NativeContext<'a> {
-    pub block: &'a BlockInfo<'a>,
+pub struct NativeContext<'a, 'b> {
+    pub block: &'a mut BlockInfo<'b>,
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
     pub contract_groups: &'a mut GroupKeeper,
+    pub self_id: ContractId,
 }
 
 pub struct QueryContext<'a> {
@@ -27,7 +28,7 @@ pub struct QueryContext<'a> {
     pub contract_groups: &'a mut GroupKeeper,
 }
 
-impl NativeContext<'_> {
+impl NativeContext<'_, '_> {
     pub fn mq(&self) -> &SignedMessageChannel {
         self.mq
     }
@@ -142,6 +143,7 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
             mq: &self.send_mq,
             secret_mq,
             contract_groups: &mut env.contract_groups,
+            self_id: self.id(),
         };
 
         phala_mq::select! {
@@ -164,6 +166,7 @@ impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
             mq: &self.send_mq,
             secret_mq,
             contract_groups: &mut env.contract_groups,
+            self_id: self.id(),
         };
         self.contract.on_block_end(&mut context)
     }
