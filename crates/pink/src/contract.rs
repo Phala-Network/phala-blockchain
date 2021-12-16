@@ -117,18 +117,13 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<(ContractExecResult, ExecSideEffects), ContractExecResult> {
+    ) -> (ContractExecResult, ExecSideEffects) {
         let addr = self.address.clone();
-        let (rv, effects) = storage.execute_with(rollback, move || {
+        storage.execute_with(rollback, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
             Contracts::bare_call(origin, addr, 0, GAS_LIMIT, input_data, true)
-        });
-        if rv.result.is_ok() {
-            Ok((rv, effects))
-        } else {
-            Err(rv)
-        }
+        })
     }
 
     /// Call a contract method given it's selector
@@ -145,16 +140,15 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let result = self
-            .bare_call(storage, origin, input_data, rollback, block_number, now)
-            .map_err(|result| to_exec_error(result).unwrap())?;
-        let (rv, messages) = (result.0.result.unwrap().data.0, result.1);
+        let (result, effects) =
+            self.bare_call(storage, origin, input_data, rollback, block_number, now);
+        let mut rv = transpose_contract_result(&result)?;
         Ok((
-            Decode::decode(&mut &rv[..]).or(Err(ExecError {
+            Decode::decode(&mut rv).or(Err(ExecError {
                 source: DispatchError::Other("Decode result failed"),
                 message: Default::default(),
             }))?,
-            messages,
+            effects,
         ))
     }
 
@@ -169,17 +163,15 @@ impl Contract {
             let mut input_data = vec![];
             selector.to_be_bytes().encode_to(&mut input_data);
 
-            let result = self
-                .bare_call(
-                    storage,
-                    Default::default(),
-                    input_data,
-                    false,
-                    block_number,
-                    now,
-                )
-                .map_err(|result| to_exec_error(result).unwrap())?;
-            let effects = result.1;
+            let (result, effects) = self.bare_call(
+                storage,
+                Default::default(),
+                input_data,
+                false,
+                block_number,
+                now,
+            );
+            let _ = transpose_contract_result(&result)?;
             Ok(effects)
         } else {
             Ok(Default::default())
@@ -191,16 +183,15 @@ impl Contract {
     }
 }
 
-fn to_exec_error(result: ContractExecResult) -> Option<ExecError> {
-    match result.result {
-        Err(err) => {
-            return Some(ExecError {
-                source: err,
-                message: String::from_utf8_lossy(&result.debug_message).to_string(),
-            });
-        }
-        _ => None,
-    }
+pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], ExecError> {
+    result
+        .result
+        .as_ref()
+        .map(|v| &*v.data.0)
+        .map_err(|err| ExecError {
+            source: err.clone(),
+            message: String::from_utf8_lossy(&result.debug_message).to_string(),
+        })
 }
 
 pub use contract_file::ContractFile;

@@ -95,7 +95,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let call_result = self.instance.bare_call(
+                let (ink_result, _effects) = self.instance.bare_call(
                     storage,
                     origin.clone(),
                     input_data,
@@ -103,13 +103,9 @@ impl contracts::NativeContract for Pink {
                     context.block_number,
                     context.now_ms,
                 );
-                let ink_result = match call_result {
-                    Ok((ink_result, _effect)) => ink_result,
-                    Err(ink_result) => {
-                        log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
-                        ink_result
-                    }
-                };
+                if ink_result.result.is_err() {
+                    log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                }
                 return Ok(Response::InkMessageReturn(ink_result.encode()));
             }
         }
@@ -131,7 +127,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, effects) = self
+                let (result, effects) = self
                     .instance
                     .bare_call(
                         storage,
@@ -140,7 +136,9 @@ impl contracts::NativeContract for Pink {
                         false,
                         context.block.block_number,
                         context.block.now_ms,
-                    )
+                    );
+
+                let ret = pink::transpose_contract_result(&result)
                     .map_err(|err| {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                         TransactionError::Other(format!("Call contract method failed: {:?}", err))
