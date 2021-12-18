@@ -51,7 +51,7 @@ async function poolStatus(apiAt, pid, account) {
     let poolInfo = await apiAt.query.phalaStakePool.stakePools(pid);
     if (poolInfo.isSome) {
         poolInfo = poolInfo.unwrap();
-        const w = poolInfo.withdrawQueue.find(r => r.user.toString() == ACC);
+        const w = poolInfo.withdrawQueue.find(r => r.user.toString() == account);
         status = {
             ...status,
             releasing: pha(poolInfo.releasingStake),
