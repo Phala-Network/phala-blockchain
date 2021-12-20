@@ -95,21 +95,18 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, _messages) = self
-                    .instance
-                    .bare_call(
-                        storage,
-                        origin.clone(),
-                        input_data,
-                        true,
-                        context.block_number,
-                        context.now_ms,
-                    )
-                    .map_err(|err| {
-                        log::error!("Pink [{:?}] query exec error: {:?}", self.id(), err);
-                        QueryError::RuntimeError(format!("Call contract method failed: {:?}", err))
-                    })?;
-                return Ok(Response::InkMessageReturn(ret));
+                let (ink_result, _effects) = self.instance.bare_call(
+                    storage,
+                    origin.clone(),
+                    input_data,
+                    true,
+                    context.block_number,
+                    context.now_ms,
+                );
+                if ink_result.result.is_err() {
+                    log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                }
+                return Ok(Response::InkMessageReturn(ink_result.encode()));
             }
         }
     }
@@ -130,7 +127,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, effects) = self
+                let (result, effects) = self
                     .instance
                     .bare_call(
                         storage,
@@ -139,7 +136,9 @@ impl contracts::NativeContract for Pink {
                         false,
                         context.block.block_number,
                         context.block.now_ms,
-                    )
+                    );
+
+                let ret = pink::transpose_contract_result(&result)
                     .map_err(|err| {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                         TransactionError::Other(format!("Call contract method failed: {:?}", err))
@@ -184,12 +183,12 @@ pub mod group {
 
     use anyhow::Result;
     use phala_mq::{ContractGroupId, ContractId};
+    use phala_serde_more as more;
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use std::collections::{BTreeMap, BTreeSet};
-    use phala_serde_more as more;
 
     #[derive(Default, Serialize, Deserialize)]
     pub struct GroupKeeper {
