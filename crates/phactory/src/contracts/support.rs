@@ -65,10 +65,8 @@ impl From<&[u8; 32]> for NativeContractId {
 }
 
 impl NativeContractId {
-    pub fn to_contract_id(&self, group: &phala_mq::ContractGroupId) -> phala_mq::ContractId {
-        let mut buffer = group.encode();
-        self.0.encode_to(&mut buffer);
-        sp_core::blake2_256(&buffer).into()
+    pub fn to_contract_id(&self, group_id: &phala_mq::ContractGroupId) -> phala_mq::ContractId {
+        sp_core::blake2_256(&(group_id, &self.0).encode()).into()
     }
 }
 
@@ -109,10 +107,8 @@ pub struct NativeContractWrapper<Con> {
 
 impl<Con> NativeContractWrapper<Con> {
     pub fn new(inner: Con, deployer: sp_core::H256, salt: &[u8], id: u32) -> Self {
-        let mut buffer = deployer.encode();
-        buffer.extend_from_slice(&id.to_be_bytes());
-        buffer.extend_from_slice(salt);
-        let id = sp_core::blake2_256(&buffer).into();
+        let encoded = (deployer, id, salt).encode();
+        let id = sp_core::blake2_256(&encoded).into();
         NativeContractWrapper { inner, id }
     }
 }

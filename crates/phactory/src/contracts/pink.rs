@@ -161,7 +161,7 @@ impl contracts::NativeContract for Pink {
 
 impl NativeContractMore for Pink {
     fn id(&self) -> contracts::NativeContractId {
-        Pink::address_to_id(&self.instance.address).into()
+        Pink::address_to_id(&self.instance.address)
     }
 
     fn set_on_block_end_selector(&mut self, selector: u32) {

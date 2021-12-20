@@ -856,15 +856,16 @@ impl<Platform: pal::Platform> System<Platform> {
                 use contracts::*;
                 let salt = contract_info.salt;
                 let deployer = phala_types::messaging::AccountId(contract_info.deployer.into());
+                let ecdh_key = contract_key
+                    .0
+                    .derive_ecdh_key()
+                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
 
                 macro_rules! match_and_install_contract {
                     ($(($id: path => $contract: expr)),*) => {{
                         match contract_id {
                             $(
                                 $id => {
-                                    let ecdh_key = contract_key
-                                        .derive_ecdh_key()
-                                        .expect("Derive ecdh_key should not fail");
                                     let contract = NativeContractWrapper::new(
                                         $contract,
                                         deployer,
@@ -891,10 +892,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     }};
                 }
 
-                let ecdh_key = contract_key
-                    .0
-                    .derive_ecdh_key()
-                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
+                let ecdh_pubkey = ecdh_key.public();
 
                 let contract_id = match_and_install_contract! {
                     (DATA_PLAZA => data_plaza::DataPlaza::new()),
@@ -913,7 +911,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     id: contract_id,
                     group_id,
                     deployer,
-                    pubkey: EcdhPublicKey(ecdh_key.public()),
+                    pubkey: EcdhPublicKey(ecdh_pubkey),
                 };
                 info!("Native contract instantiate status: {:?}", message);
                 self.egress.push_message(&message);
