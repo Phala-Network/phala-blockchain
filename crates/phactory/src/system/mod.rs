@@ -868,6 +868,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 $id => {
                                     let contract = NativeContractWrapper::new(
                                         $contract,
+                                        &group_id,
                                         deployer,
                                         &salt,
                                         $id,
@@ -1078,7 +1079,7 @@ pub fn apply_pink_side_effects(
     }
 
     for (address, event) in effects.pink_events {
-        let id = Pink::address_to_id(&address).to_contract_id(&group_id);
+        let id = Pink::address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
             None => {
@@ -1121,7 +1122,7 @@ where
     <Contract as NativeContract>::Cmd: Send,
     contracts::AnyContract: From<contracts::NativeCompatContract<Contract>>,
 {
-    let contract_id = contract.id().to_contract_id(&group_id);
+    let contract_id = contract.id();
     if contracts.get(&contract_id).is_some() {
         return Err(anyhow::anyhow!("Contract already exists"));
     }

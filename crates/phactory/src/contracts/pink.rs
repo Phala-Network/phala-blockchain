@@ -64,7 +64,7 @@ impl Pink {
         Self { instance, group }
     }
 
-    pub fn address_to_id(address: &AccountId) -> contracts::NativeContractId {
+    pub fn address_to_id(address: &AccountId) -> contracts::ContractId {
         let inner: &[u8; 32] = address.as_ref();
         inner.into()
     }
@@ -160,7 +160,7 @@ impl contracts::NativeContract for Pink {
 }
 
 impl NativeContractMore for Pink {
-    fn id(&self) -> contracts::NativeContractId {
+    fn id(&self) -> phala_mq::ContractId {
         Pink::address_to_id(&self.instance.address)
     }
 
@@ -207,8 +207,7 @@ pub mod group {
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let group = self
-                .get_group_or_default_mut(&group_id, contract_key);
+            let group = self.get_group_or_default_mut(&group_id, contract_key);
             let (_, effects) = Pink::instantiate(
                 group_id,
                 &mut group.storage,
@@ -238,13 +237,15 @@ pub mod group {
             group_id: &ContractGroupId,
             contract_key: &sr25519::Pair,
         ) -> &mut Group {
-            self.groups
-                .entry(group_id.clone())
-                .or_insert_with(|| Group {
+            self.groups.entry(group_id.clone()).or_insert_with(|| {
+                let mut group = Group {
                     storage: Default::default(),
                     contracts: Default::default(),
                     key: contract_key.clone(),
-                })
+                };
+                group.set_id(group_id);
+                group
+            })
         }
 
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
@@ -276,6 +277,10 @@ pub mod group {
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
             self.storage.commit_changes();
             Ok(())
+        }
+
+        pub fn set_id(&mut self, id: &ContractGroupId) {
+            self.storage.set_group_id(id.as_bytes());
         }
     }
 }

@@ -88,6 +88,12 @@ where
         self.commit_transaction(root, transaction);
         self.clear_changes();
     }
+
+    pub fn set_group_id(&mut self, group_id: &[u8]) {
+        self.execute_with(false, || {
+            crate::runtime::Pink::set_group_id(group_id);
+        });
+    }
 }
 
 impl Serialize for Storage<InMemoryBackend> {

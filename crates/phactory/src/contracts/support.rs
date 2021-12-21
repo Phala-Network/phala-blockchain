@@ -55,23 +55,8 @@ pub trait Contract {
     fn set_on_block_end_selector(&mut self, selector: u32);
 }
 
-#[derive(Encode, Decode, Clone, Debug, Copy, derive_more::From)]
-pub struct NativeContractId(sp_core::H256);
-
-impl From<&[u8; 32]> for NativeContractId {
-    fn from(bytes: &[u8; 32]) -> Self {
-        NativeContractId(bytes.into())
-    }
-}
-
-impl NativeContractId {
-    pub fn to_contract_id(&self, group_id: &phala_mq::ContractGroupId) -> phala_mq::ContractId {
-        sp_core::blake2_256(&(group_id, &self.0).encode()).into()
-    }
-}
-
 pub trait NativeContractMore {
-    fn id(&self) -> NativeContractId;
+    fn id(&self) -> phala_mq::ContractId;
     fn set_on_block_end_selector(&mut self, _selector: u32) {}
 }
 
@@ -106,8 +91,14 @@ pub struct NativeContractWrapper<Con> {
 }
 
 impl<Con> NativeContractWrapper<Con> {
-    pub fn new(inner: Con, deployer: sp_core::H256, salt: &[u8], id: u32) -> Self {
-        let encoded = (deployer, id, salt).encode();
+    pub fn new(
+        inner: Con,
+        group_id: &phala_mq::ContractGroupId,
+        deployer: sp_core::H256,
+        salt: &[u8],
+        id: u32,
+    ) -> Self {
+        let encoded = (deployer, id, group_id, salt).encode();
         let id = sp_core::blake2_256(&encoded).into();
         NativeContractWrapper { inner, id }
     }
@@ -142,8 +133,8 @@ impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
 }
 
 impl<Con: NativeContract> NativeContractMore for NativeContractWrapper<Con> {
-    fn id(&self) -> NativeContractId {
-        self.id.into()
+    fn id(&self) -> phala_mq::ContractId {
+        self.id
     }
 }
 
