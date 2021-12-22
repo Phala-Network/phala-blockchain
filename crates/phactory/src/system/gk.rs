@@ -1,4 +1,4 @@
-use super::{TypedReceiver, WorkerState};
+use super::{TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_registry::ContractRegistryEvent;
 use parity_scale_codec::Encode;
 use phala_crypto::{
@@ -263,17 +263,17 @@ where
         &mut self,
         origin: MessageOrigin,
         event: ContractEvent<chain::Hash, chain::AccountId>,
-    ) {
+    ) -> Result<(), TransactionError> {
         info!("Incoming contract event: {:?}", event);
         match event {
             ContractEvent::InstantiateCode {
                 contract_info,
                 deploy_worker,
             } => {
-                assert!(
-                    origin.is_pallet(),
-                    "Attempt to instantiate pink from bad origin"
-                );
+                if !origin.is_pallet() {
+                    error!("Attempt to instantiate pink from bad origin");
+                    return Err(TransactionError::BadOrigin);
+                }
 
                 // first, update the on-chain ContractPubkey
                 let (worker_pubkey, ecdh_pubkey) = deploy_worker;
@@ -305,6 +305,7 @@ where
                 );
             }
         }
+        Ok(())
     }
 
     /// Verify on-chain random number

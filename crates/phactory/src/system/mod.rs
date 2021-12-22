@@ -768,7 +768,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                self.process_master_key_distribution(origin, dispatch_master_key_event)
+                self.process_master_key_distribution(origin, dispatch_master_key_event);
             }
         }
     }
@@ -781,7 +781,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
-                self.process_contract_key_distribution(block, origin, dispatch_contract_key_event)
+                self.process_contract_key_distribution(block, origin, dispatch_contract_key_event);
             }
         }
     }
@@ -791,11 +791,11 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         origin: MessageOrigin,
         event: DispatchMasterKeyEvent,
-    ) {
+    ) -> Result<(), TransactionError> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            panic!("System state poisoned");
-        };
+            return Err(TransactionError::BadOrigin);
+        }
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
@@ -815,6 +815,7 @@ impl<Platform: pal::Platform> System<Platform> {
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);
         }
+        Ok(())
     }
 
     fn process_contract_key_distribution(
@@ -822,11 +823,11 @@ impl<Platform: pal::Platform> System<Platform> {
         block: &mut BlockInfo,
         origin: MessageOrigin,
         event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber, chain::AccountId>,
-    ) {
+    ) -> Result<(), TransactionError> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
-            panic!("System state poisoned");
-        };
+            return Err(TransactionError::BadOrigin);
+        }
 
         // TODO(shelven): forget contract key after expiration time
         let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
@@ -888,6 +889,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
         }
+        Ok(())
     }
 
     pub fn is_registered(&self) -> bool {
