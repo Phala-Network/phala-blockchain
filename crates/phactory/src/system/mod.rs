@@ -828,6 +828,7 @@ impl<Platform: pal::Platform> System<Platform> {
             panic!("System state poisoned");
         };
 
+        // TODO(shelven): forget contract key after expiration time
         let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
         let contract_key = ContractKey(keypair);
         let contract_pubkey = contract_key.public();
@@ -1081,28 +1082,18 @@ pub mod chain_state {
     #[allow(dead_code)]
     pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
         let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage
-            .get(&key)
-            .map(|v| {
-                Some(
-                    MasterPublicKey::decode(&mut &v[..])
-                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
-                )
-            })
-            .unwrap_or(None)
+        chain_storage.get(&key).map(|v| {
+            MasterPublicKey::decode(&mut &v[..])
+                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
+        })
     }
 
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
         let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"ContractCode", &code_hash);
-        chain_storage
-            .get(&key)
-            .map(|v| {
-                Some(
-                    Vec::<u8>::decode(&mut &v[..])
-                        .expect("Decode value of MasterPubkey Failed. (This should not happen)"),
-                )
-            })
-            .unwrap_or(None)
+        chain_storage.get(&key).map(|v| {
+            Vec::<u8>::decode(&mut &v[..])
+                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
+        })
     }
 
     #[allow(dead_code)]

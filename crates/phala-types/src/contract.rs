@@ -45,6 +45,7 @@ pub mod messaging {
             contract_info: ContractInfo<CodeHash, AccountId>,
             deploy_worker: (WorkerPublicKey, EcdhPublicKey),
         ) -> Self {
+            // TODO(shelven): enable multiple workers assignment
             ContractEvent::InstantiateCode {
                 contract_info,
                 deploy_worker,

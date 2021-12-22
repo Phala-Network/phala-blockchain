@@ -270,16 +270,13 @@ where
                 contract_info,
                 deploy_worker,
             } => {
-                // TODO(shelven): enable multiple workers assignment
-                let worker_pubkey = deploy_worker.0;
-                let ecdh_pubkey = deploy_worker.1;
-
                 assert!(
                     origin.is_pallet(),
                     "Attempt to instantiate pink from bad origin"
                 );
 
                 // first, update the on-chain ContractPubkey
+                let (worker_pubkey, ecdh_pubkey) = deploy_worker;
                 let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {

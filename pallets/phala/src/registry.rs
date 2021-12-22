@@ -104,14 +104,12 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ContractGroupCounter<T> = StorageValue<_, u64, ValueQuery>;
 
-	/// Mapping from contract address to pubkey
 	#[pallet::storage]
 	pub type Contracts<T: Config> =
 		StorageMap<_, Twox64Concat, ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>>;
 
 	#[pallet::storage]
-	pub type ContractDeployment<T> =
-		StorageMap<_, Twox64Concat, ContractPublicKey, WorkerPublicKey>;
+	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractPublicKey, WorkerPublicKey>;
 
 	// TODO(shelven): remove this
 	/// Mapping from contract address to pubkey
@@ -577,10 +575,10 @@ pub mod pallet {
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
-					if !gatekeepers.contains(worker_pubkey) {
-						return Err(Error::<T>::InvalidGatekeeper.into());
-					}
-
+					ensure!(
+						gatekeepers.contains(worker_pubkey),
+						Error::<T>::InvalidGatekeeper
+					);
 					match GatekeeperMasterPubkey::<T>::try_get() {
 						Ok(saved_pubkey) => {
 							ensure!(
@@ -603,15 +601,16 @@ pub mod pallet {
 		pub fn on_contract_message_received(
 			message: DecodedMessage<ContractRegistryEvent<CodeHash<T>, T::AccountId>>,
 		) -> DispatchResult {
-			match &message.sender {
-				MessageOrigin::Gatekeeper => (),
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			}
+			ensure!(
+				message.sender == MessageOrigin::Gatekeeper,
+				Error::<T>::InvalidSender
+			);
 			match message.payload {
 				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
-					if Contracts::<T>::contains_key(pubkey) {
-						return Err(Error::<T>::DuplicatedContractPubkey.into());
-					}
+					ensure!(
+						Contracts::<T>::contains_key(pubkey),
+						Error::<T>::DuplicatedContractPubkey
+					);
 					Contracts::<T>::insert(&pubkey, &info);
 					Self::deposit_event(Event::ContractInstantiated(pubkey, info));
 				}
@@ -619,7 +618,7 @@ pub mod pallet {
 					contract_pubkey,
 					worker_pubkey,
 				} => {
-					ContractDeployment::<T>::insert(&contract_pubkey, &worker_pubkey);
+					ContractWorkers::<T>::insert(&contract_pubkey, &worker_pubkey);
 				}
 			}
 			Ok(())
