@@ -1,9 +1,8 @@
 use anyhow::Result;
-use futures::TryFutureExt;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::traits::MessagePrepareChannel;
-use phala_mq::{contract_id256, MessageOrigin};
+use phala_mq::MessageOrigin;
 use phala_types::contract::command_topic;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -14,7 +13,6 @@ use super::{TransactionError, TransactionResult};
 use crate::contracts;
 use crate::contracts::{AccountId, NativeContext};
 use crate::secret_channel::Payload;
-use crate::side_task::async_side_task::AsyncSideTask;
 extern crate runtime as chain;
 
 use phala_types::messaging::BtcPriceBotCommand;
@@ -183,7 +181,7 @@ impl contracts::NativeContract for BtcPriceBot {
                         .await
                         {
                             Ok(r) => r,
-                            Err(err) => {
+                            Err(_err) => {
                                 return Err(Error::NetworkUnavailable.into());
                             }
                         };
@@ -210,7 +208,7 @@ impl contracts::NativeContract for BtcPriceBot {
                             .await
                         {
                             Ok(r) => r,
-                            Err(err) => {
+                            Err(_err) => {
                                 return Err(Error::NetworkUnavailable.into());
                             }
                         };
