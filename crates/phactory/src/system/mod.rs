@@ -79,6 +79,9 @@ pub enum TransactionError {
     FailedToCalculateBalance,
     BadChainId,
     TransferringNotAllowed,
+    // for contract
+    CodeNotFound,
+    FailedToExecute,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -837,59 +840,64 @@ impl<Platform: pal::Platform> System<Platform> {
         match contract_info.code_index {
             CodeIndex::NativeCode(_contract_id) => {
                 // TODO(shelven): launch native code instance
+                Ok(())
             }
             CodeIndex::WasmCode(code_hash) => {
                 let code = chain_state::read_contract_code(block.storage, code_hash);
-                if let Some(code) = code {
-                    if !self.contract_keys.contains_key(&contract_pubkey) {
-                        self.contract_keys
-                            .insert(contract_pubkey, contract_key.clone());
-
-                        let group_id = chain::Hash::from_low_u64_be(contract_info.group_id);
-                        let result = self.contract_groups.instantiate_contract(
-                            group_id,
-                            contract_info.deployer.clone(),
-                            code,
-                            contract_info.instantiate_data,
-                            contract_info.salt,
-                            &contract_key,
-                            block.block_number,
-                            block.now_ms,
-                        );
-                        match result {
-                            Err(err) => {
-                                error!(
-                                    "Instantiate contract error: {}, deployer: {:?}",
-                                    err, contract_info.deployer,
-                                );
-                            }
-                            Ok(effects) => {
-                                let group = self
-                                    .contract_groups
-                                    .get_group_mut(&group_id)
-                                    .expect("Group must exist after instantiate");
-
-                                apply_pink_side_effects(
-                                    effects,
-                                    &group_id,
-                                    &mut self.contracts,
-                                    group,
-                                    block,
-                                    &self.egress,
-                                );
-                            }
-                        }
-                    }
-                } else {
-                    warn!(
+                if code.is_none() {
+                    error!(
                         "Code 0x{} not found for contract 0x{}",
                         hex::encode(code_hash),
                         hex::encode(contract_key.public())
                     );
+                    return Err(TransactionError::CodeNotFound);
+                }
+
+                if self.contract_keys.contains_key(&contract_pubkey) {
+                    info!("Deployed contract 0x{}", hex::encode(&contract_pubkey));
+                    return Ok(());
+                }
+
+                self.contract_keys
+                    .insert(contract_pubkey, contract_key.clone());
+                let group_id = chain::Hash::from_low_u64_be(contract_info.group_id);
+                let code = code.expect("checked; qed.");
+                let result = self.contract_groups.instantiate_contract(
+                    group_id,
+                    contract_info.deployer.clone(),
+                    code,
+                    contract_info.instantiate_data,
+                    contract_info.salt,
+                    &contract_key,
+                    block.block_number,
+                    block.now_ms,
+                );
+                match result {
+                    Err(err) => {
+                        error!(
+                            "Instantiate contract error: {}, deployer: {:?}",
+                            err, contract_info.deployer,
+                        );
+                        Err(TransactionError::FailedToExecute)
+                    }
+                    Ok(effects) => {
+                        let group = self
+                            .contract_groups
+                            .get_group_mut(&group_id)
+                            .expect("Group must exist after instantiate");
+                        apply_pink_side_effects(
+                            effects,
+                            &group_id,
+                            &mut self.contracts,
+                            group,
+                            block,
+                            &self.egress,
+                        );
+                        Ok(())
+                    }
                 }
             }
         }
-        Ok(())
     }
 
     pub fn is_registered(&self) -> bool {

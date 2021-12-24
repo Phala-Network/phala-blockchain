@@ -61,6 +61,7 @@ fn get_contract_key(
     master_key: &sr25519::Pair,
     contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
 ) -> sr25519::Pair {
+    // TODO(shelven): use persistent info for contract key derivation
     master_key
         .derive_sr25519_pair(&[
             b"contract_key",
