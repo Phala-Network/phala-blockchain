@@ -119,7 +119,7 @@ impl contracts::NativeContract for BtcPriceBot {
         cmd: Command,
         context: &mut NativeContext,
     ) -> TransactionResult {
-        info!("Command received: {:?}", &cmd);
+        // info!("Command received: {:?}", &cmd);
 
         let alice = contracts::account_id_from_hex(ALICE)
             .expect("should not failed with valid address; qed.");
@@ -204,7 +204,7 @@ impl contracts::NativeContract for BtcPriceBot {
 
                         let mut resp = match surf::post(uri)
                             .body_json(data)
-                            .expect("should not fail with valid data; qed.")
+                            .map_err(|_| Error::NetworkUnavailable)?
                             .await
                         {
                             Ok(r) => r,
