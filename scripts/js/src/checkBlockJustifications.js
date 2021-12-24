@@ -1,11 +1,9 @@
 require('dotenv').config();
 const { ApiPromise, WsProvider } = require('@polkadot/api');
 
-const typedefs = require('@phala/typedefs').phalaDev;
-
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const finalizedHash = await api.rpc.chain.getFinalizedHead();
     const finalizedBlock = await api.rpc.chain.getBlock(finalizedHash);

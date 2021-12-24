@@ -6,7 +6,6 @@ const axios = require('axios').default;
 const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady, blake2AsHex } = require('@polkadot/util-crypto');
-const phalaTypes = require('@phala/typedefs').khalaDev;
 
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
@@ -17,8 +16,8 @@ const { decorateStakePool } = require('./utils/displayUtils');
 function run(afn) {
     function runner(...args) {
         afn(...args)
-            .catch(console.error)
             .then(process.exit)
+            .catch(console.error)
             .finally(() => process.exit(-1));
     };
     return runner;
@@ -75,11 +74,13 @@ function usePruntimeApi() {
     return new PRuntimeApi(pruntimeEndpoint);
 }
 
-// Gets the Substrate API based on user's config
-async function useApi() {
-    const { substrateWsEndpoint, at } = program.opts();
+async function substrateApi() {
+    const { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
     const wsProvider = new WsProvider(substrateWsEndpoint);
-    const api = await ApiPromise.create({ provider: wsProvider, types: phalaTypes });
+    const api = await ApiPromise.create({
+        provider: wsProvider,
+        throwOnConnect: !substrateNoRetry,
+    });
     if (at) {
         return await api.at(at);
     }
@@ -146,6 +147,7 @@ const CONTRACT_PDIEM = 5;
 program
     .option('--pruntime-endpoint <url>', 'pRuntime API endpoint', process.env.PRUNTIME_ENDPOINT || 'http://localhost:8000')
     .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
+    .option('--substrate-no-retry', false)
     .option('--at <hash>', 'access the state at a certain block', null)
     .option('--key-type <type>', 'key type', 'sr25519')
     .option('-s, --key-suri <suri>', 'key suri', process.env.PRIVKEY || '//Alice')

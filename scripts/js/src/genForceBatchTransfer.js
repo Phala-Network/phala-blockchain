@@ -3,9 +3,6 @@ require('dotenv').config();
 const { ApiPromise, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs').phalaDev;
-
-const bn64b = new BN(2).pow(new BN(64));
 const bn1e12 = new BN(10).pow(new BN(12));
 
 const src = '5H1cbKvXJNjxCwU2czeNgVgSKCmFAeAi9Tg1fwtW2mFqGgLP';
@@ -42,7 +39,7 @@ const batch2 = [
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const tx = api.tx.sudo.sudo(
         api.tx.utility.batchAll(

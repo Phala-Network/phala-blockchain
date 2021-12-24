@@ -6,9 +6,7 @@ const { blake2AsU8a } = require('@polkadot/util-crypto');
 const { u8aToHex } = require('@polkadot/util');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs').phalaDev;
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
-const bn256 = new BN(1).shln(256);
 
 async function getWorkerSnapshotAt(api, hash) {
     // Get all worker state
@@ -38,7 +36,7 @@ async function getRewardSeedAt(api, hash, blocknum) {
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const keyring = new Keyring({ type: 'sr25519' });
     const sender = keyring.addFromUri(process.env.PRIVKEY);

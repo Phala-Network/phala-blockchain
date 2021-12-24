@@ -1162,7 +1162,7 @@ mod tests {
         insta::assert_display_snapshot!(contracts.len());
 
         let mut env = ExecuteEnv {
-            block: &block_info,
+            block: &mut block_info,
             contract_groups: &mut &mut groupkeeper,
         };
 

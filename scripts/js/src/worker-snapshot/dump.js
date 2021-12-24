@@ -4,8 +4,6 @@ const { ApiPromise, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 const fs = require('fs');
 
-const typedefs = require('@phala/typedefs').phalaDev;
-
 const { program } = require('commander');
 
 program
@@ -41,10 +39,7 @@ function run(afn) {
 async function createApi() {
     const {endpoint} = program.opts();
     const wsProvider = new WsProvider(endpoint);
-    return await ApiPromise.create({
-        provider: wsProvider,
-        types: typedefs,
-    });
+    return await ApiPromise.create({ provider: wsProvider });
 }
 
 function writeJson(path, obj) {

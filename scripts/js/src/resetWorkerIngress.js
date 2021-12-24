@@ -7,14 +7,13 @@ require('dotenv').config();
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 
-const typedefs = require('@phala/typedefs').phalaDev;
 const bn1e12 = new BN(10).pow(new BN(12));
 const data = require('./tmp/controllers.json');
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;  // TODO
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const keyring = new Keyring({ type: 'sr25519' });
     const accountKeys = data.slice(1000 /*TODO*/).map(({account}) => {
