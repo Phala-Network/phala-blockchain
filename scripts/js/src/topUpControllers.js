@@ -20,9 +20,7 @@ const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 const fs = require('fs');
 
-const typedefs = require('@phala/typedefs').phalaDev;
 const bn1e9 = new BN(10).pow(new BN(9));
-const bn1e12 = new BN(10).pow(new BN(12));
 const kDryRun = parseInt(process.env.DRYRUN || '0') === 1;
 const kVerbose = parseInt(process.env.VERBOSE || '0') === 1;
 
@@ -51,7 +49,7 @@ async function controllersFromPayout(api, payoutTarget) {
             }
             controllers.push(controller);
         }
-    }    
+    }
     return controllers;
 }
 
@@ -74,7 +72,7 @@ function bnToReal(b) {
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const keyring = new Keyring({ type: 'sr25519' });
     const sender = keyring.addFromUri(process.env.PRIVKEY);

@@ -5,8 +5,6 @@ const BN = require('bn.js');
 
 const { loadJson, writeJson } = require('../src/utils/common');
 
-const typedefs = require('@phala/typedefs').khalaDev;
-
 function chunk(arr, chunkSize) {
     if (chunkSize <= 0) throw "Invalid chunk size";
     var R = [];
@@ -17,7 +15,7 @@ function chunk(arr, chunkSize) {
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const reconciling = loadJson('./tmp/issue500Reconciling.json');
     const minerPreimages = reconciling.preimage;

@@ -6,16 +6,13 @@ const fs = require('fs');
 
 const Papa = require('papaparse');
 
-
-const typedefs = require('@phala/typedefs').phalaDev;
-
 const bn64b = new BN(2).pow(new BN(64));
 const bn1e12 = new BN(10).pow(new BN(12));
 
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     let out = process.env.OUT;
     let workers = process.env.WORKERS.split(',').map(x => x.trim());
