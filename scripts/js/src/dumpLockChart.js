@@ -17,8 +17,6 @@ const fs = require('fs');
 const BN = require('bn.js');
 const Papa = require('papaparse');
 const { ApiPromise, WsProvider } = require('@polkadot/api');
-
-const typedefs = require('@phala/typedefs').khalaDev;
 const bn1e12 = new BN(10).pow(new BN(12));
 
 /// Returns the api at a certain block height
@@ -75,7 +73,7 @@ async function poolStatus(apiAt, pid, account) {
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     // Parse the params
     const since = parseInt(process.env.SINCE || '411774');

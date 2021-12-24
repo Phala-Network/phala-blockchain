@@ -4,16 +4,10 @@ require('dotenv').config();
 
 const util = require('util')
 const { ApiPromise, WsProvider } = require('@polkadot/api');
-const { decodeAddress } = require('@polkadot/keyring');
-const { u8aToHex } = require('@polkadot/util');
-
-
-const typedefs = require('@phala/typedefs').phalaDev;
-
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const regHeight = parseInt(process.env.REG_HEIGHT);
     const controller = process.env.CONTROLLER;

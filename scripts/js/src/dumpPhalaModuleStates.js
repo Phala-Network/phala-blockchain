@@ -4,9 +4,6 @@ const { ApiPromise, WsProvider } = require('@polkadot/api');
 const { decodeAddress } = require('@polkadot/keyring');
 const { u8aToHex } = require('@polkadot/util');
 
-
-const typedefs = require('@phala/typedefs').phalaDev;
-
 async function getStatsAt(api, hash, logEntries=true, logStats=true) {
     const workerState = {};
     const entries = await api.query.phala.workerState.entriesAt(hash);
@@ -110,7 +107,7 @@ async function checkDiff (api, startHeight=378900) {
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
     const runBinarySearch = (process.env.BINARY_SEARCH === '1');
     const shouldDumpFullWorkers = (process.env.FULL_DUMP === '1');
 
