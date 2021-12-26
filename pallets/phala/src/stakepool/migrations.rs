@@ -178,7 +178,7 @@ where
 		// Remove dust in stake pools.
 		StakePools::<T>::translate_values(|mut pool: PoolInfo<T::AccountId, BalanceOf<T>>| {
 			let pid = pool.pid;
-			// Maintain total_shares invarant
+			// Maintain total_shares invariant
 			if let Some(dust) = share_dust_removed.get(&pid) {
 				pool.total_shares -= *dust;
 			}

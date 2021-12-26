@@ -132,7 +132,7 @@ pub mod pallet {
 		where
 			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
 		{
-			// Calcualte remaining stake
+			// Calculate remaining stake
 			let v = FixedPoint::from_bits(self.v);
 			let ve = FixedPoint::from_bits(self.ve);
 			let return_rate = (v / ve).min(fp!(1));
@@ -152,7 +152,7 @@ pub mod pallet {
 	}
 
 	pub trait OnUnbound {
-		/// Called wthen a worker was unbound from a miner.
+		/// Called when a worker was unbound from a miner.
 		///
 		/// `force` is set if the unbinding caused an unexpected miner shutdown.
 		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
@@ -212,7 +212,7 @@ pub mod pallet {
 
 	/// Total online miners
 	///
-	/// Increased when a miner is turned to MininIdle; decreased when turned to CoolingDown
+	/// Increased when a miner is turned to MiningIdle; decreased when turned to CoolingDown
 	#[pallet::storage]
 	#[pallet::getter(fn online_miners)]
 	pub type OnlineMiners<T> = StorageValue<_, u32, ValueQuery>;
@@ -434,7 +434,7 @@ pub mod pallet {
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
 			} else if old == 2 {
-				// Triggers GK RepairV event (again) to rescure the slashed miners due to
+				// Triggers GK RepairV event (again) to rescue the slashed miners due to
 				// incorrectly applied tokenomic.
 				w += migrations::repair_v::<T>();
 				// Khala-only halving parameters
@@ -617,7 +617,7 @@ pub mod pallet {
 		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
 		///
 		/// Requires:
-		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
+		/// 1. The miner is in CoolingDown state and the cool down period has passed
 		pub fn reclaim(miner: T::AccountId) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
 			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
@@ -635,11 +635,11 @@ pub mod pallet {
 		/// Binds a miner to a worker
 		///
 		/// This will bind the miner account to the worker, and then create a `Miners` entry to
-		/// track the mining session in the future. The mining session will exist until ther miner
+		/// track the mining session in the future. The mining session will exist until the miner
 		/// and the worker is unbound.
 		///
 		/// Requires:
-		/// 1. The worker is alerady registered
+		/// 1. The worker is already registered
 		/// 2. The worker has an initial benchmark
 		/// 3. Both the worker and the miner are not bound
 		/// 4. There's no stake in CD associated with the miner
@@ -704,7 +704,7 @@ pub mod pallet {
 			let force = !miner_info.state.can_unbind();
 			if force {
 				// Force unbinding. Stop the miner first.
-				// Note that `stop_mining` will notify the suscribers with the slashed vaue.
+				// Note that `stop_mining` will notify the subscribers with the slashed value.
 				Self::stop_mining(miner.clone())?;
 				// TODO: consider the final state sync (could cause slash) when stopping mining
 			}
@@ -778,10 +778,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Stops mining, enterying cool down state
+		/// Stops mining, entering cool down state
 		///
 		/// Requires:
-		/// 1. Ther miner is in Idle, MiningActive, or MiningUnresponsive state
+		/// 1. The miner is in Idle, MiningActive, or MiningUnresponsive state
 		pub fn stop_mining(miner: T::AccountId) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
@@ -798,7 +798,7 @@ pub mod pallet {
 			Miners::<T>::insert(&miner, &miner_info);
 			OnlineMiners::<T>::mutate(|v| *v -= 1); // v cannot be 0
 
-			// Calcualte remaining stake (assume there's no more slash after calling `stop_mining`)
+			// Calculate remaining stake (assume there's no more slash after calling `stop_mining`)
 			let orig_stake = Stakes::<T>::get(&miner).unwrap_or_default();
 			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
 			// Notify the subscriber with the slash prediction
@@ -883,7 +883,7 @@ pub mod pallet {
 			FixedPointConvert::from_fixed(&min_stake)
 		}
 
-		/// Calcuates the initial Ve
+		/// Calculate the initial Ve
 		fn ve(&self, s: BalanceOf<T>, p: u32, confidence_level: u8) -> FixedPoint {
 			let f1 = FixedPoint::from_num(1);
 			let score = Self::confidence_score(confidence_level);
@@ -943,7 +943,7 @@ pub mod pallet {
 
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
-		/// Default tokenoic parameters for Phala
+		/// Default tokenomic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
 			let block_sec = 12;
