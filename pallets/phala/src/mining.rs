@@ -279,7 +279,7 @@ pub mod pallet {
 		/// Miner enters unresponsive state. \[miner\]
 		MinerEnterUnresponsive(T::AccountId),
 		/// Miner returns to responsive state \[miner\]
-		MinerExitUnresponive(T::AccountId),
+		MinerExitUnresponsive(T::AccountId),
 		/// Miner settled successfully. \[miner, v, payout\]
 		MinerSettled(T::AccountId, u128, u128),
 		/// Some internal error happened when settling a miner's ledger. \[worker\]
