@@ -1114,17 +1114,17 @@ pub mod pallet {
 
 	fn pool_sub_account<T>(pid: u64, pubkey: &WorkerPublicKey) -> T
 	where
-		T: Encode + Decode + Default,
+		T: Encode + Decode,
 	{
 		let hash = crate::hashing::blake2_256(&(pid, pubkey).encode());
 		// stake pool miner
 		(b"spm/", hash)
 			.using_encoded(|b| T::decode(&mut TrailingZeroInput::new(b)))
-			.unwrap_or_default()
+			.expect("Decoding zero-padded account id should always succeed; qed")
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, Default, RuntimeDebug)]
-	pub struct PoolInfo<AccountId: Default, Balance> {
+	pub struct PoolInfo<AccountId, Balance> {
 		/// Pool ID
 		pub pid: u64,
 		/// The owner of the pool
@@ -1153,7 +1153,6 @@ pub mod pallet {
 
 	impl<AccountId, Balance> PoolInfo<AccountId, Balance>
 	where
-		AccountId: Default,
 		Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert + Display,
 	{
 		/// Adds some stake to a user.
@@ -1398,7 +1397,7 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct UserStakeInfo<AccountId: Default, Balance> {
+	pub struct UserStakeInfo<AccountId, Balance> {
 		/// User account
 		pub user: AccountId,
 		/// The actual locked stake
@@ -1415,7 +1414,7 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, TypeInfo, Clone, PartialEq, Eq, RuntimeDebug)]
-	pub struct WithdrawInfo<AccountId: Default, Balance> {
+	pub struct WithdrawInfo<AccountId, Balance> {
 		/// The withdrawal requester
 		pub user: AccountId,
 		/// The shares to withdraw. Cannot be dust.

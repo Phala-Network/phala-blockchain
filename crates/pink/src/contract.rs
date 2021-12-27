@@ -1,3 +1,4 @@
+use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
 use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
@@ -8,7 +9,7 @@ use crate::{
     types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
 };
 
-use pallet_contracts_primitives::ContractExecResult;
+type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
 
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
@@ -75,6 +76,7 @@ impl Contract {
                 origin.clone(),
                 ENOUGH,
                 GAS_LIMIT,
+                None,
                 pallet_contracts_primitives::Code::Upload(code.into()),
                 input_data,
                 salt.clone(),
@@ -132,6 +134,7 @@ impl Contract {
                     gas_required: 0,
                     debug_message: b"Default account is not allowed to call contracts".to_vec(),
                     result: Err(DispatchError::BadOrigin),
+                    storage_deposit: StorageDeposit::Charge(0),
                 },
                 ExecSideEffects::default(),
             );
@@ -152,7 +155,7 @@ impl Contract {
         storage.execute_with(rollback, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            Contracts::bare_call(origin, addr, 0, GAS_LIMIT, input_data, true)
+            Contracts::bare_call(origin, addr, 0, GAS_LIMIT, None, input_data, true)
         })
     }
 

@@ -5,10 +5,10 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 use subxt::extrinsic::*;
-use subxt::Config;
 use subxt::sp_runtime::generic::Era;
 use subxt::sp_runtime::traits::SignedExtension;
 use subxt::sp_runtime::transaction_validity::TransactionValidityError;
+use subxt::Config;
 
 #[derive(Encode, Decode, Clone, Eq, PartialEq, Debug, TypeInfo)]
 pub struct EraInfo<Hash> {
@@ -43,7 +43,7 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
         CheckNonce<T>,
         CheckWeight<T>,
         // NOTE: skipped the ZST CheckMqSequence<T> here.
-        ChargeTransactionPayment,
+        ChargeAssetTxPayment,
     );
     type Parameters = ExtraConfig<T::Hash>;
 
@@ -81,7 +81,10 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
             CheckNonce(self.nonce),
             CheckWeight(PhantomData),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
-            ChargeTransactionPayment(self.additional_params.tip.into()),
+            ChargeAssetTxPayment {
+                tip: self.additional_params.tip.into(),
+                asset_id: None,
+            },
         )
     }
 }
@@ -97,5 +100,15 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
 
     fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
         self.extra().additional_signed()
+    }
+
+    fn pre_dispatch(
+        self,
+        _who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &subxt::sp_runtime::traits::DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
     }
 }

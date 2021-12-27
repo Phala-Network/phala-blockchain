@@ -2,9 +2,12 @@ mod extension;
 mod mock_types;
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::weights::Weight;
-use frame_support::{parameter_types, weights::constants::WEIGHT_PER_SECOND};
-use pallet_contracts::{Config, Frame, Schedule};
+use frame_support::{
+    parameter_types,
+    traits::ConstU128,
+    weights::{constants::WEIGHT_PER_SECOND, Weight},
+};
+use pallet_contracts::{Config, Frame, Schedule, DefaultAddressGenerator};
 use sp_runtime::{
     generic::Header,
     traits::{Convert, IdentityLookup},
@@ -61,6 +64,7 @@ impl frame_system::Config for PinkRuntime {
     type SystemWeightInfo = ();
     type SS58Prefix = ();
     type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl pallet_randomness_collective_flip::Config for PinkRuntime {}
@@ -112,7 +116,9 @@ impl Config for PinkRuntime {
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
-    type ContractDeposit = ();
+    type DepositPerByte = ConstU128<0>;
+    type DepositPerItem = ConstU128<0>;
+    type AddressGenerator = DefaultAddressGenerator;
 }
 
 #[cfg(test)]

@@ -71,7 +71,8 @@ where
             )
         });
 
-        self.backend.full_storage_root(delta, child_delta)
+        self.backend
+            .full_storage_root(delta, child_delta)
     }
 
     pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {

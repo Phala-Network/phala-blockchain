@@ -766,7 +766,7 @@ pub mod pallet {
 		type Config = T;
 	}
 
-	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,
