@@ -237,6 +237,30 @@ pub mod messaging {
         }
     }
 
+    // Bind on-chain GuessNumberCommand message to the GUESS_NUMBER contract
+    bind_contract32!(GuessNumberCommand, contract::GUESS_NUMBER);
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum GuessNumberCommand {
+        /// Refresh the random number
+        NextRandom,
+        /// Set the contract owner
+        SetOwner { owner: AccountId },
+    }
+
+    bind_contract32!(BtcPriceBotCommand, contract::BTC_PRICE_BOT);
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BtcPriceBotCommand {
+        /// Set the contract owner
+        SetOwner { owner: AccountId },
+        /// Set the authentication token of telegram bot (https://core.telegram.org/bots/api#authorizing-your-bot) and
+        /// the identifier to target chat (https://core.telegram.org/bots/api#sendmessage)
+        SetupBot { token: String, chat_id: String },
+        /// Let the Tg bot to report the current BTC price
+        ReportBtcPrice,
+        /// Update the price stored inside the contract.
+        UpdateBtcPrice { price: String },
+    }
+
     /// A fixed point number with 64 integer bits and 64 fractional bits.
     pub type U64F64Bits = u128;
 
@@ -583,12 +607,11 @@ pub struct Score {
 }
 
 type MachineId = Vec<u8>;
-pub use sp_core::sr25519::Signature as Sr25519Signature;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub use sp_core::sr25519::Public as ContractPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
-
+pub use sp_core::sr25519::Signature as Sr25519Signature;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {
