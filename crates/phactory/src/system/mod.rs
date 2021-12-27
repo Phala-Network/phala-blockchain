@@ -9,7 +9,7 @@ use crate::{
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
-use anyhow::Result;
+use anyhow::{Context, Result};
 use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
@@ -862,40 +862,35 @@ impl<Platform: pal::Platform> System<Platform> {
                     .insert(contract_pubkey, contract_key.clone());
                 let group_id = chain::Hash::from_low_u64_be(contract_info.group_id);
                 let code = code.expect("checked; qed.");
-                let result = self.contract_groups.instantiate_contract(
-                    group_id,
-                    contract_info.deployer.clone(),
-                    code,
-                    contract_info.instantiate_data,
-                    contract_info.salt,
-                    &contract_key,
-                    block.block_number,
-                    block.now_ms,
+                let deployer = contract_info.deployer;
+                let effects = self
+                    .contract_groups
+                    .instantiate_contract(
+                        group_id,
+                        deployer.clone(),
+                        code,
+                        contract_info.instantiate_data,
+                        contract_info.salt,
+                        &contract_key,
+                        block.block_number,
+                        block.now_ms,
+                    )
+                    .with_context(|| format!("Contract deployer: {:?}", deployer))
+                    .map_err(|_| TransactionError::FailedToExecute)?;
+
+                let group = self
+                    .contract_groups
+                    .get_group_mut(&group_id)
+                    .expect("Group must exist after instantiate");
+                apply_pink_side_effects(
+                    effects,
+                    &group_id,
+                    &mut self.contracts,
+                    group,
+                    block,
+                    &self.egress,
                 );
-                match result {
-                    Err(err) => {
-                        error!(
-                            "Instantiate contract error: {}, deployer: {:?}",
-                            err, contract_info.deployer,
-                        );
-                        Err(TransactionError::FailedToExecute)
-                    }
-                    Ok(effects) => {
-                        let group = self
-                            .contract_groups
-                            .get_group_mut(&group_id)
-                            .expect("Group must exist after instantiate");
-                        apply_pink_side_effects(
-                            effects,
-                            &group_id,
-                            &mut self.contracts,
-                            group,
-                            block,
-                            &self.egress,
-                        );
-                        Ok(())
-                    }
-                }
+                Ok(())
             }
         }
     }
