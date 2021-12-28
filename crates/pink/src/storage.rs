@@ -72,7 +72,7 @@ where
         });
 
         self.backend
-            .full_storage_root(delta, child_delta)
+            .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
     }
 
     pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {
