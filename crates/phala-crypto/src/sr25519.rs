@@ -74,7 +74,7 @@ impl From<hkdf::Okm<'_, My<usize>>> for My<Vec<u8>> {
 }
 
 impl KDF for sr25519::Pair {
-    // TODO.shelven: allow to specify the salt from pruntime (instead of hard code)
+    // TODO(shelven): allow to specify the salt from pruntime (instead of hard code)
     fn derive_sr25519_pair(&self, info: &[&[u8]]) -> Result<sr25519::Pair, CryptoError> {
         let salt = hkdf::Salt::new(hkdf::HKDF_SHA256, &KDF_SALT);
         let prk = salt.extract(&self.as_ref().secret.to_bytes());

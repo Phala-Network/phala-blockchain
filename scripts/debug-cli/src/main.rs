@@ -1,9 +1,7 @@
 mod query;
 
 use codec::{Encode, Decode};
-use phala_types::WorkerPublicKey;
 use phala_types::contract::ContractId;
-use sp_core::H256;
 use std::convert::TryInto;
 use std::fmt::Debug;
 use structopt::StructOpt;
@@ -88,13 +86,6 @@ enum PinkCommand {
     Command {
         id: String,
         message: String,
-    },
-    Deploy {
-        #[structopt(long)]
-        group: Option<String>,
-        worker: String,
-        wasm_file: String,
-        input: String,
     },
 }
 
@@ -292,21 +283,6 @@ async fn handle_pink_command(command: PinkCommand) {
             println!("topic: (0x{})", hex::encode(phala_types::contract::command_topic(id)));
             println!("command: (0x{})", hex::encode(mq_payload.encode()));
 
-        }
-        PinkCommand::Deploy { group, worker, wasm_file, input } => {
-            let group_id = group.map(|x| {
-                H256(decode_hex(&x).try_into().expect("Bad group"))
-            });
-            let worker = WorkerPublicKey(decode_hex(&worker).try_into().expect("Bad worker"));
-            let wasm_bin = std::fs::read(wasm_file).expect("Bad wasm file");
-            let input_data = decode_hex(&input);
-            let request = phactory::pink::messaging::GKPinkRequest::Instantiate {
-                group_id,
-                worker,
-                wasm_bin,
-                input_data,
-            };
-            println!("0x{}", hex::encode(request.encode()));
         }
     }
 }

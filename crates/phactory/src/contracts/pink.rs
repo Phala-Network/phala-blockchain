@@ -95,21 +95,18 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, _messages) = self
-                    .instance
-                    .bare_call(
-                        storage,
-                        origin.clone(),
-                        input_data,
-                        true,
-                        context.block_number,
-                        context.now_ms,
-                    )
-                    .map_err(|err| {
-                        log::error!("Pink [{:?}] query exec error: {:?}", self.id(), err);
-                        QueryError::RuntimeError(format!("Call contract method failed: {:?}", err))
-                    })?;
-                return Ok(Response::InkMessageReturn(ret));
+                let (ink_result, _effects) = self.instance.bare_call(
+                    storage,
+                    origin.clone(),
+                    input_data,
+                    true,
+                    context.block_number,
+                    context.now_ms,
+                );
+                if ink_result.result.is_err() {
+                    log::error!("Pink [{:?}] query exec error: {:?}", self.id(), ink_result);
+                }
+                return Ok(Response::InkMessageReturn(ink_result.encode()));
             }
         }
     }
@@ -130,7 +127,7 @@ impl contracts::NativeContract for Pink {
                 let storage = group_storage(&mut context.contract_groups, &self.group)
                     .expect("Pink group should always exists!");
 
-                let (ret, effects) = self
+                let (result, effects) = self
                     .instance
                     .bare_call(
                         storage,
@@ -139,7 +136,9 @@ impl contracts::NativeContract for Pink {
                         false,
                         context.block.block_number,
                         context.block.now_ms,
-                    )
+                    );
+
+                let ret = pink::transpose_contract_result(&result)
                     .map_err(|err| {
                         log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
                         TransactionError::Other(format!("Call contract method failed: {:?}", err))
@@ -184,12 +183,12 @@ pub mod group {
 
     use anyhow::Result;
     use phala_mq::{ContractGroupId, ContractId};
+    use phala_serde_more as more;
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
     use std::collections::{BTreeMap, BTreeSet};
-    use phala_serde_more as more;
 
     #[derive(Default, Serialize, Deserialize)]
     pub struct GroupKeeper {
@@ -270,61 +269,4 @@ pub mod group {
             Ok(())
         }
     }
-}
-
-pub mod messaging {
-    use parity_scale_codec::{Decode, Encode};
-    use phala_crypto::sr25519::Sr25519SecretKey;
-    use phala_mq::{bind_topic, ContractGroupId};
-    use phala_types::WorkerPublicKey;
-    use pink::types::AccountId;
-
-    pub use phala_types::messaging::WorkerPinkReport;
-
-    bind_topic!(WorkerPinkRequest, b"phala/pink/worker/request");
-    #[derive(Encode, Decode, Debug)]
-    pub enum WorkerPinkRequest {
-        Instantiate {
-            group_id: ContractGroupId,
-            worker: WorkerPublicKey,
-            nonce: Vec<u8>,
-            owner: AccountId,
-            wasm_bin: Vec<u8>,
-            input_data: Vec<u8>,
-            salt: Vec<u8>,
-            key: Sr25519SecretKey,
-        },
-    }
-
-    bind_topic!(GKPinkRequest, b"phala/pink/gk/request");
-    #[derive(Encode, Decode, Debug)]
-    pub enum GKPinkRequest {
-        Instantiate {
-            group_id: Option<ContractGroupId>, // None for create a new one
-            worker: WorkerPublicKey, // TODO: None for choosing one by GK or by the group_id?
-            wasm_bin: Vec<u8>,
-            input_data: Vec<u8>,
-        },
-    }
-}
-
-#[test]
-fn test_make_pink_request() {
-    use crate::secret_channel::Payload;
-    use hex_literal::hex;
-
-    let request = messaging::WorkerPinkRequest::Instantiate {
-        group_id: Default::default(),
-        worker: phala_types::WorkerPublicKey(hex!(
-            "3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d"
-        )),
-        nonce: vec![],
-        owner: hex!("3a3d45dc55b57bf542f4c6ff41af080ec675317f4ed50ae1d2713bf9f892692d").into(),
-        wasm_bin: include_bytes!("fixtures/flip.contract").to_vec(),
-        input_data: hex!("9bae9d5e01").to_vec(),
-        salt: vec![],
-        key: [0; 64],
-    };
-    let message = Payload::Plain(request);
-    println!("message: {}", hex::encode(message.encode()));
 }

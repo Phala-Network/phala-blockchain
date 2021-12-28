@@ -1164,6 +1164,7 @@ parameter_types! {
 
 impl pallet_registry::Config for Runtime {
 	type Event = Event;
+	type Currency = Balances;
 	type AttestationValidator = pallet_registry::IasValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;
@@ -1244,7 +1245,7 @@ construct_runtime!(
 		BridgeTransfer: pallet_bridge_transfer::{Pallet, Call, Event<T>, Storage},
 		// Phala
 		PhalaMq: pallet_mq::{Pallet, Call, Storage},
-		PhalaRegistry: pallet_registry::{Pallet, Call, Event, Storage, Config<T>},
+		PhalaRegistry: pallet_registry::{Pallet, Call, Event<T>, Storage, Config<T>},
 		PhalaMining: pallet_mining::{Pallet, Call, Event<T>, Storage, Config},
 		PhalaStakePool: pallet_stakepool::{Pallet, Call, Event<T>, Storage},
 	}

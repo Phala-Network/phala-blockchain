@@ -1,5 +1,6 @@
 require('dotenv').config();
 
+const fs = require('fs');
 const { program } = require('commander');
 const axios = require('axios').default;
 const { Decimal } = require('decimal.js');
@@ -68,7 +69,7 @@ function parseXUS(assets) {
     return (parseFloat(m[1]) * 1e6) | 0;
 }
 
-function pruntimeApi() {
+function usePruntimeApi() {
     const { pruntimeEndpoint } = program.opts();
     return new PRuntimeApi(pruntimeEndpoint);
 }
@@ -86,6 +87,53 @@ async function substrateApi() {
     return api;
 }
 
+// Gets the default key pair and the keyring
+async function useKey() {
+    await cryptoWaitReady();
+    const { keyType, keySuri } = program.opts();
+    const keyring = new Keyring({ type: keyType });
+    const pair = keyring.addFromUri(keySuri);
+    return { keyring, pair };
+}
+
+// Prints the tx or send it to the blockchain based on user's config
+async function printTxOrSend(call) {
+    if (program.opts().send) {
+        const { pair } = await useKey();
+        // const r = await call.signAndSend(pair, );
+        // How to specify {nonce: -1}?
+        const r = await new Promise(async (resolve, reject) => {
+            const unsub = await call.signAndSend(pair, (result) => {
+                if (result.status.isInBlock) {
+                    let error;
+                    for (const e of result.events) {
+                        const { event: { data, method, section } } = e;
+                        if (section === 'system' && method === 'ExtrinsicFailed') {
+                            error = data[0];
+                        }
+                    }
+                    unsub();
+                    if (error) {
+                        reject(error);
+                    } else {
+                        resolve({
+                            hash: result.status.asInBlock.toHuman(),
+                            events: result.toHuman().events,
+                        });
+                    }
+                } else if (result.status.isInvalid) {
+                    unsub();
+                    resolve();
+                    reject('Invalid transaction');
+                }
+            });
+        });
+        printObject(r, 4);
+    } else {
+        console.log(call.toHex());
+    }
+}
+
 function printObject(obj, depth=3, getter=true) {
     if (program.opts().json) {
         console.log(JSON.stringify(obj, undefined, 2));
@@ -101,6 +149,9 @@ program
     .option('--substrate-ws-endpoint <url>', 'Substrate WS endpoint', process.env.ENDPOINT || 'ws://localhost:9944')
     .option('--substrate-no-retry', false)
     .option('--at <hash>', 'access the state at a certain block', null)
+    .option('--key-type <type>', 'key type', 'sr25519')
+    .option('-s, --key-suri <suri>', 'key suri', process.env.PRIVKEY || '//Alice')
+    .option('--send', 'send the transaction instead of print the hex')
     .option('--json', 'output regular json', false);
 
 // Blockchain operations
@@ -113,27 +164,24 @@ chain
     .description('push a unencrypted command to a confidential contract')
     .argument('<contract-id>', 'confidential contract id (number)')
     .argument('<plain-command>', 'the plain command payload (string or json, depending on the definition)')
-    .option('-s, --suri <suri>', 'specify sender\'s privkey', process.env.PRIVKEY || '//Alice')
     .action(run(async (contractId, plainCommand, options) => {
-        const api = await substrateApi();
+        const api = await useApi();
         const cid = parseInt(contractId);
         const command = JSON.parse(plainCommand);
-        const keyring = new Keyring({ type: 'sr25519' });
-        const pair = keyring.addFromUri(options.suri);
-        const r = await api.tx.phala.pushCommand(
+        const call = api.tx.phala.pushCommand(
             cid,
             JSON.stringify({
                 Plain: JSON.stringify(command)
             })
-        ).signAndSend(pair);
-        console.log(r.toHuman());
+        );
+        await printTxOrSend(call);
     }));
 
 chain
     .command('sync-state')
     .description('show the chain status; returns 0 if it\'s in sync')
     .action(run(async () => {
-        const api = await substrateApi();
+        const api = await useApi();
         const hash = await api.rpc.chain.getBlockHash();
         const header = await api.rpc.chain.getHeader(hash);
         const syncState = await api.rpc.system.syncState();
@@ -159,7 +207,7 @@ chain
     .command('get-info')
     .description('show the node information')
     .action(run(async () => {
-        const api = await substrateApi();
+        const api = await useApi();
         const [localPeerId, localListenAddresses, health] = await Promise.all([
             api.rpc.system.localPeerId(),
             api.rpc.system.localListenAddresses(),
@@ -177,7 +225,7 @@ chain
     .description('get the firee blance of an account')
     .argument('<account>', 'the account to lookup')
     .action(run (async (account) => {
-        const api = await substrateApi();
+        const api = await useApi();
         const accountData = await api.query.system.account(account);
         const freeBalance = accountData.data.free.toString();
         console.log(freeBalance);
@@ -191,7 +239,7 @@ chain
     .action(run (async (workerKey) => {
         workerKey = normalizeHex(workerKey);
 
-        const api = await substrateApi();
+        const api = await useApi();
         let [workerInfo, miner, pid] = await Promise.all([
             api.query.phalaRegistry.workers(workerKey),
             api.query.phalaMining.workerBindings(workerKey),
@@ -218,7 +266,7 @@ chain
     .command('get-tokenomic')
     .description('read the tokenomic parameters from the blockchain')
     .action(run(async () => {
-        const api = await substrateApi();
+        const api = await useApi();
         const p = await tokenomic.readFromChain(api);
         printObject(p);
     }));
@@ -229,7 +277,7 @@ chain
     .description('create a call to update tokenomic parameters and print the raw call')
     .action(run(async (path) => {
         const p = loadJson(path);
-        const api = await substrateApi();
+        const api = await useApi();
         const typedP = tokenomic.humanToTyped(api, p);
         const call = tokenomic.createUpdateCall(api, typedP);
         console.log('Raw Call:', call.method.toHex());
@@ -241,7 +289,7 @@ chain
     .argument('<worker-pubkey>', 'the worker public key')
     .description('generate the stake pool subaccount by pid and worker pubkey')
     .action(run(async (pid, workerPubkey) => {
-        const api = await substrateApi();
+        const api = await useApi();
         const subAccount = poolSubAccount(api, pid, workerPubkey);
         console.log(subAccount.toHuman());
     }));
@@ -251,7 +299,7 @@ chain
     .argument('<pid>', 'pid')
     .description('get the stake pool info')
     .action(run(async (pid) => {
-        const api = await substrateApi();
+        const api = await useApi();
         const pool = await api.query.phalaStakePool.stakePools(pid);
         printObject(decorateStakePool(pool.unwrap()));
     }));
@@ -262,7 +310,7 @@ chain
     .option('--from <start_block>', 'Start block', '0')
     .option('--to <end_block>', 'End block', null)
     .action(run(async (opt) => {
-        const api = await substrateApi();
+        const api = await useApi();
         var blockNumber = parseInt(opt.from);
 
         while (true) {
@@ -296,7 +344,7 @@ pruntime
     .command('get-info')
     .description('get the running status')
     .action(run(async () => {
-        const pr = pruntimeApi();
+        const pr = usePruntimeApi();
         printObject(await pr.req('get_info'));
     }));
 
@@ -306,7 +354,7 @@ pruntime
     .argument('<method>', 'the method name')
     .option('--body', 'a json request body', '')
     .action(run(async (method, opt) => {
-        const pr = pruntimeApi();
+        const pr = usePruntimeApi();
         let body;
         if (opt.body) {
             body = JSON.parse(opt.body);
@@ -320,7 +368,7 @@ pruntime
     .argument('<contract-id>', 'confidential contract id (number)')
     .argument('<plain-query>', 'the plain query payload (string or json, depending on the definition)')
     .action(run(async (contractId, plainQuery) => {
-        const pr = pruntimeApi();
+        const pr = usePruntimeApi();
         const cid = parseInt(contractId);
         const plainQueryObj = JSON.parse(plainQuery);
         const r = await pr.query(cid, plainQueryObj);
@@ -336,7 +384,7 @@ pdiem
     .command('balances')
     .description('get a list of the account info and balances')
     .action(run(async () => {
-        const pr = pruntimeApi();
+        const pr = usePruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'AccountData'), {depth: 3});
     }));
 
@@ -344,7 +392,7 @@ pdiem
     .command('tx')
     .description('get a list of the verified transactions')
     .action(run(async () => {
-        const pr = pruntimeApi();
+        const pr = usePruntimeApi();
         console.dir(await pr.query(CONTRACT_PDIEM, 'VerifiedTransactions'), {depth: 3});
     }));
 
@@ -352,13 +400,10 @@ pdiem
     .command('new-account')
     .description('create a new diem subaccount for deposit')
     .argument('<seq>', 'the sequence id of the VASP account')
-    .argument('<suri>', 'the SURI of the sender Substrate account (sr25519)')
-    .action(run(async (seq, suri) => {
-        const api = await substrateApi();
+    .action(run(async (seq) => {
+        const api = await useApi();
         const seqNumber = parseInt(seq);
-        const keyring = new Keyring({ type: 'sr25519' });
-        const pair = keyring.addFromUri(suri);
-        const r = await api.tx.phala.pushCommand(
+        const call = api.tx.phala.pushCommand(
             CONTRACT_PDIEM,
             JSON.stringify({
                 Plain: JSON.stringify({
@@ -367,9 +412,8 @@ pdiem
                     }
                 })
             })
-
-        ).signAndSend(pair);
-        console.log(r.toHuman());
+        );
+        await printTxOrSend(call);
     }));
 
 pdiem
@@ -383,11 +427,8 @@ pdiem
             throw new Error('<dest> must not start with "0x"');
         }
         const xusAmount = parseXUS(amount);
-        const api = await substrateApi();
-        const keyring = new Keyring({ type: 'sr25519' });
-        const pair = keyring.addFromUri(suri);
-
-        const r = await api.tx.phala.pushCommand(
+        const api = await useApi();
+        const call = api.tx.phala.pushCommand(
             CONTRACT_PDIEM,
             JSON.stringify({
                 Plain: JSON.stringify({
@@ -397,8 +438,8 @@ pdiem
                     }
                 })
             })
-        ).signAndSend(pair);
-        console.log(r.toHuman());
+        );
+        await printTxOrSend(call);
     }));
 
 // Utilities
@@ -424,6 +465,7 @@ utils
             }
         } catch {}
         try {
+            // We don't call useKey because we just want to validate the input
             await cryptoWaitReady();
             const pair = keyring.addFromUri(input);
             if (pair) {
@@ -454,5 +496,39 @@ utils
         const fpc = new FixedPointConverter();
         console.log(fpc.fromBits(bnBits).toString());
     });
+
+const contract = program
+    .command('contract')
+    .description('fat contract utilities');
+
+contract
+    .command('upload-code')
+    .description('upload an ink wasm contract to the blockchain and get the hex')
+    .argument('<wasm>', 'path to the wasm code')
+    .action(run(async (wasmPath) => {
+        const api = await useApi();
+        // TODO: move to phalaContract later
+        const code = fs.readFileSync(wasmPath);
+        const codeHex = '0x' + code.toString('hex');
+        const call = api.tx.phalaRegistry.uploadCode(codeHex);
+        await printTxOrSend(call);
+    }));
+
+contract
+    .command('instantiate')
+    .description('instantiate a fat contract')
+    .argument('<code-hash>', 'the hash of the code, in hex')
+    .argument('<call-data>', 'the encoded arguments in hex')
+    .argument('<worker>', 'the targeted worker to deploy the contract')
+    .action(run(async (codeHash, callData, worker) => {
+        const api = await useApi();
+        const call = api.tx.phalaRegistry.instantiateContract(
+            { 'WasmCode': codeHash },
+            callData,
+            '0x',
+            worker
+        );
+        await printTxOrSend(call);
+    }));
 
 program.parse(process.argv);

@@ -2,6 +2,7 @@ use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 pub use phala_mq::{contract_id256 as id256, ContractId};
 
@@ -17,6 +18,54 @@ pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
 pub const GUESS_NUMBER: ContractId32 = 100;
 pub const BTC_PRICE_BOT: ContractId32 = 101;
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum CodeIndex<CodeHash> {
+    NativeCode(ContractId32),
+    WasmCode(CodeHash),
+}
+
+pub mod messaging {
+    use alloc::vec::Vec;
+    use codec::{Decode, Encode};
+
+    use super::ContractInfo;
+    use crate::{EcdhPublicKey, WorkerPublicKey};
+    use phala_mq::bind_topic;
+
+    bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ContractEvent<CodeHash, AccountId> {
+        InstantiateCode {
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+        },
+    }
+
+    impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
+        pub fn instantiate_code(
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+        ) -> Self {
+            // TODO(shelven): enable multiple workers assignment
+            ContractEvent::InstantiateCode {
+                contract_info,
+                deploy_worker,
+            }
+        }
+    }
+}
+
+/// On-chain contract registration info
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct ContractInfo<CodeHash, AccountId> {
+    pub deployer: AccountId,
+    /// Contract group counter of the contract
+    pub group_id: u64,
+    pub salt: Vec<u8>,
+    pub code_index: CodeIndex<CodeHash>,
+    pub instantiate_data: Vec<u8>,
+}
 
 /// Contract query request parameters, to be encrypted.
 #[derive(Encode, Decode, Debug)]

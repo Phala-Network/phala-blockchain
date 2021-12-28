@@ -23,7 +23,7 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract;
+    use crate::contract::{self, ContractInfo};
     pub use phala_mq::types::*;
     pub use phala_mq::{bind_contract32, bind_topic};
 
@@ -473,7 +473,29 @@ pub mod messaging {
         }
     }
 
+    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
+    }
+
+    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+        pub fn contract_key_distribution(
+            secret_key: Sr25519SecretKey,
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            expiration: BlockNumber,
+        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
+                secret_key,
+                contract_info,
+                expiration,
+            })
+        }
+    }
+
     type AeadIV = [u8; 12];
+    type Sr25519SecretKey = [u8; 64];
+
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
         /// The target to dispatch master key
@@ -484,6 +506,13 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
+        pub secret_key: Sr25519SecretKey,
+        pub contract_info: ContractInfo<CodeHash, AccountId>,
+        pub expiration: BlockNumber,
     }
 
     // Messages: Gatekeeper

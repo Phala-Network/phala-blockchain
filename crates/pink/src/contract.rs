@@ -8,6 +8,8 @@ use crate::{
     types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
 };
 
+use pallet_contracts_primitives::ContractExecResult;
+
 pub type Storage = storage::Storage<storage::InMemoryBackend>;
 
 #[derive(Debug)]
@@ -82,10 +84,7 @@ impl Contract {
             }
             Ok(Contracts::contract_address(&origin, &code_hash, &salt))
         });
-        Ok((
-            Self::from_address(address?),
-            effects,
-        ))
+        Ok((Self::from_address(address?), effects))
     }
 
     pub fn new_with_selector(
@@ -118,23 +117,13 @@ impl Contract {
         rollback: bool,
         block_number: BlockNumber,
         now: u64,
-    ) -> Result<(Vec<u8>, ExecSideEffects), ExecError> {
+    ) -> (ContractExecResult, ExecSideEffects) {
         let addr = self.address.clone();
-        let (rv, effects) = storage.execute_with(rollback, move || -> Result<_, ExecError> {
+        storage.execute_with(rollback, move || {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
-            let result = Contracts::bare_call(origin, addr, 0, GAS_LIMIT, input_data, true);
-            match result.result {
-                Err(err) => {
-                    return Err(ExecError {
-                        source: err,
-                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                    });
-                }
-                Ok(rv) => Ok(rv),
-            }
-        });
-        Ok((rv?.data.0, effects))
+            Contracts::bare_call(origin, addr, 0, GAS_LIMIT, input_data, true)
+        })
     }
 
     /// Call a contract method given it's selector
@@ -151,14 +140,15 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        let (rv, messages) =
-            self.bare_call(storage, origin, input_data, rollback, block_number, now)?;
+        let (result, effects) =
+            self.bare_call(storage, origin, input_data, rollback, block_number, now);
+        let mut rv = transpose_contract_result(&result)?;
         Ok((
-            Decode::decode(&mut &rv[..]).or(Err(ExecError {
+            Decode::decode(&mut rv).or(Err(ExecError {
                 source: DispatchError::Other("Decode result failed"),
                 message: Default::default(),
             }))?,
-            messages,
+            effects,
         ))
     }
 
@@ -173,14 +163,15 @@ impl Contract {
             let mut input_data = vec![];
             selector.to_be_bytes().encode_to(&mut input_data);
 
-            let (_rv, effects) = self.bare_call(
+            let (result, effects) = self.bare_call(
                 storage,
                 Default::default(),
                 input_data,
                 false,
                 block_number,
                 now,
-            )?;
+            );
+            let _ = transpose_contract_result(&result)?;
             Ok(effects)
         } else {
             Ok(Default::default())
@@ -190,6 +181,17 @@ impl Contract {
     pub fn set_on_block_end_selector(&mut self, selector: u32) {
         self.hooks.on_block_end = Some(selector)
     }
+}
+
+pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], ExecError> {
+    result
+        .result
+        .as_ref()
+        .map(|v| &*v.data.0)
+        .map_err(|err| ExecError {
+            source: err.clone(),
+            message: String::from_utf8_lossy(&result.debug_message).to_string(),
+        })
 }
 
 pub use contract_file::ContractFile;
