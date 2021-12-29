@@ -299,7 +299,7 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedMessageV2 {
     pub message: Message,
     pub sequence: u64,
