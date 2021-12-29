@@ -109,11 +109,6 @@ impl contracts::NativeContract for GuessNumber {
     type QReq = Request;
     type QResp = Result<Response, Error>;
 
-    /// Return the contract id which uniquely identifies the contract
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::GUESS_NUMBER)
-    }
-
     /// Handle the Commands from transactions on the blockchain. This method doesn't respond.
     ///
     /// # Arguments

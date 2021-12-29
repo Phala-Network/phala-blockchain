@@ -5,8 +5,9 @@ use std::ops::{Deref, DerefMut};
 
 use super::{Contract, NativeCompatContract, NativeContractWrapper};
 use crate::contracts::{
-    assets::Assets, balances::Balances, btc_lottery::BtcLottery, data_plaza::DataPlaza,
-    geolocation::Geolocation, pink::Pink, web3analytics::Web3Analytics,
+    assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
+    data_plaza::DataPlaza, geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
+    web3analytics::Web3Analytics,
 };
 
 type ContractMap = BTreeMap<ContractId, AnyContract>;

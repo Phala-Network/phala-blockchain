@@ -231,7 +231,6 @@ pub mod messaging {
     }
 
     // Bind on-chain GuessNumberCommand message to the GUESS_NUMBER contract
-    bind_contract32!(GuessNumberCommand, contract::GUESS_NUMBER);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum GuessNumberCommand {
         /// Refresh the random number
@@ -240,7 +239,6 @@ pub mod messaging {
         SetOwner { owner: AccountId },
     }
 
-    bind_contract32!(BtcPriceBotCommand, contract::BTC_PRICE_BOT);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum BtcPriceBotCommand {
         /// Set the contract owner

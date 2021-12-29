@@ -900,7 +900,9 @@ impl<Platform: pal::Platform> System<Platform> {
                     (ASSETS => assets::Assets::new()),
                     (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
                     (WEB3_ANALYTICS => web3analytics::Web3Analytics::new()),
-                    (GEOLOCATION => geolocation::Geolocation::new())
+                    (GEOLOCATION => geolocation::Geolocation::new()),
+                    (GUESS_NUMBER => guess_number::GuessNumber::new()),
+                    (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
                 };
 
                 self.contract_groups
