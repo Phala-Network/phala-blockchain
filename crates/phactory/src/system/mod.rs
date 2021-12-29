@@ -4,8 +4,8 @@ mod side_tasks;
 
 use crate::{
     benchmark,
-    contracts::{pink::group::Group, ContractsKeeper, ExecuteEnv, NativeContract},
-    pink::{group::GroupKeeper, Pink},
+    contracts::{pink::cluster::Cluster, ContractsKeeper, ExecuteEnv, NativeContract},
+    pink::{cluster::ClusterKeeper, Pink},
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
@@ -407,7 +407,7 @@ pub struct System<Platform> {
     pub(crate) gatekeeper: Option<gk::Gatekeeper<SignedMessageChannel>>,
 
     pub(crate) contracts: ContractsKeeper,
-    contract_groups: GroupKeeper,
+    contract_clusters: ClusterKeeper,
     contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
 
     // Cached for query
@@ -458,7 +458,7 @@ impl<Platform: pal::Platform> System<Platform> {
             master_key,
             gatekeeper: None,
             contracts,
-            contract_groups: Default::default(),
+            contract_clusters: Default::default(),
             contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
@@ -478,7 +478,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
-            contract_groups: &mut self.contract_groups,
+            contract_clusters: &mut self.contract_clusters,
         };
         contract.handle_query(origin, req, &mut context)
     }
@@ -545,10 +545,10 @@ impl<Platform: pal::Platform> System<Platform> {
                     None => continue 'outer,
                     Some(v) => v,
                 };
-                let group_id = contract.group_id();
+                let cluster_id = contract.cluster_id();
                 let mut env = ExecuteEnv {
                     block: block,
-                    contract_groups: &mut self.contract_groups,
+                    contract_clusters: &mut self.contract_clusters,
                 };
                 let result = match contract.process_next_message(&mut env) {
                     Some(result) => result,
@@ -556,28 +556,28 @@ impl<Platform: pal::Platform> System<Platform> {
                 };
                 handle_contract_command_result(
                     result,
-                    group_id,
+                    cluster_id,
                     &mut self.contracts,
-                    &mut self.contract_groups,
+                    &mut self.contract_clusters,
                     block,
                     &self.egress,
                 );
             }
             let mut env = ExecuteEnv {
                 block: block,
-                contract_groups: &mut self.contract_groups,
+                contract_clusters: &mut self.contract_clusters,
             };
             let contract = match self.contracts.get_mut(&key) {
                 None => continue 'outer,
                 Some(v) => v,
             };
             let result = contract.on_block_end(&mut env);
-            let group_id = contract.group_id();
+            let cluster_id = contract.cluster_id();
             handle_contract_command_result(
                 result,
-                group_id,
+                cluster_id,
                 &mut self.contracts,
-                &mut self.contract_groups,
+                &mut self.contract_clusters,
                 block,
                 &self.egress,
             );
@@ -860,13 +860,13 @@ impl<Platform: pal::Platform> System<Platform> {
 
                 self.contract_keys
                     .insert(contract_pubkey, contract_key.clone());
-                let group_id = chain::Hash::from_low_u64_be(contract_info.group_id);
+                let cluster_id = chain::Hash::from_low_u64_be(contract_info.cluster_id);
                 let code = code.expect("checked; qed.");
                 let deployer = contract_info.deployer;
                 let effects = self
-                    .contract_groups
+                    .contract_clusters
                     .instantiate_contract(
-                        group_id,
+                        cluster_id,
                         deployer.clone(),
                         code,
                         contract_info.instantiate_data,
@@ -878,15 +878,15 @@ impl<Platform: pal::Platform> System<Platform> {
                     .with_context(|| format!("Contract deployer: {:?}", deployer))
                     .map_err(|_| TransactionError::FailedToExecute)?;
 
-                let group = self
-                    .contract_groups
-                    .get_group_mut(&group_id)
-                    .expect("Group must exist after instantiate");
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .expect("Cluster must exist after instantiate");
                 apply_pink_side_effects(
                     effects,
-                    &group_id,
+                    &cluster_id,
                     &mut self.contracts,
-                    group,
+                    cluster,
                     block,
                     &self.egress,
                 );
@@ -922,15 +922,15 @@ impl<Platform: pal::Platform> System<Platform> {
     }
 
     pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-        self.contract_groups.commit_changes()
+        self.contract_clusters.commit_changes()
     }
 }
 
 pub fn handle_contract_command_result(
     result: TransactionResult,
-    group_id: Option<phala_mq::ContractGroupId>,
+    cluster_id: Option<phala_mq::ContractClusterId>,
     contracts: &mut ContractsKeeper,
-    groups: &mut GroupKeeper,
+    clusters: &mut ClusterKeeper,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
 ) {
@@ -941,36 +941,36 @@ pub fn handle_contract_command_result(
         }
         Ok(effects) => effects,
     };
-    if let Some(group_id) = group_id {
-        let group = match groups.get_group_mut(&group_id) {
+    if let Some(cluster_id) = cluster_id {
+        let cluster = match clusters.get_cluster_mut(&cluster_id) {
             None => {
                 error!(
-                    "BUG: pink group not found, it should always exsists, group_id={:?}",
-                    group_id
+                    "BUG: pink cluster not found, it should always exsists, cluster_id={:?}",
+                    cluster_id
                 );
                 return;
             }
-            Some(group) => group,
+            Some(cluster) => cluster,
         };
-        apply_pink_side_effects(effects, &group_id, contracts, group, block, egress);
+        apply_pink_side_effects(effects, &cluster_id, contracts, cluster, block, egress);
     }
 }
 
 pub fn apply_pink_side_effects(
     effects: ExecSideEffects,
-    group_id: &phala_mq::ContractGroupId,
+    cluster_id: &phala_mq::ContractClusterId,
     contracts: &mut ContractsKeeper,
-    group: &mut Group,
+    cluster: &mut Cluster,
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
 ) {
-    let contract_key = group.key().clone();
+    let contract_key = cluster.key().clone();
     let ecdh_key = contract_key
         .derive_ecdh_key()
         .expect("Derive ecdh_key should not fail");
 
     for (deployer, address) in effects.instantiated {
-        let pink = Pink::from_address(address, group_id.clone());
+        let pink = Pink::from_address(address, cluster_id.clone());
         let id = pink.id();
 
         install_contract(
@@ -981,10 +981,10 @@ pub fn apply_pink_side_effects(
             block,
         );
 
-        group.add_contract(id.clone());
+        cluster.add_contract(id.clone());
         let message = WorkerPinkReport::PinkInstantiated {
             id,
-            group_id: group_id.clone(),
+            cluster_id: *cluster_id,
             owner: phala_types::messaging::AccountId(deployer.into()),
             pubkey: EcdhPublicKey(ecdh_key.public()),
         };
@@ -1007,7 +1007,10 @@ pub fn apply_pink_side_effects(
         use pink::runtime::PinkEvent;
         match event {
             PinkEvent::Message(message) => {
-                contract.push_message(message.payload, message.topic);
+                contract.push_message(
+                    message.payload,
+                    message.topic,
+                );
             }
             PinkEvent::OspMessage(message) => {
                 contract.push_osp_message(
@@ -1120,12 +1123,12 @@ mod tests {
     fn test_on_block_end() {
         let contract_key = sp_core::Pair::from_seed(&Default::default());
         let mut contracts = ContractsKeeper::default();
-        let mut groupkeeper = GroupKeeper::default();
+        let mut keeper = ClusterKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
-        let group_id = phala_mq::ContractGroupId(Default::default());
-        let effects = groupkeeper
+        let cluster_id = phala_mq::ContractClusterId(Default::default());
+        let effects = keeper
             .instantiate_contract(
-                group_id,
+                cluster_id,
                 Default::default(),
                 wasm_bin,
                 vec![0xed, 0x4b, 0x9d, 0x1b],
@@ -1137,7 +1140,7 @@ mod tests {
             .unwrap();
         insta::assert_debug_snapshot!(effects);
 
-        let group = groupkeeper.get_group_mut(&group_id).unwrap();
+        let cluster = keeper.get_cluster_mut(&cluster_id).unwrap();
         let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
         let signer = sr25519::Pair::from_seed(&Default::default());
         let egress = builder
@@ -1147,9 +1150,9 @@ mod tests {
 
         apply_pink_side_effects(
             effects,
-            &group_id,
+            &cluster_id,
             &mut contracts,
-            group,
+            cluster,
             &mut block_info,
             &egress,
         );
@@ -1158,7 +1161,7 @@ mod tests {
 
         let mut env = ExecuteEnv {
             block: &mut block_info,
-            contract_groups: &mut &mut groupkeeper,
+            contract_clusters: &mut &mut keeper,
         };
 
         for contract in contracts.values_mut() {

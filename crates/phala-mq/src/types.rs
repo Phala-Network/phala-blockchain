@@ -11,7 +11,7 @@ pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
 pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
-pub use sp_core::H256 as ContractGroupId;
+pub use sp_core::H256 as ContractClusterId;
 
 use crate::MessageSigner;
 use serde::{Serialize, Deserialize};
