@@ -301,6 +301,7 @@ impl<'a> MessageToBeSigned<'a> {
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedMessageV2 {
+    pub phactory_version: u8,
     pub message: Message,
     pub sequence: u64,
     pub hash: MqHash,
@@ -354,6 +355,7 @@ impl<Signer: MessageSigner> SigningMessage<Signer> {
         };
         let signature = self.signer.sign(&data.raw_data());
         SignedMessageV2 {
+            phactory_version: 0,
             message: self.message,
             sequence,
             signature,
