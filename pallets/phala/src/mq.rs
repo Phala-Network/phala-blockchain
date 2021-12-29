@@ -54,7 +54,7 @@ pub mod pallet {
 		BadSequence,
 		BadDestination,
 		MqVersionMismatch,
-		MessageHashMismatch,
+		ParentHashMismatch,
 	}
 
 	#[pallet::call]
@@ -134,7 +134,7 @@ pub mod pallet {
 			if let Some(last_hash) = OffchainIngressLastHash::<T>::get(&sender) {
 				ensure!(
 					signed_message.parent_hash == last_hash,
-					Error::<T>::MessageHashMismatch
+					Error::<T>::ParentHashMismatch
 				);
 			}
 

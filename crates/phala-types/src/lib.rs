@@ -358,6 +358,7 @@ pub mod messaging {
     impl MessageHashing for MiningReportEvent {
         fn hash(&self) -> MqHash {
             match self {
+                // We have skipped the iteration here because it's not stable when replaying.
                 MiningReportEvent::Heartbeat {
                     session_id,
                     challenge_block,
