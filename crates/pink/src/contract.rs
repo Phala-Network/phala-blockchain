@@ -58,6 +58,13 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
+        if origin == Default::default() {
+            return Err(ExecError {
+                source: DispatchError::BadOrigin,
+                message: "Default account is not allowed to create contracts".to_string(),
+            });
+        }
+
         let code_hash = Hashing::hash(&code);
 
         let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
@@ -118,6 +125,29 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
     ) -> (ContractExecResult, ExecSideEffects) {
+        if origin == Default::default() {
+            return (
+                ContractExecResult {
+                    gas_consumed: 0,
+                    gas_required: 0,
+                    debug_message: b"Default account is not allowed to call contracts".to_vec(),
+                    result: Err(DispatchError::BadOrigin),
+                },
+                ExecSideEffects::default(),
+            );
+        }
+        self.unchecked_bare_call(storage, origin, input_data, rollback, block_number, now)
+    }
+
+    fn unchecked_bare_call(
+        &mut self,
+        storage: &mut Storage,
+        origin: AccountId,
+        input_data: Vec<u8>,
+        rollback: bool,
+        block_number: BlockNumber,
+        now: u64,
+    ) -> (ContractExecResult, ExecSideEffects) {
         let addr = self.address.clone();
         storage.execute_with(rollback, move || {
             System::set_block_number(block_number);
@@ -163,7 +193,7 @@ impl Contract {
             let mut input_data = vec![];
             selector.to_be_bytes().encode_to(&mut input_data);
 
-            let (result, effects) = self.bare_call(
+            let (result, effects) = self.unchecked_bare_call(
                 storage,
                 Default::default(),
                 input_data,
