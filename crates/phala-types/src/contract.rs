@@ -60,8 +60,8 @@ pub mod messaging {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
     pub deployer: AccountId,
-    /// Contract group counter of the contract
-    pub group_id: u64,
+    /// Contract cluster counter of the contract
+    pub cluster_id: u64,
     pub salt: Vec<u8>,
     pub code_index: CodeIndex<CodeHash>,
     pub instantiate_data: Vec<u8>,

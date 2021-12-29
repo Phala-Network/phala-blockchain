@@ -2,7 +2,7 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractGroupId, ContractId, MessageOrigin};
+use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 
@@ -30,12 +30,12 @@ pub enum QueryError {
 #[derive(Encode, Decode)]
 pub struct Pink {
     instance: pink::Contract,
-    group: ContractGroupId,
+    cluster_id: ContractClusterId,
 }
 
 impl Pink {
     pub fn instantiate(
-        group: ContractGroupId,
+        cluster_id: ContractClusterId,
         storage: &mut pink::Storage,
         origin: AccountId,
         wasm_bin: Vec<u8>,
@@ -54,12 +54,12 @@ impl Pink {
             now,
         )
         .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
-        Ok((Self { group, instance }, effects))
+        Ok((Self { cluster_id, instance }, effects))
     }
 
-    pub fn from_address(address: AccountId, group: ContractGroupId) -> Self {
+    pub fn from_address(address: AccountId, cluster_id: ContractClusterId) -> Self {
         let instance = pink::Contract::from_address(address);
-        Self { instance, group }
+        Self { instance, cluster_id }
     }
 
     pub fn address_to_id(address: &AccountId) -> ContractId {
@@ -79,8 +79,8 @@ impl contracts::NativeContract for Pink {
         Pink::address_to_id(&self.instance.address)
     }
 
-    fn group_id(&self) -> Option<phala_mq::ContractGroupId> {
-        Some(self.group.clone())
+    fn cluster_id(&self) -> Option<phala_mq::ContractClusterId> {
+        Some(self.cluster_id.clone())
     }
 
     fn handle_query(
@@ -92,8 +92,8 @@ impl contracts::NativeContract for Pink {
         let origin = origin.ok_or(QueryError::BadOrigin)?;
         match req {
             Query::InkMessage(input_data) => {
-                let storage = group_storage(&mut context.contract_groups, &self.group)
-                    .expect("Pink group should always exists!");
+                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
+                    .expect("Pink cluster should always exists!");
 
                 let (ink_result, _effects) = self.instance.bare_call(
                     storage,
@@ -124,8 +124,8 @@ impl contracts::NativeContract for Pink {
                     _ => return Err(TransactionError::BadOrigin),
                 };
 
-                let storage = group_storage(&mut context.contract_groups, &self.group)
-                    .expect("Pink group should always exists!");
+                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
+                    .expect("Pink cluster should always exists!");
 
                 let (result, effects) = self
                     .instance
@@ -152,8 +152,8 @@ impl contracts::NativeContract for Pink {
     }
 
     fn on_block_end(&mut self, context: &mut contracts::NativeContext) -> TransactionResult {
-        let storage = group_storage(&mut context.contract_groups, &self.group)
-            .expect("Pink group should always exists!");
+        let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
+            .expect("Pink cluster should always exists!");
         let effects = self
             .instance
             .on_block_end(storage, context.block.block_number, context.block.now_ms)
@@ -169,20 +169,20 @@ impl contracts::NativeContract for Pink {
     }
 }
 
-fn group_storage<'a>(
-    groups: &'a mut group::GroupKeeper,
-    group_id: &ContractGroupId,
+fn cluster_storage<'a>(
+    clusters: &'a mut cluster::ClusterKeeper,
+    cluster_id: &ContractClusterId,
 ) -> Result<&'a mut pink::Storage> {
-    groups
-        .get_group_storage_mut(group_id)
-        .ok_or(anyhow!("Contract group {:?} not found! qed!", group_id))
+    clusters
+        .get_cluster_storage_mut(cluster_id)
+        .ok_or(anyhow!("Contract cluster {:?} not found! qed!", cluster_id))
 }
 
-pub mod group {
+pub mod cluster {
     use super::Pink;
 
     use anyhow::Result;
-    use phala_mq::{ContractGroupId, ContractId};
+    use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use pink::{runtime::ExecSideEffects, types::AccountId};
     use runtime::BlockNumber;
@@ -191,14 +191,14 @@ pub mod group {
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default, Serialize, Deserialize)]
-    pub struct GroupKeeper {
-        groups: BTreeMap<ContractGroupId, Group>,
+    pub struct ClusterKeeper {
+        clusters: BTreeMap<ContractClusterId, Cluster>,
     }
 
-    impl GroupKeeper {
+    impl ClusterKeeper {
         pub fn instantiate_contract(
             &mut self,
-            group_id: ContractGroupId,
+            cluster_id: ContractClusterId,
             origin: AccountId,
             wasm_bin: Vec<u8>,
             input_data: Vec<u8>,
@@ -207,17 +207,17 @@ pub mod group {
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let group = self
-                .groups
-                .entry(group_id.clone())
-                .or_insert_with(|| Group {
+            let cluster = self
+                .clusters
+                .entry(cluster_id.clone())
+                .or_insert_with(|| Cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
                     key: contract_key.clone(),
                 });
             let (_, effects) = Pink::instantiate(
-                group_id,
-                &mut group.storage,
+                cluster_id,
+                &mut cluster.storage,
                 origin,
                 wasm_bin,
                 input_data,
@@ -228,34 +228,34 @@ pub mod group {
             Ok(effects)
         }
 
-        pub fn get_group_storage_mut(
+        pub fn get_cluster_storage_mut(
             &mut self,
-            group_id: &ContractGroupId,
+            cluster_id: &ContractClusterId,
         ) -> Option<&mut pink::Storage> {
-            Some(&mut self.groups.get_mut(group_id)?.storage)
+            Some(&mut self.clusters.get_mut(cluster_id)?.storage)
         }
 
-        pub fn get_group_mut(&mut self, group_id: &ContractGroupId) -> Option<&mut Group> {
-            self.groups.get_mut(group_id)
+        pub fn get_cluster_mut(&mut self, cluster_id: &ContractClusterId) -> Option<&mut Cluster> {
+            self.clusters.get_mut(cluster_id)
         }
 
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-            for group in self.groups.values_mut() {
-                group.commit_changes()?;
+            for cluster in self.clusters.values_mut() {
+                cluster.commit_changes()?;
             }
             Ok(())
         }
     }
 
     #[derive(Serialize, Deserialize)]
-    pub struct Group {
+    pub struct Cluster {
         pub storage: pink::Storage,
         contracts: BTreeSet<ContractId>,
         #[serde(with = "more::key_bytes")]
         key: sr25519::Pair,
     }
 
-    impl Group {
+    impl Cluster {
         pub fn add_contract(&mut self, address: ContractId) {
             self.contracts.insert(address);
         }

@@ -576,7 +576,7 @@ pub mod messaging {
     pub enum WorkerPinkReport {
         PinkInstantiated {
             id: ContractId,
-            group_id: ContractGroupId,
+            cluster_id: ContractClusterId,
             owner: AccountId,
             pubkey: EcdhPublicKey,
         },
