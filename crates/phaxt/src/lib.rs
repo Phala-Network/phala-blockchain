@@ -6,8 +6,11 @@ pub mod khala {
     #[subxt(substitute_type = "phala_mq::types::SignedMessage")]
     pub use phala_types::messaging::SignedMessage;
 
-    #[subxt(substitute_type = "phala_mq::types::SignedMessageV2")]
-    pub use phala_types::messaging::SignedMessageV2;
+    #[subxt(substitute_type = "phala_mq::types::ChainedMessage")]
+    pub use phala_types::messaging::ChainedMessage;
+
+    #[subxt(substitute_type = "phala_mq::types::AppointedMessage")]
+    pub use phala_types::messaging::AppointedMessage;
 
     #[subxt(substitute_type = "polkadot_parachain::primitives::Id")]
     pub use crate::ParaId;

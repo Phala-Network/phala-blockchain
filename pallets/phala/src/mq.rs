@@ -12,10 +12,18 @@ pub mod pallet {
 
 	use phala_types::messaging::{
 		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, MqHash, Path,
-		SignedMessage, SignedMessageV2,
+		SignedMessage, ChainedMessage, AppointedMessage, Signature,
 	};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
+
+	#[derive(Encode, Decode, TypeInfo, Default)]
+	pub struct AppointedSequences {
+		// The sequence id to be used for the next appointment.
+		pub next: u64,
+		// Current unresolved appointed sequence ids.
+		pub appointed: Vec<u64>,
+	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + crate::registry::Config {
@@ -40,6 +48,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
+
+	#[pallet::storage]
+	pub type AppointedIngress<T> = StorageMap<_, Twox64Concat, MessageOrigin, AppointedSequences, ValueQuery>;
 
 	/// Outbound messages at the current block.
 	///
@@ -109,50 +120,97 @@ pub mod pallet {
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
 		pub fn sync_offchain_message_v2(
 			origin: OriginFor<T>,
-			signed_message: SignedMessageV2,
+			message: ChainedMessage,
+			signature: Signature,
 		) -> DispatchResult {
 			ensure_signed(origin)?;
 
 			// Check sender
-			let sender = &signed_message.message.sender;
+			let sender = &message.message.sender;
 			ensure!(sender.is_offchain(), Error::<T>::BadSender);
 
 			// Check destination
 			ensure!(
-				signed_message.message.destination.is_valid(),
+				message.message.destination.is_valid(),
 				Error::<T>::BadDestination
 			);
 
 			// Check ingress sequence
 			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 			ensure!(
-				signed_message.sequence == expected_seq,
+				message.sequence == expected_seq,
 				Error::<T>::BadSequence
 			);
 
 			// Check parent hash
 			if let Some(last_hash) = OffchainIngressLastHash::<T>::get(&sender) {
 				ensure!(
-					signed_message.parent_hash == last_hash,
+					message.parent_hash == last_hash,
 					Error::<T>::ParentHashMismatch
 				);
 			}
 
 			// Validate signature
 			crate::registry::Pallet::<T>::check_message_signature(
-				&signed_message.data_be_signed(),
-				&signed_message.signature,
-				&signed_message.message.sender,
+				&message.encode(),
+				&signature,
+				&message.message.sender,
 			)?;
 
 			// Update ingress
 			OffchainIngress::<T>::insert(sender.clone(), expected_seq + 1);
 
 			// Update last hash
-			OffchainIngressLastHash::<T>::insert(sender.clone(), signed_message.hash);
+			OffchainIngressLastHash::<T>::insert(sender.clone(), message.hash);
 
 			// Call dispatch_message
-			Self::dispatch_message(signed_message.message);
+			Self::dispatch_message(message.message);
+			Ok(())
+		}
+
+		/// Syncs an unverified offchain message to the message queue
+		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
+		pub fn sync_appointed_message(
+			origin: OriginFor<T>,
+			message: AppointedMessage,
+			signature: Signature,
+		) -> DispatchResult {
+			ensure_signed(origin)?;
+
+			// Check sender
+			let sender = &message.message.sender;
+			ensure!(sender.is_offchain(), Error::<T>::BadSender);
+
+			// Check destination
+			ensure!(
+				message.message.destination.is_valid(),
+				Error::<T>::BadDestination
+			);
+
+			// Check ingress sequence
+			let mut seqs = AppointedIngress::<T>::get(&sender);
+			ensure!(
+				message.sequence < seqs.next,
+				Error::<T>::BadSequence
+			);
+			ensure!(
+				seqs.appointed.contains(&message.sequence),
+				Error::<T>::BadSequence
+			);
+
+			// Validate signature
+			crate::registry::Pallet::<T>::check_message_signature(
+				&message.encode(),
+				&signature,
+				&message.message.sender,
+			)?;
+
+			// Update ingress
+			seqs.appointed.retain(|&x| x != message.sequence);
+			AppointedIngress::<T>::insert(sender.clone(), seqs);
+
+			// Call dispatch_message
+			Self::dispatch_message(message.message);
 			Ok(())
 		}
 

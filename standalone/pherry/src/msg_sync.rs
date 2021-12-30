@@ -76,7 +76,7 @@ pub async fn maybe_sync_mq_egress(
 
         info!("Next seq for {} is {}", sender, min_seq);
 
-        for message in messages {
+        for (message, signature) in messages {
             if message.sequence < min_seq {
                 info!("{} has been submitted. Skipping...", message.sequence);
                 continue;
@@ -93,7 +93,7 @@ pub async fn maybe_sync_mq_egress(
             let extrinsic = api
                 .tx()
                 .phala_mq()
-                .sync_offchain_message_v2(message)
+                .sync_offchain_message_v2(message, signature)
                 .create_signed(
                     signer,
                     ExtraConfig {

@@ -10,14 +10,14 @@ use sp_core::crypto::{AccountId32, UncheckedFrom};
 pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
 
+pub use primitive_types::H128 as MqHash;
 pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractClusterId;
-pub use primitive_types::H128 as MqHash;
 
 use crate::MessageSigner;
-use serde::{Serialize, Deserialize};
 use phala_serde_more as more;
+use serde::{Deserialize, Serialize};
 
 pub fn contract_id256(id: u32) -> ContractId {
     ContractId::from_low_u64_be(id as u64)
@@ -26,8 +26,9 @@ pub fn contract_id256(id: u32) -> ContractId {
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display)]
-#[derive(Serialize, Deserialize)]
+#[derive(
+    Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display, Serialize, Deserialize,
+)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
@@ -300,40 +301,22 @@ impl<'a> MessageToBeSigned<'a> {
 }
 
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct SignedMessageV2 {
+pub struct ChainedMessage {
     pub phactory_version: u8,
     pub message: Message,
     pub sequence: u64,
     pub hash: MqHash,
     pub parent_hash: MqHash,
-    pub signature: Vec<u8>,
 }
 
-impl SignedMessageV2 {
-    pub fn data_be_signed(&self) -> Vec<u8> {
-        MessageToBeSignedV2 {
-            message: &self.message,
-            sequence: self.sequence,
-            hash: self.hash,
-            parent_hash: self.parent_hash,
-        }
-        .raw_data()
-    }
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AppointedMessage {
+    pub phactory_version: u8,
+    pub message: Message,
+    pub sequence: u64,
 }
 
-#[derive(Encode)]
-pub(crate) struct MessageToBeSignedV2<'a> {
-    pub(crate) message: &'a Message,
-    pub(crate) sequence: u64,
-    pub(crate) hash: MqHash,
-    pub(crate) parent_hash: MqHash,
-}
-
-impl<'a> MessageToBeSignedV2<'a> {
-    pub(crate) fn raw_data(&self) -> Vec<u8> {
-        self.encode()
-    }
-}
+pub type Signature = Vec<u8>;
 
 #[cfg(feature = "signers")]
 #[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
@@ -345,23 +328,17 @@ pub struct SigningMessage<Signer> {
 
 #[cfg(feature = "signers")]
 impl<Signer: MessageSigner> SigningMessage<Signer> {
-    pub fn sign(self, sequence: u64, parent_hash: MqHash) -> SignedMessageV2 {
+    pub fn sign_chained(self, sequence: u64, parent_hash: MqHash) -> (ChainedMessage, Signature) {
         let hash = hash(&(sequence, parent_hash, self.hash).encode());
-        let data = MessageToBeSignedV2 {
-            message: &self.message,
+        let message = ChainedMessage {
+            phactory_version: 0,
+            message: self.message,
             sequence,
             hash,
             parent_hash,
         };
-        let signature = self.signer.sign(&data.raw_data());
-        SignedMessageV2 {
-            phactory_version: 0,
-            message: self.message,
-            sequence,
-            signature,
-            hash,
-            parent_hash,
-        }
+        let signature = self.signer.sign(&message.encode());
+        (message, signature)
     }
 }
 

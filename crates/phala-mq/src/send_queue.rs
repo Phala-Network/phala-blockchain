@@ -1,5 +1,6 @@
 use crate::{
-    Message, MessageOrigin, MessageSigner, MqHash, Mutex, SenderId, SignedMessageV2, SigningMessage,
+    ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash, Mutex, SenderId, Signature,
+    SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use serde::{Deserialize, Serialize};
@@ -8,7 +9,7 @@ use serde::{Deserialize, Serialize};
 struct Channel {
     sequence: u64,
     last_hash: MqHash,
-    messages: Vec<SignedMessageV2>,
+    messages: Vec<(ChainedMessage, Signature)>,
     dummy: bool,
 }
 
@@ -54,11 +55,11 @@ impl MessageSendQueue {
     pub fn enqueue_message(
         &self,
         sender: SenderId,
-        constructor: impl FnOnce(u64, MqHash) -> SignedMessageV2,
+        constructor: impl FnOnce(u64, MqHash) -> (ChainedMessage, Signature),
     ) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
-        let message = constructor(entry.sequence, entry.last_hash);
+        let (message, signature) = constructor(entry.sequence, entry.last_hash);
         let hash = message.hash;
         if !entry.dummy {
             if log::log_enabled!(target: "mq", log::Level::Debug) {
@@ -71,13 +72,14 @@ impl MessageSendQueue {
                 );
             } else {
                 log::info!(target: "mq",
-                    "Sending message, from={}, to={:?}, seq={}, hash={:?}",
-                message.message.sender,
-                message.message.destination,
-                entry.sequence,
-                &hash,
-            );}
-            entry.messages.push(message);
+                        "Sending message, from={}, to={:?}, seq={}, hash={:?}",
+                    message.message.sender,
+                    message.message.destination,
+                    entry.sequence,
+                    &hash,
+                );
+            }
+            entry.messages.push((message, signature));
         }
         entry.sequence += 1;
         entry.last_hash = hash;
@@ -96,7 +98,7 @@ impl MessageSendQueue {
             .map_or(Default::default(), |ch| ch.last_hash)
     }
 
-    pub fn all_messages(&self) -> Vec<SignedMessageV2> {
+    pub fn all_messages(&self) -> Vec<(ChainedMessage, Signature)> {
         let inner = self.inner.lock();
         inner
             .iter()
@@ -104,7 +106,7 @@ impl MessageSendQueue {
             .collect()
     }
 
-    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<SignedMessageV2>> {
+    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<(ChainedMessage, Signature)>> {
         let inner = self.inner.lock();
         inner
             .iter()
@@ -112,7 +114,7 @@ impl MessageSendQueue {
             .collect()
     }
 
-    pub fn messages(&self, sender: &SenderId) -> Vec<SignedMessageV2> {
+    pub fn messages(&self, sender: &SenderId) -> Vec<(ChainedMessage, Signature)> {
         let inner = self.inner.lock();
         inner
             .get(sender)
@@ -133,7 +135,7 @@ impl MessageSendQueue {
         let mut inner = self.inner.lock();
         for (k, v) in inner.iter_mut() {
             let seq = next_sequence_for(k);
-            v.messages.retain(|msg| msg.sequence >= seq);
+            v.messages.retain(|msg| msg.0.sequence >= seq);
         }
     }
 }
@@ -189,7 +191,7 @@ mod msg_channel {
             let signing = self.prepare_with_data(payload, to, hash);
             self.queue
                 .enqueue_message(self.sender.clone(), move |sequence, parent_hash| {
-                    signing.sign(sequence, parent_hash)
+                    signing.sign_chained(sequence, parent_hash)
                 })
         }
 
