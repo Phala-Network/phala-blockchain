@@ -103,7 +103,7 @@ pub mod pallet {
 
 	/// The contract counter.
 	#[pallet::storage]
-	pub type ContractGroupCounter<T> = StorageValue<_, u64, ValueQuery>;
+	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
 	pub type Contracts<T: Config> =
@@ -405,14 +405,14 @@ pub mod pallet {
 			let worker_info =
 				Workers::<T>::try_get(&deploy_worker).or(Err(Error::<T>::WorkerNotFound))?;
 
-			let group_id = ContractGroupCounter::<T>::mutate(|group_counter| {
-				*group_counter += 1;
-				*group_counter
+			let cluster_id = ContractClusterCounter::<T>::mutate(|counter| {
+				*counter += 1;
+				*counter
 			});
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
-				group_id,
+				cluster_id,
 				salt,
 				code_index,
 				instantiate_data: data,
@@ -635,7 +635,7 @@ pub mod pallet {
 			match message.payload {
 				WorkerContractReport::ContractInstantiated {
 					id,
-					group_id: _,
+					cluster_id: _,
 					deployer: _,
 					pubkey,
 				} => {
@@ -766,7 +766,7 @@ pub mod pallet {
 		type Config = T;
 	}
 
-	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,

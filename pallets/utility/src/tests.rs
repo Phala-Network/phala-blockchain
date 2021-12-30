@@ -28,6 +28,7 @@ use frame_support::{
 	parameter_types, storage,
 	traits::Contains,
 	weights::{Pays, Weight},
+	pallet_prelude::ConstU32,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -127,6 +128,7 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<2>;
 }
 parameter_types! {
 	pub const ExistentialDeposit: u64 = 1;

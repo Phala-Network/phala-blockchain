@@ -4,6 +4,7 @@ use crate::{
 };
 
 use frame_support::{
+	pallet_prelude::ConstU32,
 	parameter_types,
 	traits::{GenesisBuild, OnFinalize, OnInitialize},
 };
@@ -80,6 +81,7 @@ impl system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = SS58Prefix;
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<2>;
 }
 
 impl pallet_balances::Config for Test {

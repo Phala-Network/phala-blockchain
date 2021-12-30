@@ -71,7 +71,8 @@ where
             )
         });
 
-        self.backend.full_storage_root(delta, child_delta)
+        self.backend
+            .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
     }
 
     pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {
@@ -86,6 +87,12 @@ where
         let (root, transaction) = self.changes_transaction();
         self.commit_transaction(root, transaction);
         self.clear_changes();
+    }
+
+    pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
+        self.execute_with(false, || {
+            crate::runtime::Pink::set_cluster_id(cluster_id);
+        });
     }
 }
 

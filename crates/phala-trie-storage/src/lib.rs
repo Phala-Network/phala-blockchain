@@ -14,7 +14,7 @@ use serde::{Serialize, Serializer, Deserializer, Deserialize};
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMut, MemoryDB, TrieMut, HashDBT};
+use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut, HashDBT};
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -130,6 +130,7 @@ where
                         .map(|(k, v)| (k.as_ref(), v.as_ref().map(|v| v.as_ref()))),
                 )
             }),
+            sp_core::storage::StateVersion::V0,
         )
     }
 
