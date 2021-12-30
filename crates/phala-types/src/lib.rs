@@ -567,7 +567,7 @@ pub mod messaging {
     pub enum WorkerContractReport {
         ContractInstantiated {
             id: ContractId,
-            group_id: ContractGroupId,
+            cluster_id: ContractClusterId,
             deployer: AccountId,
             pubkey: EcdhPublicKey,
         },

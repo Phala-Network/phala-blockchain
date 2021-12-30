@@ -3,7 +3,7 @@ use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 
-use super::pink::group::GroupKeeper;
+use super::pink::cluster::ClusterKeeper;
 use super::*;
 use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
@@ -11,21 +11,21 @@ use phala_serde_more as more;
 
 pub struct ExecuteEnv<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
-    pub contract_groups: &'a mut GroupKeeper,
+    pub contract_clusters: &'a mut ClusterKeeper,
 }
 
 pub struct NativeContext<'a, 'b> {
     pub block: &'a mut BlockInfo<'b>,
     pub mq: &'a SignedMessageChannel,
     pub secret_mq: SecretMessageChannel<'a, SignedMessageChannel>,
-    pub contract_groups: &'a mut GroupKeeper,
+    pub contract_clusters: &'a mut ClusterKeeper,
     pub self_id: ContractId,
 }
 
 pub struct QueryContext<'a> {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub contract_groups: &'a mut GroupKeeper,
+    pub contract_clusters: &'a mut ClusterKeeper,
 }
 
 impl NativeContext<'_, '_> {
@@ -42,7 +42,7 @@ pub trait Contract {
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError>;
-    fn group_id(&self) -> phala_mq::ContractGroupId;
+    fn cluster_id(&self) -> phala_mq::ContractClusterId;
     fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
     fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
     fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>);
@@ -93,12 +93,12 @@ pub struct NativeContractWrapper<Con> {
 impl<Con> NativeContractWrapper<Con> {
     pub fn new(
         inner: Con,
-        group_id: &phala_mq::ContractGroupId,
+        cluster_id: &phala_mq::ContractClusterId,
         deployer: sp_core::H256,
         salt: &[u8],
         id: u32,
     ) -> Self {
-        let encoded = (deployer, id, group_id, salt).encode();
+        let encoded = (deployer, id, cluster_id, salt).encode();
         let id = sp_core::blake2_256(&encoded).into();
         NativeContractWrapper { inner, id }
     }
@@ -147,7 +147,7 @@ pub struct NativeCompatContract<Con: NativeContract> {
     cmd_rcv_mq: SecretReceiver<Con::Cmd>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
-    group_id: phala_mq::ContractGroupId,
+    cluster_id: phala_mq::ContractClusterId,
     contract_id: phala_mq::ContractId,
 }
 
@@ -157,7 +157,7 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
         send_mq: SignedMessageChannel,
         cmd_rcv_mq: SecretReceiver<Con::Cmd>,
         ecdh_key: KeyPair,
-        group_id: phala_mq::ContractGroupId,
+        cluster_id: phala_mq::ContractClusterId,
         contract_id: phala_mq::ContractId,
     ) -> Self {
         NativeCompatContract {
@@ -165,7 +165,7 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
             send_mq,
             cmd_rcv_mq,
             ecdh_key,
-            group_id,
+            cluster_id,
             contract_id,
         }
     }
@@ -176,8 +176,8 @@ impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract
         self.contract_id
     }
 
-    fn group_id(&self) -> phala_mq::ContractGroupId {
-        self.group_id
+    fn cluster_id(&self) -> phala_mq::ContractClusterId {
+        self.cluster_id
     }
 
     fn handle_query(
@@ -199,7 +199,7 @@ impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
-            contract_groups: &mut env.contract_groups,
+            contract_clusters: &mut env.contract_clusters,
             self_id: self.id(),
         };
 
@@ -222,7 +222,7 @@ impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract
             block: env.block,
             mq: &self.send_mq,
             secret_mq,
-            contract_groups: &mut env.contract_groups,
+            contract_clusters: &mut env.contract_clusters,
             self_id: self.id(),
         };
         self.contract.on_block_end(&mut context)

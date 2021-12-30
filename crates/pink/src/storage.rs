@@ -89,9 +89,9 @@ where
         self.clear_changes();
     }
 
-    pub fn set_group_id(&mut self, group_id: &[u8]) {
+    pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
         self.execute_with(false, || {
-            crate::runtime::Pink::set_group_id(group_id);
+            crate::runtime::Pink::set_cluster_id(cluster_id);
         });
     }
 }

@@ -13,7 +13,7 @@ pub mod pallet {
     pub trait Config: frame_system::Config {}
 
     #[pallet::storage]
-    pub(crate) type GroupId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
+    pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
 
     #[pallet::pallet]
     pub struct Pallet<T>(PhantomData<T>);
@@ -27,12 +27,12 @@ pub mod pallet {
             code_hash: &CodeHash<T>,
             salt: &[u8],
         ) -> T::AccountId {
-            let group_id = <GroupId<T>>::get();
+            let cluster_id = <ClusterId<T>>::get();
             let buf: Vec<_> = deploying_address
                 .as_ref()
                 .iter()
                 .chain(code_hash.as_ref())
-                .chain(&group_id)
+                .chain(&cluster_id)
                 .chain(salt)
                 .cloned()
                 .collect();
@@ -43,8 +43,8 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
-        pub fn set_group_id(group_id: &[u8]) {
-            <GroupId<T>>::put(group_id.to_vec());
+        pub fn set_cluster_id(cluster_id: &[u8]) {
+            <ClusterId<T>>::put(cluster_id.to_vec());
         }
     }
 }
