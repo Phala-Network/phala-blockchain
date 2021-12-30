@@ -74,12 +74,15 @@ where
 		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> Result<(), TransactionValidityError> {
-		let signed_message = match T::CallMatcher::match_call(call) {
-			Some(Call::sync_offchain_message { signed_message }) => signed_message,
+		let (sender, sequence) = match T::CallMatcher::match_call(call) {
+			Some(Call::sync_offchain_message { signed_message }) => {
+				(&signed_message.message.sender, signed_message.sequence)
+			}
+			Some(Call::sync_offchain_message_v2 { signed_message }) => {
+				(&signed_message.message.sender, signed_message.sequence)
+			}
 			_ => return Ok(()),
 		};
-		let sender = &signed_message.message.sender;
-		let sequence = signed_message.sequence;
 		let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 		// Strictly require the message to include must match the expected sequence id
 		if sequence != expected_seq {
@@ -100,12 +103,15 @@ where
 		_info: &DispatchInfoOf<Self::Call>,
 		_len: usize,
 	) -> TransactionValidity {
-		let signed_message = match T::CallMatcher::match_call(call) {
-			Some(Call::sync_offchain_message { signed_message }) => signed_message,
+		let (sender, sequence) = match T::CallMatcher::match_call(call) {
+			Some(Call::sync_offchain_message { signed_message }) => {
+				(&signed_message.message.sender, signed_message.sequence)
+			}
+			Some(Call::sync_offchain_message_v2 { signed_message }) => {
+				(&signed_message.message.sender, signed_message.sequence)
+			}
 			_ => return Ok(ValidTransaction::default()),
 		};
-		let sender = &signed_message.message.sender;
-		let sequence = signed_message.sequence;
 		let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
 		// Drop the stale message immediately
 		if sequence < expected_seq {
