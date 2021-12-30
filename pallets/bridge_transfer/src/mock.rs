@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use frame_support::{ord_parameter_types, parameter_types, weights::Weight, PalletId};
+use frame_support::{
+	ord_parameter_types, pallet_prelude::ConstU32, parameter_types, weights::Weight, PalletId,
+};
 use frame_system::{self as system};
 use hex_literal::hex;
 use sp_core::H256;
@@ -67,6 +69,7 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<2>;
 }
 
 parameter_types! {

@@ -1217,6 +1217,9 @@ pub mod chain_state {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp_runtime::AccountId32;
+
+    const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 
     #[test]
     fn test_on_block_end() {
@@ -1228,7 +1231,7 @@ mod tests {
         let effects = keeper
             .instantiate_contract(
                 cluster_id,
-                Default::default(),
+                ALICE,
                 wasm_bin,
                 vec![0xed, 0x4b, 0x9d, 0x1b],
                 Default::default(),
@@ -1244,7 +1247,7 @@ mod tests {
         let signer = sr25519::Pair::from_seed(&Default::default());
         let egress = builder
             .send_mq
-            .channel(MessageOrigin::Worker(Default::default()), signer.into());
+            .channel(MessageOrigin::Gatekeeper, signer.into());
         let mut block_info = builder.build();
 
         apply_pink_side_effects(

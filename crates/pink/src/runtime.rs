@@ -158,6 +158,7 @@ mod tests {
                 Origin::signed(ALICE),
                 ENOUGH,
                 GAS_LIMIT,
+                None,
                 wasm,
                 vec![],
                 vec![],
@@ -170,6 +171,7 @@ mod tests {
                 addr.clone(),
                 0,
                 GAS_LIMIT * 2,
+                None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits
                     .payload_len
@@ -195,6 +197,7 @@ mod tests {
                 Origin::signed(ALICE),
                 1_000_000_000_000_000,
                 GAS_LIMIT,
+                None,
                 wasm,
                 vec![],
                 vec![],
@@ -222,10 +225,10 @@ mod tests {
                 // We offset data in the contract tables by 1.
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
-                let result = Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, params, false)
+                let result = Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
                     .result
                     .unwrap();
-                assert!(result.is_success());
+                assert!(!result.did_revert());
                 let expected = hash_fn(input.as_ref());
                 assert_eq!(&result.data[..*expected_size], &*expected);
             }
