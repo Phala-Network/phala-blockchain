@@ -1,6 +1,6 @@
 use crate::{
     AppointedMessage, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash, Mutex,
-    SenderId, Signature, SigningMessage,
+    SenderId, Signature, SigningMessage, Appointment,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use serde::{Deserialize, Serialize};
@@ -10,8 +10,12 @@ struct Channel {
     next_sequence: u64,
     last_hash: MqHash,
     messages: Vec<(ChainedMessage, Signature)>,
+
     next_appointment_sequence: u64,
-    appointed_messages: Vec<(AppointedMessage, Signature)>,
+    appointed_seqs: Vec<u64>,
+    appointing: u8,
+    appointed_egress_messages: Vec<(AppointedMessage, Signature)>,
+    /// Number of pending appointments.
     dummy: bool,
 }
 
@@ -108,8 +112,23 @@ impl MessageSendQueue {
                 message.message.destination,
                 entry.next_sequence,
             );
-            entry.appointed_messages.push((message, signature));
+            entry.appointed_egress_messages.push((message, signature));
         }
+    }
+
+    pub fn appoint_next(&self, sender: SenderId) -> Option<u64> {
+        let mut inner = self.inner.lock();
+        let entry = inner.entry(sender).or_default();
+        // Max number of appointments per sender.
+        const MAX_APPOINTMENTS: usize = 8;
+        if entry.appointed_seqs.len() >= MAX_APPOINTMENTS {
+            return None;
+        }
+        let seq = entry.next_appointment_sequence;
+        entry.next_appointment_sequence += 1;
+        entry.appointed_seqs.push(seq);
+        entry.appointing += 1;
+        Some(seq)
     }
 
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
@@ -166,9 +185,13 @@ impl MessageSendQueue {
             let info = next_sequence_for(k);
             v.messages
                 .retain(|msg| msg.0.sequence >= info.next_sequence);
-            v.appointed_messages.retain(|msg| {
+            v.appointed_egress_messages.retain(|msg| {
                 msg.0.sequence >= info.next_ap_sequence
                     || info.ap_sequences.contains(&msg.0.sequence)
+            });
+            v.appointed_seqs.retain(|&seq| {
+                seq >= info.next_ap_sequence
+                    || info.ap_sequences.contains(&seq)
             });
         }
     }

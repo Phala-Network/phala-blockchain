@@ -346,3 +346,17 @@ impl<Signer: MessageSigner> SigningMessage<Signer> {
 pub fn hash(data: &[u8]) -> MqHash {
     MqHash(sp_core::blake2_128(data))
 }
+
+bind_topic!(Appointment, b"^phala/mq/appoint");
+/// Message to appoint sequence ids.
+#[derive(Encode, Decode, TypeInfo)]
+pub struct Appointment {
+    /// Number of sequence ids to be appointed.
+    pub count: u8,
+}
+
+impl Appointment {
+    pub fn new(count: u8) -> Self {
+        Self { count }
+    }
+}

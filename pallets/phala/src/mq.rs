@@ -11,8 +11,9 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{
-		bind_topic, AppointedMessage, BindTopic, ChainedMessage, CommandPayload, ContractCommand,
-		DecodedMessage, Message, MessageOrigin, MqHash, Path, Signature, SignedMessage,
+		bind_topic, AppointedMessage, Appointment, BindTopic, ChainedMessage, CommandPayload,
+		ContractCommand, DecodedMessage, Message, MessageOrigin, MqHash, Path, Signature,
+		SignedMessage,
 	};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
@@ -23,20 +24,6 @@ pub mod pallet {
 		pub next: u64,
 		// Current unresolved appointed sequence ids.
 		pub appointed: Vec<u64>,
-	}
-
-	bind_topic!(Appointment, b"^phala/mq/appoint");
-	/// Message to appoint sequence ids.
-	#[derive(Encode, Decode, TypeInfo)]
-	pub struct Appointment {
-		/// Number of sequence ids to be appointed.
-		count: u32,
-	}
-
-	impl Appointment {
-		pub fn new(count: u32) -> Self {
-			Self { count }
-		}
 	}
 
 	#[pallet::config]
@@ -293,7 +280,6 @@ pub mod pallet {
 		pub fn on_appointment_message_received(
 			message: DecodedMessage<Appointment>,
 		) -> DispatchResult {
-
 			ensure!(message.sender.is_offchain(), Error::<T>::BadSender);
 
 			let appointment = message.payload;
