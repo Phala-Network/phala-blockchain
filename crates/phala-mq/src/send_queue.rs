@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Default, Serialize, Deserialize)]
 struct Channel {
-    sequence: u64,
+    next_sequence: u64,
     last_hash: MqHash,
     messages: Vec<(ChainedMessage, Signature)>,
     dummy: bool,
@@ -59,7 +59,7 @@ impl MessageSendQueue {
     ) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
-        let (message, signature) = constructor(entry.sequence, entry.last_hash);
+        let (message, signature) = constructor(entry.next_sequence, entry.last_hash);
         let hash = message.hash;
         if !entry.dummy {
             if log::log_enabled!(target: "mq", log::Level::Debug) {
@@ -67,7 +67,7 @@ impl MessageSendQueue {
                     "Sending message, from={}, to={:?}, seq={}, payload_hash={}",
                     message.message.sender,
                     message.message.destination,
-                    entry.sequence,
+                    entry.next_sequence,
                     hex::encode(sp_core::blake2_256(&message.message.payload)),
                 );
             } else {
@@ -75,13 +75,13 @@ impl MessageSendQueue {
                         "Sending message, from={}, to={:?}, seq={}, hash={:?}",
                     message.message.sender,
                     message.message.destination,
-                    entry.sequence,
+                    entry.next_sequence,
                     &hash,
                 );
             }
             entry.messages.push((message, signature));
         }
-        entry.sequence += 1;
+        entry.next_sequence += 1;
         entry.last_hash = hash;
     }
 
