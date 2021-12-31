@@ -131,6 +131,15 @@ impl MessageSendQueue {
         Some(seq)
     }
 
+    pub fn commit_appointments(&self) {
+        let mut inner = self.inner.lock();
+        for channel in inner.values_mut() {
+            Appointment::new(channel.appointing);
+            channel.appointing = 0;
+            todo!("TODO.kevin.must.")
+        }
+    }
+
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
         let mut inner = self.inner.lock();
         let entry = inner.entry(sender).or_default();
