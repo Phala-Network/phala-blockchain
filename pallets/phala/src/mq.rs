@@ -11,8 +11,8 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{
-		BindTopic, CommandPayload, ContractCommand, Message, MessageOrigin, MqHash, Path,
-		SignedMessage, ChainedMessage, AppointedMessage, Signature,
+		bind_topic, AppointedMessage, BindTopic, ChainedMessage, CommandPayload, ContractCommand,
+		DecodedMessage, Message, MessageOrigin, MqHash, Path, Signature, SignedMessage,
 	};
 	use primitive_types::H256;
 	use sp_std::vec::Vec;
@@ -23,6 +23,20 @@ pub mod pallet {
 		pub next: u64,
 		// Current unresolved appointed sequence ids.
 		pub appointed: Vec<u64>,
+	}
+
+	bind_topic!(Appointment, b"^phala/mq/appoint");
+	/// Message to appoint sequence ids.
+	#[derive(Encode, Decode, TypeInfo)]
+	pub struct Appointment {
+		/// Number of sequence ids to be appointed.
+		count: u32,
+	}
+
+	impl Appointment {
+		pub fn new(count: u32) -> Self {
+			Self { count }
+		}
 	}
 
 	#[pallet::config]
@@ -50,7 +64,8 @@ pub mod pallet {
 	pub type QueuedOutboundMessage<T> = StorageValue<_, Vec<Message>>;
 
 	#[pallet::storage]
-	pub type AppointedIngress<T> = StorageMap<_, Twox64Concat, MessageOrigin, AppointedSequences, ValueQuery>;
+	pub type AppointedIngress<T> =
+		StorageMap<_, Twox64Concat, MessageOrigin, AppointedSequences, ValueQuery>;
 
 	/// Outbound messages at the current block.
 	///
@@ -137,10 +152,7 @@ pub mod pallet {
 
 			// Check ingress sequence
 			let expected_seq = OffchainIngress::<T>::get(sender).unwrap_or(0);
-			ensure!(
-				message.sequence == expected_seq,
-				Error::<T>::BadSequence
-			);
+			ensure!(message.sequence == expected_seq, Error::<T>::BadSequence);
 
 			// Check parent hash
 			if let Some(last_hash) = OffchainIngressLastHash::<T>::get(&sender) {
@@ -189,10 +201,7 @@ pub mod pallet {
 
 			// Check ingress sequence
 			let mut seqs = AppointedIngress::<T>::get(&sender);
-			ensure!(
-				message.sequence < seqs.next,
-				Error::<T>::BadSequence
-			);
+			ensure!(message.sequence < seqs.next, Error::<T>::BadSequence);
 			ensure!(
 				seqs.appointed.contains(&message.sequence),
 				Error::<T>::BadSequence
@@ -277,6 +286,25 @@ pub mod pallet {
 
 		pub fn offchain_ingress(sender: &MessageOrigin) -> Option<u64> {
 			OffchainIngress::<T>::get(sender)
+		}
+	}
+
+	impl<T: Config> Pallet<T> {
+		pub fn on_appointment_message_received(
+			message: DecodedMessage<Appointment>,
+		) -> DispatchResult {
+
+			ensure!(message.sender.is_offchain(), Error::<T>::BadSender);
+
+			let appointment = message.payload;
+			AppointedIngress::<T>::mutate(&message.sender, move |seqs| {
+				let next = seqs.next + appointment.count as u64;
+				for seq in seqs.next..next {
+					seqs.appointed.push(seq);
+				}
+				seqs.next = next;
+			});
+			Ok(())
 		}
 	}
 
