@@ -8,10 +8,10 @@
     "build:all": "rollup -c rollup.config.js src/*.js"
   },
   "dependencies": {
-    "@phala/typedefs": "^0.2.29",
-    "@polkadot/api": "^7.0.2",
-    "@polkadot/typegen": "^7.0.2",
-    "@polkadot/types": "^7.0.2",
+    "@phala/typedefs": "^0.2.30",
+    "@polkadot/api": "^7.1.1",
+    "@polkadot/typegen": "^7.1.1",
+    "@polkadot/types": "^7.1.1",
     "@polkadot/util": "^8.2.2",
     "@polkadot/util-crypto": "^8.2.2",
     "axios": "^0.24.0",
@@ -24,8 +24,8 @@
   "devDependencies": {
     "@rollup/plugin-commonjs": "^21.0.1",
     "@rollup/plugin-json": "^4.1.0",
-    "@rollup/plugin-node-resolve": "^13.0.6",
-    "rollup": "^2.59.0",
+    "@rollup/plugin-node-resolve": "^13.1.2",
+    "rollup": "^2.62.0",
     "rollup-plugin-terser": "^7.0.2"
   }
 }

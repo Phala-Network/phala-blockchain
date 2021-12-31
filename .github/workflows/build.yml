@@ -26,7 +26,7 @@ jobs:
     - uses: ./.github/actions/install_toolchain
         
     - name: Build core blockchain
-      run: cargo build --verbose --release
+      run: cargo build --verbose --profile testnet
     - name: Save core-blockchain binaries
       uses: actions/upload-artifact@v2
       with:
@@ -78,7 +78,7 @@ jobs:
     - name: Setup Node.js environment
       uses: actions/setup-node@v2.4.0
       with:
-        node-version: 14.x
+        node-version: 16.x
     - name: Install yarn 2
       run: sudo npm install -g yarn && yarn set version berry
     
