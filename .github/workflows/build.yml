@@ -31,8 +31,8 @@ jobs:
         with:
           name: core-blockchain-binaries
           path: |
-            ./target/release/phala-node
-            ./target/release/pherry
+            ./target/testnet/phala-node
+            ./target/testnet/pherry
 
   build-pruntime:
     name: Build pruntime
