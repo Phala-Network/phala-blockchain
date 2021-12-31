@@ -1,4 +1,18 @@
+[profile.release]
+panic = "unwind"
+
+[profile.production]
+inherits = "release"
+lto = true
+
+[profile.testnet]
+inherits = "release"
+debug = true # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
+
 [workspace]
+resolver = "2"
 
 exclude = [
 	"substrate",
@@ -42,5 +56,3 @@ members = [
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
-
-resolver = "2"
