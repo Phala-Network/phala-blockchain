@@ -2,7 +2,7 @@ name: "Install toolchains"
 description: "Install toolchains"
 runs:
   using: "composite"
-  steps: 
+  steps:
     - run: sudo apt-get install build-essential ocaml ocamlbuild automake autoconf libtool wget python pip libssl-dev git cmake perl pkg-config curl llvm-10 clang-10 libclang-10-dev
       shell: bash
     - run: wget https://download.01.org/intel-sgx/sgx-linux/2.15.1/distro/ubuntu20.04-server/sgx_linux_x64_sdk_2.15.101.1.bin -O sgx_linux_sdk.bin
