@@ -20,6 +20,12 @@ pub struct MessageSendQueue {
     inner: Arc<Mutex<BTreeMap<SenderId, Channel>>>,
 }
 
+pub struct SequenceInfo {
+    pub next_sequence: u64,
+    pub next_ap_sequence: u64,
+    pub ap_sequences: Vec<u64>,
+}
+
 impl Serialize for MessageSendQueue {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -127,7 +133,9 @@ impl MessageSendQueue {
             .collect()
     }
 
-    pub fn all_messages_grouped(&self) -> BTreeMap<MessageOrigin, Vec<(ChainedMessage, Signature)>> {
+    pub fn all_messages_grouped(
+        &self,
+    ) -> BTreeMap<MessageOrigin, Vec<(ChainedMessage, Signature)>> {
         let inner = self.inner.lock();
         inner
             .iter()
@@ -152,11 +160,16 @@ impl MessageSendQueue {
     }
 
     /// Purge the messages which are aready accepted on chain.
-    pub fn purge(&self, next_sequence_for: impl Fn(&SenderId) -> u64) {
+    pub fn purge(&self, next_sequence_for: impl Fn(&SenderId) -> SequenceInfo) {
         let mut inner = self.inner.lock();
         for (k, v) in inner.iter_mut() {
-            let seq = next_sequence_for(k);
-            v.messages.retain(|msg| msg.0.sequence >= seq);
+            let info = next_sequence_for(k);
+            v.messages
+                .retain(|msg| msg.0.sequence >= info.next_sequence);
+            v.appointed_messages.retain(|msg| {
+                msg.0.sequence >= info.next_ap_sequence
+                    || info.ap_sequences.contains(&msg.0.sequence)
+            });
         }
     }
 }

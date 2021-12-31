@@ -29,7 +29,7 @@ pub mod checkpoint_helper;
 #[cfg(feature = "dispatcher")]
 pub use dispatcher::{MessageDispatcher, TypedReceiveError, TypedReceiver};
 #[cfg(feature = "queue")]
-pub use send_queue::{MessageChannel, MessageSendQueue};
+pub use send_queue::{MessageChannel, MessageSendQueue, SequenceInfo};
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 pub use simple_mpsc::{ReceiveError, Receiver};
 

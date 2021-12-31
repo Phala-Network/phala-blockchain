@@ -96,13 +96,27 @@ impl RuntimeState {
         self.send_mq.purge(|sender| {
             use pallet_mq::StorageMapTrait as _;
             type OffchainIngress = pallet_mq::OffchainIngress<chain::Runtime>;
+            type AppointedIngress = pallet_mq::AppointedIngress<chain::Runtime>;
 
-            let module_prefix = OffchainIngress::module_prefix();
-            let storage_prefix = OffchainIngress::storage_prefix();
-            let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
-            let sequence: u64 = self.chain_storage.get_decoded(&key).unwrap_or(0);
-            debug!("purging, sequence = {}", sequence);
-            sequence
+            let next_sequence: u64 = {
+                let module_prefix = OffchainIngress::module_prefix();
+                let storage_prefix = OffchainIngress::storage_prefix();
+                let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
+                self.chain_storage.get_decoded(&key).unwrap_or(0)
+            };
+
+            let ap_sequences: pallet_mq::AppointedSequences = {
+                let module_prefix = AppointedIngress::module_prefix();
+                let storage_prefix = AppointedIngress::storage_prefix();
+                let key = storage_map_prefix_twox_64_concat(module_prefix, storage_prefix, sender);
+                self.chain_storage.get_decoded(&key).unwrap_or_default()
+            };
+
+            phala_mq::SequenceInfo {
+                next_sequence,
+                next_ap_sequence: ap_sequences.next,
+                ap_sequences: ap_sequences.appointed,
+            }
         })
     }
 }
