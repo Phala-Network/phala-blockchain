@@ -98,7 +98,7 @@ pub mod pallet {
 				signed_message.sequence == expected_seq,
 				Error::<T>::BadSequence
 			);
-			// If the worker has ever called sync_offchain_message_v2, reject it.
+			// If the worker has ever called sync_chained_message, reject it.
 			ensure!(
 				OffchainIngressLastHash::<T>::get(&sender).is_none(),
 				Error::<T>::MqVersionMismatch
@@ -118,7 +118,7 @@ pub mod pallet {
 
 		/// Syncs an unverified offchain message to the message queue
 		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn sync_offchain_message_v2(
+		pub fn sync_chained_message(
 			origin: OriginFor<T>,
 			message: ChainedMessage,
 			signature: Signature,

@@ -78,7 +78,7 @@ where
 			Some(Call::sync_offchain_message { signed_message }) => {
 				(&signed_message.message.sender, signed_message.sequence)
 			}
-			Some(Call::sync_offchain_message_v2 { message, .. }) => {
+			Some(Call::sync_chained_message { message, .. }) => {
 				(&message.message.sender, message.sequence)
 			}
 			_ => return Ok(()),
@@ -107,7 +107,7 @@ where
 			Some(Call::sync_offchain_message { signed_message }) => {
 				(&signed_message.message.sender, signed_message.sequence)
 			}
-			Some(Call::sync_offchain_message_v2 { message, .. }) => {
+			Some(Call::sync_chained_message { message, .. }) => {
 				(&message.message.sender, message.sequence)
 			}
 			_ => return Ok(ValidTransaction::default()),

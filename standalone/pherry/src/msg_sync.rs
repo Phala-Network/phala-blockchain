@@ -93,7 +93,7 @@ pub async fn maybe_sync_mq_egress(
             let extrinsic = api
                 .tx()
                 .phala_mq()
-                .sync_offchain_message_v2(message, signature)
+                .sync_chained_message(message, signature)
                 .create_signed(
                     signer,
                     ExtraConfig {
