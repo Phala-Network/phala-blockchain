@@ -1,6 +1,6 @@
 use crate::{
-    ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash, Mutex, SenderId, Signature,
-    SigningMessage,
+    AppointedMessage, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash, Mutex,
+    SenderId, Signature, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use serde::{Deserialize, Serialize};
@@ -10,6 +10,8 @@ struct Channel {
     next_sequence: u64,
     last_hash: MqHash,
     messages: Vec<(ChainedMessage, Signature)>,
+    next_appointment_sequence: u64,
+    appointed_messages: Vec<(AppointedMessage, Signature)>,
     dummy: bool,
 }
 
@@ -83,6 +85,25 @@ impl MessageSendQueue {
         }
         entry.next_sequence += 1;
         entry.last_hash = hash;
+    }
+
+    pub fn enqueue_appointed_message(
+        &self,
+        sender: SenderId,
+        constructor: impl FnOnce() -> (AppointedMessage, Signature),
+    ) {
+        let mut inner = self.inner.lock();
+        let entry = inner.entry(sender).or_default();
+        let (message, signature) = constructor();
+        if !entry.dummy {
+            log::info!(target: "mq",
+                "Sending appointed message, from={}, to={:?}, seq={}",
+                message.message.sender,
+                message.message.destination,
+                entry.next_sequence,
+            );
+            entry.appointed_messages.push((message, signature));
+        }
     }
 
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
