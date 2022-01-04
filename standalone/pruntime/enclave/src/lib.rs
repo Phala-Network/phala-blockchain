@@ -90,7 +90,7 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
             },
         }
     } else {
-        info!("No checkpoint file specified.");
+        info!("Checkpoint disabled");
     }
 
     APPLICATION.lock().unwrap().init(args.clone());
