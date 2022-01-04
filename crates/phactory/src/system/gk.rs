@@ -269,7 +269,7 @@ where
         match event {
             ContractEvent::InstantiateCode {
                 contract_info,
-                deploy_worker,
+                deploy_workers,
             } => {
                 if !origin.is_pallet() {
                     error!("Attempt to instantiate pink from bad origin");
@@ -277,31 +277,33 @@ where
                 }
 
                 // first, update the on-chain ContractPubkey
-                let (worker_pubkey, ecdh_pubkey) = deploy_worker;
                 let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
                         pubkey: contract_key.public(),
                         info: contract_info.clone(),
                     });
-                // then distribute contract key to the worker
+                // then distribute contract key to each worker
                 // and update the on-chain deployment state
                 let ecdh_key = self
                     .master_key
                     .derive_ecdh_key()
                     .expect("should never fail with valid master key; qed.");
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
-                secret_mq
-                    .bind_remote_key(Some(&ecdh_pubkey.0))
-                    .push_message(&ContractKeyDistribution::contract_key_distribution(
-                        contract_key.dump_secret_key(),
-                        contract_info.clone(),
-                        0,
-                    ));
+                for worker in deploy_workers.iter() {
+                    let (_, ecdh_pubkey) = worker;
+                    secret_mq
+                        .bind_remote_key(Some(&ecdh_pubkey.0))
+                        .push_message(&ContractKeyDistribution::contract_key_distribution(
+                            contract_key.dump_secret_key(),
+                            contract_info.clone(),
+                            0,
+                        ));
+                }
                 self.egress.push_message(
                     &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
                         contract_pubkey: contract_key.public(),
-                        worker_pubkey: worker_pubkey,
+                        worker_pubkeys: deploy_workers.into_iter().map(|w| w.0).collect(),
                     },
                 );
             }

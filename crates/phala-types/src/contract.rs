@@ -38,19 +38,18 @@ pub mod messaging {
     pub enum ContractEvent<CodeHash, AccountId> {
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+            deploy_workers: Vec<(WorkerPublicKey, EcdhPublicKey)>,
         },
     }
 
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+            deploy_workers: Vec<(WorkerPublicKey, EcdhPublicKey)>,
         ) -> Self {
-            // TODO(shelven): enable multiple workers assignment
             ContractEvent::InstantiateCode {
                 contract_info,
-                deploy_worker,
+                deploy_workers,
             }
         }
     }
