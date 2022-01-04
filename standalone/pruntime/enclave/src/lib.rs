@@ -80,7 +80,10 @@ pub extern "C" fn ecall_init(args: *const u8, args_len: usize) -> sgx_status_t {
             }
             Err(err) => {
                 error!("Failed to load checkpoint: {:?}", err);
-                return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                if !args.skip_corrupted_checkpoint {
+                    return sgx_status_t::SGX_ERROR_INVALID_PARAMETER;
+                }
+                info!("Skipped corrupted checkpoint");
             }
             Ok(None) => {
                 info!("No checkpoint found");

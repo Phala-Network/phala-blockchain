@@ -28,6 +28,9 @@ pub struct InitArgs {
 
     /// Checkpoint interval in seconds
     pub checkpoint_interval: u64,
+
+    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
+    pub skip_corrupted_checkpoint: bool,
 }
 
 pub fn git_revision() -> String {
