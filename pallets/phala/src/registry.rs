@@ -608,7 +608,7 @@ pub mod pallet {
 			match message.payload {
 				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
 					ensure!(
-						Contracts::<T>::contains_key(pubkey),
+						!Contracts::<T>::contains_key(pubkey),
 						Error::<T>::DuplicatedContractPubkey
 					);
 					Contracts::<T>::insert(&pubkey, &info);
