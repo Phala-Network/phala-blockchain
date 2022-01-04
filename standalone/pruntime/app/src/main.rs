@@ -85,6 +85,10 @@ struct Args {
     #[structopt(long)]
     #[structopt(default_value = "300")]
     checkpoint_interval: u64,
+
+    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
+    #[structopt(long)]
+    skip_corrupted_checkpoint: bool,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -648,6 +652,7 @@ fn main() {
         geoip_city_db: args.geoip_city_db,
         enable_checkpoint: !args.disable_checkpoint,
         checkpoint_interval: args.checkpoint_interval,
+        skip_corrupted_checkpoint: args.skip_corrupted_checkpoint,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
