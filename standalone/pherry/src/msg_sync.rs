@@ -68,8 +68,60 @@ pub async fn maybe_sync_mq_egress(
 
     let mut sync_msgs_count = 0;
 
-    'sync_outer: for (sender, messages, ap_messages) in messages {
-        if messages.is_empty() {
+    'sync_outer: for (sender, messages, appointed_messages) in messages {
+        macro_rules! submit_extrinsic {
+            ($extrinsic: ident, $api: ident, $err_report: ident, $msg_info: ident) => {
+                signer.increment_nonce();
+                match $extrinsic {
+                    Ok(extrinsic) => {
+                        let api = ParachainApi::from($api.client.clone());
+                        let err_report = $err_report.clone();
+                        tokio::spawn(async move {
+                            const TIMEOUT: u64 = 120;
+                            let fut = api.client.rpc().submit_extrinsic(extrinsic);
+                            let result =
+                                tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
+                            match result {
+                                Err(_) => {
+                                    error!("Submit message timed out: {}", $msg_info);
+                                    let _ = err_report.send(Error::OtherRpcError).await;
+                                }
+                                Ok(Err(err)) => {
+                                    error!("Error submitting message {}: {:?}", $msg_info, err);
+                                    use jsonrpsee_types::Error as RpcError;
+                                    use phaxt::subxt::Error as SubxtError;
+                                    let report = match err {
+                                        SubxtError::Rpc(RpcError::Request(err)) => {
+                                            if err.contains("bad signature") {
+                                                Error::BadSignature
+                                            } else {
+                                                Error::OtherRpcError
+                                            }
+                                        }
+                                        _ => Error::OtherRpcError,
+                                    };
+                                    let _ = err_report.send(report).await;
+                                }
+                                Ok(Ok(hash)) => {
+                                    info!("Message submited: {} xt-hash={:?}", $msg_info, hash);
+                                }
+                            }
+                        });
+                    }
+                    Err(err) => {
+                        panic!("Failed to sign the call: {:?}", err);
+                    }
+                }
+
+                sync_msgs_count += 1;
+                if sync_msgs_count >= max_sync_msgs_per_round {
+                    info!("Synced {} messages, take a break", sync_msgs_count);
+                    break 'sync_outer;
+                }
+            };
+        }
+
+        if messages.is_empty() && appointed_messages.is_empty() {
             continue;
         }
         let min_seq = mq_next_sequence(api, &sender).await?;
@@ -102,51 +154,32 @@ pub async fn maybe_sync_mq_egress(
                     },
                 )
                 .await;
-            signer.increment_nonce();
-            match extrinsic {
-                Ok(extrinsic) => {
-                    let api = ParachainApi::from(api.client.clone());
-                    let err_report = err_report.clone();
-                    tokio::spawn(async move {
-                        const TIMEOUT: u64 = 120;
-                        let fut = api.client.rpc().submit_extrinsic(extrinsic);
-                        let result = tokio::time::timeout(Duration::from_secs(TIMEOUT), fut).await;
-                        match result {
-                            Err(_) => {
-                                error!("Submit message timed out: {}", msg_info);
-                                let _ = err_report.send(Error::OtherRpcError).await;
-                            }
-                            Ok(Err(err)) => {
-                                error!("Error submitting message {}: {:?}", msg_info, err);
-                                use jsonrpsee_types::Error as RpcError;
-                                use phaxt::subxt::Error as SubxtError;
-                                let report = match err {
-                                    SubxtError::Rpc(RpcError::Request(err)) => {
-                                        if err.contains("bad signature") {
-                                            Error::BadSignature
-                                        } else {
-                                            Error::OtherRpcError
-                                        }
-                                    }
-                                    _ => Error::OtherRpcError,
-                                };
-                                let _ = err_report.send(report).await;
-                            }
-                            Ok(Ok(hash)) => {
-                                info!("Message submited: {} xt-hash={:?}", msg_info, hash);
-                            }
-                        }
-                    });
-                }
-                Err(err) => {
-                    panic!("Failed to sign the call: {:?}", err);
-                }
-            }
-            sync_msgs_count += 1;
-            if sync_msgs_count >= max_sync_msgs_per_round {
-                info!("Synced {} messages, take a break", sync_msgs_count);
-                break 'sync_outer;
-            }
+            submit_extrinsic!(extrinsic, api, err_report, msg_info);
+        }
+
+        for (message, signature) in appointed_messages {
+            // TODO.kevin.must: ealy skip already commited messages
+            let msg_info = format!(
+                "sender={}, seq={}, dest={}, nonce={:?},",
+                sender,
+                message.sequence,
+                String::from_utf8_lossy(&message.message.destination.path()[..]),
+                signer.nonce()
+            );
+            info!("Submitting appointed message: {}", msg_info);
+            let extrinsic = api
+                .tx()
+                .phala_mq()
+                .sync_appointed_message(message, signature)
+                .create_signed(
+                    signer,
+                    ExtraConfig {
+                        tip,
+                        era: era.clone(),
+                    },
+                )
+                .await;
+            submit_extrinsic!(extrinsic, api, err_report, msg_info);
         }
     }
     Ok(())
