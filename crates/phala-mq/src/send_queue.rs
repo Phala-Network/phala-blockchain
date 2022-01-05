@@ -1,6 +1,6 @@
 use crate::{
-    AppointedMessage, Appointment, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash,
-    Mutex, SenderId, Signature,
+    AppointedMessage, Appointment, BindTopic, ChainedMessage, Message, MessageOrigin,
+    MessageSigner, MqHash, Mutex, SenderId, Signature,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use parity_scale_codec::Encode as _;
@@ -89,14 +89,11 @@ impl MessageSendQueue {
         MessageChannel::new(sender, self.clone())
     }
 
-    pub fn enqueue_message(
-        &self,
-        sender: SenderId,
-        message: Message,
-        hash: MqHash,
-    ) -> MqResult<()> {
+    pub fn enqueue_message(&self, message: Message, hash: MqHash) -> MqResult<()> {
         let mut inner = self.inner.lock();
-        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
+        let entry = inner
+            .get_mut(&message.sender)
+            .ok_or(Error::ChannelNotFound)?;
 
         let (message, signature) = {
             let parent_hash = entry.last_hash;
@@ -132,14 +129,11 @@ impl MessageSendQueue {
         Ok(())
     }
 
-    pub fn enqueue_appointed_message(
-        &self,
-        sender: SenderId,
-        message: Message,
-        sequence: u64,
-    ) -> MqResult<()> {
+    pub fn enqueue_appointed_message(&self, message: Message, sequence: u64) -> MqResult<()> {
         let mut inner = self.inner.lock();
-        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
+        let entry = inner
+            .get_mut(&message.sender)
+            .ok_or(Error::ChannelNotFound)?;
         if !entry.dummy {
             log::info!(target: "mq",
                 "Sending appointed message, from={}, to={:?}, seq={}",
@@ -170,11 +164,25 @@ impl MessageSendQueue {
     }
 
     pub fn commit_appointments(&self) {
-        let mut inner = self.inner.lock();
-        for channel in inner.values_mut() {
-            Appointment::new(channel.appointing);
-            channel.appointing = 0;
-            todo!("TODO.kevin.must.")
+        let mut messages = vec![];
+        {
+            let mut inner = self.inner.lock();
+            for (sender, channel) in inner.iter_mut() {
+                let payload = Appointment::new(channel.appointing).encode();
+                channel.appointing = 0;
+                let message = Message {
+                    sender: sender.clone(),
+                    destination: Appointment::topic().into(),
+                    payload,
+                };
+                let data_to_sign = message.encode();
+                let hash = crate::hash(&data_to_sign);
+                messages.push((message, hash));
+            }
+        }
+        for (message, hash) in messages {
+            self.enqueue_message(message, hash)
+                .expect("BUG: Failed to enqueue message");
         }
     }
 
@@ -281,7 +289,7 @@ mod msg_channel {
                 payload,
             };
             self.queue
-                .enqueue_message(self.sender.clone(), message, hash)
+                .enqueue_message(message, hash)
                 .expect("BUG: Since the channel exists, this should nerver fail");
         }
 
