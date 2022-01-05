@@ -310,6 +310,23 @@ pub struct ChainedMessage {
     pub parent_hash: MqHash,
 }
 
+impl ChainedMessage {
+    pub fn new(
+        message: Message,
+        sequence: u64,
+        hash: MqHash,
+        parent_hash: MqHash,
+    ) -> Self {
+        ChainedMessage {
+            phactory_version: PHACTORY_VERSION,
+            message,
+            sequence,
+            hash,
+            parent_hash,
+        }
+    }
+}
+
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct AppointedMessage {
     pub phactory_version: u8,
@@ -328,36 +345,6 @@ impl AppointedMessage {
 }
 
 pub type Signature = Vec<u8>;
-
-
-// TODO: rename to HashedMessage
-#[cfg(feature = "queue")]
-#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
-pub struct SigningMessage {
-    pub message: Message,
-    pub hash: MqHash,
-}
-
-#[cfg(feature = "queue")]
-impl SigningMessage {
-    pub fn sign_chained(
-        self,
-        sequence: u64,
-        parent_hash: MqHash,
-        signer: &crate::MessageSigner,
-    ) -> (ChainedMessage, Signature) {
-        let hash = hash(&(sequence, parent_hash, self.hash).encode());
-        let message = ChainedMessage {
-            phactory_version: PHACTORY_VERSION,
-            message: self.message,
-            sequence,
-            hash,
-            parent_hash,
-        };
-        let signature = signer.sign(&message.encode());
-        (message, signature)
-    }
-}
 
 #[cfg(feature = "queue")]
 pub fn hash(data: &[u8]) -> MqHash {

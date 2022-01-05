@@ -37,10 +37,12 @@ impl TaskWrapper {
     fn finish(self, context: &PollContext) {
         let messages = (self.on_finish)(context).unwrap_or(self.default_messages);
         for (sequence, message) in messages {
-            context
+            let result = context
                 .send_mq
-                .enqueue_appointed_message(message.sender.clone(), message, sequence)
-                .expect("BUG: message sender does not exist?");
+                .enqueue_appointed_message(message.sender.clone(), message, sequence);
+            if let Err(err) = result {
+                log::error!("Failed to enqueue message: {:?}", err);
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
 use crate::{
     AppointedMessage, Appointment, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash,
-    Mutex, SenderId, Signature, SigningMessage,
+    Mutex, SenderId, Signature,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use parity_scale_codec::Encode as _;
@@ -89,11 +89,23 @@ impl MessageSendQueue {
         MessageChannel::new(sender, self.clone())
     }
 
-    pub fn enqueue_message(&self, sender: SenderId, message: SigningMessage) -> MqResult<()> {
+    pub fn enqueue_message(
+        &self,
+        sender: SenderId,
+        message: Message,
+        hash: MqHash,
+    ) -> MqResult<()> {
         let mut inner = self.inner.lock();
         let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
-        let (message, signature) =
-            message.sign_chained(entry.next_sequence, entry.last_hash, &entry.signer);
+
+        let (message, signature) = {
+            let parent_hash = entry.last_hash;
+            let hash = crate::hash(&(entry.next_sequence, &parent_hash, hash).encode());
+            let message = ChainedMessage::new(message, entry.next_sequence, hash, parent_hash);
+            let signature = entry.signer.sign(&message.encode());
+            (message, signature)
+        };
+
         let hash = message.hash;
         if !entry.dummy {
             if log::log_enabled!(target: "mq", log::Level::Debug) {
@@ -263,16 +275,13 @@ mod msg_channel {
 
     impl crate::traits::MessageChannel for MessageChannel {
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>, hash: MqHash) {
-            let message = SigningMessage {
-                message: Message {
-                    sender: self.sender.clone(),
-                    destination: to.into().into(),
-                    payload,
-                },
-                hash,
+            let message = Message {
+                sender: self.sender.clone(),
+                destination: to.into().into(),
+                payload,
             };
             self.queue
-                .enqueue_message(self.sender.clone(), message)
+                .enqueue_message(self.sender.clone(), message, hash)
                 .expect("BUG: Since the channel exists, this should nerver fail");
         }
 
