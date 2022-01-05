@@ -24,13 +24,14 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractInfo},
+		contract::{CodeIndex, ContractId, ContractInfo},
 		messaging::{
 			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
 			WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -44,11 +45,11 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum ContractRegistryEvent<CodeHash, AccountId> {
 		PubkeyAvailable {
-			pubkey: ContractPublicKey,
 			info: ContractInfo<CodeHash, AccountId>,
+			pubkey: ContractPublicKey,
 		},
 		ContractDeployed {
-			contract_pubkey: ContractPublicKey,
+			contract_id: ContractId,
 			worker_pubkeys: Vec<WorkerPublicKey>,
 		},
 	}
@@ -101,22 +102,23 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
-	/// The contract counter.
+	/// The contract cluster counter.
 	#[pallet::storage]
 	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
-	pub type Contracts<T: Config> =
-		StorageMap<_, Twox64Concat, ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>>;
+	pub type ContractCluster<T> = StorageMap<_, Twox64Concat, u64, Vec<ContractId>>;
 
 	#[pallet::storage]
-	pub type ContractWorkers<T> =
-		StorageMap<_, Twox64Concat, ContractPublicKey, Vec<WorkerPublicKey>>;
+	pub type Contracts<T: Config> =
+		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
 
-	// TODO(shelven): remove this
+	#[pallet::storage]
+	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractId, Vec<WorkerPublicKey>>;
+
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, ContractPublicKey>;
+	pub type ContractKey<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
@@ -145,7 +147,7 @@ pub mod pallet {
 	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
 		CodeUploaded(CodeHash<T>),
-		ContractInstantiated(ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>),
+		ContractInstantiated(ContractInfo<CodeHash<T>, T::AccountId>, ContractPublicKey),
 	}
 
 	#[pallet::error]
@@ -185,7 +187,9 @@ pub mod pallet {
 		PRuntimeNotFound,
 		// Contract related
 		CodeNotFound,
+		ContractClusterNotFound,
 		DuplicatedContractPubkey,
+		DuplicatedDeployment,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -389,7 +393,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin: T::AccountId = ensure_signed(origin)?;
 			// TODO.shelven: check permission?
-			Self::push_message(ContractOperation::UploadCodeToCluster { origin, code, cluster_id });
+			Self::push_message(ContractOperation::UploadCodeToCluster {
+				origin,
+				code,
+				cluster_id,
+			});
 			Ok(())
 		}
 
@@ -401,6 +409,7 @@ pub mod pallet {
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
+			cluster: Option<u64>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
@@ -419,13 +428,25 @@ pub mod pallet {
 			for worker in deploy_workers.into_iter() {
 				let worker_info =
 					Workers::<T>::try_get(&worker).or(Err(Error::<T>::WorkerNotFound))?;
-				workers.push((worker_info.pubkey, worker_info.ecdh_pubkey));
+				workers.push(WorkerIdentity {
+					pubkey: worker_info.pubkey,
+					ecdh_pubkey: worker_info.ecdh_pubkey,
+				});
 			}
 
-			let cluster_id = ContractClusterCounter::<T>::mutate(|counter| {
-				*counter += 1;
-				*counter
-			});
+			let cluster_id = match cluster {
+				Some(cluster_id) => {
+					ensure!(
+						ContractCluster::<T>::contains_key(cluster_id),
+						Error::<T>::ContractClusterNotFound
+					);
+					cluster_id
+				}
+				None => ContractClusterCounter::<T>::mutate(|counter| {
+					*counter += 1;
+					*counter
+				}),
+			};
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
@@ -621,19 +642,29 @@ pub mod pallet {
 				Error::<T>::InvalidSender
 			);
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
+				ContractRegistryEvent::PubkeyAvailable { info, pubkey } => {
+					let contract_id = info.contract_id();
 					ensure!(
-						!Contracts::<T>::contains_key(pubkey),
+						!Contracts::<T>::contains_key(contract_id),
 						Error::<T>::DuplicatedContractPubkey
 					);
-					Contracts::<T>::insert(&pubkey, &info);
-					Self::deposit_event(Event::ContractInstantiated(pubkey, info));
+
+					let mut cluster =
+						ContractCluster::<T>::try_get(info.cluster_id).unwrap_or(vec![]);
+					ensure!(
+						!cluster.contains(&contract_id),
+						Error::<T>::DuplicatedDeployment
+					);
+					cluster.push(contract_id);
+					ContractCluster::<T>::insert(&info.cluster_id, cluster);
+					Contracts::<T>::insert(&contract_id, &info);
+					Self::deposit_event(Event::ContractInstantiated(info, pubkey));
 				}
 				ContractRegistryEvent::ContractDeployed {
-					contract_pubkey,
+					contract_id,
 					worker_pubkeys,
 				} => {
-					ContractWorkers::<T>::insert(&contract_pubkey, &worker_pubkeys);
+					ContractWorkers::<T>::insert(&contract_id, &worker_pubkeys);
 				}
 			}
 			Ok(())

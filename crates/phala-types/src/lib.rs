@@ -632,6 +632,11 @@ pub use sp_core::sr25519::Public as ContractPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;
+#[derive(Encode, Decode, Debug, Default, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerIdentity {
+    pub pubkey: WorkerPublicKey,
+    pub ecdh_pubkey: EcdhPublicKey,
+}
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {

@@ -30,22 +30,23 @@ pub mod messaging {
     use codec::{Decode, Encode};
 
     use super::ContractInfo;
-    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerPublicKey};
+    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerIdentity, WorkerPublicKey};
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
     #[derive(Encode, Decode, Debug)]
     pub enum ContractEvent<CodeHash, AccountId> {
+        // TODO.shelven: enable add and remove workers
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_workers: Vec<(WorkerPublicKey, EcdhPublicKey)>,
+            deploy_workers: Vec<WorkerIdentity>,
         },
     }
 
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_workers: Vec<(WorkerPublicKey, EcdhPublicKey)>,
+            deploy_workers: Vec<WorkerIdentity>,
         ) -> Self {
             ContractEvent::InstantiateCode {
                 contract_info,
@@ -69,11 +70,18 @@ pub mod messaging {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
     pub deployer: AccountId,
+    pub code_index: CodeIndex<CodeHash>,
+    pub salt: Vec<u8>,
     /// Contract cluster counter of the contract
     pub cluster_id: u64,
-    pub salt: Vec<u8>,
-    pub code_index: CodeIndex<CodeHash>,
     pub instantiate_data: Vec<u8>,
+}
+
+impl<CodeHash, AccountId> ContractInfo<CodeHash, AccountId> {
+    pub fn contract_id(&self) -> ContractId {
+        // TODO.shelven: calculate the real contract id
+        id256(0)
+    }
 }
 
 /// Contract query request parameters, to be encrypted.

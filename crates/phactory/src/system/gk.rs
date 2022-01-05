@@ -290,10 +290,10 @@ where
                     .derive_ecdh_key()
                     .expect("should never fail with valid master key; qed.");
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
+                // TODO.shelven: set up expiration
                 for worker in deploy_workers.iter() {
-                    let (_, ecdh_pubkey) = worker;
                     secret_mq
-                        .bind_remote_key(Some(&ecdh_pubkey.0))
+                        .bind_remote_key(Some(&worker.ecdh_pubkey.0))
                         .push_message(&ContractKeyDistribution::contract_key_distribution(
                             contract_key.dump_secret_key(),
                             contract_info.clone(),
@@ -302,8 +302,8 @@ where
                 }
                 self.egress.push_message(
                     &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
-                        contract_pubkey: contract_key.public(),
-                        worker_pubkeys: deploy_workers.into_iter().map(|w| w.0).collect(),
+                        contract_id: contract_info.contract_id(),
+                        worker_pubkeys: deploy_workers.into_iter().map(|w| w.pubkey).collect(),
                     },
                 );
             }
