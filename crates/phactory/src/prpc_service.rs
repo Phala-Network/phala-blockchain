@@ -223,6 +223,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             state.purge_mq();
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
+            self.runtime_state()?.commit_appointments();
             last_block = block.block_header.number;
         }
 

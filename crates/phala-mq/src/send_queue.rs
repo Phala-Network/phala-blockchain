@@ -168,6 +168,9 @@ impl MessageSendQueue {
         {
             let mut inner = self.inner.lock();
             for (sender, channel) in inner.iter_mut() {
+                if channel.appointing == 0 {
+                    continue;
+                }
                 let payload = Appointment::new(channel.appointing).encode();
                 channel.appointing = 0;
                 let message = Message {
@@ -241,7 +244,7 @@ impl MessageSendQueue {
         self.inner
             .lock()
             .iter()
-            .map(|(_k, v)| v.messages.len())
+            .map(|(_k, v)| v.messages.len() + v.appointed_messages.len())
             .sum()
     }
 

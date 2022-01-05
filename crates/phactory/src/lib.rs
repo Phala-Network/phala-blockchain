@@ -119,6 +119,10 @@ impl RuntimeState {
             }
         })
     }
+
+    fn commit_appointments(&mut self) {
+        self.send_mq.commit_appointments()
+    }
 }
 
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
