@@ -81,12 +81,17 @@ case $target in
   ;;
 esac
 
+# Check if we can fingerprint the version of llvm, if so then we change the local variable
+source "llvm_check" # import llvm_check
 if [ -n "$use_clang" ]; then
   llvm_version=10
+  llvm_version_check
+
   if [ -n "${RING_COVERAGE-}" ]; then
     # https://github.com/rust-lang/rust/pull/79365 upgraded the coverage file
     # format to one that only LLVM 11+ can use
     llvm_version=11
+    llvm_version_check
     sudo apt-key add mk/llvm-snapshot.gpg.key
     sudo add-apt-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-$llvm_version main"
     sudo apt-get update
