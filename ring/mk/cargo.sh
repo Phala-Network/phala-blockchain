@@ -14,7 +14,7 @@
 # OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN
 # CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
-set -eux -o pipefail
+set -ex -o pipefail
 IFS=$'\n\t'
 
 rustflags_self_contained="-Clink-self-contained=yes -Clinker=rust-lld"
@@ -38,11 +38,18 @@ for arg in $*; do
   esac
 done
 
+source "llvm_check.sh"
+
 # See comments in install-build-tools.sh.
-llvm_version=10
+export llvm_version=10
 if [ -n "${RING_COVERAGE-}" ]; then
   llvm_version=11
 fi
+
+llvm_version_check # Change llvm_version if we can detect another one
+
+echo "My llvm_version is set to: $llvm_version"
+
 
 case $target in
    aarch64-linux-android)
@@ -110,6 +117,10 @@ case $target in
   *)
     ;;
 esac
+
+
+
+
 
 if [ -n "${RING_COVERAGE-}" ]; then
   # XXX: Collides between release and debug.
