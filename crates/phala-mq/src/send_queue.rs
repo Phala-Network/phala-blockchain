@@ -1,12 +1,23 @@
 use crate::{
-    AppointedMessage, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash, Mutex,
-    SenderId, Signature, SigningMessage, Appointment,
+    AppointedMessage, Appointment, ChainedMessage, Message, MessageOrigin, MessageSigner, MqHash,
+    Mutex, SenderId, Signature, SigningMessage,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
+use parity_scale_codec::Encode as _;
 use serde::{Deserialize, Serialize};
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
+pub enum Error {
+    ChannelNotFound,
+    QuotaExceeded,
+}
+
+type MqResult<T> = Result<T, Error>;
+
+#[derive(Serialize, Deserialize)]
 struct Channel {
+    signer: MessageSigner,
+
     next_sequence: u64,
     last_hash: MqHash,
     messages: Vec<(ChainedMessage, Signature)>,
@@ -14,8 +25,8 @@ struct Channel {
     next_appointment_sequence: u64,
     appointed_seqs: Vec<u64>,
     appointing: u8,
-    appointed_egress_messages: Vec<(AppointedMessage, Signature)>,
-    /// Number of pending appointments.
+    appointed_messages: Vec<(AppointedMessage, Signature)>,
+
     dummy: bool,
 }
 
@@ -55,23 +66,34 @@ impl<'de> Deserialize<'de> for MessageSendQueue {
 
 impl MessageSendQueue {
     pub fn new() -> Self {
-        MessageSendQueue {
-            inner: Default::default(),
-        }
+        Default::default()
     }
 
-    pub fn channel<Si: MessageSigner>(&self, sender: SenderId, signer: Si) -> MessageChannel<Si> {
-        MessageChannel::new(self.clone(), sender, signer)
-    }
-
-    pub fn enqueue_message(
-        &self,
-        sender: SenderId,
-        constructor: impl FnOnce(u64, MqHash) -> (ChainedMessage, Signature),
-    ) {
+    /// Get message channel given sender id.
+    ///
+    /// If channel does not exist, create one.
+    pub fn channel(&self, sender: SenderId, signer: MessageSigner) -> MessageChannel {
         let mut inner = self.inner.lock();
-        let entry = inner.entry(sender).or_default();
-        let (message, signature) = constructor(entry.next_sequence, entry.last_hash);
+        let _entry = inner.entry(sender.clone()).or_insert_with(move || Channel {
+            signer,
+            next_sequence: 0,
+            last_hash: MqHash::default(),
+            messages: Vec::new(),
+            next_appointment_sequence: 0,
+            appointed_seqs: Vec::new(),
+            appointing: 0,
+            appointed_messages: Vec::new(),
+            dummy: false,
+        });
+
+        MessageChannel::new(sender, self.clone())
+    }
+
+    pub fn enqueue_message(&self, sender: SenderId, message: SigningMessage) -> MqResult<()> {
+        let mut inner = self.inner.lock();
+        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
+        let (message, signature) =
+            message.sign_chained(entry.next_sequence, entry.last_hash, &entry.signer);
         let hash = message.hash;
         if !entry.dummy {
             if log::log_enabled!(target: "mq", log::Level::Debug) {
@@ -95,40 +117,44 @@ impl MessageSendQueue {
         }
         entry.next_sequence += 1;
         entry.last_hash = hash;
+        Ok(())
     }
 
     pub fn enqueue_appointed_message(
         &self,
         sender: SenderId,
-        constructor: impl FnOnce() -> (AppointedMessage, Signature),
-    ) {
+        message: Message,
+        sequence: u64,
+    ) -> MqResult<()> {
         let mut inner = self.inner.lock();
-        let entry = inner.entry(sender).or_default();
-        let (message, signature) = constructor();
+        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
         if !entry.dummy {
             log::info!(target: "mq",
                 "Sending appointed message, from={}, to={:?}, seq={}",
-                message.message.sender,
-                message.message.destination,
-                entry.next_sequence,
+                message.sender,
+                message.destination,
+                sequence,
             );
-            entry.appointed_egress_messages.push((message, signature));
+            let message = AppointedMessage::new(message, sequence);
+            let signature = entry.signer.sign(&message.encode());
+            entry.appointed_messages.push((message, signature));
         }
+        Ok(())
     }
 
-    pub fn appoint_next(&self, sender: SenderId) -> Option<u64> {
+    pub fn make_appointment(&self, sender: &SenderId) -> MqResult<u64> {
         let mut inner = self.inner.lock();
-        let entry = inner.entry(sender).or_default();
+        let entry = inner.get_mut(sender).ok_or(Error::ChannelNotFound)?;
         // Max number of appointments per sender.
         const MAX_APPOINTMENTS: usize = 8;
         if entry.appointed_seqs.len() >= MAX_APPOINTMENTS {
-            return None;
+            return Err(Error::QuotaExceeded);
         }
         let seq = entry.next_appointment_sequence;
         entry.next_appointment_sequence += 1;
         entry.appointed_seqs.push(seq);
         entry.appointing += 1;
-        Some(seq)
+        Ok(seq)
     }
 
     pub fn commit_appointments(&self) {
@@ -140,10 +166,11 @@ impl MessageSendQueue {
         }
     }
 
-    pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) {
+    pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) -> MqResult<()> {
         let mut inner = self.inner.lock();
-        let entry = inner.entry(sender).or_default();
+        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
         entry.dummy = dummy;
+        Ok(())
     }
 
     pub fn last_hash(&self, sender: &SenderId) -> MqHash {
@@ -163,11 +190,22 @@ impl MessageSendQueue {
 
     pub fn all_messages_grouped(
         &self,
-    ) -> BTreeMap<MessageOrigin, Vec<(ChainedMessage, Signature)>> {
+    ) -> BTreeMap<
+        MessageOrigin,
+        (
+            Vec<(ChainedMessage, Signature)>,
+            Vec<(AppointedMessage, Signature)>,
+        ),
+    > {
         let inner = self.inner.lock();
         inner
             .iter()
-            .map(|(k, v)| (k.clone(), v.messages.clone()))
+            .map(|(k, v)| {
+                (
+                    k.clone(),
+                    (v.messages.clone(), v.appointed_messages.clone()),
+                )
+            })
             .collect()
     }
 
@@ -194,14 +232,12 @@ impl MessageSendQueue {
             let info = next_sequence_for(k);
             v.messages
                 .retain(|msg| msg.0.sequence >= info.next_sequence);
-            v.appointed_egress_messages.retain(|msg| {
+            v.appointed_messages.retain(|msg| {
                 msg.0.sequence >= info.next_ap_sequence
                     || info.ap_sequences.contains(&msg.0.sequence)
             });
-            v.appointed_seqs.retain(|&seq| {
-                seq >= info.next_ap_sequence
-                    || info.ap_sequences.contains(&seq)
-            });
+            v.appointed_seqs
+                .retain(|&seq| seq >= info.next_ap_sequence || info.ap_sequences.contains(&seq));
         }
     }
 }
@@ -209,73 +245,57 @@ impl MessageSendQueue {
 pub use msg_channel::*;
 mod msg_channel {
     use super::*;
-    use crate::{types::Path, MessageSigner, SenderId};
+    use crate::{types::Path, SenderId};
 
     #[derive(Clone, Serialize, Deserialize)]
-    pub struct MessageChannel<Si> {
+    pub struct MessageChannel {
         #[serde(skip)]
         #[serde(default = "crate::checkpoint_helper::global_send_mq")]
         queue: MessageSendQueue,
         sender: SenderId,
-        signer: Si,
     }
 
-    impl<Si> MessageChannel<Si> {
-        pub fn new(queue: MessageSendQueue, sender: SenderId, signer: Si) -> Self {
-            MessageChannel {
-                queue,
-                sender,
-                signer,
-            }
+    impl MessageChannel {
+        pub fn new(sender: SenderId, queue: MessageSendQueue) -> Self {
+            Self { sender, queue }
         }
     }
 
-    impl<Si: MessageSigner + Clone> MessageChannel<Si> {
-        fn prepare_with_data(
-            &self,
-            payload: alloc::vec::Vec<u8>,
-            to: impl Into<Path>,
-            hash: MqHash,
-        ) -> SigningMessage<Si> {
-            let sender = self.sender.clone();
-            let signer = self.signer.clone();
-            let message = Message {
-                sender,
-                destination: to.into().into(),
-                payload,
-            };
-            SigningMessage {
-                message,
-                signer,
-                hash,
-            }
-        }
-    }
-
-    impl<T: MessageSigner + Clone> crate::traits::MessageChannel for MessageChannel<T> {
+    impl crate::traits::MessageChannel for MessageChannel {
         fn push_data(&self, payload: Vec<u8>, to: impl Into<Path>, hash: MqHash) {
-            let signing = self.prepare_with_data(payload, to, hash);
+            let message = SigningMessage {
+                message: Message {
+                    sender: self.sender.clone(),
+                    destination: to.into().into(),
+                    payload,
+                },
+                hash,
+            };
             self.queue
-                .enqueue_message(self.sender.clone(), move |sequence, parent_hash| {
-                    signing.sign_chained(sequence, parent_hash)
-                })
+                .enqueue_message(self.sender.clone(), message)
+                .expect("BUG: Since the channel exists, this should nerver fail");
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
         fn set_dummy(&self, dummy: bool) {
-            self.queue.set_dummy_mode(self.sender.clone(), dummy);
+            self.queue
+                .set_dummy_mode(self.sender.clone(), dummy)
+                .expect("BUG: Since the channel exists, this should nerver fail");
+        }
+
+        fn make_appointment(&self) -> Option<u64> {
+            self.queue.make_appointment(&self.sender).ok()
         }
     }
 
-    impl<T: MessageSigner + Clone> crate::traits::MessagePrepareChannel for MessageChannel<T> {
-        type Signer = T;
-
-        fn prepare_with_data(
-            &self,
-            payload: alloc::vec::Vec<u8>,
-            to: impl Into<Path>,
-        ) -> SigningMessage<Self::Signer> {
-            self.prepare_with_data(payload, to, Default::default())
+    impl crate::traits::MessagePreparing for MessageChannel {
+        fn prepare_with_data(&self, payload: alloc::vec::Vec<u8>, to: impl Into<Path>) -> Message {
+            let sender = self.sender.clone();
+            Message {
+                sender,
+                destination: to.into().into(),
+                payload,
+            }
         }
     }
 }

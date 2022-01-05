@@ -32,12 +32,12 @@ fn now() -> u64 {
 // Drop latest messages if needed to fit in size.
 fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages {
     while messages.encoded_size() > size {
-        for (_, queue) in messages.iter_mut() {
-            if queue.pop().is_some() {
+        for (_, queue, ap_queue) in messages.iter_mut() {
+            if queue.pop().is_some() || ap_queue.pop().is_some() {
                 break;
             }
         }
-        messages.retain(|(_, q)| !q.is_empty());
+        messages.retain(|(_, q, apq)| !q.is_empty() || !apq.is_empty());
         if messages.is_empty() {
             break;
         }
@@ -487,7 +487,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let messages: Vec<_> = self
             .runtime_state
             .as_ref()
-            .map(|state| state.send_mq.all_messages_grouped().into_iter().collect())
+            .map(|state| {
+                state
+                    .send_mq
+                    .all_messages_grouped()
+                    .into_iter()
+                    .map(|(k, (v0, v1))| (k, v0, v1))
+                    .collect()
+            })
             .unwrap_or_default();
         // Prune messages if needed to avoid the OUTPUT BUFFER overflow.
         Ok(fit_size(messages, output_buf_len))

@@ -14,7 +14,7 @@ mod sender {
     use crate::contracts::Data as OpaqueData;
     use phactory_api::crypto::{ecdh, EncryptedData};
     use phala_crypto::ecdh::EcdhPublicKey;
-    use phala_mq::traits::{MessageChannel, MessagePrepareChannel};
+    use phala_mq::traits::{MessageChannel, MessagePreparing};
     use phala_mq::Path;
 
     pub type KeyPair = ecdh::EcdhKey;
@@ -64,18 +64,20 @@ mod sender {
             let payload = self.encrypt_payload(data);
             self.inner.mq.push_message_to(&payload, to, hash)
         }
+
+        fn make_appointment(&self) -> Option<u64> {
+            self.inner.mq.make_appointment()
+        }
     }
 
-    impl<'a, MsgChan: MessagePrepareChannel> phala_mq::traits::MessagePrepareChannel
+    impl<'a, MsgChan: MessagePreparing> phala_mq::traits::MessagePreparing
         for BoundSecretMessageChannel<'a, MsgChan>
     {
-        type Signer = MsgChan::Signer;
-
         fn prepare_with_data(
             &self,
             data: Vec<u8>,
             to: impl Into<Path>,
-        ) -> phala_mq::SigningMessage<Self::Signer> {
+        ) -> phala_mq::Message {
             let payload = self.encrypt_payload(data);
             self.inner.mq.prepare_message_to(&payload, to)
         }

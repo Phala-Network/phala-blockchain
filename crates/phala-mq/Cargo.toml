@@ -24,10 +24,10 @@ phala-mq-derive = { path = "./derive" }
 primitive-types = { version = "0.10.1", default-features = false, features = ["impl-serde"] }
 
 [features]
-default = ["dispatcher", "queue", "signers", "checkpoint"]
+default = ["dispatcher", "queue", "checkpoint"]
 dispatcher = ["spin"]
-queue = ["spin"]
-signers = [
+queue = [
+    "spin",
     "sp-core/full_crypto",
     "phala-serde-more/crypto",
 ]

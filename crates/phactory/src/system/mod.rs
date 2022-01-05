@@ -1173,7 +1173,7 @@ mod tests {
             .send_mq
             .all_messages()
             .into_iter()
-            .map(|msg| (msg.sequence, msg.message))
+            .map(|msg| msg.0)
             .collect();
         insta::assert_debug_snapshot!(messages);
     }

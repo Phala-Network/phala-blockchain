@@ -1,7 +1,7 @@
 use anyhow::Result;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::traits::MessagePrepareChannel;
+use phala_mq::traits::{MessageChannel, MessagePreparing};
 use phala_mq::MessageOrigin;
 use phala_types::contract::command_topic;
 use serde::{Deserialize, Serialize};
@@ -163,8 +163,12 @@ impl contracts::NativeContract for BtcPriceBot {
 
                 let mq = context.mq().clone();
                 let my_id = context.self_id;
+                let seq = match mq.make_appointment() {
+                    Some(seq) => seq,
+                    None => return Err(TransactionError::Other("mq is full".into())),
+                };
 
-                let default_messages = [mq.prepare_message_to(&(), "^phala/mq/blockhole")];
+                let default_messages = [(seq, mq.prepare_message_to(&(), "^phala/mq/blockhole"))];
 
                 context.block.side_task_man.add_async_task(
                     block_number,
@@ -225,7 +229,7 @@ impl contracts::NativeContract for BtcPriceBot {
                         let command = Command::UpdateBtcPrice { price };
                         let message = Payload::Plain(command);
 
-                        Ok([mq.prepare_message_to(&message, command_topic(my_id))])
+                        Ok([(seq, mq.prepare_message_to(&message, command_topic(my_id)))])
                     },
                 );
 

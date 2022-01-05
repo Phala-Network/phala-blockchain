@@ -11,7 +11,7 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	use phala_types::messaging::{
-		bind_topic, AppointedMessage, Appointment, BindTopic, ChainedMessage, CommandPayload,
+		AppointedMessage, Appointment, BindTopic, ChainedMessage, CommandPayload,
 		ContractCommand, DecodedMessage, Message, MessageOrigin, MqHash, Path, Signature,
 		SignedMessage,
 	};

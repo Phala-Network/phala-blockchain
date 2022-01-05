@@ -1,9 +1,9 @@
 use crate::storage::Storage;
 use ::chain::BlockNumber;
-use phala_mq::{MessageSendQueue, Sr25519Signer};
+use phala_mq::MessageSendQueue;
 use serde::{Deserialize, Serialize};
 
-type SigningMessage = phala_mq::SigningMessage<Sr25519Signer>;
+type Message = (u64, phala_mq::Message);
 
 pub struct PollContext<'a> {
     pub block_number: BlockNumber,
@@ -11,7 +11,7 @@ pub struct PollContext<'a> {
     pub storage: &'a Storage,
 }
 
-type OnFinish = Box<dyn FnOnce(&PollContext) -> Option<Vec<SigningMessage>> + Send + 'static>;
+type OnFinish = Box<dyn FnOnce(&PollContext) -> Option<Vec<Message>> + Send + 'static>;
 
 #[derive(Serialize, Deserialize)]
 struct TaskWrapper {
@@ -25,7 +25,7 @@ struct TaskWrapper {
     #[serde(skip)]
     #[serde(default = "zombie")]
     on_finish: OnFinish,
-    default_messages: Vec<SigningMessage>,
+    default_messages: Vec<Message>,
     end_block: BlockNumber,
 }
 
@@ -36,12 +36,11 @@ fn zombie() -> OnFinish {
 impl TaskWrapper {
     fn finish(self, context: &PollContext) {
         let messages = (self.on_finish)(context).unwrap_or(self.default_messages);
-        for msg in messages {
+        for (sequence, message) in messages {
             context
                 .send_mq
-                .enqueue_message(msg.message.sender.clone(), |seq, parent_hash| {
-                    msg.sign_chained(seq, parent_hash)
-                });
+                .enqueue_appointed_message(message.sender.clone(), message, sequence)
+                .expect("BUG: message sender does not exist?");
         }
     }
 }
@@ -72,13 +71,13 @@ impl SideTaskManager {
     }
 
     pub fn add_task<
-        F: FnOnce(&PollContext) -> Option<[SigningMessage; N]> + Send + 'static,
+        F: FnOnce(&PollContext) -> Option<[Message; N]> + Send + 'static,
         const N: usize,
     >(
         &mut self,
         current_block: BlockNumber,
         duration: BlockNumber,
-        default_messages: [SigningMessage; N],
+        default_messages: [Message; N],
         finish: F,
     ) {
         let task = TaskWrapper {
@@ -102,11 +101,11 @@ pub mod async_side_task {
 
     use crate::side_task::PollContext;
 
-    use super::{BlockNumber, SigningMessage};
+    use super::{BlockNumber, Message};
 
     #[must_use = "SideTask will loss it's work without adding it to the task manager"]
     pub struct AsyncSideTask<Tsk, const N: usize> {
-        result: Arc<Mutex<Option<[SigningMessage; N]>>>,
+        result: Arc<Mutex<Option<[Message; N]>>>,
         _async_task: Tsk,
     }
 
@@ -114,7 +113,7 @@ pub mod async_side_task {
     where
         Tsk: Send,
     {
-        fn finish(self, _context: &PollContext) -> Option<[SigningMessage; N]> {
+        fn finish(self, _context: &PollContext) -> Option<[Message; N]> {
             self.result.lock().unwrap().take()
         }
     }
@@ -137,9 +136,7 @@ pub mod async_side_task {
         /// );
         /// task_man.add_task(cur_block, duration, [mk_default_msg()], |c| task.finish(c));
         /// ```
-        pub fn spawn(
-            future: impl Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
-        ) -> Self {
+        pub fn spawn(future: impl Future<Output = Result<[Message; N]>> + Send + 'static) -> Self {
             let result = Arc::new(Mutex::new(None));
             let set_result = result.clone();
 
@@ -191,13 +188,13 @@ pub mod async_side_task {
         /// DO NOT send mq messages directly inside the async block (future polling). Should return messages instead.
         ///
         pub fn add_async_task<
-            F: Future<Output = Result<[SigningMessage; N]>> + Send + 'static,
+            F: Future<Output = Result<[Message; N]>> + Send + 'static,
             const N: usize,
         >(
             &mut self,
             current_block: BlockNumber,
             duration: BlockNumber,
-            default_messages: [SigningMessage; N],
+            default_messages: [Message; N],
             future: F,
         ) {
             let task = AsyncSideTask::spawn(future);

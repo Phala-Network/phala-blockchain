@@ -5,10 +5,10 @@ pub extern crate serde_sgx as serde;
 
 extern crate alloc;
 
-#[cfg(feature = "signers")]
+#[cfg(feature = "queue")]
 pub use phala_mq_derive::MessageHashing;
 
-#[cfg(not(feature = "signers"))]
+#[cfg(not(feature = "queue"))]
 pub use phala_mq_derive::DummyMessageHashing as MessageHashing;
 
 pub use traits::MessageHashing;
@@ -33,7 +33,8 @@ pub use send_queue::{MessageChannel, MessageSendQueue, SequenceInfo};
 #[cfg(any(feature = "queue", feature = "dispatcher"))]
 pub use simple_mpsc::{ReceiveError, Receiver};
 
-pub use signer::MessageSigner;
+#[cfg(feature = "queue")]
+pub use signer::signers::MessageSigner;
 
 pub use types::*;
 
@@ -41,16 +42,16 @@ pub use types::*;
 // See:
 //    https://matklad.github.io/2020/01/02/spinlocks-considered-harmful.html
 //    https://matklad.github.io/2020/01/04/mutexes-are-faster-than-spinlocks.html
-#[cfg(any(feature = "queue", feature = "dispatcher"))]
+#[cfg(feature = "queue")]
 use spin::mutex::Mutex;
 
-#[cfg(all(feature = "queue", feature = "signers"))]
+#[cfg(feature = "queue")]
 pub use alias::*;
 
-#[cfg(all(feature = "queue", feature = "signers"))]
+#[cfg(feature = "queue")]
 mod alias {
     pub use crate::signer::signers::Sr25519Signer;
-    pub type SignedMessageChannel = crate::MessageChannel<Sr25519Signer>;
+    pub use crate::MessageChannel as SignedMessageChannel;
 }
 
 pub mod traits {
@@ -58,8 +59,8 @@ pub mod traits {
 
     use crate::{BindTopic, MqHash, Path};
 
-    #[cfg(feature = "signers")]
-    use crate::SigningMessage;
+    #[cfg(feature = "queue")]
+    use crate::Message;
 
     pub trait MessageHashing {
         fn hash(&self) -> MqHash;
@@ -80,38 +81,28 @@ pub mod traits {
             self.push_message_to(message, M::topic(), hash)
         }
         fn set_dummy(&self, _dummy: bool) {}
+        /// Make an appointment for the next message.
+        ///
+        /// Return the sequence of the message.
+        fn make_appointment(&self) -> Option<u64> {
+            None
+        }
     }
 
-    /// A MessagePrepareChannel is used prepare messages which later can be pushed into the message queue.
+    /// A MessagePreparing is used to prepare messages which later can be pushed into the message queue.
     ///
-    /// The purpose of this extra step is that sometimes(side-task e.g.) we need store pre-generated messages
-    /// somewhere and push it later. But the final `SignedMessage` contains the sequence which must be signed can
-    /// not be known in advance until it about to be pushed out. So we need to pack all stuffs which are required
-    /// to make a `SignedMessage` except the sequence into a so-called `SigningMessage` struct and store it for
-    /// later pushing.
-    #[cfg(feature = "signers")]
-    pub trait MessagePrepareChannel {
-        type Signer;
+    #[cfg(feature = "queue")]
+    pub trait MessagePreparing {
+        /// Like push_data but returns the Message rather than pushes it into the egress queue.
+        fn prepare_with_data(&self, data: alloc::vec::Vec<u8>, to: impl Into<Path>) -> Message;
 
-        /// Like push_data but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_with_data(
-            &self,
-            data: alloc::vec::Vec<u8>,
-            to: impl Into<Path>,
-        ) -> SigningMessage<Self::Signer>;
-        /// Like push_message_to but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message_to(
-            &self,
-            message: &impl Encode,
-            to: impl Into<Path>,
-        ) -> SigningMessage<Self::Signer> {
+        /// Like push_message_to but returns the Message rather than pushes it into the egress queue.
+        fn prepare_message_to(&self, message: &impl Encode, to: impl Into<Path>) -> Message {
             self.prepare_with_data(message.encode(), to)
         }
-        /// Like push_message but returns the SigningMessage rather than pushes it into the egress queue.
-        fn prepare_message<M: Encode + BindTopic + MessageHashing>(
-            &self,
-            message: &M,
-        ) -> SigningMessage<Self::Signer> {
+
+        /// Like push_message but returns the Message rather than pushes it into the egress queue.
+        fn prepare_message<M: Encode + BindTopic>(&self, message: &M) -> Message {
             self.prepare_message_to(message, M::topic())
         }
     }

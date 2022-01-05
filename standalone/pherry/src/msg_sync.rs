@@ -68,7 +68,7 @@ pub async fn maybe_sync_mq_egress(
 
     let mut sync_msgs_count = 0;
 
-    'sync_outer: for (sender, messages) in messages {
+    'sync_outer: for (sender, messages, ap_messages) in messages {
         if messages.is_empty() {
             continue;
         }
@@ -83,7 +83,7 @@ pub async fn maybe_sync_mq_egress(
             }
             let msg_info = format!(
                 "msg-hash={:?}, sender={}, seq={}, dest={}, nonce={:?},",
-                    &message.hash,
+                &message.hash,
                 sender,
                 message.sequence,
                 String::from_utf8_lossy(&message.message.destination.path()[..]),

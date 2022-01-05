@@ -1,5 +1,5 @@
 use chain::BlockNumber;
-use phala_mq::traits::MessagePrepareChannel;
+use phala_mq::traits::{MessagePreparing, MessageChannel};
 use phala_mq::SignedMessageChannel;
 
 use crate::side_task::SideTaskManager;
@@ -105,11 +105,19 @@ pub fn process_block(
         // TODO: currently assume contract key equals to local ecdh key
         let remote_pubkey = my_ecdh_key.clone().public();
 
+        let seq = match egress.make_appointment() {
+            Some(seq) => seq,
+            None => {
+                log::error!("failed to make appointment for next message");
+                return;
+            }
+        };
+
         let default_messages = {
             let message = GeolocationCommand::update_geolocation(None);
             let secret_channel =
                 secret_channel::bind_remote(&egress, &my_ecdh_key, Some(&remote_pubkey));
-            [secret_channel.prepare_message_to(&message, &topic[..])]
+            [(seq, secret_channel.prepare_message_to(&message, &topic[..]))]
         };
 
         side_task_man.add_async_task(block_number, duration, default_messages, async move {
@@ -164,7 +172,7 @@ pub fn process_block(
                 secret_channel::bind_remote(&egress, &my_ecdh_key, Some(&remote_pubkey));
             let topic = contract::command_topic(contract::id256(contract::GEOLOCATION));
             //6. send the command
-            Ok([secret_channel.prepare_message_to(&msg, topic)])
+            Ok([(seq, secret_channel.prepare_message_to(&msg, topic))])
         });
     }
 }

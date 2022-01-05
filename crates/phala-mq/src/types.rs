@@ -15,7 +15,6 @@ pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractClusterId;
 
-use crate::MessageSigner;
 use phala_serde_more as more;
 use serde::{Deserialize, Serialize};
 
@@ -300,6 +299,8 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
+const PHACTORY_VERSION: u8 = 0;
+
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct ChainedMessage {
     pub phactory_version: u8,
@@ -316,33 +317,49 @@ pub struct AppointedMessage {
     pub sequence: u64,
 }
 
-pub type Signature = Vec<u8>;
-
-#[cfg(feature = "signers")]
-#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
-pub struct SigningMessage<Signer> {
-    pub message: Message,
-    pub hash: MqHash,
-    pub signer: Signer,
+impl AppointedMessage {
+    pub fn new(message: Message, sequence: u64) -> Self {
+        AppointedMessage {
+            phactory_version: PHACTORY_VERSION,
+            message,
+            sequence,
+        }
+    }
 }
 
-#[cfg(feature = "signers")]
-impl<Signer: MessageSigner> SigningMessage<Signer> {
-    pub fn sign_chained(self, sequence: u64, parent_hash: MqHash) -> (ChainedMessage, Signature) {
+pub type Signature = Vec<u8>;
+
+
+// TODO: rename to HashedMessage
+#[cfg(feature = "queue")]
+#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
+pub struct SigningMessage {
+    pub message: Message,
+    pub hash: MqHash,
+}
+
+#[cfg(feature = "queue")]
+impl SigningMessage {
+    pub fn sign_chained(
+        self,
+        sequence: u64,
+        parent_hash: MqHash,
+        signer: &crate::MessageSigner,
+    ) -> (ChainedMessage, Signature) {
         let hash = hash(&(sequence, parent_hash, self.hash).encode());
         let message = ChainedMessage {
-            phactory_version: 0,
+            phactory_version: PHACTORY_VERSION,
             message: self.message,
             sequence,
             hash,
             parent_hash,
         };
-        let signature = self.signer.sign(&message.encode());
+        let signature = signer.sign(&message.encode());
         (message, signature)
     }
 }
 
-#[cfg(feature = "signers")]
+#[cfg(feature = "queue")]
 pub fn hash(data: &[u8]) -> MqHash {
     MqHash(sp_core::blake2_128(data))
 }
