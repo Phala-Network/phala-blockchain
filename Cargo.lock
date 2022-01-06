@@ -6734,13 +6734,26 @@ dependencies = [
  "derive_more",
  "environmental",
  "hex",
+ "insta",
  "log",
  "parity-scale-codec",
+ "phala-mq-derive",
  "phala-serde-more",
+ "primitive-types",
  "scale-info",
  "serde",
  "sp-core",
  "spin 0.9.2",
+]
+
+[[package]]
+name = "phala-mq-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro-crate 1.1.0",
+ "proc-macro2 1.0.33",
+ "quote 1.0.10",
+ "syn 1.0.82",
 ]
 
 [[package]]
@@ -7015,7 +7028,6 @@ dependencies = [
  "hex",
  "parity-scale-codec",
  "phala-mq",
- "phala-trie-storage",
  "prpc",
  "scale-info",
  "serde",
