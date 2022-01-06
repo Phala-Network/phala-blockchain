@@ -297,11 +297,14 @@ impl MessageSendQueue {
         inner
             .channels
             .iter()
-            .map(|(k, v)| {
-                (
+            .filter_map(|(k, v)| {
+                if v.messages.len() == 0 && v.appointed_messages.len() == 0 {
+                    return None;
+                }
+                Some((
                     k.clone(),
                     (v.messages.clone(), v.appointed_messages.clone()),
-                )
+                ))
             })
             .collect()
     }
