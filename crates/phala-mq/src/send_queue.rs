@@ -11,6 +11,7 @@ pub enum Error {
     ChannelNotFound,
     QuotaExceeded,
     InvalidSequence,
+    MqDisabled,
 }
 
 type MqResult<T> = Result<T, Error>;
@@ -33,7 +34,13 @@ struct Channel {
 
 #[derive(Clone, Default)]
 pub struct MessageSendQueue {
-    inner: Arc<Mutex<BTreeMap<SenderId, Channel>>>,
+    inner: Arc<Mutex<MessageSendQueueInner>>,
+}
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct MessageSendQueueInner {
+    channels: BTreeMap<SenderId, Channel>,
+    enabled: bool,
 }
 
 pub struct SequenceInfo {
@@ -58,7 +65,7 @@ impl<'de> Deserialize<'de> for MessageSendQueue {
     where
         D: serde::Deserializer<'de>,
     {
-        let inner = BTreeMap::<SenderId, Channel>::deserialize(deserializer)?;
+        let inner = MessageSendQueueInner::deserialize(deserializer)?;
         Ok(MessageSendQueue {
             inner: Arc::new(Mutex::new(inner)),
         })
@@ -70,22 +77,35 @@ impl MessageSendQueue {
         Default::default()
     }
 
+    pub fn enable(&self) {
+        let mut inner = self.inner.lock();
+        inner.enabled = true;
+    }
+
+    pub fn disable(&self) {
+        let mut inner = self.inner.lock();
+        inner.enabled = false;
+    }
+
     /// Get message channel given sender id.
     ///
     /// If channel does not exist, create one.
     pub fn channel(&self, sender: SenderId, signer: MessageSigner) -> MessageChannel {
         let mut inner = self.inner.lock();
-        let _entry = inner.entry(sender.clone()).or_insert_with(move || Channel {
-            signer,
-            next_sequence: 0,
-            last_hash: MqHash::default(),
-            messages: Vec::new(),
-            next_appointment_sequence: 0,
-            appointed_seqs: Vec::new(),
-            appointing: 0,
-            appointed_messages: Vec::new(),
-            dummy: false,
-        });
+        let _entry = inner
+            .channels
+            .entry(sender.clone())
+            .or_insert_with(move || Channel {
+                signer,
+                next_sequence: 0,
+                last_hash: MqHash::default(),
+                messages: Vec::new(),
+                next_appointment_sequence: 0,
+                appointed_seqs: Vec::new(),
+                appointing: 0,
+                appointed_messages: Vec::new(),
+                dummy: false,
+            });
 
         MessageChannel::new(sender, self.clone())
     }
@@ -93,7 +113,11 @@ impl MessageSendQueue {
     /// Enqueue a hash-chained message.
     pub fn enqueue_message(&self, message: Message, hash: MqHash) -> MqResult<()> {
         let mut inner = self.inner.lock();
+        if !inner.enabled {
+            return Err(Error::MqDisabled);
+        }
         let entry = inner
+            .channels
             .get_mut(&message.sender)
             .ok_or(Error::ChannelNotFound)?;
 
@@ -137,6 +161,7 @@ impl MessageSendQueue {
     pub fn enqueue_appointed_message(&self, message: Message, sequence: u64) -> MqResult<()> {
         let mut inner = self.inner.lock();
         let entry = inner
+            .channels
             .get_mut(&message.sender)
             .ok_or(Error::ChannelNotFound)?;
         if !entry.dummy {
@@ -181,7 +206,13 @@ impl MessageSendQueue {
     /// of appointments is reached, returns `None`.
     pub fn make_appointment(&self, sender: &SenderId) -> MqResult<u64> {
         let mut inner = self.inner.lock();
-        let entry = inner.get_mut(sender).ok_or(Error::ChannelNotFound)?;
+        if !inner.enabled {
+            return Err(Error::MqDisabled);
+        }
+        let entry = inner
+            .channels
+            .get_mut(sender)
+            .ok_or(Error::ChannelNotFound)?;
         // Max number of appointments per sender.
         const MAX_APPOINTMENTS: usize = 8;
         if entry.appointed_seqs.len() >= MAX_APPOINTMENTS {
@@ -201,7 +232,10 @@ impl MessageSendQueue {
         let mut messages = vec![];
         {
             let mut inner = self.inner.lock();
-            for (sender, channel) in inner.iter_mut() {
+            if !inner.enabled {
+                return;
+            }
+            for (sender, channel) in inner.channels.iter_mut() {
                 if channel.appointing == 0 {
                     continue;
                 }
@@ -225,7 +259,10 @@ impl MessageSendQueue {
 
     pub fn set_dummy_mode(&self, sender: SenderId, dummy: bool) -> MqResult<()> {
         let mut inner = self.inner.lock();
-        let entry = inner.get_mut(&sender).ok_or(Error::ChannelNotFound)?;
+        let entry = inner
+            .channels
+            .get_mut(&sender)
+            .ok_or(Error::ChannelNotFound)?;
         entry.dummy = dummy;
         Ok(())
     }
@@ -233,6 +270,7 @@ impl MessageSendQueue {
     pub fn last_hash(&self, sender: &SenderId) -> MqHash {
         let inner = self.inner.lock();
         inner
+            .channels
             .get(sender)
             .map_or(Default::default(), |ch| ch.last_hash)
     }
@@ -240,6 +278,7 @@ impl MessageSendQueue {
     pub fn all_messages(&self) -> Vec<(ChainedMessage, Signature)> {
         let inner = self.inner.lock();
         inner
+            .channels
             .iter()
             .flat_map(|(_k, v)| v.messages.iter().cloned())
             .collect()
@@ -256,6 +295,7 @@ impl MessageSendQueue {
     > {
         let inner = self.inner.lock();
         inner
+            .channels
             .iter()
             .map(|(k, v)| {
                 (
@@ -269,6 +309,7 @@ impl MessageSendQueue {
     pub fn messages(&self, sender: &SenderId) -> Vec<(ChainedMessage, Signature)> {
         let inner = self.inner.lock();
         inner
+            .channels
             .get(sender)
             .map(|x| x.messages.clone())
             .unwrap_or_default()
@@ -277,6 +318,7 @@ impl MessageSendQueue {
     pub fn count_messages(&self) -> usize {
         self.inner
             .lock()
+            .channels
             .iter()
             .map(|(_k, v)| v.messages.len() + v.appointed_messages.len())
             .sum()
@@ -285,7 +327,7 @@ impl MessageSendQueue {
     /// Purge the messages which are aready accepted on chain.
     pub fn purge(&self, next_sequence_for: impl Fn(&SenderId) -> SequenceInfo) {
         let mut inner = self.inner.lock();
-        for (k, v) in inner.iter_mut() {
+        for (k, v) in inner.channels.iter_mut() {
             let info = next_sequence_for(k);
             v.messages
                 .retain(|msg| msg.0.sequence >= info.next_sequence);

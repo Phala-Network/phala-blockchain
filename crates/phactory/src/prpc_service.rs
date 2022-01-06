@@ -211,19 +211,24 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             blocks.last().map(|h| h.block_header.number)
         );
 
+        let _ = self.runtime_state()?;
+
         let mut last_block = 0;
         for block in blocks.into_iter() {
             info!("Dispatching block: {}", block.block_header.number);
-            let state = self.runtime_state()?;
+            let state = self.runtime_state().expect("Checked before loop");
             state
                 .storage_synchronizer
                 .feed_block(&block, &mut state.chain_storage)
                 .map_err(from_display)?;
 
             state.purge_mq();
+            state.enable_mq();
             self.handle_inbound_messages(block.block_header.number)?;
             self.poll_side_tasks(block.block_header.number)?;
-            self.runtime_state()?.commit_appointments();
+            let state = self.runtime_state().expect("Checked before loop");
+            state.commit_appointments();
+            state.disable_mq();
             last_block = block.block_header.number;
         }
 

@@ -123,6 +123,14 @@ impl RuntimeState {
     fn commit_appointments(&mut self) {
         self.send_mq.commit_appointments()
     }
+
+    fn enable_mq(&mut self) {
+        self.send_mq.enable()
+    }
+
+    fn disable_mq(&mut self) {
+        self.send_mq.disable()
+    }
 }
 
 const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
