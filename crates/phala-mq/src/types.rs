@@ -115,6 +115,10 @@ pub struct BadOrigin;
 ///
 ///  - b'^': The topic's subscribers are on-chain only.
 ///
+/// # System topics
+///
+///  Topics with `sys/` prefix are reserved for system usage and can not be pushed from contract.
+///
 /// # Example:
 /// ```rust
 ///    use phala_mq::Topic;
@@ -165,6 +169,9 @@ impl Topic {
         !Self::RESERVED_BYTES.contains(&self.0[0])
     }
 
+    /// Return true if the topic is reserved for system usage.
+    ///
+    /// Topics with `sys/` prefix are reserved for system usage and can not be pushed from contract.
     pub fn is_sys_topic(&self) -> bool {
         let path = &self.0[..];
         let path = path.strip_prefix(b"^").unwrap_or(path);
@@ -355,6 +362,7 @@ pub fn hash(data: &[u8]) -> MqHash {
     MqHash(sp_core::blake2_128(data))
 }
 
+// Topics with `sys/` prefix are reserved for system usage.
 bind_topic!(Appointment, b"^sys/mq/appointment");
 /// Message to appoint sequence ids.
 #[derive(Encode, Decode, TypeInfo)]
