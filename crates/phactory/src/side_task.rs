@@ -11,7 +11,7 @@ pub struct PollContext<'a> {
     pub storage: &'a Storage,
 }
 
-type OnFinish = Box<dyn FnOnce(&PollContext) -> Option<Vec<Message>> + Send + 'static>;
+type PollFn = Box<dyn Fn(&PollContext) -> Option<Vec<Message>> + Send + 'static>;
 
 #[derive(Serialize, Deserialize)]
 struct TaskWrapper {
@@ -19,29 +19,38 @@ struct TaskWrapper {
     /// recreate the on_finish with a so-called zombie closure which will output None messages. This
     /// acts as if the task was never finished and it will emit the default_messages at the end_block
     /// it has schaduled.
-    /// Note: As a result, if the underlying async task is already finished but not being polled out
-    /// yet at the checkpoint time, the async result will also be discarded. When restoring from that
-    /// checkpoint the default_messages will be emitted.
     #[serde(skip)]
     #[serde(default = "zombie")]
-    on_finish: OnFinish,
+    poll_fn: PollFn,
     default_messages: Vec<Message>,
     end_block: BlockNumber,
 }
 
-fn zombie() -> OnFinish {
+fn zombie() -> PollFn {
     Box::new(|_| None)
 }
 
 impl TaskWrapper {
-    fn finish(self, context: &PollContext) {
-        let messages = (self.on_finish)(context).unwrap_or(self.default_messages);
+    fn poll(self, context: &PollContext, timed_out: bool) -> Result<(), Self> {
+        let messages = match (self.poll_fn)(context) {
+            Some(messages) => messages,
+            None => {
+                if timed_out {
+                    self.default_messages
+                } else {
+                    return Err(self);
+                }
+            }
+        };
+
         for (sequence, message) in messages {
             let result = context.send_mq.enqueue_appointed_message(message, sequence);
             if let Err(err) = result {
                 log::error!("Failed to enqueue appointed message: {:?}", err);
             }
         }
+
+        Ok(())
     }
 }
 
@@ -54,34 +63,34 @@ impl SideTaskManager {
     pub fn poll(&mut self, context: &PollContext) {
         let mut remain = vec![];
         for task in self.tasks.drain(..) {
-            if task.end_block > context.block_number {
-                remain.push(task);
+            if task.end_block < context.block_number {
+                error!(
+                    "BUG: side task end at past block, end_block={} current_block={}",
+                    task.end_block, context.block_number
+                );
                 continue;
             }
-            if task.end_block == context.block_number {
-                task.finish(context);
-                continue;
+            let timed_out = task.end_block == context.block_number;
+            match task.poll(context, timed_out) {
+                Ok(_) => (),
+                Err(task) => remain.push(task),
             }
-            error!(
-                "BUG: side task end at past block, end_block={} current_block={}",
-                task.end_block, context.block_number
-            );
         }
         self.tasks = remain;
     }
 
     pub fn add_task<
-        F: FnOnce(&PollContext) -> Option<[Message; N]> + Send + 'static,
+        F: Fn(&PollContext) -> Option<[Message; N]> + Send + 'static,
         const N: usize,
     >(
         &mut self,
         current_block: BlockNumber,
         duration: BlockNumber,
         default_messages: [Message; N],
-        finish: F,
+        poll_fn: F,
     ) {
         let task = TaskWrapper {
-            on_finish: Box::new(move |context| finish(context).map(|arr| arr.to_vec())),
+            poll_fn: Box::new(move |context| poll_fn(context).map(|arr| arr.to_vec())),
             default_messages: default_messages.to_vec(),
             end_block: current_block + duration,
         };
@@ -113,7 +122,7 @@ pub mod async_side_task {
     where
         Tsk: Send,
     {
-        fn finish(self, _context: &PollContext) -> Option<[Message; N]> {
+        fn get_result(&self, _context: &PollContext) -> Option<[Message; N]> {
             self.result.lock().unwrap().take()
         }
     }
@@ -134,7 +143,7 @@ pub mod async_side_task {
         ///         [msg_ch.prepare_message(mk_msg_from_ip(ip))]
         ///     },
         /// );
-        /// task_man.add_task(cur_block, duration, [mk_default_msg()], |c| task.finish(c));
+        /// task_man.add_task(cur_block, duration, [mk_default_msg()], |c| task.get_result(c));
         /// ```
         pub fn spawn(future: impl Future<Output = Result<[Message; N]>> + Send + 'static) -> Self {
             let result = Arc::new(Mutex::new(None));
@@ -163,7 +172,7 @@ pub mod async_side_task {
         /// and returns a certain number of mq messages.
         ///
         /// * `current_block` - The current block_number.
-        /// * `duration` - Number of blocks that this task persists. The task will be end at `current_block` + `duration`.
+        /// * `duration` - Max number of blocks that this task persists. The task will timed out at `current_block` + `duration`.
         /// * `default_messages` - The alternative messages used to push out if the async block returns an error or get timed out.
         /// * `future` - The main async task body.
         ///
@@ -198,8 +207,8 @@ pub mod async_side_task {
             future: F,
         ) {
             let task = AsyncSideTask::spawn(future);
-            self.add_task(current_block, duration, default_messages, |context| {
-                task.finish(context)
+            self.add_task(current_block, duration, default_messages, move |context| {
+                task.get_result(context)
             });
         }
     }
