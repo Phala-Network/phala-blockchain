@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 pub enum Error {
     ChannelNotFound,
     QuotaExceeded,
+    InvalidSequence,
 }
 
 type MqResult<T> = Result<T, Error>;
@@ -139,15 +140,37 @@ impl MessageSendQueue {
             .get_mut(&message.sender)
             .ok_or(Error::ChannelNotFound)?;
         if !entry.dummy {
-            log::info!(target: "mq",
-                "Sending appointed message, from={}, to={:?}, seq={}",
-                message.sender,
-                message.destination,
-                sequence,
-            );
-            let message = AppointedMessage::new(message, sequence);
-            let signature = entry.signer.sign(&message.encode());
-            entry.appointed_messages.push((message, signature));
+            if !entry.appointed_seqs.contains(&sequence) {
+                log::warn!(target: "mq",
+                    "Trying to send an appointed message with invalid sequence, from={}, to={:?}, seq={}",
+                    message.sender,
+                    message.destination,
+                    sequence,
+                );
+                return Err(Error::InvalidSequence);
+            }
+            if !entry
+                .appointed_messages
+                .iter()
+                .any(|(m, _)| m.sequence == sequence)
+            {
+                log::info!(target: "mq",
+                    "Sending appointed message, from={}, to={:?}, seq={}",
+                    message.sender,
+                    message.destination,
+                    sequence,
+                );
+                let message = AppointedMessage::new(message, sequence);
+                let signature = entry.signer.sign(&message.encode());
+                entry.appointed_messages.push((message, signature));
+            } else {
+                log::info!(target: "mq",
+                    "Appointed message already exists in queue, from={}, to={:?}, seq={}",
+                    message.sender,
+                    message.destination,
+                    sequence,
+                );
+            }
         }
         Ok(())
     }
