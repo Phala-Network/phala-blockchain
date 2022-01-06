@@ -483,7 +483,7 @@ impl<Platform: pal::Platform> System<Platform> {
         contract.handle_query(origin, req, &mut context)
     }
 
-    pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+    pub fn process_messages(&mut self, block: &mut BlockInfo) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
@@ -503,7 +503,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         error!("Invalid SystemEvent sender: {:?}", origin);
                         continue;
                     }
-                    self.process_system_event(block, &event)?;
+                    self.process_system_event(block, &event);
                 },
                 (event, origin) = self.gatekeeper_launch_events => {
                     self.process_gatekeeper_launch_event(block, origin, event);
@@ -582,14 +582,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
             );
         }
-
-        Ok(())
     }
 
-    fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) -> Result<()> {
+    fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
-        Ok(())
     }
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {

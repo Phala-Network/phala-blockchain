@@ -45,6 +45,128 @@ fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages
     messages
 }
 
+impl<Platform> Phactory<Platform> {
+    pub fn ensure_initialized(&mut self) -> RpcResult<InitializedPhactory<Platform>> {
+        Ok(InitializedPhactory {
+            runtime_state: self
+                .runtime_state
+                .as_mut()
+                .ok_or_else(|| from_display("Phactory not initialized"))?,
+            side_task_man: &mut self.side_task_man,
+            system: self
+                .system
+                .as_mut()
+                .ok_or_else(|| from_display("Phactory not initialized"))?,
+        })
+    }
+}
+
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> InitializedPhactory<'_, Platform> {
+    pub(crate) fn dispatch_block(
+        &mut self,
+        blocks: Vec<blocks::BlockHeaderWithChanges>,
+    ) -> RpcResult<pb::SyncedTo> {
+        let mut last_block = 0;
+        for block in blocks.into_iter() {
+            info!("Dispatching block: {}", block.block_header.number);
+            self.runtime_state
+                .storage_synchronizer
+                .feed_block(&block, &mut self.runtime_state.chain_storage)
+                .map_err(from_display)?;
+
+            self.runtime_state.purge_mq();
+            self.runtime_state.enable_mq();
+            self.handle_inbound_messages(block.block_header.number);
+            self.poll_side_tasks(block.block_header.number);
+            self.runtime_state.commit_appointments();
+            self.runtime_state.disable_mq();
+            last_block = block.block_header.number;
+        }
+
+        Ok(pb::SyncedTo {
+            synced_to: last_block,
+        })
+    }
+
+    fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) {
+        let state = &mut *self.runtime_state;
+
+        // Dispatch events
+        let messages = state
+            .chain_storage
+            .mq_messages()
+            .expect("Failed to get messages from storage");
+
+        state.recv_mq.reset_local_index();
+
+        for message in messages {
+            use phala_types::messaging::SystemEvent;
+            macro_rules! log_message {
+                ($msg: expr, $t: ident) => {{
+                    let event: Result<$t, _> =
+                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
+                    match event {
+                        Ok(event) => {
+                            debug!(target: "mq",
+                                "mq dispatching message: sender={} dest={:?} payload={:?}",
+                                $msg.sender, $msg.destination, event
+                            );
+                        }
+                        Err(_) => {
+                            debug!(target: "mq", "mq dispatching message (decode failed): {:?}", $msg);
+                        }
+                    }
+                }};
+            }
+            // TODO.kevin: reuse codes in debug-cli
+            if message.destination.path() == &SystemEvent::topic() {
+                log_message!(message, SystemEvent);
+            } else {
+                debug!(target: "mq",
+                    "mq dispatching message: sender={}, dest={:?}",
+                    message.sender, message.destination
+                );
+            }
+            state.recv_mq.dispatch(message);
+        }
+
+        let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
+            let n_unhandled = mq.clear();
+            if n_unhandled > 0 {
+                warn!("There are {} unhandled messages dropped", n_unhandled);
+            }
+        });
+
+        let now_ms = state
+            .chain_storage
+            .timestamp_now()
+            .expect("Failed to get timestamp from storage");
+
+        let storage = &state.chain_storage;
+        let side_task_man = &mut self.side_task_man;
+        let recv_mq = &mut *guard;
+        let mut block = BlockInfo {
+            block_number,
+            now_ms,
+            storage,
+            send_mq: &state.send_mq,
+            recv_mq,
+            side_task_man,
+        };
+
+        self.system.process_messages(&mut block);
+    }
+
+    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) {
+        let context = side_task::PollContext {
+            block_number,
+            send_mq: &self.runtime_state.send_mq,
+            storage: &self.runtime_state.chain_storage,
+        };
+        self.side_task_man.poll(&context);
+    }
+}
+
 impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     fn runtime_state(&mut self) -> RpcResult<&mut RuntimeState> {
         self.runtime_state
@@ -211,34 +333,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             blocks.last().map(|h| h.block_header.number)
         );
 
-        let _ = self.runtime_state()?;
+        let mut phactory = self.ensure_initialized()?;
 
-        let mut last_block = 0;
-        for block in blocks.into_iter() {
-            info!("Dispatching block: {}", block.block_header.number);
-            let state = self.runtime_state().expect("Checked before loop");
-            state
-                .storage_synchronizer
-                .feed_block(&block, &mut state.chain_storage)
-                .map_err(from_display)?;
-
-            state.purge_mq();
-            state.enable_mq();
-            self.handle_inbound_messages(block.block_header.number)?;
-            self.poll_side_tasks(block.block_header.number)?;
-            let state = self.runtime_state().expect("Checked before loop");
-            state.commit_appointments();
-            state.disable_mq();
-            last_block = block.block_header.number;
-        }
+        let rv = phactory.dispatch_block(blocks)?;
 
         if let Err(e) = self.maybe_take_checkpoint() {
             error!("Failed to take checkpoint: {:?}", e);
         }
-
-        Ok(pb::SyncedTo {
-            synced_to: last_block,
-        })
+        Ok(rv)
     }
 
     fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
@@ -626,100 +728,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         (code, data)
-    }
-
-    fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
-        let state = self
-            .runtime_state
-            .as_mut()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let system = self
-            .system
-            .as_mut()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-
-        // Dispatch events
-        let messages = state
-            .chain_storage
-            .mq_messages()
-            .map_err(|_| from_display("Can not get mq messages from storage"))?;
-
-        state.recv_mq.reset_local_index();
-
-        for message in messages {
-            use phala_types::messaging::SystemEvent;
-            macro_rules! log_message {
-                ($msg: expr, $t: ident) => {{
-                    let event: Result<$t, _> =
-                        parity_scale_codec::Decode::decode(&mut &$msg.payload[..]);
-                    match event {
-                        Ok(event) => {
-                            debug!(target: "mq",
-                                "mq dispatching message: sender={} dest={:?} payload={:?}",
-                                $msg.sender, $msg.destination, event
-                            );
-                        }
-                        Err(_) => {
-                            debug!(target: "mq", "mq dispatching message (decode failed): {:?}", $msg);
-                        }
-                    }
-                }};
-            }
-            // TODO.kevin: reuse codes in debug-cli
-            if message.destination.path() == &SystemEvent::topic() {
-                log_message!(message, SystemEvent);
-            } else {
-                debug!(target: "mq",
-                    "mq dispatching message: sender={}, dest={:?}",
-                    message.sender, message.destination
-                );
-            }
-            state.recv_mq.dispatch(message);
-        }
-
-        let mut guard = scopeguard::guard(&mut state.recv_mq, |mq| {
-            let n_unhandled = mq.clear();
-            if n_unhandled > 0 {
-                warn!("There are {} unhandled messages dropped", n_unhandled);
-            }
-        });
-
-        let now_ms = state
-            .chain_storage
-            .timestamp_now()
-            .ok_or_else(|| from_display("No timestamp found in block"))?;
-
-        let storage = &state.chain_storage;
-        let side_task_man = &mut self.side_task_man;
-        let recv_mq = &mut *guard;
-        let mut block = BlockInfo {
-            block_number,
-            now_ms,
-            storage,
-            send_mq: &state.send_mq,
-            recv_mq,
-            side_task_man,
-        };
-
-        if let Err(e) = system.process_messages(&mut block) {
-            error!("System process events failed: {:?}", e);
-            return Err(from_display("System process events failed"));
-        }
-        Ok(())
-    }
-
-    fn poll_side_tasks(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
-        let state = self
-            .runtime_state
-            .as_ref()
-            .ok_or_else(|| from_display("Runtime not initialized"))?;
-        let context = side_task::PollContext {
-            block_number,
-            send_mq: &state.send_mq,
-            storage: &state.chain_storage,
-        };
-        self.side_task_man.poll(&context);
-        Ok(())
     }
 }
 

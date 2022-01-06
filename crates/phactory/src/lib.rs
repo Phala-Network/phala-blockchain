@@ -197,6 +197,12 @@ pub struct Phactory<Platform> {
     last_checkpoint: Instant,
 }
 
+pub struct InitializedPhactory<'a, Platform> {
+    runtime_state: &'a mut RuntimeState,
+    side_task_man: &'a mut SideTaskManager,
+    system: &'a mut system::System<Platform>,
+}
+
 impl<Platform: pal::Platform> Phactory<Platform> {
     pub fn new(platform: Platform) -> Self {
         let machine_id = platform.machine_id();
