@@ -19,10 +19,18 @@ mod sender {
 
     pub type KeyPair = ecdh::EcdhKey;
 
-    #[derive(Clone)]
     pub struct SecretMessageChannel<'a, MsgChan> {
         key: &'a KeyPair,
         mq: &'a MsgChan,
+    }
+
+    impl<MsgChan> Clone for SecretMessageChannel<'_, MsgChan> {
+        fn clone(&self) -> Self {
+            SecretMessageChannel {
+                key: self.key,
+                mq: self.mq,
+            }
+        }
     }
 
     pub struct BoundSecretMessageChannel<'a, MsgChan> {
@@ -30,7 +38,7 @@ mod sender {
         remote_pubkey: Option<&'a ecdh::EcdhPublicKey>,
     }
 
-    impl<'a, MsgChan: Clone> SecretMessageChannel<'a, MsgChan> {
+    impl<'a, MsgChan> SecretMessageChannel<'a, MsgChan> {
         pub fn new(key: &'a KeyPair, mq: &'a MsgChan) -> Self {
             SecretMessageChannel { key, mq }
         }
@@ -83,7 +91,7 @@ mod sender {
         }
     }
 
-    pub fn bind_remote<'a, MsgChan: Clone>(
+    pub fn bind_remote<'a, MsgChan>(
         channel: &'a MsgChan,
         ecdh_key: &'a ecdh::EcdhKey,
         remote_pubkey: Option<&'a EcdhPublicKey>,
