@@ -23,7 +23,7 @@ pub mod pallet {
 		// The sequence id to be used for the next appointment.
 		pub next: u64,
 		// Current unresolved appointed sequence ids.
-		pub appointed: Vec<u64>,
+		pub appointments: Vec<u64>,
 	}
 
 	#[pallet::config]
@@ -188,9 +188,8 @@ pub mod pallet {
 
 			// Check ingress sequence
 			let mut seqs = AppointedIngress::<T>::get(&sender);
-			ensure!(message.sequence < seqs.next, Error::<T>::BadSequence);
 			ensure!(
-				seqs.appointed.contains(&message.sequence),
+				seqs.appointments.contains(&message.sequence),
 				Error::<T>::BadSequence
 			);
 
@@ -202,7 +201,7 @@ pub mod pallet {
 			)?;
 
 			// Update ingress
-			seqs.appointed.retain(|&x| x != message.sequence);
+			seqs.appointments.retain(|&x| x != message.sequence);
 			AppointedIngress::<T>::insert(sender.clone(), seqs);
 
 			// Call dispatch_message
@@ -286,7 +285,7 @@ pub mod pallet {
 			AppointedIngress::<T>::mutate(&message.sender, move |seqs| {
 				let next = seqs.next + appointment.count as u64;
 				for seq in seqs.next..next {
-					seqs.appointed.push(seq);
+					seqs.appointments.push(seq);
 				}
 				seqs.next = next;
 			});

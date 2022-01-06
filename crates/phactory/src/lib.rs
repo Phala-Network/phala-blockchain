@@ -115,7 +115,7 @@ impl RuntimeState {
             phala_mq::SequenceInfo {
                 next_sequence,
                 next_ap_sequence: ap_sequences.next,
-                ap_sequences: ap_sequences.appointed,
+                ap_sequences: ap_sequences.appointments,
             }
         })
     }
