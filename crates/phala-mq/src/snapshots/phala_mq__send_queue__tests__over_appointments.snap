@@ -1,0 +1,32 @@
+---
+source: crates/phala-mq/src/send_queue.rs
+expression: messages
+
+---
+{
+    Gatekeeper: (
+        [
+            (
+                ChainedMessage {
+                    phactory_version: 0,
+                    message: Message {
+                        sender: Gatekeeper,
+                        destination: ^phala/mq/appoint,
+                        payload: [
+                            8,
+                        ],
+                    },
+                    sequence: 0,
+                    hash: 0xc4d56cd87197b0dc4359cba4c0d71968,
+                    parent_hash: 0x00000000000000000000000000000000,
+                },
+                [
+                    107,
+                    101,
+                    121,
+                ],
+            ),
+        ],
+        [],
+    ),
+}

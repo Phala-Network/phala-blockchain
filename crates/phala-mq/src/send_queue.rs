@@ -149,6 +149,7 @@ impl MessageSendQueue {
     /// Enqueue an appointed message.
     ///
     /// The sequence must be returned from `fn make_appointment` and has not been resolved yet.
+    /// If there is already an message with the same sequence, the new one will be dropped.
     pub fn enqueue_appointed_message(&self, message: Message, sequence: u64) -> MqResult<()> {
         let mut inner = self.inner.lock();
         let entry = inner
@@ -344,8 +345,8 @@ mod msg_channel {
     pub struct MessageChannel {
         #[serde(skip)]
         #[serde(default = "crate::checkpoint_helper::global_send_mq")]
-        queue: MessageSendQueue,
-        sender: SenderId,
+        pub(super) queue: MessageSendQueue,
+        pub(super) sender: SenderId,
     }
 
     impl MessageChannel {
@@ -390,5 +391,187 @@ mod msg_channel {
                 payload,
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use crate::{
+        traits::{MessageChannel as _, MessagePreparing as _},
+        MessageChannel, MessageOrigin, MessageSendQueue, MessageSigner,
+    };
+
+    impl MessageChannel {
+        #[cfg(test)]
+        fn inspect<T>(&self, block: impl FnOnce(&Channel) -> T) -> Option<T> {
+            self.queue
+                .inner
+                .lock()
+                .channels
+                .get(&self.sender)
+                .map(block)
+        }
+    }
+
+    struct TestQueue {
+        queue: MessageSendQueue,
+        channel: MessageChannel,
+    }
+
+    fn new_queue() -> TestQueue {
+        let queue = MessageSendQueue::new();
+        queue.enable();
+        let channel = queue.channel(
+            MessageOrigin::Gatekeeper,
+            MessageSigner::Test(b"key".to_vec()),
+        );
+        TestQueue { queue, channel }
+    }
+
+    #[test]
+    fn should_reject_duplicates_messages() {
+        let TestQueue { queue, channel } = new_queue();
+
+        let sequence = channel.make_appointment().unwrap();
+
+        let message = channel.prepare_with_data(b"foo".to_vec(), b"bar".to_vec());
+        assert!(queue.enqueue_appointed_message(message, sequence).is_ok());
+
+        let message = channel.prepare_with_data(b"foo".to_vec(), b"bar".to_vec());
+        assert!(queue.enqueue_appointed_message(message, sequence).is_ok());
+
+        assert_eq!(channel.inspect(|c| c.appointed_messages.len()), Some(1));
+    }
+
+    #[test]
+    fn should_reject_future_messages() {
+        let TestQueue { queue, channel } = new_queue();
+
+        let sequence = channel.make_appointment().unwrap();
+        let message = channel.prepare_with_data(b"foo".to_vec(), b"bar".to_vec());
+        assert!(queue.enqueue_appointed_message(message, sequence+1).is_err());
+        assert_eq!(channel.inspect(|c| c.appointed_messages.len()), Some(0));
+    }
+
+    #[test]
+    fn over_appointments() {
+        const MAX_APPOINTMENTS: usize = 8;
+
+        let TestQueue { queue, channel } = new_queue();
+
+        for _ in 0..MAX_APPOINTMENTS {
+            assert!(channel.make_appointment().is_ok());
+        }
+        assert!(channel.make_appointment().is_err());
+        queue.commit_appointments();
+        let messages = queue.all_messages_grouped();
+        insta::assert_debug_snapshot!(messages);
+    }
+
+    #[test]
+    fn purge_messages() {
+        let TestQueue { queue, channel } = new_queue();
+
+        for _ in 0..3 {
+            let sequence = channel.make_appointment().unwrap();
+            let message = channel.prepare_with_data(b"foo".to_vec(), b"bar".to_vec());
+            queue.enqueue_appointed_message(message, sequence).unwrap();
+        }
+        let _ = channel.make_appointment().unwrap();
+        queue.commit_appointments();
+
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 1);
+            assert_eq!(ch.appointed_messages.len(), 3);
+            assert_eq!(ch.appointed_seqs.len(), 4);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 0,
+            ap_sequences: vec![],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 3);
+            assert_eq!(ch.appointed_seqs.len(), 4);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 3,
+            ap_sequences: vec![0, 1, 2],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 3);
+            assert_eq!(ch.appointed_seqs.len(), 4);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 3,
+            ap_sequences: vec![0, 2],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 2);
+            assert_eq!(ch.appointed_seqs.len(), 3);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 4,
+            ap_sequences: vec![0, 2, 3],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 2);
+            assert_eq!(ch.appointed_seqs.len(), 3);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 4,
+            ap_sequences: vec![3],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 0);
+            assert_eq!(ch.appointed_seqs.len(), 1);
+        });
+
+        queue.purge(|_| crate::SequenceInfo {
+            next_sequence: 1,
+            next_ap_sequence: 4,
+            ap_sequences: vec![],
+        });
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointed_messages.len(), 0);
+            assert_eq!(ch.appointed_seqs.len(), 0);
+        });
+    }
+
+    #[test]
+    fn multiple_appointments_should_be_synced_to_chain() {
+        let TestQueue { queue, channel } = new_queue();
+        for _ in 0..5 {
+            channel.make_appointment().unwrap();
+        }
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 0);
+            assert_eq!(ch.appointing, 5);
+            assert_eq!(ch.appointed_seqs.len(), 5);
+        });
+
+        queue.commit_appointments();
+        channel.inspect(|ch| {
+            assert_eq!(ch.messages.len(), 1);
+            assert_eq!(ch.appointing, 0);
+            assert_eq!(ch.appointed_seqs.len(), 5);
+        });
     }
 }
