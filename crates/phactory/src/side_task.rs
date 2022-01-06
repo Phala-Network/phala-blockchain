@@ -39,7 +39,7 @@ impl TaskWrapper {
         for (sequence, message) in messages {
             let result = context.send_mq.enqueue_appointed_message(message, sequence);
             if let Err(err) = result {
-                log::error!("Failed to enqueue message: {:?}", err);
+                log::error!("Failed to enqueue appointed message: {:?}", err);
             }
         }
     }

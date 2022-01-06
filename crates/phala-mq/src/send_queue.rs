@@ -89,6 +89,7 @@ impl MessageSendQueue {
         MessageChannel::new(sender, self.clone())
     }
 
+    /// Enqueue a hash-chained message.
     pub fn enqueue_message(&self, message: Message, hash: MqHash) -> MqResult<()> {
         let mut inner = self.inner.lock();
         let entry = inner
@@ -129,6 +130,9 @@ impl MessageSendQueue {
         Ok(())
     }
 
+    /// Enqueue an appointed message.
+    ///
+    /// The sequence must be returned from `fn make_appointment` and has not been resolved yet.
     pub fn enqueue_appointed_message(&self, message: Message, sequence: u64) -> MqResult<()> {
         let mut inner = self.inner.lock();
         let entry = inner
@@ -148,6 +152,10 @@ impl MessageSendQueue {
         Ok(())
     }
 
+    /// Make an appointment for a later message.
+    ///
+    /// Returns the sequence number of the appointment. If the channel is not found or max number
+    /// of appointments is reached, returns `None`.
     pub fn make_appointment(&self, sender: &SenderId) -> MqResult<u64> {
         let mut inner = self.inner.lock();
         let entry = inner.get_mut(sender).ok_or(Error::ChannelNotFound)?;
@@ -163,6 +171,9 @@ impl MessageSendQueue {
         Ok(seq)
     }
 
+    /// Convert the pending appointments to a mq message.
+    ///
+    /// This should be called at the end of each block dispatch.
     pub fn commit_appointments(&self) {
         let mut messages = vec![];
         {
