@@ -50,7 +50,7 @@ where
 		let _ = Self::maybe_dump_pool_details(stage);
 	}
 
-	#[allow(unused)]
+	#[allow(unused, dead_code)]
 	fn log_pool_details() -> Result<(), ()> {
 		info!("[PoolStakers]");
 		info!("pid\tuser\tlocked\tshares");
