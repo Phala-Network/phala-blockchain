@@ -96,9 +96,7 @@ pub mod pallet {
 	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
-	// TODO(shelven): move contract code storage to a standalone pallet
-
-	/// A mapping from an original code hash to the original code, untouched by instrumentation.
+	/// Mapping from an original code hash to the original code, untouched by instrumentation
 	#[pallet::storage]
 	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
@@ -450,9 +448,9 @@ pub mod pallet {
 			// we send hash instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
-				cluster_id,
-				salt,
 				code_index,
+				salt,
+				cluster_id,
 				instantiate_data: data,
 			};
 			Self::push_message(ContractEvent::instantiate_code(contract_info, workers));

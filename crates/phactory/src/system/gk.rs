@@ -9,6 +9,7 @@ use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
     contract::messaging::ContractEvent,
+    contract::ContractId,
     messaging::{
         ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
@@ -57,16 +58,9 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-fn get_contract_key(
-    master_key: &sr25519::Pair,
-    contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
-) -> sr25519::Pair {
-    // TODO(shelven): use persistent info for contract key derivation
+fn get_contract_key(master_key: &sr25519::Pair, contract_id: &ContractId) -> sr25519::Pair {
     master_key
-        .derive_sr25519_pair(&[
-            b"contract_key",
-            Encode::encode(contract_info).as_bytes_ref(),
-        ])
+        .derive_sr25519_pair(&[b"contract_key", contract_id.as_bytes()])
         .expect("should not fail with valid info")
 }
 
@@ -277,7 +271,7 @@ where
                 }
 
                 // first, update the on-chain ContractPubkey
-                let contract_key = get_contract_key(&self.master_key, &contract_info);
+                let contract_key = get_contract_key(&self.master_key, &contract_info.contract_id());
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
                         pubkey: contract_key.public(),
