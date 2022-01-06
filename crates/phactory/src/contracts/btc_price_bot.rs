@@ -164,8 +164,8 @@ impl contracts::NativeContract for BtcPriceBot {
                 let mq = context.mq().clone();
                 let my_id = context.self_id;
                 let seq = match mq.make_appointment() {
-                    Some(seq) => seq,
-                    None => return Err(TransactionError::Other("mq is full".into())),
+                    Ok(seq) => seq,
+                    Err(err) => return Err(TransactionError::Other(format!("{:?}", err))),
                 };
 
                 let default_messages = [(seq, mq.prepare_message_to(&(), "^phala/mq/blockhole"))];

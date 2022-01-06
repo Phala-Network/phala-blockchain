@@ -1139,6 +1139,8 @@ mod tests {
 
         let cluster = keeper.get_cluster_mut(&cluster_id).unwrap();
         let mut builder = BlockInfo::builder().block_number(1).now_ms(1);
+        builder.send_mq.enable();
+
         let signer = sr25519::Pair::from_seed(&Default::default());
         let egress = builder
             .send_mq

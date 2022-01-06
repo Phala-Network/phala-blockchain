@@ -1,20 +1,10 @@
 use crate::{
-    AppointedMessage, Appointment, BindTopic, ChainedMessage, Message, MessageOrigin,
-    MessageSigner, MqHash, Mutex, SenderId, Signature,
+    AppointedMessage, Appointment, BindTopic, ChainedMessage, Error, Message, MessageOrigin,
+    MessageSigner, MqHash, MqResult, Mutex, SenderId, Signature,
 };
 use alloc::{collections::BTreeMap, sync::Arc, vec::Vec};
 use parity_scale_codec::Encode as _;
 use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Clone)]
-pub enum Error {
-    ChannelNotFound,
-    QuotaExceeded,
-    InvalidSequence,
-    MqDisabled,
-}
-
-type MqResult<T> = Result<T, Error>;
 
 #[derive(Serialize, Deserialize)]
 struct Channel {
@@ -43,6 +33,7 @@ pub struct MessageSendQueueInner {
     enabled: bool,
 }
 
+#[derive(Default)]
 pub struct SequenceInfo {
     pub next_sequence: u64,
     pub next_ap_sequence: u64,
@@ -370,9 +361,12 @@ mod msg_channel {
                 destination: to.into().into(),
                 payload,
             };
-            self.queue
-                .enqueue_message(message, hash)
-                .expect("BUG: Since the channel exists, this should nerver fail");
+            match self.queue.enqueue_message(message, hash) {
+                Ok(_) => (),
+                Err(err) => {
+                    log::error!("BUG: Failed to enqueue message: {:?}", err);
+                }
+            }
         }
 
         /// Set the channel to dummy mode which increasing the sequence but dropping the message.
@@ -382,8 +376,8 @@ mod msg_channel {
                 .expect("BUG: Since the channel exists, this should nerver fail");
         }
 
-        fn make_appointment(&self) -> Option<u64> {
-            self.queue.make_appointment(&self.sender).ok()
+        fn make_appointment(&self) -> MqResult<u64> {
+            self.queue.make_appointment(&self.sender)
         }
     }
 

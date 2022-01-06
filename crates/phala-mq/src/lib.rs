@@ -57,7 +57,7 @@ mod alias {
 pub mod traits {
     use parity_scale_codec::Encode;
 
-    use crate::{BindTopic, MqHash, Path};
+    use crate::{BindTopic, MqHash, Path, MqResult};
 
     #[cfg(feature = "queue")]
     use crate::Message;
@@ -84,9 +84,7 @@ pub mod traits {
         /// Make an appointment for the next message.
         ///
         /// Return the sequence of the message.
-        fn make_appointment(&self) -> Option<u64> {
-            None
-        }
+        fn make_appointment(&self) -> MqResult<u64>;
     }
 
     /// A MessagePreparing is used to prepare messages which later can be pushed into the message queue.

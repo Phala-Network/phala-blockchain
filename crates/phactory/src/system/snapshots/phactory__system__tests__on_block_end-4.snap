@@ -4,9 +4,9 @@ expression: messages
 
 ---
 [
-    (
-        0,
-        Message {
+    ChainedMessage {
+        phactory_version: 0,
+        message: Message {
             sender: Worker(
                 0000000000000000000000000000000000000000000000000000000000000000 (5C4hrfjw...),
             ),
@@ -143,5 +143,8 @@ expression: messages
                 39,
             ],
         },
-    ),
+        sequence: 0,
+        hash: 0x1acdd565df94fe905ad2f976741e0322,
+        parent_hash: 0x00000000000000000000000000000000,
+    },
 ]

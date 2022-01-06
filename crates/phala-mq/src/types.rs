@@ -364,3 +364,14 @@ impl Appointment {
         Self { count }
     }
 }
+
+
+#[derive(Debug, Clone)]
+pub enum Error {
+    ChannelNotFound,
+    QuotaExceeded,
+    InvalidSequence,
+    MqDisabled,
+}
+
+pub type MqResult<T> = Result<T, Error>;

@@ -4,28 +4,21 @@ use phala_mq::traits::MessageChannel;
 #[cfg(feature = "queue")]
 #[test]
 fn test_send_message() {
-    #[derive(Clone)]
-    struct TestSigner(Vec<u8>);
-
-    impl MessageSigner for TestSigner {
-        fn sign(&self, _data: &[u8]) -> Vec<u8> {
-            self.0.clone()
-        }
-    }
-
     use phala_mq::{MessageSendQueue, MessageSigner};
     let queue = MessageSendQueue::new();
     let runtime = MessageOrigin::Pallet(b"p0".to_vec());
     let worker0 = MessageOrigin::Worker(sp_core::sr25519::Public::from_raw([0u8; 32]));
 
+    queue.enable();
+
     {
-        let signer = TestSigner(b"key0".to_vec());
+        let signer = MessageSigner::Test(b"key0".to_vec());
 
         let handle00 = queue.channel(runtime.clone(), signer);
 
         handle00.push_data(b"payload00".to_vec(), b"phala.network/test0".to_vec(), Default::default());
 
-        let signer = TestSigner(b"key1".to_vec());
+        let signer = MessageSigner::Test(b"key1".to_vec());
 
         let handle01 = queue.channel(runtime.clone(), signer);
         handle01.push_data(b"payload01".to_vec(), b"phala.network/test1".to_vec(), Default::default());
@@ -36,21 +29,21 @@ fn test_send_message() {
 
         assert_eq!(messages.len(), 3);
 
-        assert_eq!(messages[0].message.sender, runtime);
-        assert_eq!(messages[0].sequence, 0);
-        assert_eq!(messages[0].signature, b"key0");
+        assert_eq!(messages[0].0.message.sender, runtime);
+        assert_eq!(messages[0].0.sequence, 0);
+        assert_eq!(messages[0].1, b"key0");
 
-        assert_eq!(messages[1].message.sender, runtime);
-        assert_eq!(messages[1].sequence, 1);
-        assert_eq!(messages[1].signature, b"key1");
+        assert_eq!(messages[1].0.message.sender, runtime);
+        assert_eq!(messages[1].0.sequence, 1);
+        assert_eq!(messages[1].1, b"key0");
 
-        assert_eq!(messages[2].message.sender, runtime);
-        assert_eq!(messages[2].sequence, 2);
-        assert_eq!(messages[2].signature, b"key0");
+        assert_eq!(messages[2].0.message.sender, runtime);
+        assert_eq!(messages[2].0.sequence, 2);
+        assert_eq!(messages[2].1, b"key0");
     }
 
     {
-        let signer = TestSigner(b"a key".to_vec());
+        let signer = MessageSigner::Test(b"a key".to_vec());
         let handle = queue.channel(worker0.clone(), signer);
 
         handle.push_data(b"energy".to_vec(), b"/the/hole".to_vec(), Default::default());
@@ -62,8 +55,11 @@ fn test_send_message() {
 
     {
         queue.purge(|sender| match &sender {
-            MessageOrigin::Pallet(_) => 1,
-            _ => 0,
+            MessageOrigin::Pallet(_) => phala_mq::SequenceInfo {
+                next_sequence: 1,
+                ..Default::default()
+            },
+            _ => Default::default(),
         });
 
         let runtime_msgs = queue.messages(&runtime);

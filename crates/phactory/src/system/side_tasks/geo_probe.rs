@@ -106,9 +106,9 @@ pub fn process_block(
         let remote_pubkey = my_ecdh_key.clone().public();
 
         let seq = match egress.make_appointment() {
-            Some(seq) => seq,
-            None => {
-                log::error!("failed to make appointment for next message");
+            Ok(seq) => seq,
+            Err(err) => {
+                log::error!("failed to make appointment for next message: {:?}", err);
                 return;
             }
         };

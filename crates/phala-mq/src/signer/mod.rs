@@ -33,12 +33,14 @@ pub mod signers {
     #[derive(Serialize, Deserialize, Clone)]
     pub enum MessageSigner {
         Sr25519(Sr25519Signer),
+        Test(Vec<u8>),
     }
 
     impl MessageSigner {
         pub fn sign(&self, data: &[u8]) -> Vec<u8> {
             match self {
                 Self::Sr25519(signer) => signer.sign(data),
+                Self::Test(k) => k.to_vec(),
             }
         }
     }

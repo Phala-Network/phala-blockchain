@@ -1223,6 +1223,10 @@ pub mod tests {
             };
             self.messages.borrow_mut().push(message);
         }
+
+        fn make_appointment(&self) -> phala_mq::MqResult<u64> {
+            Ok(0)
+        }
     }
 
     struct Roles {

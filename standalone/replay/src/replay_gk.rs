@@ -8,6 +8,7 @@ use anyhow::Error;
 use anyhow::Result;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
+use phala_mq::MqResult;
 use phala_mq::Path;
 use phala_trie_storage::TrieStorage;
 use phala_types::WorkerPublicKey;
@@ -149,6 +150,10 @@ struct ReplayMsgChannel;
 
 impl phala_mq::traits::MessageChannel for ReplayMsgChannel {
     fn push_data(&self, _data: Vec<u8>, _to: impl Into<Path>, _hash: phala_mq::MqHash) {}
+
+    fn make_appointment(&self) -> MqResult<u64> {
+        Ok(0)
+    }
 }
 
 pub async fn fetch_genesis_storage(

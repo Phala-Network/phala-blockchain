@@ -15,7 +15,7 @@ mod sender {
     use phactory_api::crypto::{ecdh, EncryptedData};
     use phala_crypto::ecdh::EcdhPublicKey;
     use phala_mq::traits::{MessageChannel, MessagePreparing};
-    use phala_mq::Path;
+    use phala_mq::{Path, MqResult};
 
     pub type KeyPair = ecdh::EcdhKey;
 
@@ -73,7 +73,7 @@ mod sender {
             self.inner.mq.push_message_to(&payload, to, hash)
         }
 
-        fn make_appointment(&self) -> Option<u64> {
+        fn make_appointment(&self) -> MqResult<u64> {
             self.inner.mq.make_appointment()
         }
     }

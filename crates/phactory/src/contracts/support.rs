@@ -86,10 +86,7 @@ pub trait NativeContract {
 
 #[derive(Serialize, Deserialize)]
 pub struct NativeCompatContract<Con: NativeContract> {
-    #[serde(bound(
-        serialize = "Con: Encode",
-        deserialize = "Con: Decode"
-    ))]
+    #[serde(bound(serialize = "Con: Encode", deserialize = "Con: Decode"))]
     #[serde(with = "more::scale_bytes")]
     contract: Con,
     send_mq: SignedMessageChannel,
