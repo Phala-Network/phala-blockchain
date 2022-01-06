@@ -164,6 +164,15 @@ impl Topic {
         }
         !Self::RESERVED_BYTES.contains(&self.0[0])
     }
+
+    pub fn is_sys_topic(&self) -> bool {
+        let path = &self.0[..];
+        let path = path.strip_prefix(b"^").unwrap_or(path);
+        if path.starts_with(b"sys/") {
+            return true;
+        }
+        false
+    }
 }
 
 impl From<Path> for Topic {
@@ -311,12 +320,7 @@ pub struct ChainedMessage {
 }
 
 impl ChainedMessage {
-    pub fn new(
-        message: Message,
-        sequence: u64,
-        hash: MqHash,
-        parent_hash: MqHash,
-    ) -> Self {
+    pub fn new(message: Message, sequence: u64, hash: MqHash, parent_hash: MqHash) -> Self {
         ChainedMessage {
             phactory_version: PHACTORY_VERSION,
             message,
@@ -351,7 +355,7 @@ pub fn hash(data: &[u8]) -> MqHash {
     MqHash(sp_core::blake2_128(data))
 }
 
-bind_topic!(Appointment, b"^phala/mq/appoint");
+bind_topic!(Appointment, b"^sys/mq/appointment");
 /// Message to appoint sequence ids.
 #[derive(Encode, Decode, TypeInfo)]
 pub struct Appointment {
@@ -365,13 +369,13 @@ impl Appointment {
     }
 }
 
-
 #[derive(Debug, Clone)]
 pub enum Error {
     ChannelNotFound,
     QuotaExceeded,
     InvalidSequence,
     MqDisabled,
+    Forbidden,
 }
 
 pub type MqResult<T> = Result<T, Error>;

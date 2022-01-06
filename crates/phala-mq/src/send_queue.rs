@@ -103,6 +103,13 @@ impl MessageSendQueue {
 
     /// Enqueue a hash-chained message.
     pub fn enqueue_message(&self, message: Message, hash: MqHash) -> MqResult<()> {
+        if message.destination.is_sys_topic() {
+            return Err(Error::Forbidden);
+        }
+        self.do_enqueue_message(message, hash)
+    }
+
+    fn do_enqueue_message(&self, message: Message, hash: MqHash) -> MqResult<()> {
         let mut inner = self.inner.lock();
         if !inner.enabled {
             return Err(Error::MqDisabled);
@@ -151,6 +158,9 @@ impl MessageSendQueue {
     /// The sequence must be returned from `fn make_appointment` and has not been resolved yet.
     /// If there is already an message with the same sequence, the new one will be dropped.
     pub fn enqueue_appointed_message(&self, message: Message, sequence: u64) -> MqResult<()> {
+        if message.destination.is_sys_topic() {
+            return Err(Error::Forbidden);
+        }
         let mut inner = self.inner.lock();
         let entry = inner
             .channels
@@ -244,7 +254,7 @@ impl MessageSendQueue {
             }
         }
         for (message, hash) in messages {
-            self.enqueue_message(message, hash)
+            self.do_enqueue_message(message, hash)
                 .expect("BUG: Failed to enqueue message");
         }
     }
@@ -451,7 +461,10 @@ mod tests {
 
         let sequence = channel.make_appointment().unwrap();
         let message = channel.prepare_with_data(b"foo".to_vec(), b"bar".to_vec());
-        assert!(queue.enqueue_appointed_message(message, sequence+1).is_err());
+        assert!(matches!(
+            queue.enqueue_appointed_message(message, sequence + 1),
+            Err(crate::Error::InvalidSequence)
+        ));
         assert_eq!(channel.inspect(|c| c.appointed_messages.len()), Some(0));
     }
 
@@ -573,5 +586,31 @@ mod tests {
             assert_eq!(ch.appointing, 0);
             assert_eq!(ch.appointed_seqs.len(), 5);
         });
+    }
+
+    #[test]
+    fn forbid_push_sys_messages() {
+        let TestQueue { queue, channel } = new_queue();
+
+        for topic in [b"sys/foo" as &[u8], b"^sys/foo"] {
+            let message = channel.prepare_with_data(vec![], topic);
+            let sequence = channel.make_appointment().unwrap();
+            assert!(matches!(
+                queue.enqueue_appointed_message(message, sequence),
+                Err(crate::Error::Forbidden)
+            ));
+
+            let message = channel.prepare_with_data(vec![], topic);
+            assert!(matches!(
+                queue.enqueue_message(message, Default::default()),
+                Err(crate::Error::Forbidden)
+            ));
+        }
+
+        let message = channel.prepare_message(&Appointment::new(1));
+        assert!(matches!(
+            queue.enqueue_message(message, Default::default()),
+            Err(crate::Error::Forbidden)
+        ));
     }
 }

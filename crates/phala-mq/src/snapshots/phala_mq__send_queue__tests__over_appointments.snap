@@ -11,13 +11,13 @@ expression: messages
                     phactory_version: 0,
                     message: Message {
                         sender: Gatekeeper,
-                        destination: ^phala/mq/appoint,
+                        destination: ^sys/mq/appointment,
                         payload: [
                             8,
                         ],
                     },
                     sequence: 0,
-                    hash: 0xc4d56cd87197b0dc4359cba4c0d71968,
+                    hash: 0x2727a3ab684cebd440f554ce5151c208,
                     parent_hash: 0x00000000000000000000000000000000,
                 },
                 [
