@@ -26,6 +26,7 @@ pub mod mq;
 pub mod ott;
 pub mod registry;
 pub mod stakepool;
+pub mod puppets;
 
 // Alias
 pub use mining as pallet_mining;

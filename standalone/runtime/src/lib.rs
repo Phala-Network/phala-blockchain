@@ -104,6 +104,7 @@ pub use phala_pallets::{
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
+	puppets,
 };
 pub use pallet_bridge;
 pub use pallet_bridge_transfer;
@@ -1234,6 +1235,9 @@ impl pallet_stakepool::Config for Runtime {
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
 
+impl puppets::parachain_info::Config for Runtime {}
+impl puppets::parachain_system::Config for Runtime {}
+
 construct_runtime!(
 	pub enum Runtime where
 		Block = Block,
@@ -1285,6 +1289,10 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry,
 		PhalaMining: pallet_mining,
 		PhalaStakePool: pallet_stakepool,
+
+		// Put them here to make sure pherry could be compiled with phala's metadata.
+		ParachainInfo: puppets::parachain_info,
+		ParachainSystem: puppets::parachain_system,
 	}
 );
 
