@@ -4,17 +4,21 @@ extern crate alloc;
 
 #[cfg(feature = "serde")]
 pub mod ser;
+#[cfg(feature = "serde")]
+use serde::{Serialize, Serializer, Deserializer, Deserialize};
 
 use core::iter::FromIterator;
 
 use alloc::vec::Vec;
 
 use parity_scale_codec::Codec;
-use serde::{Serialize, Serializer, Deserializer, Deserialize};
 use sp_core::storage::ChildInfo;
 use sp_core::Hasher;
 use sp_state_machine::{Backend, TrieBackend};
-use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut, HashDBT};
+use sp_trie::{trie_types::TrieDBMutV0 as TrieDBMut, MemoryDB, TrieMut};
+
+#[cfg(feature = "serde")]
+use sp_trie::HashDBT as _;
 
 /// Storage key.
 pub type StorageKey = Vec<u8>;
@@ -58,6 +62,7 @@ where
     TrieBackend::new(mdb, root)
 }
 
+#[cfg(feature = "serde")]
 pub fn serialize_trie_backend<H: Hasher, S>(
     trie: &TrieBackend<MemoryDB<H>, H>,
     serializer: S,
@@ -77,6 +82,7 @@ where
     (root, kvs).serialize(serializer)
 }
 
+#[cfg(feature = "serde")]
 pub fn deserialize_trie_backend<'de, H: Hasher, De>(
     deserializer: De,
 ) -> Result<TrieBackend<MemoryDB<H>, H>, De::Error>

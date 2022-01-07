@@ -14,7 +14,7 @@ pub use subxt::{rpc::NumberOrHex, Signer};
 pub use khala::runtime_types::phala_mq::types::*;
 
 pub type PrClient = pruntime_client::PRuntimeClient;
-pub type SrSigner = subxt::PairSigner<phaxt::KhalaConfig, sr25519::Pair>;
+pub type SrSigner = subxt::PairSigner<phaxt::KhalaConfig, phaxt::PhalaExtra, sr25519::Pair>;
 
 pub type SignedBlock<Hdr, Ext> = SpSignedBlock<Block<Hdr, Ext>>;
 
