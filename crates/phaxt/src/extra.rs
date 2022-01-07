@@ -43,7 +43,7 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
         CheckNonce<T>,
         CheckWeight<T>,
         // NOTE: skipped the ZST CheckMqSequence<T> here.
-        ChargeAssetTxPayment,
+        ChargeTransactionPayment<T>,
     );
     type Parameters = ExtraConfig<T::Hash>;
 
@@ -81,10 +81,7 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
             CheckNonce(self.nonce),
             CheckWeight(PhantomData),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
-            ChargeAssetTxPayment {
-                tip: self.additional_params.tip.into(),
-                asset_id: None,
-            },
+            ChargeTransactionPayment(self.additional_params.tip.into(), PhantomData),
         )
     }
 }
@@ -102,6 +99,33 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
         self.extra().additional_signed()
     }
 
+    fn pre_dispatch(
+        self,
+        _who: &Self::AccountId,
+        _call: &Self::Call,
+        _info: &subxt::sp_runtime::traits::DispatchInfoOf<Self::Call>,
+        _len: usize,
+    ) -> Result<Self::Pre, TransactionValidityError> {
+        Ok(())
+    }
+}
+
+#[derive(Encode, Decode, Clone, Debug, Default, Eq, PartialEq, TypeInfo)]
+#[scale_info(skip_type_params(T))]
+pub struct ChargeTransactionPayment<T: Config>(#[codec(compact)] pub u128, pub PhantomData<T>);
+
+impl<T> SignedExtension for ChargeTransactionPayment<T>
+where
+    T: Config + Clone + Debug + Eq + Send + Sync,
+{
+    const IDENTIFIER: &'static str = "ChargeTransactionPayment";
+    type AccountId = T::AccountId;
+    type Call = ();
+    type AdditionalSigned = ();
+    type Pre = ();
+    fn additional_signed(&self) -> Result<Self::AdditionalSigned, TransactionValidityError> {
+        Ok(())
+    }
     fn pre_dispatch(
         self,
         _who: &Self::AccountId,
