@@ -11,7 +11,7 @@ use crate::{
     secret_channel::{ecdh_serde, SecretReceiver},
     types::{BlockInfo, OpaqueError, OpaqueQuery, OpaqueReply},
 };
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
@@ -34,7 +34,7 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, CodeIndex, ContractInfo},
+    contract::{self, messaging::ContractOperation, CodeIndex, ContractInfo},
     messaging::{
         ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
@@ -399,6 +399,7 @@ pub struct System<Platform> {
     key_distribution_events: TypedReceiver<KeyDistribution>,
     contract_key_distribution_events:
         SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
+    contract_operation_events: TypedReceiver<ContractOperation<chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
@@ -455,6 +456,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     .into(),
                 ecdh_key.clone(),
             ),
+            contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
             ecdh_key,
             worker_state: WorkerState::new(pubkey),
@@ -519,6 +521,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 },
                 (event, origin) = self.contract_key_distribution_events => {
                     self.process_contract_key_distribution_event(block, origin, event);
+                },
+                (event, origin) = self.contract_operation_events => {
+                    if let Err(err) = self.process_contract_operation_event(block, origin, event) {
+                        error!("Error processing contract operation: {:?}", err);
+                    }
                 },
             };
             if ok.is_none() {
@@ -799,6 +806,37 @@ impl<Platform: pal::Platform> System<Platform> {
                 }
             }
         }
+    }
+
+    fn process_contract_operation_event(
+        &mut self,
+        _block: &mut BlockInfo,
+        sender: MessageOrigin,
+        event: ContractOperation<chain::AccountId>,
+    ) -> anyhow::Result<()> {
+        match event {
+            ContractOperation::UploadCodeToCluster {
+                origin,
+                code,
+                cluster_id,
+            } => {
+                if !sender.is_pallet() {
+                    anyhow::bail!("Invalid origin {:?} trying to upload code", sender);
+                }
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .context("Cluster not found")?;
+                let hash = cluster
+                    .upload_code(origin, code)
+                    .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                info!(
+                    "Uploaded code to cluster {}, code_hash={:?}",
+                    cluster_id, hash
+                );
+            }
+        }
+        Ok(())
     }
 
     /// Process encrypted master key from mq
@@ -1092,10 +1130,7 @@ pub fn apply_pink_side_effects(
         use pink::runtime::PinkEvent;
         match event {
             PinkEvent::Message(message) => {
-                contract.push_message(
-                    message.payload,
-                    message.topic,
-                );
+                contract.push_message(message.payload, message.topic);
             }
             PinkEvent::OspMessage(message) => {
                 contract.push_osp_message(

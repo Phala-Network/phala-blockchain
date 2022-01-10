@@ -1,9 +1,10 @@
 use crate::{
     runtime::ExecSideEffects,
-    types::{Hash, Hashing},
+    types::{AccountId, Hash, Hashing},
 };
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
 use serde::{Deserialize, Serialize};
+use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
@@ -93,6 +94,18 @@ where
         self.execute_with(false, || {
             crate::runtime::Pink::set_cluster_id(cluster_id);
         });
+    }
+
+    pub fn upload_code(
+        &mut self,
+        account: AccountId,
+        code: Vec<u8>,
+    ) -> Result<Hash, DispatchError> {
+        self.execute_with(false, || {
+            crate::runtime::Contracts::bare_upload_code(account, code, None)
+        })
+        .0
+        .map(|v| v.code_hash)
     }
 }
 

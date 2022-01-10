@@ -23,14 +23,14 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::ContractEvent,
+		contract::messaging::{ContractEvent, ContractOperation},
 		contract::{CodeIndex, ContractInfo},
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent, WorkerContractReport,
+			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
+			WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -377,6 +377,18 @@ pub mod pallet {
 			let code_hash = T::Hashing::hash(&code);
 			ContractCode::<T>::insert(&code_hash, &code);
 			Self::deposit_event(Event::CodeUploaded(code_hash));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn upload_code_to_cluster(
+			origin: OriginFor<T>,
+			code: Vec<u8>,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin: T::AccountId = ensure_signed(origin)?;
+			// TODO.shelven: check permission?
+			Self::push_message(ContractOperation::UploadCodeToCluster { origin, code, cluster_id });
 			Ok(())
 		}
 
