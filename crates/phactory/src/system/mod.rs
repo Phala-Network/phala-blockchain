@@ -488,7 +488,34 @@ impl<Platform: pal::Platform> System<Platform> {
         contract.handle_query(origin, req, &mut context)
     }
 
-    pub fn process_messages(&mut self, block: &mut BlockInfo) -> anyhow::Result<()> {
+    pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {
+        let ok = phala_mq::select_ignore_errors! {
+            (event, origin) = self.system_events => {
+                if !origin.is_pallet() {
+                    anyhow::bail!("Invalid SystemEvent sender: {:?}", origin);
+                }
+                self.process_system_event(block, &event);
+            },
+            (event, origin) = self.gatekeeper_launch_events => {
+                self.process_gatekeeper_launch_event(block, origin, event);
+            },
+            (event, origin) = self.gatekeeper_change_events => {
+                self.process_gatekeeper_change_event(block, origin, event);
+            },
+            (event, origin) = self.key_distribution_events => {
+                self.process_key_distribution_event(block, origin, event);
+            },
+            (event, origin) = self.contract_key_distribution_events => {
+                self.process_contract_key_distribution_event(block, origin, event);
+            },
+            (event, origin) = self.contract_operation_events => {
+                self.process_contract_operation_event(block, origin, event)?
+            },
+        };
+        Ok(ok.is_none())
+    }
+
+    pub fn process_messages(&mut self, block: &mut BlockInfo) {
         self.block_number = block.block_number;
         self.now_ms = block.now_ms;
 
@@ -502,35 +529,15 @@ impl<Platform: pal::Platform> System<Platform> {
             );
         }
         loop {
-            let ok = phala_mq::select_ignore_errors! {
-                (event, origin) = self.system_events => {
-                    if !origin.is_pallet() {
-                        error!("Invalid SystemEvent sender: {:?}", origin);
-                        continue;
+            match self.process_next_message(block) {
+                Err(err) => {
+                    error!("Error processing message: {:?}", err);
+                }
+                Ok(no_more) => {
+                    if no_more {
+                        break;
                     }
-                    self.process_system_event(block, &event)?;
-                },
-                (event, origin) = self.gatekeeper_launch_events => {
-                    self.process_gatekeeper_launch_event(block, origin, event);
-                },
-                (event, origin) = self.gatekeeper_change_events => {
-                    self.process_gatekeeper_change_event(block, origin, event);
-                },
-                (event, origin) = self.key_distribution_events => {
-                    self.process_key_distribution_event(block, origin, event);
-                },
-                (event, origin) = self.contract_key_distribution_events => {
-                    self.process_contract_key_distribution_event(block, origin, event);
-                },
-                (event, origin) = self.contract_operation_events => {
-                    if let Err(err) = self.process_contract_operation_event(block, origin, event) {
-                        error!("Error processing contract operation: {:?}", err);
-                    }
-                },
-            };
-            if ok.is_none() {
-                // All messages processed
-                break;
+                }
             }
         }
         self.worker_state
@@ -592,14 +599,11 @@ impl<Platform: pal::Platform> System<Platform> {
                 &self.egress,
             );
         }
-
-        Ok(())
     }
 
-    fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) -> Result<()> {
+    fn process_system_event(&mut self, block: &BlockInfo, event: &SystemEvent) {
         self.worker_state
             .process_event(block, event, &mut WorkerSMDelegate(&self.egress), true);
-        Ok(())
     }
 
     fn set_master_key(&mut self, master_key: sr25519::Pair, need_restart: bool) {

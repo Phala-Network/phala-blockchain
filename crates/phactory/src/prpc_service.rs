@@ -630,10 +630,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             side_task_man,
         };
 
-        if let Err(e) = system.process_messages(&mut block) {
-            error!("System process events failed: {:?}", e);
-            return Err(from_display("System process events failed"));
-        }
+        system.process_messages(&mut block);
         Ok(())
     }
 
