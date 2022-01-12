@@ -512,18 +512,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(pb::ContractQueryResponse::new(encrypted_resp))
     }
 
-    #[allow(unused_unsafe)]
-    pub unsafe fn dispatch_prpc_request(
+    pub fn dispatch_prpc_request(
         &mut self,
-        path: *const u8,
-        path_len: usize,
-        data: *const u8,
-        data_len: usize,
+        path: &[u8],
+        data: &[u8],
         output_buf_len: usize,
     ) -> (u16, Vec<u8>) {
         use prpc::server::{Error, ProtoError};
 
-        let path = unsafe { std::slice::from_raw_parts(path, path_len) };
         let path = match std::str::from_utf8(path) {
             Ok(path) => path,
             Err(e) => {
@@ -533,7 +529,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
         info!("Dispatching request: {}", path);
 
-        let data = unsafe { std::slice::from_raw_parts(data, data_len) };
         let mut server = PhactoryApiServer::new(RpcService {
             output_buf_len,
             phactory: self,
