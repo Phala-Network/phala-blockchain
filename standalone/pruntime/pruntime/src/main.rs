@@ -3,6 +3,7 @@
 mod api_server;
 mod pal_gramine;
 mod runtime;
+mod ra;
 
 use std::{env, path, thread};
 
@@ -56,6 +57,7 @@ fn main() {
     let args = Args::from_args();
 
     env::set_var("RUST_BACKTRACE", "1");
+    env::set_var("ROCKET_ENV", "dev");
 
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)

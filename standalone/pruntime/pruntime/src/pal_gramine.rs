@@ -4,6 +4,8 @@ use std::alloc::System;
 use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
 
+use crate::ra;
+
 #[derive(Debug, Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub(crate) struct GraminePlatform;
 
@@ -77,11 +79,13 @@ impl RA for GraminePlatform {
         &self,
         data: &[u8],
     ) -> Result<(String, String, String), Self::Error> {
-        todo!("TODO.kevin")
+        // TODO.kevin: move the key out of the binary?
+        const IAS_API_KEY_STR: &str = env!("IAS_API_KEY");
+        ra::create_attestation_report(data, IAS_API_KEY_STR)
     }
 
     fn quote_test(&self) -> Result<(), Self::Error> {
-        todo!("TODO.kevin")
+        ra::create_quote_vec(&[0u8; 64]).map(|_| ())
     }
 }
 
