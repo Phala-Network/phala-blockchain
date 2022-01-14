@@ -3,6 +3,7 @@ use std::alloc::System;
 
 use phactory_pal::{Machine, MemoryStats, MemoryUsage, ProtectedFileSystem, Sealing, RA};
 use phala_allocator::StatSizeAllocator;
+use std::fs::File;
 
 use crate::ra;
 
@@ -18,33 +19,42 @@ impl Sealing for GraminePlatform {
         path: impl AsRef<std::path::Path>,
         data: &[u8],
     ) -> Result<(), Self::SealError> {
-        todo!()
+        // TODO.kevin.must: seal with key
+        std::fs::write(path, data)?;
+        Ok(())
     }
 
     fn unseal_data(
         &self,
         path: impl AsRef<std::path::Path>,
     ) -> Result<Option<Vec<u8>>, Self::UnsealError> {
-        // todo!()
-        Ok(None)
+        // TODO.kevin.must: seal with key
+        match std::fs::read(path) {
+            Ok(data) => Ok(Some(data)),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(None),
+                _ => Err(err.into()),
+            },
+        }
     }
 }
 
-pub struct ProtectedFile;
+// TODO.kevin.must: use protected files
+pub struct ProtectedFile(File);
 
 impl std::io::Read for ProtectedFile {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        todo!()
+        self.0.read(buf)
     }
 }
 
 impl std::io::Write for ProtectedFile {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        todo!()
+        self.0.write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        todo!()
+        self.0.flush()
     }
 }
 
@@ -60,7 +70,14 @@ impl ProtectedFileSystem for GraminePlatform {
         path: impl AsRef<std::path::Path>,
         key: &[u8],
     ) -> Result<Option<Self::ReadFile>, Self::IoError> {
-        todo!()
+        // TODO.kevin.must: use protected files
+        match File::open(path) {
+            Ok(file) => Ok(Some(ProtectedFile(file))),
+            Err(err) => match err.kind() {
+                std::io::ErrorKind::NotFound => Ok(None),
+                _ => Err(err),
+            },
+        }
     }
 
     fn create_protected_file(
@@ -68,7 +85,7 @@ impl ProtectedFileSystem for GraminePlatform {
         path: impl AsRef<std::path::Path>,
         key: &[u8],
     ) -> Result<Self::WriteFile, Self::IoError> {
-        todo!()
+        Ok(ProtectedFile(File::create(path)?))
     }
 }
 
