@@ -23,11 +23,12 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::ContractEvent,
+		contract::messaging::{ContractEvent, ContractOperation},
 		contract::{CodeIndex, ContractInfo},
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
+			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
+			WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
@@ -380,6 +381,18 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
+		pub fn upload_code_to_cluster(
+			origin: OriginFor<T>,
+			code: Vec<u8>,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin: T::AccountId = ensure_signed(origin)?;
+			// TODO.shelven: check permission?
+			Self::push_message(ContractOperation::UploadCodeToCluster { origin, code, cluster_id });
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		pub fn instantiate_contract(
 			origin: OriginFor<T>,
 			// #[pallet::compact] endowment: BalanceOf<T>,
@@ -624,18 +637,18 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_pink_message_received(
-			message: DecodedMessage<WorkerPinkReport>,
+		pub fn on_worker_contract_message_received(
+			message: DecodedMessage<WorkerContractReport>,
 		) -> DispatchResult {
 			match &message.sender {
 				MessageOrigin::Worker(_) => (),
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				WorkerPinkReport::PinkInstantiated {
+				WorkerContractReport::ContractInstantiated {
 					id,
 					cluster_id: _,
-					owner: _,
+					deployer: _,
 					pubkey,
 				} => {
 					ContractKey::<T>::insert(id, pubkey);
@@ -765,7 +778,7 @@ pub mod pallet {
 		type Config = T;
 	}
 
-	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,

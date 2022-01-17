@@ -117,7 +117,7 @@ pub async fn maybe_sync_mq_egress(
                             }
                             Ok(Err(err)) => {
                                 error!("Error submitting message {}: {:?}", msg_info, err);
-                                use jsonrpsee_types::Error as RpcError;
+                                use jsonrpsee_core::error::Error as RpcError;
                                 use phaxt::subxt::Error as SubxtError;
                                 let report = match err {
                                     SubxtError::Rpc(RpcError::Request(err)) => {

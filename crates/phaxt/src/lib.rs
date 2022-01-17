@@ -20,11 +20,15 @@ pub mod rpc;
 pub mod khala_config;
 pub use khala_config::*;
 
-pub type ParachainApi = khala::RuntimeApi<khala_config::KhalaConfig>;
-pub type RelaychainApi = kusama::RuntimeApi<kusama::DefaultConfig>;
+pub type PhalaExtra = extra::PhalaExtra<KhalaConfig>;
+
+pub type ParachainApi = khala::RuntimeApi<KhalaConfig, PhalaExtra>;
+pub type RelaychainApi = kusama::RuntimeApi<DefaultConfig, DefaultExtra<DefaultConfig>>;
 
 pub use subxt;
 pub use subxt::sp_core::storage::{StorageData, StorageKey};
+
+use subxt::{DefaultExtra, DefaultConfig};
 
 pub fn storage_key<T: subxt::StorageEntry>(entry: T) -> StorageKey {
     let prefix = subxt::storage::StorageKeyPrefix::new::<T>();

@@ -1,11 +1,11 @@
+use phala_trie_storage::*;
 use serde::{Deserialize, Serialize};
 use sp_core::Hasher;
-use sp_runtime::traits::Hash;
-use sp_trie::trie_types::Layout;
+use sp_runtime::{traits::Hash, StateVersion};
+use sp_trie::LayoutV0 as Layout;
 use sp_trie::TrieConfiguration as _;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use phala_trie_storage::*;
 
 #[derive(Debug, Eq, PartialEq, Clone, Deserialize, Serialize)]
 pub struct NativeBlakeTwo256;
@@ -23,11 +23,11 @@ impl Hasher for NativeBlakeTwo256 {
 impl Hash for NativeBlakeTwo256 {
     type Output = sp_core::H256;
 
-    fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>) -> Self::Output {
+    fn trie_root(input: Vec<(Vec<u8>, Vec<u8>)>, _: StateVersion) -> Self::Output {
         Layout::<Self>::trie_root(input)
     }
 
-    fn ordered_trie_root(input: Vec<Vec<u8>>) -> Self::Output {
+    fn ordered_trie_root(input: Vec<Vec<u8>>, _: StateVersion) -> Self::Output {
         Layout::<Self>::ordered_trie_root(input)
     }
 }
@@ -119,7 +119,8 @@ fn test_apply_main_changes() {
             .map(|(k, v)| (k.0, map_storage_collection(v)))
             .collect();
 
-        let (root, trans) = trie.calc_root_if_changes(&main_storage_changes, &child_storage_changes);
+        let (root, trans) =
+            trie.calc_root_if_changes(&main_storage_changes, &child_storage_changes);
         trie.apply_changes(root, trans);
         assert_eq!(format!("{:?}", trie.root()), roots[number + 1]);
     }

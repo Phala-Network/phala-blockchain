@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-pub use phala_mq::{contract_id256 as id256, ContractId};
+pub use phala_mq::ContractId;
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;
@@ -30,7 +30,7 @@ pub mod messaging {
     use codec::{Decode, Encode};
 
     use super::ContractInfo;
-    use crate::{EcdhPublicKey, WorkerPublicKey};
+    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerPublicKey};
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
@@ -53,6 +53,16 @@ pub mod messaging {
                 deploy_worker,
             }
         }
+    }
+
+    bind_topic!(ContractOperation<AccountId>, b"phala/contract/op");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ContractOperation<AccountId> {
+        UploadCodeToCluster {
+            origin: AccountId,
+            code: Vec<u8>,
+            cluster_id: ContractClusterId,
+        },
     }
 }
 

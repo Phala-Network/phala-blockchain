@@ -107,11 +107,6 @@ impl contracts::NativeContract for BtcPriceBot {
     type QReq = Request;
     type QResp = Result<Response, Error>;
 
-    /// Return the contract id which uniquely identifies the contract
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::BTC_PRICE_BOT)
-    }
-
     /// Handle the Commands from transactions on the blockchain. This method doesn't respond.
     fn handle_command(
         &mut self,

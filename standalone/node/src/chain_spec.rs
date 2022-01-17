@@ -360,7 +360,7 @@ pub fn testnet_genesis(
 		},
 		technical_membership: Default::default(),
 		sudo: SudoConfig {
-			key: root_key,
+			key: Some(root_key),
 		},
 		babe: BabeConfig {
 			authorities: vec![],
@@ -387,6 +387,8 @@ pub fn testnet_genesis(
 		vesting: Default::default(),
 		phala_registry,
 		phala_mining: Default::default(),
+		scheduler: Default::default(),
+		transaction_payment: Default::default(),
 	}
 }
 

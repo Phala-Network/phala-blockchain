@@ -2,9 +2,11 @@ use crate::contracts;
 use crate::system::{TransactionError, TransactionResult};
 use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
-use phala_mq::{ContractClusterId, ContractId, MessageOrigin};
+use phala_mq::{ContractClusterId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
+
+use super::NativeContractMore;
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -54,15 +56,24 @@ impl Pink {
             now,
         )
         .map_err(|err| anyhow!("Instantiate contract failed: {:?} origin={:?}", err, origin,))?;
-        Ok((Self { cluster_id, instance }, effects))
+        Ok((
+            Self {
+                cluster_id,
+                instance,
+            },
+            effects,
+        ))
     }
 
     pub fn from_address(address: AccountId, cluster_id: ContractClusterId) -> Self {
         let instance = pink::Contract::from_address(address);
-        Self { instance, cluster_id }
+        Self {
+            instance,
+            cluster_id,
+        }
     }
 
-    pub fn address_to_id(address: &AccountId) -> ContractId {
+    pub fn address_to_id(address: &AccountId) -> contracts::ContractId {
         let inner: &[u8; 32] = address.as_ref();
         inner.into()
     }
@@ -74,14 +85,6 @@ impl contracts::NativeContract for Pink {
     type QReq = Query;
 
     type QResp = Result<Response, QueryError>;
-
-    fn id(&self) -> ContractId {
-        Pink::address_to_id(&self.instance.address)
-    }
-
-    fn cluster_id(&self) -> Option<phala_mq::ContractClusterId> {
-        Some(self.cluster_id.clone())
-    }
 
     fn handle_query(
         &mut self,
@@ -127,22 +130,19 @@ impl contracts::NativeContract for Pink {
                 let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
                     .expect("Pink cluster should always exists!");
 
-                let (result, effects) = self
-                    .instance
-                    .bare_call(
-                        storage,
-                        origin.clone(),
-                        message,
-                        false,
-                        context.block.block_number,
-                        context.block.now_ms,
-                    );
+                let (result, effects) = self.instance.bare_call(
+                    storage,
+                    origin.clone(),
+                    message,
+                    false,
+                    context.block.block_number,
+                    context.block.now_ms,
+                );
 
-                let ret = pink::transpose_contract_result(&result)
-                    .map_err(|err| {
-                        log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
-                        TransactionError::Other(format!("Call contract method failed: {:?}", err))
-                    })?;
+                let ret = pink::transpose_contract_result(&result).map_err(|err| {
+                    log::error!("Pink [{:?}] command exec error: {:?}", self.id(), err);
+                    TransactionError::Other(format!("Call contract method failed: {:?}", err))
+                })?;
 
                 // TODO.kevin: store the output to some where.
                 let _ = ret;
@@ -162,6 +162,12 @@ impl contracts::NativeContract for Pink {
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
             })?;
         Ok(effects)
+    }
+}
+
+impl NativeContractMore for Pink {
+    fn id(&self) -> phala_mq::ContractId {
+        Pink::address_to_id(&self.instance.address)
     }
 
     fn set_on_block_end_selector(&mut self, selector: u32) {
@@ -184,10 +190,14 @@ pub mod cluster {
     use anyhow::Result;
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
-    use pink::{runtime::ExecSideEffects, types::AccountId};
+    use pink::{
+        runtime::ExecSideEffects,
+        types::{AccountId, Hash},
+    };
     use runtime::BlockNumber;
     use serde::{Deserialize, Serialize};
     use sp_core::sr25519;
+    use sp_runtime::DispatchError;
     use std::collections::{BTreeMap, BTreeSet};
 
     #[derive(Default, Serialize, Deserialize)]
@@ -207,14 +217,7 @@ pub mod cluster {
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let cluster = self
-                .clusters
-                .entry(cluster_id.clone())
-                .or_insert_with(|| Cluster {
-                    storage: Default::default(),
-                    contracts: Default::default(),
-                    key: contract_key.clone(),
-                });
+            let cluster = self.get_cluster_or_default_mut(&cluster_id, contract_key);
             let (_, effects) = Pink::instantiate(
                 cluster_id,
                 &mut cluster.storage,
@@ -239,6 +242,22 @@ pub mod cluster {
             self.clusters.get_mut(cluster_id)
         }
 
+        pub fn get_cluster_or_default_mut(
+            &mut self,
+            cluster_id: &ContractClusterId,
+            contract_key: &sr25519::Pair,
+        ) -> &mut Cluster {
+            self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
+                let mut cluster = Cluster {
+                    storage: Default::default(),
+                    contracts: Default::default(),
+                    key: contract_key.clone(),
+                };
+                cluster.set_id(cluster_id);
+                cluster
+            })
+        }
+
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
             for cluster in self.clusters.values_mut() {
                 cluster.commit_changes()?;
@@ -256,8 +275,9 @@ pub mod cluster {
     }
 
     impl Cluster {
-        pub fn add_contract(&mut self, address: ContractId) {
-            self.contracts.insert(address);
+        /// Add a new contract to the cluster. Returns true if the contract is new.
+        pub fn add_contract(&mut self, address: ContractId) -> bool {
+            self.contracts.insert(address)
         }
 
         pub fn key(&self) -> &sr25519::Pair {
@@ -267,6 +287,18 @@ pub mod cluster {
         pub fn commit_changes(&mut self) -> anyhow::Result<()> {
             self.storage.commit_changes();
             Ok(())
+        }
+
+        pub fn set_id(&mut self, id: &ContractClusterId) {
+            self.storage.set_cluster_id(id.as_bytes());
+        }
+
+        pub fn upload_code(
+            &mut self,
+            origin: AccountId,
+            code: Vec<u8>,
+        ) -> Result<Hash, DispatchError> {
+            self.storage.upload_code(origin, code)
         }
     }
 }

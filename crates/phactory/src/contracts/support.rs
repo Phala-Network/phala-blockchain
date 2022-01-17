@@ -42,7 +42,7 @@ pub trait Contract {
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError>;
-    fn cluster_id(&self) -> Option<phala_mq::ContractClusterId>;
+    fn cluster_id(&self) -> phala_mq::ContractClusterId;
     fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
     fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
     fn push_message(&self, payload: Vec<u8>, topic: Vec<u8>);
@@ -55,15 +55,16 @@ pub trait Contract {
     fn set_on_block_end_selector(&mut self, selector: u32);
 }
 
+pub trait NativeContractMore {
+    fn id(&self) -> phala_mq::ContractId;
+    fn set_on_block_end_selector(&mut self, _selector: u32) {}
+}
+
 pub trait NativeContract {
     type Cmd: Decode + Debug;
     type QReq: Decode + Debug;
     type QResp: Encode + Debug;
 
-    fn id(&self) -> ContractId;
-    fn cluster_id(&self) -> Option<phala_mq::ContractClusterId> {
-        None
-    }
     fn handle_command(
         &mut self,
         _origin: MessageOrigin,
@@ -81,21 +82,73 @@ pub trait NativeContract {
     fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
         Ok(Default::default())
     }
-    fn set_on_block_end_selector(&mut self, _selector: u32) {}
+}
+
+#[derive(Serialize, Deserialize, Encode, Decode)]
+pub struct NativeContractWrapper<Con> {
+    inner: Con,
+    id: sp_core::H256,
+}
+
+impl<Con> NativeContractWrapper<Con> {
+    pub fn new(
+        inner: Con,
+        cluster_id: &phala_mq::ContractClusterId,
+        deployer: sp_core::H256,
+        salt: &[u8],
+        id: u32,
+    ) -> Self {
+        let encoded = (deployer, id, cluster_id, salt).encode();
+        let id = sp_core::blake2_256(&encoded).into();
+        NativeContractWrapper { inner, id }
+    }
+}
+
+impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
+    type Cmd = Con::Cmd;
+    type QReq = Con::QReq;
+    type QResp = Con::QResp;
+
+    fn handle_command(
+        &mut self,
+        origin: MessageOrigin,
+        cmd: Self::Cmd,
+        context: &mut NativeContext,
+    ) -> TransactionResult {
+        self.inner.handle_command(origin, cmd, context)
+    }
+
+    fn handle_query(
+        &mut self,
+        origin: Option<&runtime::AccountId>,
+        req: Self::QReq,
+        context: &mut QueryContext,
+    ) -> Self::QResp {
+        self.inner.handle_query(origin, req, context)
+    }
+
+    fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
+        self.inner.on_block_end(context)
+    }
+}
+
+impl<Con: NativeContract> NativeContractMore for NativeContractWrapper<Con> {
+    fn id(&self) -> phala_mq::ContractId {
+        self.id
+    }
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct NativeCompatContract<Con: NativeContract> {
-    #[serde(bound(
-        serialize = "Con: Encode",
-        deserialize = "Con: Decode"
-    ))]
+    #[serde(bound(serialize = "Con: Encode", deserialize = "Con: Decode"))]
     #[serde(with = "more::scale_bytes")]
     contract: Con,
     send_mq: SignedMessageChannel,
     cmd_rcv_mq: SecretReceiver<Con::Cmd>,
     #[serde(with = "crate::secret_channel::ecdh_serde")]
     ecdh_key: KeyPair,
+    cluster_id: phala_mq::ContractClusterId,
+    contract_id: phala_mq::ContractId,
 }
 
 impl<Con: NativeContract> NativeCompatContract<Con> {
@@ -104,23 +157,27 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
         send_mq: SignedMessageChannel,
         cmd_rcv_mq: SecretReceiver<Con::Cmd>,
         ecdh_key: KeyPair,
+        cluster_id: phala_mq::ContractClusterId,
+        contract_id: phala_mq::ContractId,
     ) -> Self {
         NativeCompatContract {
             contract,
             send_mq,
             cmd_rcv_mq,
             ecdh_key,
+            cluster_id,
+            contract_id,
         }
     }
 }
 
-impl<Con: NativeContract> Contract for NativeCompatContract<Con> {
+impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract<Con> {
     fn id(&self) -> ContractId {
-        self.contract.id()
+        self.contract_id
     }
 
-    fn cluster_id(&self) -> Option<phala_mq::ContractClusterId> {
-        self.contract.cluster_id()
+    fn cluster_id(&self) -> phala_mq::ContractClusterId {
+        self.cluster_id
     }
 
     fn handle_query(

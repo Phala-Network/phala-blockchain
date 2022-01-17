@@ -1,7 +1,7 @@
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-use crate::khala::{self, DefaultConfig};
+use subxt::DefaultConfig;
 
 pub type Index = <DefaultConfig as subxt::Config>::Index;
 pub type BlockNumber = <DefaultConfig as subxt::Config>::BlockNumber;
@@ -28,13 +28,7 @@ impl subxt::Config for KhalaConfig {
     type Extrinsic = Extrinsic;
 }
 
-impl subxt::ExtrinsicExtraData<KhalaConfig> for KhalaConfig {
-    type AccountData = AccountData;
-    type Extra = crate::extra::PhalaExtra<KhalaConfig>;
-}
-
-pub type AccountData = khala::system::storage::Account;
-impl subxt::AccountData<KhalaConfig> for AccountData {
+impl subxt::AccountData<KhalaConfig> for crate::khala::system::storage::Account {
     fn nonce(
         result: &<Self as subxt::StorageEntry>::Value,
     ) -> <KhalaConfig as subxt::Config>::Index {

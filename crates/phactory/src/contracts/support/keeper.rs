@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ops::{Deref, DerefMut};
 
-use super::{Contract, NativeCompatContract as Compat};
+use super::{Contract, NativeCompatContract, NativeContractWrapper};
 use crate::contracts::{
     assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
     data_plaza::DataPlaza, geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
@@ -11,10 +11,11 @@ use crate::contracts::{
 };
 
 type ContractMap = BTreeMap<ContractId, AnyContract>;
+type Compat<T> = NativeCompatContract<NativeContractWrapper<T>>;
 
 #[derive(Serialize, Deserialize)]
 pub enum AnyContract {
-    Pink(Compat<Pink>),
+    Pink(NativeCompatContract<Pink>),
     DataPlaza(Compat<DataPlaza>),
     Balances(Compat<Balances>),
     Assets(Compat<Assets>),
@@ -59,8 +60,8 @@ impl DerefMut for AnyContract {
     }
 }
 
-impl From<Compat<Pink>> for AnyContract {
-    fn from(c: Compat<Pink>) -> Self {
+impl From<NativeCompatContract<Pink>> for AnyContract {
+    fn from(c: NativeCompatContract<Pink>) -> Self {
         AnyContract::Pink(c)
     }
 }
@@ -128,6 +129,10 @@ impl ContractsKeeper {
 
     pub fn get_mut(&mut self, id: &ContractId) -> Option<&mut AnyContract> {
         self.0.get_mut(id)
+    }
+
+    pub fn get(&self, id: &ContractId) -> Option<&AnyContract> {
+        self.0.get(id)
     }
 
     #[cfg(test)]

@@ -23,9 +23,9 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::{self, ContractInfo};
+    use crate::contract::ContractInfo;
     pub use phala_mq::types::*;
-    pub use phala_mq::{bind_contract32, bind_topic};
+    pub use phala_mq::bind_topic;
 
     // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug, TypeInfo)]
@@ -77,7 +77,6 @@ pub mod messaging {
         },
     }
 
-    bind_contract32!(LotteryCommand, contract::BTC_LOTTERY);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum LotteryCommand {
         UserCommand(LotteryUserCommand),
@@ -106,7 +105,6 @@ pub mod messaging {
 
     // Messages for Balances
 
-    bind_contract32!(BalancesCommand<AccountId, Balance>, contract::BALANCES);
     #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
     pub enum BalancesCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
@@ -133,7 +131,6 @@ pub mod messaging {
 
     // Messages for Assets
 
-    bind_contract32!(AssetCommand<AccountId, Balance>, contract::ASSETS);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum AssetCommand<AccountId, Balance> {
         Issue {
@@ -155,7 +152,6 @@ pub mod messaging {
 
     // Messages for Web3Analytics
 
-    bind_contract32!(Web3AnalyticsCommand, contract::WEB3_ANALYTICS);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum Web3AnalyticsCommand {
         SetConfiguration { skip_stat: bool },
@@ -163,7 +159,6 @@ pub mod messaging {
 
     // Messages for diem
 
-    bind_contract32!(DiemCommand, contract::DIEM);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum DiemCommand {
         /// Sets the whitelisted accounts, in bcs encoded base64
@@ -197,7 +192,6 @@ pub mod messaging {
 
     // Messages for Kitties
 
-    bind_contract32!(KittiesCommand<AccountId, Hash>, contract::SUBSTRATE_KITTIES);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum KittiesCommand<AccountId, Hash> {
         /// Pack the kitties into the corresponding blind boxes
@@ -225,7 +219,6 @@ pub mod messaging {
         pub region_name: String,
     }
 
-    bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
     #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
     pub enum GeolocationCommand {
         UpdateGeolocation { geocoding: Option<Geocoding> },
@@ -238,7 +231,6 @@ pub mod messaging {
     }
 
     // Bind on-chain GuessNumberCommand message to the GUESS_NUMBER contract
-    bind_contract32!(GuessNumberCommand, contract::GUESS_NUMBER);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum GuessNumberCommand {
         /// Refresh the random number
@@ -247,7 +239,6 @@ pub mod messaging {
         SetOwner { owner: AccountId },
     }
 
-    bind_contract32!(BtcPriceBotCommand, contract::BTC_PRICE_BOT);
     #[derive(Debug, Clone, Encode, Decode)]
     pub enum BtcPriceBotCommand {
         /// Set the contract owner
@@ -571,13 +562,13 @@ pub mod messaging {
 
     // Pink messages
 
-    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
+    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerPinkReport {
-        PinkInstantiated {
+    pub enum WorkerContractReport {
+        ContractInstantiated {
             id: ContractId,
             cluster_id: ContractClusterId,
-            owner: AccountId,
+            deployer: AccountId,
             pubkey: EcdhPublicKey,
         },
     }
