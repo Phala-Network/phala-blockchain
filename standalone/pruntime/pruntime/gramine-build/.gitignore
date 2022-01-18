@@ -1,0 +1,7 @@
+/*.o
+/OUTPUT
+/pruntime
+/pruntime.manifest
+/pruntime.manifest.sgx
+/pruntime.sig
+/pruntime.token

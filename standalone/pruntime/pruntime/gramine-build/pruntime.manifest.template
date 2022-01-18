@@ -1,0 +1,61 @@
+[libos]
+entrypoint = "pruntime"
+
+[loader]
+preload = "file:{{ gramine.libos }}" # for compatibility with v1.0
+entrypoint = "file:{{ gramine.libos }}"
+log_level = "{{ log_level }}"
+argv0_override = "pruntime"
+insecure__use_cmdline_argv = true
+
+[loader.env]
+LD_LIBRARY_PATH = "/lib:/lib/x86_64-linux-gnu"
+M_ARENA_MAX = "1"
+
+[fs.mount.lib]
+type = "chroot"
+path = "/lib"
+uri = "file:{{ gramine.runtimedir() }}"
+
+[fs.mount.lib2]
+type = "chroot"
+path = "/lib/x86_64-linux-gnu"
+uri = "file:/lib/x86_64-linux-gnu"
+
+[fs.mount.data]
+type = "chroot"
+path = "/data"
+uri = "file:./data"
+
+[fs.mount.etc]
+type = "chroot"
+path = "/etc"
+uri = "file:/etc"
+
+
+[sgx]
+debug = true
+nonpie_binary = true
+enclave_size = "1G"
+thread_num = 32
+
+trusted_files = [
+  "file:{{ gramine.libos }}",
+  "file:pruntime",
+  "file:{{ gramine.runtimedir() }}/",
+  "file:/lib/x86_64-linux-gnu/",
+  "file:/etc/hosts",
+  "file:data/",
+]
+
+#protected_files = [
+# "file:data/",
+#]
+
+protected_files_key = "0x01230123012301230123012301230123"
+file_check_policy = "allow_all_but_log"
+
+#[sgx.profile]
+#enable = "all"
+#with_stack = true
+
