@@ -31,3 +31,9 @@ phactory = {path = "../../../crates/phactory"}
 phactory-api = {path = "../../../crates/phactory/api"}
 phactory-pal = {path = "../../../crates/phactory/pal"}
 phala-allocator = {path = "../../../crates/phala-allocator"}
+
+[patch.crates-io]
+# TODO.kevin.must:
+# This is a bad workaround for https://github.com/gramineproject/gramine/issues/341
+# Remove this patch once the upstream fixed
+hyper = { git = "https://github.com/kvinwang/hyper.git", branch="no-timeout" }
