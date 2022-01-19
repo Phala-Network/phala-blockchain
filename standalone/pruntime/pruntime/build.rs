@@ -18,4 +18,5 @@ fn main() {
     if env::var("IAS_API_KEY").is_err() {
         println!("cargo:rustc-env=IAS_API_KEY=''");
     }
+    println!("cargo:rerun-if-env-changed=IAS_API_KEY");
 }

@@ -6,9 +6,8 @@ use std::{convert::TryFrom, fs, time::Duration};
 pub const IAS_HOST: &str = env!("IAS_HOST");
 pub const IAS_REPORT_ENDPOINT: &str = env!("IAS_REPORT_ENDPOINT");
 
-fn get_report_from_intel(quote: Vec<u8>, ias_key: &str) -> Result<(String, String, String)> {
-    // println!("get_report_from_intel fd = {:?}", fd);
-    let encoded_quote = base64::encode(&quote[..]);
+fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String, String)> {
+    let encoded_quote = base64::encode(quote);
     let encoded_json = format!("{{\"isvEnclaveQuote\":\"{}\"}}\r\n", encoded_quote);
 
     let mut res_body_buffer = Vec::new(); //container for body of a response
@@ -102,6 +101,6 @@ pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
 
 pub fn create_attestation_report(data: &[u8], ias_key: &str) -> Result<(String, String, String)> {
     let quote_vec = create_quote_vec(data)?;
-    let (attn_report, sig, cert) = get_report_from_intel(quote_vec, ias_key)?;
+    let (attn_report, sig, cert) = get_report_from_intel(&quote_vec, ias_key)?;
     Ok((attn_report, sig, cert))
 }

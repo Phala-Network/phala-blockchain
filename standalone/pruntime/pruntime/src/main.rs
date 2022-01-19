@@ -35,22 +35,18 @@ struct Args {
     #[structopt(long)]
     #[structopt(default_value = "300")]
     checkpoint_interval: u64,
-}
 
-#[derive(Deserialize, Debug)]
-struct Env {
-    #[serde(default = "default_state_file_path")]
-    state_file_path: String,
+    /// Directory to store runtime state and checkpoints
+    #[structopt(long, default_value = "./data")]
+    data_dir: String,
 
-    #[serde(default)]
+    /// Allow CORS for HTTP
+    #[structopt(long)]
     allow_cors: bool,
 
-    #[serde(default)]
+    /// Turn on /kick API
+    #[structopt(long)]
     enable_kick_api: bool,
-}
-
-fn default_state_file_path() -> String {
-    "./".into()
 }
 
 fn main() {
@@ -64,11 +60,9 @@ fn main() {
         .parse_default_env()
         .init();
 
-    let env = envy::from_env::<Env>().unwrap();
-
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
-    let sealing_path: path::PathBuf = path.join(&env.state_file_path);
+    let sealing_path: path::PathBuf = path.join(&args.data_dir);
     let sealing_path = String::from(sealing_path.to_str().unwrap());
     let init_args = InitArgs {
         sealing_path,
@@ -91,7 +85,7 @@ fn main() {
     let rocket = thread::Builder::new()
         .name("rocket".into())
         .spawn(move || {
-            let err = api_server::rocket(env.allow_cors, env.enable_kick_api).launch();
+            let err = api_server::rocket(args.allow_cors, args.enable_kick_api).launch();
             panic!("Launch rocket failed: {}", err);
         })
         .expect("Failed to launch Rocket");

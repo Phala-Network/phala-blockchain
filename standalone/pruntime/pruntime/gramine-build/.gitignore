@@ -5,3 +5,4 @@
 /pruntime.manifest.sgx
 /pruntime.sig
 /pruntime.token
+/data

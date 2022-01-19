@@ -1,4 +1,4 @@
-SGX_SIGNER_KEY ?= ~/.config/gramine/enclave-key.pem
+SGX_SIGNER_KEY ?= ../../enclave/Enclave_private.dev.pem
 SGX ?= 1
 
 ARCH_LIBDIR ?= /lib/$(shell $(CC) -dumpmachine)
@@ -16,6 +16,7 @@ ifeq ($(SGX),1)
 all: ${BIN_NAME}.manifest.sgx ${BIN_NAME}.sig ${BIN_NAME}.token
 endif
 
+.PHONY: ${BIN_FILE}
 ${BIN_FILE}:
 	cargo build --release
 
@@ -23,9 +24,11 @@ ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
 
 ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
+	mkdir -p data
 	gramine-manifest \
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
+		-Dra_client_spid=${IAS_SPID} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_FILE}
@@ -49,3 +52,9 @@ clean:
 
 .PHONY: distclean
 distclean: clean
+
+
+run: all
+	rm -rf data
+	mkdir -p data
+	gramine-sgx pruntime --disable-checkpoint

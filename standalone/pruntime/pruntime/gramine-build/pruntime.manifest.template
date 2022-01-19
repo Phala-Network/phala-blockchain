@@ -36,24 +36,27 @@ uri = "file:/etc"
 [sgx]
 debug = true
 nonpie_binary = true
-enclave_size = "1G"
+enclave_size = "4G"
 thread_num = 32
+remote_attestation = true
+ra_client_linkable = true
+ra_client_spid = "{{ ra_client_spid }}"
 
 trusted_files = [
   "file:{{ gramine.libos }}",
   "file:pruntime",
   "file:{{ gramine.runtimedir() }}/",
   "file:/lib/x86_64-linux-gnu/",
-  "file:/etc/hosts",
-  "file:data/",
 ]
 
-#protected_files = [
-# "file:data/",
-#]
+allowed_files = [
+  "file:/etc/hosts",
+  "file:/etc/resolv.conf",
+]
 
-protected_files_key = "0x01230123012301230123012301230123"
-file_check_policy = "allow_all_but_log"
+protected_mrenclave_files = [
+  "file:data/",
+]
 
 #[sgx.profile]
 #enable = "all"
