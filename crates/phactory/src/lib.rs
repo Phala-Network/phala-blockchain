@@ -308,16 +308,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             let file = self
                 .platform
                 .create_protected_file(&tmpfile, &key)
-                .map_err(|err| anyhow!("{:?}", err))?;
+                .map_err(|err| anyhow!("{:?}", err))
+                .context("Create protected file")?;
 
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))?;
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self)).context("Write checkpoint")?;
         }
 
         {
             // Post-process filenames
             let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
             let _ = std::fs::rename(&checkpoint_file, &backup);
-            std::fs::rename(&tmpfile, &checkpoint_file)?;
+            std::fs::rename(&tmpfile, &checkpoint_file).context("Rename checkpoint")?;
         }
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
@@ -360,7 +361,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
         };
 
-        let loader: PhactoryLoader<_> = serde_cbor::de::from_reader(file)?;
+        let loader: PhactoryLoader<_> =
+            serde_cbor::de::from_reader(file).context("decode state")?;
         Ok(Some(loader.0))
     }
 
