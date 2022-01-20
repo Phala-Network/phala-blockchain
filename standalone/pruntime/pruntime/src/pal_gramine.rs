@@ -19,7 +19,6 @@ impl Sealing for GraminePlatform {
         path: impl AsRef<std::path::Path>,
         data: &[u8],
     ) -> Result<(), Self::SealError> {
-        // TODO.kevin.must: seal with key
         std::fs::write(path, data)?;
         Ok(())
     }
@@ -28,7 +27,6 @@ impl Sealing for GraminePlatform {
         &self,
         path: impl AsRef<std::path::Path>,
     ) -> Result<Option<Vec<u8>>, Self::UnsealError> {
-        // TODO.kevin.must: seal with key
         match std::fs::read(path) {
             Ok(data) => Ok(Some(data)),
             Err(err) => match err.kind() {
@@ -39,7 +37,6 @@ impl Sealing for GraminePlatform {
     }
 }
 
-// TODO.kevin.must: use protected files
 pub struct ProtectedFile(File);
 
 impl std::io::Read for ProtectedFile {
@@ -111,13 +108,10 @@ impl Machine for GraminePlatform {
 
     fn cpu_feature_level(&self) -> u32 {
         let mut cpu_feature_level: u32 = 1;
-        // TODO.kevin.must: Is CPUID in gramine trustable?
-        // Atom doesn't support AVX
         if is_x86_feature_detected!("avx2") {
             info!("CPU Support AVX2");
             cpu_feature_level += 1;
 
-            // Customer-level Core doesn't support AVX512
             if is_x86_feature_detected!("avx512f") {
                 info!("CPU Support AVX512");
                 cpu_feature_level += 1;

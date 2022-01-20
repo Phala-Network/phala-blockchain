@@ -5,7 +5,7 @@ mod pal_gramine;
 mod ra;
 mod runtime;
 
-use std::{env, path, thread};
+use std::{env, thread};
 
 use log::{error, info};
 use structopt::StructOpt;
@@ -26,10 +26,6 @@ struct Args {
     #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
 
-    /// Directory to store runtime state and checkpoints
-    #[structopt(long, default_value = "./data")]
-    data_dir: String,
-
     /// Allow CORS for HTTP
     #[structopt(long)]
     allow_cors: bool,
@@ -44,6 +40,13 @@ struct Args {
 }
 
 fn main() {
+    // Disable the thread local arena(memory pool) for glibc.
+    // See https://github.com/gramineproject/gramine/issues/342#issuecomment-1014475710
+    #[cfg(target_env = "gnu")]
+    unsafe {
+        libc::mallopt(libc::M_ARENA_MAX, 1);
+    }
+
     let args = Args::from_args();
 
     env::set_var("RUST_BACKTRACE", "1");
@@ -52,10 +55,10 @@ fn main() {
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
     env_logger::Builder::from_env(env).init();
 
-    let executable = env::current_exe().unwrap();
-    let path = executable.parent().unwrap();
-    let sealing_path: path::PathBuf = path.join(&args.data_dir);
-    let sealing_path = String::from(sealing_path.to_str().unwrap());
+    // In gramine, the protected files are configured via manifest file. So we must not allow it to
+    // be changed at runtime for security reason. Thus hardcoded it to `/protected_files` here.
+    // Should keep it the same with the manifest config.
+    let sealing_path = "/protected_files".into();
     let init_args = InitArgs {
         sealing_path,
         log_filter: Default::default(),

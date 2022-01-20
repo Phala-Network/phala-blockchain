@@ -66,8 +66,8 @@ clean:
 .PHONY: distclean
 distclean: clean
 
-.PHONY: install
-install: all
+.PHONY: dist
+dist: all
 	mkdir -p ${PREFIX}/data
 	cp ${BIN_NAME} ${PREFIX}/
 	cp Rocket.toml ${PREFIX}/
@@ -79,7 +79,7 @@ else
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 endif
 
-run: install
+run: all
 	rm -rf data
 	mkdir -p data
 	gramine-sgx pruntime
