@@ -7,10 +7,20 @@ CFLAGS = -Wall -Wextra
 
 GRAMINE_LOG_LEVEL = error
 
-BIN_NAME=pruntime
-BIN_FILE=../target/release/${BIN_NAME}
+USE_MUSL ?= 1
+
+BIN_NAME = pruntime
+
+ifeq ($(USE_MUSL),1)
+BIN_FILE = ../target/x86_64-unknown-linux-musl/release/${BIN_NAME}
+CARGO_ARGS = --target x86_64-unknown-linux-musl
+else
+BIN_FILE = ../target/release/${BIN_NAME}
+CARGO_ARGS =
+endif
 
 PREFIX ?= bin
+PRUNTIME_SEAL_DIR ?= data
 
 .PHONY: all
 all: ${BIN_NAME} ${BIN_NAME}.manifest
@@ -20,7 +30,7 @@ endif
 
 .PHONY: ${BIN_FILE}
 ${BIN_FILE}:
-	cargo build --release
+	cargo build --release ${CARGO_ARGS}
 
 ${BIN_NAME}: ${BIN_FILE}
 	cp ${BIN_FILE} ${BIN_NAME}
@@ -31,6 +41,7 @@ ${BIN_NAME}.manifest: ${BIN_NAME}.manifest.template
 		-Dinstall_dir=$(INSTALL_DIR) \
 		-Dlog_level=$(GRAMINE_LOG_LEVEL) \
 		-Dra_client_spid=${IAS_SPID} \
+		-Dseal_dir=${PRUNTIME_SEAL_DIR} \
 		$< $@
 
 ${BIN_NAME}.manifest.sgx: ${BIN_NAME}.manifest ${BIN_FILE}

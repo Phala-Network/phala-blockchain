@@ -105,7 +105,24 @@ fn main() {
 }
 
 fn set_thread_idle_policy() {
-    let param = libc::sched_param { sched_priority: 0 };
+    let param = libc::sched_param {
+        sched_priority: 0,
+        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        sched_ss_low_priority: 0,
+        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        sched_ss_repl_period: libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        },
+        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        sched_ss_init_budget: libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        },
+        #[cfg(any(target_env = "musl", target_os = "emscripten"))]
+        sched_ss_max_repl: 0,
+    };
+
     unsafe {
         let rv = libc::sched_setscheduler(0, libc::SCHED_IDLE, &param);
         if rv != 0 {
