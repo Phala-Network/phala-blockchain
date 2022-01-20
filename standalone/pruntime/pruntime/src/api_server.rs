@@ -1,9 +1,11 @@
 use std::str;
+use std::io::BufWriter;
 
 use rocket::data::Data;
 use rocket::http::Method;
 use rocket::http::Status;
 use rocket::response::status::Custom;
+use rocket::response::Stream;
 use rocket::{get, post, routes};
 use rocket_contrib::json;
 use rocket_contrib::json::{Json, JsonValue};
@@ -13,6 +15,8 @@ use colored::Colorize as _;
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
+
+use os_pipe::PipeReader;
 
 use phactory_api::{actions, prpc};
 
@@ -140,6 +144,29 @@ fn prpc_proxy(method: String, data: Data) -> Custom<Vec<u8>> {
     }
 }
 
+#[get("/dump")]
+fn dump_state() -> anyhow::Result<Stream<PipeReader>> {
+    let (r, writer) = os_pipe::pipe()?;
+    std::thread::spawn(move || {
+        let writer = BufWriter::new(writer);
+        if let Err(err) = crate::runtime::ecall_dump_state(writer) {
+            error!("Failed to dump state: {:?}", err);
+        }
+    });
+    Ok(r.into())
+}
+
+#[post("/load", data = "<data>")]
+fn load_state(data: Data) -> Custom<()> {
+    match crate::runtime::ecall_load_state(data.open()) {
+        Ok(_) => Custom(Status::Ok, ()),
+        Err(err) => {
+            error!("Failed to load state: {:?}", err);
+            Custom(Status::BadRequest, ())
+        }
+    }
+}
+
 fn cors_options() -> CorsOptions {
     let allowed_origins = AllowedOrigins::all();
     let allowed_methods: AllowedMethods = vec![Method::Get, Method::Post]
@@ -200,6 +227,8 @@ pub fn rocket(allow_cors: bool, enable_kick_api: bool) -> rocket::Rocket {
 
         server = server.mount("/", routes![kick]);
     }
+
+    server = server.mount("/state", routes![dump_state, load_state]);
 
     server = server.mount("/prpc", routes![prpc_proxy]);
     print_rpc_methods("/prpc", prpc::phactory_api_server::supported_methods());

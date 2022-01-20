@@ -155,7 +155,7 @@ enum RuntimeDataSeal {
 #[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
-    args: InitArgs,
+    pub args: InitArgs,
     skip_ra: bool,
     dev_mode: bool,
     machine_id: Vec<u8>,
@@ -325,6 +325,20 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         Ok(())
     }
 
+    pub fn take_checkpoint_to_writer<W: std::io::Write>(
+        &mut self,
+        writer: W,
+    ) -> anyhow::Result<()> {
+        let _key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
+            key.dump_secret_key().to_vec()
+        } else {
+            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
+        };
+        // TODO.kevin.must: Encrypt it
+        serde_cbor::ser::to_writer(writer, &PhactoryDumper(self)).context("Write checkpoint")?;
+        Ok(())
+    }
+
     pub fn restore_from_checkpoint(
         platform: &Platform,
         sealing_path: &str,
@@ -364,6 +378,18 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(file).context("decode state")?;
         Ok(Some(loader.0))
+    }
+
+    pub fn restore_from_checkpoint_reader<R: std::io::Read>(
+        platform: &Platform,
+        sealing_path: &str,
+        reader: R,
+    ) -> anyhow::Result<Self> {
+        let _runtime_data = Self::load_runtime_data(platform, sealing_path)?;
+        // TODO.kevin.must: Decrypt
+        let loader: PhactoryLoader<_> =
+            serde_cbor::de::from_reader(reader).context("decode state")?;
+        Ok(loader.0)
     }
 
     pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
@@ -408,7 +434,6 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                 let state = seq
                     .next_element()?
                     .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
-                benchmark::restore_state(state);
 
                 let mut factory: Self::Value = seq
                     .next_element()?
@@ -430,6 +455,7 @@ impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
                         })
                     })?
                 };
+                benchmark::restore_state(state);
                 Ok(factory)
             }
         }
