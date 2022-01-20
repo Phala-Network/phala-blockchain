@@ -37,6 +37,10 @@ struct Args {
     /// Turn on /kick API
     #[structopt(long)]
     enable_kick_api: bool,
+
+    /// Log filter passed to env_logger
+    #[structopt(long, default_value = "INFO")]
+    log_filter: String,
 }
 
 fn main() {
@@ -45,10 +49,8 @@ fn main() {
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
 
-    env_logger::builder()
-        .filter_level(log::LevelFilter::Info)
-        .parse_default_env()
-        .init();
+    let env = env_logger::Env::default().default_filter_or(&args.log_filter);
+    env_logger::Builder::from_env(env).init();
 
     let executable = env::current_exe().unwrap();
     let path = executable.parent().unwrap();
