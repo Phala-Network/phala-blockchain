@@ -67,25 +67,18 @@ impl ProtectedFileSystem for GraminePlatform {
 
     fn open_protected_file(
         &self,
-        path: impl AsRef<std::path::Path>,
-        key: &[u8],
+        _path: impl AsRef<std::path::Path>,
+        _key: &[u8],
     ) -> Result<Option<Self::ReadFile>, Self::IoError> {
-        // TODO.kevin.must: use protected files
-        match File::open(path) {
-            Ok(file) => Ok(Some(ProtectedFile(file))),
-            Err(err) => match err.kind() {
-                std::io::ErrorKind::NotFound => Ok(None),
-                _ => Err(err),
-            },
-        }
+        unimplemented!()
     }
 
     fn create_protected_file(
         &self,
-        path: impl AsRef<std::path::Path>,
-        key: &[u8],
+        _path: impl AsRef<std::path::Path>,
+        _key: &[u8],
     ) -> Result<Self::WriteFile, Self::IoError> {
-        Ok(ProtectedFile(File::create(path)?))
+        unimplemented!()
     }
 }
 

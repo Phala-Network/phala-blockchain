@@ -2,13 +2,12 @@
 
 mod api_server;
 mod pal_gramine;
-mod runtime;
 mod ra;
+mod runtime;
 
 use std::{env, path, thread};
 
 use log::{error, info};
-use serde::Deserialize;
 use structopt::StructOpt;
 
 use phactory_api::ecall_args::{git_revision, InitArgs};
@@ -26,15 +25,6 @@ struct Args {
 
     #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
-
-    /// Disable checkpoint
-    #[structopt(long)]
-    disable_checkpoint: bool,
-
-    /// Checkpoint interval in seconds, default to 5 minutes
-    #[structopt(long)]
-    #[structopt(default_value = "300")]
-    checkpoint_interval: u64,
 
     /// Directory to store runtime state and checkpoints
     #[structopt(long, default_value = "./data")]
@@ -71,8 +61,8 @@ fn main() {
         version: env!("CARGO_PKG_VERSION").into(),
         git_revision: git_revision(),
         geoip_city_db: args.geoip_city_db,
-        enable_checkpoint: !args.disable_checkpoint,
-        checkpoint_interval: args.checkpoint_interval,
+        enable_checkpoint: false,
+        checkpoint_interval: 0,
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
