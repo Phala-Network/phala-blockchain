@@ -5,4 +5,5 @@
 /pruntime.manifest.sgx
 /pruntime.sig
 /pruntime.token
+/bin
 /data

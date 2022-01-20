@@ -10,6 +10,8 @@ GRAMINE_LOG_LEVEL = error
 BIN_NAME=pruntime
 BIN_FILE=../target/release/${BIN_NAME}
 
+PREFIX ?= bin
+
 .PHONY: all
 all: ${BIN_NAME} ${BIN_NAME}.manifest
 ifeq ($(SGX),1)
@@ -53,8 +55,20 @@ clean:
 .PHONY: distclean
 distclean: clean
 
+.PHONY: install
+install: all
+	mkdir -p ${PREFIX}/data
+	cp ${BIN_NAME} ${PREFIX}/
+	cp Rocket.toml ${PREFIX}/
+ifeq ($(SGX),1)
+	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
+	cp ${BIN_NAME}.sig ${PREFIX}/
+	cp ${BIN_NAME}.token ${PREFIX}/
+else
+	cp ${BIN_NAME}.manifest ${PREFIX}/
+endif
 
-run: all
+run: install
 	rm -rf data
 	mkdir -p data
-	gramine-sgx pruntime --disable-checkpoint
+	gramine-sgx pruntime

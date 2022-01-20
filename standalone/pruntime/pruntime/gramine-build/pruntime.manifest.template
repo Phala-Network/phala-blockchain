@@ -52,6 +52,7 @@ trusted_files = [
 allowed_files = [
   "file:/etc/hosts",
   "file:/etc/resolv.conf",
+  "file:Rocket.toml",
 ]
 
 protected_mrenclave_files = [
