@@ -7,7 +7,7 @@ CFLAGS = -Wall -Wextra
 
 GRAMINE_LOG_LEVEL = error
 
-USE_MUSL ?= 1
+USE_MUSL ?= 0
 
 BIN_NAME = pruntime
 
