@@ -19,9 +19,9 @@ use serde::{
 };
 
 use crate::light_validation::LightValidation;
-use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str;
+use std::{io::Write, marker::PhantomData};
 
 use anyhow::{anyhow, Context as _, Result};
 use core::convert::TryInto;
@@ -329,13 +329,17 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         &mut self,
         writer: W,
     ) -> anyhow::Result<()> {
-        let _key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
+        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
             key.dump_secret_key().to_vec()
         } else {
             return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
         };
-        // TODO.kevin.must: Encrypt it
-        serde_cbor::ser::to_writer(writer, &PhactoryDumper(self)).context("Write checkpoint")?;
+        let key128 = sp_core::blake2_128(&key);
+        let nonce = rand::thread_rng().gen();
+        let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
+        serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
+            .context("Write checkpoint")?;
+        enc_writer.flush().context("Flush encrypted writer")?;
         Ok(())
     }
 
@@ -385,10 +389,11 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         sealing_path: &str,
         reader: R,
     ) -> anyhow::Result<Self> {
-        let _runtime_data = Self::load_runtime_data(platform, sealing_path)?;
-        // TODO.kevin.must: Decrypt
+        let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
+        let key128 = sp_core::blake2_128(&runtime_data.sk);
+        let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         let loader: PhactoryLoader<_> =
-            serde_cbor::de::from_reader(reader).context("decode state")?;
+            serde_cbor::de::from_reader(dec_reader).context("decode state")?;
         Ok(loader.0)
     }
 

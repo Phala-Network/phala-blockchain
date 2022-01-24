@@ -36,7 +36,7 @@ phala-trie-storage = { path = "../phala-trie-storage", default-features = false 
 phala-mq = { path = "../phala-mq" }
 phala-serde-more = { path = "../phala-serde-more" }
 
-phala-crypto = { path = "../phala-crypto", features = ["getrandom"] }
+phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
 prpc = { path = "../prpc" }
 pink = { path = "../pink" }
 
