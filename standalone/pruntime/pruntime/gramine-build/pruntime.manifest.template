@@ -34,7 +34,7 @@ uri = "file:/etc"
 
 
 [sgx]
-debug = true
+debug = false
 nonpie_binary = true
 enclave_size = "1G"
 thread_num = 32
