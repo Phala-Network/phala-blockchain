@@ -891,7 +891,7 @@ impl<Platform: pal::Platform> System<Platform> {
         let contract_key = ContractKey(keypair);
         let contract_pubkey = contract_key.public();
         let contract_info = event.contract_info;
-        let cluster_id = chain::Hash::from_low_u64_be(contract_info.cluster_id);
+        let cluster_id = contract_info.cluster_id;
 
         match contract_info.code_index {
             CodeIndex::NativeCode(contract_id) => {

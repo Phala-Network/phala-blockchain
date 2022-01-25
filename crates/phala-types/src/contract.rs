@@ -4,7 +4,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-pub use phala_mq::ContractId;
+pub use phala_mq::{ContractClusterId, ContractId};
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;
@@ -38,8 +38,8 @@ pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
 
-    use super::ContractInfo;
-    use crate::{messaging::ContractClusterId, WorkerIdentity};
+    use super::{ContractClusterId, ContractInfo};
+    use crate::WorkerIdentity;
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
@@ -81,8 +81,7 @@ pub struct ContractInfo<CodeHash, AccountId> {
     pub deployer: AccountId,
     pub code_index: CodeIndex<CodeHash>,
     pub salt: Vec<u8>,
-    /// Contract cluster counter of the contract
-    pub cluster_id: u64,
+    pub cluster_id: ContractClusterId,
     pub instantiate_data: Vec<u8>,
 }
 

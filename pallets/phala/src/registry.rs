@@ -24,11 +24,10 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractId, ContractInfo},
+		contract::{CodeIndex, ContractClusterId, ContractId, ContractInfo},
 		messaging::{
-			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
-			WorkerEvent,
+			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
+			SignedMessage, SystemEvent, WorkerContractReport, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
 		WorkerRegistrationInfo,
@@ -106,7 +105,7 @@ pub mod pallet {
 	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
-	pub type ContractCluster<T> = StorageMap<_, Twox64Concat, u64, Vec<ContractId>>;
+	pub type ContractClusters<T> = StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>>;
 
 	#[pallet::storage]
 	pub type Contracts<T: Config> =
@@ -408,7 +407,7 @@ pub mod pallet {
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
-			cluster: Option<u64>,
+			cluster: Option<ContractClusterId>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
@@ -436,17 +435,20 @@ pub mod pallet {
 			let cluster_id = match cluster {
 				Some(cluster_id) => {
 					ensure!(
-						ContractCluster::<T>::contains_key(cluster_id),
+						ContractClusters::<T>::contains_key(cluster_id),
 						Error::<T>::ContractClusterNotFound
 					);
 					cluster_id
 				}
-				None => ContractClusterCounter::<T>::mutate(|counter| {
-					*counter += 1;
-					*counter
-				}),
+				None => {
+					let counter = ContractClusterCounter::<T>::mutate(|counter| {
+						*counter += 1;
+						*counter
+					});
+					ContractClusterId::from_low_u64_be(counter)
+				}
 			};
-			// we send hash instead of raw code here to reduce message size
+			// we send code index instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
 				code_index,
@@ -652,13 +654,13 @@ pub mod pallet {
 					);
 
 					let mut cluster =
-						ContractCluster::<T>::try_get(info.cluster_id).unwrap_or(vec![]);
+						ContractClusters::<T>::try_get(info.cluster_id).unwrap_or(vec![]);
 					ensure!(
 						!cluster.contains(&contract_id),
 						Error::<T>::DuplicatedDeployment
 					);
 					cluster.push(contract_id);
-					ContractCluster::<T>::insert(&info.cluster_id, cluster);
+					ContractClusters::<T>::insert(&info.cluster_id, cluster);
 					Contracts::<T>::insert(&contract_id, &info);
 					Self::deposit_event(Event::ContractInstantiated(info, pubkey));
 				}
