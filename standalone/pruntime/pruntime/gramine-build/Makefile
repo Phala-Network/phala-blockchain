@@ -19,7 +19,7 @@ BIN_FILE = ../target/release/${BIN_NAME}
 CARGO_ARGS =
 endif
 
-PREFIX ?= bin
+PREFIX ?= ../../bin
 PRUNTIME_SEAL_DIR ?= data
 
 .PHONY: all
@@ -75,9 +75,8 @@ ifeq ($(SGX),1)
 	cp ${BIN_NAME}.manifest.sgx ${PREFIX}/
 	cp ${BIN_NAME}.sig ${PREFIX}/
 	cp ${BIN_NAME}.token ${PREFIX}/
-else
-	cp ${BIN_NAME}.manifest ${PREFIX}/
 endif
+	cp ${BIN_NAME}.manifest ${PREFIX}/
 
 run: all
 	rm -rf data
