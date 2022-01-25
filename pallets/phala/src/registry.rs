@@ -45,6 +45,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum ContractRegistryEvent<CodeHash, AccountId> {
 		PubkeyAvailable {
+			contract_id: ContractId,
 			info: ContractInfo<CodeHash, AccountId>,
 			pubkey: ContractPublicKey,
 		},
@@ -640,8 +641,11 @@ pub mod pallet {
 				Error::<T>::InvalidSender
 			);
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { info, pubkey } => {
-					let contract_id = info.contract_id();
+				ContractRegistryEvent::PubkeyAvailable {
+					contract_id,
+					info,
+					pubkey,
+				} => {
 					ensure!(
 						!Contracts::<T>::contains_key(contract_id),
 						Error::<T>::DuplicatedContractPubkey

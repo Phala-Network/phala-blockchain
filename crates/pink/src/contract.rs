@@ -1,5 +1,6 @@
 use pallet_contracts_primitives::StorageDeposit;
 use scale::{Decode, Encode};
+use sp_core::hashing;
 use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
@@ -22,6 +23,17 @@ pub struct ExecError {
 #[derive(Debug, Default, Encode, Decode)]
 struct HookSelectors {
     on_block_end: Option<u32>,
+}
+
+pub fn contract_address(deployer_address: &AccountId, code_hash: &[u8], salt: &[u8]) -> AccountId {
+    let deployer_address: &[u8] = deployer_address.as_ref();
+    let buf: Vec<_> = deployer_address
+        .iter()
+        .chain(code_hash)
+        .chain(salt)
+        .cloned()
+        .collect();
+    AccountId::new(hashing::blake2_256(&buf))
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -91,7 +103,7 @@ impl Contract {
                 }
                 Ok(_) => (),
             }
-            Ok(Contracts::contract_address(&origin, &code_hash, &salt))
+            Ok(contract_address(&origin, code_hash.as_ref(), salt.as_ref()))
         });
         Ok((Self::from_address(address?), effects))
     }

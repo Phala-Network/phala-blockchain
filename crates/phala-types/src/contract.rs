@@ -25,12 +25,21 @@ pub enum CodeIndex<CodeHash> {
     WasmCode(CodeHash),
 }
 
+impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
+    pub fn code_hash(&self) -> Vec<u8> {
+        match self {
+            CodeIndex::NativeCode(contract_id) => contract_id.to_be_bytes().to_vec(),
+            CodeIndex::WasmCode(code_hash) => code_hash.as_ref().to_vec(),
+        }
+    }
+}
+
 pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
 
     use super::ContractInfo;
-    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerIdentity, WorkerPublicKey};
+    use crate::{messaging::ContractClusterId, WorkerIdentity};
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
@@ -75,13 +84,6 @@ pub struct ContractInfo<CodeHash, AccountId> {
     /// Contract cluster counter of the contract
     pub cluster_id: u64,
     pub instantiate_data: Vec<u8>,
-}
-
-impl<CodeHash, AccountId> ContractInfo<CodeHash, AccountId> {
-    pub fn contract_id(&self) -> ContractId {
-        // TODO.shelven: calculate the real contract id
-        id256(0)
-    }
 }
 
 /// Contract query request parameters, to be encrypted.

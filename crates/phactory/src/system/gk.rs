@@ -9,7 +9,7 @@ use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
     contract::messaging::ContractEvent,
-    contract::ContractId,
+    contract::{ContractId, ContractInfo},
     messaging::{
         ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
@@ -19,9 +19,9 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use sp_application_crypto::Pair;
-use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
+use sp_core::{hashing, sr25519};
 
-use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
+use crate::{contracts::pink::Pink, secret_channel::SecretMessageChannel, types::BlockInfo};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -62,6 +62,15 @@ fn get_contract_key(master_key: &sr25519::Pair, contract_id: &ContractId) -> sr2
     master_key
         .derive_sr25519_pair(&[b"contract_key", contract_id.as_bytes()])
         .expect("should not fail with valid info")
+}
+
+fn contract_id(contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> ContractId {
+    let contract_address = pink::contract_address(
+        &contract_info.deployer,
+        contract_info.code_index.code_hash().as_ref(),
+        contract_info.salt.as_ref(),
+    );
+    Pink::address_to_id(&contract_address)
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -271,9 +280,11 @@ where
                 }
 
                 // first, update the on-chain ContractPubkey
-                let contract_key = get_contract_key(&self.master_key, &contract_info.contract_id());
+                let contract_id = contract_id(&contract_info);
+                let contract_key = get_contract_key(&self.master_key, &contract_id);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
+                        contract_id: contract_id.clone(),
                         pubkey: contract_key.public(),
                         info: contract_info.clone(),
                     });
@@ -296,7 +307,7 @@ where
                 }
                 self.egress.push_message(
                     &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
-                        contract_id: contract_info.contract_id(),
+                        contract_id,
                         worker_pubkeys: deploy_workers.into_iter().map(|w| w.pubkey).collect(),
                     },
                 );
