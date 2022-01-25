@@ -37,6 +37,14 @@ struct Args {
     /// Log filter passed to env_logger
     #[structopt(long, default_value = "INFO")]
     log_filter: String,
+
+    /// Listening IP address of HTTP
+    #[structopt(long)]
+    address: Option<String>,
+
+    /// Listening port of HTTP
+    #[structopt(long)]
+    port: Option<String>,
 }
 
 fn main() {
@@ -51,6 +59,14 @@ fn main() {
 
     env::set_var("RUST_BACKTRACE", "1");
     env::set_var("ROCKET_ENV", "dev");
+
+    if let Some(address) = &args.address {
+        env::set_var("ROCKET_ADDRESS", address);
+    }
+
+    if let Some(port) = &args.port {
+        env::set_var("ROCKET_PORT", port);
+    }
 
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
     env_logger::Builder::from_env(env).init();
