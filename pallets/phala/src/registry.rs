@@ -188,6 +188,7 @@ pub mod pallet {
 		ContractClusterNotFound,
 		DuplicatedContractPubkey,
 		DuplicatedDeployment,
+		NoWorkerSpecified,
 	}
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
@@ -421,6 +422,8 @@ pub mod pallet {
 					);
 				}
 			}
+
+			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
 
 			let mut workers = Vec::new();
 			for worker in deploy_workers.into_iter() {
