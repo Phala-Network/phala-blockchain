@@ -16,7 +16,7 @@ const { checkUntil, skipSlowTest } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
-const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
+const pathPRuntime = path.resolve('../standalone/pruntime/bin/pruntime');
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -198,7 +198,7 @@ describe('A full stack', function () {
                 'worker1 restart timeout'
             );
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/data/master_key.seal`),
                 'master key not received'
             );
         });
@@ -478,7 +478,7 @@ class Cluster {
         await Promise.all([
             this.processNode.kill(),
             ...this.workers.map(w => [
-                w.processPRuntime.kill(),
+                w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
             ]).flat()
         ]);
@@ -581,9 +581,11 @@ function newNode(wsPort, tmpPath, name = 'node') {
 
 function newPRuntime(teePort, tmpPath, name = 'pruntime') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
+    const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
-        const filesMustCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
+        fs.mkdirSync(sealDir);
+        const filesMustCopy = ['Rocket.toml', 'pruntime', 'pruntime.manifest'];
         const filesShouldCopy = ['GeoLite2-City.mmdb']
         filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
@@ -595,15 +597,12 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
         });
     }
     return new Process([
-        `${workDir}/app`, [
+        `gramine-direct`, [
+            'pruntime',
             '--cores=0',	// Disable benchmark
-            '--checkpoint-interval=0',	// Save checkpoint at each block
+            '--port', teePort.toString()
         ], {
             cwd: workDir,
-            env: {
-                ...process.env,
-                ROCKET_PORT: teePort.toString(),
-            }
         }
     ], { logPath: `${tmpPath}/${name}.log` });
 }
