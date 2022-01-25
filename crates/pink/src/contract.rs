@@ -7,7 +7,7 @@ use sp_runtime::DispatchError;
 use crate::{
     runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hashing, GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -86,7 +86,7 @@ impl Contract {
 
             let result = Contracts::bare_instantiate(
                 origin.clone(),
-                ENOUGH,
+                0,
                 GAS_LIMIT,
                 None,
                 pallet_contracts_primitives::Code::Upload(code.into()),
