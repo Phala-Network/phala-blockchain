@@ -13,8 +13,7 @@ curve25519-dalek = { version = "2.0", default-features = false }
 schnorrkel = { version = "0.9.1", default-features = false, features = ["preaudit_deprecated", "u64_backend"] }
 aead = { version = "0.4.3", default-features = false, optional = true }
 typenum = { version = "1.14.0", default-features = false, optional = true }
-# TODO.kevin: use upsteam version when https://github.com/RiddleAndCode/aead-io/pull/2 merged
-aead-io = { git = "https://github.com/Phala-Network/aead-io", optional = true }
+aead-io = { version = "0.1.2", optional = true }
 
 [dev-dependencies]
 rand = "0.7.3"
