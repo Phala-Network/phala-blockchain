@@ -1,6 +1,5 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_registry::ContractRegistryEvent;
-use parity_scale_codec::Encode;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -234,7 +233,12 @@ where
                     self.process_gatekeeper_event(origin, event);
                 },
                 (event, origin) = self.contract_events => {
-                    self.process_contract_event(origin, event);
+                    if let Err(err) = self.process_contract_event(origin, event) {
+                        error!(
+                            "Failed to process contract event: {:?}",
+                            err
+                        );
+                    };
                 },
             };
             if ok.is_none() {

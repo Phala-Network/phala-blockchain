@@ -84,7 +84,6 @@ pub enum TransactionError {
     TransferringNotAllowed,
     // for contract
     CodeNotFound,
-    FailedToExecute,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -785,7 +784,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                self.process_master_key_distribution(origin, dispatch_master_key_event);
+                if let Err(err) =
+                    self.process_master_key_distribution(origin, dispatch_master_key_event)
+                {
+                    error!("Failed to process master key distribution event: {:?}", err);
+                };
             }
         }
     }
@@ -993,8 +996,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         block.block_number,
                         block.now_ms,
                     )
-                    .with_context(|| format!("Contract deployer: {:?}", deployer))
-                    .map_err(|_| TransactionError::FailedToExecute)?;
+                    .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 
                 let cluster = self
                     .contract_clusters
