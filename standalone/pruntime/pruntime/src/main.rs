@@ -84,6 +84,7 @@ fn main() {
         geoip_city_db: args.geoip_city_db,
         enable_checkpoint: false,
         checkpoint_interval: 0,
+        skip_corrupted_checkpoint: false,
     };
     info!("init_args: {:#?}", init_args);
     if let Err(err) = runtime::ecall_init(init_args) {
