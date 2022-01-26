@@ -183,7 +183,7 @@ pub mod pallet {
 		// Contract related
 		CodeNotFound,
 		ContractClusterNotFound,
-		DuplicatedContractPubkey,
+		DuplicatedContract,
 		DuplicatedDeployment,
 		NoWorkerSpecified,
 	}
@@ -448,6 +448,34 @@ pub mod pallet {
 					ContractClusterId::from_low_u64_be(counter)
 				}
 			};
+
+			// keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
+			fn get_contract_id(
+				deployer: &[u8],
+				code_hash: &[u8],
+				cluster_id: &[u8],
+				salt: &[u8],
+			) -> ContractId {
+				let buf: Vec<_> = deployer
+					.iter()
+					.chain(code_hash)
+					.chain(cluster_id)
+					.chain(salt)
+					.cloned()
+					.collect();
+				crate::hashing::blake2_256(&buf).into()
+			}
+
+			let contract_id = get_contract_id(
+				deployer.encode().as_ref(),
+				code_index.code_hash().as_ref(),
+				cluster_id.as_ref(),
+				salt.as_ref(),
+			);
+			ensure!(
+				!Contracts::<T>::contains_key(contract_id),
+				Error::<T>::DuplicatedContract
+			);
 			// we send code index instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
@@ -456,6 +484,7 @@ pub mod pallet {
 				cluster_id,
 				instantiate_data: data,
 			};
+			Contracts::<T>::insert(&contract_id, &contract_info);
 			Self::push_message(ContractEvent::instantiate_code(contract_info, workers));
 
 			Ok(())
@@ -648,11 +677,6 @@ pub mod pallet {
 					info,
 					pubkey,
 				} => {
-					ensure!(
-						!Contracts::<T>::contains_key(contract_id),
-						Error::<T>::DuplicatedContractPubkey
-					);
-
 					let mut cluster =
 						ContractClusters::<T>::try_get(info.cluster_id).unwrap_or(vec![]);
 					ensure!(
@@ -661,7 +685,6 @@ pub mod pallet {
 					);
 					cluster.push(contract_id);
 					ContractClusters::<T>::insert(&info.cluster_id, cluster);
-					Contracts::<T>::insert(&contract_id, &info);
 					Self::deposit_event(Event::ContractInstantiated(info, pubkey));
 				}
 			}
