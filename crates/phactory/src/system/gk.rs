@@ -309,12 +309,6 @@ where
                             0,
                         ));
                 }
-                self.egress.push_message(
-                    &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
-                        contract_id,
-                        worker_pubkeys: deploy_workers.into_iter().map(|w| w.pubkey).collect(),
-                    },
-                );
             }
         }
         Ok(())

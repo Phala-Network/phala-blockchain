@@ -48,10 +48,6 @@ pub mod pallet {
 			info: ContractInfo<CodeHash, AccountId>,
 			pubkey: ContractPublicKey,
 		},
-		ContractDeployed {
-			contract_id: ContractId,
-			worker_pubkeys: Vec<WorkerPublicKey>,
-		},
 	}
 
 	#[pallet::config]
@@ -116,7 +112,7 @@ pub mod pallet {
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKey<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
+	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
@@ -552,7 +548,7 @@ pub mod pallet {
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {
-					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
+					pubkey_copy = ContractKeys::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy
 				}
 				MessageOrigin::Gatekeeper => {
@@ -667,12 +663,6 @@ pub mod pallet {
 					Contracts::<T>::insert(&contract_id, &info);
 					Self::deposit_event(Event::ContractInstantiated(info, pubkey));
 				}
-				ContractRegistryEvent::ContractDeployed {
-					contract_id,
-					worker_pubkeys,
-				} => {
-					ContractWorkers::<T>::insert(&contract_id, &worker_pubkeys);
-				}
 			}
 			Ok(())
 		}
@@ -680,10 +670,10 @@ pub mod pallet {
 		pub fn on_worker_contract_message_received(
 			message: DecodedMessage<WorkerContractReport>,
 		) -> DispatchResult {
-			match &message.sender {
-				MessageOrigin::Worker(_) => (),
+			let worker_pubkey = match &message.sender {
+				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
 				_ => return Err(Error::<T>::InvalidSender.into()),
-			}
+			};
 			match message.payload {
 				WorkerContractReport::ContractInstantiated {
 					id,
@@ -691,7 +681,12 @@ pub mod pallet {
 					deployer: _,
 					pubkey,
 				} => {
-					ContractKey::<T>::insert(id, pubkey);
+					ContractKeys::<T>::insert(id, pubkey);
+					let mut workers = ContractWorkers::<T>::try_get(id).unwrap_or(vec![]);
+					if !workers.contains(worker_pubkey) {
+						workers.push(worker_pubkey.clone());
+						ContractWorkers::<T>::insert(&id, workers);
+					}
 				}
 			}
 			Ok(())
