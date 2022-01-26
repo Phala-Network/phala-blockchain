@@ -25,11 +25,17 @@ struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-pub fn contract_address(deployer_address: &AccountId, code_hash: &[u8], salt: &[u8]) -> AccountId {
-    let deployer_address: &[u8] = deployer_address.as_ref();
-    let buf: Vec<_> = deployer_address
+pub fn contract_address(
+    deployer: &AccountId,
+    code_hash: &[u8],
+    cluster_id: &[u8],
+    salt: &[u8],
+) -> AccountId {
+    let deployer: &[u8] = deployer.as_ref();
+    let buf: Vec<_> = deployer
         .iter()
         .chain(code_hash)
+        .chain(cluster_id)
         .chain(salt)
         .cloned()
         .collect();
@@ -67,6 +73,7 @@ impl Contract {
         origin: AccountId,
         code: Vec<u8>,
         input_data: Vec<u8>,
+        cluster_id: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
@@ -103,7 +110,12 @@ impl Contract {
                 }
                 Ok(_) => (),
             }
-            Ok(contract_address(&origin, code_hash.as_ref(), salt.as_ref()))
+            Ok(contract_address(
+                &origin,
+                code_hash.as_ref(),
+                cluster_id.as_ref(),
+                salt.as_ref(),
+            ))
         });
         Ok((Self::from_address(address?), effects))
     }
@@ -114,6 +126,7 @@ impl Contract {
         code: Vec<u8>,
         selector: [u8; 4],
         args: impl Encode,
+        cluster_id: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
@@ -121,7 +134,16 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(storage, origin, code, input_data, salt, block_number, now)
+        Self::new(
+            storage,
+            origin,
+            code,
+            input_data,
+            cluster_id,
+            salt,
+            block_number,
+            now,
+        )
     }
 
     /// Call a contract method

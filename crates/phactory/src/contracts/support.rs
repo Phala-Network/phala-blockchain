@@ -91,15 +91,8 @@ pub struct NativeContractWrapper<Con> {
 }
 
 impl<Con> NativeContractWrapper<Con> {
-    pub fn new(
-        inner: Con,
-        cluster_id: &phala_mq::ContractClusterId,
-        deployer: sp_core::H256,
-        salt: &[u8],
-        id: u32,
-    ) -> Self {
-        let encoded = (deployer, id, cluster_id, salt).encode();
-        let id = sp_core::blake2_256(&encoded).into();
+    pub fn new(inner: Con, contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> Self {
+        let id = get_contract_id(contract_info);
         NativeContractWrapper { inner, id }
     }
 }

@@ -165,7 +165,7 @@ mod tests {
                 vec![],
             )
             .unwrap();
-            let addr = contract_address(&ALICE, code_hash.as_ref(), &[]);
+            let addr = contract_address(&ALICE, code_hash.as_ref(), &[], &[]);
 
             Contracts::call(
                 Origin::signed(ALICE),
@@ -204,7 +204,7 @@ mod tests {
                 vec![],
             )
             .is_ok());
-            let addr = contract_address(&ALICE, code_hash.as_ref(), &[]);
+            let addr = contract_address(&ALICE, code_hash.as_ref(), &[], &[]);
             // Perform the call.
             let input = b"_DEAD_BEEF";
             use sp_io::hashing::*;

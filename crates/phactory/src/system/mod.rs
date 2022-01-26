@@ -411,7 +411,7 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_clusters: ClusterKeeper,
-    contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
+    contract_keys: BTreeMap<ContractId, ContractKey>,
 
     // Cached for query
     block_number: BlockNumber,
@@ -892,15 +892,14 @@ impl<Platform: pal::Platform> System<Platform> {
         // TODO(shelven): forget contract key after expiration time
         let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
         let contract_key = ContractKey(keypair);
-        let contract_pubkey = contract_key.public();
         let contract_info = event.contract_info;
         let cluster_id = contract_info.cluster_id;
 
         match contract_info.code_index {
             CodeIndex::NativeCode(contract_id) => {
                 use contracts::*;
-                let salt = contract_info.salt;
-                let deployer = phala_types::messaging::AccountId(contract_info.deployer.into());
+                let deployer =
+                    phala_types::messaging::AccountId(contract_info.clone().deployer.into());
                 let ecdh_key = contract_key
                     .0
                     .derive_ecdh_key()
@@ -913,10 +912,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 $id => {
                                     let contract = NativeContractWrapper::new(
                                         $contract,
-                                        &cluster_id,
-                                        deployer,
-                                        &salt,
-                                        $id,
+                                        &contract_info
                                     );
                                     install_contract(
                                         &mut self.contracts,
@@ -975,13 +971,13 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Err(TransactionError::CodeNotFound.into());
                 }
 
-                if self.contract_keys.contains_key(&contract_pubkey) {
-                    info!("Deployed contract 0x{}", hex::encode(&contract_pubkey));
+                let contract_id = contracts::get_contract_id(&contract_info);
+                if self.contract_keys.contains_key(&contract_id) {
+                    info!("Deployed contract 0x{}", hex::encode(&contract_id));
                     return Ok(());
                 }
 
-                self.contract_keys
-                    .insert(contract_pubkey, contract_key.clone());
+                self.contract_keys.insert(contract_id, contract_key.clone());
                 let code = code.expect("checked; qed.");
                 let deployer = contract_info.deployer;
                 let effects = self
@@ -1123,7 +1119,7 @@ pub fn apply_pink_side_effects(
     }
 
     for (address, event) in effects.pink_events {
-        let id = Pink::address_to_id(&address);
+        let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
             None => {
