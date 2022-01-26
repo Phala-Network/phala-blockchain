@@ -23,9 +23,9 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract;
+    use crate::contract::ContractInfo;
     pub use phala_mq::types::*;
-    pub use phala_mq::{bind_contract32, bind_topic};
+    pub use phala_mq::bind_topic;
 
     // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug, TypeInfo)]
@@ -77,7 +77,6 @@ pub mod messaging {
         },
     }
 
-    bind_contract32!(LotteryCommand, contract::BTC_LOTTERY);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum LotteryCommand {
         UserCommand(LotteryUserCommand),
@@ -106,7 +105,6 @@ pub mod messaging {
 
     // Messages for Balances
 
-    bind_contract32!(BalancesCommand<AccountId, Balance>, contract::BALANCES);
     #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
     pub enum BalancesCommand<AccountId, Balance> {
         Transfer { dest: AccountId, value: Balance },
@@ -133,7 +131,6 @@ pub mod messaging {
 
     // Messages for Assets
 
-    bind_contract32!(AssetCommand<AccountId, Balance>, contract::ASSETS);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum AssetCommand<AccountId, Balance> {
         Issue {
@@ -155,7 +152,6 @@ pub mod messaging {
 
     // Messages for Web3Analytics
 
-    bind_contract32!(Web3AnalyticsCommand, contract::WEB3_ANALYTICS);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum Web3AnalyticsCommand {
         SetConfiguration { skip_stat: bool },
@@ -163,7 +159,6 @@ pub mod messaging {
 
     // Messages for diem
 
-    bind_contract32!(DiemCommand, contract::DIEM);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum DiemCommand {
         /// Sets the whitelisted accounts, in bcs encoded base64
@@ -197,7 +192,6 @@ pub mod messaging {
 
     // Messages for Kitties
 
-    bind_contract32!(KittiesCommand<AccountId, Hash>, contract::SUBSTRATE_KITTIES);
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum KittiesCommand<AccountId, Hash> {
         /// Pack the kitties into the corresponding blind boxes
@@ -225,7 +219,6 @@ pub mod messaging {
         pub region_name: String,
     }
 
-    bind_contract32!(GeolocationCommand, contract::GEOLOCATION);
     #[derive(Debug, Clone, Encode, Decode, TypeInfo)]
     pub enum GeolocationCommand {
         UpdateGeolocation { geocoding: Option<Geocoding> },
@@ -235,6 +228,28 @@ pub mod messaging {
         pub fn update_geolocation(geocoding: Option<Geocoding>) -> Self {
             Self::UpdateGeolocation { geocoding }
         }
+    }
+
+    // Bind on-chain GuessNumberCommand message to the GUESS_NUMBER contract
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum GuessNumberCommand {
+        /// Refresh the random number
+        NextRandom,
+        /// Set the contract owner
+        SetOwner { owner: AccountId },
+    }
+
+    #[derive(Debug, Clone, Encode, Decode)]
+    pub enum BtcPriceBotCommand {
+        /// Set the contract owner
+        SetOwner { owner: AccountId },
+        /// Set the authentication token of telegram bot (https://core.telegram.org/bots/api#authorizing-your-bot) and
+        /// the identifier to target chat (https://core.telegram.org/bots/api#sendmessage)
+        SetupBot { token: String, chat_id: String },
+        /// Let the Tg bot to report the current BTC price
+        ReportBtcPrice,
+        /// Update the price stored inside the contract.
+        UpdateBtcPrice { price: String },
     }
 
     /// A fixed point number with 64 integer bits and 64 fractional bits.
@@ -449,7 +464,29 @@ pub mod messaging {
         }
     }
 
+    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
+    }
+
+    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+        pub fn contract_key_distribution(
+            secret_key: Sr25519SecretKey,
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            expiration: BlockNumber,
+        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
+            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
+                secret_key,
+                contract_info,
+                expiration,
+            })
+        }
+    }
+
     type AeadIV = [u8; 12];
+    type Sr25519SecretKey = [u8; 64];
+
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
         /// The target to dispatch master key
@@ -460,6 +497,13 @@ pub mod messaging {
         pub encrypted_master_key: Vec<u8>,
         /// Aead IV
         pub iv: AeadIV,
+    }
+
+    #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
+    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
+        pub secret_key: Sr25519SecretKey,
+        pub contract_info: ContractInfo<CodeHash, AccountId>,
+        pub expiration: BlockNumber,
     }
 
     // Messages: Gatekeeper
@@ -518,13 +562,13 @@ pub mod messaging {
 
     // Pink messages
 
-    bind_topic!(WorkerPinkReport, b"phala/pink/worker/report");
+    bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
-    pub enum WorkerPinkReport {
-        PinkInstantiated {
+    pub enum WorkerContractReport {
+        ContractInstantiated {
             id: ContractId,
-            group_id: ContractGroupId,
-            owner: AccountId,
+            cluster_id: ContractClusterId,
+            deployer: AccountId,
             pubkey: EcdhPublicKey,
         },
     }
@@ -583,12 +627,11 @@ pub struct Score {
 }
 
 type MachineId = Vec<u8>;
-pub use sp_core::sr25519::Signature as Sr25519Signature;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub use sp_core::sr25519::Public as ContractPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
-
+pub use sp_core::sr25519::Signature as Sr25519Signature;
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {

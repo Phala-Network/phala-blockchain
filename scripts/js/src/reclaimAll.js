@@ -5,8 +5,6 @@ const BN = require('bn.js');
 
 const { loadJson, writeJson } = require('../src/utils/common');
 
-const typedefs = require('@phala/typedefs').khalaDev;
-
 function chunk(arr, chunkSize) {
     if (chunkSize <= 0) throw "Invalid chunk size";
     var R = [];
@@ -17,7 +15,7 @@ function chunk(arr, chunkSize) {
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     const reconciling = loadJson('./tmp/issue500Reconciling.json');
     const minerPreimages = reconciling.preimage;
@@ -45,12 +43,7 @@ async function main() {
         .map(([miner, _]) => [miner, minerPreimages[miner].pid, minerPreimages[miner].worker]);
     console.log(`Found ${minerToReclaim.length} miners with preimage to claim`);
 
-    const knownBadPools = [726, 386];
-    const minerToReclaimSkipBadOnes = minerToReclaim
-        .filter(x => !knownBadPools.includes(x[1]));
-    console.log(`After applied post filter: ${minerToReclaimSkipBadOnes.length}`);
-
-    const reclaimChunks = chunk(minerToReclaimSkipBadOnes, 100);
+    const reclaimChunks = chunk(minerToReclaim, 100);
     const txs = reclaimChunks.map(reclaim =>
         api.tx.utility.batchAll(
             reclaim.map(([_miner, pid, worker]) =>
@@ -68,7 +61,7 @@ async function main() {
             ready: info.coolDownStart.lte(latestCoolDown),
             preimage: minerPreimages[miner],
         })),
-        reclaim: minerToReclaimSkipBadOnes,
+        reclaim: minerToReclaim,
         txs,
     });
 }

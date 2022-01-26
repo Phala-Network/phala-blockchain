@@ -11,33 +11,37 @@ pub type Path = Vec<u8>;
 pub type SenderId = MessageOrigin;
 pub use sp_core::H256 as ContractId;
 pub use sp_core::H256 as AccountId;
-pub use sp_core::H256 as ContractGroupId;
+pub use sp_core::H256 as ContractClusterId;
 
 use crate::MessageSigner;
-
-pub fn contract_id256(id: u32) -> ContractId {
-    ContractId::from_low_u64_be(id as u64)
-}
+use serde::{Serialize, Deserialize};
+use phala_serde_more as more;
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
 // [Reference](https://github.com/paritytech/xcm-format#multilocation-universal-destination-identifiers)
 #[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialOrd, Ord, Display)]
+#[derive(Serialize, Deserialize)]
 pub enum MessageOrigin {
     /// Runtime pallets (identified by pallet name)
     #[display(fmt = "Pallet(\"{}\")", "String::from_utf8_lossy(_0)")]
+    #[serde(with = "more::scale_bytes")]
     Pallet(Vec<u8>),
     /// A confidential contract
     #[display(fmt = "Contract({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_bytes")]
     Contract(ContractId),
     /// A pRuntime worker
     #[display(fmt = "Worker({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_bytes")]
     Worker(sp_core::sr25519::Public),
     /// A user
     #[display(fmt = "AccountId({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_bytes")]
     AccountId(AccountId),
     /// A remote location (parachain, etc.)
     #[display(fmt = "MultiLocation({})", "hex::encode(_0)")]
+    #[serde(with = "more::scale_bytes")]
     MultiLocation(Vec<u8>),
     /// All gatekeepers share the same origin
     Gatekeeper,
@@ -61,11 +65,6 @@ impl PartialEq for MessageOrigin {
 }
 
 impl MessageOrigin {
-    /// Builds a new native confidential contract `MessageOrigin`
-    pub fn native_contract(id: u32) -> Self {
-        Self::Contract(contract_id256(id))
-    }
-
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
         matches!(self, Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper)
@@ -120,8 +119,8 @@ pub struct BadOrigin;
 ///    assert!(a_normal_topic.is_offchain());
 /// ```
 ///
-#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash)]
-pub struct Topic(Path);
+#[derive(Encode, Decode, TypeInfo, Clone, Eq, PartialEq, Hash, Serialize, Deserialize)]
+pub struct Topic(#[serde(with = "more::scale_bytes")] Path);
 
 impl core::fmt::Debug for Topic {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
@@ -202,25 +201,7 @@ macro_rules! bind_topic {
     }
 }
 
-#[macro_export]
-macro_rules! bind_contract32 {
-    ($t: ident, $id: expr) => {
-        impl $crate::types::ContractCommand for $t {
-            fn contract_id() -> $crate::types::ContractId {
-                $crate::types::contract_id256($id)
-            }
-        }
-    };
-    ($t: ident<$($gt: ident),+>, $id: expr) => {
-        impl<$($gt),+> $crate::types::ContractCommand for $t<$($gt),+> {
-            fn contract_id() -> $crate::types::ContractId  {
-                $crate::types::contract_id256($id)
-            }
-        }
-    }
-}
-
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Message {
     pub sender: SenderId,
     pub destination: Topic,
@@ -260,7 +241,7 @@ pub struct DecodedMessage<T> {
     pub payload: T,
 }
 
-#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq)]
+#[derive(Encode, Decode, TypeInfo, Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedMessage {
     pub message: Message,
     pub sequence: u64,
@@ -289,7 +270,7 @@ impl<'a> MessageToBeSigned<'a> {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone)]
+#[derive(Encode, Decode, Debug, Clone, Serialize, Deserialize)]
 pub struct SigningMessage<Signer> {
     pub message: Message,
     pub signer: Signer,

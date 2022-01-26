@@ -3,7 +3,6 @@
 require('dotenv').config();
 
 const { ApiPromise, WsProvider } = require('@polkadot/api');
-const phala_typedefs = require('@phala/typedefs').phalaDev;
 
 const getTransferEvents = async (api, blockHash) => {
     return (await api.query.chainBridge.bridgeEvents.at(blockHash)).toJSON();

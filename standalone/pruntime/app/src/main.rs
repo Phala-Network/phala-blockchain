@@ -74,12 +74,21 @@ struct Args {
     #[structopt(long)]
     init_bench: bool,
 
-    /// Enable geolocaltion report
-    #[structopt(long)]
-    enable_geoprobing: bool,
-
     #[structopt(long, default_value = "./GeoLite2-City.mmdb")]
     geoip_city_db: String,
+
+    /// Disable checkpoint
+    #[structopt(long)]
+    disable_checkpoint: bool,
+
+    /// Checkpoint interval in seconds, default to 5 minutes
+    #[structopt(long)]
+    #[structopt(default_value = "300")]
+    checkpoint_interval: u64,
+
+    /// Skip corrupted checkpoint, and start to sync blocks from the beginning.
+    #[structopt(long)]
+    skip_corrupted_checkpoint: bool,
 }
 
 static ENCLAVE_FILE: &'static str = "enclave.signed.so";
@@ -640,14 +649,16 @@ fn main() {
         init_bench: args.init_bench,
         version: env!("CARGO_PKG_VERSION").into(),
         git_revision: git_revision(),
-        enable_geoprobing: args.enable_geoprobing,
         geoip_city_db: args.geoip_city_db,
+        enable_checkpoint: !args.disable_checkpoint,
+        checkpoint_interval: args.checkpoint_interval,
+        skip_corrupted_checkpoint: args.skip_corrupted_checkpoint,
     };
     info!("init_args: {:#?}", init_args);
     let encoded_args = init_args.encode();
     let result = unsafe { ecall_init(eid, &mut retval, encoded_args.as_ptr(), encoded_args.len()) };
 
-    if result != sgx_status_t::SGX_SUCCESS {
+    if result != sgx_status_t::SGX_SUCCESS || retval != sgx_status_t::SGX_SUCCESS {
         panic!("Initialize Failed");
     }
 

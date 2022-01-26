@@ -1,9 +1,10 @@
+use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
-use alloc::format;
 use codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-pub use phala_mq::{contract_id256 as id256, ContractId};
+pub use phala_mq::ContractId;
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;
@@ -15,6 +16,66 @@ pub const DIEM: ContractId32 = 5;
 pub const SUBSTRATE_KITTIES: ContractId32 = 6;
 pub const BTC_LOTTERY: ContractId32 = 7;
 pub const GEOLOCATION: ContractId32 = 8;
+pub const GUESS_NUMBER: ContractId32 = 100;
+pub const BTC_PRICE_BOT: ContractId32 = 101;
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum CodeIndex<CodeHash> {
+    NativeCode(ContractId32),
+    WasmCode(CodeHash),
+}
+
+pub mod messaging {
+    use alloc::vec::Vec;
+    use codec::{Decode, Encode};
+
+    use super::ContractInfo;
+    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerPublicKey};
+    use phala_mq::bind_topic;
+
+    bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ContractEvent<CodeHash, AccountId> {
+        InstantiateCode {
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+        },
+    }
+
+    impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
+        pub fn instantiate_code(
+            contract_info: ContractInfo<CodeHash, AccountId>,
+            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+        ) -> Self {
+            // TODO(shelven): enable multiple workers assignment
+            ContractEvent::InstantiateCode {
+                contract_info,
+                deploy_worker,
+            }
+        }
+    }
+
+    bind_topic!(ContractOperation<AccountId>, b"phala/contract/op");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ContractOperation<AccountId> {
+        UploadCodeToCluster {
+            origin: AccountId,
+            code: Vec<u8>,
+            cluster_id: ContractClusterId,
+        },
+    }
+}
+
+/// On-chain contract registration info
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct ContractInfo<CodeHash, AccountId> {
+    pub deployer: AccountId,
+    /// Contract cluster counter of the contract
+    pub cluster_id: u64,
+    pub salt: Vec<u8>,
+    pub code_index: CodeIndex<CodeHash>,
+    pub instantiate_data: Vec<u8>,
+}
 
 /// Contract query request parameters, to be encrypted.
 #[derive(Encode, Decode, Debug)]
@@ -73,5 +134,7 @@ impl From<ContractQueryError> for prpc::server::Error {
 }
 
 pub fn command_topic(id: ContractId) -> Vec<u8> {
-    format!("phala/contract/{}/command", hex::encode(&id)).as_bytes().to_vec()
+    format!("phala/contract/{}/command", hex::encode(&id))
+        .as_bytes()
+        .to_vec()
 }

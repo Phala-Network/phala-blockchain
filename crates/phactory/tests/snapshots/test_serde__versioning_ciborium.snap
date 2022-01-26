@@ -1,0 +1,12 @@
+---
+source: crates/phactory/tests/test_serde.rs
+expression: de
+
+---
+Ok(
+    V1 {
+        a: 42,
+        c: 0,
+        b: 24,
+    },
+)

@@ -22,12 +22,14 @@ pub struct BlockInfo<'a> {
     pub side_task_man: &'a mut crate::side_task::SideTaskManager,
 }
 
+#[cfg(test)]
 impl BlockInfo<'_> {
     pub(crate) fn builder() -> BlockInfoBuilder {
         Default::default()
     }
 }
 
+#[cfg(test)]
 #[derive(Default)]
 pub(crate) struct BlockInfoBuilder {
     /// The block number.
@@ -42,6 +44,7 @@ pub(crate) struct BlockInfoBuilder {
     pub side_task_man: crate::side_task::SideTaskManager,
 }
 
+#[cfg(test)]
 impl BlockInfoBuilder {
     pub fn block_number(self, block_number: chain::BlockNumber) -> Self {
         Self {

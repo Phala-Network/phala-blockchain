@@ -50,6 +50,7 @@ where
 		let _ = Self::maybe_dump_pool_details(stage);
 	}
 
+	#[allow(unused, dead_code)]
 	fn log_pool_details() -> Result<(), ()> {
 		info!("[PoolStakers]");
 		info!("pid\tuser\tlocked\tshares");
@@ -177,7 +178,7 @@ where
 		// Remove dust in stake pools.
 		StakePools::<T>::translate_values(|mut pool: PoolInfo<T::AccountId, BalanceOf<T>>| {
 			let pid = pool.pid;
-			// Maintain total_shares invarant
+			// Maintain total_shares invariant
 			if let Some(dust) = share_dust_removed.get(&pid) {
 				pool.total_shares -= *dust;
 			}

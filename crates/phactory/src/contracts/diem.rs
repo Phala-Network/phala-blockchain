@@ -514,10 +514,6 @@ impl contracts::NativeContract for Diem {
     type QReq = Request;
     type QResp = Response;
 
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::DIEM)
-    }
-
     fn handle_command(
         &mut self,
         _context: &NativeContext,

@@ -17,10 +17,17 @@ fn main() {
 
     let out_dir = "./src/proto_generated";
 
-    prpc_build::configure()
+    let mut builder = prpc_build::configure()
         .out_dir(out_dir)
         .mod_prefix("crate::prpc::")
-        .disable_package_emission()
+        .disable_package_emission();
+    for r#type in ["InitRuntimeResponse", "Attestation", "AttestationReport"] {
+        builder = builder.type_attribute(
+            r#type,
+            "#[cfg_attr(feature = \"serde\", derive(::serde::Serialize, ::serde::Deserialize))]",
+        )
+    }
+    builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();
 }

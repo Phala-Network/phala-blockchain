@@ -1,4 +1,18 @@
+[profile.release]
+panic = "unwind"
+
+[profile.production]
+inherits = "release"
+lto = true
+
+[profile.testnet]
+inherits = "release"
+debug = 1 # debug symbols are useful for profilers
+debug-assertions = true
+overflow-checks = true
+
 [workspace]
+resolver = "2"
 
 exclude = [
 	"substrate",
@@ -35,6 +49,7 @@ members = [
 	"crates/pink/pink-extension",
 	"crates/phaxt",
 	"crates/pink/pink-extension/macro",
+	"crates/phala-serde-more",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
 	"pallets/bridge",
@@ -42,5 +57,3 @@ members = [
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"
 ]
-
-resolver = "2"

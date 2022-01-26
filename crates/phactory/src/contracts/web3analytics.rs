@@ -212,6 +212,7 @@ pub enum Response {
     Error(String),
 }
 
+#[derive(Encode, Decode)]
 pub struct Web3Analytics {
     encrypted: bool,
     page_views: Vec<PageView>,
@@ -223,6 +224,7 @@ pub struct Web3Analytics {
     total_stat: HourlyPageViewStat,
 
     key: Vec<u8>,
+    #[codec(skip)]
     parser: woothee::parser::Parser,
 
     no_tracking: BTreeMap<AccountId, bool>,
@@ -885,10 +887,6 @@ impl contracts::NativeContract for Web3Analytics {
     type Cmd = Command;
     type QReq = Request;
     type QResp = Response;
-
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::WEB3_ANALYTICS)
-    }
 
     fn handle_command(
         &mut self,

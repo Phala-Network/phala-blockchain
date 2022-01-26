@@ -19,7 +19,7 @@ where
 		mul(share, acc) - debt
 	}
 
-	/// Distributes propotionally to all the users in the accumulator
+	/// Distributes proportionally to all the users in the accumulator
 	pub fn distribute(total_share: B, acc: &mut FixedPoint, v: B) {
 		*acc += v.to_fixed() / total_share.to_fixed();
 	}

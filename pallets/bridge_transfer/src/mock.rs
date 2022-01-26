@@ -1,6 +1,8 @@
 #![cfg(test)]
 
-use frame_support::{ord_parameter_types, parameter_types, weights::Weight, PalletId};
+use frame_support::{
+	ord_parameter_types, pallet_prelude::ConstU32, parameter_types, weights::Weight, PalletId,
+};
 use frame_system::{self as system};
 use hex_literal::hex;
 use sp_core::H256;
@@ -29,7 +31,7 @@ frame_support::construct_runtime!(
 		Bridge: bridge::{Pallet, Call, Storage, Event<T>},
 		BridgeTransfer: bridge_transfer::{Pallet, Call, Storage, Event<T>},
 		PhalaMq: mq::{Pallet, Call, Storage},
-		PhalaRegistry: reg::{Pallet, Call, Event, Storage},
+		PhalaRegistry: reg::{Pallet, Call, Event<T>, Storage},
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
 	}
 );
@@ -67,6 +69,7 @@ impl frame_system::Config for Test {
 	type BlockLength = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
+	type MaxConsumers = ConstU32<2>;
 }
 
 parameter_types! {
@@ -137,6 +140,7 @@ parameter_types! {
 
 impl reg::Config for Test {
 	type Event = Event;
+	type Currency = Balances;
 	type AttestationValidator = reg::IasValidator;
 	type UnixTime = Timestamp;
 	type VerifyPRuntime = VerifyPRuntime;

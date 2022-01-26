@@ -1,7 +1,6 @@
 use crate::system::System;
 
 use super::*;
-use crate::secret_channel::PeelingReceiver;
 use pb::{
     phactory_api_server::{PhactoryApi, PhactoryApiServer},
     server::Error as RpcError,
@@ -45,7 +44,7 @@ fn fit_size(mut messages: pb::EgressMessages, size: usize) -> pb::EgressMessages
     messages
 }
 
-impl<Platform: pal::Platform> Phactory<Platform> {
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
     fn runtime_state(&mut self) -> RpcResult<&mut RuntimeState> {
         self.runtime_state
             .as_mut()
@@ -59,7 +58,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
     }
 
     pub fn get_info(&self) -> pb::PhactoryInfo {
-        let initialized = self.runtime_info.is_some();
+        let initialized = self.system.is_some();
         let state = self.runtime_state.as_ref();
         let system = self.system.as_ref();
         let genesis_block_hash = state.map(|state| hex::encode(&state.genesis_block_hash));
@@ -226,9 +225,24 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             last_block = block.block_header.number;
         }
 
+        if let Err(e) = self.maybe_take_checkpoint() {
+            error!("Failed to take checkpoint: {:?}", e);
+        }
+
         Ok(pb::SyncedTo {
             synced_to: last_block,
         })
+    }
+
+    fn maybe_take_checkpoint(&mut self) -> anyhow::Result<()> {
+        if !self.args.enable_checkpoint {
+            return Ok(());
+        }
+        if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
+            return Ok(());
+        }
+        self.commit_storage_changes()?;
+        self.take_checkpoint()
     }
 
     fn init_runtime(
@@ -240,7 +254,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         operator: Option<chain::AccountId>,
         debug_set_key: ::core::option::Option<Vec<u8>>,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        if self.runtime_info.is_some() {
+        if self.system.is_some() {
             return Err(from_display("Runtime already initialized"));
         }
 
@@ -311,75 +325,15 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             .expect("Bridge initialize failed");
 
         let storage_synchronizer = if is_parachain {
-            Box::new(ParachainSynchronizer::new(
-                light_client,
-                main_bridge,
-                next_headernum,
-            )) as _
+            Synchronizer::new_parachain(light_client, main_bridge, next_headernum)
         } else {
-            Box::new(SolochainSynchronizer::new(light_client, main_bridge)) as _
+            Synchronizer::new_solochain(light_client, main_bridge)
         };
 
         let send_mq = MessageSendQueue::default();
-        let mut recv_mq = MessageDispatcher::default();
+        let recv_mq = MessageDispatcher::default();
 
-        let mut contracts: BTreeMap<ContractId, Box<dyn contracts::Contract + Send>> =
-            Default::default();
-
-        if self.dev_mode {
-            // Install contracts when running in dev_mode.
-            info!("Install contracts in dev mode");
-
-            macro_rules! install_contract {
-                ($id: expr, $inner: expr) => {{
-                    let contract_id = contract::id256($id);
-                    let sender = MessageOrigin::native_contract($id);
-                    let mq = send_mq.channel(sender, identity_key.clone());
-                    // TODO.kevin: use real contract key
-                    let contract_key = ecdh_key.clone();
-                    let cmd_mq = PeelingReceiver::new_secret(
-                        recv_mq
-                            .subscribe(contract::command_topic(contract_id))
-                            .into(),
-                        contract_key,
-                    );
-                    let wrapped = Box::new(contracts::NativeCompatContract::new(
-                        $inner,
-                        mq,
-                        cmd_mq,
-                        ecdh_key.clone(),
-                    ));
-                    contracts.insert(contract_id, wrapped);
-                }};
-            }
-
-            install_contract!(contracts::BALANCES, contracts::balances::Balances::new());
-            install_contract!(contracts::ASSETS, contracts::assets::Assets::new());
-            // TODO.kevin:
-            // install_contract!(contracts::DIEM, contracts::diem::Diem::new());
-            // TODO: Migrate kitty to MetadataV14
-            // install_contract!(
-            //     contracts::SUBSTRATE_KITTIES,
-            //     contracts::substrate_kitties::SubstrateKitties::new()
-            // );
-            // install_contract!(
-            //     contracts::BTC_LOTTERY,
-            //     contracts::btc_lottery::BtcLottery::new(Some(identity_key.clone()))
-            // );
-            // TODO.kevin: This is temporaryly disabled due to the dependency on CPUID which is not allowed in SGX.
-            // install_contract!(
-            //     contracts::WEB3_ANALYTICS,
-            //     contracts::web3analytics::Web3Analytics::new()
-            // );
-            install_contract!(
-                contracts::DATA_PLAZA,
-                contracts::data_plaza::DataPlaza::new()
-            );
-            install_contract!(
-                contracts::GEOLOCATION,
-                contracts::geolocation::Geolocation::new()
-            );
-        }
+        let contracts = contracts::ContractsKeeper::default();
 
         let mut runtime_state = RuntimeState {
             send_mq,
@@ -400,7 +354,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let system = system::System::new(
             self.platform.clone(),
             self.args.sealing_path.clone(),
-            self.args.enable_geoprobing,
+            false,
             self.args.geoip_city_db.clone(),
             identity_key,
             ecdh_key,
@@ -676,10 +630,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             side_task_man,
         };
 
-        if let Err(e) = system.process_messages(&mut block) {
-            error!("System process events failed: {:?}", e);
-            return Err(from_display("System process events failed"));
-        }
+        system.process_messages(&mut block);
         Ok(())
     }
 
@@ -704,7 +655,9 @@ pub struct RpcService<'a, Platform> {
 }
 
 /// A server that process all RPCs.
-impl<Platform: pal::Platform> PhactoryApi for RpcService<'_, Platform> {
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
+    for RpcService<'_, Platform>
+{
     /// Get basic information about Phactory state.
     fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
         Ok(self.phactory.get_info())

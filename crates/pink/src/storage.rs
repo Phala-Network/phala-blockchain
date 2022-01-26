@@ -1,7 +1,10 @@
 use crate::{
     runtime::ExecSideEffects,
-    types::{BlockNumber, Hash, Hashing},
+    types::{AccountId, Hash, Hashing},
 };
+use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
+use serde::{Deserialize, Serialize};
+use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
@@ -69,7 +72,8 @@ where
             )
         });
 
-        self.backend.full_storage_root(delta, child_delta)
+        self.backend
+            .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
     }
 
     pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {
@@ -84,5 +88,42 @@ where
         let (root, transaction) = self.changes_transaction();
         self.commit_transaction(root, transaction);
         self.clear_changes();
+    }
+
+    pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
+        self.execute_with(false, || {
+            crate::runtime::Pink::set_cluster_id(cluster_id);
+        });
+    }
+
+    pub fn upload_code(
+        &mut self,
+        account: AccountId,
+        code: Vec<u8>,
+    ) -> Result<Hash, DispatchError> {
+        self.execute_with(false, || {
+            crate::runtime::Contracts::bare_upload_code(account, code, None)
+        })
+        .0
+        .map(|v| v.code_hash)
+    }
+}
+
+impl Serialize for Storage<InMemoryBackend> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let trie = self.backend.as_trie_backend().unwrap();
+        serialize_trie_backend(trie, serializer)
+    }
+}
+
+impl<'de> Deserialize<'de> for Storage<InMemoryBackend> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        Ok(Self::new(deserialize_trie_backend(deserializer)?))
     }
 }

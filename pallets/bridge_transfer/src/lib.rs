@@ -253,11 +253,11 @@ pub mod pallet {
 
 			let fee = Self::calculate_fee(dest_id, amount);
 			// check native balance to cover fee
-			let native_free_balance = T::Currency::free_balance(&source);
+			let native_free_balance = <T as Config>::Currency::free_balance(&source);
 			ensure!(native_free_balance >= fee, Error::<T>::InsufficientBalance);
 
 			// pay fee to treasury
-			let imbalance = T::Currency::withdraw(
+			let imbalance = <T as Config>::Currency::withdraw(
 				&source,
 				fee,
 				WithdrawReasons::FEE,
@@ -296,13 +296,13 @@ pub mod pallet {
 				Error::<T>::FeeOptionsMissing
 			);
 			let fee = Self::calculate_fee(dest_id, amount);
-			let free_balance = T::Currency::free_balance(&source);
+			let free_balance = <T as Config>::Currency::free_balance(&source);
 			ensure!(
 				free_balance >= (amount + fee),
 				Error::<T>::InsufficientBalance
 			);
 
-			let imbalance = T::Currency::withdraw(
+			let imbalance = <T as Config>::Currency::withdraw(
 				&source,
 				fee,
 				WithdrawReasons::FEE,

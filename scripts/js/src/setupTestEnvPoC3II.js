@@ -3,7 +3,6 @@ require('dotenv').config();
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const BN = require('bn.js');
 const { checkUntil } = require('../../e2e/utils');
-const typedefs = require('@phala/typedefs').phalaDev;
 
 const bnUnit = new BN(1e12);
 function token(n) {
@@ -12,7 +11,7 @@ function token(n) {
 
 async function main () {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider, types: typedefs });
+    const api = await ApiPromise.create({ provider: wsProvider });
 
     async function getNonce(address) {
         const info = await api.query.system.account(address);

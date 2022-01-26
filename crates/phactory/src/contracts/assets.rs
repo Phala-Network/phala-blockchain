@@ -29,7 +29,7 @@ pub struct AssetMetadataBalance {
     balance: chain::Balance,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode)]
 pub struct Assets {
     next_id: u32,
     assets: BTreeMap<u32, BTreeMap<AccountId, chain::Balance>>,
@@ -95,10 +95,6 @@ impl contracts::NativeContract for Assets {
     type Cmd = Command;
     type QReq = Request;
     type QResp = Response;
-
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::ASSETS)
-    }
 
     fn handle_command(
         &mut self,

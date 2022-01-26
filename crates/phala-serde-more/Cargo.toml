@@ -1,0 +1,17 @@
+[package]
+name = "phala-serde-more"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { default-features = false, version = "1.0.130", features = ["derive", "alloc"] }
+sp-core = { default-features = false, path = "../../substrate/primitives/core" }
+scale = { default-features = false, version = "2.3.1", package = "parity-scale-codec" }
+hex = { default-features = false, version = "0.4.3", features = ["alloc"] }
+
+[features]
+default = ["std"]
+crypto = ["sp-core/full_crypto"]
+std = [
+    "sp-core/std",
+]

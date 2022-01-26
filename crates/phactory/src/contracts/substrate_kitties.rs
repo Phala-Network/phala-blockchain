@@ -138,11 +138,6 @@ impl contracts::NativeContract for SubstrateKitties {
     type QReq = Request;
     type QResp = Response;
 
-    // Returns the contract id
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::SUBSTRATE_KITTIES)
-    }
-
     // Handles the commands from transactions on the blockchain. This method doesn't respond.
     fn handle_command(
         &mut self,

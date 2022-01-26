@@ -4,7 +4,6 @@ require('dotenv').config();
 
 const { ApiPromise, WsProvider, Keyring } = require('@polkadot/api');
 const { options } = require('@acala-network/api');
-const { types } = require('@acala-network/types');
 const { cryptoWaitReady } = require('@polkadot/util-crypto');
 const fs = require('fs');
 const BN = require('bn.js');
@@ -15,8 +14,8 @@ const acalaParaId = 666;
 
 const main = async () => {
     const wsProvider = new WsProvider(process.env.ACALA_ENDPOINT);
-    const api = await ApiPromise.create(options({ provider: wsProvider, types: types}));
-    
+    const api = await ApiPromise.create({ provider: wsProvider });
+
     const acalaAccount = process.env.FROM || '//Alice';
     const phalaAccount = process.env.TO || '//Alice';
     const amount = new BN(process.env.AMOUNT);

@@ -132,7 +132,7 @@ pub mod pallet {
 		where
 			Balance: sp_runtime::traits::AtLeast32BitUnsigned + Copy + FixedPointConvert,
 		{
-			// Calcualte remaining stake
+			// Calculate remaining stake
 			let v = FixedPoint::from_bits(self.v);
 			let ve = FixedPoint::from_bits(self.ve);
 			let return_rate = (v / ve).min(fp!(1));
@@ -152,7 +152,7 @@ pub mod pallet {
 	}
 
 	pub trait OnUnbound {
-		/// Called wthen a worker was unbound from a miner.
+		/// Called when a worker was unbound from a miner.
 		///
 		/// `force` is set if the unbinding caused an unexpected miner shutdown.
 		fn on_unbound(worker: &WorkerPublicKey, force: bool) {}
@@ -206,9 +206,13 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type TokenomicParameters<T> = StorageValue<_, TokenomicParams>;
 
+	/// The scheduled new tokenomic params to update at the end of this block.
+	#[pallet::storage]
+	pub type ScheduledTokenomicUpdate<T> = StorageValue<_, TokenomicParams>;
+
 	/// Total online miners
 	///
-	/// Increased when a miner is turned to MininIdle; decreased when turned to CoolingDown
+	/// Increased when a miner is turned to MiningIdle; decreased when turned to CoolingDown
 	#[pallet::storage]
 	#[pallet::getter(fn online_miners)]
 	pub type OnlineMiners<T> = StorageValue<_, u32, ValueQuery>;
@@ -275,7 +279,7 @@ pub mod pallet {
 		/// Miner enters unresponsive state. \[miner\]
 		MinerEnterUnresponsive(T::AccountId),
 		/// Miner returns to responsive state \[miner\]
-		MinerExitUnresponive(T::AccountId),
+		MinerExitUnresponsive(T::AccountId),
 		/// Miner settled successfully. \[miner, v, payout\]
 		MinerSettled(T::AccountId, u128, u128),
 		/// Some internal error happened when settling a miner's ledger. \[worker\]
@@ -284,6 +288,8 @@ pub mod pallet {
 		SubsidyBudgetHalved,
 		/// Some internal error happened when trying to halve the subsidy
 		InternalErrorWrongHalvingConfigured,
+		/// Tokenomic parameter changed.
+		TokenomicParametersChanged,
 	}
 
 	#[pallet::error]
@@ -382,14 +388,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Updates the tokenomic parameters
+		/// Updates the tokenomic parameters at the end of this block
 		#[pallet::weight(1)]
 		pub fn update_tokenomic(
 			origin: OriginFor<T>,
 			new_params: TokenomicParams,
 		) -> DispatchResult {
 			T::UpdateTokenomicOrigin::ensure_origin(origin)?;
-			Self::update_tokenomic_parameters(new_params);
+			ScheduledTokenomicUpdate::<T>::put(new_params);
 			Ok(())
 		}
 	}
@@ -401,6 +407,11 @@ pub mod pallet {
 	{
 		fn on_finalize(n: T::BlockNumber) {
 			Self::heartbeat_challenge();
+			// Apply tokenomic update if possible
+			if let Some(tokenomic) = ScheduledTokenomicUpdate::<T>::take() {
+				Self::update_tokenomic_parameters(tokenomic);
+			}
+			// Apply subsidy
 			if let Some(interval) = MiningHalvingInterval::<T>::get() {
 				let block_elapsed = n - MiningStartBlock::<T>::get().unwrap_or_default();
 				// Halve when it reaches the last block in an interval
@@ -423,7 +434,7 @@ pub mod pallet {
 				STORAGE_VERSION.put::<super::Pallet<T>>();
 				w += T::DbWeight::get().writes(1);
 			} else if old == 2 {
-				// Triggers GK RepairV event (again) to rescure the slashed miners due to
+				// Triggers GK RepairV event (again) to rescue the slashed miners due to
 				// incorrectly applied tokenomic.
 				w += migrations::repair_v::<T>();
 				// Khala-only halving parameters
@@ -465,8 +476,8 @@ pub mod pallet {
 			let budget_per_block = FixedPoint::from_bits(tokenomic.budget_per_block);
 			let new_budget = budget_per_block * fp!(0.75);
 			tokenomic.budget_per_block = new_budget.to_bits();
-			Self::update_tokenomic_parameters(tokenomic);
 			Self::deposit_event(Event::<T>::SubsidyBudgetHalved);
+			Self::update_tokenomic_parameters(tokenomic);
 			Ok(())
 		}
 
@@ -553,7 +564,7 @@ pub mod pallet {
 						}
 						miner_info.state = MinerState::MiningIdle;
 						Miners::<T>::insert(&account, &miner_info);
-						Self::deposit_event(Event::<T>::MinerExitUnresponive(account));
+						Self::deposit_event(Event::<T>::MinerExitUnresponsive(account));
 						Self::push_message(SystemEvent::new_worker_event(
 							worker,
 							WorkerEvent::MiningExitUnresponsive,
@@ -606,7 +617,7 @@ pub mod pallet {
 		/// Turns the miner back to Ready state after cooling down and trigger stake releasing.
 		///
 		/// Requires:
-		/// 1. Ther miner is in CoolingDown state and the cool down period has passed
+		/// 1. The miner is in CoolingDown state and the cool down period has passed
 		pub fn reclaim(miner: T::AccountId) -> Result<(BalanceOf<T>, BalanceOf<T>), DispatchError> {
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
 			ensure!(Self::can_reclaim(&miner_info), Error::<T>::CoolDownNotReady);
@@ -624,11 +635,11 @@ pub mod pallet {
 		/// Binds a miner to a worker
 		///
 		/// This will bind the miner account to the worker, and then create a `Miners` entry to
-		/// track the mining session in the future. The mining session will exist until ther miner
+		/// track the mining session in the future. The mining session will exist until the miner
 		/// and the worker is unbound.
 		///
 		/// Requires:
-		/// 1. The worker is alerady registered
+		/// 1. The worker is already registered
 		/// 2. The worker has an initial benchmark
 		/// 3. Both the worker and the miner are not bound
 		/// 4. There's no stake in CD associated with the miner
@@ -693,7 +704,7 @@ pub mod pallet {
 			let force = !miner_info.state.can_unbind();
 			if force {
 				// Force unbinding. Stop the miner first.
-				// Note that `stop_mining` will notify the suscribers with the slashed vaue.
+				// Note that `stop_mining` will notify the subscribers with the slashed value.
 				Self::stop_mining(miner.clone())?;
 				// TODO: consider the final state sync (could cause slash) when stopping mining
 			}
@@ -767,10 +778,10 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Stops mining, enterying cool down state
+		/// Stops mining, entering cool down state
 		///
 		/// Requires:
-		/// 1. Ther miner is in Idle, MiningActive, or MiningUnresponsive state
+		/// 1. The miner is in Idle, MiningActive, or MiningUnresponsive state
 		pub fn stop_mining(miner: T::AccountId) -> DispatchResult {
 			let worker = MinerBindings::<T>::get(&miner).ok_or(Error::<T>::MinerNotBound)?;
 			let mut miner_info = Miners::<T>::get(&miner).ok_or(Error::<T>::MinerNotFound)?;
@@ -787,7 +798,7 @@ pub mod pallet {
 			Miners::<T>::insert(&miner, &miner_info);
 			OnlineMiners::<T>::mutate(|v| *v -= 1); // v cannot be 0
 
-			// Calcualte remaining stake (assume there's no more slash after calling `stop_mining`)
+			// Calculate remaining stake (assume there's no more slash after calling `stop_mining`)
 			let orig_stake = Stakes::<T>::get(&miner).unwrap_or_default();
 			let (_returned, slashed) = miner_info.calc_final_stake(orig_stake);
 			// Notify the subscriber with the slash prediction
@@ -814,18 +825,19 @@ pub mod pallet {
 		fn update_tokenomic_parameters(params: TokenomicParams) {
 			TokenomicParameters::<T>::put(params.clone());
 			Self::push_message(GatekeeperEvent::TokenomicParametersChanged(params));
+			Self::deposit_event(Event::<T>::TokenomicParametersChanged);
 		}
 
 		pub fn withdraw_subsidy_pool(target: &T::AccountId, value: BalanceOf<T>) -> DispatchResult {
 			let wallet = Self::account_id();
-			T::Currency::transfer(&wallet, target, value, KeepAlive)
+			<T as Config>::Currency::transfer(&wallet, target, value, KeepAlive)
 		}
 
 		pub fn withdraw_imbalance_from_subsidy_pool(
 			value: BalanceOf<T>,
 		) -> Result<NegativeImbalanceOf<T>, DispatchError> {
 			let wallet = Self::account_id();
-			T::Currency::withdraw(
+			<T as Config>::Currency::withdraw(
 				&wallet,
 				value,
 				WithdrawReasons::TRANSFER,
@@ -871,7 +883,7 @@ pub mod pallet {
 			FixedPointConvert::from_fixed(&min_stake)
 		}
 
-		/// Calcuates the initial Ve
+		/// Calculate the initial Ve
 		fn ve(&self, s: BalanceOf<T>, p: u32, confidence_level: u8) -> FixedPoint {
 			let f1 = FixedPoint::from_num(1);
 			let score = Self::confidence_score(confidence_level);
@@ -931,7 +943,7 @@ pub mod pallet {
 
 	#[cfg(feature = "std")]
 	impl Default for GenesisConfig {
-		/// Default tokenoic parameters for Phala
+		/// Default tokenomic parameters for Phala
 		fn default() -> Self {
 			use fixed_macro::types::U64F64 as fp;
 			let block_sec = 12;
@@ -1271,9 +1283,26 @@ pub mod pallet {
 					ev,
 					vec![
 						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved),
-						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved)
+						TestEvent::PhalaMining(Event::<Test>::TokenomicParametersChanged),
+						TestEvent::PhalaMining(Event::<Test>::SubsidyBudgetHalved),
+						TestEvent::PhalaMining(Event::<Test>::TokenomicParametersChanged),
 					]
 				);
+			});
+		}
+
+		#[test]
+		fn tokenomic_update_is_postponed() {
+			new_test_ext().execute_with(|| {
+				set_block_1();
+				let tokenomic = TokenomicParameters::<Test>::get().unwrap();
+				assert_ok!(PhalaMining::update_tokenomic(Origin::root(), tokenomic));
+				let ev = take_events();
+				assert_eq!(ev.len(), 0);
+				PhalaMining::on_finalize(1);
+				let ev = take_events();
+				assert_eq!(ev.len(), 1);
+				assert_eq!(ScheduledTokenomicUpdate::<Test>::get(), None);
 			});
 		}
 

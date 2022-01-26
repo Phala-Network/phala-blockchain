@@ -1,23 +1,26 @@
-use super::{TypedReceiver, WorkerState};
+use super::{TransactionError, TypedReceiver, WorkerState};
+use chain::pallet_registry::ContractRegistryEvent;
+use parity_scale_codec::Encode;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
 };
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
+use phala_serde_more as more;
 use phala_types::{
+    contract::messaging::ContractEvent,
     messaging::{
-        GatekeeperEvent, KeyDistribution, MessageOrigin, MiningInfoUpdateEvent, MiningReportEvent,
-        RandomNumber, RandomNumberEvent, SettleInfo, SystemEvent, WorkerEvent, WorkerEventWithKey,
+        ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
+        SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
-use sp_core::{hashing, sr25519};
+use serde::{Deserialize, Serialize};
+use sp_application_crypto::Pair;
+use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
 
-use crate::{
-    contracts::pink::messaging::{GKPinkRequest, WorkerPinkRequest},
-    secret_channel::SecretMessageChannel,
-    types::BlockInfo,
-};
+use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -25,7 +28,7 @@ use std::{
 };
 
 use fixed_macro::types::U64F64 as fp;
-use log::debug;
+use log::{debug, info, trace};
 use phactory_api::prpc as pb;
 pub use tokenomic::{FixedPoint, TokenomicInfo};
 
@@ -54,7 +57,20 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-#[derive(Debug)]
+fn get_contract_key(
+    master_key: &sr25519::Pair,
+    contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
+) -> sr25519::Pair {
+    // TODO(shelven): use persistent info for contract key derivation
+    master_key
+        .derive_sr25519_pair(&[
+            b"contract_key",
+            Encode::encode(contract_info).as_bytes_ref(),
+        ])
+        .expect("should not fail with valid info")
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct WorkerInfo {
     state: WorkerState,
     waiting_heartbeats: VecDeque<chain::BlockNumber>,
@@ -91,13 +107,15 @@ impl WorkerInfo {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub(crate) struct Gatekeeper<MsgChan> {
+    #[serde(with = "more::key_bytes")]
     master_key: sr25519::Pair,
     master_pubkey_on_chain: bool,
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
-    pink_requests: TypedReceiver<GKPinkRequest>, // TODO: a contract manager type?
+    contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
     // Randomness
     last_random_number: RandomNumber,
     iv_seq: u64,
@@ -121,7 +139,7 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
-            pink_requests: recv_mq.subscribe_bound(),
+            contract_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
             mining_economics: MiningEconomics::new(recv_mq, egress),
@@ -212,8 +230,8 @@ where
                 (event, origin) = self.gatekeeper_events => {
                     self.process_gatekeeper_event(origin, event);
                 },
-                (request, origin) = self.pink_requests => {
-                    self.process_pink_requests(origin, request);
+                (event, origin) = self.contract_events => {
+                    self.process_contract_event(origin, event);
                 },
             };
             if ok.is_none() {
@@ -228,7 +246,7 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
-        info!("Incoming gatekeeper event: {:?}", event);
+        debug!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::NewRandomNumber(random_number_event) => {
                 self.process_random_number_event(origin, random_number_event)
@@ -242,47 +260,53 @@ where
         }
     }
 
-    fn process_pink_requests(&mut self, origin: MessageOrigin, request: GKPinkRequest) {
-        info!("Incoming pink request: {:?}", request);
-        match request {
-            GKPinkRequest::Instantiate {
-                group_id,
-                worker,
-                wasm_bin,
-                input_data,
+    fn process_contract_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: ContractEvent<chain::Hash, chain::AccountId>,
+    ) -> Result<(), TransactionError> {
+        info!("Incoming contract event: {:?}", event);
+        match event {
+            ContractEvent::InstantiateCode {
+                contract_info,
+                deploy_worker,
             } => {
-                // TODO: Do some contract management logic
-                let owner = match origin.account() {
-                    Ok(owner) => owner,
-                    Err(_) => {
-                        error!("Attempt to instantiate pink from Bad origin: {}", origin);
-                        return;
-                    }
-                };
+                if !origin.is_pallet() {
+                    error!("Attempt to instantiate pink from bad origin");
+                    return Err(TransactionError::BadOrigin);
+                }
 
-                use hex_literal::hex;
-                let contract_key = crate::new_sr25519_key();
-
-                let message = WorkerPinkRequest::Instantiate {
-                    group_id: group_id.unwrap_or(
-                        hex!("0000000000000000000000000000000000000000000000000000000000000001")
-                            .into(),
-                    ),
-                    worker: worker.clone(),
-                    nonce: hex!("0001").into(),
-                    owner,
-                    wasm_bin,
-                    input_data,
-                    salt: vec![],
-                    key: contract_key.dump_secret_key(),
-                };
-
-                let tmp_key = crate::new_sr25519_key().derive_ecdh_key().unwrap();
-                let secret_mq = SecretMessageChannel::new(&tmp_key, &self.egress);
-
-                secret_mq.bind_remote_key(Some(&worker.0)).push_message(&message);
+                // first, update the on-chain ContractPubkey
+                let (worker_pubkey, ecdh_pubkey) = deploy_worker;
+                let contract_key = get_contract_key(&self.master_key, &contract_info);
+                self.egress
+                    .push_message(&ContractRegistryEvent::PubkeyAvailable {
+                        pubkey: contract_key.public(),
+                        info: contract_info.clone(),
+                    });
+                // then distribute contract key to the worker
+                // and update the on-chain deployment state
+                let ecdh_key = self
+                    .master_key
+                    .derive_ecdh_key()
+                    .expect("should never fail with valid master key; qed.");
+                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
+                secret_mq
+                    .bind_remote_key(Some(&ecdh_pubkey.0))
+                    .push_message(&ContractKeyDistribution::contract_key_distribution(
+                        contract_key.dump_secret_key(),
+                        contract_info.clone(),
+                        0,
+                    ));
+                self.egress.push_message(
+                    &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
+                        contract_pubkey: contract_key.public(),
+                        worker_pubkey: worker_pubkey,
+                    },
+                );
             }
         }
+        Ok(())
     }
 
     /// Verify on-chain random number
@@ -300,6 +324,7 @@ where
         // instead of checking the origin, we directly verify the random to avoid access storage
         if expect_random != event.random_number {
             error!("Fatal error: Expect random number {:?}", expect_random);
+            #[cfg(not(feature = "shadow-gk"))]
             panic!("GK state poisoned");
         }
     }
@@ -373,6 +398,7 @@ impl<F: FnMut(FinanceEvent, &WorkerInfo)> FinanceEventListener for F {
     }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct MiningEconomics<MsgChan> {
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     mining_events: TypedReceiver<MiningReportEvent>,
@@ -463,6 +489,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
         let report = processor.report;
 
         if !report.is_empty() {
+            debug!(target: "mining", "Report: {:?}", report);
             self.egress.push_message(&report);
         }
     }
@@ -486,20 +513,20 @@ where
             let ok = phala_mq::select! {
                 message = self.state.mining_events => match message {
                     Ok((_, event, origin)) => {
-                        debug!("Processing mining report: {:?}, origin: {}",  event, origin);
+                        trace!(target: "mining", "Processing mining report: {:?}, origin: {}",  event, origin);
                         self.process_mining_report(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.state.system_events => match message {
                     Ok((_, event, origin)) => {
-                        debug!("Processing system event: {:?}, origin: {}",  event, origin);
+                        trace!(target: "mining", "Processing system event: {:?}, origin: {}",  event, origin);
                         self.process_system_event(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
                 message = self.state.gatekeeper_events => match message {
@@ -507,7 +534,7 @@ where
                         self.process_gatekeeper_event(origin, event);
                     }
                     Err(e) => {
-                        error!("Read message failed: {:?}", e);
+                        error!(target: "mining", "Read message failed: {:?}", e);
                     }
                 },
             };
@@ -527,7 +554,7 @@ where
 
     fn block_post_process(&mut self) {
         for worker_info in self.state.workers.values_mut() {
-            debug!(
+            trace!(target: "mining",
                 "[{}] block_post_process",
                 hex::encode(&worker_info.state.pubkey)
             );
@@ -537,7 +564,8 @@ where
                 .on_block_processed(self.block, &mut tracker);
 
             if worker_info.state.mining_state.is_none() {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] Mining already stopped, do nothing.",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -546,7 +574,8 @@ where
 
             if worker_info.unresponsive {
                 if worker_info.heartbeat_flag {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -564,7 +593,8 @@ where
                 if self.block.block_number - hb_sent_at
                     > self.state.tokenomic_params.heartbeat_window
                 {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] case3: Idle, heartbeat failed, current={} waiting for {}.",
                         hex::encode(&worker_info.state.pubkey),
                         self.block.block_number,
@@ -582,7 +612,8 @@ where
 
             let params = &self.state.tokenomic_params;
             if worker_info.unresponsive {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] case3/case4: Idle, heartbeat failed or Unresponsive, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -590,7 +621,8 @@ where
                     .tokenomic
                     .update_v_slash(params, self.block.block_number);
             } else if !worker_info.heartbeat_flag {
-                debug!(
+                trace!(
+                    target: "mining",
                     "[{}] case1: Idle, no event",
                     hex::encode(&worker_info.state.pubkey)
                 );
@@ -617,6 +649,7 @@ where
                     Some(info) => info,
                     None => {
                         error!(
+                            target: "mining",
                             "Unknown worker {} sent a {:?}",
                             hex::encode(worker_pubkey),
                             event
@@ -628,9 +661,9 @@ where
                 worker_info.last_heartbeat_for_block = challenge_block;
 
                 if Some(&challenge_block) != worker_info.waiting_heartbeats.get(0) {
-                    error!("Fatal error: Unexpected heartbeat {:?}", event);
-                    error!("Sent from worker {}", hex::encode(worker_pubkey));
-                    error!("Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
+                    error!(target: "mining", "Fatal error: Unexpected heartbeat {:?}", event);
+                    error!(target: "mining", "Sent from worker {}", hex::encode(worker_pubkey));
+                    error!(target: "mining", "Waiting heartbeats {:#?}", worker_info.waiting_heartbeats);
                     // The state has been poisoned. Make no sence to keep moving on.
                     panic!("GK or Worker state poisoned");
                 }
@@ -641,7 +674,8 @@ where
                 let mining_state = if let Some(state) = &worker_info.state.mining_state {
                     state
                 } else {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] Mining already stopped, ignore the heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -649,7 +683,8 @@ where
                 };
 
                 if session_id != mining_state.session_id {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] Heartbeat response to previous mining sessions, ignore it.",
                         hex::encode(&worker_info.state.pubkey)
                     );
@@ -664,13 +699,18 @@ where
                 tokenomic.iteration_last = iterations;
 
                 let payout = if worker_info.unresponsive {
-                    debug!(
+                    trace!(
+                        target: "mining",
                         "[{}] heartbeat handling case5: Unresponsive, successful heartbeat.",
                         hex::encode(&worker_info.state.pubkey)
                     );
                     fp!(0)
                 } else {
-                    debug!("[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet", hex::encode(&worker_info.state.pubkey));
+                    trace!(
+                        target: "mining",
+                        "[{}] heartbeat handling case2: Idle, successful heartbeat, report to pallet",
+                        hex::encode(&worker_info.state.pubkey)
+                    );
                     let (payout, treasury) = worker_info.tokenomic.update_v_heartbeat(
                         &self.state.tokenomic_params,
                         self.sum_share,
@@ -717,7 +757,6 @@ where
         for worker_info in self.state.workers.values_mut() {
             // Replay the event on worker state, and collect the egressed heartbeat into waiting_heartbeats.
             let mut tracker = WorkerSMTracker::new(&mut worker_info.waiting_heartbeats);
-            debug!("for worker {}", hex::encode(&worker_info.state.pubkey));
             worker_info
                 .state
                 .process_event(self.block, &event, &mut tracker, log_on);
@@ -801,7 +840,6 @@ where
     }
 
     fn process_gatekeeper_event(&mut self, origin: MessageOrigin, event: GatekeeperEvent) {
-        info!("Incoming gatekeeper event: {:?}", event);
         match event {
             GatekeeperEvent::NewRandomNumber(_random_number_event) => {
                 // Handled by Gatekeeper.
@@ -810,6 +848,7 @@ where
                 if origin.is_pallet() {
                     self.state.tokenomic_params = params.into();
                     info!(
+                        target: "mining",
                         "Tokenomic parameter updated: {:#?}",
                         &self.state.tokenomic_params
                     );
@@ -817,7 +856,7 @@ where
             }
             GatekeeperEvent::RepairV => {
                 if origin.is_pallet() {
-                    info!("Repairing V");
+                    info!(target: "mining", "Repairing V");
                     // Fixup the V for those workers that have been slashed due to the initial tokenomic parameters
                     // not being applied.
                     //
@@ -861,17 +900,19 @@ impl super::WorkerStateMachineCallback for WorkerSMTracker<'_> {
         _challenge_time: u64,
         _iterations: u64,
     ) {
-        debug!("Worker should emit heartbeat for {}", challenge_block);
+        trace!(target: "mining", "Worker should emit heartbeat for {}", challenge_block);
         self.waiting_heartbeats.push_back(challenge_block);
         self.challenge_received = true;
     }
 }
 
 mod tokenomic {
+    use super::serde_fp;
     pub use fixed::types::U64F64 as FixedPoint;
     use fixed_macro::types::U64F64 as fp;
     use fixed_sqrt::FixedSqrt as _;
     use phala_types::messaging::TokenomicParameters;
+    use serde::{Deserialize, Serialize};
 
     fn square(v: FixedPoint) -> FixedPoint {
         v * v
@@ -886,25 +927,34 @@ mod tokenomic {
         }
     }
 
-    #[derive(Default, Debug, Clone, Copy)]
+    #[derive(Default, Debug, Clone, Copy, Serialize, Deserialize)]
     pub struct TokenomicInfo {
+        #[serde(with = "serde_fp")]
         pub v: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub v_init: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub payable: FixedPoint,
         pub v_update_at: u64,
         pub v_update_block: u32,
         pub iteration_last: u64,
         pub challenge_time_last: u64,
+        #[serde(with = "serde_fp")]
         pub p_bench: FixedPoint,
+        #[serde(with = "serde_fp")]
         pub p_instant: FixedPoint,
         pub confidence_level: u8,
 
+        #[serde(with = "serde_fp")]
         pub last_payout: FixedPoint,
         pub last_payout_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub total_payout: FixedPoint,
         pub total_payout_count: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub last_slash: FixedPoint,
         pub last_slash_at_block: chain::BlockNumber,
+        #[serde(with = "serde_fp")]
         pub total_slash: FixedPoint,
         pub total_slash_count: chain::BlockNumber,
     }
@@ -934,15 +984,23 @@ mod tokenomic {
         }
     }
 
-    #[derive(Debug)]
+    #[derive(Debug, Serialize, Deserialize)]
     pub struct Params {
+        #[serde(with = "serde_fp")]
         rho: FixedPoint,
+        #[serde(with = "serde_fp")]
         slash_rate: FixedPoint,
+        #[serde(with = "serde_fp")]
         budget_per_block: FixedPoint,
+        #[serde(with = "serde_fp")]
         v_max: FixedPoint,
+        #[serde(with = "serde_fp")]
         cost_k: FixedPoint,
+        #[serde(with = "serde_fp")]
         cost_b: FixedPoint,
+        #[serde(with = "serde_fp")]
         treasury_ration: FixedPoint,
+        #[serde(with = "serde_fp")]
         payout_ration: FixedPoint,
         pub heartbeat_window: u32,
     }
@@ -1068,6 +1126,29 @@ mod tokenomic {
             let p = FixedPoint::from_num(iterations - self.iteration_last) / dt * 6; // 6s iterations
             self.p_instant = p.min(self.p_bench * fp!(1.2));
         }
+    }
+}
+
+mod serde_fp {
+    use super::FixedPoint;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn serialize<S>(value: &FixedPoint, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let bits: u128 = value.to_bits();
+        // u128 is not supported by messagepack, so we encode it via bytes
+        bits.to_be_bytes().serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<FixedPoint, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let bytes = Deserialize::deserialize(deserializer)?;
+        let bits = u128::from_be_bytes(bytes);
+        Ok(FixedPoint::from_bits(bits))
     }
 }
 
@@ -1927,5 +2008,34 @@ pub mod tests {
         // Should repaired and rewarded
         assert_eq!(r.get_worker(0).tokenomic.v, fp!(200.00021447729505831407));
         assert_eq!(r.get_worker(1).tokenomic.v, fp!(200.00021447729505831407));
+    }
+
+    #[test]
+    fn serde_fp_works_for_msgpack() {
+        use serde::{Deserialize, Serialize};
+        #[derive(Serialize, Deserialize)]
+        struct Wrapper(#[serde(with = "super::serde_fp")] FixedPoint);
+
+        let fp = Wrapper(fp!(1.23456789));
+        let fp_serde = serde_json::to_string(&fp).unwrap();
+        let fp_de: Wrapper = serde_json::from_str(&fp_serde).unwrap();
+        assert_eq!(fp.0, fp_de.0);
+
+        let fp_serde = rmp_serde::to_vec(&fp).unwrap();
+        let fp_de: Wrapper = rmp_serde::from_slice(&fp_serde).unwrap();
+        assert_eq!(fp.0, fp_de.0);
+    }
+
+    #[test]
+    fn serde_fp_works_for_cbor() {
+        use serde::{Deserialize, Serialize};
+        #[derive(Serialize, Deserialize)]
+        struct Wrapper(#[serde(with = "super::serde_fp")] FixedPoint);
+
+        let mut buf = Vec::new();
+        let fp = Wrapper(fp!(1.23456789));
+        ciborium::ser::into_writer(&fp, &mut buf).unwrap();
+        let fp_de: Wrapper = ciborium::de::from_reader(&*buf).unwrap();
+        assert_eq!(fp.0, fp_de.0);
     }
 }

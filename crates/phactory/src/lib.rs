@@ -12,9 +12,14 @@ extern crate phactory_pal as pal;
 extern crate runtime as chain;
 
 use rand::*;
+use serde::{
+    de::{self, DeserializeOwned, SeqAccess, Visitor},
+    ser::SerializeSeq,
+    Deserialize, Deserializer, Serialize, Serializer,
+};
 
 use crate::light_validation::LightValidation;
-use std::collections::BTreeMap;
+use std::marker::PhantomData;
 use std::path::PathBuf;
 use std::str;
 
@@ -30,26 +35,26 @@ use sp_core::{crypto::Pair, sr25519, H256};
 use phactory_api::blocks::{self, SyncCombinedHeadersReq, SyncParachainHeaderReq};
 use phactory_api::ecall_args::{git_revision, InitArgs};
 use phactory_api::prpc::InitRuntimeResponse;
-use phactory_api::storage_sync::{
-    ParachainSynchronizer, SolochainSynchronizer, StorageSynchronizer,
-};
+use phactory_api::storage_sync::{StorageSynchronizer, Synchronizer};
 
+use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
 use phala_crypto::{
     aead,
     ecdh::EcdhKey,
     sr25519::{Persistence, Sr25519SecretKey, KDF, SEED_BYTES},
 };
-use phala_mq::{BindTopic, ContractId, MessageDispatcher, MessageOrigin, MessageSendQueue};
+use phala_mq::{BindTopic, MessageDispatcher, MessageSendQueue};
 use phala_pallets::pallet_mq;
+use phala_serde_more as more;
 use phala_types::WorkerRegistrationInfo;
-use crate::light_validation::utils::storage_map_prefix_twox_64_concat;
+use std::time::Instant;
 use types::Error;
 
-pub use system::gk;
-pub use storage::{Storage, StorageExt};
-pub use types::BlockInfo;
-pub use side_task::SideTaskManager;
 pub use contracts::pink;
+pub use side_task::SideTaskManager;
+pub use storage::{Storage, StorageExt};
+pub use system::gk;
+pub use types::BlockInfo;
 
 pub mod benchmark;
 
@@ -69,13 +74,20 @@ mod types;
 // runtime definition locally.
 type RuntimeHasher = <chain::Runtime as frame_system::Config>::Hashing;
 
+#[derive(Serialize, Deserialize)]
 struct RuntimeState {
     send_mq: MessageSendQueue,
+
+    #[serde(skip)]
     recv_mq: MessageDispatcher,
 
     // chain storage synchonizing
-    storage_synchronizer: Box<dyn StorageSynchronizer + Send>,
+    storage_synchronizer: Synchronizer<LightValidation<chain::Runtime>>,
+
+    // TODO.kevin: use a better serialization approach
     chain_storage: Storage,
+
+    #[serde(with = "more::scale_bytes")]
     genesis_block_hash: H256,
 }
 
@@ -95,8 +107,22 @@ impl RuntimeState {
     }
 }
 
-/// Master key filepath
-pub const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
+const RUNTIME_SEALED_DATA_FILE: &str = "runtime-data.seal";
+const CHECKPOINT_FILE: &str = "checkpoint.seal";
+const TMP_CHECKPOINT_FILE: &str = "checkpoint.seal.tmp";
+const BACKUP_CHECKPOINT_FILE: &str = "checkpoint.seal.bak";
+const CHECKPOINT_VERSION: u32 = 1;
+
+fn maybe_remove_checkpoints(basedir: &str) {
+    for filename in [CHECKPOINT_FILE, BACKUP_CHECKPOINT_FILE].iter() {
+        let path = PathBuf::from(basedir).join(filename);
+        if path.exists() {
+            if let Err(e) = std::fs::remove_file(&path) {
+                error!("failed to remove {}: {}", path.display(), e);
+            }
+        }
+    }
+}
 
 #[derive(Encode, Decode, Clone, Debug)]
 struct PersistentRuntimeData {
@@ -125,6 +151,8 @@ enum RuntimeDataSeal {
     V1(PersistentRuntimeData),
 }
 
+#[derive(Serialize, Deserialize)]
+#[serde(bound(deserialize = "Platform: Deserialize<'de>"))]
 pub struct Phactory<Platform> {
     platform: Platform,
     args: InitArgs,
@@ -133,8 +161,14 @@ pub struct Phactory<Platform> {
     machine_id: Vec<u8>,
     runtime_info: Option<InitRuntimeResponse>,
     runtime_state: Option<RuntimeState>,
-    system: Option<system::System<Platform>>,
     side_task_man: SideTaskManager,
+    // The deserialzation of system requires the mq, which inside the runtime_state, to be ready.
+    #[serde(skip)]
+    system: Option<system::System<Platform>>,
+
+    #[serde(skip)]
+    #[serde(default = "Instant::now")]
+    last_checkpoint: Instant,
 }
 
 impl<Platform: pal::Platform> Phactory<Platform> {
@@ -150,6 +184,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             runtime_state: None,
             system: None,
             side_task_man: Default::default(),
+            last_checkpoint: Instant::now(),
         }
     }
 
@@ -169,6 +204,14 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         self.args = args;
     }
 
+    pub fn set_args(&mut self, args: InitArgs) {
+        self.args = args;
+        if let Some(system) = &mut self.system {
+            system.sealing_path = self.args.sealing_path.clone();
+            system.geoip_city_db = self.args.geoip_city_db.clone();
+        }
+    }
+
     fn init_runtime_data(
         &self,
         genesis_block_hash: H256,
@@ -177,7 +220,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         let data = if let Some(identity_sk) = predefined_identity_key {
             self.save_runtime_data(genesis_block_hash, identity_sk, true)?
         } else {
-            match self.load_runtime_data() {
+            match Self::load_runtime_data(&self.platform, &self.args.sealing_path) {
                 Ok(data) => data,
                 Err(Error::PersistentRuntimeNotFound) => {
                     warn!("Persistent data not found.");
@@ -228,10 +271,12 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         Ok(data)
     }
 
-    fn load_runtime_data(&self) -> Result<PersistentRuntimeData, Error> {
-        let filepath = PathBuf::from(&self.args.sealing_path).join(RUNTIME_SEALED_DATA_FILE);
-        let data = self
-            .platform
+    fn load_runtime_data(
+        platform: &Platform,
+        sealing_path: &str,
+    ) -> Result<PersistentRuntimeData, Error> {
+        let filepath = PathBuf::from(sealing_path).join(RUNTIME_SEALED_DATA_FILE);
+        let data = platform
             .unseal_data(filepath)
             .map_err(Into::into)?
             .ok_or(Error::PersistentRuntimeNotFound)?;
@@ -239,6 +284,169 @@ impl<Platform: pal::Platform> Phactory<Platform> {
         match data {
             RuntimeDataSeal::V1(data) => Ok(data),
         }
+    }
+}
+
+impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> {
+    pub fn take_checkpoint(&mut self) -> anyhow::Result<()> {
+        let key = if let Some(key) = self.system.as_ref().map(|r| &r.identity_key) {
+            key.dump_secret_key().to_vec()
+        } else {
+            return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
+        };
+
+        info!("Taking checkpoint...");
+        let checkpoint_file = PathBuf::from(&self.args.sealing_path).join(CHECKPOINT_FILE);
+        // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
+        let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
+        if tmpfile.is_symlink() {
+            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+        }
+
+        {
+            // Do serialization
+            let file = self
+                .platform
+                .create_protected_file(&tmpfile, &key)
+                .map_err(|err| anyhow!("{:?}", err))?;
+
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))?;
+        }
+
+        {
+            // Post-process filenames
+            let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
+            let _ = std::fs::rename(&checkpoint_file, &backup);
+            std::fs::rename(&tmpfile, &checkpoint_file)?;
+        }
+        info!("Checkpoint saved to {:?}", checkpoint_file);
+        self.last_checkpoint = Instant::now();
+        Ok(())
+    }
+
+    pub fn restore_from_checkpoint(
+        platform: &Platform,
+        sealing_path: &str,
+    ) -> anyhow::Result<Option<Self>> {
+        let runtime_data = match Self::load_runtime_data(platform, sealing_path) {
+            Ok(data) => data,
+            Err(err) => match err {
+                Error::PersistentRuntimeNotFound => return Ok(None),
+                _ => return Err(err.into()),
+            },
+        };
+        let checkpoint_file = PathBuf::from(sealing_path).join(CHECKPOINT_FILE);
+        let checkpoint_file = if checkpoint_file.exists() {
+            checkpoint_file
+        } else {
+            PathBuf::from(sealing_path).join(BACKUP_CHECKPOINT_FILE)
+        };
+        let tmpfile = PathBuf::from(sealing_path).join(TMP_CHECKPOINT_FILE);
+
+        // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump the checkpoint.
+        if tmpfile.is_symlink() || tmpfile.exists() {
+            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+        }
+        std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
+        scopeguard::defer! {
+            let _ = std::fs::remove_file(&tmpfile);
+        }
+
+        let file = match platform.open_protected_file(&tmpfile, &runtime_data.sk) {
+            Ok(Some(file)) => file,
+            Ok(None) => return Ok(None),
+            Err(err) => {
+                return Err(anyhow!("Failed to open checkpoint file: {:?}", err));
+            }
+        };
+
+        let loader: PhactoryLoader<_> = serde_cbor::de::from_reader(file)?;
+        Ok(Some(loader.0))
+    }
+
+    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
+        if let Some(system) = self.system.as_mut() {
+            system.commit_changes()?;
+        }
+        Ok(())
+    }
+}
+
+impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {
+    fn dump_state<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        let mut state = serializer.serialize_seq(None)?;
+        state.serialize_element(&CHECKPOINT_VERSION)?;
+        state.serialize_element(&benchmark::dump_state())?;
+        state.serialize_element(&self)?;
+        state.serialize_element(&self.system)?;
+        state.end()
+    }
+
+    fn load_state<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct PhactoryVisitor<Platform>(PhantomData<Platform>);
+
+        impl<'de, Platform: Serialize + DeserializeOwned> Visitor<'de> for PhactoryVisitor<Platform> {
+            type Value = Phactory<Platform>;
+
+            fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {
+                formatter.write_str("Phactory")
+            }
+
+            fn visit_seq<A: SeqAccess<'de>>(self, mut seq: A) -> Result<Self::Value, A::Error> {
+                let version: u32 = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Checkpoint version missing"))?;
+                if version > CHECKPOINT_VERSION {
+                    return Err(de::Error::custom(format!(
+                        "Checkpoint version {} is not supported",
+                        version
+                    )));
+                }
+
+                let state = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Missing benchmark::State"))?;
+                benchmark::restore_state(state);
+
+                let mut factory: Self::Value = seq
+                    .next_element()?
+                    .ok_or_else(|| de::Error::custom("Missing Phactory"))?;
+
+                factory.system = {
+                    let runtime_state = factory
+                        .runtime_state
+                        .as_mut()
+                        .ok_or(de::Error::custom("Missing runtime_state"))?;
+
+                    let recv_mq = &mut runtime_state.recv_mq;
+                    let send_mq = &mut runtime_state.send_mq;
+                    let seq = &mut seq;
+                    phala_mq::checkpoint_helper::using_dispatcher(recv_mq, move || {
+                        phala_mq::checkpoint_helper::using_send_mq(send_mq, || {
+                            seq.next_element()?
+                                .ok_or_else(|| de::Error::custom("Missing System"))
+                        })
+                    })?
+                };
+                Ok(factory)
+            }
+        }
+
+        deserializer.deserialize_seq(PhactoryVisitor(PhantomData))
+    }
+}
+
+struct PhactoryDumper<'a, Platform>(&'a Phactory<Platform>);
+impl<Platform: Serialize + DeserializeOwned> Serialize for PhactoryDumper<'_, Platform> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        self.0.dump_state(serializer)
+    }
+}
+struct PhactoryLoader<Platform>(Phactory<Platform>);
+impl<'de, Platform: Serialize + DeserializeOwned> Deserialize<'de> for PhactoryLoader<Platform> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let factory = Phactory::load_state(deserializer)?;
+        Ok(Self(factory))
     }
 }
 

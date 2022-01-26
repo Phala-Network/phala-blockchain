@@ -29,6 +29,8 @@ anyhow = { version = "1.0.43", optional = true }
 log = { version = "0.4.14", optional = true }
 reqwest = { version = "0.11.4", optional = true }
 
+primitive-types = { version = "0.10.1", optional = true, default-features = false }
+
 [build-dependencies]
 prpc-build = { path = "../../../crates/prpc-build" }
 tera = { version = "1.12.1" }
@@ -39,8 +41,7 @@ tempdir = { version = "0.3.7" }
 default = ["std"]
 
 std = [
-    "serde",
-    "phala-trie-storage/serde",
+    "derive_serde",
     "sp-core/full_crypto",
     "sp-runtime/std",
     "sp-application-crypto/std",
@@ -54,4 +55,10 @@ pruntime-client = [
     "anyhow",
     "log",
     "reqwest",
+]
+
+derive_serde = [
+    "serde",
+    "phala-trie-storage/serde",
+    "primitive-types/serde",
 ]

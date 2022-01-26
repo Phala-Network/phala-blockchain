@@ -1,5 +1,6 @@
 use core::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use log::debug;
+use serde::{Deserialize, Serialize};
 
 // TODO.kevin: block_box will do best-effort to prevent compiler optimizations, but not guaranteed.
 use core::hint::black_box;
@@ -10,6 +11,27 @@ const MAX_NUM: u128 = 65536 * 128;
 static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 static PAUSED: AtomicBool = AtomicBool::new(true);
 static SCORE: AtomicU64 = AtomicU64::new(0);
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct State {
+    pub counter: u64,
+    pub score: u64,
+    pub paused: bool,
+}
+
+pub fn dump_state() -> State {
+    State {
+        counter: ITERATION_COUNTER.load(Ordering::Relaxed),
+        score: SCORE.load(Ordering::Relaxed),
+        paused: PAUSED.load(Ordering::Relaxed),
+    }
+}
+
+pub fn restore_state(state: State) {
+    ITERATION_COUNTER.store(state.counter, Ordering::Relaxed);
+    SCORE.store(state.score, Ordering::Relaxed);
+    PAUSED.store(state.paused, Ordering::Relaxed);
+}
 
 fn is_prime(num: u128) -> bool {
     let tmp = num - 1;

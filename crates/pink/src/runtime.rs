@@ -1,9 +1,13 @@
 mod extension;
 mod mock_types;
+mod pallet_pink;
 
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
-use frame_support::weights::Weight;
-use frame_support::{parameter_types, weights::constants::WEIGHT_PER_SECOND};
+use frame_support::{
+    parameter_types,
+    traits::ConstU128,
+    weights::{constants::WEIGHT_PER_SECOND, Weight},
+};
 use pallet_contracts::{Config, Frame, Schedule};
 use sp_runtime::{
     generic::Header,
@@ -27,6 +31,7 @@ frame_support::construct_runtime! {
         Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent},
         Randomness: pallet_randomness_collective_flip::{Pallet, Storage},
         Contracts: pallet_contracts::{Pallet, Call, Storage, Event<T>},
+        Pink: pallet_pink::{Pallet, Storage},
     }
 }
 
@@ -36,6 +41,8 @@ parameter_types! {
         frame_system::limits::BlockWeights::simple_max(2 * WEIGHT_PER_SECOND);
     pub static ExistentialDeposit: u64 = 0;
 }
+
+impl pallet_pink::Config for PinkRuntime {}
 
 impl frame_system::Config for PinkRuntime {
     type BaseCallFilter = frame_support::traits::Everything;
@@ -61,6 +68,7 @@ impl frame_system::Config for PinkRuntime {
     type SystemWeightInfo = ();
     type SS58Prefix = ();
     type OnSetCode = ();
+    type MaxConsumers = frame_support::traits::ConstU32<16>;
 }
 
 impl pallet_randomness_collective_flip::Config for PinkRuntime {}
@@ -112,7 +120,9 @@ impl Config for PinkRuntime {
     type DeletionQueueDepth = DeletionQueueDepth;
     type DeletionWeightLimit = DeletionWeightLimit;
     type Schedule = DefaultSchedule;
-    type ContractDeposit = ();
+    type DepositPerByte = ConstU128<0>;
+    type DepositPerItem = ConstU128<0>;
+    type AddressGenerator = Pink;
 }
 
 #[cfg(test)]
@@ -148,6 +158,7 @@ mod tests {
                 Origin::signed(ALICE),
                 ENOUGH,
                 GAS_LIMIT,
+                None,
                 wasm,
                 vec![],
                 vec![],
@@ -160,6 +171,7 @@ mod tests {
                 addr.clone(),
                 0,
                 GAS_LIMIT * 2,
+                None,
                 <PinkRuntime as Config>::Schedule::get()
                     .limits
                     .payload_len
@@ -185,6 +197,7 @@ mod tests {
                 Origin::signed(ALICE),
                 1_000_000_000_000_000,
                 GAS_LIMIT,
+                None,
                 wasm,
                 vec![],
                 vec![],
@@ -212,11 +225,10 @@ mod tests {
                 // We offset data in the contract tables by 1.
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
-                let result =
-                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, params, false)
-                        .result
-                        .unwrap();
-                assert!(result.is_success());
+                let result = Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
+                    .result
+                    .unwrap();
+                assert!(!result.did_revert());
                 let expected = hash_fn(input.as_ref());
                 assert_eq!(&result.data[..*expected_size], &*expected);
             }
@@ -225,9 +237,7 @@ mod tests {
 
     pub mod exec {
         use sp_runtime::traits::BlakeTwo256;
-        use sp_state_machine::{
-            Backend, Ext, OverlayedChanges, StorageTransactionCache,
-        };
+        use sp_state_machine::{Backend, Ext, OverlayedChanges, StorageTransactionCache};
         pub type InMemoryBackend = sp_state_machine::InMemoryBackend<BlakeTwo256>;
 
         pub fn execute_with<R>(f: impl FnOnce() -> R) -> R {

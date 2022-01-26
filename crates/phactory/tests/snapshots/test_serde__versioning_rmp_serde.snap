@@ -1,0 +1,10 @@
+---
+source: crates/phactory/tests/test_serde.rs
+expression: de
+
+---
+Err(
+    Syntax(
+        "invalid length 2, expected struct V1 with 3 elements",
+    ),
+)

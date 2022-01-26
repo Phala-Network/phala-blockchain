@@ -86,10 +86,6 @@ impl contracts::NativeContract for Geolocation {
     type QReq = Request;
     type QResp = Result<Response, Error>;
 
-    fn id(&self) -> contracts::ContractId {
-        contracts::id256(contracts::GEOLOCATION)
-    }
-
     fn handle_command(
         &mut self,
         origin: MessageOrigin,
@@ -148,7 +144,7 @@ impl contracts::NativeContract for Geolocation {
                 let region_names: Vec<String> = self.region_map.keys().cloned().collect();
                 Ok(Response::GetAvailableRegionName { region_names })
             }
-            Request::GetAccountsInRegion { region_name } => {
+            Request::GetAccountsInRegion { region_name: _ } => {
                 // TODO(soptq): Authorization
                 Err(Error::Unimplemented)
                 // if let Some(workers) = self.city_distribution.get(&region_name) {

@@ -7,11 +7,12 @@ pub mod pallet {
 	use frame_support::{
 		dispatch::DispatchResult,
 		pallet_prelude::*,
-		traits::{StorageVersion, UnixTime},
+		traits::{Currency, StorageVersion, UnixTime},
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
 	use sp_core::H256;
+	use sp_runtime::traits::Hash;
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -22,9 +23,12 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
+		contract::messaging::{ContractEvent, ContractOperation},
+		contract::{CodeIndex, ContractInfo},
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerEvent, WorkerPinkReport,
+			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
+			WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 		EndpointType, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo}
@@ -37,9 +41,25 @@ pub mod pallet {
 		MasterPubkey { master_pubkey: MasterPublicKey },
 	}
 
+	bind_topic!(ContractRegistryEvent<CodeHash, AccountId>, b"^phala/registry/contract");
+	#[derive(Encode, Decode, Clone, Debug)]
+	pub enum ContractRegistryEvent<CodeHash, AccountId> {
+		PubkeyAvailable {
+			pubkey: ContractPublicKey,
+			info: ContractInfo<CodeHash, AccountId>,
+		},
+		ContractDeployed {
+			contract_pubkey: ContractPublicKey,
+			worker_pubkey: WorkerPublicKey,
+		},
+	}
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
-		type Event: From<Event> + IsType<<Self as frame_system::Config>::Event>;
+		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+
+		/// The currency in which fees are paid and contract balances are held.
+		type Currency: Currency<Self::AccountId>;
 
 		type UnixTime: UnixTime;
 		type AttestationValidator: AttestationValidator;
@@ -76,6 +96,24 @@ pub mod pallet {
 	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
+	// TODO(shelven): move contract code storage to a standalone pallet
+
+	/// A mapping from an original code hash to the original code, untouched by instrumentation.
+	#[pallet::storage]
+	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
+
+	/// The contract counter.
+	#[pallet::storage]
+	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
+
+	#[pallet::storage]
+	pub type Contracts<T: Config> =
+		StorageMap<_, Twox64Concat, ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>>;
+
+	#[pallet::storage]
+	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractPublicKey, WorkerPublicKey>;
+
+	// TODO(shelven): remove this
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
 	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, ContractPublicKey>;
@@ -108,8 +146,11 @@ pub mod pallet {
 	StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
 
 	#[pallet::event]
-	pub enum Event {
+	#[pallet::generate_deposit(pub(super) fn deposit_event)]
+	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
+		CodeUploaded(CodeHash<T>),
+		ContractInstantiated(ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>),
 	}
 
 	#[pallet::error]
@@ -147,7 +188,12 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
+		// Contract related
+		CodeNotFound,
+		DuplicatedContractPubkey,
 	}
+
+	type CodeHash<T> = <T as frame_system::Config>::Hash;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -187,18 +233,6 @@ pub mod pallet {
 					confidence_level: worker_info.confidence_level,
 				}),
 			));
-			Ok(())
-		}
-
-		/// Force register a contract pubkey
-		#[pallet::weight(10_000 + T::DbWeight::get().writes(1))]
-		pub fn force_register_contract(
-			origin: OriginFor<T>,
-			contract: H256,
-			pubkey: ContractPublicKey,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			ContractKey::<T>::insert(contract, pubkey);
 			Ok(())
 		}
 
@@ -406,6 +440,69 @@ pub mod pallet {
 				}
 			});
 
+		#[pallet::weight(0)]
+		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
+			ensure_signed(origin)?;
+			let code_hash = T::Hashing::hash(&code);
+			ContractCode::<T>::insert(&code_hash, &code);
+			Self::deposit_event(Event::CodeUploaded(code_hash));
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn upload_code_to_cluster(
+			origin: OriginFor<T>,
+			code: Vec<u8>,
+			cluster_id: ContractClusterId,
+		) -> DispatchResult {
+			let origin: T::AccountId = ensure_signed(origin)?;
+			// TODO.shelven: check permission?
+			Self::push_message(ContractOperation::UploadCodeToCluster { origin, code, cluster_id });
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
+		pub fn instantiate_contract(
+			origin: OriginFor<T>,
+			// #[pallet::compact] endowment: BalanceOf<T>,
+			// #[pallet::compact] gas_limit: Weight,
+			code_index: CodeIndex<CodeHash<T>>,
+			data: Vec<u8>,
+			salt: Vec<u8>,
+			deploy_worker: WorkerPublicKey,
+		) -> DispatchResult {
+			let deployer = ensure_signed(origin)?;
+
+			match code_index {
+				CodeIndex::NativeCode(_) => {}
+				CodeIndex::WasmCode(code_hash) => {
+					ensure!(
+						ContractCode::<T>::contains_key(code_hash),
+						Error::<T>::CodeNotFound
+					);
+				}
+			}
+
+			let worker_info =
+				Workers::<T>::try_get(&deploy_worker).or(Err(Error::<T>::WorkerNotFound))?;
+
+			let cluster_id = ContractClusterCounter::<T>::mutate(|counter| {
+				*counter += 1;
+				*counter
+			});
+			// we send hash instead of raw code here to reduce message size
+			let contract_info = ContractInfo {
+				deployer,
+				cluster_id,
+				salt,
+				code_index,
+				instantiate_data: data,
+			};
+			Self::push_message(ContractEvent::instantiate_code(
+				contract_info,
+				(worker_info.pubkey, worker_info.ecdh_pubkey),
+			));
+
 			Ok(())
 		}
 
@@ -560,10 +657,10 @@ pub mod pallet {
 				}
 				RegistryEvent::MasterPubkey { master_pubkey } => {
 					let gatekeepers = Gatekeeper::<T>::get();
-					if !gatekeepers.contains(worker_pubkey) {
-						return Err(Error::<T>::InvalidGatekeeper.into());
-					}
-
+					ensure!(
+						gatekeepers.contains(worker_pubkey),
+						Error::<T>::InvalidGatekeeper
+					);
 					match GatekeeperMasterPubkey::<T>::try_get() {
 						Ok(saved_pubkey) => {
 							ensure!(
@@ -583,18 +680,44 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_pink_message_received(
-			message: DecodedMessage<WorkerPinkReport>,
+		pub fn on_contract_message_received(
+			message: DecodedMessage<ContractRegistryEvent<CodeHash<T>, T::AccountId>>,
+		) -> DispatchResult {
+			ensure!(
+				message.sender == MessageOrigin::Gatekeeper,
+				Error::<T>::InvalidSender
+			);
+			match message.payload {
+				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
+					ensure!(
+						!Contracts::<T>::contains_key(pubkey),
+						Error::<T>::DuplicatedContractPubkey
+					);
+					Contracts::<T>::insert(&pubkey, &info);
+					Self::deposit_event(Event::ContractInstantiated(pubkey, info));
+				}
+				ContractRegistryEvent::ContractDeployed {
+					contract_pubkey,
+					worker_pubkey,
+				} => {
+					ContractWorkers::<T>::insert(&contract_pubkey, &worker_pubkey);
+				}
+			}
+			Ok(())
+		}
+
+		pub fn on_worker_contract_message_received(
+			message: DecodedMessage<WorkerContractReport>,
 		) -> DispatchResult {
 			match &message.sender {
 				MessageOrigin::Worker(_) => (),
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			}
 			match message.payload {
-				WorkerPinkReport::PinkInstantiated {
+				WorkerContractReport::ContractInstantiated {
 					id,
-					group_id: _,
-					owner: _,
+					cluster_id: _,
+					deployer: _,
 					pubkey,
 				} => {
 					ContractKey::<T>::insert(id, pubkey);
@@ -724,7 +847,7 @@ pub mod pallet {
 		type Config = T;
 	}
 
-	#[derive(Encode, Decode, TypeInfo, Default, Debug, Clone)]
+	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
 		pubkey: WorkerPublicKey,

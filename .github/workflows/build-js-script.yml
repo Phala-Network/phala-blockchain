@@ -2,9 +2,9 @@ name: Build JS Script
 
 on:
   push:
-    branches: [master]
+    branches: [ master ]
   pull_request:
-    branches: [master]
+    branches: [ master ]
 
 jobs:
   build-js-script:

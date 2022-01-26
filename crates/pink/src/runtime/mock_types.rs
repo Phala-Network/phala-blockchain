@@ -1,9 +1,9 @@
 
 use super::Balance;
-use frame_support::traits;
+use frame_support::{traits::{self, BalanceStatus}, dispatch::DispatchResult};
 
 use call_trace::{trace_with, CallContext, Trace};
-use sp_runtime::AccountId32;
+use sp_runtime::DispatchError;
 
 
 const ENOUGH: Balance = Balance::MAX / 2;
@@ -71,19 +71,19 @@ impl traits::Imbalance<Balance> for NoImbalance {
 
 pub struct NoCurrency;
 
-impl traits::Currency<AccountId32> for NoCurrency {
+impl<AccountId> traits::Currency<AccountId> for NoCurrency {
     type Balance = Balance;
 
     type PositiveImbalance = NoImbalance;
     type NegativeImbalance = NoImbalance;
 
     #[trace_with(Null)]
-    fn total_balance(_who: &AccountId32) -> Self::Balance {
+    fn total_balance(_who: &AccountId) -> Self::Balance {
         ENOUGH
     }
 
     #[trace_with(Null)]
-    fn can_slash(_who: &AccountId32, _value: Self::Balance) -> bool {
+    fn can_slash(_who: &AccountId, _value: Self::Balance) -> bool {
         false
     }
 
@@ -108,13 +108,13 @@ impl traits::Currency<AccountId32> for NoCurrency {
     }
 
     #[trace_with(Null)]
-    fn free_balance(_who: &AccountId32) -> Self::Balance {
+    fn free_balance(_who: &AccountId) -> Self::Balance {
         ENOUGH
     }
 
     #[trace_with(Null)]
     fn ensure_can_withdraw(
-        _who: &AccountId32,
+        _who: &AccountId,
         _amount: Self::Balance,
         _reasons: frame_support::traits::WithdrawReasons,
         _new_balance: Self::Balance,
@@ -124,8 +124,8 @@ impl traits::Currency<AccountId32> for NoCurrency {
 
     #[trace_with(Null)]
     fn transfer(
-        _source: &AccountId32,
-        _dest: &AccountId32,
+        _source: &AccountId,
+        _dest: &AccountId,
         _value: Self::Balance,
         _existence_requirement: frame_support::traits::ExistenceRequirement,
     ) -> frame_support::dispatch::DispatchResult {
@@ -134,7 +134,7 @@ impl traits::Currency<AccountId32> for NoCurrency {
 
     #[trace_with(Null)]
     fn slash(
-        _who: &AccountId32,
+        _who: &AccountId,
         _value: Self::Balance,
     ) -> (Self::NegativeImbalance, Self::Balance) {
         (traits::Imbalance::zero(), 0)
@@ -142,20 +142,20 @@ impl traits::Currency<AccountId32> for NoCurrency {
 
     #[trace_with(Null)]
     fn deposit_into_existing(
-        _who: &AccountId32,
+        _who: &AccountId,
         _value: Self::Balance,
     ) -> Result<Self::PositiveImbalance, sp_runtime::DispatchError> {
         Ok(traits::Imbalance::zero())
     }
 
     #[trace_with(Null)]
-    fn deposit_creating(_who: &AccountId32, _value: Self::Balance) -> Self::PositiveImbalance {
+    fn deposit_creating(_who: &AccountId, _value: Self::Balance) -> Self::PositiveImbalance {
         traits::Imbalance::zero()
     }
 
     #[trace_with(Null)]
     fn withdraw(
-        _who: &AccountId32,
+        _who: &AccountId,
         _value: Self::Balance,
         _reasons: frame_support::traits::WithdrawReasons,
         _liveness: frame_support::traits::ExistenceRequirement,
@@ -165,18 +165,44 @@ impl traits::Currency<AccountId32> for NoCurrency {
 
     #[trace_with(Null)]
     fn make_free_balance_be(
-        _who: &AccountId32,
+        _who: &AccountId,
         _balance: Self::Balance,
     ) -> frame_support::traits::SignedImbalance<Self::Balance, Self::PositiveImbalance> {
         frame_support::traits::SignedImbalance::zero()
     }
 }
 
+impl<AccountId> traits::ReservableCurrency<AccountId> for NoCurrency {
+	fn can_reserve(_: &AccountId, _: Self::Balance) -> bool {
+		true
+	}
+	fn slash_reserved(_: &AccountId, _: Self::Balance) -> (Self::NegativeImbalance, Self::Balance) {
+		(Default::default(), 0)
+	}
+	fn reserved_balance(_: &AccountId) -> Self::Balance {
+		0
+	}
+	fn reserve(_: &AccountId, _: Self::Balance) -> DispatchResult {
+		Ok(())
+	}
+	fn unreserve(_: &AccountId, _: Self::Balance) -> Self::Balance {
+		0
+	}
+	fn repatriate_reserved(
+		_: &AccountId,
+		_: &AccountId,
+		_: Self::Balance,
+		_: BalanceStatus,
+	) -> Result<Self::Balance, DispatchError> {
+		Ok(0)
+	}
+}
+
 
 pub struct NoAccountStore;
 
-impl traits::StoredMap<AccountId32, pallet_balances::AccountData<Balance>> for NoAccountStore {
-    fn get(_: &AccountId32) -> pallet_balances::AccountData<Balance> {
+impl<AccountId> traits::StoredMap<AccountId, pallet_balances::AccountData<Balance>> for NoAccountStore {
+    fn get(_: &AccountId) -> pallet_balances::AccountData<Balance> {
         pallet_balances::AccountData {
             free: ENOUGH,
             reserved: ENOUGH,
@@ -186,7 +212,7 @@ impl traits::StoredMap<AccountId32, pallet_balances::AccountData<Balance>> for N
     }
 
     fn try_mutate_exists<R, E: From<sp_runtime::DispatchError>>(
-        _k: &AccountId32,
+        _k: &AccountId,
         f: impl FnOnce(&mut Option<pallet_balances::AccountData<Balance>>) -> Result<R, E>,
     ) -> Result<R, E> {
         f(&mut None)
