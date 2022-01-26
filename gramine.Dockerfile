@@ -42,12 +42,7 @@ RUN bash cleanup.sh
 
 # ====== start phala ======
 
-ADD dockerfile.d/console.sh ./console.sh
 ADD dockerfile.d/startup-gramine.sh ./startup.sh
-ADD dockerfile.d/api.nginx.conf /etc/nginx/sites-enabled/default
 CMD bash ./startup.sh
 
 EXPOSE 8000
-EXPOSE 9933
-EXPOSE 9944
-EXPOSE 30333
