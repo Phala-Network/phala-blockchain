@@ -571,6 +571,11 @@ pub mod messaging {
             deployer: AccountId,
             pubkey: EcdhPublicKey,
         },
+        ContractInstantiationFailed {
+            id: ContractId,
+            cluster_id: ContractClusterId,
+            deployer: AccountId,
+        },
     }
 }
 

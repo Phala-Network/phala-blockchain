@@ -801,6 +801,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
+                let contract_info = dispatch_contract_key_event.contract_info.clone();
                 if let Err(err) = self.process_contract_key_distribution(
                     block,
                     origin,
@@ -810,6 +811,12 @@ impl<Platform: pal::Platform> System<Platform> {
                         "Failed to process contract key distribution event: {:?}",
                         err
                     );
+                    let message = WorkerContractReport::ContractInstantiationFailed {
+                        id: contracts::get_contract_id(&contract_info),
+                        cluster_id: contract_info.cluster_id,
+                        deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
+                    };
+                    self.egress.push_message(&message);
                 }
             }
         }

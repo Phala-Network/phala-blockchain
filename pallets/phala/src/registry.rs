@@ -142,6 +142,7 @@ pub mod pallet {
 		GatekeeperAdded(WorkerPublicKey),
 		CodeUploaded(CodeHash<T>),
 		ContractInstantiated(ContractInfo<CodeHash<T>, T::AccountId>, ContractPublicKey),
+		ContractInstantiationFailed(ContractId, ContractClusterId, H256),
 	}
 
 	#[pallet::error]
@@ -687,6 +688,15 @@ pub mod pallet {
 						workers.push(worker_pubkey.clone());
 						ContractWorkers::<T>::insert(&id, workers);
 					}
+				}
+				WorkerContractReport::ContractInstantiationFailed {
+					id,
+					cluster_id,
+					deployer,
+				} => {
+					Self::deposit_event(Event::ContractInstantiationFailed(
+						id, cluster_id, deployer,
+					));
 				}
 			}
 			Ok(())
