@@ -92,6 +92,9 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
                 let mut body = Vec::new();
                 const MAX_BODY_SIZE: usize = 1024 * 256;
                 let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+
+                req.timeout(Some(std::time::Duration::from_secs(10)));
+
                 let response = req
                     .send(&mut writer)
                     .or(Err(DispatchError::Other("Failed to send request".into())))?;
