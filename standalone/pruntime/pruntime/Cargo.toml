@@ -9,7 +9,6 @@ panic = "abort"
 [dependencies]
 anyhow = "1.0"
 colored = "2"
-envy = "0.4.2"
 libc = "0.2"
 log = "0.4.14"
 num_cpus = "1.13"

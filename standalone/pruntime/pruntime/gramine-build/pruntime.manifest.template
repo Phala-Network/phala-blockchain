@@ -36,7 +36,7 @@ uri = "file:/etc"
 [sgx]
 debug = false
 nonpie_binary = true
-enclave_size = "1G"
+enclave_size = "2G"
 thread_num = 32
 remote_attestation = true
 ra_client_linkable = true

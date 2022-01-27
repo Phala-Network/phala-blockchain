@@ -55,6 +55,17 @@ fn main() {
         libc::mallopt(libc::M_ARENA_MAX, 1);
     }
 
+    let runing_under_gramine = std::path::Path::new("/dev/attestation/user_report_data").exists();
+    let sealing_path = if runing_under_gramine {
+        // In gramine, the protected files are configured via manifest file. So we must not allow it to
+        // be changed at runtime for security reason. Thus hardcoded it to `/protected_files` here.
+        // Should keep it the same with the manifest config.
+        "/protected_files"
+    } else {
+        "."
+    }
+    .into();
+
     let args = Args::from_args();
 
     env::set_var("RUST_BACKTRACE", "1");
@@ -71,10 +82,6 @@ fn main() {
     let env = env_logger::Env::default().default_filter_or(&args.log_filter);
     env_logger::Builder::from_env(env).init();
 
-    // In gramine, the protected files are configured via manifest file. So we must not allow it to
-    // be changed at runtime for security reason. Thus hardcoded it to `/protected_files` here.
-    // Should keep it the same with the manifest config.
-    let sealing_path = "/protected_files".into();
     let init_args = InitArgs {
         sealing_path,
         log_filter: Default::default(),
