@@ -449,7 +449,7 @@ const xcmp = program
 
 xcmp
     .command('transact')
-    .description('send a transac xcm to the relay chain on behalf of the parachain\'s sovereign account')
+    .description('send a transact xcm to the relay chain on behalf of the parachain\'s sovereign account')
     .option('--max-fee <fee>', 'the max fee to pay for the transaction (in pico)', '1000000000000')
     .argument('<data>', 'the raw transac data in hex')
     .action(run(async (data, opt) => {
