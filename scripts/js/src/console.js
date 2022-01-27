@@ -12,6 +12,7 @@ const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 const { poolSubAccount } = require('./utils/palletUtils');
 const { decorateStakePool } = require('./utils/displayUtils');
+const BN = require('bn.js');
 
 function run(afn) {
     function runner(...args) {
@@ -74,7 +75,7 @@ function usePruntimeApi() {
     return new PRuntimeApi(pruntimeEndpoint);
 }
 
-async function substrateApi() {
+async function useApi() {
     const { substrateWsEndpoint, substrateNoRetry, at } = program.opts();
     const wsProvider = new WsProvider(substrateWsEndpoint);
     const api = await ApiPromise.create({
@@ -440,6 +441,70 @@ pdiem
             })
         );
         await printTxOrSend(call);
+    }));
+
+const xcmp = program
+    .command('xcmp')
+    .description('XCMP tools');
+
+xcmp
+    .command('transact')
+    .description('send a transac xcm to the relay chain on behalf of the parachain\'s sovereign account')
+    .option('--max-fee <fee>', 'the max fee to pay for the transaction (in pico)', '1000000000000')
+    .argument('<data>', 'the raw transac data in hex')
+    .action(run(async (data, opt) => {
+        const api = await useApi();
+        const paraId = await api.query.parachainInfo.parachainId();
+        const maxFee = opt.maxFee;
+        console.log(`Max fee: ${maxFee}`);
+        console.log(`Our ParaId: ${paraId.toNumber()}`);
+
+        const dest = api.createType('XcmVersionedMultiLocation', {
+            V1: { parents: 1, interior: 'Here' }
+        });
+
+        const message = api.createType('XcmVersionedXcm', {
+            V2: [
+                // Withdraw 1 KSM to buy execution
+                {
+                    WithdrawAsset: [{
+                        id: { Concrete: { parents: 0, interior: 'Here' } },
+                        fun: { Fungible: new BN(maxFee) },
+                    }],
+                },
+                {
+                    BuyExecution: {
+                        fees: {
+                            id: { Concrete: { parents: 0, interior: 'Here' } },
+                            fun: { Fungible: new BN(maxFee) },
+                        },
+                        weightLimit: 'Unlimited',
+                    }
+                },
+                // Transact on behalf of the parachain's sovereign account
+                {
+                    Transact: {
+                        originType: 'Native',
+                        requiredWeightAtMost: 0,
+                        call: { encoded: data },
+                    }
+                },
+                // Pay back the remaining fee
+                {
+                    DepositAsset: {
+                        assets: { Wild: 'All' },
+                        maxAssets: 1,
+                        beneficiary: {
+                            parents: 0,
+                            interior: { X1: { Parachain: paraId } },
+                        }
+                    }
+                },
+            ]
+        });
+        console.dir(message.toHuman(), {depth: 6});
+        const call = api.tx.polkadotXcm.send(dest, message);
+        console.log(call.method.toHex());
     }));
 
 // Utilities
