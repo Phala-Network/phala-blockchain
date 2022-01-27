@@ -60,17 +60,27 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         let mut env = env.buf_in_buf_out();
 
         match func_id {
+            // http_request
             0xff000001 => {
                 use pink_extension::chain_extension::{HttpRequest, HttpResponse};
                 // TODO.kevin.must: Forbid to call from command.
                 let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
 
                 let mut body = Vec::new();
+
+                const MAX_BODY_SIZE: usize = 1024 * 256;
+                let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+
                 let response = match request.method.as_str() {
-                    "GET" => http_req::request::get(&request.url, &mut body).unwrap(),
-                    "POST" => {
-                        http_req::request::post(&request.url, &request.body, &mut body).unwrap()
-                    }
+                    "GET" => http_req::request::get(&request.url, &mut writer).map_err(|e| {
+                        error!("http_get error: {:?}", e);
+                        DispatchError::Other("http_get error")
+                    })?,
+                    "POST" => http_req::request::post(&request.url, &request.body, &mut writer)
+                        .map_err(|e| {
+                            error!("http_post error: {:?}", e);
+                            DispatchError::Other("http_post error")
+                        })?,
                     _ => {
                         return Err(DispatchError::Other("Unsupported method".into()));
                     }
@@ -97,5 +107,39 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
                 return Err(DispatchError::Other("Unimplemented func_id"));
             }
         }
+    }
+}
+
+struct LimitedWriter<W> {
+    writer: W,
+    written: usize,
+    limit: usize,
+}
+
+impl<W> LimitedWriter<W> {
+    fn new(writer: W, limit: usize) -> Self {
+        Self {
+            writer,
+            written: 0,
+            limit,
+        }
+    }
+}
+
+impl<W: std::io::Write> std::io::Write for LimitedWriter<W> {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        if self.written + buf.len() > self.limit {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "Buffer limit exceeded",
+            ));
+        }
+        let wlen = self.writer.write(buf)?;
+        self.written += wlen;
+        Ok(wlen)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.writer.flush()
     }
 }
