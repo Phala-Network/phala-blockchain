@@ -43,6 +43,7 @@ phala-serde-more = { path = "../phala-serde-more" }
 phala-trie-storage = { path = "../phala-trie-storage" }
 phala-types = { path = "../phala-types" }
 pink-extension = { path = "pink-extension" }
+http_req = { version = "0.8.1", default-features = false, features = ["rust-tls"] }
 
 [dev-dependencies]
 insta = "1.7.2"

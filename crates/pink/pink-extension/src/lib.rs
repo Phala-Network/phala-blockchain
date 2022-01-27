@@ -12,6 +12,8 @@ use ::{ink_env::test::EmittedEvent, std::convert::TryInto};
 
 pub use pink_extension_macro::contract;
 
+pub mod chain_extension;
+
 const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 
 pub type EcdhPublicKey = [u8; 32];
@@ -100,7 +102,7 @@ impl Environment for PinkEnvironment {
     type BlockNumber = <ink_env::DefaultEnvironment as Environment>::BlockNumber;
     type Timestamp = <ink_env::DefaultEnvironment as Environment>::Timestamp;
 
-    type ChainExtension = <ink_env::DefaultEnvironment as Environment>::ChainExtension;
+    type ChainExtension = chain_extension::PinkExt;
 }
 
 #[cfg(feature = "runtime_utils")]
