@@ -104,6 +104,7 @@ pub use phala_pallets::{
 	pallet_registry,
 	pallet_mining,
 	pallet_stakepool,
+	pallet_fat,
 	puppets,
 };
 pub use pallet_bridge;
@@ -1234,6 +1235,9 @@ impl pallet_stakepool::Config for Runtime {
 	type MiningSwitchOrigin = EnsureRootOrHalfCouncil;
 	type BackfillOrigin = EnsureRootOrHalfCouncil;
 }
+impl pallet_fat::Config for Runtime {
+	type Event = Event;
+}
 
 impl puppets::parachain_info::Config for Runtime {}
 impl puppets::parachain_system::Config for Runtime {}
@@ -1289,6 +1293,7 @@ construct_runtime!(
 		PhalaRegistry: pallet_registry,
 		PhalaMining: pallet_mining,
 		PhalaStakePool: pallet_stakepool,
+		PhalaFatContracts: pallet_fat,
 
 		// Put them here to make sure pherry could be compiled with phala's metadata.
 		ParachainInfo: puppets::parachain_info,
