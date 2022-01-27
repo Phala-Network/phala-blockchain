@@ -150,6 +150,11 @@ pub mod pallet {
 		T::MiningEnabledByDefault::get()
 	}
 
+	/// Helper storage to track the preimage of the mining sub-accounts. Not used in consensus.
+	#[pallet::storage]
+	pub type SubAccountPreimages<T: Config> =
+		StorageMap<_, Twox64Concat, T::AccountId, (u64, WorkerPublicKey)>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -598,9 +603,12 @@ pub mod pallet {
 				Error::<T>::WorkerDoesNotExist
 			);
 			let miner: T::AccountId = pool_sub_account(pid, &worker);
-			mining::pallet::Pallet::<T>::start_mining(miner, stake)?;
+			mining::pallet::Pallet::<T>::start_mining(miner.clone(), stake)?;
 			pool_info.free_stake -= stake;
 			StakePools::<T>::insert(&pid, &pool_info);
+			// Save the preimage of the sub-account when start mining. We remove the storage item
+			// after reclaiming. Only start_mining is paired with reclaim. So we insert it here.
+			SubAccountPreimages::<T>::insert(miner, (pid, worker));
 			Ok(())
 		}
 
@@ -642,8 +650,13 @@ pub mod pallet {
 			ensure_signed(origin)?;
 			Self::ensure_pool(pid)?;
 			let sub_account: T::AccountId = pool_sub_account(pid, &worker);
-			let (orig_stake, slashed) = mining::Pallet::<T>::reclaim(sub_account)?;
+			let (orig_stake, slashed) = mining::Pallet::<T>::reclaim(sub_account.clone())?;
 			Self::handle_reclaim(pid, orig_stake, slashed);
+			// A successful relcaim will settle all the stake. We don't care about the preimage of
+			// the sub-account anymore. So we feel safe to delete the preimage. Also, this method
+			// is the only entrance to trigger the underlying reclaim. So we can release the
+			// storage now.
+			SubAccountPreimages::<T>::remove(sub_account);
 			Ok(())
 		}
 
@@ -2940,7 +2953,7 @@ pub mod pallet {
 				set_block_1();
 				setup_workers(1);
 				setup_pool_with_workers(1, &[1]); // pid=0
-				// Start a worker as usual
+								  // Start a worker as usual
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(2),
 					0,
@@ -2976,7 +2989,7 @@ pub mod pallet {
 				set_block_1();
 				setup_workers(1);
 				setup_pool_with_workers(1, &[1]); // pid=0
-				// Start a worker as usual
+								  // Start a worker as usual
 				assert_ok!(PhalaStakePool::contribute(
 					Origin::signed(2),
 					0,
@@ -3092,6 +3105,49 @@ pub mod pallet {
 					.unwrap()
 					.withdraw_queue
 					.is_empty());
+			});
+		}
+
+		#[test]
+		fn subaccount_preimage() {
+			new_test_ext().execute_with(|| {
+				setup_workers(1);
+				setup_pool_with_workers(1, &[1]); // pid=0
+								  // Start a worker as usual
+				assert_ok!(PhalaStakePool::contribute(
+					Origin::signed(2),
+					0,
+					1500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::start_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1),
+					1500 * DOLLARS
+				));
+				assert_ok!(PhalaStakePool::stop_mining(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				let subaccount: u64 = pool_sub_account(0, &worker_pubkey(1));
+				let preimage = SubAccountPreimages::<Test>::get(subaccount);
+				assert_eq!(preimage, Some((0, worker_pubkey(1))));
+				assert_ok!(PhalaStakePool::remove_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				let preimage = SubAccountPreimages::<Test>::get(subaccount);
+				assert_eq!(preimage, Some((0, worker_pubkey(1))));
+				elapse_cool_down();
+				assert_ok!(PhalaStakePool::reclaim_pool_worker(
+					Origin::signed(1),
+					0,
+					worker_pubkey(1)
+				));
+				let preimage = SubAccountPreimages::<Test>::get(subaccount);
+				assert_eq!(preimage, None);
 			});
 		}
 
