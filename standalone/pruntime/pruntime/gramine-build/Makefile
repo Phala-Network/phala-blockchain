@@ -79,6 +79,11 @@ endif
 	cp ${BIN_NAME}.manifest ${PREFIX}/
 
 run: all
+ifeq ($(SGX),1)
 	rm -rf data
 	mkdir -p data
 	gramine-sgx pruntime
+else
+	mkdir -p data
+	gramine-direct pruntime
+endif
