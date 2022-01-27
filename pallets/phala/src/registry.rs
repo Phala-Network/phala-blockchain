@@ -12,7 +12,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
 	use sp_core::H256;
-	use sp_runtime::traits::Hash;
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -23,11 +22,9 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractClusterId, ContractId, ContractInfo},
 		messaging::{
 			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerContractReport, WorkerEvent,
+			SignedMessage, SystemEvent, WorkerContractReport, WorkerEvent, ContractId,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
 		WorkerRegistrationInfo,
@@ -40,15 +37,6 @@ pub mod pallet {
 		MasterPubkey { master_pubkey: MasterPublicKey },
 	}
 
-	bind_topic!(ContractRegistryEvent<CodeHash, AccountId>, b"^phala/registry/contract");
-	#[derive(Encode, Decode, Clone, Debug)]
-	pub enum ContractRegistryEvent<CodeHash, AccountId> {
-		PubkeyAvailable {
-			contract_id: ContractId,
-			info: ContractInfo<CodeHash, AccountId>,
-			pubkey: ContractPublicKey,
-		},
-	}
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
@@ -92,24 +80,6 @@ pub mod pallet {
 	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
-	/// Mapping from an original code hash to the original code, untouched by instrumentation
-	#[pallet::storage]
-	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
-
-	/// The contract cluster counter.
-	#[pallet::storage]
-	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
-
-	#[pallet::storage]
-	pub type ContractClusters<T> = StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>>;
-
-	#[pallet::storage]
-	pub type Contracts<T: Config> =
-		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
-
-	#[pallet::storage]
-	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractId, Vec<WorkerPublicKey>>;
-
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
 	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
@@ -140,9 +110,6 @@ pub mod pallet {
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
-		CodeUploaded(CodeHash<T>),
-		ContractInstantiated(ContractInfo<CodeHash<T>, T::AccountId>, ContractPublicKey),
-		ContractInstantiationFailed(ContractId, ContractClusterId, H256),
 	}
 
 	#[pallet::error]
@@ -180,15 +147,7 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
-		// Contract related
-		CodeNotFound,
-		ContractClusterNotFound,
-		DuplicatedContract,
-		DuplicatedDeployment,
-		NoWorkerSpecified,
 	}
-
-	type CodeHash<T> = <T as frame_system::Config>::Hash;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -372,124 +331,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		#[pallet::weight(0)]
-		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
-			ensure_signed(origin)?;
-			let code_hash = T::Hashing::hash(&code);
-			ContractCode::<T>::insert(&code_hash, &code);
-			Self::deposit_event(Event::CodeUploaded(code_hash));
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn upload_code_to_cluster(
-			origin: OriginFor<T>,
-			code: Vec<u8>,
-			cluster_id: ContractClusterId,
-		) -> DispatchResult {
-			let origin: T::AccountId = ensure_signed(origin)?;
-			// TODO.shelven: check permission?
-			Self::push_message(ContractOperation::UploadCodeToCluster {
-				origin,
-				code,
-				cluster_id,
-			});
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
-		pub fn instantiate_contract(
-			origin: OriginFor<T>,
-			// #[pallet::compact] endowment: BalanceOf<T>,
-			// #[pallet::compact] gas_limit: Weight,
-			code_index: CodeIndex<CodeHash<T>>,
-			data: Vec<u8>,
-			salt: Vec<u8>,
-			cluster: Option<ContractClusterId>,
-			deploy_workers: Vec<WorkerPublicKey>,
-		) -> DispatchResult {
-			let deployer = ensure_signed(origin)?;
-
-			match code_index {
-				CodeIndex::NativeCode(_) => {}
-				CodeIndex::WasmCode(code_hash) => {
-					ensure!(
-						ContractCode::<T>::contains_key(code_hash),
-						Error::<T>::CodeNotFound
-					);
-				}
-			}
-
-			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
-
-			let mut workers = Vec::new();
-			for worker in deploy_workers.into_iter() {
-				let worker_info =
-					Workers::<T>::try_get(&worker).or(Err(Error::<T>::WorkerNotFound))?;
-				workers.push(WorkerIdentity {
-					pubkey: worker_info.pubkey,
-					ecdh_pubkey: worker_info.ecdh_pubkey,
-				});
-			}
-
-			let cluster_id = match cluster {
-				Some(cluster_id) => {
-					ensure!(
-						ContractClusters::<T>::contains_key(cluster_id),
-						Error::<T>::ContractClusterNotFound
-					);
-					cluster_id
-				}
-				None => {
-					let counter = ContractClusterCounter::<T>::mutate(|counter| {
-						*counter += 1;
-						*counter
-					});
-					ContractClusterId::from_low_u64_be(counter)
-				}
-			};
-
-			// keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
-			fn get_contract_id(
-				deployer: &[u8],
-				code_hash: &[u8],
-				cluster_id: &[u8],
-				salt: &[u8],
-			) -> ContractId {
-				let buf: Vec<_> = deployer
-					.iter()
-					.chain(code_hash)
-					.chain(cluster_id)
-					.chain(salt)
-					.cloned()
-					.collect();
-				crate::hashing::blake2_256(&buf).into()
-			}
-
-			let contract_id = get_contract_id(
-				deployer.encode().as_ref(),
-				code_index.code_hash().as_ref(),
-				cluster_id.as_ref(),
-				salt.as_ref(),
-			);
-			ensure!(
-				!Contracts::<T>::contains_key(contract_id),
-				Error::<T>::DuplicatedContract
-			);
-			// we send code index instead of raw code here to reduce message size
-			let contract_info = ContractInfo {
-				deployer,
-				code_index,
-				salt,
-				cluster_id,
-				instantiate_data: data,
-			};
-			Contracts::<T>::insert(&contract_id, &contract_info);
-			Self::push_message(ContractEvent::instantiate_code(contract_info, workers));
-
-			Ok(())
-		}
-
 		/// Registers a pRuntime image as the canonical runtime with its digest.
 		#[pallet::weight(0)]
 		pub fn add_pruntime(origin: OriginFor<T>, pruntime_hash: Vec<u8>) -> DispatchResult {
@@ -664,67 +505,6 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_contract_message_received(
-			message: DecodedMessage<ContractRegistryEvent<CodeHash<T>, T::AccountId>>,
-		) -> DispatchResult {
-			ensure!(
-				message.sender == MessageOrigin::Gatekeeper,
-				Error::<T>::InvalidSender
-			);
-			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable {
-					contract_id,
-					info,
-					pubkey,
-				} => {
-					let mut cluster =
-						ContractClusters::<T>::try_get(info.cluster_id).unwrap_or(vec![]);
-					ensure!(
-						!cluster.contains(&contract_id),
-						Error::<T>::DuplicatedDeployment
-					);
-					cluster.push(contract_id);
-					ContractClusters::<T>::insert(&info.cluster_id, cluster);
-					Self::deposit_event(Event::ContractInstantiated(info, pubkey));
-				}
-			}
-			Ok(())
-		}
-
-		pub fn on_worker_contract_message_received(
-			message: DecodedMessage<WorkerContractReport>,
-		) -> DispatchResult {
-			let worker_pubkey = match &message.sender {
-				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			};
-			match message.payload {
-				WorkerContractReport::ContractInstantiated {
-					id,
-					cluster_id: _,
-					deployer: _,
-					pubkey,
-				} => {
-					ContractKeys::<T>::insert(id, pubkey);
-					let mut workers = ContractWorkers::<T>::try_get(id).unwrap_or(vec![]);
-					if !workers.contains(worker_pubkey) {
-						workers.push(worker_pubkey.clone());
-						ContractWorkers::<T>::insert(&id, workers);
-					}
-				}
-				WorkerContractReport::ContractInstantiationFailed {
-					id,
-					cluster_id,
-					deployer,
-				} => {
-					Self::deposit_event(Event::ContractInstantiationFailed(
-						id, cluster_id, deployer,
-					));
-				}
-			}
-			Ok(())
-		}
-
 		#[cfg(test)]
 		pub(crate) fn internal_set_benchmark(worker: &WorkerPublicKey, score: Option<u32>) {
 			Workers::<T>::mutate(worker, |w| {
@@ -849,17 +629,17 @@ pub mod pallet {
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
-		pubkey: WorkerPublicKey,
-		ecdh_pubkey: EcdhPublicKey,
+		pub pubkey: WorkerPublicKey,
+		pub ecdh_pubkey: EcdhPublicKey,
 		// system
-		runtime_version: u32,
-		last_updated: u64,
+		pub runtime_version: u32,
+		pub last_updated: u64,
 		pub operator: Option<AccountId>,
 		// platform
 		pub confidence_level: u8,
 		// scoring
 		pub initial_score: Option<u32>,
-		features: Vec<u32>,
+		pub features: Vec<u32>,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {

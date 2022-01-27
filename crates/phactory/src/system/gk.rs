@@ -1,5 +1,5 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_registry::ContractRegistryEvent;
+use chain::pallet_fat::ContractRegistryEvent;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
