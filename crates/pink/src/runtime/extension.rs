@@ -1,4 +1,6 @@
-use frame_support::log::{error, info};
+use std::convert::TryFrom;
+
+use frame_support::log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
@@ -66,36 +68,43 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
                 // TODO.kevin.must: Forbid to call from command.
                 let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
 
-                let mut body = Vec::new();
+                let uri = http_req::uri::Uri::try_from(request.url.as_str())
+                    .or(Err(DispatchError::Other("Invalid URL")))?;
 
-                const MAX_BODY_SIZE: usize = 1024 * 256;
-                let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+                let mut req = http_req::request::Request::new(&uri);
+                for (key, value) in &request.headers {
+                    req.header(key, value);
+                }
 
-                let response = match request.method.as_str() {
-                    "GET" => http_req::request::get(&request.url, &mut writer).map_err(|e| {
-                        error!("http_get error: {:?}", e);
-                        DispatchError::Other("http_get error")
-                    })?,
-                    "POST" => http_req::request::post(&request.url, &request.body, &mut writer)
-                        .map_err(|e| {
-                            error!("http_post error: {:?}", e);
-                            DispatchError::Other("http_post error")
-                        })?,
+                match request.method.as_str() {
+                    "GET" => {
+                        req.method(http_req::request::Method::GET);
+                    }
+                    "POST" => {
+                        req.method(http_req::request::Method::POST)
+                            .body(request.body.as_slice());
+                    }
                     _ => {
                         return Err(DispatchError::Other("Unsupported method".into()));
                     }
                 };
 
-                info!(
-                    "HTTP response status: {} {}",
-                    response.status_code(),
-                    response.reason()
-                );
+                let mut body = Vec::new();
+                const MAX_BODY_SIZE: usize = 1024 * 256;
+                let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+                let response = req
+                    .send(&mut writer)
+                    .or(Err(DispatchError::Other("Failed to send request".into())))?;
 
+                let headers: Vec<_> = response
+                    .headers()
+                    .iter()
+                    .map(|(k, v)| (k.to_string(), v.to_owned()))
+                    .collect();
                 let response = HttpResponse {
                     status_code: response.status_code().into(),
                     body,
-                    headers: Default::default(),
+                    headers,
                 };
                 env.write(&response.encode(), false, None).map_err(|_| {
                     DispatchError::Other("ChainExtension failed to return http_request")
