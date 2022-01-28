@@ -34,13 +34,13 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::ContractOperation, CodeIndex, ContractInfo},
+    contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
         ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerContractReport, WorkerEvent,
     },
-    ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -1214,7 +1214,7 @@ impl fmt::Display for Error {
 pub mod chain_state {
     use super::*;
     use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
+    use crate::storage::Storage;
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -1230,31 +1230,13 @@ pub mod chain_state {
         gatekeepers.contains(pubkey)
     }
 
-    #[allow(dead_code)]
-    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
-        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage.get(&key).map(|v| {
-            MasterPublicKey::decode(&mut &v[..])
-                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
-        })
-    }
-
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"ContractCode", &code_hash);
+        let key =
+            storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"ContractCode", &code_hash);
         chain_storage.get(&key).map(|v| {
             Vec::<u8>::decode(&mut &v[..])
                 .expect("Decode value of MasterPubkey Failed. (This should not happen)")
         })
-    }
-
-    #[allow(dead_code)]
-    pub fn read_contract_info(
-        chain_storage: &Storage,
-        contract_pubkey: ContractPublicKey,
-    ) -> Option<ContractInfo<chain::Hash, chain::AccountId>> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"Contracts", &contract_pubkey);
-        chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
 

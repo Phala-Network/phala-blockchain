@@ -23,11 +23,10 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, DecodedMessage, GatekeeperChange, GatekeeperLaunch, MessageOrigin,
-			SignedMessage, SystemEvent, WorkerContractReport, WorkerEvent, ContractId,
+			self, bind_topic, ContractId, DecodedMessage, GatekeeperChange, GatekeeperLaunch,
+			MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerIdentity, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -36,7 +35,6 @@ pub mod pallet {
 		BenchReport { start_time: u64, iterations: u64 },
 		MasterPubkey { master_pubkey: MasterPublicKey },
 	}
-
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config {

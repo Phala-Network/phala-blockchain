@@ -281,7 +281,6 @@ where
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
                         contract_id: contract_id.clone(),
                         pubkey: contract_key.public(),
-                        info: contract_info.clone(),
                     });
                 // then distribute contract key to each worker
                 // and update the on-chain deployment state
