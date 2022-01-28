@@ -17,7 +17,7 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractClusterId, ContractId, ContractInfo},
+		contract::{CodeIndex, ContractClusterId, ContractId, ContractInfo, DeployTarget},
 		messaging::{bind_topic, DecodedMessage, MessageOrigin, WorkerContractReport},
 		ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
@@ -59,7 +59,8 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
 
 	#[pallet::storage]
-	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractId, Vec<WorkerPublicKey>>;
+	pub type ClusterWorkers<T> =
+		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -122,12 +123,9 @@ pub mod pallet {
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
-			cluster: Option<ContractClusterId>,
-			deploy_workers: Vec<WorkerPublicKey>,
+			deploy_to: DeployTarget,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
-
-			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
 
 			match code_index {
 				CodeIndex::NativeCode(_) => {}
@@ -139,8 +137,29 @@ pub mod pallet {
 				}
 			}
 
+			let (cluster_id, deploy_workers) = match deploy_to {
+				DeployTarget::Cluster(cluster_id) => {
+					ensure!(
+						ClusterWorkers::<T>::contains_key(cluster_id),
+						Error::<T>::ContractClusterNotFound
+					);
+					let workers = ClusterWorkers::<T>::get(cluster_id).expect("checked; qed.");
+					(cluster_id, workers)
+				}
+				DeployTarget::NewGroup(deploy_workers) => {
+					ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
+
+					let counter = ContractClusterCounter::<T>::mutate(|counter| {
+						*counter += 1;
+						*counter
+					});
+					let cluster_id = ContractClusterId::from_low_u64_be(counter);
+					(cluster_id, deploy_workers)
+				}
+			};
+
 			let mut workers = Vec::new();
-			for worker in deploy_workers.into_iter() {
+			for worker in deploy_workers.clone().into_iter() {
 				let worker_info =
 					registry::Workers::<T>::try_get(&worker).or(Err(Error::<T>::WorkerNotFound))?;
 				workers.push(WorkerIdentity {
@@ -148,23 +167,9 @@ pub mod pallet {
 					ecdh_pubkey: worker_info.ecdh_pubkey,
 				});
 			}
-
-			let cluster_id = match cluster {
-				Some(cluster_id) => {
-					ensure!(
-						ContractClusters::<T>::contains_key(cluster_id),
-						Error::<T>::ContractClusterNotFound
-					);
-					cluster_id
-				}
-				None => {
-					let counter = ContractClusterCounter::<T>::mutate(|counter| {
-						*counter += 1;
-						*counter
-					});
-					ContractClusterId::from_low_u64_be(counter)
-				}
-			};
+			if !ClusterWorkers::<T>::contains_key(cluster_id) {
+				ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
+			}
 
 			// keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
 			fn get_contract_id(
@@ -202,6 +207,11 @@ pub mod pallet {
 				instantiate_data: data,
 			};
 			Contracts::<T>::insert(&contract_id, &contract_info);
+
+			let mut cluster = ContractClusters::<T>::try_get(&cluster_id).unwrap_or(vec![]);
+			cluster.push(contract_id);
+			ContractClusters::<T>::insert(&cluster_id, cluster);
+
 			Self::push_message(ContractEvent::instantiate_code(
 				contract_info.clone(),
 				workers,
@@ -242,7 +252,7 @@ pub mod pallet {
 		pub fn on_worker_contract_message_received(
 			message: DecodedMessage<WorkerContractReport>,
 		) -> DispatchResult {
-			let worker_pubkey = match &message.sender {
+			let _worker_pubkey = match &message.sender {
 				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
@@ -253,15 +263,6 @@ pub mod pallet {
 					deployer,
 					pubkey: _,
 				} => {
-					let mut cluster = ContractClusters::<T>::try_get(&cluster_id).unwrap_or(vec![]);
-					cluster.push(id);
-					ContractClusters::<T>::insert(&cluster_id, cluster);
-
-					let mut workers = ContractWorkers::<T>::try_get(id).unwrap_or(vec![]);
-					if !workers.contains(worker_pubkey) {
-						workers.push(worker_pubkey.clone());
-						ContractWorkers::<T>::insert(&id, workers);
-					}
 					Self::deposit_event(Event::Instantiated(id, cluster_id, deployer));
 				}
 				WorkerContractReport::ContractInstantiationFailed {

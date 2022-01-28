@@ -1,3 +1,4 @@
+use super::WorkerPublicKey;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -23,6 +24,12 @@ pub const BTC_PRICE_BOT: ContractId32 = 101;
 pub enum CodeIndex<CodeHash> {
     NativeCode(ContractId32),
     WasmCode(CodeHash),
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum DeployTarget {
+    Cluster(ContractClusterId),
+    NewGroup(Vec<WorkerPublicKey>),
 }
 
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
