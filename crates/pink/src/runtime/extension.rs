@@ -68,7 +68,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             0xff000001 => call.http_request(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
-                return Err(DispatchError::Other("Unimplemented func_id"));
+                Err(DispatchError::Other("Unimplemented func_id"))
             }
         }
     }
@@ -109,7 +109,7 @@ where
                     .body(request.body.as_slice());
             }
             _ => {
-                return Err(DispatchError::Other("Unsupported method".into()));
+                return Err(DispatchError::Other("Unsupported method"));
             }
         };
 
@@ -124,7 +124,7 @@ where
 
         let response = req
             .send(&mut writer)
-            .or(Err(DispatchError::Other("Failed to send request".into())))?;
+            .or(Err(DispatchError::Other("Failed to send request")))?;
 
         let headers: Vec<_> = response
             .headers()
