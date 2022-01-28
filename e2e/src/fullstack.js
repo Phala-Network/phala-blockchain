@@ -155,7 +155,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Gatekeeper2', () => {
+    describe.skip('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -224,7 +224,100 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Solo mining workflow', () => {
+    describe('Contract', () => {
+        let wasm_file = './res/flipper.wasm';
+        let init_selector = hex('0xed4b9d1b'); // for default() function
+        let code_hash;
+        let contract_ids = [];
+        let cluster_id;
+
+        it('can upload code', async function () {
+            let code = fs.readFileSync(wasm_file, 'hex');
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.uploadCode(hex(code)),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'CodeUploaded']
+            ]);
+            const { event } = events[1];
+            code_hash = hex(event.toJSON().data[0]);
+            const result = await api.query.phalaFatContracts.contractCode(code_hash);
+            const uploaded_code = result.unwrap().toJSON();
+            assert.isTrue(hex(uploaded_code) === hex(code), 'upload failed')
+        });
+
+        it('can instantiate contract', async function () {
+            const info = await pruntime[0].getInfo();
+            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
+            const deploy_to = api.createType('DeployTarget', { 'NewGroup': [hex(info.publicKey)] });
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 0, deploy_to),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'Instantiating']
+            ]);
+            const { event } = events[1];
+            let contract_id = hex(event.toJSON().data[0]);
+            contract_ids.push(contract_id);
+            cluster_id = hex(event.toJSON().data[1]);
+
+            let contract_info = await api.query.phalaFatContracts.contracts(contract_id);
+            assert.isTrue(contract_info.isSome, 'no contract info');
+
+            let cluster_contracts = await api.query.phalaFatContracts.contractClusters(cluster_id);
+            assert.isTrue(cluster_contracts.unwrap().length == 1, 'no contract in cluster');
+
+            let workers = await api.query.phalaFatContracts.clusterWorkers(cluster_id);
+            assert.isTrue(workers.unwrap().length == 1, 'no workers for cluster');
+
+            assert.isTrue(await checkUntil(async () => {
+                let key = await api.query.phalaRegistry.contractKeys(contract_id);
+                return key.isSome;
+            }, 10 * 6000), 'instantiation failed');
+        });
+
+        it('cannot dup-instantiate', async function () {
+            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
+            const deploy_to = api.createType('DeployTarget', { 'Cluster': cluster_id });
+            await assert.txFailed(
+                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 0, deploy_to),
+                alice,
+            );
+        });
+
+        it('can instantiate to cluster', async function () {
+            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
+            const deploy_to = api.createType('DeployTarget', { 'Cluster': cluster_id });
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 1, deploy_to),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'Instantiating']
+            ]);
+            const { event } = events[1];
+            let contract_id = hex(event.toJSON().data[0]);
+            contract_ids.push(contract_id);
+
+            let contract_info = await api.query.phalaFatContracts.contracts(contract_id);
+            assert.isTrue(contract_info.isSome, 'no contract info');
+
+            let cluster_contracts = await api.query.phalaFatContracts.contractClusters(cluster_id);
+            assert.isTrue(cluster_contracts.unwrap().length == 2, 'no contract in cluster');
+
+            assert.isTrue(await checkUntil(async () => {
+                let key = await api.query.phalaRegistry.contractKeys(contract_id);
+                return key.isSome;
+            }, 10 * 6000), 'instantiation failed');
+        });
+    });
+
+    describe.skip('Solo mining workflow', () => {
         let miner;
         before(function () {
             miner = keyring.addFromUri(mnemonicGenerate());
@@ -390,7 +483,7 @@ describe('A full stack', function () {
 
 });
 
-async function assertSuccess(txBuilder, signer) {
+async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
         const unsub = await txBuilder.signAndSend(signer, (result) => {
             if (result.status.isInBlock) {
@@ -398,7 +491,12 @@ async function assertSuccess(txBuilder, signer) {
                 for (const e of result.events) {
                     const { event: { data, method, section } } = e;
                     if (section === 'system' && method === 'ExtrinsicFailed') {
-                        error = data[0];
+                        if (shouldSucceed) {
+                            error = data[0];
+                        } else {
+                            unsub();
+                            resolve(error);
+                        }
                     }
                 }
                 if (error) {
@@ -417,7 +515,8 @@ async function assertSuccess(txBuilder, signer) {
         });
     });
 }
-assert.txAccepted = assertSuccess;
+assert.txAccepted = assertSubmission;
+assert.txFailed = (txBuilder, signer) => assertSubmission(txBuilder, signer, false);
 
 function fillPartialArray(obj, pattern) {
     for (const [idx, v] of obj.entries()) {
@@ -575,7 +674,7 @@ function newNode(wsPort, tmpPath, name = 'node') {
         ]
     ];
     const cmd = cli.flat().join(' ');
-    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, {encoding: 'utf-8'});
+    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, { encoding: 'utf-8' });
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
