@@ -83,16 +83,15 @@ where
     <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
 {
     fn http_request(self) -> Result<RetVal, DispatchError> {
-        let mut env = self.env.buf_in_buf_out();
-
         use pink_extension::chain_extension::{HttpRequest, HttpResponse};
         if !matches!(get_call_mode(), Some(CallMode::Query)) {
             return Err(DispatchError::Other(
                 "http_request can only be called in query mode",
             ));
         }
-        let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
 
+        let mut env = self.env.buf_in_buf_out();
+        let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
         let uri = http_req::uri::Uri::try_from(request.url.as_str())
             .or(Err(DispatchError::Other("Invalid URL")))?;
 
@@ -114,11 +113,14 @@ where
             }
         };
 
-        let mut body = Vec::new();
-        const MAX_BODY_SIZE: usize = 1024 * 256;
-        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+        // Hardcoded limitations for now
+        const MAX_WAIT_TIME: u64 = 10; // seconds
+        const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
 
-        req.timeout(Some(std::time::Duration::from_secs(10)));
+        req.timeout(Some(std::time::Duration::from_secs(MAX_WAIT_TIME)));
+
+        let mut body = Vec::new();
+        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
 
         let response = req
             .send(&mut writer)
