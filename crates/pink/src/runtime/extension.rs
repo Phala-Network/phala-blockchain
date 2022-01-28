@@ -8,7 +8,10 @@ use pink_extension::PinkEvent;
 use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
-use crate::types::AccountId;
+use crate::{
+    runtime::{get_call_mode, CallMode},
+    types::AccountId,
+};
 
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
@@ -65,7 +68,11 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             // http_request
             0xff000001 => {
                 use pink_extension::chain_extension::{HttpRequest, HttpResponse};
-                // TODO.kevin.must: Forbid to call from command.
+                if !matches!(get_call_mode(), Some(CallMode::Query)) {
+                    return Err(DispatchError::Other(
+                        "http_request can only be called in query mode",
+                    ));
+                }
                 let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
 
                 let uri = http_req::uri::Uri::try_from(request.url.as_str())

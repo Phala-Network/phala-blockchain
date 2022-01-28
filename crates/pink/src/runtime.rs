@@ -125,6 +125,23 @@ impl Config for PinkRuntime {
     type AddressGenerator = Pink;
 }
 
+
+#[derive(Clone, Copy)]
+pub enum CallMode {
+    Query,
+    Command,
+}
+
+environmental::environmental!(call_mode: CallMode);
+
+pub fn using_mode<T>(mut mode: CallMode, f: impl FnOnce() -> T) -> T {
+    call_mode::using(&mut mode, f)
+}
+
+pub fn get_call_mode() -> Option<CallMode> {
+    call_mode::with(|mode| *mode)
+}
+
 #[cfg(test)]
 mod tests {
     use pallet_contracts::Config;
