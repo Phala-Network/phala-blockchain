@@ -62,70 +62,81 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     where
         <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
-        let mut env = env.buf_in_buf_out();
-
+        let call = Call { env };
+        // func_id refer to https://github.com/patractlabs/PIPs/blob/main/PIPs/pip-100.md
         match func_id {
-            // http_request
-            0xff000001 => {
-                use pink_extension::chain_extension::{HttpRequest, HttpResponse};
-                if !matches!(get_call_mode(), Some(CallMode::Query)) {
-                    return Err(DispatchError::Other(
-                        "http_request can only be called in query mode",
-                    ));
-                }
-                let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
-
-                let uri = http_req::uri::Uri::try_from(request.url.as_str())
-                    .or(Err(DispatchError::Other("Invalid URL")))?;
-
-                let mut req = http_req::request::Request::new(&uri);
-                for (key, value) in &request.headers {
-                    req.header(key, value);
-                }
-
-                match request.method.as_str() {
-                    "GET" => {
-                        req.method(http_req::request::Method::GET);
-                    }
-                    "POST" => {
-                        req.method(http_req::request::Method::POST)
-                            .body(request.body.as_slice());
-                    }
-                    _ => {
-                        return Err(DispatchError::Other("Unsupported method".into()));
-                    }
-                };
-
-                let mut body = Vec::new();
-                const MAX_BODY_SIZE: usize = 1024 * 256;
-                let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
-
-                req.timeout(Some(std::time::Duration::from_secs(10)));
-
-                let response = req
-                    .send(&mut writer)
-                    .or(Err(DispatchError::Other("Failed to send request".into())))?;
-
-                let headers: Vec<_> = response
-                    .headers()
-                    .iter()
-                    .map(|(k, v)| (k.to_string(), v.to_owned()))
-                    .collect();
-                let response = HttpResponse {
-                    status_code: response.status_code().into(),
-                    body,
-                    headers,
-                };
-                env.write(&response.encode(), false, None).map_err(|_| {
-                    DispatchError::Other("ChainExtension failed to return http_request")
-                })?;
-                Ok(RetVal::Converging(0))
-            }
+            0xff000001 => call.http_request(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 return Err(DispatchError::Other("Unimplemented func_id"));
             }
         }
+    }
+}
+
+struct Call<'a, 'b, E: Ext> {
+    env: Environment<'a, 'b, E, InitState>,
+}
+
+impl<'a, 'b, E: Ext> Call<'a, 'b, E>
+where
+    <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
+{
+    fn http_request(self) -> Result<RetVal, DispatchError> {
+        let mut env = self.env.buf_in_buf_out();
+
+        use pink_extension::chain_extension::{HttpRequest, HttpResponse};
+        if !matches!(get_call_mode(), Some(CallMode::Query)) {
+            return Err(DispatchError::Other(
+                "http_request can only be called in query mode",
+            ));
+        }
+        let request: HttpRequest = env.read_as_unbounded(env.in_len())?;
+
+        let uri = http_req::uri::Uri::try_from(request.url.as_str())
+            .or(Err(DispatchError::Other("Invalid URL")))?;
+
+        let mut req = http_req::request::Request::new(&uri);
+        for (key, value) in &request.headers {
+            req.header(key, value);
+        }
+
+        match request.method.as_str() {
+            "GET" => {
+                req.method(http_req::request::Method::GET);
+            }
+            "POST" => {
+                req.method(http_req::request::Method::POST)
+                    .body(request.body.as_slice());
+            }
+            _ => {
+                return Err(DispatchError::Other("Unsupported method".into()));
+            }
+        };
+
+        let mut body = Vec::new();
+        const MAX_BODY_SIZE: usize = 1024 * 256;
+        let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
+
+        req.timeout(Some(std::time::Duration::from_secs(10)));
+
+        let response = req
+            .send(&mut writer)
+            .or(Err(DispatchError::Other("Failed to send request".into())))?;
+
+        let headers: Vec<_> = response
+            .headers()
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.to_owned()))
+            .collect();
+        let response = HttpResponse {
+            status_code: response.status_code().into(),
+            body,
+            headers,
+        };
+        env.write(&response.encode(), false, None)
+            .map_err(|_| DispatchError::Other("ChainExtension failed to return http_request"))?;
+        Ok(RetVal::Converging(0))
     }
 }
 
