@@ -40,7 +40,7 @@ pub fn contract_address_to_id(address: &AccountId) -> ContractId {
     inner.into()
 }
 
-// keep syncing with get_contract_id() in pallets/phala/src/registry.rs
+// keep syncing with get_contract_id() in pallets/phala/src/fat.rs
 pub fn get_contract_id(contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> ContractId {
     let contract_address = pink_utils::contract_address(
         &contract_info.deployer,
