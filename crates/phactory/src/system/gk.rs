@@ -279,7 +279,7 @@ where
                 let contract_key = get_contract_key(&self.master_key, &contract_id);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
-                        contract_id: contract_id.clone(),
+                        contract: contract_id.clone(),
                         pubkey: contract_key.public(),
                     });
                 // then distribute contract key to each worker

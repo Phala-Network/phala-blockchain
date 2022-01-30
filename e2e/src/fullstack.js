@@ -225,14 +225,14 @@ describe('A full stack', function () {
     });
 
     describe('Contract', () => {
-        let wasm_file = './res/flipper.wasm';
-        let init_selector = hex('0xed4b9d1b'); // for default() function
-        let code_hash;
-        let contract_ids = [];
-        let cluster_id;
+        let wasmFile = './res/flipper.wasm';
+        let initSelector = hex('0xed4b9d1b'); // for default() function
+        let codeHash;
+        let contractIds = [];
+        let clusterId;
 
         it('can upload code', async function () {
-            let code = fs.readFileSync(wasm_file, 'hex');
+            let code = fs.readFileSync(wasmFile, 'hex');
             const { events } = await assert.txAccepted(
                 api.tx.phalaFatContracts.uploadCode(hex(code)),
                 alice,
@@ -242,18 +242,18 @@ describe('A full stack', function () {
                 ['phalaFatContracts', 'CodeUploaded']
             ]);
             const { event } = events[1];
-            code_hash = hex(event.toJSON().data[0]);
-            const result = await api.query.phalaFatContracts.contractCode(code_hash);
-            const uploaded_code = result.unwrap().toJSON();
-            assert.isTrue(hex(uploaded_code) === hex(code), 'upload failed')
+            codeHash = hex(event.toJSON().data[0]);
+            const result = await api.query.phalaFatContracts.code(codeHash);
+            const uploadedCode = result.unwrap().toJSON();
+            assert.equal(hex(uploadedCode), hex(code), 'upload failed')
         });
 
         it('can instantiate contract', async function () {
             const info = await pruntime[0].getInfo();
-            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
-            const deploy_to = api.createType('DeployTarget', { 'NewGroup': [hex(info.publicKey)] });
+            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            const deployTo = api.createType('DeployTarget', { 'NewGroup': [hex(info.publicKey)] });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 0, deploy_to),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, deployTo),
                 alice,
             );
             assertEvents(events, [
@@ -261,39 +261,39 @@ describe('A full stack', function () {
                 ['phalaFatContracts', 'Instantiating']
             ]);
             const { event } = events[1];
-            let contract_id = hex(event.toJSON().data[0]);
-            contract_ids.push(contract_id);
-            cluster_id = hex(event.toJSON().data[1]);
+            let contractId = hex(event.toJSON().data[0]);
+            contractIds.push(contractId);
+            clusterId = hex(event.toJSON().data[1]);
 
-            let contract_info = await api.query.phalaFatContracts.contracts(contract_id);
-            assert.isTrue(contract_info.isSome, 'no contract info');
+            let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
+            assert.isTrue(contractInfo.isSome, 'no contract info');
 
-            let cluster_contracts = await api.query.phalaFatContracts.contractClusters(cluster_id);
-            assert.isTrue(cluster_contracts.unwrap().length == 1, 'no contract in cluster');
+            let clusterContracts = await api.query.phalaFatContracts.clusters(clusterId);
+            assert.equal(clusterContracts.length, 1, 'no contract in cluster');
 
-            let workers = await api.query.phalaFatContracts.clusterWorkers(cluster_id);
-            assert.isTrue(workers.unwrap().length == 1, 'no workers for cluster');
+            let workers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
+            assert.equal(workers.unwrap().length, 1, 'no workers for cluster');
 
             assert.isTrue(await checkUntil(async () => {
-                let key = await api.query.phalaRegistry.contractKeys(contract_id);
+                let key = await api.query.phalaRegistry.contractKeys(contractId);
                 return key.isSome;
             }, 10 * 6000), 'instantiation failed');
         });
 
         it('cannot dup-instantiate', async function () {
-            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
-            const deploy_to = api.createType('DeployTarget', { 'Cluster': cluster_id });
+            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            const deployTo = api.createType('DeployTarget', { 'Cluster': clusterId });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 0, deploy_to),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, deployTo),
                 alice,
             );
         });
 
         it('can instantiate to cluster', async function () {
-            const code_index = api.createType('CodeIndex', { 'WasmCode': code_hash });
-            const deploy_to = api.createType('DeployTarget', { 'Cluster': cluster_id });
+            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            const deployTo = api.createType('DeployTarget', { 'Cluster': clusterId });
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(code_index, init_selector, 1, deploy_to),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 1, deployTo),
                 alice,
             );
             assertEvents(events, [
@@ -301,17 +301,17 @@ describe('A full stack', function () {
                 ['phalaFatContracts', 'Instantiating']
             ]);
             const { event } = events[1];
-            let contract_id = hex(event.toJSON().data[0]);
-            contract_ids.push(contract_id);
+            let contractId = hex(event.toJSON().data[0]);
+            contractIds.push(contractId);
 
-            let contract_info = await api.query.phalaFatContracts.contracts(contract_id);
-            assert.isTrue(contract_info.isSome, 'no contract info');
+            let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
+            assert.isTrue(contractInfo.isSome, 'no contract info');
 
-            let cluster_contracts = await api.query.phalaFatContracts.contractClusters(cluster_id);
-            assert.isTrue(cluster_contracts.unwrap().length == 2, 'no contract in cluster');
+            let clusterContracts = await api.query.phalaFatContracts.clusters(clusterId);
+            assert.equal(clusterContracts.length, 2, 'no contract in cluster');
 
             assert.isTrue(await checkUntil(async () => {
-                let key = await api.query.phalaRegistry.contractKeys(contract_id);
+                let key = await api.query.phalaRegistry.contractKeys(contractId);
                 return key.isSome;
             }, 10 * 6000), 'instantiation failed');
         });

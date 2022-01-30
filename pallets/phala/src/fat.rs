@@ -9,7 +9,6 @@ pub mod pallet {
 	use sp_core::H256;
 	use sp_runtime::traits::Hash;
 	use sp_std::prelude::*;
-	use sp_std::vec;
 
 	use crate::{mq::MessageOriginInfo, registry};
 	// Re-export
@@ -26,7 +25,7 @@ pub mod pallet {
 	#[derive(Encode, Decode, Clone, Debug)]
 	pub enum ContractRegistryEvent {
 		PubkeyAvailable {
-			contract_id: ContractId,
+			contract: ContractId,
 			pubkey: ContractPublicKey,
 		},
 	}
@@ -45,14 +44,15 @@ pub mod pallet {
 
 	/// Mapping from an original code hash to the original code, untouched by instrumentation
 	#[pallet::storage]
-	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
+	pub type Code<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
-	/// The contract cluster counter.
+	/// The contract cluster counter, it always equals to the latest cluster id.
 	#[pallet::storage]
-	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
+	pub type ClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
-	pub type ContractClusters<T> = StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>>;
+	pub type Clusters<T> =
+		StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>, ValueQuery>;
 
 	#[pallet::storage]
 	pub type Contracts<T: Config> =
@@ -65,11 +65,28 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		CodeUploaded(CodeHash<T>),
-		PubkeyAvailable(ContractId, ContractPublicKey),
-		Instantiating(ContractId, ContractClusterId, T::AccountId),
-		Instantiated(ContractId, ContractClusterId, H256),
-		InstantiationFailed(ContractId, ContractClusterId, H256),
+		CodeUploaded {
+			hash: CodeHash<T>,
+		},
+		PubkeyAvailable {
+			contract: ContractId,
+			pubkey: ContractPublicKey,
+		},
+		Instantiating {
+			contract: ContractId,
+			cluster: ContractClusterId,
+			deployer: T::AccountId,
+		},
+		Instantiated {
+			contract: ContractId,
+			cluster: ContractClusterId,
+			deployer: H256,
+		},
+		InstantiationFailed {
+			contract: ContractId,
+			cluster: ContractClusterId,
+			deployer: H256,
+		},
 	}
 
 	#[pallet::error]
@@ -93,9 +110,9 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
 			ensure_signed(origin)?;
-			let code_hash = T::Hashing::hash(&code);
-			ContractCode::<T>::insert(&code_hash, &code);
-			Self::deposit_event(Event::CodeUploaded(code_hash));
+			let hash = T::Hashing::hash(&code);
+			Code::<T>::insert(&hash, &code);
+			Self::deposit_event(Event::CodeUploaded { hash });
 			Ok(())
 		}
 
@@ -118,8 +135,6 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn instantiate_contract(
 			origin: OriginFor<T>,
-			// #[pallet::compact] endowment: BalanceOf<T>,
-			// #[pallet::compact] gas_limit: Weight,
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
@@ -130,48 +145,44 @@ pub mod pallet {
 			match code_index {
 				CodeIndex::NativeCode(_) => {}
 				CodeIndex::WasmCode(code_hash) => {
-					ensure!(
-						ContractCode::<T>::contains_key(code_hash),
-						Error::<T>::CodeNotFound
-					);
+					ensure!(Code::<T>::contains_key(code_hash), Error::<T>::CodeNotFound);
 				}
 			}
 
+			let mut new_cluster = false;
 			let (cluster_id, deploy_workers) = match deploy_to {
 				DeployTarget::Cluster(cluster_id) => {
-					ensure!(
-						ClusterWorkers::<T>::contains_key(cluster_id),
-						Error::<T>::ContractClusterNotFound
-					);
-					let workers = ClusterWorkers::<T>::get(cluster_id).expect("checked; qed.");
+					let workers = ClusterWorkers::<T>::get(cluster_id)
+						.ok_or(Error::<T>::ContractClusterNotFound)?;
 					(cluster_id, workers)
 				}
 				DeployTarget::NewGroup(deploy_workers) => {
 					ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
 
-					let counter = ContractClusterCounter::<T>::mutate(|counter| {
+					let counter = ClusterCounter::<T>::mutate(|counter| {
 						*counter += 1;
 						*counter
 					});
 					let cluster_id = ContractClusterId::from_low_u64_be(counter);
+					new_cluster = true;
 					(cluster_id, deploy_workers)
 				}
 			};
 
 			let mut workers = Vec::new();
-			for worker in deploy_workers.clone().into_iter() {
+			for worker in &deploy_workers {
 				let worker_info =
-					registry::Workers::<T>::try_get(&worker).or(Err(Error::<T>::WorkerNotFound))?;
+					registry::Workers::<T>::try_get(worker).or(Err(Error::<T>::WorkerNotFound))?;
 				workers.push(WorkerIdentity {
 					pubkey: worker_info.pubkey,
 					ecdh_pubkey: worker_info.ecdh_pubkey,
 				});
 			}
-			if !ClusterWorkers::<T>::contains_key(cluster_id) {
+			if new_cluster {
 				ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
 			}
 
-			// keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
+			// Keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
 			fn get_contract_id(
 				deployer: &[u8],
 				code_hash: &[u8],
@@ -198,7 +209,7 @@ pub mod pallet {
 				!Contracts::<T>::contains_key(contract_id),
 				Error::<T>::DuplicatedContract
 			);
-			// we send code index instead of raw code here to reduce message size
+			// We send code index instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
 				code_index,
@@ -207,20 +218,17 @@ pub mod pallet {
 				instantiate_data: data,
 			};
 			Contracts::<T>::insert(&contract_id, &contract_info);
-
-			let mut cluster = ContractClusters::<T>::try_get(&cluster_id).unwrap_or(vec![]);
-			cluster.push(contract_id);
-			ContractClusters::<T>::insert(&cluster_id, cluster);
+			Clusters::<T>::append(cluster_id, contract_id);
 
 			Self::push_message(ContractEvent::instantiate_code(
 				contract_info.clone(),
 				workers,
 			));
-			Self::deposit_event(Event::Instantiating(
-				contract_id,
-				contract_info.cluster_id,
-				contract_info.deployer,
-			));
+			Self::deposit_event(Event::Instantiating {
+				contract: contract_id,
+				cluster: contract_info.cluster_id,
+				deployer: contract_info.deployer,
+			});
 
 			Ok(())
 		}
@@ -238,12 +246,9 @@ pub mod pallet {
 				Error::<T>::InvalidSender
 			);
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable {
-					contract_id,
-					pubkey,
-				} => {
-					registry::ContractKeys::<T>::insert(contract_id, pubkey);
-					Self::deposit_event(Event::PubkeyAvailable(contract_id, pubkey));
+				ContractRegistryEvent::PubkeyAvailable { contract, pubkey } => {
+					registry::ContractKeys::<T>::insert(contract, pubkey);
+					Self::deposit_event(Event::PubkeyAvailable { contract, pubkey });
 				}
 			}
 			Ok(())
@@ -263,14 +268,22 @@ pub mod pallet {
 					deployer,
 					pubkey: _,
 				} => {
-					Self::deposit_event(Event::Instantiated(id, cluster_id, deployer));
+					Self::deposit_event(Event::Instantiated {
+						contract: id,
+						cluster: cluster_id,
+						deployer,
+					});
 				}
 				WorkerContractReport::ContractInstantiationFailed {
 					id,
 					cluster_id,
 					deployer,
 				} => {
-					Self::deposit_event(Event::InstantiationFailed(id, cluster_id, deployer));
+					Self::deposit_event(Event::InstantiationFailed {
+						contract: id,
+						cluster: cluster_id,
+						deployer,
+					});
 					// TODO.shelven: some cleanup?
 				}
 			}

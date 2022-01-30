@@ -25,6 +25,7 @@ struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
+// Refer to the implementation in Substrate pallet-contracts
 pub fn contract_address(
     deployer: &AccountId,
     code_hash: &[u8],

@@ -1231,8 +1231,7 @@ pub mod chain_state {
     }
 
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"ContractCode", &code_hash);
+        let key = storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"Code", &code_hash);
         chain_storage.get(&key).map(|v| {
             Vec::<u8>::decode(&mut &v[..])
                 .expect("Decode value of MasterPubkey Failed. (This should not happen)")
