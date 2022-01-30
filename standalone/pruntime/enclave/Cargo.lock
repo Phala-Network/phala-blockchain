@@ -3873,6 +3873,7 @@ dependencies = [
  "paste",
  "phala-serde-more",
  "phala-trie-storage",
+ "phala-types",
  "pink-extension",
  "pretty_assertions",
  "pwasm-utils 0.16.0",

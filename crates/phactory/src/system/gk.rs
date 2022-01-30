@@ -20,7 +20,7 @@ use serde::{Deserialize, Serialize};
 use sp_application_crypto::Pair;
 use sp_core::{hashing, sr25519};
 
-use crate::{contracts::get_contract_id, secret_channel::SecretMessageChannel, types::BlockInfo};
+use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -275,7 +275,7 @@ where
                 }
 
                 // first, update the on-chain ContractPubkey
-                let contract_id = get_contract_id(&contract_info);
+                let contract_id = contract_info.contract_id(Box::new(hashing::blake2_256));
                 let contract_key = get_contract_key(&self.master_key, &contract_id);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {

@@ -1,4 +1,5 @@
 use super::WorkerPublicKey;
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -90,6 +91,35 @@ pub struct ContractInfo<CodeHash, AccountId> {
     pub salt: Vec<u8>,
     pub cluster_id: ContractClusterId,
     pub instantiate_data: Vec<u8>,
+}
+
+/// Use blake2_256 on the preimage for the final contract id
+pub fn contract_id_preimage(
+    deployer: &[u8],
+    code_hash: &[u8],
+    cluster_id: &[u8],
+    salt: &[u8],
+) -> Vec<u8> {
+    let buf: Vec<_> = deployer
+        .iter()
+        .chain(code_hash)
+        .chain(cluster_id)
+        .chain(salt)
+        .cloned()
+        .collect();
+    buf
+}
+
+impl<CodeHash: AsRef<[u8]>, AccountId: AsRef<[u8]>> ContractInfo<CodeHash, AccountId> {
+    pub fn contract_id(&self, blake2_256: Box<dyn Fn(&[u8]) -> [u8; 32]>) -> ContractId {
+        let buf = contract_id_preimage(
+            self.deployer.as_ref(),
+            self.code_index.code_hash().as_ref(),
+            self.cluster_id.as_ref(),
+            self.salt.as_ref(),
+        );
+        ContractId::from(blake2_256(buf.as_ref()))
+    }
 }
 
 /// Contract query request parameters, to be encrypted.

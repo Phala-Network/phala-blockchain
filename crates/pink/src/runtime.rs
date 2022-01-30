@@ -131,7 +131,6 @@ mod tests {
     use sp_runtime::{traits::Hash, AccountId32};
 
     use crate::{
-        contract::contract_address,
         runtime::{Contracts, Origin, PinkRuntime},
         types::{ENOUGH, GAS_LIMIT},
     };
@@ -165,7 +164,7 @@ mod tests {
                 vec![],
             )
             .unwrap();
-            let addr = contract_address(&ALICE, code_hash.as_ref(), &[], &[]);
+            let addr = Contracts::contract_address(&ALICE, &code_hash, &[]);
 
             Contracts::call(
                 Origin::signed(ALICE),
@@ -204,7 +203,7 @@ mod tests {
                 vec![],
             )
             .is_ok());
-            let addr = contract_address(&ALICE, code_hash.as_ref(), &[], &[]);
+            let addr = Contracts::contract_address(&ALICE, &code_hash, &[]);
             // Perform the call.
             let input = b"_DEAD_BEEF";
             use sp_io::hashing::*;

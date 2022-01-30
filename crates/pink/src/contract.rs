@@ -1,4 +1,5 @@
 use pallet_contracts_primitives::StorageDeposit;
+use phala_types::contract::contract_id_preimage;
 use scale::{Decode, Encode};
 use sp_core::hashing;
 use sp_core::Hasher as _;
@@ -23,24 +24,6 @@ pub struct ExecError {
 #[derive(Debug, Default, Encode, Decode)]
 struct HookSelectors {
     on_block_end: Option<u32>,
-}
-
-// Refer to the implementation in Substrate pallet-contracts
-pub fn contract_address(
-    deployer: &AccountId,
-    code_hash: &[u8],
-    cluster_id: &[u8],
-    salt: &[u8],
-) -> AccountId {
-    let deployer: &[u8] = deployer.as_ref();
-    let buf: Vec<_> = deployer
-        .iter()
-        .chain(code_hash)
-        .chain(cluster_id)
-        .chain(salt)
-        .cloned()
-        .collect();
-    AccountId::new(hashing::blake2_256(&buf))
 }
 
 #[derive(Debug, Encode, Decode)]
@@ -111,12 +94,13 @@ impl Contract {
                 }
                 Ok(_) => (),
             }
-            Ok(contract_address(
-                &origin,
+            let preimage = contract_id_preimage(
+                origin.as_ref(),
                 code_hash.as_ref(),
                 cluster_id.as_ref(),
                 salt.as_ref(),
-            ))
+            );
+            Ok(AccountId::from(hashing::blake2_256(&preimage)))
         });
         Ok((Self::from_address(address?), effects))
     }

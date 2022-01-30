@@ -106,6 +106,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T>
 	where
 		T: crate::mq::Config + crate::registry::Config,
+		T::AccountId: AsRef<[u8]>,
 	{
 		#[pallet::weight(0)]
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
@@ -182,33 +183,6 @@ pub mod pallet {
 				ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
 			}
 
-			// Keep syncing with get_contract_id() in crates/phactory/src/contracts/mod.rs
-			fn get_contract_id(
-				deployer: &[u8],
-				code_hash: &[u8],
-				cluster_id: &[u8],
-				salt: &[u8],
-			) -> ContractId {
-				let buf: Vec<_> = deployer
-					.iter()
-					.chain(code_hash)
-					.chain(cluster_id)
-					.chain(salt)
-					.cloned()
-					.collect();
-				crate::hashing::blake2_256(&buf).into()
-			}
-
-			let contract_id = get_contract_id(
-				deployer.encode().as_ref(),
-				code_index.code_hash().as_ref(),
-				cluster_id.as_ref(),
-				salt.as_ref(),
-			);
-			ensure!(
-				!Contracts::<T>::contains_key(contract_id),
-				Error::<T>::DuplicatedContract
-			);
 			// We send code index instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
@@ -217,6 +191,11 @@ pub mod pallet {
 				cluster_id,
 				instantiate_data: data,
 			};
+			let contract_id = contract_info.contract_id(Box::new(crate::hashing::blake2_256));
+			ensure!(
+				!Contracts::<T>::contains_key(contract_id),
+				Error::<T>::DuplicatedContract
+			);
 			Contracts::<T>::insert(&contract_id, &contract_info);
 			Clusters::<T>::append(cluster_id, contract_id);
 

@@ -2,6 +2,7 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
+use sp_core::hashing::blake2_256;
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -92,7 +93,7 @@ pub struct NativeContractWrapper<Con> {
 
 impl<Con> NativeContractWrapper<Con> {
     pub fn new(inner: Con, contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> Self {
-        let id = get_contract_id(contract_info);
+        let id = contract_info.contract_id(Box::new(blake2_256));
         NativeContractWrapper { inner, id }
     }
 }

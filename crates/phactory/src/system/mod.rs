@@ -812,7 +812,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         err
                     );
                     let message = WorkerContractReport::ContractInstantiationFailed {
-                        id: contracts::get_contract_id(&contract_info),
+                        id: contract_info.contract_id(Box::new(blake2_256)),
                         cluster_id: contract_info.cluster_id,
                         deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
                     };
@@ -978,7 +978,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Err(TransactionError::CodeNotFound.into());
                 }
 
-                let contract_id = contracts::get_contract_id(&contract_info);
+                let contract_id = contract_info.contract_id(Box::new(blake2_256));
                 if self.contract_keys.contains_key(&contract_id) {
                     info!("Deployed contract 0x{}", hex::encode(&contract_id));
                     return Ok(());
