@@ -8,7 +8,7 @@ use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
     contract::messaging::ContractEvent,
-    contract::ContractId,
+    contract::ContractInfo,
     messaging::{
         ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
@@ -57,9 +57,12 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-fn get_contract_key(master_key: &sr25519::Pair, contract_id: &ContractId) -> sr25519::Pair {
+fn get_contract_key(
+    master_key: &sr25519::Pair,
+    contract_info: &ContractInfo<chain::Hash, chain::AccountId>,
+) -> sr25519::Pair {
     master_key
-        .derive_sr25519_pair(&[b"contract_key", contract_id.as_bytes()])
+        .derive_sr25519_pair(&[b"contract_key", contract_info.cluster_id.as_bytes()])
         .expect("should not fail with valid info")
 }
 
@@ -276,10 +279,10 @@ where
 
                 // first, update the on-chain ContractPubkey
                 let contract_id = contract_info.contract_id(Box::new(hashing::blake2_256));
-                let contract_key = get_contract_key(&self.master_key, &contract_id);
+                let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
-                        contract: contract_id.clone(),
+                        contract: contract_id,
                         pubkey: contract_key.public(),
                     });
                 // then distribute contract key to each worker

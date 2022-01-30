@@ -16,7 +16,6 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
-use std::collections::BTreeMap;
 
 use crate::contracts;
 use crate::pal;
@@ -411,7 +410,6 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_clusters: ClusterKeeper,
-    contract_keys: BTreeMap<ContractId, ContractKey>,
 
     // Cached for query
     block_number: BlockNumber,
@@ -463,7 +461,6 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
-            contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
         }
@@ -978,13 +975,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Err(TransactionError::CodeNotFound.into());
                 }
 
-                let contract_id = contract_info.contract_id(Box::new(blake2_256));
-                if self.contract_keys.contains_key(&contract_id) {
-                    info!("Deployed contract 0x{}", hex::encode(&contract_id));
-                    return Ok(());
-                }
-
-                self.contract_keys.insert(contract_id, contract_key.clone());
                 let code = code.expect("checked; qed.");
                 let deployer = contract_info.deployer;
                 let effects = self
