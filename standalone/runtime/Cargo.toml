@@ -90,8 +90,6 @@ pallet-preimage = { version = "4.0.0-dev", default-features = false, path = "../
 pallet-child-bounties = { version = "4.0.0-dev", default-features = false, path = "../../substrate/frame/child-bounties" }
 
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
-pallet-bridge = { default-features = false, path = "../../pallets/bridge", package = "pallet-bridge" }
-pallet-bridge-transfer = { default-features = false, path = "../../pallets/bridge_transfer", package = "pallet-bridge-transfer" }
 
 native-nostd-hasher = { path = "../../native-nostd-hasher", optional = true }
 
@@ -166,8 +164,6 @@ std = [
 	"sp-npos-elections/std",
 	"sp-io/std",
 	"phala-pallets/std",
-	"pallet-bridge/std",
-	"pallet-bridge-transfer/std",
 	"pallet-mq-runtime-api/std",
 ]
 runtime-benchmarks = [

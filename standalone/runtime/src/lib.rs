@@ -107,8 +107,6 @@ pub use phala_pallets::{
 	pallet_fat,
 	puppets,
 };
-pub use pallet_bridge;
-pub use pallet_bridge_transfer;
 
 #[cfg(not(feature = "native-nostd-hasher"))]
 type Hasher = sp_runtime::traits::BlakeTwo256;
@@ -1162,32 +1160,6 @@ impl pallet_lottery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BridgeChainId: u8 = 1;
-	pub const ProposalLifetime: BlockNumber = 50;
-}
-
-impl pallet_bridge::Config for Runtime {
-	type Event = Event;
-	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
-	type Proposal = Call;
-	type BridgeChainId = BridgeChainId;
-	type ProposalLifetime = ProposalLifetime;
-}
-
-parameter_types! {
-	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
-	pub const NativeTokenResourceId: [u8; 32] = hex_literal::hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
-}
-
-impl pallet_bridge_transfer::Config for Runtime {
-	type Event = Event;
-	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
-	type Currency = Balances;
-	type NativeTokenResourceId = NativeTokenResourceId;
-	type OnFeePay = Treasury;
-}
-
-parameter_types! {
 	pub ExpectedBlockTimeSec: u32 = SecsPerBlock::get() as u32;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
@@ -1285,9 +1257,6 @@ construct_runtime!(
 		Lottery: pallet_lottery,
 		BagsList: pallet_bags_list,
 		ChildBounties: pallet_child_bounties,
-		// ChainBridge
-		ChainBridge: pallet_bridge,
-		BridgeTransfer: pallet_bridge_transfer,
 		// Phala
 		PhalaMq: pallet_mq,
 		PhalaRegistry: pallet_registry,

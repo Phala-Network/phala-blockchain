@@ -5865,46 +5865,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-bridge"
-version = "0.0.1"
-dependencies = [
- "blake2-rfc",
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-bridge-transfer"
-version = "0.0.1"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "hex",
- "hex-literal",
- "pallet-balances",
- "pallet-bridge",
- "pallet-timestamp",
- "parity-scale-codec",
- "phala-pallets",
- "phala-types",
- "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-child-bounties"
 version = "4.0.0-dev"
 dependencies = [
@@ -6797,7 +6757,6 @@ dependencies = [
  "maxminddb",
  "num-bigint 0.4.3",
  "num-traits",
- "pallet-bridge-transfer",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -7059,8 +7018,6 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
- "pallet-bridge",
- "pallet-bridge-transfer",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
