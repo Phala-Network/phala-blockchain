@@ -16,6 +16,7 @@ pub mod pallet {
     pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
 
     #[pallet::pallet]
+    #[pallet::without_storage_info]
     pub struct Pallet<T>(PhantomData<T>);
 
     impl<T: Config> AddressGenerator<T> for Pallet<T>
