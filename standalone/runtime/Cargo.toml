@@ -56,6 +56,7 @@ pallet-babe = { default-features = false, path = "../../substrate/frame/babe" }
 pallet-bags-list = { default-features = false, path = "../../substrate/frame/bags-list" }
 pallet-balances = { default-features = false, path = "../../substrate/frame/balances" }
 pallet-bounties = { default-features = false, path = "../../substrate/frame/bounties" }
+pallet-child-bounties = { default-features = false, path = "../../substrate/frame/child-bounties" }
 pallet-collective = { default-features = false, path = "../../substrate/frame/collective" }
 pallet-democracy = { default-features = false, path = "../../substrate/frame/democracy" }
 pallet-elections-phragmen = { default-features = false, path = "../../substrate/frame/elections-phragmen" }
@@ -69,6 +70,7 @@ pallet-membership = { default-features = false, path = "../../substrate/frame/me
 pallet-multisig = { default-features = false, path = "../../substrate/frame/multisig" }
 pallet-offences = { default-features = false, path = "../../substrate/frame/offences" }
 pallet-offences-benchmarking = { path = "../../substrate/frame/offences/benchmarking", default-features = false, optional = true }
+pallet-preimage = { default-features = false, path = "../../substrate/frame/preimage" }
 pallet-proxy = { default-features = false, path = "../../substrate/frame/proxy" }
 pallet-randomness-collective-flip = { default-features = false, path = "../../substrate/frame/randomness-collective-flip" }
 pallet-recovery = { default-features = false, path = "../../substrate/frame/recovery" }
@@ -86,8 +88,6 @@ pallet-utility = { default-features = false, path = "../../pallets/utility" }
 pallet-transaction-payment = { default-features = false, path = "../../substrate/frame/transaction-payment" }
 pallet-transaction-payment-rpc-runtime-api = { default-features = false, path = "../../substrate/frame/transaction-payment/rpc/runtime-api/" }
 pallet-vesting = { default-features = false, path = "../../substrate/frame/vesting" }
-pallet-preimage = { version = "4.0.0-dev", default-features = false, path = "../../substrate/frame/preimage" }
-pallet-child-bounties = { version = "4.0.0-dev", default-features = false, path = "../../substrate/frame/child-bounties" }
 
 phala-pallets = { default-features = false, path = "../../pallets/phala", package = "phala-pallets" }
 
@@ -163,6 +163,7 @@ std = [
 	"frame-try-runtime/std",
 	"sp-npos-elections/std",
 	"sp-io/std",
+	"pallet-child-bounties/std",
 	"phala-pallets/std",
 	"pallet-mq-runtime-api/std",
 ]
@@ -176,6 +177,7 @@ runtime-benchmarks = [
 	"pallet-bags-list/runtime-benchmarks",
 	"pallet-balances/runtime-benchmarks",
 	"pallet-bounties/runtime-benchmarks",
+	"pallet-child-bounties/runtime-benchmarks",
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
@@ -211,6 +213,7 @@ try-runtime = [
 	"pallet-babe/try-runtime",
 	"pallet-balances/try-runtime",
 	"pallet-bounties/try-runtime",
+	"pallet-child-bounties/try-runtime",
 	"pallet-collective/try-runtime",
 	"pallet-democracy/try-runtime",
 	"pallet-elections-phragmen/try-runtime",

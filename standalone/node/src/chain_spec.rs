@@ -214,6 +214,7 @@ pub fn staging_testnet_config() -> ChainSpec {
 			.expect("Staging telemetry url is valid; qed")),
 		None,
 		None,
+		None,
 		Default::default(),
 	)
 }
@@ -387,7 +388,6 @@ pub fn testnet_genesis(
 		vesting: Default::default(),
 		phala_registry,
 		phala_mining: Default::default(),
-		scheduler: Default::default(),
 		transaction_payment: Default::default(),
 	}
 }
@@ -417,6 +417,7 @@ pub fn development_config() -> ChainSpec {
 		None,
 		None,
 		None,
+		None,
 		Default::default(),
 	)
 }
@@ -432,6 +433,7 @@ pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
 			block_milliseconds: Some(bd)
 		},
 		vec![],
+		None,
 		None,
 		None,
 		None,
@@ -456,8 +458,8 @@ pub fn local_testnet_config() -> ChainSpec {
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
-		p.insert("tokenDecimals".into(), 12.into());
-		p.insert("ss58Format".into(), 30.into());
+		p.insert("tokenDecimals".into(), 12u32.into());
+		p.insert("ss58Format".into(), 30u32.into());
 		p
 	};
 
@@ -470,6 +472,7 @@ pub fn local_testnet_config() -> ChainSpec {
 			block_milliseconds: Some(MILLISECS_PER_BLOCK)
 		},
 		vec![],
+		None,
 		None,
 		None,
 		Some(properties),
@@ -553,14 +556,14 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
-		p.insert("tokenDecimals".into(), 12.into());
-		p.insert("ss58Format".into(), 30.into());
+		p.insert("tokenDecimals".into(), 12u32.into());
+		p.insert("ss58Format".into(), 30u32.into());
 		p
 	};
 
 	ChainSpec::from_genesis(
-		"Phala PoC-4",
-		"phala_poc_4",
+		"Phala PoC-5",
+		"phala_poc_5",
 		ChainType::Local,
 		move || GenesisExt {
 			runtime_genesis_config: phala_testnet_config_genesis(),
@@ -570,6 +573,7 @@ pub fn phala_testnet_local_config() -> ChainSpec {
 		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
 			.expect("Staging telemetry url is valid; qed")),
 		Some(protocol_id),
+		None,
 		Some(properties),
 		Default::default(),
 	)
@@ -612,6 +616,7 @@ pub(crate) mod tests {
 			None,
 			None,
 			None,
+			None,
 			Default::default(),
 		)
 	}
@@ -627,6 +632,7 @@ pub(crate) mod tests {
 				block_milliseconds: Some(MILLISECS_PER_BLOCK)
 			},
 			vec![],
+			None,
 			None,
 			None,
 			None,
