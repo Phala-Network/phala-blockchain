@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2020-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) 2020-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 // This program is free software: you can redistribute it and/or modify
@@ -91,13 +91,13 @@ pub async fn run_node_for_a_while(base_path: &Path, args: &[&str]) {
 	let mut child = KillChildOnDrop(cmd.args(args).arg("-d").arg(base_path).spawn().unwrap());
 
 	// Let it produce some blocks.
-	let _ = wait_n_finalized_blocks(3, 30).await;
+	let _ = wait_n_finalized_blocks(3, 60).await;
 
 	assert!(child.try_wait().unwrap().is_none(), "the process should still be running");
 
 	// Stop the process
 	kill(Pid::from_raw(child.id().try_into().unwrap()), SIGINT).unwrap();
-	assert!(wait_for(&mut child, 40).map(|x| x.success()).unwrap());
+	assert!(wait_for(&mut child, 90).map(|x| x.success()).unwrap());
 }
 
 /// Run the node asserting that it fails with an error
