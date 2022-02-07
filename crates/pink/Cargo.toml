@@ -41,6 +41,7 @@ serde_json = "1.0.67"
 phala-serde-more = { path = "../phala-serde-more" }
 
 phala-trie-storage = { path = "../phala-trie-storage" }
+phala-types = { path = "../phala-types" }
 pink-extension = { path = "pink-extension" }
 
 [dev-dependencies]

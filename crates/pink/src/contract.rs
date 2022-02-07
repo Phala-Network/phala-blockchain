@@ -1,12 +1,14 @@
 use pallet_contracts_primitives::StorageDeposit;
+use phala_types::contract::contract_id_preimage;
 use scale::{Decode, Encode};
+use sp_core::hashing;
 use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
 use crate::{
     runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hashing, ENOUGH, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hashing, GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -55,6 +57,7 @@ impl Contract {
         origin: AccountId,
         code: Vec<u8>,
         input_data: Vec<u8>,
+        cluster_id: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
@@ -74,7 +77,7 @@ impl Contract {
 
             let result = Contracts::bare_instantiate(
                 origin.clone(),
-                ENOUGH,
+                0,
                 GAS_LIMIT,
                 None,
                 pallet_contracts_primitives::Code::Upload(code.into()),
@@ -91,7 +94,13 @@ impl Contract {
                 }
                 Ok(_) => (),
             }
-            Ok(Contracts::contract_address(&origin, &code_hash, &salt))
+            let preimage = contract_id_preimage(
+                origin.as_ref(),
+                code_hash.as_ref(),
+                cluster_id.as_ref(),
+                salt.as_ref(),
+            );
+            Ok(AccountId::from(hashing::blake2_256(&preimage)))
         });
         Ok((Self::from_address(address?), effects))
     }
@@ -102,6 +111,7 @@ impl Contract {
         code: Vec<u8>,
         selector: [u8; 4],
         args: impl Encode,
+        cluster_id: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
         now: u64,
@@ -109,7 +119,16 @@ impl Contract {
         let mut input_data = vec![];
         selector.encode_to(&mut input_data);
         args.encode_to(&mut input_data);
-        Self::new(storage, origin, code, input_data, salt, block_number, now)
+        Self::new(
+            storage,
+            origin,
+            code,
+            input_data,
+            cluster_id,
+            salt,
+            block_number,
+            now,
+        )
     }
 
     /// Call a contract method

@@ -24,8 +24,8 @@ pub mod messaging {
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
     use crate::contract::ContractInfo;
-    pub use phala_mq::types::*;
     pub use phala_mq::bind_topic;
+    pub use phala_mq::types::*;
 
     // TODO.kevin: reuse the Payload in secret_channel.rs.
     #[derive(Encode, Decode, Debug, TypeInfo)]
@@ -571,6 +571,11 @@ pub mod messaging {
             deployer: AccountId,
             pubkey: EcdhPublicKey,
         },
+        ContractInstantiationFailed {
+            id: ContractId,
+            cluster_id: ContractClusterId,
+            deployer: AccountId,
+        },
     }
 }
 
@@ -632,6 +637,11 @@ pub use sp_core::sr25519::Public as ContractPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;
+#[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
+pub struct WorkerIdentity {
+    pub pubkey: WorkerPublicKey,
+    pub ecdh_pubkey: EcdhPublicKey,
+}
 
 #[derive(Encode, Decode, Debug, Clone, PartialEq, Eq, TypeInfo)]
 pub struct WorkerRegistrationInfo<AccountId> {

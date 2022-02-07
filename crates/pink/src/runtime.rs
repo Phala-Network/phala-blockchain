@@ -225,9 +225,10 @@ mod tests {
                 // We offset data in the contract tables by 1.
                 let mut params = vec![(n + 1) as u8];
                 params.extend_from_slice(input);
-                let result = Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
-                    .result
-                    .unwrap();
+                let result =
+                    Contracts::bare_call(ALICE, addr.clone(), 0, GAS_LIMIT, None, params, false)
+                        .result
+                        .unwrap();
                 assert!(!result.did_revert());
                 let expected = hash_fn(input.as_ref());
                 assert_eq!(&result.data[..*expected_size], &*expected);

@@ -32,5 +32,10 @@ fn account_id_from_hex(s: &str) -> Result<AccountId> {
         .map_err(|err| anyhow::anyhow!("Failed to convert AccountId: {:?}", err))
 }
 
+pub fn contract_address_to_id(address: &AccountId) -> ContractId {
+    let inner: &[u8; 32] = address.as_ref();
+    inner.into()
+}
+
 pub use support::*;
 mod support;

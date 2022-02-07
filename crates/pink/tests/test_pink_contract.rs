@@ -16,6 +16,7 @@ fn test_ink_flip() {
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
+        vec![],
         0,
         0,
     )
@@ -97,6 +98,7 @@ fn test_ink_cross_contract_instanciate() {
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
+        vec![],
         0,
         0,
     )
@@ -108,6 +110,7 @@ fn test_ink_cross_contract_instanciate() {
         include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
         hex!("9bae9d5e"),
         (),
+        vec![],
         vec![],
         0,
         0,
@@ -140,6 +143,7 @@ fn test_mq_egress() {
         include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
         hex!("ed4b9d1b"), // init_value
         (),
+        vec![],
         vec![],
         1,
         0,
@@ -184,6 +188,7 @@ fn test_on_block_end() {
         include_bytes!("./fixtures/hooks_test/hooks_test.wasm").to_vec(),
         hex!("ed4b9d1b"), // init_value
         (),
+        vec![],
         vec![],
         1,
         0,

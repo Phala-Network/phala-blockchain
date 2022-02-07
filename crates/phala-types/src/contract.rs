@@ -1,10 +1,12 @@
+use super::WorkerPublicKey;
+use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-pub use phala_mq::ContractId;
+pub use phala_mq::{ContractClusterId, ContractId};
 
 pub type ContractId32 = u32;
 pub const SYSTEM: ContractId32 = 0;
@@ -25,32 +27,47 @@ pub enum CodeIndex<CodeHash> {
     WasmCode(CodeHash),
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum DeployTarget {
+    Cluster(ContractClusterId),
+    NewGroup(Vec<WorkerPublicKey>),
+}
+
+impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
+    pub fn code_hash(&self) -> Vec<u8> {
+        match self {
+            CodeIndex::NativeCode(contract_id) => contract_id.to_be_bytes().to_vec(),
+            CodeIndex::WasmCode(code_hash) => code_hash.as_ref().to_vec(),
+        }
+    }
+}
+
 pub mod messaging {
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
 
-    use super::ContractInfo;
-    use crate::{messaging::ContractClusterId, EcdhPublicKey, WorkerPublicKey};
+    use super::{ContractClusterId, ContractInfo};
+    use crate::WorkerIdentity;
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
     #[derive(Encode, Decode, Debug)]
     pub enum ContractEvent<CodeHash, AccountId> {
+        // TODO.shelven: enable add and remove workers
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+            deploy_workers: Vec<WorkerIdentity>,
         },
     }
 
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
         pub fn instantiate_code(
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_worker: (WorkerPublicKey, EcdhPublicKey),
+            deploy_workers: Vec<WorkerIdentity>,
         ) -> Self {
-            // TODO(shelven): enable multiple workers assignment
             ContractEvent::InstantiateCode {
                 contract_info,
-                deploy_worker,
+                deploy_workers,
             }
         }
     }
@@ -70,11 +87,39 @@ pub mod messaging {
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
     pub deployer: AccountId,
-    /// Contract cluster counter of the contract
-    pub cluster_id: u64,
-    pub salt: Vec<u8>,
     pub code_index: CodeIndex<CodeHash>,
+    pub salt: Vec<u8>,
+    pub cluster_id: ContractClusterId,
     pub instantiate_data: Vec<u8>,
+}
+
+/// Use blake2_256 on the preimage for the final contract id
+pub fn contract_id_preimage(
+    deployer: &[u8],
+    code_hash: &[u8],
+    cluster_id: &[u8],
+    salt: &[u8],
+) -> Vec<u8> {
+    let buf: Vec<_> = deployer
+        .iter()
+        .chain(code_hash)
+        .chain(cluster_id)
+        .chain(salt)
+        .cloned()
+        .collect();
+    buf
+}
+
+impl<CodeHash: AsRef<[u8]>, AccountId: AsRef<[u8]>> ContractInfo<CodeHash, AccountId> {
+    pub fn contract_id(&self, blake2_256: Box<dyn Fn(&[u8]) -> [u8; 32]>) -> ContractId {
+        let buf = contract_id_preimage(
+            self.deployer.as_ref(),
+            self.code_index.code_hash().as_ref(),
+            self.cluster_id.as_ref(),
+            self.salt.as_ref(),
+        );
+        ContractId::from(blake2_256(buf.as_ref()))
+    }
 }
 
 /// Contract query request parameters, to be encrypted.

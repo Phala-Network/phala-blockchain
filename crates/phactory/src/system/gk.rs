@@ -1,6 +1,5 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_registry::ContractRegistryEvent;
-use parity_scale_codec::Encode;
+use chain::pallet_fat::ContractRegistryEvent;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -9,6 +8,7 @@ use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
     contract::messaging::ContractEvent,
+    contract::ContractInfo,
     messaging::{
         ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
@@ -18,7 +18,7 @@ use phala_types::{
 };
 use serde::{Deserialize, Serialize};
 use sp_application_crypto::Pair;
-use sp_core::{hashing, hexdisplay::AsBytesRef, sr25519};
+use sp_core::{hashing, sr25519};
 
 use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
 
@@ -59,14 +59,10 @@ fn next_random_number(
 
 fn get_contract_key(
     master_key: &sr25519::Pair,
-    contract_info: &phala_types::contract::ContractInfo<chain::Hash, chain::AccountId>,
+    contract_info: &ContractInfo<chain::Hash, chain::AccountId>,
 ) -> sr25519::Pair {
-    // TODO(shelven): use persistent info for contract key derivation
     master_key
-        .derive_sr25519_pair(&[
-            b"contract_key",
-            Encode::encode(contract_info).as_bytes_ref(),
-        ])
+        .derive_sr25519_pair(&[b"contract_key", contract_info.cluster_id.as_bytes()])
         .expect("should not fail with valid info")
 }
 
@@ -231,7 +227,12 @@ where
                     self.process_gatekeeper_event(origin, event);
                 },
                 (event, origin) = self.contract_events => {
-                    self.process_contract_event(origin, event);
+                    if let Err(err) = self.process_contract_event(origin, event) {
+                        error!(
+                            "Failed to process contract event: {:?}",
+                            err
+                        );
+                    };
                 },
             };
             if ok.is_none() {
@@ -269,7 +270,7 @@ where
         match event {
             ContractEvent::InstantiateCode {
                 contract_info,
-                deploy_worker,
+                deploy_workers,
             } => {
                 if !origin.is_pallet() {
                     error!("Attempt to instantiate pink from bad origin");
@@ -277,33 +278,30 @@ where
                 }
 
                 // first, update the on-chain ContractPubkey
-                let (worker_pubkey, ecdh_pubkey) = deploy_worker;
+                let contract_id = contract_info.contract_id(Box::new(hashing::blake2_256));
                 let contract_key = get_contract_key(&self.master_key, &contract_info);
                 self.egress
                     .push_message(&ContractRegistryEvent::PubkeyAvailable {
+                        contract: contract_id,
                         pubkey: contract_key.public(),
-                        info: contract_info.clone(),
                     });
-                // then distribute contract key to the worker
+                // then distribute contract key to each worker
                 // and update the on-chain deployment state
                 let ecdh_key = self
                     .master_key
                     .derive_ecdh_key()
                     .expect("should never fail with valid master key; qed.");
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
-                secret_mq
-                    .bind_remote_key(Some(&ecdh_pubkey.0))
-                    .push_message(&ContractKeyDistribution::contract_key_distribution(
-                        contract_key.dump_secret_key(),
-                        contract_info.clone(),
-                        0,
-                    ));
-                self.egress.push_message(
-                    &ContractRegistryEvent::<chain::Hash, chain::AccountId>::ContractDeployed {
-                        contract_pubkey: contract_key.public(),
-                        worker_pubkey: worker_pubkey,
-                    },
-                );
+                // TODO.shelven: set up expiration
+                for worker in deploy_workers.iter() {
+                    secret_mq
+                        .bind_remote_key(Some(&worker.ecdh_pubkey.0))
+                        .push_message(&ContractKeyDistribution::contract_key_distribution(
+                            contract_key.dump_secret_key(),
+                            contract_info.clone(),
+                            0,
+                        ));
+                }
             }
         }
         Ok(())

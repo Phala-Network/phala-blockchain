@@ -222,6 +222,21 @@ const types = {
         "shares": "Balance",
         "availableRewards": "Balance",
         "rewardDebt": "Balance"
+    },
+    "ContractClusterId": "H256",
+    "ContractId32": "u32",
+    "CodeHash": "H256",
+    "CodeIndex": {
+        "_enum": {
+            "NativeCode": "ContractId32",
+            "WasmCode": "CodeHash"
+        }
+    },
+    "DeployTarget": {
+        "_enum": {
+            "Cluster": "ContractClusterId",
+            "NewGroup": "Vec<WorkerPublicKey>"
+        }
     }
 };
 

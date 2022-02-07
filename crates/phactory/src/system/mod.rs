@@ -16,7 +16,6 @@ use core::fmt;
 use log::info;
 use pink::runtime::ExecSideEffects;
 use runtime::BlockNumber;
-use std::collections::BTreeMap;
 
 use crate::contracts;
 use crate::pal;
@@ -34,13 +33,13 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::ContractOperation, CodeIndex, ContractInfo},
+    contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
         ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerContractReport, WorkerEvent,
     },
-    ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
 use side_tasks::geo_probe;
@@ -84,7 +83,6 @@ pub enum TransactionError {
     TransferringNotAllowed,
     // for contract
     CodeNotFound,
-    FailedToExecute,
 }
 
 impl From<BadOrigin> for TransactionError {
@@ -412,7 +410,6 @@ pub struct System<Platform> {
 
     pub(crate) contracts: ContractsKeeper,
     contract_clusters: ClusterKeeper,
-    contract_keys: BTreeMap<ContractPublicKey, ContractKey>,
 
     // Cached for query
     block_number: BlockNumber,
@@ -464,7 +461,6 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper: None,
             contracts,
             contract_clusters: Default::default(),
-            contract_keys: Default::default(),
             block_number: 0,
             now_ms: 0,
         }
@@ -785,7 +781,11 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             KeyDistribution::MasterKeyDistribution(dispatch_master_key_event) => {
-                self.process_master_key_distribution(origin, dispatch_master_key_event);
+                if let Err(err) =
+                    self.process_master_key_distribution(origin, dispatch_master_key_event)
+                {
+                    error!("Failed to process master key distribution event: {:?}", err);
+                };
             }
         }
     }
@@ -798,6 +798,7 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
+                let contract_info = dispatch_contract_key_event.contract_info.clone();
                 if let Err(err) = self.process_contract_key_distribution(
                     block,
                     origin,
@@ -807,6 +808,12 @@ impl<Platform: pal::Platform> System<Platform> {
                         "Failed to process contract key distribution event: {:?}",
                         err
                     );
+                    let message = WorkerContractReport::ContractInstantiationFailed {
+                        id: contract_info.contract_id(Box::new(blake2_256)),
+                        cluster_id: contract_info.cluster_id,
+                        deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
+                    };
+                    self.egress.push_message(&message);
                 }
             }
         }
@@ -889,15 +896,14 @@ impl<Platform: pal::Platform> System<Platform> {
         // TODO(shelven): forget contract key after expiration time
         let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
         let contract_key = ContractKey(keypair);
-        let contract_pubkey = contract_key.public();
         let contract_info = event.contract_info;
-        let cluster_id = chain::Hash::from_low_u64_be(contract_info.cluster_id);
+        let cluster_id = contract_info.cluster_id;
 
         match contract_info.code_index {
             CodeIndex::NativeCode(contract_id) => {
                 use contracts::*;
-                let salt = contract_info.salt;
-                let deployer = phala_types::messaging::AccountId(contract_info.deployer.into());
+                let deployer =
+                    phala_types::messaging::AccountId(contract_info.clone().deployer.into());
                 let ecdh_key = contract_key
                     .0
                     .derive_ecdh_key()
@@ -910,10 +916,7 @@ impl<Platform: pal::Platform> System<Platform> {
                                 $id => {
                                     let contract = NativeContractWrapper::new(
                                         $contract,
-                                        &cluster_id,
-                                        deployer,
-                                        &salt,
-                                        $id,
+                                        &contract_info
                                     );
                                     install_contract(
                                         &mut self.contracts,
@@ -972,13 +975,6 @@ impl<Platform: pal::Platform> System<Platform> {
                     return Err(TransactionError::CodeNotFound.into());
                 }
 
-                if self.contract_keys.contains_key(&contract_pubkey) {
-                    info!("Deployed contract 0x{}", hex::encode(&contract_pubkey));
-                    return Ok(());
-                }
-
-                self.contract_keys
-                    .insert(contract_pubkey, contract_key.clone());
                 let code = code.expect("checked; qed.");
                 let deployer = contract_info.deployer;
                 let effects = self
@@ -993,8 +989,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         block.block_number,
                         block.now_ms,
                     )
-                    .with_context(|| format!("Contract deployer: {:?}", deployer))
-                    .map_err(|_| TransactionError::FailedToExecute)?;
+                    .with_context(|| format!("Contract deployer: {:?}", deployer))?;
 
                 let cluster = self
                     .contract_clusters
@@ -1121,7 +1116,7 @@ pub fn apply_pink_side_effects(
     }
 
     for (address, event) in effects.pink_events {
-        let id = Pink::address_to_id(&address);
+        let id = contracts::contract_address_to_id(&address);
         let contract = match contracts.get_mut(&id) {
             Some(contract) => contract,
             None => {
@@ -1209,7 +1204,7 @@ impl fmt::Display for Error {
 pub mod chain_state {
     use super::*;
     use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
-    use crate::storage::{Storage, StorageExt};
+    use crate::storage::Storage;
     use parity_scale_codec::Decode;
 
     pub fn is_gatekeeper(pubkey: &WorkerPublicKey, chain_storage: &Storage) -> bool {
@@ -1225,31 +1220,12 @@ pub mod chain_state {
         gatekeepers.contains(pubkey)
     }
 
-    #[allow(dead_code)]
-    pub fn read_master_pubkey(chain_storage: &Storage) -> Option<MasterPublicKey> {
-        let key = storage_prefix("PhalaRegistry", "GatekeeperMasterPubkey");
-        chain_storage.get(&key).map(|v| {
-            MasterPublicKey::decode(&mut &v[..])
-                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
-        })
-    }
-
     pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"ContractCode", &code_hash);
+        let key = storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"Code", &code_hash);
         chain_storage.get(&key).map(|v| {
             Vec::<u8>::decode(&mut &v[..])
                 .expect("Decode value of MasterPubkey Failed. (This should not happen)")
         })
-    }
-
-    #[allow(dead_code)]
-    pub fn read_contract_info(
-        chain_storage: &Storage,
-        contract_pubkey: ContractPublicKey,
-    ) -> Option<ContractInfo<chain::Hash, chain::AccountId>> {
-        let key =
-            storage_map_prefix_twox_64_concat(b"PhalaRegistry", b"Contracts", &contract_pubkey);
-        chain_storage.get_decoded(&key).unwrap_or(None)
     }
 }
 

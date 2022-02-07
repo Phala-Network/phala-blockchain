@@ -6,7 +6,7 @@ use phala_mq::{ContractClusterId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
 use runtime::{AccountId, BlockNumber};
 
-use super::NativeContractMore;
+use super::{contract_address_to_id, NativeContractMore};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -51,6 +51,7 @@ impl Pink {
             origin.clone(),
             wasm_bin,
             input_data,
+            cluster_id.as_bytes().to_vec(),
             salt,
             block_number,
             now,
@@ -71,11 +72,6 @@ impl Pink {
             instance,
             cluster_id,
         }
-    }
-
-    pub fn address_to_id(address: &AccountId) -> contracts::ContractId {
-        let inner: &[u8; 32] = address.as_ref();
-        inner.into()
     }
 }
 
@@ -167,7 +163,7 @@ impl contracts::NativeContract for Pink {
 
 impl NativeContractMore for Pink {
     fn id(&self) -> phala_mq::ContractId {
-        Pink::address_to_id(&self.instance.address)
+        contract_address_to_id(&self.instance.address)
     }
 
     fn set_on_block_end_selector(&mut self, selector: u32) {
