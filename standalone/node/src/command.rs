@@ -58,11 +58,9 @@ impl SubstrateCli for Cli {
 				Some(block_millisecs) => Box::new(chain_spec::development_config_custom_block_duration(block_millisecs)),
 				None => Box::new(chain_spec::development_config()),
 			}
-			"local" => Box::new(chain_spec::local_testnet_config()),
-			"fir" | "flaming-fir" => Box::new(chain_spec::flaming_fir_config()?),
-			"phala" | "phala_testnet" => Box::new(chain_spec::phala_testnet_config()?),
-			"phala-local" | "phala_testnet-local" => Box::new(chain_spec::phala_testnet_local_config()),
-			"staging" => Box::new(chain_spec::staging_testnet_config()),
+			"local" => Box::new(chain_spec::local_config()),
+			"phala" | "phala_testnet" => Box::new(chain_spec::testnet_config()?),
+			"phala-local" | "phala_testnet-local" => Box::new(chain_spec::testnet_local_config()),
 			path =>
 				Box::new(chain_spec::ChainSpec::from_json_file(std::path::PathBuf::from(path))?),
 		};
