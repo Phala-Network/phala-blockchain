@@ -552,7 +552,7 @@ fn phala_testnet_config_genesis() -> GenesisConfig {
 /// Local testnet config (multivalidator Alice + Bob)
 pub fn phala_testnet_local_config() -> ChainSpec {
 	let boot_nodes = vec![];
-	let protocol_id: &str = "phat4";
+	let protocol_id: &str = "phat5";
 	let properties = {
 		let mut p = Properties::new();
 		p.insert("tokenSymbol".into(), "PHA".into());
