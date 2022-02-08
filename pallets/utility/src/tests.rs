@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) 2019-2022 Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,9 +26,8 @@ use frame_support::{
 	assert_err_ignore_postinfo, assert_noop, assert_ok,
 	dispatch::{DispatchError, DispatchErrorWithPostInfo, Dispatchable},
 	parameter_types, storage,
-	traits::Contains,
+	traits::{ConstU32, ConstU64, Contains},
 	weights::{Pays, Weight},
-	pallet_prelude::ConstU32,
 };
 use sp_core::H256;
 use sp_runtime::{
@@ -100,7 +99,6 @@ frame_support::construct_runtime!(
 );
 
 parameter_types! {
-	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(Weight::max_value());
 }
@@ -119,7 +117,7 @@ impl frame_system::Config for Test {
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
 	type Event = Event;
-	type BlockHashCount = BlockHashCount;
+	type BlockHashCount = ConstU64<250>;
 	type Version = ();
 	type PalletInfo = PalletInfo;
 	type AccountData = pallet_balances::AccountData<u64>;
@@ -128,11 +126,9 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = ConstU32<2>;
+	type MaxConsumers = ConstU32<16>;
 }
-parameter_types! {
-	pub const ExistentialDeposit: u64 = 1;
-}
+
 impl pallet_balances::Config for Test {
 	type MaxLocks = ();
 	type MaxReserves = ();
@@ -140,7 +136,7 @@ impl pallet_balances::Config for Test {
 	type Balance = u64;
 	type DustRemoval = ();
 	type Event = Event;
-	type ExistentialDeposit = ExistentialDeposit;
+	type ExistentialDeposit = ConstU64<1>;
 	type AccountStore = System;
 	type WeightInfo = ();
 }
@@ -344,7 +340,8 @@ fn batch_with_signed_filters() {
 			utility::Event::BatchInterrupted {
 				index: 0,
 				error: frame_system::Error::<Test>::CallFiltered.into(),
-			}.into(),
+			}
+			.into(),
 		);
 	});
 }
@@ -415,10 +412,7 @@ fn batch_handles_weight_refund() {
 		let result = call.dispatch(Origin::signed(1));
 		assert_ok!(result);
 		System::assert_last_event(
-			utility::Event::BatchInterrupted {
-				index: 1,
-				error: DispatchError::Other("")
-			}.into(),
+			utility::Event::BatchInterrupted { index: 1, error: DispatchError::Other("") }.into(),
 		);
 		// No weight is refunded
 		assert_eq!(extract_actual_weight(&result, &info), info.weight);
@@ -433,10 +427,7 @@ fn batch_handles_weight_refund() {
 		let result = call.dispatch(Origin::signed(1));
 		assert_ok!(result);
 		System::assert_last_event(
-			utility::Event::BatchInterrupted {
-				index: 1,
-				error: DispatchError::Other(""),
-			}.into(),
+			utility::Event::BatchInterrupted { index: 1, error: DispatchError::Other("") }.into(),
 		);
 		assert_eq!(extract_actual_weight(&result, &info), info.weight - diff * batch_len);
 
@@ -449,10 +440,7 @@ fn batch_handles_weight_refund() {
 		let result = call.dispatch(Origin::signed(1));
 		assert_ok!(result);
 		System::assert_last_event(
-			utility::Event::BatchInterrupted {
-				index: 1,
-				error: DispatchError::Other(""),
-			}.into(),
+			utility::Event::BatchInterrupted { index: 1, error: DispatchError::Other("") }.into(),
 		);
 		assert_eq!(
 			extract_actual_weight(&result, &info),
@@ -603,7 +591,8 @@ fn batch_all_does_not_nest() {
 			utility::Event::BatchInterrupted {
 				index: 0,
 				error: frame_system::Error::<Test>::CallFiltered.into(),
-			}.into(),
+			}
+			.into(),
 		);
 		assert_eq!(Balances::free_balance(1), 10);
 		assert_eq!(Balances::free_balance(2), 10);

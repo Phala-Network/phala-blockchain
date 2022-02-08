@@ -107,8 +107,6 @@ pub use phala_pallets::{
 	pallet_fat,
 	puppets,
 };
-pub use pallet_bridge;
-pub use pallet_bridge_transfer;
 
 #[cfg(not(feature = "native-nostd-hasher"))]
 type Hasher = sp_runtime::traits::BlakeTwo256;
@@ -533,8 +531,8 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	pub const SessionsPerEra: sp_staking::SessionIndex = 6;
-	pub const BondingDuration: pallet_staking::EraIndex = 24 * 28;
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
+	pub const BondingDuration: sp_staking::EraIndex = 24 * 28;
+	pub const SlashDeferDuration: sp_staking::EraIndex = 24 * 7; // 1/4 the bonding duration.
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 256;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
@@ -898,6 +896,7 @@ impl pallet_treasury::Config for Runtime {
 	type OnSlash = ();
 	type ProposalBond = ProposalBond;
 	type ProposalBondMinimum = ProposalBondMinimum;
+	type ProposalBondMaximum = ();
 	type SpendPeriod = SpendPeriod;
 	type Burn = Burn;
 	type BurnDestination = ();
@@ -974,6 +973,7 @@ where
 			.saturating_sub(1);
 		let era = Era::mortal(period, current_block);
 		let extra = (
+			frame_system::CheckNonZeroSender::<Runtime>::new(),
 			frame_system::CheckSpecVersion::<Runtime>::new(),
 			frame_system::CheckTxVersion::<Runtime>::new(),
 			frame_system::CheckGenesis::<Runtime>::new(),
@@ -1162,32 +1162,6 @@ impl pallet_lottery::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BridgeChainId: u8 = 1;
-	pub const ProposalLifetime: BlockNumber = 50;
-}
-
-impl pallet_bridge::Config for Runtime {
-	type Event = Event;
-	type BridgeCommitteeOrigin = EnsureRootOrHalfCouncil;
-	type Proposal = Call;
-	type BridgeChainId = BridgeChainId;
-	type ProposalLifetime = ProposalLifetime;
-}
-
-parameter_types! {
-	// bridge::derive_resource_id(1, &bridge::hashing::blake2_128(b"PHA"));
-	pub const NativeTokenResourceId: [u8; 32] = hex_literal::hex!("00000000000000000000000000000063a7e2be78898ba83824b0c0cc8dfb6001");
-}
-
-impl pallet_bridge_transfer::Config for Runtime {
-	type Event = Event;
-	type BridgeOrigin = pallet_bridge::EnsureBridge<Runtime>;
-	type Currency = Balances;
-	type NativeTokenResourceId = NativeTokenResourceId;
-	type OnFeePay = Treasury;
-}
-
-parameter_types! {
 	pub ExpectedBlockTimeSec: u32 = SecsPerBlock::get() as u32;
 	pub const MinMiningStaking: Balance = 1 * DOLLARS;
 	pub const MinContribution: Balance = 1 * CENTS;
@@ -1285,9 +1259,6 @@ construct_runtime!(
 		Lottery: pallet_lottery,
 		BagsList: pallet_bags_list,
 		ChildBounties: pallet_child_bounties,
-		// ChainBridge
-		ChainBridge: pallet_bridge,
-		BridgeTransfer: pallet_bridge_transfer,
 		// Phala
 		PhalaMq: pallet_mq,
 		PhalaRegistry: pallet_registry,
@@ -1317,6 +1288,7 @@ pub type BlockId = generic::BlockId<Block>;
 ///
 /// [`sign`]: <../../testing/src/keyring.rs.html>
 pub type SignedExtra = (
+	frame_system::CheckNonZeroSender<Runtime>,
 	frame_system::CheckSpecVersion<Runtime>,
 	frame_system::CheckTxVersion<Runtime>,
 	frame_system::CheckGenesis<Runtime>,

@@ -9,8 +9,8 @@ hex = { version = "0.4", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.101", default-features = false, optional = true }
 codec = { package = "parity-scale-codec", version = "2.3", default-features = false, features = ["full"] }
 scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-sp-core = { default-features = false, path = "../../substrate/primitives/core" }
-sp-runtime = { default-features = false, path = "../../substrate/primitives/runtime", optional = true }
+sp-core = { path = "../../substrate/primitives/core", default-features = false }
+sp-runtime = { path = "../../substrate/primitives/runtime", default-features = false, optional = true }
 
 phala-trie-storage = { path = "../../crates/phala-trie-storage", default-features = false, optional = true }
 phala-mq = { path = "../../crates/phala-mq", default-features = false }
