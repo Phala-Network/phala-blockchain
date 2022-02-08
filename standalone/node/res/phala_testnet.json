@@ -2,7 +2,9 @@
   "name": "Phala PoC-5",
   "id": "phala_poc_5",
   "chainType": "Live",
-  "bootNodes": [],
+  "bootNodes": [
+    "/dns/poc5-dev.phala.network/tcp/30333/p2p/12D3KooWJdtYdTJ3j5GWU3TPNKUZPpxfTaCiSR393UK4LsroV5JL"
+  ],
   "telemetryEndpoints": [],
   "protocolId": "phat",
   "forkId": null,
