@@ -3,7 +3,11 @@
   "id": "phala_poc_5",
   "chainType": "Live",
   "bootNodes": [
-    "/dns/poc5-dev.phala.network/tcp/30333/p2p/12D3KooWJdtYdTJ3j5GWU3TPNKUZPpxfTaCiSR393UK4LsroV5JL"
+    "/dns/poc5-dev.phala.network/tcp/30333/p2p/12D3KooWJdtYdTJ3j5GWU3TPNKUZPpxfTaCiSR393UK4LsroV5JL",
+    "/dns/poc5-dev.phala.network/tcp/31333/p2p/12D3KooWLRZnHor5vmozPYqMNQ5nD4Q2CuYWxqvymbqUZhFN8zbw",
+    "/dns/poc5-dev.phala.network/tcp/32333/p2p/12D3KooWGBLyxPyJLcg8K8ULNiZhf5aHjg5xGUgjex1YBFQaBdF9",
+    "/dns/poc5-dev.phala.network/tcp/33333/p2p/12D3KooWFcD12kBwufpKe8A3NzVc7Wb3nYuMzgXkTbuNFk1mbwfh",
+    "/dns/poc5-dev.phala.network/tcp/34333/p2p/12D3KooWM614TvfiV4rJR7MTZEQ29LmB3Ew6Zdmn8XLiroi8FukQ"
   ],
   "telemetryEndpoints": [],
   "protocolId": "phat",
