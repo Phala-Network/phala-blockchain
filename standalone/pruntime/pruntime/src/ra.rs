@@ -65,33 +65,20 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         .get("X-IASReport-Signature")
         .context("Get X-IASReport-Signature")?
         .to_string();
-    let mut cert = res
+    let cert = res
         .headers()
         .get("X-IASReport-Signing-Certificate")
         .context("Get X-IASReport-Signing-Certificate")?
         .to_string();
 
     // Remove %0A from cert, and only obtain the signing cert
-    cert = cert.replace("%0A", "");
-    cert = percent_decode(cert).context("percent_decode cert")?;
+    let cert = cert.replace("%0A", "");
+    let cert = urlencoding::decode(&cert).context("percent_decode cert")?;
     let v: Vec<&str> = cert.split("-----").collect();
     let sig_cert = v[2].to_string();
 
     // len_num == 0
     Ok((attn_report, sig, sig_cert))
-}
-
-fn percent_decode(orig: String) -> Result<String> {
-    let v: Vec<&str> = orig.split('%').collect();
-    let mut ret = String::new();
-    ret.push_str(v[0]);
-    if v.len() > 1 {
-        for s in v[1..].iter() {
-            ret.push(u8::from_str_radix(&s[0..2], 16).context("Invalid radix code")? as char);
-            ret.push_str(&s[2..]);
-        }
-    }
-    Ok(ret)
 }
 
 pub fn create_quote_vec(data: &[u8]) -> Result<Vec<u8>> {
