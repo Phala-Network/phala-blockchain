@@ -906,17 +906,17 @@ pub mod pallet {
 			let cost_b = FixedPoint::from_bits(self.params.rig_b);
 			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
-			(cost_k * p + cost_b) / pha_rate
+			cost_k * p + cost_b
 		}
 
-		/// Gets the operating cost per sec
+		/// Gets the operating cost per block
 		#[cfg(test)]
 		fn op_cost(&self, p: u32) -> FixedPoint {
 			let cost_k = FixedPoint::from_bits(self.params.cost_k);
 			let cost_b = FixedPoint::from_bits(self.params.cost_b);
 			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
-			(cost_k * p + cost_b) / pha_rate
+			cost_k * p + cost_b
 		}
 
 		/// Converts confidence level to score
@@ -1318,27 +1318,27 @@ pub mod pallet {
 
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1995.23809523809523810696)
+					fp!(1899.99999999999999999225)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1923.9795918367346938723)
+					fp!(1832.14285714285714283387)
 				);
 				assert_eq!(
 					tokenomic.ve(5000 * DOLLARS, 2000, 4),
-					fp!(8190.47619047619047614897)
+					fp!(7999.99999999999999991944)
 				);
 			});
 		}
