@@ -62,7 +62,7 @@ fn main() {
         // Should keep it the same with the manifest config.
         "/protected_files"
     } else {
-        "."
+        "./data"
     }
     .into();
 
