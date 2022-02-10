@@ -29,6 +29,7 @@ pub struct HttpRequest {
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub struct HttpResponse {
     pub status_code: u16,
+    pub reason_phrase: String,
     pub headers: Vec<(String, String)>,
     pub body: Vec<u8>,
 }

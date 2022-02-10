@@ -133,6 +133,7 @@ where
             .collect();
         let response = HttpResponse {
             status_code: response.status_code().into(),
+            reason_phrase: response.reason().into(),
             body,
             headers,
         };
