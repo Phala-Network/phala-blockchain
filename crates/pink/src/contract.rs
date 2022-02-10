@@ -85,14 +85,11 @@ impl Contract {
                 salt.clone(),
                 true,
             );
-            match result.result {
-                Err(err) => {
-                    return Err(ExecError {
-                        source: err,
-                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                    });
-                }
-                Ok(_) => (),
+            if let Err(err) = result.result {
+                return Err(ExecError {
+                    source: err,
+                    message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                });
             }
             let preimage = contract_id_preimage(
                 origin.as_ref(),
@@ -105,6 +102,7 @@ impl Contract {
         Ok((Self::from_address(address?), effects))
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new_with_selector(
         storage: &mut Storage,
         origin: AccountId,
@@ -179,6 +177,7 @@ impl Contract {
     }
 
     /// Call a contract method given it's selector
+    #[allow(clippy::too_many_arguments)]
     pub fn call_with_selector<RV: Decode>(
         &mut self,
         storage: &mut Storage,
@@ -196,10 +195,10 @@ impl Contract {
             self.bare_call(storage, origin, input_data, rollback, block_number, now);
         let mut rv = transpose_contract_result(&result)?;
         Ok((
-            Decode::decode(&mut rv).or(Err(ExecError {
+            Decode::decode(&mut rv).map_err(|_| ExecError {
                 source: DispatchError::Other("Decode result failed"),
                 message: Default::default(),
-            }))?,
+            })?,
             effects,
         ))
     }
@@ -241,7 +240,7 @@ pub fn transpose_contract_result(result: &ContractExecResult) -> Result<&[u8], E
         .as_ref()
         .map(|v| &*v.data.0)
         .map_err(|err| ExecError {
-            source: err.clone(),
+            source: *err,
             message: String::from_utf8_lossy(&result.debug_message).to_string(),
         })
 }
