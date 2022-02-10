@@ -334,7 +334,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         } else {
             return Err(anyhow!("Take checkpoint failed, runtime is not ready"));
         };
-        let key128 = sp_core::blake2_128(&key);
+        let key128 = derive_key_for_checkpoint(&key);
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
@@ -390,7 +390,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         reader: R,
     ) -> anyhow::Result<Self> {
         let runtime_data = Self::load_runtime_data(platform, sealing_path)?;
-        let key128 = sp_core::blake2_128(&runtime_data.sk);
+        let key128 = derive_key_for_checkpoint(&runtime_data.sk);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(dec_reader).context("decode state")?;
@@ -513,4 +513,8 @@ fn display(e: impl core::fmt::Display) -> Value {
 
 fn error_msg(msg: &str) -> Value {
     json!({ "message": msg })
+}
+
+fn derive_key_for_checkpoint(identity_key: &[u8]) -> [u8; 16] {
+    sp_core::blake2_128(&(identity_key, b"/checkpoint").encode())
 }
