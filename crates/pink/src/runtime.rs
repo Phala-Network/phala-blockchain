@@ -2,6 +2,8 @@ mod extension;
 mod mock_types;
 mod pallet_pink;
 
+use std::time::{Duration, Instant};
+
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
@@ -132,14 +134,27 @@ pub enum CallMode {
     Command,
 }
 
-environmental::environmental!(call_mode: CallMode);
+struct CallInfo {
+    mode: CallMode,
+    start_at: Instant,
+}
 
-pub fn using_mode<T>(mut mode: CallMode, f: impl FnOnce() -> T) -> T {
-    call_mode::using(&mut mode, f)
+environmental::environmental!(call_info: CallInfo);
+
+pub fn using_mode<T>(mode: CallMode, f: impl FnOnce() -> T) -> T {
+    let mut info = CallInfo {
+        mode,
+        start_at: Instant::now(),
+    };
+    call_info::using(&mut info, f)
 }
 
 pub fn get_call_mode() -> Option<CallMode> {
-    call_mode::with(|mode| *mode)
+    call_info::with(|info| info.mode)
+}
+
+pub fn get_call_elapsed() -> Option<Duration> {
+    call_info::with(|info| info.start_at.elapsed())
 }
 
 #[cfg(test)]

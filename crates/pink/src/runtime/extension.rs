@@ -1,4 +1,4 @@
-use std::convert::TryFrom;
+use std::{convert::TryFrom, time::Duration};
 
 use frame_support::log::error;
 use pallet_contracts::chain_extension::{
@@ -9,7 +9,7 @@ use scale::{Decode, Encode};
 use sp_runtime::DispatchError;
 
 use crate::{
-    runtime::{get_call_mode, CallMode},
+    runtime::{get_call_elapsed, get_call_mode, CallMode},
     types::AccountId,
 };
 
@@ -114,10 +114,12 @@ where
         };
 
         // Hardcoded limitations for now
-        const MAX_WAIT_TIME: u64 = 10; // seconds
+        const MAX_QUERY_TIME: u64 = 10; // seconds
         const MAX_BODY_SIZE: usize = 1024 * 256; // 256KB
 
-        req.timeout(Some(std::time::Duration::from_secs(MAX_WAIT_TIME)));
+        let elapsed = get_call_elapsed().ok_or(DispatchError::Other("Invalid exec env"))?;
+        let timeout = Duration::from_secs(MAX_QUERY_TIME) - elapsed;
+        req.timeout(Some(timeout));
 
         let mut body = Vec::new();
         let mut writer = LimitedWriter::new(&mut body, MAX_BODY_SIZE);
