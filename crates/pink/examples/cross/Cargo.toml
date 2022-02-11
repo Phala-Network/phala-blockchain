@@ -5,6 +5,9 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2018"
 resolver = "2"
 
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
+
 [dependencies]
 ink_primitives = { version = "3.0.0-rc3", default-features = false }
 ink_metadata = { version = "3.0.0-rc3", default-features = false, features = ["derive"], optional = true }
