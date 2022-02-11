@@ -34,6 +34,7 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
+/// Extensions for the ink runtime defined by fat contract.
 #[ink::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;
@@ -43,6 +44,17 @@ pub trait PinkExt {
     fn http_request(request: HttpRequest) -> HttpResponse;
 }
 
+/// Make a simple HTTP GET request
+///
+/// # Arguments
+/// url: The URL to GET
+///
+/// # Example
+/// ```ignore
+/// use pink_extension::http_get;
+/// let response = http_get!("https://example.com/");
+/// assert_eq!(response.status_code, 200);
+/// ```
 #[macro_export]
 macro_rules! http_get {
     ($url: expr) => {{

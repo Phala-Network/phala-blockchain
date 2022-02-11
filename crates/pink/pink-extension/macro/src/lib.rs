@@ -8,6 +8,11 @@ use syn::{Result, parse_macro_input, spanned::Spanned};
 
 use ink_lang_ir::{HexLiteral as _, ImplItem, Selector};
 
+/// A drop-in replacement for `ink_lang::contract` with pink-specific feature extensions.
+///
+/// # pink-specific features
+/// - `#[pink(on_block_end)]`
+///   Marks a function as being called on each phala block has been dispatched.
 #[proc_macro_attribute]
 pub fn contract(arg: TokenStream, input: TokenStream) -> TokenStream {
     let config = parse_macro_input!(arg as TokenStream2);

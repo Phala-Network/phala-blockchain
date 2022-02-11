@@ -19,18 +19,21 @@ const PINK_EVENT_TOPIC: &[u8] = b"phala.pink.event";
 pub type EcdhPublicKey = [u8; 32];
 pub type Hash = [u8; 32];
 
+/// A phala-mq message
 #[derive(Encode, Decode, Debug)]
 pub struct Message {
     pub payload: Vec<u8>,
     pub topic: Vec<u8>,
 }
 
+/// A phala-mq message with optional encryption key
 #[derive(Encode, Decode, Debug)]
 pub struct OspMessage {
     pub message: Message,
     pub remote_pubkey: Option<EcdhPublicKey>,
 }
 
+/// System Event used to communicate between the contract and the runtime.
 #[derive(Encode, Decode, Debug)]
 pub enum PinkEvent {
     /// Contract pushed a raw message
@@ -73,7 +76,7 @@ pub fn push_message(payload: Vec<u8>, topic: Vec<u8>) {
     emit_event::<PinkEnvironment, _>(PinkEvent::Message(Message { payload, topic }))
 }
 
-/// Push a message to a topic accepting optinal secret messages
+/// Push a message to a topic accepting optional secret messages
 ///
 /// Contract commands topic accept osp messages
 pub fn push_osp_message(payload: Vec<u8>, topic: Vec<u8>, remote_pubkey: Option<EcdhPublicKey>) {
@@ -89,6 +92,7 @@ pub fn set_on_block_end_selector(selector: u32) {
     emit_event::<PinkEnvironment, _>(PinkEvent::OnBlockEndSelector(selector))
 }
 
+/// Pink defined environment. Used this environment to access the fat contract runtime features.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
 pub enum PinkEnvironment {}
