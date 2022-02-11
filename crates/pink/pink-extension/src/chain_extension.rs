@@ -48,6 +48,7 @@ pub trait PinkExt {
 ///
 /// # Arguments
 /// url: The URL to GET
+/// headers: The headers to send with the request
 ///
 /// # Example
 /// ```ignore
@@ -57,14 +58,51 @@ pub trait PinkExt {
 /// ```
 #[macro_export]
 macro_rules! http_get {
-    ($url: expr) => {{
+    ($url: expr, $headers: expr) => {{
         use pink_extension::chain_extension::{HttpRequest, HttpResponse};
+        let headers = $headers;
         let request = HttpRequest {
             url: $url.into(),
             method: "GET".into(),
-            headers: Default::default(),
+            headers,
             body: Default::default(),
         };
         Self::env().extension().http_request(request)
+    }};
+    ($url: expr) => {{
+        $crate::http_get!($url, Default::default())
+    }};
+}
+
+
+/// Make a simple HTTP POST request
+///
+/// # Arguments
+/// url: The URL to POST
+/// data: The payload to POST
+/// headers: The headers to send with the request
+///
+/// # Example
+/// ```ignore
+/// use pink_extension::http_get;
+/// let response = http_post!("https://example.com/", b"Hello, world!");
+/// assert_eq!(response.status_code, 200);
+/// ```
+#[macro_export]
+macro_rules! http_post {
+    ($url: expr, $data: expr, $headers: expr) => {{
+        use pink_extension::chain_extension::{HttpRequest, HttpResponse};
+        let headers = $headers;
+        let body = $data.into();
+        let request = HttpRequest {
+            url: $url.into(),
+            method: "POST".into(),
+            headers,
+            body,
+        };
+        Self::env().extension().http_request(request)
+    }};
+    ($url: expr, $data: expr) => {{
+        $crate::http_post!($url, $data, Default::default())
     }};
 }
