@@ -6,6 +6,7 @@ use pallet_contracts::chain_extension::{
 };
 use pink_extension::PinkEvent;
 use scale::{Decode, Encode};
+use sp_core::Pair;
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -66,6 +67,8 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         // func_id refer to https://github.com/patractlabs/PIPs/blob/main/PIPs/pip-100.md
         match func_id {
             0xff000001 => call.http_request(),
+            0xff000002 => call.sign(),
+            0xff000003 => call.verify(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 Err(DispatchError::Other("Unimplemented func_id"))
@@ -141,6 +144,51 @@ where
         };
         env.write(&response.encode(), false, None)
             .map_err(|_| DispatchError::Other("ChainExtension failed to return http_request"))?;
+        Ok(RetVal::Converging(0))
+    }
+
+    fn sign(self) -> Result<RetVal, DispatchError> {
+        use pink_extension::chain_extension::{SigType, SignArgs};
+        let mut env = self.env.buf_in_buf_out();
+        let args: SignArgs = env.read_as_unbounded(env.in_len())?;
+
+        macro_rules! sign_with {
+            ($sigtype:ident) => {{
+                let pair = sp_core::$sigtype::Pair::from_seed_slice(&args.key)
+                    .or(Err(DispatchError::Other("Invalid key")))?;
+                let signature = pair.sign(&args.message);
+                let signature: &[u8] = signature.as_ref();
+                env.write(&signature.encode(), false, None)
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to return sign"))?;
+            }};
+        }
+
+        match args.sigtype {
+            SigType::Sr25519 => sign_with!(sr25519),
+            SigType::Ed25519 => sign_with!(ed25519),
+            SigType::Ecdsa => sign_with!(ecdsa),
+        }
+        Ok(RetVal::Converging(0))
+    }
+
+    fn verify(self) -> Result<RetVal, DispatchError> {
+        use pink_extension::chain_extension::{SigType, VerifyArgs};
+        let mut env = self.env.buf_in_buf_out();
+        let args: VerifyArgs = env.read_as_unbounded(env.in_len())?;
+
+        let result = match args.sigtype {
+            SigType::Sr25519 => {
+                sp_core::sr25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+            SigType::Ed25519 => {
+                sp_core::ed25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+            SigType::Ecdsa => {
+                sp_core::ecdsa::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+        };
+        env.write(&result.encode(), false, None)
+            .map_err(|_| DispatchError::Other("ChainExtension failed to return verify"))?;
         Ok(RetVal::Converging(0))
     }
 }

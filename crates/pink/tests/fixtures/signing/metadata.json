@@ -1,0 +1,46 @@
+{
+  "source": {
+    "hash": "0xc4b2eca3e3283588b04a7e2897ea5fc2c1d798ed27f601e61d3412efd00a905d",
+    "language": "ink! 3.0.0-rc8",
+    "compiler": "rustc 1.58.0-nightly"
+  },
+  "contract": {
+    "name": "signing",
+    "version": "0.1.0",
+    "authors": [
+      "[your_name] <[your_email]>"
+    ]
+  },
+  "V3": {
+    "spec": {
+      "constructors": [
+        {
+          "args": [],
+          "docs": [],
+          "label": "default",
+          "payable": false,
+          "selector": "0xed4b9d1b"
+        }
+      ],
+      "docs": [],
+      "events": [],
+      "messages": [
+        {
+          "args": [],
+          "docs": [],
+          "label": "test",
+          "mutates": false,
+          "payable": false,
+          "returnType": null,
+          "selector": "0x928b2036"
+        }
+      ]
+    },
+    "storage": {
+      "struct": {
+        "fields": []
+      }
+    },
+    "types": []
+  }
+}
