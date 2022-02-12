@@ -3023,42 +3023,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-bridge"
-version = "0.0.1"
-dependencies = [
- "blake2-rfc",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-bridge-transfer"
-version = "0.0.1"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "frame-system",
- "hex",
- "pallet-bridge",
- "parity-scale-codec",
- "phala-pallets",
- "phala-types",
- "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-child-bounties"
 version = "4.0.0-dev"
 dependencies = [
@@ -3104,7 +3068,6 @@ dependencies = [
  "pallet-contracts-primitives",
  "pallet-contracts-proc-macro",
  "parity-scale-codec",
- "pwasm-utils 0.18.2",
  "rand 0.8.4",
  "scale-info",
  "serde",
@@ -3114,6 +3077,7 @@ dependencies = [
  "sp-runtime",
  "sp-sandbox",
  "sp-std",
+ "wasm-instrument",
  "wasmi-validation 0.4.1",
 ]
 
@@ -3825,7 +3789,6 @@ dependencies = [
  "maxminddb",
  "num-bigint 0.4.3",
  "num-traits",
- "pallet-bridge-transfer",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -3959,8 +3922,6 @@ dependencies = [
  "pallet-bags-list",
  "pallet-balances",
  "pallet-bounties",
- "pallet-bridge",
- "pallet-bridge-transfer",
  "pallet-child-bounties",
  "pallet-collective",
  "pallet-democracy",
@@ -4161,9 +4122,11 @@ name = "pink"
 version = "0.1.0"
 dependencies = [
  "call-trace",
+ "environmental",
  "frame-support",
  "frame-system",
  "hex",
+ "http_req",
  "impl-serde",
  "log 0.4.14",
  "pallet-balances",
@@ -4177,9 +4140,10 @@ dependencies = [
  "paste",
  "phala-serde-more",
  "phala-trie-storage",
+ "phala-types",
  "pink-extension",
  "pretty_assertions",
- "pwasm-utils 0.16.0",
+ "pwasm-utils",
  "scale-info",
  "serde",
  "serde_json",
@@ -4480,17 +4444,6 @@ dependencies = [
  "byteorder",
  "log 0.4.14",
  "parity-wasm 0.41.0",
-]
-
-[[package]]
-name = "pwasm-utils"
-version = "0.18.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "880b3384fb00b8f6ecccd5d358b93bd2201900ae3daad213791d1864f6441f5c"
-dependencies = [
- "byteorder",
- "log 0.4.14",
- "parity-wasm 0.42.2",
 ]
 
 [[package]]
@@ -5505,7 +5458,7 @@ dependencies = [
  "schnorrkel",
  "secrecy",
  "serde",
- "sha2 0.9.9",
+ "sha2 0.10.1",
  "sp-core-hashing",
  "sp-debug-derive",
  "sp-externalities",
@@ -5528,7 +5481,7 @@ version = "4.0.0"
 dependencies = [
  "blake2-rfc",
  "byteorder",
- "sha2 0.9.9",
+ "sha2 0.10.1",
  "sp-std",
  "tiny-keccak",
  "twox-hash",
@@ -5618,7 +5571,7 @@ dependencies = [
 
 [[package]]
 name = "sp-keyring"
-version = "4.0.0-dev"
+version = "4.1.0-dev"
 dependencies = [
  "lazy_static",
  "sp-core",
@@ -5701,7 +5654,7 @@ dependencies = [
 
 [[package]]
 name = "sp-runtime"
-version = "4.0.0"
+version = "4.1.0-dev"
 dependencies = [
  "either",
  "hash256-std-hasher",
@@ -6837,6 +6790,15 @@ dependencies = [
  "log 0.4.14",
  "parity-wasm 0.32.0",
  "rustc-demangle",
+]
+
+[[package]]
+name = "wasm-instrument"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "962e5b0401bbb6c887f54e69b8c496ea36f704df65db73e81fd5ff8dc3e63a9f"
+dependencies = [
+ "parity-wasm 0.42.2",
 ]
 
 [[package]]

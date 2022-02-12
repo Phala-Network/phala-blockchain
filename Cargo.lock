@@ -3336,6 +3336,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "http_req"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e6cd45a270dff33553602fd84beb02c89460ee32db638715f10d9060389fd6a"
+dependencies = [
+ "rustls 0.19.1",
+ "unicase",
+ "webpki 0.21.4",
+ "webpki-roots 0.21.1",
+]
+
+[[package]]
 name = "httparse"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7325,10 +7337,12 @@ name = "pink"
 version = "0.1.0"
 dependencies = [
  "call-trace",
+ "environmental",
  "frame-support",
  "frame-system",
  "hex",
  "hex-literal",
+ "http_req",
  "impl-serde",
  "insta",
  "log",
