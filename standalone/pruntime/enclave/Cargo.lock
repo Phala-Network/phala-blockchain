@@ -79,6 +79,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "aead"
+version = "0.4.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b613b8e1e3cf911a086f53f03bf286f52fd7a7258e4fa606f0ef220d39d8877"
+dependencies = [
+ "generic-array 0.14.5",
+]
+
+[[package]]
+name = "aead-io"
+version = "0.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3a54e65d4709deb2d818f5478ec4ad52b53381f4b11dcad42ed81c63ef70eb0"
+dependencies = [
+ "aead 0.4.3",
+]
+
+[[package]]
 name = "aes"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -95,7 +113,7 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5278b5fabbb9bd46e24aa69b2fdea62c99088e0a950a9be40e3e0101298f88da"
 dependencies = [
- "aead",
+ "aead 0.3.2",
  "aes",
  "cipher",
  "ctr",
@@ -2779,41 +2797,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pallet-bridge"
-version = "0.0.1"
-dependencies = [
- "blake2-rfc",
- "frame-support",
- "frame-system",
- "pallet-balances",
- "parity-scale-codec",
- "scale-info",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
-name = "pallet-bridge-transfer"
-version = "0.0.1"
-dependencies = [
- "frame-support",
- "frame-system",
- "hex",
- "pallet-bridge",
- "parity-scale-codec",
- "phala-pallets",
- "phala-types",
- "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
-]
-
-[[package]]
 name = "pallet-child-bounties"
 version = "4.0.0-dev"
 dependencies = [
@@ -3554,7 +3537,6 @@ dependencies = [
  "maxminddb",
  "num-bigint 0.4.3",
  "num-traits",
- "pallet-bridge-transfer",
  "parity-scale-codec",
  "phactory-api",
  "phactory-pal",
@@ -3642,11 +3624,14 @@ dependencies = [
 name = "phala-crypto"
 version = "0.1.0"
 dependencies = [
+ "aead 0.4.3",
+ "aead-io",
  "curve25519-dalek 2.1.3",
  "ring 0.16.20",
  "schnorrkel",
  "sp-application-crypto",
  "sp-core",
+ "typenum",
 ]
 
 [[package]]
