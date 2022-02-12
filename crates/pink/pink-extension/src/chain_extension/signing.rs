@@ -1,4 +1,4 @@
-use alloc::vec::Vec;
+use alloc::borrow::Cow;
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -10,21 +10,20 @@ pub enum SigType {
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct SignArgs {
+pub struct SignArgs<'a> {
     pub sigtype: SigType,
-    pub key: Vec<u8>,
-    pub message: Vec<u8>,
+    pub key: Cow<'a, [u8]>,
+    pub message: Cow<'a, [u8]>,
 }
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-pub struct VerifyArgs {
+pub struct VerifyArgs<'a> {
     pub sigtype: SigType,
-    pub pubkey: Vec<u8>,
-    pub message: Vec<u8>,
-    pub signature: Vec<u8>,
+    pub pubkey: Cow<'a, [u8]>,
+    pub message: Cow<'a, [u8]>,
+    pub signature: Cow<'a, [u8]>,
 }
-
 
 /// Sign a message with a private key.
 /// # Example
