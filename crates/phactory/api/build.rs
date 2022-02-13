@@ -34,7 +34,11 @@ fn main() {
 }
 
 fn export_git_revision() {
-    let cmd = Command::new("git").arg("rev").output().unwrap().stdout;
+    let cmd = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap()
+        .stdout;
     let revision = String::from_utf8_lossy(&cmd);
     let revision = revision.trim();
     let dirty = !Command::new("git")
