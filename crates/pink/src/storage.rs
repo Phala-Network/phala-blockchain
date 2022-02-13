@@ -48,7 +48,12 @@ where
         let mut ext = Ext::new(&mut self.overlay, &mut cache, backend, None);
         let r = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
-            let r = f();
+            let mode = if rollback {
+                crate::runtime::CallMode::Query
+            } else {
+                crate::runtime::CallMode::Command
+            };
+            let r = crate::runtime::using_mode(mode, f);
             (r, crate::runtime::get_side_effects())
         });
         if rollback {

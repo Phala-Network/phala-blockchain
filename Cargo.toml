@@ -21,7 +21,7 @@ exclude = [
 	"ring",
 	"native-nostd-hasher",
 	"standalone/pruntime",
-	"crates/pink/examples/mqproxy",
+	"crates/pink/examples/",
 ]
 
 members = [

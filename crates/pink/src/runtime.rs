@@ -2,6 +2,8 @@ mod extension;
 mod mock_types;
 mod pallet_pink;
 
+use std::time::{Duration, Instant};
+
 use crate::types::{AccountId, Balance, BlockNumber, Hash, Hashing, Index};
 use frame_support::{
     parameter_types,
@@ -123,6 +125,36 @@ impl Config for PinkRuntime {
     type DepositPerByte = ConstU128<0>;
     type DepositPerItem = ConstU128<0>;
     type AddressGenerator = Pink;
+}
+
+
+#[derive(Clone, Copy)]
+pub enum CallMode {
+    Query,
+    Command,
+}
+
+struct CallInfo {
+    mode: CallMode,
+    start_at: Instant,
+}
+
+environmental::environmental!(call_info: CallInfo);
+
+pub fn using_mode<T>(mode: CallMode, f: impl FnOnce() -> T) -> T {
+    let mut info = CallInfo {
+        mode,
+        start_at: Instant::now(),
+    };
+    call_info::using(&mut info, f)
+}
+
+pub fn get_call_mode() -> Option<CallMode> {
+    call_info::with(|info| info.mode)
+}
+
+pub fn get_call_elapsed() -> Option<Duration> {
+    call_info::with(|info| info.start_at.elapsed())
 }
 
 #[cfg(test)]

@@ -40,7 +40,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
         info!("No checkpoint file specified.");
     }
 
-    APPLICATION.lock().unwrap().init(args.clone());
+    APPLICATION.lock().unwrap().init(args);
 
     info!("Enclave init OK");
     Ok(())
