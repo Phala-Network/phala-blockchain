@@ -1,5 +1,6 @@
 use alloc::vec::Vec;
 use ink_lang as ink;
+use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpResponse};
 pub use signing::{SigType, SignArgs, VerifyArgs};
@@ -46,4 +47,8 @@ pub trait PinkExt {
 
     #[ink(extension = 0xff000004, handle_status = false, returns_result = false)]
     fn derive_sr25519_pair(salt: &[u8]) -> (Vec<u8>, Vec<u8>);
+}
+
+pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
+    <PinkExt as ChainExtensionInstance>::instantiate()
 }
