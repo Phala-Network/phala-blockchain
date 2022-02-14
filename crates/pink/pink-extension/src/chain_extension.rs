@@ -1,11 +1,19 @@
-use ink_lang as ink;
 use alloc::vec::Vec;
+use ink_lang as ink;
 
 pub use http_request::{HttpRequest, HttpResponse};
-pub use signing::{SignArgs, VerifyArgs, SigType};
+pub use signing::{SigType, SignArgs, VerifyArgs};
 
 mod http_request;
 mod signing;
+
+pub mod test;
+pub mod func_ids {
+    pub const HTTP_REQUEST: u32 = 0xff000001;
+    pub const SIGN: u32 = 0xff000002;
+    pub const VERIFY: u32 = 0xff000003;
+    pub const DERIVE_SR25519_PAIR: u32 = 0xff000004;
+}
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
