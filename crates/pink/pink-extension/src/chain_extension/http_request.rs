@@ -21,7 +21,7 @@ pub struct HttpResponse {
 impl HttpResponse {
     pub fn ok(body: Vec<u8>) -> Self {
         Self {
-            status_code: 100,
+            status_code: 200,
             reason_phrase: "OK".into(),
             headers: Default::default(),
             body,
