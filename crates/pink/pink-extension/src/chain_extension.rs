@@ -7,6 +7,7 @@ pub use signing::{SigType, SignArgs, VerifyArgs};
 mod http_request;
 mod signing;
 
+#[cfg(feature = "std")]
 pub mod test;
 pub mod func_ids {
     pub const HTTP_REQUEST: u32 = 0xff000001;

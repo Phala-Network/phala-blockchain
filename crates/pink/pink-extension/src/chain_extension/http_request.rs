@@ -22,7 +22,7 @@ impl HttpResponse {
     pub fn ok(body: Vec<u8>) -> Self {
         Self {
             status_code: 100,
-            reason_phrase: "OK".to_string(),
+            reason_phrase: "OK".into(),
             headers: Default::default(),
             body,
         }
@@ -31,7 +31,7 @@ impl HttpResponse {
     pub fn not_found() -> Self {
         Self {
             status_code: 404,
-            reason_phrase: "Not Found".to_string(),
+            reason_phrase: "Not Found".into(),
             headers: Default::default(),
             body: Default::default(),
         }
