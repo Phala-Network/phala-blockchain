@@ -4,8 +4,10 @@ use frame_support::log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
+use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::PinkEvent;
 use scale::{Decode, Encode};
+use sp_core::Pair;
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -62,10 +64,15 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     where
         <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
+        use pink_extension::chain_extension::func_ids::*;
+
         let call = Call { env };
         // func_id refer to https://github.com/patractlabs/PIPs/blob/main/PIPs/pip-100.md
         match func_id {
-            0xff000001 => call.http_request(),
+            HTTP_REQUEST => call.http_request(),
+            SIGN => call.sign(),
+            VERIFY => call.verify(),
+            DERIVE_SR25519_PAIR => call.derive_sr25519_pair(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 Err(DispatchError::Other("Unimplemented func_id"))
@@ -141,6 +148,74 @@ where
         };
         env.write(&response.encode(), false, None)
             .map_err(|_| DispatchError::Other("ChainExtension failed to return http_request"))?;
+        Ok(RetVal::Converging(0))
+    }
+
+    fn sign(self) -> Result<RetVal, DispatchError> {
+        use pink_extension::chain_extension::{SigType, SignArgs};
+        let mut env = self.env.buf_in_buf_out();
+        let args: SignArgs = env.read_as_unbounded(env.in_len())?;
+
+        macro_rules! sign_with {
+            ($sigtype:ident) => {{
+                let pair = sp_core::$sigtype::Pair::from_seed_slice(&args.key)
+                    .or(Err(DispatchError::Other("Invalid key")))?;
+                let signature = pair.sign(&args.message);
+                let signature: &[u8] = signature.as_ref();
+                env.write(&signature.encode(), false, None)
+                    .map_err(|_| DispatchError::Other("ChainExtension failed to return sign"))?;
+            }};
+        }
+
+        match args.sigtype {
+            SigType::Sr25519 => sign_with!(sr25519),
+            SigType::Ed25519 => sign_with!(ed25519),
+            SigType::Ecdsa => sign_with!(ecdsa),
+        }
+        Ok(RetVal::Converging(0))
+    }
+
+    fn verify(self) -> Result<RetVal, DispatchError> {
+        use pink_extension::chain_extension::{SigType, VerifyArgs};
+        let mut env = self.env.buf_in_buf_out();
+        let args: VerifyArgs = env.read_as_unbounded(env.in_len())?;
+
+        let result = match args.sigtype {
+            SigType::Sr25519 => {
+                sp_core::sr25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+            SigType::Ed25519 => {
+                sp_core::ed25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+            SigType::Ecdsa => {
+                sp_core::ecdsa::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }
+        };
+        env.write(&result.encode(), false, None)
+            .map_err(|_| DispatchError::Other("ChainExtension failed to return verify"))?;
+        Ok(RetVal::Converging(0))
+    }
+
+    fn derive_sr25519_pair(self) -> Result<RetVal, DispatchError> {
+        let mut env = self.env.buf_in_buf_out();
+        let salt: Vec<u8> = env.read_as_unbounded(env.in_len())?;
+        let seed =
+            crate::runtime::Pink::key_seed().ok_or(DispatchError::Other("Key seed missing"))?;
+        let seed_key = sp_core::sr25519::Pair::restore_from_secret_key(&seed);
+        let contract_address = env.ext().address();
+        let contract_address: &[u8] = contract_address.as_ref();
+        let derived_pair = seed_key
+            .derive_sr25519_pair(&[contract_address, &salt, b"keygen"])
+            .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
+        let priviate_key = derived_pair.dump_secret_key();
+        let priviate_key: &[u8] = priviate_key.as_ref();
+        let public_key = derived_pair.public();
+        let public_key: &[u8] = public_key.as_ref();
+
+        env.write(&(priviate_key, public_key).encode(), false, None)
+            .map_err(|_| {
+                DispatchError::Other("ChainExtension failed to return derive_sr25519_pair")
+            })?;
         Ok(RetVal::Converging(0))
     }
 }

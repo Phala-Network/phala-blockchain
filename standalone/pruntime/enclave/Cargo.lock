@@ -3870,9 +3870,11 @@ name = "pink"
 version = "0.1.0"
 dependencies = [
  "call-trace",
+ "environmental",
  "frame-support",
  "frame-system",
  "hex",
+ "http_req",
  "impl-serde",
  "log",
  "pallet-balances",
@@ -3884,6 +3886,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "paste",
+ "phala-crypto",
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
@@ -3907,7 +3910,7 @@ dependencies = [
 
 [[package]]
 name = "pink-extension"
-version = "0.1.0"
+version = "0.1.2"
 dependencies = [
  "ink_env",
  "ink_lang",

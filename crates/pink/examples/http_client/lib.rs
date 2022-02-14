@@ -31,4 +31,25 @@ mod http_client {
             (resposne.status_code, resposne.body)
         }
     }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use ink_lang as ink;
+        #[ink::test]
+        fn get_ip_works() {
+            use pink_extension::chain_extension::{HttpResponse, test::MockHttpRequest};
+
+            ink_env::test::register_chain_extension(MockHttpRequest::new(|request| {
+                if request.url == "https://ip.kvin.wang" {
+                    HttpResponse::ok(b"1.1.1.1".to_vec())
+                } else {
+                    HttpResponse::not_found()
+                }
+            }));
+
+            let contract = HttpClient::default();
+            assert_eq!(contract.get_ip().1, b"1.1.1.1");
+        }
+    }
 }

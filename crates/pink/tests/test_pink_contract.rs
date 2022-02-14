@@ -211,3 +211,35 @@ fn test_on_block_end() {
 
     insta::assert_debug_snapshot!(effects);
 }
+
+#[test]
+fn test_signing() {
+    let mut storage = Contract::new_storage();
+
+    storage.set_key_seed([1u8; 64]);
+
+    let (mut contract, _) = Contract::new_with_selector(
+        &mut storage,
+        ALICE.clone(),
+        include_bytes!("./fixtures/signing/signing.wasm").to_vec(),
+        hex!("ed4b9d1b"),
+        (),
+        vec![],
+        vec![],
+        1,
+        0,
+    )
+    .unwrap();
+
+    let _: ((), _) = contract
+        .call_with_selector(
+            &mut storage,
+            ALICE.clone(),
+            hex!("928b2036"),
+            (),
+            false,
+            1,
+            0,
+        )
+        .unwrap();
+}
