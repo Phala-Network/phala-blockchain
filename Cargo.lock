@@ -7355,6 +7355,7 @@ dependencies = [
  "parity-scale-codec",
  "parity-wasm 0.41.0",
  "paste",
+ "phala-crypto",
  "phala-serde-more",
  "phala-trie-storage",
  "phala-types",
