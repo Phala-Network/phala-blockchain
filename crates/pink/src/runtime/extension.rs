@@ -4,6 +4,7 @@ use frame_support::log::error;
 use pallet_contracts::chain_extension::{
     ChainExtension, Environment, Ext, InitState, RetVal, SysConfig, UncheckedFrom,
 };
+use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::PinkEvent;
 use scale::{Decode, Encode};
 use sp_core::Pair;
@@ -69,6 +70,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
             0xff000001 => call.http_request(),
             0xff000002 => call.sign(),
             0xff000003 => call.verify(),
+            0xff000004 => call.derive_sr25519_pair(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 Err(DispatchError::Other("Unimplemented func_id"))
@@ -189,6 +191,29 @@ where
         };
         env.write(&result.encode(), false, None)
             .map_err(|_| DispatchError::Other("ChainExtension failed to return verify"))?;
+        Ok(RetVal::Converging(0))
+    }
+
+    fn derive_sr25519_pair(self) -> Result<RetVal, DispatchError> {
+        let mut env = self.env.buf_in_buf_out();
+        let salt: Vec<u8> = env.read_as_unbounded(env.in_len())?;
+        let seed =
+            crate::runtime::Pink::key_seed().ok_or(DispatchError::Other("Key seed missing"))?;
+        let seed_key = sp_core::sr25519::Pair::restore_from_secret_key(&seed);
+        let contract_address = env.ext().address();
+        let contract_address: &[u8] = contract_address.as_ref();
+        let derived_pair = seed_key
+            .derive_sr25519_pair(&[contract_address, &salt, b"keygen"])
+            .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
+        let priviate_key = derived_pair.dump_secret_key();
+        let priviate_key: &[u8] = priviate_key.as_ref();
+        let public_key = derived_pair.public();
+        let public_key: &[u8] = public_key.as_ref();
+
+        env.write(&(priviate_key, public_key).encode(), false, None)
+            .map_err(|_| {
+                DispatchError::Other("ChainExtension failed to return derive_sr25519_pair")
+            })?;
         Ok(RetVal::Converging(0))
     }
 }

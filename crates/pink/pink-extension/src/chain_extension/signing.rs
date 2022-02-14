@@ -26,13 +26,13 @@ pub struct VerifyArgs<'a> {
 }
 
 /// Sign a message with a private key.
-/// # Example
+///
+/// # Examples
 /// ```ignore
-/// let privkey = todo!();
-/// let pubkey = todo!();
+/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
 /// let message = b"hello world";
-/// let signature = sign!(message, privkey, SigType::Sr25519);
-/// let pass = verify!(message, pubkey, signature, SigType::Sr25519);
+/// let signature = sign!(message, &privkey, SigType::Sr25519);
+/// let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
 /// assert!(pass);
 /// ```
 #[macro_export]
@@ -52,13 +52,13 @@ macro_rules! sign {
 }
 
 /// Verify a message with a pubkey and signature.
-/// # Example
+///
+/// # Examples
 /// ```ignore
-/// let privkey = todo!();
-/// let pubkey = todo!();
+/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
 /// let message = b"hello world";
-/// let signature = sign!(message, privkey, SigType::Sr25519);
-/// let pass = verify!(message, pubkey, signature, SigType::Sr25519);
+/// let signature = sign!(message, &privkey, SigType::Sr25519);
+/// let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
 /// assert!(pass);
 /// ```
 #[macro_export]
@@ -76,5 +76,24 @@ macro_rules! verify {
             signature,
         };
         Self::env().extension().verify(args)
+    }};
+}
+
+
+/// Derive a key pair from the contract key
+///
+/// # Examples
+/// ```ignore
+/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
+/// let message = b"hello world";
+/// let signature = sign!(message, &privkey, SigType::Sr25519);
+/// let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
+/// assert!(pass);
+/// ```
+#[macro_export]
+macro_rules! derive_sr25519_pair {
+    ($salt: expr) => {{
+        let salt: &[u8] = $salt.as_ref();
+        Self::env().extension().derive_sr25519_pair(salt)
     }};
 }

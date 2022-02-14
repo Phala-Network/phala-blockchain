@@ -42,6 +42,7 @@ phala-serde-more = { path = "../phala-serde-more" }
 
 phala-trie-storage = { path = "../phala-trie-storage" }
 phala-types = { path = "../phala-types" }
+phala-crypto = { path = "../phala-crypto" }
 pink-extension = { path = "pink-extension" }
 http_req = { version = "0.8.1", default-features = false, features = ["rust-tls"] }
 environmental = "1.1.3"

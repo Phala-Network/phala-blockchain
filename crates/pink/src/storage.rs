@@ -2,6 +2,7 @@ use crate::{
     runtime::ExecSideEffects,
     types::{AccountId, Hash, Hashing},
 };
+use phala_crypto::sr25519::Sr25519SecretKey;
 use phala_trie_storage::{deserialize_trie_backend, serialize_trie_backend};
 use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
@@ -98,6 +99,12 @@ where
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {
         self.execute_with(false, || {
             crate::runtime::Pink::set_cluster_id(cluster_id);
+        });
+    }
+
+    pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
+        self.execute_with(false, || {
+            crate::runtime::Pink::set_key_seed(seed);
         });
     }
 

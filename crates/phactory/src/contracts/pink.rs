@@ -184,6 +184,7 @@ pub mod cluster {
     use super::Pink;
 
     use anyhow::Result;
+    use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use pink::{
@@ -249,7 +250,11 @@ pub mod cluster {
                     contracts: Default::default(),
                     key: contract_key.clone(),
                 };
+                let seed_key = contract_key
+                    .derive_sr25519_pair(&[b"ink key derivation seed"])
+                    .expect("Derive key seed should always success!");
                 cluster.set_id(cluster_id);
+                cluster.set_key_seed(seed_key.dump_secret_key());
                 cluster
             })
         }
@@ -287,6 +292,10 @@ pub mod cluster {
 
         pub fn set_id(&mut self, id: &ContractClusterId) {
             self.storage.set_cluster_id(id.as_bytes());
+        }
+
+        pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
+            self.storage.set_key_seed(seed);
         }
 
         pub fn upload_code(

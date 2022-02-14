@@ -34,4 +34,7 @@ pub trait PinkExt {
 
     #[ink(extension = 0xff000003, handle_status = false, returns_result = false)]
     fn verify(args: VerifyArgs) -> bool;
+
+    #[ink(extension = 0xff000004, handle_status = false, returns_result = false)]
+    fn derive_sr25519_pair(salt: &[u8]) -> (Vec<u8>, Vec<u8>);
 }

@@ -6,6 +6,7 @@ pub mod pallet {
     use pallet_contracts::AddressGenerator;
     use sp_core::crypto::UncheckedFrom;
     use sp_runtime::traits::Hash as _;
+    use phala_crypto::sr25519::Sr25519SecretKey;
 
     type CodeHash<T> = <T as frame_system::Config>::Hash;
 
@@ -14,6 +15,10 @@ pub mod pallet {
 
     #[pallet::storage]
     pub(crate) type ClusterId<T: Config> = StorageValue<_, Vec<u8>, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn key_seed)]
+    pub(crate) type KeySeed<T: Config> = StorageValue<_, Sr25519SecretKey>;
 
     #[pallet::pallet]
     #[pallet::without_storage_info]
@@ -46,6 +51,10 @@ pub mod pallet {
     impl<T: Config> Pallet<T> {
         pub fn set_cluster_id(cluster_id: &[u8]) {
             <ClusterId<T>>::put(cluster_id.to_vec());
+        }
+
+        pub fn set_key_seed(seed: Sr25519SecretKey) {
+            <KeySeed<T>>::put(seed);
         }
     }
 }

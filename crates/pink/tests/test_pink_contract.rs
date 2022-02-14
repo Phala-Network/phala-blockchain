@@ -215,6 +215,9 @@ fn test_on_block_end() {
 #[test]
 fn test_signing() {
     let mut storage = Contract::new_storage();
+
+    storage.set_key_seed([1u8; 64]);
+
     let (mut contract, _) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
