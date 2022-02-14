@@ -4,9 +4,9 @@ pub use pallet::*;
 pub mod pallet {
     use frame_support::pallet_prelude::*;
     use pallet_contracts::AddressGenerator;
+    use phala_crypto::sr25519::Sr25519SecretKey;
     use sp_core::crypto::UncheckedFrom;
     use sp_runtime::traits::Hash as _;
-    use phala_crypto::sr25519::Sr25519SecretKey;
 
     type CodeHash<T> = <T as frame_system::Config>::Hash;
 
@@ -18,8 +18,8 @@ pub mod pallet {
 
     /// The seed used to derive custom keys in `ink!` contract.
     ///
-    /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the contract address
-    /// is appended to the seed to avoid collisions.
+    /// All contracts in a cluster shares the same seed. When deriving a key from the seed, the
+    /// contract address is appended to the seed to avoid collisions.
     #[pallet::storage]
     #[pallet::getter(fn key_seed)]
     pub(crate) type KeySeed<T: Config> = StorageValue<_, Sr25519SecretKey>;
@@ -46,9 +46,7 @@ pub mod pallet {
                 .chain(salt)
                 .cloned()
                 .collect();
-            UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(
-                &buf,
-            ))
+            UncheckedFrom::unchecked_from(<T as frame_system::Config>::Hashing::hash(&buf))
         }
     }
 
