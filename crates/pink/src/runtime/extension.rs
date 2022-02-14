@@ -64,13 +64,15 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
     where
         <E::T as SysConfig>::AccountId: UncheckedFrom<<E::T as SysConfig>::Hash> + AsRef<[u8]>,
     {
+        use pink_extension::chain_extension::func_ids::*;
+
         let call = Call { env };
         // func_id refer to https://github.com/patractlabs/PIPs/blob/main/PIPs/pip-100.md
         match func_id {
-            0xff000001 => call.http_request(),
-            0xff000002 => call.sign(),
-            0xff000003 => call.verify(),
-            0xff000004 => call.derive_sr25519_pair(),
+            HTTP_REQUEST => call.http_request(),
+            SIGN => call.sign(),
+            VERIFY => call.verify(),
+            DERIVE_SR25519_PAIR => call.derive_sr25519_pair(),
             _ => {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 Err(DispatchError::Other("Unimplemented func_id"))

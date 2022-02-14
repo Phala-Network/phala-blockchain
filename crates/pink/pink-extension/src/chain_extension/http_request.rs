@@ -18,6 +18,26 @@ pub struct HttpResponse {
     pub body: Vec<u8>,
 }
 
+impl HttpResponse {
+    pub fn ok(body: Vec<u8>) -> Self {
+        Self {
+            status_code: 100,
+            reason_phrase: "OK".to_string(),
+            headers: Default::default(),
+            body,
+        }
+    }
+
+    pub fn not_found() -> Self {
+        Self {
+            status_code: 404,
+            reason_phrase: "Not Found".to_string(),
+            headers: Default::default(),
+            body: Default::default(),
+        }
+    }
+}
+
 /// Make a simple HTTP GET request
 ///
 /// # Arguments
