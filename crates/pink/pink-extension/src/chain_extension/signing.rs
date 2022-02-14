@@ -47,7 +47,7 @@ macro_rules! sign {
             message,
             key,
         };
-        Self::env().extension().sign(args)
+        $crate::pink_extension_instance().sign(args)
     }};
 }
 
@@ -75,7 +75,7 @@ macro_rules! verify {
             pubkey,
             signature,
         };
-        Self::env().extension().verify(args)
+        $crate::pink_extension_instance().verify(args)
     }};
 }
 
@@ -94,6 +94,6 @@ macro_rules! verify {
 macro_rules! derive_sr25519_pair {
     ($salt: expr) => {{
         let salt: &[u8] = $salt.as_ref();
-        Self::env().extension().derive_sr25519_pair(salt)
+        $crate::pink_extension_instance().derive_sr25519_pair(salt)
     }};
 }
