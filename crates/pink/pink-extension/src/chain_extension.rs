@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use alloc::borrow::Cow;
 use ink_lang as ink;
 use ink::ChainExtensionInstance;
 
@@ -40,7 +41,7 @@ pub trait PinkExt {
     fn verify(args: VerifyArgs) -> bool;
 
     #[ink(extension = 0xff000004, handle_status = false, returns_result = false)]
-    fn derive_sr25519_pair(salt: &[u8]) -> (Vec<u8>, Vec<u8>);
+    fn derive_sr25519_pair(salt: Cow<[u8]>) -> (Vec<u8>, Vec<u8>);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

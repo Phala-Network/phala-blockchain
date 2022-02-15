@@ -94,6 +94,6 @@ macro_rules! verify {
 macro_rules! derive_sr25519_pair {
     ($salt: expr) => {{
         let salt: &[u8] = $salt.as_ref();
-        $crate::pink_extension_instance().derive_sr25519_pair(salt)
+        $crate::pink_extension_instance().derive_sr25519_pair(salt.into())
     }};
 }
