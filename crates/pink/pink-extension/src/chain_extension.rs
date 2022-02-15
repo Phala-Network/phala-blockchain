@@ -10,12 +10,6 @@ mod signing;
 
 #[cfg(feature = "std")]
 pub mod test;
-pub mod func_ids {
-    pub const HTTP_REQUEST: u32 = 0xff000001;
-    pub const SIGN: u32 = 0xff000002;
-    pub const VERIFY: u32 = 0xff000003;
-    pub const DERIVE_SR25519_PAIR: u32 = 0xff000004;
-}
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -31,7 +25,7 @@ impl ink_env::chain_extension::FromStatusCode for ErrorCode {
 }
 
 /// Extensions for the ink runtime defined by fat contract.
-#[ink::chain_extension]
+#[pink_extension_macro::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;
 
