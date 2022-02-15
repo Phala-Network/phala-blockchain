@@ -76,6 +76,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
         let output = match dispatch_ext_call!(func_id, call, env) {
             Some(output) => output,
             None => {
+                error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 return Err(DispatchError::Other(
                     "PinkExtension::call: unknown function",
                 ))
