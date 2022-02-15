@@ -59,21 +59,21 @@ fn get_report_from_intel(quote: &[u8], ias_key: &str) -> Result<(String, String,
         return Err(anyhow!("Empty HTTP response"));
     }
 
-    let attn_report = String::from_utf8(res_body_buffer).context("UTF8 decode response")?;
+    let attn_report = String::from_utf8(res_body_buffer).context("Failed to decode attestation report")?;
     let sig = res
         .headers()
         .get("X-IASReport-Signature")
-        .context("Get X-IASReport-Signature")?
+        .context("No header X-IASReport-Signature")?
         .to_string();
     let cert = res
         .headers()
         .get("X-IASReport-Signing-Certificate")
-        .context("Get X-IASReport-Signing-Certificate")?
+        .context("No header X-IASReport-Signing-Certificate")?
         .to_string();
 
     // Remove %0A from cert, and only obtain the signing cert
     let cert = cert.replace("%0A", "");
-    let cert = urlencoding::decode(&cert).context("percent_decode cert")?;
+    let cert = urlencoding::decode(&cert).context("Failed to urldecode cert")?;
     let v: Vec<&str> = cert.split("-----").collect();
     let sig_cert = v[2].to_string();
 

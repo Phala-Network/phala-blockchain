@@ -270,10 +270,10 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             }
             let priv_key = sr25519::Pair::from_seed_slice(&raw_key).map_err(from_debug)?;
             self.init_runtime_data(genesis_block_hash, Some(priv_key))
-                .map_err(from_display)?
+                .map_err(from_debug)?
         } else {
             self.init_runtime_data(genesis_block_hash, None)
-                .map_err(from_display)?
+                .map_err(from_debug)?
         };
         self.dev_mode = rt_data.dev_mode;
         self.skip_ra = skip_ra;

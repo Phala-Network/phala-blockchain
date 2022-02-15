@@ -265,7 +265,7 @@ impl<Platform: pal::Platform> Phactory<Platform> {
             self.platform
                 .seal_data(filepath, &encoded_vec)
                 .map_err(Into::into)
-                .context("Seal runtime data")?;
+                .context("Failed to seal runtime data")?;
             info!("Persistent Runtime Data saved");
         }
         Ok(data)
@@ -300,7 +300,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         // Write to a tmpfile to avoid the previous checkpoint file being corrupted.
         let tmpfile = PathBuf::from(&self.args.sealing_path).join(TMP_CHECKPOINT_FILE);
         if tmpfile.is_symlink() {
-            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
         }
 
         {
@@ -309,16 +309,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .platform
                 .create_protected_file(&tmpfile, &key)
                 .map_err(|err| anyhow!("{:?}", err))
-                .context("Create protected file")?;
+                .context("Failed to create protected file")?;
 
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self)).context("Write checkpoint")?;
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self)).context("Failed to write checkpoint")?;
         }
 
         {
             // Post-process filenames
             let backup = PathBuf::from(&self.args.sealing_path).join(BACKUP_CHECKPOINT_FILE);
             let _ = std::fs::rename(&checkpoint_file, &backup);
-            std::fs::rename(&tmpfile, &checkpoint_file).context("Rename checkpoint")?;
+            std::fs::rename(&tmpfile, &checkpoint_file).context("Failed to rename checkpoint")?;
         }
         info!("Checkpoint saved to {:?}", checkpoint_file);
         self.last_checkpoint = Instant::now();
@@ -338,8 +338,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let nonce = rand::thread_rng().gen();
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
-            .context("Write checkpoint")?;
-        enc_writer.flush().context("Flush encrypted writer")?;
+            .context("Failed to write checkpoint")?;
+        enc_writer.flush().context("Failed to flush encrypted writer")?;
         Ok(())
     }
 
@@ -364,7 +364,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
         // To prevent SGX_ERROR_FILE_NAME_MISMATCH, we need to link it to the filename used to dump the checkpoint.
         if tmpfile.is_symlink() || tmpfile.exists() {
-            std::fs::remove_file(&tmpfile).context("remove tmp checkpoint file")?;
+            std::fs::remove_file(&tmpfile).context("Failed to remove tmp checkpoint file")?;
         }
         std::os::unix::fs::symlink(&checkpoint_file, &tmpfile)?;
         scopeguard::defer! {
@@ -380,7 +380,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         let loader: PhactoryLoader<_> =
-            serde_cbor::de::from_reader(file).context("decode state")?;
+            serde_cbor::de::from_reader(file).context("Failed to decode state")?;
         Ok(Some(loader.0))
     }
 
@@ -393,7 +393,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let key128 = derive_key_for_checkpoint(&runtime_data.sk);
         let dec_reader = aead::stream::new_aes128gcm_reader(key128, reader);
         let loader: PhactoryLoader<_> =
-            serde_cbor::de::from_reader(dec_reader).context("decode state")?;
+            serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
         Ok(loader.0)
     }
 
