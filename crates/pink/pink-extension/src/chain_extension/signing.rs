@@ -25,6 +25,13 @@ pub struct VerifyArgs<'a> {
     pub signature: Cow<'a, [u8]>,
 }
 
+#[derive(scale::Encode, scale::Decode)]
+#[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
+pub struct PublicKeyForArgs<'a> {
+    pub sigtype: SigType,
+    pub key: Cow<'a, [u8]>,
+}
+
 /// Sign a message with a private key.
 ///
 /// # Examples
@@ -38,7 +45,7 @@ pub struct VerifyArgs<'a> {
 #[macro_export]
 macro_rules! sign {
     ($message: expr, $key: expr, $sigtype: expr) => {{
-        use pink_extension::chain_extension::SignArgs;
+        use $crate::chain_extension::SignArgs;
         let message = $message.into();
         let key = $key.into();
         let sigtype = $sigtype;
@@ -64,7 +71,7 @@ macro_rules! sign {
 #[macro_export]
 macro_rules! verify {
     ($message: expr, $pubkey: expr, $signature: expr, $sigtype: expr) => {{
-        use pink_extension::chain_extension::VerifyArgs;
+        use $crate::chain_extension::VerifyArgs;
         let message = $message.into();
         let pubkey = $pubkey.into();
         let signature = $signature.into();
@@ -95,5 +102,27 @@ macro_rules! derive_sr25519_pair {
     ($salt: expr) => {{
         let salt: &[u8] = $salt.as_ref();
         $crate::pink_extension_instance().derive_sr25519_pair(salt.into())
+    }};
+}
+
+
+/// Get the public key from a private key
+///
+/// # Examples
+/// ```ignore
+/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
+/// assert_eq!(pubkey, public_key_for!(privkey));
+/// ```
+#[macro_export]
+macro_rules! public_key_for {
+    ($key: expr, $sigtype: expr) => {{
+        use $crate::chain_extension::PublicKeyForArgs;
+        let key: &[u8] = $key.as_ref();
+        let sigtype = $sigtype;
+        let args = PublicKeyForArgs {
+            sigtype,
+            key: key.into(),
+        };
+        $crate::pink_extension_instance().public_key_for(args)
     }};
 }

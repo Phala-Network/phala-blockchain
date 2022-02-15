@@ -1,6 +1,6 @@
 use scale::{Decode, Encode};
 
-use super::{HttpRequest, HttpResponse, SignArgs, VerifyArgs};
+use super::{HttpRequest, HttpResponse, PublicKeyForArgs, SignArgs, VerifyArgs};
 pub struct MockExtension<F, I, O, const FID: u32> {
     call: F,
     _p: std::marker::PhantomData<(I, O)>,
@@ -47,3 +47,5 @@ pub type MockSign<'a, F> = MockExtension<F, SignArgs<'a>, Vec<u8>, { func_ids::S
 pub type MockVerify<'a, F> = MockExtension<F, VerifyArgs<'a>, bool, { func_ids::VERIFY }>;
 pub type MockDeriveSr25519Pair<F> =
     MockExtension<F, Vec<u8>, (Vec<u8>, Vec<u8>), { func_ids::DERIVE_SR25519_PAIR }>;
+pub type MockPublicKeyFor<'a, F> =
+    MockExtension<F, PublicKeyForArgs<'a>, Vec<u8>, { func_ids::PUBLIC_KEY_FOR }>;

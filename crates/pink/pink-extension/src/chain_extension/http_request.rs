@@ -53,7 +53,7 @@ impl HttpResponse {
 #[macro_export]
 macro_rules! http_get {
     ($url: expr, $headers: expr) => {{
-        use pink_extension::chain_extension::{HttpRequest, HttpResponse};
+        use $crate::chain_extension::{HttpRequest, HttpResponse};
         let headers = $headers;
         let request = HttpRequest {
             url: $url.into(),
@@ -84,7 +84,7 @@ macro_rules! http_get {
 #[macro_export]
 macro_rules! http_post {
     ($url: expr, $data: expr, $headers: expr) => {{
-        use pink_extension::chain_extension::{HttpRequest, HttpResponse};
+        use $crate::chain_extension::{HttpRequest, HttpResponse};
         let headers = $headers;
         let body = $data.into();
         let request = HttpRequest {

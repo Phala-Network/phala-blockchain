@@ -7,7 +7,7 @@ use pink_extension as pink;
 #[pink::contract(env=PinkEnvironment)]
 mod signing {
     use super::pink;
-    use pink::{PinkEnvironment, sign, verify, derive_sr25519_pair, chain_extension::SigType};
+    use pink::{PinkEnvironment, sign, verify, derive_sr25519_pair, public_key_for, chain_extension::SigType};
 
     #[ink(storage)]
     pub struct Signing {}
@@ -21,6 +21,7 @@ mod signing {
         #[ink(message)]
         pub fn test(&self) {
             let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
+            assert_eq!(pubkey, public_key_for!(&privkey, SigType::Sr25519));
             let message = b"hello world".as_ref();
             let signature = sign!(message, &privkey, SigType::Sr25519);
             let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
