@@ -44,10 +44,18 @@ impl HttpResponse {
 /// url: The URL to GET
 /// headers: The headers to send with the request
 ///
-/// # Example
+/// # Examples
+///
 /// ```ignore
 /// use pink_extension::http_get;
 /// let response = http_get!("https://example.com/");
+/// assert_eq!(response.status_code, 200);
+/// ```
+///
+/// ```ignore
+/// use pink_extension::http_get;
+/// let headers = vec![("X-Foo".into(), "Bar".into())];
+/// let response = http_get!("https://example.com/", headers);
 /// assert_eq!(response.status_code, 200);
 /// ```
 #[macro_export]
@@ -75,10 +83,18 @@ macro_rules! http_get {
 /// data: The payload to POST
 /// headers: The headers to send with the request
 ///
-/// # Example
+/// # Examples
+///
 /// ```ignore
 /// use pink_extension::http_post;
 /// let response = http_post!("https://example.com/", b"Hello, world!");
+/// assert_eq!(response.status_code, 200);
+/// ```
+///
+/// ```ignore
+/// use pink_extension::http_post;
+/// let headers = vec![("X-Foo".into(), "Bar".into())];
+/// let response = http_post!("https://example.com/", b"Hello, world!", headers);
 /// assert_eq!(response.status_code, 200);
 /// ```
 #[macro_export]
