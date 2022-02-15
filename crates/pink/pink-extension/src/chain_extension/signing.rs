@@ -46,13 +46,13 @@ pub struct PublicKeyForArgs<'a> {
 macro_rules! sign {
     ($message: expr, $key: expr, $sigtype: expr) => {{
         use $crate::chain_extension::SignArgs;
-        let message = $message.into();
-        let key = $key.into();
+        let message: &[u8] = $message.as_ref();
+        let key: &[u8] = $key.as_ref();
         let sigtype = $sigtype;
         let args = SignArgs {
             sigtype,
-            message,
-            key,
+            message: message.into(),
+            key: key.into(),
         };
         $crate::pink_extension_instance().sign(args)
     }};
@@ -72,15 +72,15 @@ macro_rules! sign {
 macro_rules! verify {
     ($message: expr, $pubkey: expr, $signature: expr, $sigtype: expr) => {{
         use $crate::chain_extension::VerifyArgs;
-        let message = $message.into();
-        let pubkey = $pubkey.into();
-        let signature = $signature.into();
+        let message: &[u8] = $message.as_ref();
+        let pubkey: &[u8] = $pubkey.as_ref();
+        let signature: &[u8] = $signature.as_ref();
         let sigtype = $sigtype;
         let args = VerifyArgs {
             sigtype,
-            message,
-            pubkey,
-            signature,
+            message: message.into(),
+            pubkey: pubkey.into(),
+            signature: signature.into(),
         };
         $crate::pink_extension_instance().verify(args)
     }};
