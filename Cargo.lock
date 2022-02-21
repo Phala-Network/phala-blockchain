@@ -8158,6 +8158,8 @@ dependencies = [
  "phala-trie-storage",
  "phala-types",
  "pherry",
+ "serde",
+ "serde_cbor",
  "serde_json",
  "sp-core",
  "sqlx",
