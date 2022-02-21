@@ -91,17 +91,18 @@ macro_rules! verify {
 ///
 /// # Examples
 /// ```ignore
-/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
+/// let privkey = derive_sr25519_key!(b"a spoon of salt");
+/// let pubkey = get_public_key!(&privkey, SigType::Sr25519);
 /// let message = b"hello world";
 /// let signature = sign!(message, &privkey, SigType::Sr25519);
 /// let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
 /// assert!(pass);
 /// ```
 #[macro_export]
-macro_rules! derive_sr25519_pair {
+macro_rules! derive_sr25519_key {
     ($salt: expr) => {{
         let salt: &[u8] = $salt.as_ref();
-        $crate::pink_extension_instance().derive_sr25519_pair(salt.into())
+        $crate::pink_extension_instance().derive_sr25519_key(salt.into())
     }};
 }
 
@@ -110,11 +111,15 @@ macro_rules! derive_sr25519_pair {
 ///
 /// # Examples
 /// ```ignore
-/// let (privkey, pubkey) = derive_sr25519_pair!(b"a spoon of salt");
-/// assert_eq!(pubkey, public_key_for!(privkey));
+/// let privkey = derive_sr25519_key!(b"a spoon of salt");
+/// let pubkey = get_public_key!(&privkey, SigType::Sr25519);
+/// let message = b"hello world";
+/// let signature = sign!(message, &privkey, SigType::Sr25519);
+/// let pass = verify!(message, &pubkey, &signature, SigType::Sr25519);
+/// assert!(pass);
 /// ```
 #[macro_export]
-macro_rules! public_key_for {
+macro_rules! get_public_key {
     ($key: expr, $sigtype: expr) => {{
         use $crate::chain_extension::PublicKeyForArgs;
         let key: &[u8] = $key.as_ref();
@@ -123,6 +128,6 @@ macro_rules! public_key_for {
             sigtype,
             key: key.into(),
         };
-        $crate::pink_extension_instance().public_key_for(args)
+        $crate::pink_extension_instance().get_public_key(args)
     }};
 }

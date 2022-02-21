@@ -45,7 +45,7 @@ pub type MockHttpRequest<F> =
 
 pub type MockSign<'a, F> = MockExtension<F, SignArgs<'a>, Vec<u8>, { func_ids::SIGN }>;
 pub type MockVerify<'a, F> = MockExtension<F, VerifyArgs<'a>, bool, { func_ids::VERIFY }>;
-pub type MockDeriveSr25519Pair<F> =
-    MockExtension<F, Vec<u8>, (Vec<u8>, Vec<u8>), { func_ids::DERIVE_SR25519_PAIR }>;
-pub type MockPublicKeyFor<'a, F> =
-    MockExtension<F, PublicKeyForArgs<'a>, Vec<u8>, { func_ids::PUBLIC_KEY_FOR }>;
+pub type MockDeriveSr25519Key<F> =
+    MockExtension<F, Vec<u8>, (Vec<u8>, Vec<u8>), { func_ids::DERIVE_SR25519_KEY }>;
+pub type MockGetPublicKey<'a, F> =
+    MockExtension<F, PublicKeyForArgs<'a>, Vec<u8>, { func_ids::GET_PUBLIC_KEY }>;

@@ -189,7 +189,7 @@ where
         })
     }
 
-    fn derive_sr25519_pair(&self, salt: Cow<[u8]>) -> Result<(Vec<u8>, Vec<u8>), Self::Error> {
+    fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         let seed =
             crate::runtime::Pink::key_seed().ok_or(DispatchError::Other("Key seed missing"))?;
         let seed_key = sp_core::sr25519::Pair::restore_from_secret_key(&seed);
@@ -199,12 +199,10 @@ where
             .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
         let priviate_key = derived_pair.dump_secret_key();
         let priviate_key: &[u8] = priviate_key.as_ref();
-        let public_key = derived_pair.public();
-        let public_key: &[u8] = public_key.as_ref();
-        Ok((priviate_key.to_vec(), public_key.to_vec()))
+        Ok(priviate_key.to_vec())
     }
 
-    fn public_key_for(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
+    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
         macro_rules! public_key_with {
             ($sigtype:ident) => {{
                 sp_core::$sigtype::Pair::from_seed_slice(&args.key)
