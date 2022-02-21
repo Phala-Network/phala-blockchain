@@ -19,6 +19,8 @@ use tokio::sync::{mpsc, Mutex};
 
 use crate::Args;
 
+type RecordSender = mpsc::Sender<EventRecord>;
+
 struct EventRecord {
     sequence: i64,
     pubkey: WorkerPublicKey,
@@ -32,17 +34,13 @@ struct EventRecord {
 pub struct ReplayFactory {
     next_event_seq: i64,
     current_block: BlockNumber,
-    event_tx: Option<mpsc::Sender<EventRecord>>,
     storage: TrieStorage<Hashing>,
     recv_mq: MessageDispatcher,
     gk: gk::MiningEconomics<ReplayMsgChannel>,
 }
 
 impl ReplayFactory {
-    fn new(
-        genesis_state: Vec<(Vec<u8>, Vec<u8>)>,
-        event_tx: Option<mpsc::Sender<EventRecord>>,
-    ) -> Self {
+    fn new(genesis_state: Vec<(Vec<u8>, Vec<u8>)>) -> Self {
         let mut recv_mq = MessageDispatcher::new();
         let mut storage = TrieStorage::default();
         storage.load(genesis_state.into_iter());
@@ -50,14 +48,17 @@ impl ReplayFactory {
         Self {
             next_event_seq: 1,
             current_block: 0,
-            event_tx,
             storage,
             recv_mq,
             gk,
         }
     }
 
-    async fn dispatch_block(&mut self, block: BlockWithChanges) -> Result<(), &'static str> {
+    async fn dispatch_block(
+        &mut self,
+        block: BlockWithChanges,
+        event_tx: &Option<RecordSender>,
+    ) -> Result<(), &'static str> {
         let (state_root, transaction) = self.storage.calc_root_if_changes(
             &block.storage_changes.main_storage_changes,
             &block.storage_changes.child_storage_changes,
@@ -69,7 +70,8 @@ impl ReplayFactory {
         }
 
         self.storage.apply_changes(state_root, transaction);
-        self.handle_inbound_messages(header.number).await?;
+        self.handle_inbound_messages(header.number, event_tx)
+            .await?;
         self.current_block = block.block.block.header.number;
         Ok(())
     }
@@ -77,6 +79,7 @@ impl ReplayFactory {
     async fn handle_inbound_messages(
         &mut self,
         block_number: BlockNumber,
+        event_tx: &Option<RecordSender>,
     ) -> Result<(), &'static str> {
         // Dispatch events
         let messages = self
@@ -125,7 +128,7 @@ impl ReplayFactory {
             },
         );
 
-        if let Some(tx) = self.event_tx.as_ref() {
+        if let Some(tx) = event_tx.as_ref() {
             for record in records {
                 match tx.send(record).await {
                     Ok(()) => (),
@@ -214,7 +217,7 @@ pub async fn replay(args: Args) -> Result<()> {
     } else {
         None
     };
-    let factory = Arc::new(Mutex::new(ReplayFactory::new(genesis_state, event_tx)));
+    let factory = Arc::new(Mutex::new(ReplayFactory::new(genesis_state)));
 
     let _http_task = std::thread::spawn({
         let factory = factory.clone();
@@ -241,7 +244,7 @@ pub async fn replay(args: Args) -> Result<()> {
                     factory
                         .lock()
                         .await
-                        .dispatch_block(block)
+                        .dispatch_block(block, &event_tx)
                         .await
                         .expect("Block is valid");
                     block_number += 1;
