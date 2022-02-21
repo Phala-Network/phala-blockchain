@@ -467,12 +467,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
         block: &BlockInfo<'_>,
         event_listener: &mut impl FinanceEventListener,
     ) {
-        let sum_share: FixedPoint = self
-            .workers
-            .values()
-            .filter(|info| !info.unresponsive)
-            .map(|info| info.tokenomic.share())
-            .sum();
+        let sum_share = self.sum_share();
 
         let mut processor = MiningMessageProcessor {
             state: self,
@@ -490,6 +485,14 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             debug!(target: "mining", "Report: {:?}", report);
             self.egress.push_message(&report);
         }
+    }
+
+    pub fn sum_share(&self) -> FixedPoint {
+        self.workers
+            .values()
+            .filter(|info| !info.unresponsive)
+            .map(|info| info.tokenomic.share())
+            .sum()
     }
 }
 
@@ -963,6 +966,7 @@ mod tokenomic {
                 v: info.v.to_string(),
                 v_init: info.v_init.to_string(),
                 payable: info.payable.to_string(),
+                share: info.share().to_string(),
                 v_update_at: info.v_update_at,
                 v_update_block: info.v_update_block,
                 iteration_last: info.iteration_last,

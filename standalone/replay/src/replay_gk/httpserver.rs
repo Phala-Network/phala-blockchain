@@ -35,12 +35,14 @@ async fn get_worker_state(
         }
     };
 
+    let total_share = factory.gk.sum_share();
     match factory.gk.worker_state(&pubkey) {
         None => HttpResponse::NotFound().json(serde_json::json!({
             "error": "Worker not found"
         })),
         Some(state) => HttpResponse::Ok().json(serde_json::json!({
             "current_block": factory.current_block,
+            "total_share": total_share.to_string(),
             "benchmarking": state.bench_state.is_some(),
             "mining": state.mining_state.is_some(),
             "unresponsive": state.unresponsive,
@@ -51,6 +53,7 @@ async fn get_worker_state(
             "v_init": state.tokenomic_info.as_ref().map(|info| info.v_init.clone()),
             "p_instant": state.tokenomic_info.as_ref().map(|info| info.p_instant.clone()),
             "p_init": state.tokenomic_info.as_ref().map(|info| info.p_bench.clone()),
+            "tokenomic_info": format!("{:#?}", state.tokenomic_info),
         })),
     }
 }
