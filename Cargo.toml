@@ -1,9 +1,16 @@
 [profile.release]
 panic = "unwind"
+opt-level = 3
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+inherits = "release"
 
 [profile.production]
 inherits = "release"
 lto = true
+codegen-units = 1
 
 [profile.testnet]
 inherits = "release"
