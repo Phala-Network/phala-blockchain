@@ -83,6 +83,20 @@ pub mod messaging {
     }
 }
 
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub enum ClusterPermission<AccountId> {
+    Public,
+    OnlyOwner(AccountId),
+}
+
+#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
+pub struct ClusterInfo<AccountId> {
+    pub owner: AccountId,
+    pub permission: ClusterPermission<AccountId>,
+    pub contracts: Vec<ContractId>,
+    pub description: String,
+}
+
 /// On-chain contract registration info
 #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
 pub struct ContractInfo<CodeHash, AccountId> {
