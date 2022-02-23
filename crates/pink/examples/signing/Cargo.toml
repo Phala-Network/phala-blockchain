@@ -19,7 +19,6 @@ scale = { package = "parity-scale-codec", version = "2.1", default-features = fa
 scale-info = { version = "1.0.0", default-features = false, features = ["derive"], optional = true }
 
 pink-extension = { version = "0.1.0", path = "../../pink-extension", default-features = false }
-hex-literal = "0.3.4"
 
 [lib]
 name = "signing"

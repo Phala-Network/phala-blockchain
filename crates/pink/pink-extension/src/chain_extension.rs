@@ -4,7 +4,7 @@ use ink_lang as ink;
 use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpResponse};
-pub use signing::{SigType, SignArgs, VerifyArgs};
+pub use signing::{SigType, SignArgs, VerifyArgs, PublicKeyForArgs};
 
 mod http_request;
 mod signing;
@@ -41,7 +41,10 @@ pub trait PinkExt {
     fn verify(args: VerifyArgs) -> bool;
 
     #[ink(extension = 0xff000004, handle_status = false, returns_result = false)]
-    fn derive_sr25519_pair(salt: Cow<[u8]>) -> (Vec<u8>, Vec<u8>);
+    fn derive_sr25519_key(salt: Cow<[u8]>) -> Vec<u8>;
+
+    #[ink(extension = 0xff000005, handle_status = false, returns_result = false)]
+    fn get_public_key(args: PublicKeyForArgs) -> Vec<u8>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {

@@ -7,11 +7,13 @@ use pallet_contracts::chain_extension::{
 };
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
-    chain_extension::{HttpRequest, HttpResponse, PinkExtBackend, SigType, SignArgs, VerifyArgs},
+    chain_extension::{
+        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs, VerifyArgs,
+    },
     dispatch_ext_call, PinkEvent,
 };
 use scale::{Decode, Encode};
-use sp_core::Pair;
+use sp_core::{ByteArray, Pair};
 use sp_runtime::DispatchError;
 
 use crate::{
@@ -79,7 +81,7 @@ impl ChainExtension<super::PinkRuntime> for PinkExtension {
                 error!(target: "pink", "Called an unregistered `func_id`: {:}", func_id);
                 return Err(DispatchError::Other(
                     "PinkExtension::call: unknown function",
-                ))
+                ));
             }
         };
         env.write(&output, false, None)
@@ -175,20 +177,19 @@ where
     }
 
     fn verify(&self, args: VerifyArgs) -> Result<bool, Self::Error> {
+        macro_rules! verify_with {
+            ($sigtype:ident) => {{
+                sp_core::$sigtype::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
+            }};
+        }
         Ok(match args.sigtype {
-            SigType::Sr25519 => {
-                sp_core::sr25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
-            }
-            SigType::Ed25519 => {
-                sp_core::ed25519::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
-            }
-            SigType::Ecdsa => {
-                sp_core::ecdsa::Pair::verify_weak(&args.signature, &args.message, &args.pubkey)
-            }
+            SigType::Sr25519 => verify_with!(sr25519),
+            SigType::Ed25519 => verify_with!(ed25519),
+            SigType::Ecdsa => verify_with!(ecdsa),
         })
     }
 
-    fn derive_sr25519_pair(&self, salt: Cow<[u8]>) -> Result<(Vec<u8>, Vec<u8>), Self::Error> {
+    fn derive_sr25519_key(&self, salt: Cow<[u8]>) -> Result<Vec<u8>, Self::Error> {
         let seed =
             crate::runtime::Pink::key_seed().ok_or(DispatchError::Other("Key seed missing"))?;
         let seed_key = sp_core::sr25519::Pair::restore_from_secret_key(&seed);
@@ -198,9 +199,24 @@ where
             .or(Err(DispatchError::Other("Failed to derive sr25519 pair")))?;
         let priviate_key = derived_pair.dump_secret_key();
         let priviate_key: &[u8] = priviate_key.as_ref();
-        let public_key = derived_pair.public();
-        let public_key: &[u8] = public_key.as_ref();
-        Ok((priviate_key.to_vec(), public_key.to_vec()))
+        Ok(priviate_key.to_vec())
+    }
+
+    fn get_public_key(&self, args: PublicKeyForArgs) -> Result<Vec<u8>, Self::Error> {
+        macro_rules! public_key_with {
+            ($sigtype:ident) => {{
+                sp_core::$sigtype::Pair::from_seed_slice(&args.key)
+                    .or(Err(DispatchError::Other("Invalid key")))?
+                    .public()
+                    .to_raw_vec()
+            }};
+        }
+        let pubkey = match args.sigtype {
+            SigType::Ed25519 => public_key_with!(ed25519),
+            SigType::Sr25519 => public_key_with!(sr25519),
+            SigType::Ecdsa => public_key_with!(ecdsa),
+        };
+        Ok(pubkey)
     }
 }
 
