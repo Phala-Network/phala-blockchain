@@ -1,4 +1,5 @@
 use alloc::vec::Vec;
+use alloc::borrow::Cow;
 use ink_lang as ink;
 use ink::ChainExtensionInstance;
 
@@ -10,12 +11,6 @@ mod signing;
 
 #[cfg(feature = "std")]
 pub mod test;
-pub mod func_ids {
-    pub const HTTP_REQUEST: u32 = 0xff000001;
-    pub const SIGN: u32 = 0xff000002;
-    pub const VERIFY: u32 = 0xff000003;
-    pub const DERIVE_SR25519_PAIR: u32 = 0xff000004;
-}
 
 #[derive(scale::Encode, scale::Decode)]
 #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
@@ -31,7 +26,7 @@ impl ink_env::chain_extension::FromStatusCode for ErrorCode {
 }
 
 /// Extensions for the ink runtime defined by fat contract.
-#[ink::chain_extension]
+#[pink_extension_macro::chain_extension]
 pub trait PinkExt {
     type ErrorCode = ErrorCode;
 
@@ -46,7 +41,7 @@ pub trait PinkExt {
     fn verify(args: VerifyArgs) -> bool;
 
     #[ink(extension = 0xff000004, handle_status = false, returns_result = false)]
-    fn derive_sr25519_pair(salt: &[u8]) -> (Vec<u8>, Vec<u8>);
+    fn derive_sr25519_pair(salt: Cow<[u8]>) -> (Vec<u8>, Vec<u8>);
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
