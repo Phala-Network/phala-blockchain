@@ -55,6 +55,7 @@ pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
+pub use prpc_service::dispatch_prpc_request;
 
 pub mod benchmark;
 

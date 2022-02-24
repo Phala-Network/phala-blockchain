@@ -1,3 +1,5 @@
+use std::sync::{Mutex, MutexGuard};
+
 use crate::system::System;
 
 use super::*;
@@ -484,9 +486,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         // Dispatch
-        let call = self
-            .system()?
-            .make_query(&head.id)?;
+        let call = self.system()?.make_query(&head.id)?;
 
         Ok(move || {
             // Encode response
@@ -507,46 +507,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
 
             Ok(pb::ContractQueryResponse::new(encrypted_resp))
         })
-    }
-
-    pub fn dispatch_prpc_request(
-        &mut self,
-        path: &[u8],
-        data: &[u8],
-        output_buf_len: usize,
-    ) -> (u16, Vec<u8>) {
-        use prpc::server::{Error, ProtoError};
-
-        let path = match std::str::from_utf8(path) {
-            Ok(path) => path,
-            Err(e) => {
-                error!("prpc_request: invalid path: {}", e);
-                return (400, b"Invalid path".to_vec());
-            }
-        };
-        info!("Dispatching request: {}", path);
-
-        let mut server = PhactoryApiServer::new(RpcService {
-            output_buf_len,
-            phactory: self,
-        });
-        let (code, data) = match server.dispatch_request(path, data.to_vec()) {
-            Ok(data) => (200, data),
-            Err(err) => {
-                error!("Rpc error: {:?}", err);
-                let (code, err) = match err {
-                    Error::NotFound => (404, ProtoError::new("Method Not Found")),
-                    Error::DecodeError(err) => {
-                        (400, ProtoError::new(format!("DecodeError({:?})", err)))
-                    }
-                    Error::AppError(msg) => (500, ProtoError::new(msg)),
-                    Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
-                };
-                (code, prpc::codec::encode_message_to_vec(&err))
-            }
-        };
-
-        (code, data)
     }
 
     fn handle_inbound_messages(&mut self, block_number: chain::BlockNumber) -> RpcResult<()> {
@@ -641,9 +601,57 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     }
 }
 
+pub fn dispatch_prpc_request<Platform>(
+    path: &[u8],
+    data: &[u8],
+    output_buf_len: usize,
+    phactory: &Mutex<Phactory<Platform>>,
+) -> (u16, Vec<u8>)
+where
+    Platform: pal::Platform + Serialize + DeserializeOwned,
+{
+    use prpc::server::{Error, ProtoError};
+
+    let path = match std::str::from_utf8(path) {
+        Ok(path) => path,
+        Err(e) => {
+            error!("prpc_request: invalid path: {}", e);
+            return (400, b"Invalid path".to_vec());
+        }
+    };
+    info!("Dispatching request: {}", path);
+
+    let mut server = PhactoryApiServer::new(RpcService {
+        output_buf_len,
+        phactory,
+    });
+    let (code, data) = match server.dispatch_request(path, data.to_vec()) {
+        Ok(data) => (200, data),
+        Err(err) => {
+            error!("Rpc error: {:?}", err);
+            let (code, err) = match err {
+                Error::NotFound => (404, ProtoError::new("Method Not Found")),
+                Error::DecodeError(err) => {
+                    (400, ProtoError::new(format!("DecodeError({:?})", err)))
+                }
+                Error::AppError(msg) => (500, ProtoError::new(msg)),
+                Error::ContractQueryError(msg) => (500, ProtoError::new(msg)),
+            };
+            (code, prpc::codec::encode_message_to_vec(&err))
+        }
+    };
+
+    (code, data)
+}
 pub struct RpcService<'a, Platform> {
     output_buf_len: usize,
-    phactory: &'a mut Phactory<Platform>,
+    phactory: &'a Mutex<Phactory<Platform>>,
+}
+
+impl<Platform> RpcService<'_, Platform> {
+    fn lock_phactory(&self) -> MutexGuard<'_, Phactory<Platform>> {
+        self.phactory.lock().unwrap()
+    }
 }
 
 /// A server that process all RPCs.
@@ -652,27 +660,29 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
 {
     /// Get basic information about Phactory state.
     fn get_info(&mut self, _request: ()) -> RpcResult<pb::PhactoryInfo> {
-        Ok(self.phactory.get_info())
+        Ok(self.lock_phactory().get_info())
     }
 
     /// Sync the parent chain header
     fn sync_header(&mut self, request: pb::HeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
         let authority_set_change = request.decode_authority_set_change()?;
-        self.phactory.sync_header(headers, authority_set_change)
+        self.lock_phactory()
+            .sync_header(headers, authority_set_change)
     }
 
     /// Sync the parachain header
     fn sync_para_header(&mut self, request: pb::ParaHeadersToSync) -> RpcResult<pb::SyncedTo> {
         let headers = request.decode_headers()?;
-        self.phactory.sync_para_header(headers, request.proof)
+        self.lock_phactory()
+            .sync_para_header(headers, request.proof)
     }
 
     fn sync_combined_headers(
         &mut self,
         request: pb::CombinedHeadersToSync,
     ) -> Result<pb::HeadersSyncedTo, prpc::server::Error> {
-        self.phactory.sync_combined_headers(
+        self.lock_phactory().sync_combined_headers(
             request.decode_relaychain_headers()?,
             request.decode_authority_set_change()?,
             request.decode_parachain_headers()?,
@@ -683,14 +693,14 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     /// Dispatch blocks (Sync storage changes)"
     fn dispatch_blocks(&mut self, request: pb::Blocks) -> RpcResult<pb::SyncedTo> {
         let blocks = request.decode_blocks()?;
-        self.phactory.dispatch_block(blocks)
+        self.lock_phactory().dispatch_block(blocks)
     }
 
     fn init_runtime(
         &mut self,
         request: pb::InitRuntimeRequest,
     ) -> RpcResult<pb::InitRuntimeResponse> {
-        self.phactory.init_runtime(
+        self.lock_phactory().init_runtime(
             request.skip_ra,
             request.is_parachain,
             request.decode_genesis_info()?,
@@ -701,13 +711,13 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
     }
 
     fn get_runtime_info(&mut self, _: ()) -> RpcResult<pb::InitRuntimeResponse> {
-        self.phactory.get_runtime_info()
+        self.lock_phactory().get_runtime_info()
     }
 
     fn get_egress_messages(&mut self, _: ()) -> RpcResult<pb::GetEgressMessagesResponse> {
         // The ENCLAVE OUTPUT BUFFER is a fixed size big buffer.
         assert!(self.output_buf_len >= 1024);
-        self.phactory
+        self.lock_phactory()
             .get_egress_messages(self.output_buf_len - 1024)
             .map(pb::GetEgressMessagesResponse::new)
     }
@@ -716,15 +726,16 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        let query = self.phactory.contract_query(request)?;
-        query()
+        let do_query = self.lock_phactory().contract_query(request)?;
+        do_query()
     }
 
     fn get_worker_state(
         &mut self,
         request: pb::GetWorkerStateRequest,
     ) -> RpcResult<pb::WorkerState> {
-        let system = self.phactory.system()?;
+        let mut phactory = self.lock_phactory();
+        let system = phactory.system()?;
         let gk = system
             .gatekeeper
             .as_ref()
