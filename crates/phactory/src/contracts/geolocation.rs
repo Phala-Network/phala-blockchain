@@ -169,4 +169,9 @@ impl contracts::NativeContract for Geolocation {
         self.guard(&context.block.block_number);
         Ok(Default::default())
     }
+
+    fn snapshot(&self) -> Self {
+        // TODO: this is really heavy, fix it or port me to wasm contract.
+        self.clone()
+    }
 }

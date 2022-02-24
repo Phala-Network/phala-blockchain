@@ -90,10 +90,7 @@ pub trait NativeContract {
 
     fn snapshot(&self) -> Self
     where
-        Self: Sized,
-    {
-        todo!("TODO.kevin.must")
-    }
+        Self: Sized;
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode)]
@@ -134,6 +131,13 @@ impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
 
     fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
         self.inner.on_block_end(context)
+    }
+
+    fn snapshot(&self) -> Self {
+        Self {
+            inner: self.inner.snapshot(),
+            id: self.id,
+        }
     }
 }
 

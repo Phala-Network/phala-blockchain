@@ -21,12 +21,12 @@ pub struct ExecError {
     pub message: String,
 }
 
-#[derive(Debug, Default, Encode, Decode)]
+#[derive(Debug, Default, Encode, Decode, Clone)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct Contract {
     pub address: AccountId,
     hooks: HookSelectors,

@@ -188,4 +188,8 @@ impl contracts::NativeContract for GuessNumber {
             }
         }
     }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
+    }
 }

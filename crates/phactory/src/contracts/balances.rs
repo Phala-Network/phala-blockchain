@@ -2,10 +2,10 @@ use std::collections::BTreeMap;
 use std::string::ToString;
 
 use anyhow::Result;
-use phala_mq::traits::MessageChannel;
 use core::fmt;
 use log::info;
 use parity_scale_codec::{Decode, Encode};
+use phala_mq::traits::MessageChannel;
 use phala_mq::MessageOrigin;
 
 use super::{TransactionError, TransactionResult};
@@ -17,7 +17,7 @@ use phala_types::messaging::{BalancesCommand, BalancesTransfer};
 
 pub type Command = BalancesCommand<chain::AccountId, chain::Balance>;
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct Balances {
     total_issuance: chain::Balance,
     accounts: BTreeMap<AccountId, chain::Balance>,
@@ -181,5 +181,10 @@ impl contracts::NativeContract for Balances {
             Err(error) => Response::Error(error.to_string()),
             Ok(resp) => resp,
         }
+    }
+
+    fn snapshot(&self) -> Self {
+        // TODO: it's heavy
+        self.clone()
     }
 }

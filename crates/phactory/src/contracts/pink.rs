@@ -29,7 +29,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub struct Pink {
     instance: pink::Contract,
     cluster_id: ContractClusterId,
@@ -157,6 +157,10 @@ impl contracts::NativeContract for Pink {
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
             })?;
         Ok(effects)
+    }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
     }
 }
 

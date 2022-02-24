@@ -275,4 +275,8 @@ impl contracts::NativeContract for BtcPriceBot {
             Request::QueryPrice => Ok(Response::Price(self.price.clone())),
         }
     }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
+    }
 }

@@ -292,6 +292,11 @@ impl contracts::NativeContract for Assets {
             Ok(resp) => resp,
         }
     }
+
+    fn snapshot(&self) -> Self {
+        // TODO: it's heavy
+        self.clone()
+    }
 }
 
 fn is_tracked(_id: &AccountId) -> bool {
