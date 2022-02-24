@@ -4,7 +4,7 @@ use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
 use sp_core::hashing::blake2_256;
 
-use super::pink::cluster::{Cluster, ClusterKeeper};
+use super::pink::cluster::ClusterKeeper;
 use super::*;
 use crate::secret_channel::SecretReceiver;
 use crate::types::BlockInfo;
@@ -26,7 +26,7 @@ pub struct NativeContext<'a, 'b> {
 pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub cluster: Cluster,
+    pub storage: ::pink::Storage,
 }
 
 impl NativeContext<'_, '_> {

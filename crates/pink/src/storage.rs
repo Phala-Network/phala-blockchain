@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
+mod backend;
+
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
@@ -20,6 +22,10 @@ impl CommitTransaction for InMemoryBackend {
     }
 }
 
+pub trait Snapshot {
+    fn snapshot(&self) -> Self;
+}
+
 #[derive(Default)]
 pub struct Storage<Backend> {
     backend: Backend,
@@ -28,6 +34,17 @@ pub struct Storage<Backend> {
 impl<Backend> Storage<Backend> {
     pub fn new(backend: Backend) -> Self {
         Self { backend }
+    }
+}
+
+impl<Backend> Storage<Backend>
+where
+    Backend: Snapshot,
+{
+    pub fn snapshot(&self) -> Self {
+        Self {
+            backend: self.backend.snapshot(),
+        }
     }
 }
 

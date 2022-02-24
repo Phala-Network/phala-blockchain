@@ -473,20 +473,23 @@ impl<Platform: pal::Platform> System<Platform> {
         impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
         OpaqueError,
     > {
+        use pink::storage::Snapshot as _;
+
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
-        let cluster = self
+        let storage = self
             .contract_clusters
             .get_cluster_mut(&contract.cluster_id())
             .expect("BUG: contract cluster should always exists")
+            .storage
             .snapshot();
         let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
-            cluster,
+            storage,
         };
         Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
             contract.handle_query(origin, req, &mut context)

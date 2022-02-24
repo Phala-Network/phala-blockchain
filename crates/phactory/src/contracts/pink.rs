@@ -91,7 +91,7 @@ impl contracts::NativeContract for Pink {
         let origin = origin.ok_or(QueryError::BadOrigin)?;
         match req {
             Query::InkMessage(input_data) => {
-                let storage = &mut context.cluster.storage;
+                let storage = &mut context.storage;
 
                 let (ink_result, _effects) = self.instance.bare_call(
                     storage,
@@ -293,8 +293,5 @@ pub mod cluster {
             self.storage.upload_code(origin, code)
         }
 
-        pub fn snapshot(&self) -> Self {
-            todo!("TODO.kevin.must")
-        }
     }
 }
