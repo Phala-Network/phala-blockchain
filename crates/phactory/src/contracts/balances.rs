@@ -155,7 +155,7 @@ impl contracts::NativeContract for Balances {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,

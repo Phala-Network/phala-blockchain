@@ -241,7 +241,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         if self.last_checkpoint.elapsed().as_secs() < self.args.checkpoint_interval {
             return Ok(());
         }
-        self.commit_storage_changes()?;
         self.take_checkpoint()
     }
 
@@ -438,7 +437,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
     fn contract_query(
         &mut self,
         request: pb::ContractQueryRequest,
-    ) -> RpcResult<pb::ContractQueryResponse> {
+    ) -> RpcResult<impl FnOnce() -> RpcResult<pb::ContractQueryResponse>> {
         // Validate signature
         let origin = if let Some(sig) = &request.signature {
             let current_block = self.get_info().blocknum - 1;
@@ -471,9 +470,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let data = encrypted_req.decrypt(&ecdh_key).map_err(from_debug)?;
 
         // Decode head
-        let mut data_cursor = &data[..];
-        let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
-        let data_cursor = data_cursor;
+        let head = contract::ContractQueryHead::decode(&mut &data[..])?;
 
         // Origin
         let accid_origin = match origin {
@@ -487,29 +484,29 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         };
 
         // Dispatch
-        let ref_origin = accid_origin.as_ref();
-
-        let res = self
+        let call = self
             .system()?
-            .handle_query(ref_origin, &head.id, data_cursor)?;
+            .make_query(&head.id)?;
 
-        // Encode response
-        let response = contract::ContractQueryResponse {
-            nonce: head.nonce,
-            result: contract::Data(res),
-        };
-        let response_data = response.encode();
+        Ok(move || {
+            // Encode response
+            let response = contract::ContractQueryResponse {
+                nonce: head.nonce,
+                result: contract::Data(call(accid_origin.as_ref(), &data)?),
+            };
+            let response_data = response.encode();
 
-        // Encrypt
-        let encrypted_resp = crypto::EncryptedData::encrypt(
-            &ecdh_key,
-            &encrypted_req.pubkey,
-            crate::generate_random_iv(),
-            &response_data,
-        )
-        .map_err(from_debug)?;
+            // Encrypt
+            let encrypted_resp = crypto::EncryptedData::encrypt(
+                &ecdh_key,
+                &encrypted_req.pubkey,
+                crate::generate_random_iv(),
+                &response_data,
+            )
+            .map_err(from_debug)?;
 
-        Ok(pb::ContractQueryResponse::new(encrypted_resp))
+            Ok(pb::ContractQueryResponse::new(encrypted_resp))
+        })
     }
 
     pub fn dispatch_prpc_request(
@@ -719,7 +716,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         &mut self,
         request: pb::ContractQueryRequest,
     ) -> RpcResult<pb::ContractQueryResponse> {
-        self.phactory.contract_query(request)
+        let query = self.phactory.contract_query(request)?;
+        query()
     }
 
     fn get_worker_state(

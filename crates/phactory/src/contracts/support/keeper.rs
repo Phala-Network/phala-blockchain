@@ -6,9 +6,9 @@ use std::ops::{Deref, DerefMut};
 use super::{Contract, NativeCompatContract, NativeContractWrapper};
 use crate::contracts::{
     assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
-    data_plaza::DataPlaza, geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
-    web3analytics::Web3Analytics,
+    geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
 };
+
 
 type ContractMap = BTreeMap<ContractId, AnyContract>;
 type Compat<T> = NativeCompatContract<NativeContractWrapper<T>>;
@@ -16,10 +16,8 @@ type Compat<T> = NativeCompatContract<NativeContractWrapper<T>>;
 #[derive(Serialize, Deserialize)]
 pub enum AnyContract {
     Pink(NativeCompatContract<Pink>),
-    DataPlaza(Compat<DataPlaza>),
     Balances(Compat<Balances>),
     Assets(Compat<Assets>),
-    Web3Analytics(Compat<Web3Analytics>),
     BtcLottery(Compat<BtcLottery>),
     Geolocation(Compat<Geolocation>),
     GuessNumber(Compat<GuessNumber>),
@@ -32,10 +30,8 @@ impl Deref for AnyContract {
     fn deref(&self) -> &Self::Target {
         match self {
             AnyContract::Pink(c) => c,
-            AnyContract::DataPlaza(c) => c,
             AnyContract::Balances(c) => c,
             AnyContract::Assets(c) => c,
-            AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
             AnyContract::GuessNumber(c) => c,
@@ -48,10 +44,8 @@ impl DerefMut for AnyContract {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self {
             AnyContract::Pink(c) => c,
-            AnyContract::DataPlaza(c) => c,
             AnyContract::Balances(c) => c,
             AnyContract::Assets(c) => c,
-            AnyContract::Web3Analytics(c) => c,
             AnyContract::BtcLottery(c) => c,
             AnyContract::Geolocation(c) => c,
             AnyContract::GuessNumber(c) => c,
@@ -66,12 +60,6 @@ impl From<NativeCompatContract<Pink>> for AnyContract {
     }
 }
 
-impl From<Compat<DataPlaza>> for AnyContract {
-    fn from(c: Compat<DataPlaza>) -> Self {
-        AnyContract::DataPlaza(c)
-    }
-}
-
 impl From<Compat<Balances>> for AnyContract {
     fn from(c: Compat<Balances>) -> Self {
         AnyContract::Balances(c)
@@ -81,12 +69,6 @@ impl From<Compat<Balances>> for AnyContract {
 impl From<Compat<Assets>> for AnyContract {
     fn from(c: Compat<Assets>) -> Self {
         AnyContract::Assets(c)
-    }
-}
-
-impl From<Compat<Web3Analytics>> for AnyContract {
-    fn from(c: Compat<Web3Analytics>) -> Self {
-        AnyContract::Web3Analytics(c)
     }
 }
 

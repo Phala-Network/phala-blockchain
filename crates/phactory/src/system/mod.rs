@@ -466,22 +466,31 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    pub fn handle_query(
+    pub fn make_query(
         &mut self,
-        origin: Option<&chain::AccountId>,
         contract_id: &ContractId,
-        req: OpaqueQuery,
-    ) -> Result<OpaqueReply, OpaqueError> {
+    ) -> Result<
+        impl FnOnce(Option<&chain::AccountId>, OpaqueQuery) -> Result<OpaqueReply, OpaqueError>,
+        OpaqueError,
+    > {
         let contract = self
             .contracts
             .get_mut(contract_id)
             .ok_or(OpaqueError::ContractNotFound)?;
+        let cluster = self
+            .contract_clusters
+            .get_cluster_mut(&contract.cluster_id())
+            .expect("BUG: contract cluster should always exists")
+            .snapshot();
+        let contract = contract.snapshot_for_query();
         let mut context = contracts::QueryContext {
             block_number: self.block_number,
             now_ms: self.now_ms,
-            contract_clusters: &mut self.contract_clusters,
+            cluster,
         };
-        contract.handle_query(origin, req, &mut context)
+        Ok(move |origin: Option<&chain::AccountId>, req: OpaqueQuery| {
+            contract.handle_query(origin, req, &mut context)
+        })
     }
 
     pub fn process_next_message(&mut self, block: &mut BlockInfo) -> anyhow::Result<bool> {
@@ -941,11 +950,9 @@ impl<Platform: pal::Platform> System<Platform> {
                 let ecdh_pubkey = ecdh_key.public();
 
                 let contract_id = match_and_install_contract! {
-                    (DATA_PLAZA => data_plaza::DataPlaza::new()),
                     (BALANCES => balances::Balances::new()),
                     (ASSETS => assets::Assets::new()),
                     (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
-                    (WEB3_ANALYTICS => web3analytics::Web3Analytics::new()),
                     (GEOLOCATION => geolocation::Geolocation::new()),
                     (GUESS_NUMBER => guess_number::GuessNumber::new()),
                     (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
@@ -1032,10 +1039,6 @@ impl<Platform: pal::Platform> System<Platform> {
             role: role.into(),
             master_public_key,
         }
-    }
-
-    pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-        self.contract_clusters.commit_changes()
     }
 }
 

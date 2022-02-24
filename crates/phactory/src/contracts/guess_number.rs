@@ -157,7 +157,7 @@ impl contracts::NativeContract for GuessNumber {
     /// * `req` — Off-chain Query to handle
     /// * `context` - The simplified current block info
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,

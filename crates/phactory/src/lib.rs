@@ -396,13 +396,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
         Ok(loader.0)
     }
-
-    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
-        if let Some(system) = self.system.as_mut() {
-            system.commit_changes()?;
-        }
-        Ok(())
-    }
 }
 
 impl<Platform: Serialize + DeserializeOwned> Phactory<Platform> {

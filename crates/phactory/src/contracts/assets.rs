@@ -214,7 +214,7 @@ impl contracts::NativeContract for Assets {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Self::QReq,
         _context: &mut contracts::QueryContext,

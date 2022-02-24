@@ -126,7 +126,7 @@ impl contracts::NativeContract for Geolocation {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _: &mut contracts::QueryContext,

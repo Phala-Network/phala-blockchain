@@ -71,34 +71,35 @@ impl Contract {
 
         let code_hash = Hashing::hash(&code);
 
-        let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
-            System::set_block_number(block_number);
-            Timestamp::set_timestamp(now);
+        let (address, effects) =
+            storage.execute_with(false, move || -> Result<_, ExecError> {
+                System::set_block_number(block_number);
+                Timestamp::set_timestamp(now);
 
-            let result = Contracts::bare_instantiate(
-                origin.clone(),
-                0,
-                GAS_LIMIT,
-                None,
-                pallet_contracts_primitives::Code::Upload(code.into()),
-                input_data,
-                salt.clone(),
-                true,
-            );
-            if let Err(err) = result.result {
-                return Err(ExecError {
-                    source: err,
-                    message: String::from_utf8_lossy(&result.debug_message).to_string(),
-                });
-            }
-            let preimage = contract_id_preimage(
-                origin.as_ref(),
-                code_hash.as_ref(),
-                cluster_id.as_ref(),
-                salt.as_ref(),
-            );
-            Ok(AccountId::from(hashing::blake2_256(&preimage)))
-        });
+                let result = Contracts::bare_instantiate(
+                    origin.clone(),
+                    0,
+                    GAS_LIMIT,
+                    None,
+                    pallet_contracts_primitives::Code::Upload(code.into()),
+                    input_data,
+                    salt.clone(),
+                    true,
+                );
+                if let Err(err) = result.result {
+                    return Err(ExecError {
+                        source: err,
+                        message: String::from_utf8_lossy(&result.debug_message).to_string(),
+                    });
+                }
+                let preimage = contract_id_preimage(
+                    origin.as_ref(),
+                    code_hash.as_ref(),
+                    cluster_id.as_ref(),
+                    salt.as_ref(),
+                );
+                Ok(AccountId::from(hashing::blake2_256(&preimage)))
+            });
         Ok((Self::from_address(address?), effects))
     }
 
@@ -136,7 +137,7 @@ impl Contract {
     /// # Return
     /// Returns the SCALE encoded method return value.
     pub fn bare_call(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
@@ -160,7 +161,7 @@ impl Contract {
     }
 
     fn unchecked_bare_call(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
@@ -179,7 +180,7 @@ impl Contract {
     /// Call a contract method given it's selector
     #[allow(clippy::too_many_arguments)]
     pub fn call_with_selector<RV: Decode>(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         selector: [u8; 4],
@@ -205,7 +206,7 @@ impl Contract {
 
     /// Called by on each block end by the runtime
     pub fn on_block_end(
-        &mut self,
+        &self,
         storage: &mut Storage,
         block_number: BlockNumber,
         now: u64,

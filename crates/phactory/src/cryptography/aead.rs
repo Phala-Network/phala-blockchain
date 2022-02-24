@@ -9,6 +9,7 @@ fn load_key(raw: &[u8]) -> ring::aead::LessSafeKey {
 }
 
 // Encrypts the data in-place and appends a 128bit auth tag
+#[allow(dead_code)]
 pub fn encrypt(iv: &IV, secret: &[u8], in_out: &mut Vec<u8>) {
     let nonce = ring::aead::Nonce::assume_unique_for_key(*iv);
     let key = load_key(secret);
@@ -18,6 +19,7 @@ pub fn encrypt(iv: &IV, secret: &[u8], in_out: &mut Vec<u8>) {
 }
 
 // Decrypts the cipher (with 128 auth tag appended) in-place and returns the message as a slice.
+#[allow(dead_code)]
 pub fn decrypt<'in_out>(iv: &[u8], secret: &[u8], in_out: &'in_out mut [u8]) -> &'in_out mut [u8] {
     let mut iv_arr = [0u8; IV_BYTES];
     iv_arr.copy_from_slice(&iv[..IV_BYTES]);

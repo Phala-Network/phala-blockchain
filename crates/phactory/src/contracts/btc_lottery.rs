@@ -360,7 +360,7 @@ impl contracts::NativeContract for BtcLottery {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         _origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,
