@@ -27,12 +27,6 @@ pub enum CodeIndex<CodeHash> {
     WasmCode(CodeHash),
 }
 
-#[derive(Encode, Decode, Clone, PartialEq, Eq, Debug, TypeInfo)]
-pub enum DeployTarget {
-    Cluster(ContractClusterId),
-    NewGroup(Vec<WorkerPublicKey>),
-}
-
 impl<CodeHash: AsRef<[u8]>> CodeIndex<CodeHash> {
     pub fn code_hash(&self) -> Vec<u8> {
         match self {
@@ -47,7 +41,6 @@ pub mod messaging {
     use codec::{Decode, Encode};
 
     use super::{ContractClusterId, ContractInfo};
-    use crate::WorkerIdentity;
     use phala_mq::bind_topic;
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
@@ -56,19 +49,12 @@ pub mod messaging {
         // TODO.shelven: enable add and remove workers
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_workers: Vec<WorkerIdentity>,
         },
     }
 
     impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
-        pub fn instantiate_code(
-            contract_info: ContractInfo<CodeHash, AccountId>,
-            deploy_workers: Vec<WorkerIdentity>,
-        ) -> Self {
-            ContractEvent::InstantiateCode {
-                contract_info,
-                deploy_workers,
-            }
+        pub fn instantiate_code(contract_info: ContractInfo<CodeHash, AccountId>) -> Self {
+            ContractEvent::InstantiateCode { contract_info }
         }
     }
 

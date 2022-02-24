@@ -16,7 +16,9 @@ pub mod pallet {
 
 	use phala_types::{
 		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractClusterId, ContractId, ContractInfo, DeployTarget},
+		contract::{
+			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
+		},
 		messaging::{bind_topic, DecodedMessage, MessageOrigin, WorkerContractReport},
 		ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
@@ -47,17 +49,17 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type Code<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
 
+	#[pallet::storage]
+	pub type Contracts<T: Config> =
+		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
+
 	/// The contract cluster counter, it always equals to the latest cluster id.
 	#[pallet::storage]
 	pub type ClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
 
 	#[pallet::storage]
-	pub type Clusters<T> =
-		StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>, ValueQuery>;
-
-	#[pallet::storage]
-	pub type Contracts<T: Config> =
-		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
+	pub type Clusters<T: Config> =
+		StorageMap<_, Twox64Concat, ContractClusterId, ClusterInfo<T::AccountId>>;
 
 	#[pallet::storage]
 	pub type ClusterWorkers<T> =
@@ -110,6 +112,46 @@ pub mod pallet {
 		T::AccountId: AsRef<[u8]>,
 	{
 		#[pallet::weight(0)]
+		pub fn add_cluster(
+			origin: OriginFor<T>,
+			permission: ClusterPermission<T::AccountId>,
+			description: String,
+			deploy_workers: Vec<WorkerPublicKey>,
+		) -> DispatchResult {
+			// for now, we only allow root account to create cluster
+			ensure_root(origin.clone())?;
+
+			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
+			let mut workers = Vec::new();
+			for worker in &deploy_workers {
+				let worker_info =
+					registry::Workers::<T>::try_get(worker).or(Err(Error::<T>::WorkerNotFound))?;
+				workers.push(WorkerIdentity {
+					pubkey: worker_info.pubkey,
+					ecdh_pubkey: worker_info.ecdh_pubkey,
+				});
+			}
+
+			let origin: T::AccountId = ensure_signed(origin)?;
+			let cluster = ClusterInfo {
+				owner: origin,
+				permission,
+				contracts: Vec::new(),
+				description,
+			};
+
+			let counter = ClusterCounter::<T>::mutate(|counter| {
+				*counter += 1;
+				*counter
+			});
+			let cluster_id = ContractClusterId::from_low_u64_be(counter);
+
+			Clusters::<T>::insert(&cluster_id, &cluster);
+			ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
+			Ok(())
+		}
+
+		#[pallet::weight(0)]
 		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
 			ensure_signed(origin)?;
 			let hash = T::Hashing::hash(&code);
@@ -140,7 +182,7 @@ pub mod pallet {
 			code_index: CodeIndex<CodeHash<T>>,
 			data: Vec<u8>,
 			salt: Vec<u8>,
-			deploy_to: DeployTarget,
+			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
 
@@ -149,39 +191,6 @@ pub mod pallet {
 				CodeIndex::WasmCode(code_hash) => {
 					ensure!(Code::<T>::contains_key(code_hash), Error::<T>::CodeNotFound);
 				}
-			}
-
-			let mut new_cluster = false;
-			let (cluster_id, deploy_workers) = match deploy_to {
-				DeployTarget::Cluster(cluster_id) => {
-					let workers = ClusterWorkers::<T>::get(cluster_id)
-						.ok_or(Error::<T>::ContractClusterNotFound)?;
-					(cluster_id, workers)
-				}
-				DeployTarget::NewGroup(deploy_workers) => {
-					ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
-
-					let counter = ClusterCounter::<T>::mutate(|counter| {
-						*counter += 1;
-						*counter
-					});
-					let cluster_id = ContractClusterId::from_low_u64_be(counter);
-					new_cluster = true;
-					(cluster_id, deploy_workers)
-				}
-			};
-
-			let mut workers = Vec::new();
-			for worker in &deploy_workers {
-				let worker_info =
-					registry::Workers::<T>::try_get(worker).or(Err(Error::<T>::WorkerNotFound))?;
-				workers.push(WorkerIdentity {
-					pubkey: worker_info.pubkey,
-					ecdh_pubkey: worker_info.ecdh_pubkey,
-				});
-			}
-			if new_cluster {
-				ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
 			}
 
 			// We send code index instead of raw code here to reduce message size
@@ -198,12 +207,8 @@ pub mod pallet {
 				Error::<T>::DuplicatedContract
 			);
 			Contracts::<T>::insert(&contract_id, &contract_info);
-			Clusters::<T>::append(cluster_id, contract_id);
 
-			Self::push_message(ContractEvent::instantiate_code(
-				contract_info.clone(),
-				workers,
-			));
+			Self::push_message(ContractEvent::instantiate_code(contract_info.clone()));
 			Self::deposit_event(Event::Instantiating {
 				contract: contract_id,
 				cluster: contract_info.cluster_id,
