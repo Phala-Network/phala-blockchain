@@ -173,9 +173,12 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         for item in item_trait.items.iter_mut() {
             if let syn::TraitItem::Method(item_method) = item {
                 item_method.attrs.clear();
-                item_method.sig.inputs.insert(0, syn::parse_quote! {
-                    &self
-                });
+                item_method.sig.inputs.insert(
+                    0,
+                    syn::parse_quote! {
+                        &self
+                    },
+                );
                 item_method.sig.output = match item_method.sig.output.clone() {
                     syn::ReturnType::Type(_, tp) => {
                         syn::parse_quote! {
@@ -194,8 +197,8 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         item_trait
     };
 
+    let extension = ChainExtension::new(Default::default(), input.clone())?;
     let id_pairs: Vec<_> = {
-        let extension = ChainExtension::new(Default::default(), input.clone())?;
         extension
             .iter_methods()
             .map(|m| {
@@ -257,6 +260,40 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         }
     };
 
+    // Mock helper functions
+    let mock_helpers = {
+        let mut mod_item: syn::ItemMod = syn::parse_quote! {
+            pub mod mock {
+                use super::*;
+                use super::test::MockExtension;
+            }
+        };
+        for m in extension.iter_methods() {
+            let name = m.ident().to_string();
+            let fname = "mock_".to_owned() + &name;
+            let fname = Ident::new(&fname, Span::call_site());
+            let id = Literal::u32_unsuffixed(m.id().into_u32());
+            let input = match m.inputs().next() {
+                Some(p0) => *p0.ty.clone(),
+                None => syn::parse_quote!(),
+            };
+            let output = m.sig().output.clone();
+            mod_item
+                .content
+                .as_mut()
+                .unwrap()
+                .1
+                .push(syn::parse_quote! {
+                    pub fn #fname(call: impl FnMut(#input) #output + 'static) {
+                        ink_env::test::register_chain_extension(
+                            MockExtension::<_, _, _, #id>::new(call),
+                        );
+                    }
+                });
+        }
+        mod_item
+    };
+
     let crate_ink_lang = find_crate_name("ink_lang")?;
     Ok(quote! {
         #[#crate_ink_lang::chain_extension]
@@ -267,5 +304,8 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         #func_ids
 
         #dispatcher
+
+        #[cfg(feature = "std")]
+        #mock_helpers
     })
 }

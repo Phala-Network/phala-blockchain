@@ -40,12 +40,16 @@ where
 
 use super::func_ids;
 
+/// Deprecated. Use pink_extension::chain_extension::mock::* instead.
 pub type MockHttpRequest<F> =
     MockExtension<F, HttpRequest, HttpResponse, { func_ids::HTTP_REQUEST }>;
-
+/// Deprecated. Use pink_extension::chain_extension::mock::* instead.
 pub type MockSign<'a, F> = MockExtension<F, SignArgs<'a>, Vec<u8>, { func_ids::SIGN }>;
+/// Deprecated. Use pink_extension::chain_extension::mock::* instead.
 pub type MockVerify<'a, F> = MockExtension<F, VerifyArgs<'a>, bool, { func_ids::VERIFY }>;
+/// Deprecated. Use pink_extension::chain_extension::mock::* instead.
 pub type MockDeriveSr25519Key<F> =
-    MockExtension<F, Vec<u8>, (Vec<u8>, Vec<u8>), { func_ids::DERIVE_SR25519_KEY }>;
+    MockExtension<F, Vec<u8>, Vec<u8>, { func_ids::DERIVE_SR25519_KEY }>;
+/// Deprecated. Use pink_extension::chain_extension::mock::* instead.
 pub type MockGetPublicKey<'a, F> =
     MockExtension<F, PublicKeyForArgs<'a>, Vec<u8>, { func_ids::GET_PUBLIC_KEY }>;
