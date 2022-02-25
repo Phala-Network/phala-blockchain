@@ -245,15 +245,15 @@ pub mod cluster {
         pub fn get_cluster_or_default_mut(
             &mut self,
             cluster_id: &ContractClusterId,
-            contract_key: &sr25519::Pair,
+            cluster_key: &sr25519::Pair,
         ) -> &mut Cluster {
             self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
                 let mut cluster = Cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
-                    key: contract_key.clone(),
+                    key: cluster_key.clone(),
                 };
-                let seed_key = contract_key
+                let seed_key = cluster_key
                     .derive_sr25519_pair(&[b"ink key derivation seed"])
                     .expect("Derive key seed should always success!");
                 cluster.set_id(cluster_id);

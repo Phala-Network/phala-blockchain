@@ -11,7 +11,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
-	use sp_core::H256;
+	use sp_core::{sr25519, H256};
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -23,8 +23,8 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, ContractId, DecodedMessage, GatekeeperChange, GatekeeperLaunch,
-			MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
+			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
@@ -82,6 +82,9 @@ pub mod pallet {
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
 	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
+
+	#[pallet::storage]
+	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, EcdhPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
@@ -414,7 +417,7 @@ pub mod pallet {
 		T: crate::mq::Config,
 	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: ContractPublicKey;
+			let pubkey_copy: sr25519::Public;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
 				MessageOrigin::Contract(id) => {

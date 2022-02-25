@@ -23,7 +23,7 @@ pub mod messaging {
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::ContractInfo;
+    use crate::contract::ClusterInfo;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -464,21 +464,22 @@ pub mod messaging {
         }
     }
 
-    bind_topic!(ContractKeyDistribution<CodeHash, BlockNumber, AccountId>, b"phala/contract/key");
+    // TODO.shelven: merge this into KeyDistribution
+    bind_topic!(ClusterKeyDistribution<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
-    pub enum ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        ContractKeyDistribution(DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId>),
+    pub enum ClusterKeyDistribution<BlockNumber> {
+        ClusterKeyDistribution(DispatchClusterKeyEvent<BlockNumber>),
     }
 
-    impl<CodeHash, BlockNumber, AccountId> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-        pub fn contract_key_distribution(
+    impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
+        pub fn cluster_key_distribution(
             secret_key: Sr25519SecretKey,
-            contract_info: ContractInfo<CodeHash, AccountId>,
+            cluster: ContractClusterId,
             expiration: BlockNumber,
-        ) -> ContractKeyDistribution<CodeHash, BlockNumber, AccountId> {
-            ContractKeyDistribution::ContractKeyDistribution(DispatchContractKeyEvent {
+        ) -> ClusterKeyDistribution<BlockNumber> {
+            ClusterKeyDistribution::ClusterKeyDistribution(DispatchClusterKeyEvent {
                 secret_key,
-                contract_info,
+                cluster,
                 expiration,
             })
         }
@@ -500,9 +501,9 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct DispatchContractKeyEvent<CodeHash, BlockNumber, AccountId> {
+    pub struct DispatchClusterKeyEvent<BlockNumber> {
         pub secret_key: Sr25519SecretKey,
-        pub contract_info: ContractInfo<CodeHash, AccountId>,
+        pub cluster: ContractClusterId,
         pub expiration: BlockNumber,
     }
 

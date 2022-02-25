@@ -35,8 +35,8 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
-        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        ClusterKeyDistribution, DispatchClusterKeyEvent, DispatchMasterKeyEvent, GatekeeperChange,
+        GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
@@ -395,8 +395,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    contract_key_distribution_events:
-        SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
+    cluster_key_distribution_events: SecretReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -443,13 +442,9 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            contract_key_distribution_events: SecretReceiver::new_secret(
+            cluster_key_distribution_events: SecretReceiver::new_secret(
                 recv_mq
-                    .subscribe(ContractKeyDistribution::<
-                        chain::Hash,
-                        chain::BlockNumber,
-                        chain::AccountId,
-                    >::topic())
+                    .subscribe(ClusterKeyDistribution::<chain::BlockNumber>::topic())
                     .into(),
                 ecdh_key.clone(),
             ),
@@ -513,8 +508,8 @@ impl<Platform: pal::Platform> System<Platform> {
             (event, origin) = self.key_distribution_events => {
                 self.process_key_distribution_event(block, origin, event);
             },
-            (event, origin) = self.contract_key_distribution_events => {
-                self.process_contract_key_distribution_event(block, origin, event);
+            (event, origin) = self.cluster_key_distribution_events => {
+                self.process_cluster_key_distribution_event(block, origin, event);
             },
             (event, origin) = self.contract_operation_events => {
                 self.process_contract_operation_event(block, origin, event)?
@@ -802,16 +797,16 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_contract_key_distribution_event(
+    fn process_cluster_key_distribution_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>,
+        event: ClusterKeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
+            ClusterKeyDistribution::ClusterKeyDistribution(dispatch_cluster_key_event) => {
                 let contract_info = dispatch_contract_key_event.contract_info.clone();
-                if let Err(err) = self.process_contract_key_distribution(
+                if let Err(err) = self.process_cluster_key_distribution(
                     block,
                     origin,
                     dispatch_contract_key_event,
@@ -891,6 +886,24 @@ impl<Platform: pal::Platform> System<Platform> {
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);
         }
+        Ok(())
+    }
+
+    fn process_cluster_key_distribution(
+        &mut self,
+        block: &mut BlockInfo,
+        origin: MessageOrigin,
+        event: DispatchClusterKeyEvent<chain::BlockNumber>,
+    ) -> anyhow::Result<()> {
+        if !origin.is_gatekeeper() {
+            error!("Invalid origin {:?} sent a {:?}", origin, event);
+            return Err(TransactionError::BadOrigin.into());
+        }
+
+        // TODO(shelven): forget cluster key after expiration time
+        let cluster_key = sr25519::Pair::restore_from_secret_key(&event.secret_key);
+        self.contract_clusters
+            .get_cluster_or_default_mut(&event.cluster, &cluster_key);
         Ok(())
     }
 
