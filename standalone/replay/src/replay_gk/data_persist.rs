@@ -1,12 +1,11 @@
 use super::EventRecord;
+use anyhow::Result;
 use chrono::TimeZone as _;
+use phactory::gk;
 use sqlx::types::Decimal;
 use sqlx::{postgres::PgPoolOptions, Row};
 use std::time::Duration;
 use tokio::sync::mpsc;
-use anyhow::Result;
-use phactory::gk;
-
 
 pub(super) async fn run_persist(mut rx: mpsc::Receiver<EventRecord>, uri: &str) {
     log::info!("Connecting to {}", uri);
@@ -56,10 +55,7 @@ pub(super) async fn run_persist(mut rx: mpsc::Receiver<EventRecord>, uri: &str) 
                             Ok(last_sequence) => {
                                 log::info!("last_sequence={}", last_sequence);
                                 if last_sequence
-                                    >= records
-                                        .last()
-                                        .expect("records can not be empty")
-                                        .sequence
+                                    >= records.last().expect("records can not be empty").sequence
                                 {
                                     log::info!("Insert succeeded, let's move on");
                                     break;
@@ -84,10 +80,7 @@ pub(super) async fn run_persist(mut rx: mpsc::Receiver<EventRecord>, uri: &str) 
     }
 }
 
-async fn insert_records(
-    pool: &sqlx::Pool<sqlx::Postgres>,
-    records: &[EventRecord],
-) -> Result<()> {
+async fn insert_records(pool: &sqlx::Pool<sqlx::Postgres>, records: &[EventRecord]) -> Result<()> {
     // Current version of sqlx does not support bulk insertion, so we have to do it manually.
     let mut sequences = vec![];
     let mut pubkeys = vec![];
@@ -147,10 +140,9 @@ fn cvt_fp(v: gk::FixedPoint) -> Decimal {
 }
 
 async fn get_last_sequence(pool: &sqlx::Pool<sqlx::Postgres>) -> Result<i64> {
-    let latest_row = sqlx::query(
-        "SELECT sequence FROM worker_finance_events ORDER BY sequence DESC LIMIT 1",
-    )
-    .fetch_optional(pool)
-    .await?;
+    let latest_row =
+        sqlx::query("SELECT sequence FROM worker_finance_events ORDER BY sequence DESC LIMIT 1")
+            .fetch_optional(pool)
+            .await?;
     Ok(latest_row.map_or(0, |row| row.get(0)))
 }
