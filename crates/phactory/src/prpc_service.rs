@@ -494,7 +494,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             // Encode response
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(call(accid_origin.as_ref(), &data[data.len()-rest..])?),
+                result: contract::Data(call(accid_origin.as_ref(), &data[data.len() - rest..])?),
             };
             let response_data = response.encode();
 
@@ -645,6 +645,7 @@ where
 
     (code, data)
 }
+
 pub struct RpcService<'a, Platform> {
     output_buf_len: usize,
     phactory: &'a Mutex<Phactory<Platform>>,
