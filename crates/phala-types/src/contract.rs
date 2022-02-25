@@ -1,4 +1,3 @@
-use super::WorkerPublicKey;
 use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
@@ -41,12 +40,22 @@ pub mod messaging {
     use codec::{Decode, Encode};
 
     use super::{ContractClusterId, ContractInfo};
+    use crate::WorkerIdentity;
     use phala_mq::bind_topic;
+
+    bind_topic!(ClusterEvent, b"phala/cluster/event");
+    #[derive(Encode, Decode, Debug)]
+    pub enum ClusterEvent {
+        // TODO.shelven: enable add and remove workers
+        DeployCluster {
+            cluster: ContractClusterId,
+            workers: Vec<WorkerIdentity>,
+        },
+    }
 
     bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
     #[derive(Encode, Decode, Debug)]
     pub enum ContractEvent<CodeHash, AccountId> {
-        // TODO.shelven: enable add and remove workers
         InstantiateCode {
             contract_info: ContractInfo<CodeHash, AccountId>,
         },

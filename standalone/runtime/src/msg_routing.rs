@@ -34,6 +34,7 @@ impl pallet_mq::QueueNotifyConfig for MessageRouteConfig {
             PhalaMining::on_gk_message_received,
             PhalaMining::on_mining_message_received,
             PhalaFatContracts::on_worker_contract_message_received,
+            PhalaFatContracts::on_cluster_message_received,
             PhalaFatContracts::on_contract_message_received,
             // BridgeTransfer::on_message_received,
         };

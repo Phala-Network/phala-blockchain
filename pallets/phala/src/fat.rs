@@ -15,20 +15,20 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::{ContractEvent, ContractOperation},
+		contract::messaging::{ClusterEvent, ContractEvent, ContractOperation},
 		contract::{
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
 		messaging::{bind_topic, DecodedMessage, MessageOrigin, WorkerContractReport},
-		ContractPublicKey, WorkerIdentity, WorkerPublicKey,
+		EcdhPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
 
-	bind_topic!(ContractRegistryEvent, b"^phala/registry/contract");
+	bind_topic!(ClusterRegistryEvent, b"^phala/registry/cluster");
 	#[derive(Encode, Decode, Clone, Debug)]
-	pub enum ContractRegistryEvent {
+	pub enum ClusterRegistryEvent {
 		PubkeyAvailable {
-			contract: ContractId,
-			pubkey: ContractPublicKey,
+			cluster: ContractClusterId,
+			ecdh_pubkey: EcdhPublicKey,
 		},
 	}
 
@@ -68,12 +68,15 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
+		ClusterCreated {
+			cluster: ContractClusterId,
+		},
+		ClusterPubkeyAvailable {
+			cluster: ContractClusterId,
+			ecdh_pubkey: EcdhPublicKey,
+		},
 		CodeUploaded {
 			hash: CodeHash<T>,
-		},
-		PubkeyAvailable {
-			contract: ContractId,
-			pubkey: ContractPublicKey,
 		},
 		Instantiating {
 			contract: ContractId,
@@ -105,6 +108,16 @@ pub mod pallet {
 
 	type CodeHash<T> = <T as frame_system::Config>::Hash;
 
+	fn check_cluster_permission<T: Config>(
+		deployer: &T::AccountId,
+		permission: &ClusterPermission<T::AccountId>,
+	) -> bool {
+		match permission {
+			ClusterPermission::Public => true,
+			ClusterPermission::OnlyOwner(owner) => deployer == owner,
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
 	where
@@ -133,7 +146,7 @@ pub mod pallet {
 			}
 
 			let origin: T::AccountId = ensure_signed(origin)?;
-			let cluster = ClusterInfo {
+			let cluster_info = ClusterInfo {
 				owner: origin,
 				permission,
 				contracts: Vec::new(),
@@ -144,10 +157,12 @@ pub mod pallet {
 				*counter += 1;
 				*counter
 			});
-			let cluster_id = ContractClusterId::from_low_u64_be(counter);
+			let cluster = ContractClusterId::from_low_u64_be(counter);
 
-			Clusters::<T>::insert(&cluster_id, &cluster);
-			ClusterWorkers::<T>::insert(&cluster_id, deploy_workers);
+			Clusters::<T>::insert(&cluster, &cluster_info);
+			Self::deposit_event(Event::ClusterCreated { cluster });
+			ClusterWorkers::<T>::insert(&cluster, deploy_workers);
+			Self::push_message(ClusterEvent::DeployCluster { cluster, workers });
 			Ok(())
 		}
 
@@ -223,6 +238,28 @@ pub mod pallet {
 	where
 		T: crate::mq::Config + crate::registry::Config,
 	{
+		pub fn on_cluster_message_received(
+			message: DecodedMessage<ClusterRegistryEvent>,
+		) -> DispatchResult {
+			ensure!(
+				message.sender == MessageOrigin::Gatekeeper,
+				Error::<T>::InvalidSender
+			);
+			match message.payload {
+				ClusterRegistryEvent::PubkeyAvailable {
+					cluster,
+					ecdh_pubkey,
+				} => {
+					registry::ClusterKeys::<T>::insert(&cluster, &ecdh_pubkey);
+					Self::deposit_event(Event::ClusterPubkeyAvailable {
+						cluster,
+						ecdh_pubkey,
+					});
+				}
+			}
+			Ok(())
+		}
+
 		pub fn on_contract_message_received(
 			message: DecodedMessage<ContractRegistryEvent>,
 		) -> DispatchResult {

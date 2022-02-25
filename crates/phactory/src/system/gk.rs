@@ -1,5 +1,5 @@
 use super::{TransactionError, TypedReceiver, WorkerState};
-use chain::pallet_fat::ContractRegistryEvent;
+use chain::pallet_fat::ClusterRegistryEvent;
 use phala_crypto::{
     aead, ecdh,
     sr25519::{Persistence, KDF},
@@ -7,10 +7,10 @@ use phala_crypto::{
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
-    contract::messaging::ContractEvent,
+    contract::messaging::{ClusterEvent, ContractEvent},
     contract::ContractInfo,
     messaging::{
-        ContractKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        ClusterKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
         SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
@@ -57,12 +57,9 @@ fn next_random_number(
     hashing::blake2_256(buf.as_ref())
 }
 
-fn get_contract_key(
-    master_key: &sr25519::Pair,
-    contract_info: &ContractInfo<chain::Hash, chain::AccountId>,
-) -> sr25519::Pair {
+fn get_cluster_key(master_key: &sr25519::Pair, cluster: &ContractClusterId) -> sr25519::Pair {
     master_key
-        .derive_sr25519_pair(&[b"contract_key", contract_info.cluster_id.as_bytes()])
+        .derive_sr25519_pair(&[b"cluster_key", cluster_id.as_bytes()])
         .expect("should not fail with valid info")
 }
 
@@ -111,6 +108,7 @@ pub(crate) struct Gatekeeper<MsgChan> {
     registered_on_chain: bool,
     egress: MsgChan, // TODO.kevin: syncing the egress state while migrating.
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
+    cluster_events: TypedReceiver<ClusterEvent>,
     contract_events: TypedReceiver<ContractEvent<chain::Hash, chain::AccountId>>,
     // Randomness
     last_random_number: RandomNumber,
@@ -135,6 +133,7 @@ where
             registered_on_chain: false,
             egress: egress.clone(),
             gatekeeper_events: recv_mq.subscribe_bound(),
+            cluster_events: recv_mq.subscribe_bound(),
             contract_events: recv_mq.subscribe_bound(),
             last_random_number: [0_u8; 32],
             iv_seq: 0,
@@ -204,11 +203,7 @@ where
         self.egress
             .push_message(&KeyDistribution::master_key_distribution(
                 *pubkey,
-                my_ecdh_key
-                    .public()
-                    .as_ref()
-                    .try_into()
-                    .expect("should never fail given pubkey with correct length; qed;"),
+                sr25519::Public(my_ecdh_key.public()),
                 data,
                 iv,
             ));
@@ -225,6 +220,14 @@ where
             let ok = phala_mq::select_ignore_errors! {
                 (event, origin) = self.gatekeeper_events => {
                     self.process_gatekeeper_event(origin, event);
+                },
+                (event, origin) = self.cluster_events => {
+                    if let Err(err) = self.process_cluster_event(origin, event) {
+                        error!(
+                            "Failed to process cluster event: {:?}",
+                            err
+                        );
+                    };
                 },
                 (event, origin) = self.contract_events => {
                     if let Err(err) = self.process_contract_event(origin, event) {
@@ -257,6 +260,45 @@ where
             }
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
+            }
+        }
+    }
+
+    fn process_cluster_event(
+        &mut self,
+        origin: MessageOrigin,
+        event: ClusterEvent,
+    ) -> Result<(), TransactionError> {
+        info!("Incoming cluster event: {:?}", event);
+        match event {
+            ClusterEvent::DeployCluster { cluster, workers } => {
+                if !origin.is_pallet() {
+                    error!("Attempt to deploy cluster from bad origin");
+                    return Err(TransactionError::BadOrigin);
+                }
+
+                let cluster_key = get_cluster_key(&self.master_key, &cluster);
+                let ecdh_key = cluster_key
+                    .derive_ecdh_key()
+                    .expect("should never fail with valid key; qed.");
+                self.egress
+                    .push_message(&ClusterRegistryEvent::PubkeyAvailable {
+                        cluster,
+                        ecdh_pubkey: sr25519::Public(ecdh_key.public()),
+                    });
+
+                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
+                // TODO.shelven: set up expiration
+                for worker in workers.iter() {
+                    secret_mq
+                        .bind_remote_key(Some(&worker.ecdh_pubkey.0))
+                        .push_message(&ClusterKeyDistribution::cluster_key_distribution(
+                            cluster_key.dump_secret_key(),
+                            cluster,
+                            0,
+                        ));
+                }
+                Ok(())
             }
         }
     }
@@ -302,9 +344,9 @@ where
                             0,
                         ));
                 }
+                Ok(())
             }
         }
-        Ok(())
     }
 
     /// Verify on-chain random number
