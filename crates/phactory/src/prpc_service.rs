@@ -472,7 +472,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let data = encrypted_req.decrypt(&ecdh_key).map_err(from_debug)?;
 
         // Decode head
-        let head = contract::ContractQueryHead::decode(&mut &data[..])?;
+        let mut data_cursor = &data[..];
+        let head = contract::ContractQueryHead::decode(&mut data_cursor)?;
+        let rest = data_cursor.len();
 
         // Origin
         let accid_origin = match origin {
@@ -492,7 +494,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             // Encode response
             let response = contract::ContractQueryResponse {
                 nonce: head.nonce,
-                result: contract::Data(call(accid_origin.as_ref(), &data)?),
+                result: contract::Data(call(accid_origin.as_ref(), &data[data.len()-rest..])?),
             };
             let response_data = response.encode();
 
