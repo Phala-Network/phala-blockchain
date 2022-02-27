@@ -37,13 +37,13 @@ phala-node-rpc-ext = { path = "../../crates/phala-node-rpc-ext" }
 phala-pallets = { path = "../../pallets/phala" }
 
 # third-party dependencies
-codec = { package = "parity-scale-codec", version = "2.3" }
-serde = { version = "1.0.126", features = ["derive"] }
+clap = { version = "3.0", features = ["derive"], optional = true }
+codec = { version = "2.3", package = "parity-scale-codec" }
+serde = { version = "1.0.136", features = ["derive"] }
 futures = "0.3.16"
 hex-literal = "0.3.4"
 log = "0.4.8"
-rand = "0.7.2"
-structopt = { version = "0.3.8", optional = true }
+rand = "0.8"
 
 # primitives
 sp-authority-discovery = { path = "../../substrate/primitives/authority-discovery" }
