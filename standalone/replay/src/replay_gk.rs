@@ -11,6 +11,7 @@ use std::{
 
 use anyhow::Error;
 use anyhow::Result;
+use log::warn;
 use phactory::{gk, BlockInfo, SideTaskManager, StorageExt};
 use phala_mq::MessageDispatcher;
 use phala_mq::Path as MqPath;
@@ -343,7 +344,12 @@ fn get_checkpoint_path(from: &Option<String>) -> Option<String> {
     match from {
         Some(filename) => {
             if !filename.is_empty() {
-                Some(filename.clone())
+                if std::path::PathBuf::from(filename).exists() {
+                    Some(filename.clone())
+                } else {
+                    warn!("{} not exists!", filename);
+                    None
+                }
             } else {
                 None
             }
