@@ -8,7 +8,7 @@ resolver = "2"
 
 chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa", default-features = false }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
+parity-scale-codec   = { package = "parity-scale-codec", version = "3", default-features = false, features = ["derive"] }
 frame-system = { package = "frame-system", path = "../../../substrate/frame/system", default-features = false }
 sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
 sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
