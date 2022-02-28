@@ -36,7 +36,7 @@ pub struct Args {
     #[structopt(
         default_value = "0",
         long,
-        help = "Assmue the give number of block finalized."
+        help = "Assume the give number of block finalized."
     )]
     assume_finalized: u32,
 
