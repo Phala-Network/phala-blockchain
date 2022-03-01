@@ -17,13 +17,12 @@ pub mod messaging {
     use codec::{Decode, Encode};
     use core::fmt::Debug;
     use scale_info::TypeInfo;
-    use sp_core::U256;
+    use sp_core::{H256, U256};
 
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
     use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
-    use crate::contract::ClusterInfo;
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -578,6 +577,11 @@ pub mod messaging {
     bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum WorkerContractReport {
+        CodeUploaded {
+            cluster_id: ContractClusterId,
+            uploader: AccountId,
+            hash: H256,
+        },
         ContractInstantiated {
             id: ContractId,
             cluster_id: ContractClusterId,

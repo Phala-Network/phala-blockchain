@@ -45,10 +45,6 @@ pub mod pallet {
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
-	/// Mapping from an original code hash to the original code, untouched by instrumentation
-	#[pallet::storage]
-	pub type Code<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
-
 	#[pallet::storage]
 	pub type Contracts<T: Config> =
 		StorageMap<_, Twox64Concat, ContractId, ContractInfo<CodeHash<T>, T::AccountId>>;
@@ -76,7 +72,9 @@ pub mod pallet {
 			ecdh_pubkey: EcdhPublicKey,
 		},
 		CodeUploaded {
-			hash: CodeHash<T>,
+			cluster: ContractClusterId,
+			uploader: H256,
+			hash: H256,
 		},
 		Instantiating {
 			contract: ContractId,
@@ -98,7 +96,8 @@ pub mod pallet {
 	#[pallet::error]
 	pub enum Error<T> {
 		CodeNotFound,
-		ContractClusterNotFound,
+		ClusterNotFound,
+		ClusterPermissionDenied,
 		DuplicatedContract,
 		DuplicatedDeployment,
 		NoWorkerSpecified,
@@ -110,11 +109,11 @@ pub mod pallet {
 
 	fn check_cluster_permission<T: Config>(
 		deployer: &T::AccountId,
-		permission: &ClusterPermission<T::AccountId>,
+		cluster: &ClusterInfo<T::AccountId>,
 	) -> bool {
-		match permission {
+		match cluster.permission {
 			ClusterPermission::Public => true,
-			ClusterPermission::OnlyOwner(owner) => deployer == owner,
+			ClusterPermission::OnlyOwner(owner) => deployer == &owner,
 		}
 	}
 
@@ -167,22 +166,17 @@ pub mod pallet {
 		}
 
 		#[pallet::weight(0)]
-		pub fn upload_code(origin: OriginFor<T>, code: Vec<u8>) -> DispatchResult {
-			ensure_signed(origin)?;
-			let hash = T::Hashing::hash(&code);
-			Code::<T>::insert(&hash, &code);
-			Self::deposit_event(Event::CodeUploaded { hash });
-			Ok(())
-		}
-
-		#[pallet::weight(0)]
 		pub fn upload_code_to_cluster(
 			origin: OriginFor<T>,
 			code: Vec<u8>,
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let origin: T::AccountId = ensure_signed(origin)?;
-			// TODO.shelven: check permission?
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				check_cluster_permission::<T>(&origin, &cluster_info),
+				Error::<T>::ClusterPermissionDenied
+			);
 			Self::push_message(ContractOperation::UploadCodeToCluster {
 				origin,
 				code,
@@ -284,6 +278,17 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
+				WorkerContractReport::CodeUploaded {
+					cluster_id,
+					uploader,
+					hash,
+				} => {
+					Self::deposit_event(Event::CodeUploaded {
+						cluster: cluster_id,
+						uploader,
+						hash,
+					});
+				}
 				WorkerContractReport::ContractInstantiated {
 					id,
 					cluster_id,

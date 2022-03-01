@@ -844,6 +844,12 @@ impl<Platform: pal::Platform> System<Platform> {
                 let hash = cluster
                     .upload_code(origin, code)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                let message = WorkerContractReport::CodeUploaded {
+                    cluster_id,
+                    uploader: origin,
+                    hash,
+                };
+                self.egress.push_message(&message);
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
