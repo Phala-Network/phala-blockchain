@@ -133,6 +133,7 @@ pub mod pallet {
 		) -> DispatchResult {
 			// for now, we only allow root account to create cluster
 			ensure_root(origin.clone())?;
+			let origin: T::AccountId = ensure_signed(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
 			let mut workers = Vec::new();
@@ -145,7 +146,6 @@ pub mod pallet {
 				});
 			}
 
-			let origin: T::AccountId = ensure_signed(origin)?;
 			let cluster_info = ClusterInfo {
 				owner: origin,
 				permission,

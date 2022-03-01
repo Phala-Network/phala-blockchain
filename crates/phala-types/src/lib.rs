@@ -563,6 +563,18 @@ pub mod messaging {
 
     // Pink messages
 
+    bind_topic!(WorkerClusterReport, b"phala/cluster/worker/report");
+    #[derive(Encode, Decode, Debug, TypeInfo)]
+    pub enum WorkerClusterReport {
+        ClusterDeployed {
+            id: ContractClusterId,
+            pubkey: EcdhPublicKey,
+        },
+        ClusterDeploymentFailed {
+            id: ContractClusterId,
+        },
+    }
+
     bind_topic!(WorkerContractReport, b"phala/contract/worker/report");
     #[derive(Encode, Decode, Debug, TypeInfo)]
     pub enum WorkerContractReport {

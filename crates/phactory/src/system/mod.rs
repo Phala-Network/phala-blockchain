@@ -37,7 +37,7 @@ use phala_types::{
     messaging::{
         ClusterKeyDistribution, DispatchClusterKeyEvent, DispatchMasterKeyEvent, GatekeeperChange,
         GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerContractReport, WorkerEvent,
+        NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -805,21 +805,17 @@ impl<Platform: pal::Platform> System<Platform> {
     ) {
         match event {
             ClusterKeyDistribution::ClusterKeyDistribution(dispatch_cluster_key_event) => {
-                let contract_info = dispatch_contract_key_event.contract_info.clone();
+                let cluster = dispatch_contract_key_event.cluster;
                 if let Err(err) = self.process_cluster_key_distribution(
                     block,
                     origin,
                     dispatch_contract_key_event,
                 ) {
                     error!(
-                        "Failed to process contract key distribution event: {:?}",
+                        "Failed to process cluster key distribution event: {:?}",
                         err
                     );
-                    let message = WorkerContractReport::ContractInstantiationFailed {
-                        id: contract_info.contract_id(Box::new(blake2_256)),
-                        cluster_id: contract_info.cluster_id,
-                        deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
-                    };
+                    let message = WorkerClusterReport::ClusterDeploymentFailed { id: cluster };
                     self.egress.push_message(&message);
                 }
             }
@@ -904,6 +900,11 @@ impl<Platform: pal::Platform> System<Platform> {
         let cluster_key = sr25519::Pair::restore_from_secret_key(&event.secret_key);
         self.contract_clusters
             .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+        let message = WorkerClusterReport::ClusterDeployed {
+            id: event.cluster,
+            pubkey: cluster_key.public(),
+        };
+        self.egress.push_message(&message);
         Ok(())
     }
 
