@@ -155,24 +155,12 @@ impl ServiceGenerator {
 impl prost_build::ServiceGenerator for ServiceGenerator {
     fn generate(&mut self, service: prost_build::Service, _buf: &mut String) {
         if self.builder.build_server {
-            let server = server::generate(
-                &service,
-                self.builder.emit_package,
-                &self.builder.proto_path,
-                self.builder.compile_well_known_types,
-                &self.builder.server_attributes,
-            );
+            let server = server::generate(&service, &self.builder);
             self.servers.extend(server);
         }
 
         if self.builder.build_client {
-            let client = client::generate(
-                &service,
-                self.builder.emit_package,
-                &self.builder.proto_path,
-                self.builder.compile_well_known_types,
-                &self.builder.client_attributes,
-            );
+            let client = client::generate(&service, &self.builder);
             self.clients.extend(client);
         }
     }

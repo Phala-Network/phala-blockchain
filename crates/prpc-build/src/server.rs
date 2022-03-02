@@ -1,5 +1,5 @@
-use super::{Attributes, Method, Service};
-use crate::{generate_doc_comment, generate_doc_comments, naive_snake_case};
+use super::{Method, Service};
+use crate::{generate_doc_comment, generate_doc_comments, naive_snake_case, Builder};
 use proc_macro2::{Span, TokenStream};
 use quote::quote;
 use syn::{Ident, Lit, LitStr};
@@ -8,33 +8,28 @@ use syn::{Ident, Lit, LitStr};
 ///
 /// This takes some `Service` and will generate a `TokenStream` that contains
 /// a public module containing the server service and handler trait.
-pub fn generate<T: Service>(
-    service: &T,
-    emit_package: bool,
-    proto_path: &str,
-    compile_well_known_types: bool,
-    attributes: &Attributes,
-) -> TokenStream {
-    let methods = generate_methods(service, proto_path, emit_package, compile_well_known_types);
+pub fn generate<T: Service>(service: &T, builder: &Builder) -> TokenStream {
+    let methods = generate_methods(service, builder);
 
     let server_service = quote::format_ident!("{}Server", service.name());
     let server_trait = quote::format_ident!("{}", service.name());
     let server_mod = quote::format_ident!("{}_server", naive_snake_case(service.name()));
-    let supported_methods = generate_supported_methods(
-        service,
-        emit_package,
-    );
-    let generated_trait = generate_trait(
-        service,
-        proto_path,
-        compile_well_known_types,
-        server_trait.clone(),
-    );
+    let supported_methods = generate_supported_methods(service, builder.emit_package);
+    let generated_trait = generate_trait(service, server_trait.clone(), builder);
     let service_doc = generate_doc_comments(service.comment());
-    let package = if emit_package { service.package() } else { "" };
-    let path = crate::join_path(emit_package, service.package(), service.identifier(), "");
-    let mod_attributes = attributes.for_mod(package);
-    let struct_attributes = attributes.for_struct(&path);
+    let package = if builder.emit_package {
+        service.package()
+    } else {
+        ""
+    };
+    let path = crate::join_path(
+        builder.emit_package,
+        service.package(),
+        service.identifier(),
+        "",
+    );
+    let mod_attributes = builder.server_attributes.for_mod(package);
+    let struct_attributes = builder.server_attributes.for_struct(&path);
 
     quote! {
         /// Generated server implementations.
@@ -71,13 +66,8 @@ pub fn generate<T: Service>(
     }
 }
 
-fn generate_trait<T: Service>(
-    service: &T,
-    proto_path: &str,
-    compile_well_known_types: bool,
-    server_trait: Ident,
-) -> TokenStream {
-    let methods = generate_trait_methods(service, proto_path, compile_well_known_types);
+fn generate_trait<T: Service>(service: &T, server_trait: Ident, builder: &Builder) -> TokenStream {
+    let methods = generate_trait_methods(service, builder);
     let trait_doc = generate_doc_comment(&format!(
         "Generated trait containing RPC methods that should be implemented for use with {}Server.",
         service.name()
@@ -91,18 +81,14 @@ fn generate_trait<T: Service>(
     }
 }
 
-fn generate_trait_methods<T: Service>(
-    service: &T,
-    proto_path: &str,
-    compile_well_known_types: bool,
-) -> TokenStream {
+fn generate_trait_methods<T: Service>(service: &T, builder: &Builder) -> TokenStream {
     let mut stream = TokenStream::new();
 
     for method in service.methods() {
         let name = quote::format_ident!("{}", method.name());
 
         let (req_message, res_message) =
-            method.request_response_name(proto_path, compile_well_known_types);
+            method.request_response_name(&builder.proto_path, builder.compile_well_known_types);
 
         let method_doc = generate_doc_comments(method.comment());
 
@@ -125,10 +111,7 @@ fn generate_trait_methods<T: Service>(
     stream
 }
 
-fn generate_supported_methods<T: Service>(
-    service: &T,
-    emit_package: bool,
-) -> TokenStream {
+fn generate_supported_methods<T: Service>(service: &T, emit_package: bool) -> TokenStream {
     let mut all_methods = TokenStream::new();
     for method in service.methods() {
         let path = crate::join_path(
@@ -154,17 +137,12 @@ fn generate_supported_methods<T: Service>(
     }
 }
 
-fn generate_methods<T: Service>(
-    service: &T,
-    proto_path: &str,
-    emit_package: bool,
-    compile_well_known_types: bool,
-) -> TokenStream {
+fn generate_methods<T: Service>(service: &T, builder: &Builder) -> TokenStream {
     let mut stream = TokenStream::new();
 
     for method in service.methods() {
         let path = crate::join_path(
-            emit_package,
+            builder.emit_package,
             service.package(),
             service.identifier(),
             method.identifier(),
@@ -174,13 +152,7 @@ fn generate_methods<T: Service>(
         let server_trait = quote::format_ident!("{}", service.name());
 
         let method_stream = match (method.client_streaming(), method.server_streaming()) {
-            (false, false) => generate_unary(
-                method,
-                proto_path,
-                compile_well_known_types,
-                method_ident,
-                server_trait,
-            ),
+            (false, false) => generate_unary(method, method_ident, server_trait, builder),
             _ => {
                 panic!("Streaming RPC not supported");
             }
@@ -199,12 +171,12 @@ fn generate_methods<T: Service>(
 
 fn generate_unary<T: Method>(
     method: &T,
-    proto_path: &str,
-    compile_well_known_types: bool,
     method_ident: Ident,
     _server_trait: Ident,
+    builder: &Builder,
 ) -> TokenStream {
-    let (request, _response) = method.request_response_name(proto_path, compile_well_known_types);
+    let (request, _response) =
+        method.request_response_name(&builder.proto_path, builder.compile_well_known_types);
 
     quote! {
         let input: #request = prpc::Message::decode(data.as_ref())?;
