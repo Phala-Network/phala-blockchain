@@ -54,8 +54,7 @@ pub fn ecall_bench_run(index: u32) {
 }
 
 pub fn ecall_prpc_request(path: &[u8], data: &[u8]) -> (u16, Vec<u8>) {
-    let mut factory = APPLICATION.lock().unwrap();
-    let (code, data) = factory.dispatch_prpc_request(path, data, usize::MAX);
+    let (code, data) = phactory::dispatch_prpc_request(path, data, usize::MAX, &APPLICATION);
     info!("pRPC status code: {}, data len: {}", code, data.len());
     (code, data)
 }

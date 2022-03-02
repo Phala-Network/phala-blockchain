@@ -12,12 +12,14 @@ use phala_mq::{MessageOrigin, SignedMessageChannel};
 pub mod assets;
 pub mod balances;
 pub mod btc_lottery;
-pub mod data_plaza;
 // pub mod diem;
 pub mod geolocation;
 pub mod pink;
 // pub mod substrate_kitties;
-pub mod web3analytics;
+
+// Disabled due to requiring &mut self in query
+// pub mod web3analytics;
+// pub mod data_plaza;
 
 pub mod btc_price_bot;
 pub mod guess_number;

@@ -29,7 +29,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub struct Pink {
     instance: pink::Contract,
     cluster_id: ContractClusterId,
@@ -83,7 +83,7 @@ impl contracts::NativeContract for Pink {
     type QResp = Result<Response, QueryError>;
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&AccountId>,
         req: Query,
         context: &mut contracts::QueryContext,
@@ -91,8 +91,7 @@ impl contracts::NativeContract for Pink {
         let origin = origin.ok_or(QueryError::BadOrigin)?;
         match req {
             Query::InkMessage(input_data) => {
-                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
-                    .expect("Pink cluster should always exists!");
+                let storage = &mut context.storage;
 
                 let (ink_result, _effects) = self.instance.bare_call(
                     storage,
@@ -158,6 +157,10 @@ impl contracts::NativeContract for Pink {
                 TransactionError::Other(format!("Call contract on_block_end failed: {:?}", err))
             })?;
         Ok(effects)
+    }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
     }
 }
 
@@ -258,13 +261,6 @@ pub mod cluster {
                 cluster
             })
         }
-
-        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-            for cluster in self.clusters.values_mut() {
-                cluster.commit_changes()?;
-            }
-            Ok(())
-        }
     }
 
     #[derive(Serialize, Deserialize)]
@@ -285,11 +281,6 @@ pub mod cluster {
             &self.key
         }
 
-        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-            self.storage.commit_changes();
-            Ok(())
-        }
-
         pub fn set_id(&mut self, id: &ContractClusterId) {
             self.storage.set_cluster_id(id.as_bytes());
         }
@@ -305,5 +296,6 @@ pub mod cluster {
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
         }
+
     }
 }

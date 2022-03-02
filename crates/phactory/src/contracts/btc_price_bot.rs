@@ -246,7 +246,7 @@ impl contracts::NativeContract for BtcPriceBot {
 
     // Handle a direct Query and respond to it. It shouldn't modify the contract state.
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,
@@ -274,5 +274,9 @@ impl contracts::NativeContract for BtcPriceBot {
             }
             Request::QueryPrice => Ok(Response::Price(self.price.clone())),
         }
+    }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
     }
 }

@@ -21,12 +21,12 @@ pub struct ExecError {
     pub message: String,
 }
 
-#[derive(Debug, Default, Encode, Decode)]
+#[derive(Debug, Default, Encode, Decode, Clone)]
 struct HookSelectors {
     on_block_end: Option<u32>,
 }
 
-#[derive(Debug, Encode, Decode)]
+#[derive(Debug, Encode, Decode, Clone)]
 pub struct Contract {
     pub address: AccountId,
     hooks: HookSelectors,
@@ -136,7 +136,7 @@ impl Contract {
     /// # Return
     /// Returns the SCALE encoded method return value.
     pub fn bare_call(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
@@ -160,7 +160,7 @@ impl Contract {
     }
 
     fn unchecked_bare_call(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         input_data: Vec<u8>,
@@ -179,7 +179,7 @@ impl Contract {
     /// Call a contract method given it's selector
     #[allow(clippy::too_many_arguments)]
     pub fn call_with_selector<RV: Decode>(
-        &mut self,
+        &self,
         storage: &mut Storage,
         origin: AccountId,
         selector: [u8; 4],
@@ -205,7 +205,7 @@ impl Contract {
 
     /// Called by on each block end by the runtime
     pub fn on_block_end(
-        &mut self,
+        &self,
         storage: &mut Storage,
         block_number: BlockNumber,
         now: u64,

@@ -8,6 +8,8 @@ use serde::{Deserialize, Serialize};
 use sp_runtime::DispatchError;
 use sp_state_machine::{Backend as StorageBackend, Ext, OverlayedChanges, StorageTransactionCache};
 
+mod backend;
+
 pub type InMemoryBackend = sp_state_machine::InMemoryBackend<Hashing>;
 
 pub trait CommitTransaction: StorageBackend<Hashing> {
@@ -20,23 +22,36 @@ impl CommitTransaction for InMemoryBackend {
     }
 }
 
+pub trait Snapshot {
+    fn snapshot(&self) -> Self;
+}
+
 #[derive(Default)]
 pub struct Storage<Backend> {
     backend: Backend,
-    overlay: OverlayedChanges,
+}
+
+impl<Backend> Storage<Backend> {
+    pub fn new(backend: Backend) -> Self {
+        Self { backend }
+    }
+}
+
+impl<Backend> Storage<Backend>
+where
+    Backend: Snapshot,
+{
+    pub fn snapshot(&self) -> Self {
+        Self {
+            backend: self.backend.snapshot(),
+        }
+    }
 }
 
 impl<Backend> Storage<Backend>
 where
     Backend: StorageBackend<Hashing> + CommitTransaction,
 {
-    pub fn new(backend: Backend) -> Self {
-        Self {
-            backend,
-            overlay: Default::default(),
-        }
-    }
-
     pub fn execute_with<R>(
         &mut self,
         rollback: bool,
@@ -44,9 +59,10 @@ where
     ) -> (R, ExecSideEffects) {
         let backend = self.backend.as_trie_backend().expect("No trie backend?");
 
-        self.overlay.start_transaction();
+        let mut overlay = OverlayedChanges::default();
+        overlay.start_transaction();
         let mut cache = StorageTransactionCache::default();
-        let mut ext = Ext::new(&mut self.overlay, &mut cache, backend, None);
+        let mut ext = Ext::new(&mut overlay, &mut cache, backend, None);
         let r = sp_externalities::set_and_run_with_externalities(&mut ext, move || {
             crate::runtime::System::reset_events();
             let mode = if rollback {
@@ -57,21 +73,20 @@ where
             let r = crate::runtime::using_mode(mode, f);
             (r, crate::runtime::get_side_effects())
         });
-        if rollback {
-            self.overlay.rollback_transaction()
-        } else {
-            self.overlay.commit_transaction()
+        overlay
+            .commit_transaction()
+            .expect("BUG: mis-paired transaction");
+        if !rollback {
+            self.commit_changes(overlay);
         }
-        .expect("BUG: mis-paired transaction");
         r
     }
 
-    pub fn changes_transaction(&self) -> (Hash, Backend::Transaction) {
-        let delta = self
-            .overlay
+    pub fn changes_transaction(&self, changes: OverlayedChanges) -> (Hash, Backend::Transaction) {
+        let delta = changes
             .changes()
             .map(|(k, v)| (&k[..], v.value().map(|v| &v[..])));
-        let child_delta = self.overlay.children().map(|(changes, info)| {
+        let child_delta = changes.children().map(|(changes, info)| {
             (
                 info,
                 changes.map(|(k, v)| (&k[..], v.value().map(|v| &v[..]))),
@@ -82,18 +97,9 @@ where
             .full_storage_root(delta, child_delta, sp_core::storage::StateVersion::V0)
     }
 
-    pub fn commit_transaction(&mut self, root: Hash, transaction: Backend::Transaction) {
+    pub fn commit_changes(&mut self, changes: OverlayedChanges) {
+        let (root, transaction) = self.changes_transaction(changes);
         self.backend.commit_transaction(root, transaction)
-    }
-
-    pub fn clear_changes(&mut self) {
-        self.overlay = Default::default();
-    }
-
-    pub fn commit_changes(&mut self) {
-        let (root, transaction) = self.changes_transaction();
-        self.commit_transaction(root, transaction);
-        self.clear_changes();
     }
 
     pub fn set_cluster_id(&mut self, cluster_id: &[u8]) {

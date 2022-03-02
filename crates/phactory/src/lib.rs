@@ -55,6 +55,7 @@ pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
+pub use prpc_service::dispatch_prpc_request;
 
 pub mod benchmark;
 
@@ -395,13 +396,6 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let loader: PhactoryLoader<_> =
             serde_cbor::de::from_reader(dec_reader).context("Failed to decode state")?;
         Ok(loader.0)
-    }
-
-    pub(crate) fn commit_storage_changes(&mut self) -> anyhow::Result<()> {
-        if let Some(system) = self.system.as_mut() {
-            system.commit_changes()?;
-        }
-        Ok(())
     }
 }
 

@@ -5,7 +5,7 @@ extern crate alloc;
 #[cfg(feature = "serde")]
 pub mod ser;
 #[cfg(feature = "serde")]
-use serde::{Serialize, Serializer, Deserializer, Deserialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use core::iter::FromIterator;
 
@@ -99,6 +99,29 @@ where
     }
     let backend = TrieBackend::new(mdb, root);
     Ok(backend)
+}
+
+pub fn clone_trie_backend<H: Hasher>(
+    trie: &TrieBackend<MemoryDB<H>, H>,
+) -> TrieBackend<MemoryDB<H>, H>
+where
+    H::Out: Codec,
+{
+    let root = trie.root();
+    let kvs: Vec<_> = trie
+        .backend_storage()
+        .clone()
+        .drain()
+        .into_iter()
+        .map(|it| it.1)
+        .collect();
+    let mut mdb = MemoryDB::default();
+    for value in kvs {
+        for _ in 0..value.1 {
+            mdb.insert((&[], None), &value.0);
+        }
+    }
+    TrieBackend::new(mdb, *root)
 }
 
 impl<H: Hasher> TrieStorage<H>

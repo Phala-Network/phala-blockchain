@@ -296,7 +296,7 @@ impl contracts::NativeContract for DataPlaza {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         _origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,
