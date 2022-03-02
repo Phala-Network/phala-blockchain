@@ -31,11 +31,27 @@ pub fn generate<T: Service>(service: &T, builder: &Builder) -> TokenStream {
     let mod_attributes = builder.server_attributes.for_mod(package);
     let struct_attributes = builder.server_attributes.for_struct(&path);
 
+    let use_box_or_not = if builder.async_server {
+        quote! {
+            use alloc::boxed::Box;
+        }
+    } else {
+        quote! {}
+    };
+    let async_or_not = if builder.async_server {
+        quote! {
+            async
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         /// Generated server implementations.
         #(#mod_attributes)*
         pub mod #server_mod {
             use alloc::vec::Vec;
+            #use_box_or_not
 
             #supported_methods
 
@@ -55,7 +71,7 @@ pub fn generate<T: Service>(service: &T, builder: &Builder) -> TokenStream {
                     }
                 }
 
-                pub fn dispatch_request(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
+                pub #async_or_not fn dispatch_request(&mut self, path: &str, data: impl AsRef<[u8]>) -> Result<Vec<u8>, prpc::server::Error> {
                     match path {
                         #methods
                         _ => Err(prpc::server::Error::NotFound),
@@ -73,8 +89,17 @@ fn generate_trait<T: Service>(service: &T, server_trait: Ident, builder: &Builde
         service.name()
     ));
 
+    let async_trait_or_not = if builder.async_server {
+        quote! {
+            #[::async_trait::async_trait]
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         #trait_doc
+        #async_trait_or_not
         pub trait #server_trait {
             #methods
         }
@@ -91,12 +116,19 @@ fn generate_trait_methods<T: Service>(service: &T, builder: &Builder) -> TokenSt
             method.request_response_name(&builder.proto_path, builder.compile_well_known_types);
 
         let method_doc = generate_doc_comments(method.comment());
+        let async_or_not = if builder.async_server {
+            quote! {
+                async
+            }
+        } else {
+            quote! {}
+        };
 
         let method = match (method.client_streaming(), method.server_streaming()) {
             (false, false) => {
                 quote! {
                     #method_doc
-                    fn #name(&mut self, request: #req_message)
+                    #async_or_not fn #name(&mut self, request: #req_message)
                         -> Result<#res_message, prpc::server::Error>;
                 }
             }
@@ -178,9 +210,17 @@ fn generate_unary<T: Method>(
     let (request, _response) =
         method.request_response_name(&builder.proto_path, builder.compile_well_known_types);
 
+    let await_or_not = if builder.async_server {
+        quote! {
+            .await
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
         let input: #request = prpc::Message::decode(data.as_ref())?;
-        let response = self.inner.#method_ident(input)?;
+        let response = self.inner.#method_ident(input) #await_or_not ?;
         Ok(prpc::codec::encode_message_to_vec(&response))
     }
 }

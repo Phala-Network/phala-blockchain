@@ -5,7 +5,7 @@ use alloc::vec::Vec;
 use alloc::boxed::Box;
 
 use crate::prpc::{
-    client::{Error as ClientError, RequestClient},
+    client::{Error as ClientError, AsyncRequestClient},
     phactory_api_client::PhactoryApiClient,
     server::ProtoError as ServerError,
     Message,
@@ -28,7 +28,7 @@ impl RpcRequest {
 }
 
 #[async_trait::async_trait]
-impl RequestClient for RpcRequest {
+impl AsyncRequestClient for RpcRequest {
     async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, ClientError> {
         fn from_display(err: impl core::fmt::Display) -> ClientError {
             ClientError::RpcError(err.to_string())

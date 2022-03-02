@@ -13,6 +13,8 @@ pub fn configure() -> Builder {
     Builder {
         build_client: true,
         build_server: true,
+        async_client: true,
+        async_server: false,
         out_dir: None,
         extern_path: Vec::new(),
         field_attributes: Vec::new(),
@@ -196,6 +198,8 @@ pub struct Builder {
     pub(crate) emit_package: bool,
     pub(crate) compile_well_known_types: bool,
     pub(crate) protoc_args: Vec<OsString>,
+    pub(crate) async_client: bool,
+    pub(crate) async_server: bool,
 
     mod_prefix: String,
     type_prefix: String,
@@ -351,6 +355,18 @@ impl Builder {
     /// the `prost-types` crate for implementing reflection capabilities, among other things.
     pub fn file_descriptor_set_path(mut self, path: impl Into<PathBuf>) -> Self {
         self.file_descriptor_set_path = Some(path.into());
+        self
+    }
+
+    /// Enable or disable async server api
+    pub fn async_server(mut self, enable: bool) -> Self {
+        self.async_server = enable;
+        self
+    }
+
+    /// Enable or disable async client api
+    pub fn async_client(mut self, enable: bool) -> Self {
+        self.async_client = enable;
         self
     }
 

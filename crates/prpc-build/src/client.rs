@@ -29,6 +29,16 @@ pub fn generate<T: Service>(service: &T, builder: &Builder) -> TokenStream {
     let mod_attributes = builder.client_attributes.for_mod(package);
     let struct_attributes = builder.client_attributes.for_struct(&path);
 
+    let http_client: TokenStream = if builder.async_client {
+        quote! {
+            prpc::client::AsyncRequestClient
+        }
+    } else {
+        quote! {
+            prpc::client::RequestClient
+        }
+    };
+
     quote! {
         /// Generated client implementations.
         #(#mod_attributes)*
@@ -42,7 +52,7 @@ pub fn generate<T: Service>(service: &T, builder: &Builder) -> TokenStream {
 
             impl<Client> #service_ident<Client>
             where
-                Client: prpc::client::RequestClient
+                Client: #http_client
             {
                 pub fn new(client: Client) -> Self {
                     Self { client }
@@ -84,12 +94,28 @@ fn generate_unary<T: Method>(method: &T, path: String, builder: &Builder) -> Tok
     let (request, response) =
         method.request_response_name(&builder.proto_path, builder.compile_well_known_types);
 
+    let async_or_not = if builder.async_client {
+        quote! {
+            async
+        }
+    } else {
+        quote! {}
+    };
+
+    let await_or_not = if builder.async_client {
+        quote! {
+            .await
+        }
+    } else {
+        quote! {}
+    };
+
     quote! {
-        pub async fn #ident(
+        pub #async_or_not fn #ident(
             &self,
             request: #request,
         ) -> Result<#response, prpc::client::Error> {
-            let response = self.client.request(#path, prpc::codec::encode_message_to_vec(&request)).await?;
+            let response = self.client.request(#path, prpc::codec::encode_message_to_vec(&request)) #await_or_not ?;
             Ok(prpc::Message::decode(&response[..])?)
         }
     }

@@ -91,10 +91,16 @@ pub mod client {
     }
 
     /// Trait for RPC client to implement the underlying data transport.
-    /// Required by the generated RPC client.
+    /// Required by the generated async RPC client.
     #[async_trait]
-    pub trait RequestClient {
+    pub trait AsyncRequestClient {
         async fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, Error>;
+    }
+
+    /// Trait for RPC client to implement the underlying data transport.
+    /// Required by the generated RPC client.
+    pub trait RequestClient {
+        fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, Error>;
     }
 }
 
