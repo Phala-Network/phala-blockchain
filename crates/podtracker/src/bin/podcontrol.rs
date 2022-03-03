@@ -61,7 +61,7 @@ fn main() -> anyhow::Result<()> {
     });
     match args.subcommand {
         Command::Status => {
-            let info = client.get_info(())?;
+            let info = client.status(())?;
             println!("{:#?}", info);
         }
         Command::List => {

@@ -4,11 +4,9 @@ use rocket::{custom, data::ToByteUnit, http::Status, post, response::status, rou
 use tokio::sync::Mutex;
 
 use log::error;
+use podtracker::prpc as pb;
 use podtracker::{
-    prpc::{
-        podtracker_api_server::{PodtrackerApi, PodtrackerApiServer},
-        TrackerInfo,
-    },
+    prpc::podtracker_api_server::{PodtrackerApi, PodtrackerApiServer},
     Tracker,
 };
 
@@ -99,13 +97,54 @@ struct RpcHandler<'a> {
 
 #[::async_trait::async_trait]
 impl PodtrackerApi for RpcHandler<'_> {
-    async fn get_info(&mut self, _request: ()) -> Result<TrackerInfo, prpc::server::Error> {
+    async fn status(&mut self, _request: ()) -> Result<pb::TrackerInfo, prpc::server::Error> {
         let info = self.tracker.lock().await.info();
-        Ok(TrackerInfo {
+        Ok(pb::TrackerInfo {
             pods_running: info.pods_running as _,
             pods_allocated: info.pods_allocated as _,
             tcp_ports_available: info.tcp_ports_available as _,
         })
+    }
+
+    async fn list_pods(
+        &mut self,
+        _request: (),
+    ) -> Result<pb::ListPodsResponse, prpc::server::Error> {
+        let pods = self.tracker
+            .lock()
+            .await
+            .iter_pods().map(pod_info_to_pb).collect();
+        Ok(pb::ListPodsResponse {
+            pods,
+        })
+    }
+
+    async fn get_pod_info(
+        &mut self,
+        request: pb::GetPodInfoRequest,
+    ) -> Result<pb::PodInfo, prpc::server::Error> {
+        self.tracker
+            .lock()
+            .await
+            .pod_info(&request.id)
+            .map(pod_info_to_pb)
+            .ok_or(prpc::server::Error::NotFound)
+    }
+}
+
+fn pod_info_to_pb(info: &podtracker::Pod) -> pb::PodInfo {
+    pb::PodInfo {
+        id: info.id.clone(),
+        image: info.image.clone(),
+        container_id: info.container_id.clone(),
+        port_map: info
+            .tcp_portmap
+            .iter()
+            .map(|&(e, i)| pb::PortMap {
+                exposed: e as _,
+                internal: i as _,
+            })
+            .collect(),
     }
 }
 
@@ -126,4 +165,8 @@ async fn main() {
         .launch()
         .await
         .expect("Unable to launch rocket");
+}
+
+fn from_debug(e: impl std::fmt::Debug) -> prpc::server::Error {
+    prpc::server::Error::AppError(format!("{:?}", e))
 }

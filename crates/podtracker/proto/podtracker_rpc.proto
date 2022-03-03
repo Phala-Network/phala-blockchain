@@ -8,7 +8,13 @@ package podtracker_rpc;
 // The podtracket control RPC definition.
 service PodtrackerAPI {
   // Get basic information about the podtracker state.
-  rpc GetInfo (google.protobuf.Empty) returns (TrackerInfo) {}
+  rpc Status (google.protobuf.Empty) returns (TrackerInfo) {}
+
+  // Inspect the given pod's status.
+  rpc GetPodInfo (GetPodInfoRequest) returns (PodInfo) {}
+
+  // Inspect the given pod's status.
+  rpc ListPods (google.protobuf.Empty) returns (ListPodsResponse) {}
 }
 
 // Basic information about the podtracker state.
@@ -19,4 +25,30 @@ message TrackerInfo {
   uint32 pods_allocated = 2;
   // How many TCP ports are currently available.
   uint32 tcp_ports_available = 3;
+}
+
+message GetPodInfoRequest {
+  string id = 1;
+}
+
+message ListPodsResponse {
+  repeated PodInfo pods = 1;
+}
+
+// Information about a pod.
+message PodInfo {
+  // The id given by the creator.
+  string id = 1;
+  // The image used to create the pod.
+  string image = 2;
+  // Container id.
+  string container_id = 3;
+  // Portmap for the pod.
+  repeated PortMap port_map = 4;
+}
+
+// A pair of port map
+message PortMap {
+  uint32 exposed = 1;
+  uint32 internal = 2;
 }

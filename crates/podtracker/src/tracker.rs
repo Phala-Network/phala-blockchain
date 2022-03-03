@@ -8,13 +8,11 @@ use docker_api::{
 };
 use serde::Serialize;
 
-type Uuid = String;
-
 #[derive(Clone, Serialize)]
 pub struct Pod {
     pub image: String,
     pub container_id: String,
-    pub uuid: String,
+    pub id: String,
     pub tcp_portmap: Vec<(u16, u16)>,
 }
 
@@ -26,7 +24,7 @@ pub struct TrackerInfo {
 
 pub struct Tracker {
     docker: Docker,
-    pods: HashMap<Uuid, Pod>,
+    pods: HashMap<String, Pod>,
     available_tcp_ports: Vec<u16>,
     alloc_counter: usize,
 }
@@ -41,7 +39,7 @@ impl Tracker {
         }
     }
 
-    pub async fn create_pod(&mut self, image: &str, uuid: &str) -> Result<Pod> {
+    pub async fn create_pod(&mut self, image: &str, id: &str) -> Result<Pod> {
         // TODO.kevin.must: get the port from somthing like manifest.json
         let required_ports = vec![80u16];
         let exposed_ports = self
@@ -55,26 +53,26 @@ impl Tracker {
         let contrainer = self.docker.containers().create(&opts).await?;
         let pod = Pod {
             image: image.to_owned(),
-            uuid: uuid.to_owned(),
+            id: id.to_owned(),
             container_id: contrainer.id().to_owned(),
             tcp_portmap: exposed_ports
                 .into_iter()
                 .zip(required_ports.into_iter())
                 .collect(),
         };
-        self.pods.insert(uuid.to_owned(), pod.clone());
+        self.pods.insert(id.to_owned(), pod.clone());
         Ok(pod)
     }
 
-    pub async fn stop_pod(&mut self, uuid: &str) -> Result<()> {
+    pub async fn stop_pod(&mut self, id: &str) -> Result<()> {
         let pod = self
             .pods
-            .get(uuid)
-            .ok_or(anyhow::anyhow!("Pod {} not found", uuid))?;
+            .get(id)
+            .ok_or(anyhow::anyhow!("Pod {} not found", id))?;
         let contrainer = self.docker.containers().get(pod.container_id.as_str());
         let wait = Duration::from_secs(5);
         contrainer.stop(Some(wait)).await?;
-        if let Some(pod) = self.pods.remove(uuid) {
+        if let Some(pod) = self.pods.remove(id) {
             self.free_tcp_ports(pod.tcp_portmap.iter().map(|(s, _)| *s));
         }
         Ok(())
@@ -86,6 +84,14 @@ impl Tracker {
             pods_running: self.pods.len(),
             pods_allocated: self.alloc_counter,
         }
+    }
+
+    pub fn pod_info<'a>(&'a self, id: &str) -> Option<&'a Pod> {
+        self.pods.get(id)
+    }
+
+    pub fn iter_pods(&self) -> impl Iterator<Item=&Pod> {
+        self.pods.values()
     }
 }
 
