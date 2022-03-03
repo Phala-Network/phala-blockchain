@@ -15,7 +15,7 @@ pub struct Pod {
     pub image: String,
     pub container_id: String,
     pub uuid: String,
-    pub tcp_ports: Vec<u16>,
+    pub tcp_portmap: Vec<(u16, u16)>,
 }
 
 pub struct TrackerInfo {
@@ -43,13 +43,13 @@ impl Tracker {
 
     pub async fn create_pod(&mut self, image: &str, uuid: &str) -> Result<Pod> {
         // TODO.kevin.must: get the port from somthing like manifest.json
-        let required_ports = vec![80];
+        let required_ports = vec![80u16];
         let exposed_ports = self
             .allocate_tcp_ports(required_ports.len())
             .ok_or(anyhow::anyhow!("no available ports"))?;
         let mut builder = ContainerCreateOpts::builder(image).auto_remove(true);
         for (po, pi) in exposed_ports.iter().zip(required_ports.iter()) {
-            builder = builder.expose(PublishPort::tcp(*po as _), *pi);
+            builder = builder.expose(PublishPort::tcp(*po as _), *pi as _);
         }
         let opts = builder.build();
         let contrainer = self.docker.containers().create(&opts).await?;
@@ -57,7 +57,10 @@ impl Tracker {
             image: image.to_owned(),
             uuid: uuid.to_owned(),
             container_id: contrainer.id().to_owned(),
-            tcp_ports: exposed_ports,
+            tcp_portmap: exposed_ports
+                .into_iter()
+                .zip(required_ports.into_iter())
+                .collect(),
         };
         self.pods.insert(uuid.to_owned(), pod.clone());
         Ok(pod)
@@ -72,7 +75,7 @@ impl Tracker {
         let wait = Duration::from_secs(5);
         contrainer.stop(Some(wait)).await?;
         if let Some(pod) = self.pods.remove(uuid) {
-            self.free_tcp_ports(&pod.tcp_ports);
+            self.free_tcp_ports(pod.tcp_portmap.iter().map(|(s, _)| *s));
         }
         Ok(())
     }
@@ -94,7 +97,7 @@ impl Tracker {
         Some(self.available_tcp_ports.drain(0..n).collect())
     }
 
-    fn free_tcp_ports(&mut self, ports: &[u16]) {
+    fn free_tcp_ports(&mut self, ports: impl IntoIterator<Item = u16>) {
         self.available_tcp_ports.extend(ports);
     }
 }
