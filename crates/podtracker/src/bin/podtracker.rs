@@ -1,10 +1,16 @@
-use std::sync::Arc;
-
 use clap::Parser;
-use rocket::{build, get, post, routes, Data, State};
+use rocket::{custom, data::ToByteUnit, http::Status, post, response::status, routes, Data, State};
+
 use tokio::sync::Mutex;
 
-use podtracker::Tracker;
+use log::error;
+use podtracker::{
+    prpc::{
+        podtracker_api_server::{PodtrackerApi, PodtrackerApiServer},
+        TrackerInfo,
+    },
+    Tracker,
+};
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -14,9 +20,9 @@ struct Args {
     #[clap(long, default_value = "unix:///var/run/docker.sock")]
     docker_host: String,
 
-    /// The address to listen on
-    #[clap(long, default_value = "127.0.0.1:8100")]
-    listen: String,
+    /// The port to serve the podtracker RPC server
+    #[clap(long, default_value_t = 8100)]
+    rpc_port: u16,
 
     /// The TCP port range to be allocated to pods
     #[clap(long, default_value = "8800:8899", parse(try_from_str=parse_port_range))]
@@ -35,23 +41,72 @@ fn parse_port_range(s: &str) -> anyhow::Result<(u16, u16)> {
     }
     let max_ports = 1000;
     if end - start >= max_ports {
-        return Err(anyhow::anyhow!("Range too large. At most {} ports", max_ports));
+        return Err(anyhow::anyhow!(
+            "Range too large. At most {} ports",
+            max_ports
+        ));
     }
     Ok((start, end))
 }
 
 struct App {
-    tracker: Arc<Mutex<Tracker>>,
+    tracker: Mutex<Tracker>,
 }
 
-#[get("/pods")]
-async fn get_pods(state: &State<App>) {
-    let tracker = state.tracker.lock().await;
+#[post("/<method>", data = "<data>")]
+async fn prpc_proxy(
+    state: &State<App>,
+    method: String,
+    data: Data<'_>,
+) -> Result<Vec<u8>, status::Custom<String>> {
+    let body = data
+        .open(2_u32.mebibytes())
+        .into_bytes()
+        .await
+        .or(Err(status::Custom(
+            Status::BadRequest,
+            "Failed to read request body".into(),
+        )))?;
+
+    if !body.is_complete() {
+        return Err(status::Custom(
+            Status::BadRequest,
+            "Request body too large".into(),
+        ));
+    }
+
+    let body = body.into_inner();
+
+    let mut server = PodtrackerApiServer::new(RpcHandler {
+        tracker: &state.tracker,
+    });
+
+    match server.dispatch_request(&method, &body).await {
+        Ok(response) => Ok(response),
+        Err(err) => {
+            error!("{}", err);
+            Err(status::Custom(
+                Status::InternalServerError,
+                format!("{}", err),
+            ))
+        }
+    }
 }
 
-#[post("/create_pod")]
-async fn create_pod(state: &State<App>) {
-    let tracker = state.tracker.lock().await;
+struct RpcHandler<'a> {
+    tracker: &'a Mutex<Tracker>,
+}
+
+#[::async_trait::async_trait]
+impl PodtrackerApi for RpcHandler<'_> {
+    async fn get_info(&mut self, _request: ()) -> Result<TrackerInfo, prpc::server::Error> {
+        let info = self.tracker.lock().await.info();
+        Ok(TrackerInfo {
+            pods_running: info.pods_running as _,
+            pods_allocated: info.pods_allocated as _,
+            tcp_ports_available: info.tcp_ports_available as _,
+        })
+    }
 }
 
 #[rocket::main]
@@ -61,11 +116,13 @@ async fn main() {
         docker_api::Docker::new(args.docker_host).expect("Unable to connect to docker service");
     let tracker = Tracker::new(docker, args.tcp_port_range);
     let app = App {
-        tracker: Arc::new(Mutex::new(tracker)),
+        tracker: Mutex::new(tracker),
     };
-    build()
+    let config = rocket::Config::figment().merge(("port", args.rpc_port));
+
+    custom(config)
         .manage(app)
-        .mount("/", routes![get_pods])
+        .mount("/prpc", routes![prpc_proxy])
         .launch()
         .await
         .expect("Unable to launch rocket");

@@ -1,5 +1,7 @@
-
 use clap::{Parser, Subcommand};
+
+use podtracker::prpc::podtracker_api_client::PodtrackerApiClient;
+use prpc::client::RequestClient;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -15,6 +17,8 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
+    /// Show the podtracker status
+    Status,
     /// List all pods status
     List,
     /// Create a new pod
@@ -27,17 +31,39 @@ enum Command {
         id: String,
     },
     /// Stop and delete an existing pod
-    Stop {
-        id: String,
-    },
+    Stop { id: String },
 }
 
+struct HttpClient {
+    base_url: String,
+}
 
+fn from_debug(e: impl std::fmt::Debug) -> prpc::client::Error {
+    prpc::client::Error::RpcError(format!("{:?}", e))
+}
 
-#[tokio::main]
-async fn main() {
+impl RequestClient for HttpClient {
+    fn request(&self, path: &str, body: Vec<u8>) -> Result<Vec<u8>, prpc::client::Error> {
+        let url = format!("{}/{}", self.base_url, path);
+        let client = reqwest::blocking::Client::new();
+        let response = client.post(&url).body(body).send().map_err(from_debug)?;
+        response
+            .bytes()
+            .map(|res| res.as_ref().to_vec())
+            .map_err(from_debug)
+    }
+}
+
+fn main() -> anyhow::Result<()> {
     let args = Args::parse();
+    let client = PodtrackerApiClient::new(HttpClient {
+        base_url: format!("http://127.0.0.1:{}/prpc", args.port),
+    });
     match args.subcommand {
+        Command::Status => {
+            let info = client.get_info(())?;
+            println!("{:#?}", info);
+        }
         Command::List => {
             println!("List");
         }
@@ -48,4 +74,5 @@ async fn main() {
             println!("Stop {}", id);
         }
     }
+    Ok(())
 }

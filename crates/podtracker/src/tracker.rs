@@ -18,10 +18,17 @@ pub struct Pod {
     pub tcp_ports: Vec<u16>,
 }
 
+pub struct TrackerInfo {
+    pub tcp_ports_available: usize,
+    pub pods_running: usize,
+    pub pods_allocated: usize,
+}
+
 pub struct Tracker {
     docker: Docker,
     pods: HashMap<Uuid, Pod>,
     available_tcp_ports: Vec<u16>,
+    alloc_counter: usize,
 }
 
 impl Tracker {
@@ -29,7 +36,8 @@ impl Tracker {
         Tracker {
             docker: docker,
             pods: Default::default(),
-            available_tcp_ports: (port_range_from..port_range_to).collect(),
+            available_tcp_ports: (port_range_from..=port_range_to).collect(),
+            alloc_counter: 0,
         }
     }
 
@@ -67,6 +75,14 @@ impl Tracker {
             self.free_tcp_ports(&pod.tcp_ports);
         }
         Ok(())
+    }
+
+    pub fn info(&self) -> TrackerInfo {
+        TrackerInfo {
+            tcp_ports_available: self.available_tcp_ports.len(),
+            pods_running: self.pods.len(),
+            pods_allocated: self.alloc_counter,
+        }
     }
 }
 

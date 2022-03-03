@@ -1,0 +1,22 @@
+
+syntax = "proto3";
+
+import "google/protobuf/empty.proto";
+
+package podtracker_rpc;
+
+// The podtracket control RPC definition.
+service PodtrackerAPI {
+  // Get basic information about the podtracker state.
+  rpc GetInfo (google.protobuf.Empty) returns (TrackerInfo) {}
+}
+
+// Basic information about the podtracker state.
+message TrackerInfo {
+  // Current number of pods.
+  uint32 pods_running = 1;
+  // Total allocated historically.
+  uint32 pods_allocated = 2;
+  // How many TCP ports are currently available.
+  uint32 tcp_ports_available = 3;
+}
