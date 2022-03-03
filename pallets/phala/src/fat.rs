@@ -139,7 +139,7 @@ pub mod pallet {
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
-			// for now, we only allow root account to create cluster
+			// For now, we only allow root account to create cluster
 			ensure_root(origin.clone())?;
 			let origin: T::AccountId = ensure_signed(origin)?;
 
