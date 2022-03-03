@@ -53,28 +53,23 @@ pub mod messaging {
         },
     }
 
-    bind_topic!(ContractEvent<CodeHash, AccountId>, b"phala/contract/event");
+    bind_topic!(ContractOperation<CodeHash, AccountId>, b"phala/contract/op");
     #[derive(Encode, Decode, Debug)]
-    pub enum ContractEvent<CodeHash, AccountId> {
-        InstantiateCode {
-            contract_info: ContractInfo<CodeHash, AccountId>,
-        },
-    }
-
-    impl<CodeHash, AccountId> ContractEvent<CodeHash, AccountId> {
-        pub fn instantiate_code(contract_info: ContractInfo<CodeHash, AccountId>) -> Self {
-            ContractEvent::InstantiateCode { contract_info }
-        }
-    }
-
-    bind_topic!(ContractOperation<AccountId>, b"phala/contract/op");
-    #[derive(Encode, Decode, Debug)]
-    pub enum ContractOperation<AccountId> {
+    pub enum ContractOperation<CodeHash, AccountId> {
         UploadCodeToCluster {
             origin: AccountId,
             code: Vec<u8>,
             cluster_id: ContractClusterId,
         },
+        InstantiateCode {
+            contract_info: ContractInfo<CodeHash, AccountId>,
+        },
+    }
+
+    impl<CodeHash, AccountId> ContractOperation<CodeHash, AccountId> {
+        pub fn instantiate_code(contract_info: ContractInfo<CodeHash, AccountId>) -> Self {
+            ContractOperation::InstantiateCode { contract_info }
+        }
     }
 }
 
@@ -89,7 +84,6 @@ pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
     pub contracts: Vec<ContractId>,
-    pub description: String,
 }
 
 /// On-chain contract registration info

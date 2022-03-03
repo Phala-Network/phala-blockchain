@@ -7,7 +7,6 @@ pub mod pallet {
 	use frame_support::{dispatch::DispatchResult, pallet_prelude::*, traits::StorageVersion};
 	use frame_system::pallet_prelude::*;
 	use sp_core::H256;
-	use sp_runtime::traits::Hash;
 	use sp_std::prelude::*;
 
 	use crate::{mq::MessageOriginInfo, registry};
@@ -15,11 +14,13 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::{ClusterEvent, ContractEvent, ContractOperation},
+		contract::messaging::{ClusterEvent, ContractOperation},
 		contract::{
 			ClusterInfo, ClusterPermission, CodeIndex, ContractClusterId, ContractId, ContractInfo,
 		},
-		messaging::{bind_topic, DecodedMessage, MessageOrigin, WorkerContractReport},
+		messaging::{
+			bind_topic, DecodedMessage, MessageOrigin, WorkerClusterReport, WorkerContractReport,
+		},
 		EcdhPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
 
@@ -71,6 +72,15 @@ pub mod pallet {
 			cluster: ContractClusterId,
 			ecdh_pubkey: EcdhPublicKey,
 		},
+		ClusterDeployed {
+			cluster: ContractClusterId,
+			ecdh_pubkey: EcdhPublicKey,
+			worker: WorkerPublicKey,
+		},
+		ClusterDeploymentFailed {
+			cluster: ContractClusterId,
+			worker: WorkerPublicKey,
+		},
 		CodeUploaded {
 			cluster: ContractClusterId,
 			uploader: H256,
@@ -111,9 +121,9 @@ pub mod pallet {
 		deployer: &T::AccountId,
 		cluster: &ClusterInfo<T::AccountId>,
 	) -> bool {
-		match cluster.permission {
+		match &cluster.permission {
 			ClusterPermission::Public => true,
-			ClusterPermission::OnlyOwner(owner) => deployer == &owner,
+			ClusterPermission::OnlyOwner(owner) => deployer == owner,
 		}
 	}
 
@@ -127,7 +137,6 @@ pub mod pallet {
 		pub fn add_cluster(
 			origin: OriginFor<T>,
 			permission: ClusterPermission<T::AccountId>,
-			description: String,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
 			// for now, we only allow root account to create cluster
@@ -149,7 +158,6 @@ pub mod pallet {
 				owner: origin,
 				permission,
 				contracts: Vec::new(),
-				description,
 			};
 
 			let counter = ClusterCounter::<T>::mutate(|counter| {
@@ -177,11 +185,13 @@ pub mod pallet {
 				check_cluster_permission::<T>(&origin, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
 			);
-			Self::push_message(ContractOperation::UploadCodeToCluster {
-				origin,
-				code,
-				cluster_id,
-			});
+			Self::push_message(
+				ContractOperation::<CodeHash<T>, T::AccountId>::UploadCodeToCluster {
+					origin,
+					code,
+					cluster_id,
+				},
+			);
 			Ok(())
 		}
 
@@ -194,15 +204,12 @@ pub mod pallet {
 			cluster_id: ContractClusterId,
 		) -> DispatchResult {
 			let deployer = ensure_signed(origin)?;
+			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			ensure!(
+				check_cluster_permission::<T>(&deployer, &cluster_info),
+				Error::<T>::ClusterPermissionDenied
+			);
 
-			match code_index {
-				CodeIndex::NativeCode(_) => {}
-				CodeIndex::WasmCode(code_hash) => {
-					ensure!(Code::<T>::contains_key(code_hash), Error::<T>::CodeNotFound);
-				}
-			}
-
-			// We send code index instead of raw code here to reduce message size
 			let contract_info = ContractInfo {
 				deployer,
 				code_index,
@@ -217,7 +224,7 @@ pub mod pallet {
 			);
 			Contracts::<T>::insert(&contract_id, &contract_info);
 
-			Self::push_message(ContractEvent::instantiate_code(contract_info.clone()));
+			Self::push_message(ContractOperation::instantiate_code(contract_info.clone()));
 			Self::deposit_event(Event::Instantiating {
 				contract: contract_id,
 				cluster: contract_info.cluster_id,
@@ -254,17 +261,26 @@ pub mod pallet {
 			Ok(())
 		}
 
-		pub fn on_contract_message_received(
-			message: DecodedMessage<ContractRegistryEvent>,
+		pub fn on_worker_cluster_message_received(
+			message: DecodedMessage<WorkerClusterReport>,
 		) -> DispatchResult {
-			ensure!(
-				message.sender == MessageOrigin::Gatekeeper,
-				Error::<T>::InvalidSender
-			);
+			let worker_pubkey = match message.sender {
+				MessageOrigin::Worker(worker_pubkey) => worker_pubkey,
+				_ => return Err(Error::<T>::InvalidSender.into()),
+			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { contract, pubkey } => {
-					registry::ContractKeys::<T>::insert(contract, pubkey);
-					Self::deposit_event(Event::PubkeyAvailable { contract, pubkey });
+				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
+					Self::deposit_event(Event::ClusterDeployed {
+						cluster: id,
+						ecdh_pubkey: pubkey,
+						worker: worker_pubkey,
+					});
+				}
+				WorkerClusterReport::ClusterDeploymentFailed { id } => {
+					Self::deposit_event(Event::ClusterDeploymentFailed {
+						cluster: id,
+						worker: worker_pubkey,
+					});
 				}
 			}
 			Ok(())
