@@ -9,10 +9,16 @@ pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 #[test]
 fn test_ink_flip() {
     let mut storage = Contract::new_storage();
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+        )
+        .unwrap();
     let mut contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+        code_hash,
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
@@ -91,10 +97,16 @@ fn test_load_contract_file() {
 #[test]
 fn test_ink_cross_contract_instanciate() {
     let mut storage = Contract::new_storage();
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+        )
+        .unwrap();
     let _flip = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
+        code_hash,
         hex!("9bae9d5e"), // init_value
         true,
         vec![],
@@ -104,10 +116,16 @@ fn test_ink_cross_contract_instanciate() {
     )
     .unwrap();
 
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
+        )
+        .unwrap();
     let mut contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
+        code_hash,
         hex!("9bae9d5e"),
         (),
         vec![],
@@ -137,10 +155,16 @@ fn test_ink_cross_contract_instanciate() {
 #[test]
 fn test_mq_egress() {
     let mut storage = Contract::new_storage();
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
+        )
+        .unwrap();
     let (mut contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
+        code_hash,
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
@@ -182,10 +206,16 @@ fn test_mq_egress() {
 #[test]
 fn test_on_block_end() {
     let mut storage = Contract::new_storage();
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/hooks_test/hooks_test.wasm").to_vec(),
+        )
+        .unwrap();
     let (mut contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/hooks_test/hooks_test.wasm").to_vec(),
+        code_hash,
         hex!("ed4b9d1b"), // init_value
         (),
         vec![],
@@ -215,13 +245,18 @@ fn test_on_block_end() {
 #[test]
 fn test_signing() {
     let mut storage = Contract::new_storage();
-
     storage.set_key_seed([1u8; 64]);
+    let code_hash = storage
+        .upload_code(
+            ALICE.clone(),
+            include_bytes!("./fixtures/signing/signing.wasm").to_vec(),
+        )
+        .unwrap();
 
     let (mut contract, _) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
-        include_bytes!("./fixtures/signing/signing.wasm").to_vec(),
+        code_hash,
         hex!("ed4b9d1b"),
         (),
         vec![],

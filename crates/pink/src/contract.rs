@@ -2,13 +2,12 @@ use pallet_contracts_primitives::StorageDeposit;
 use phala_types::contract::contract_id_preimage;
 use scale::{Decode, Encode};
 use sp_core::hashing;
-use sp_core::Hasher as _;
 use sp_runtime::DispatchError;
 
 use crate::{
     runtime::{Contracts, ExecSideEffects, System, Timestamp},
     storage,
-    types::{AccountId, BlockNumber, Hashing, GAS_LIMIT},
+    types::{AccountId, BlockNumber, Hash, GAS_LIMIT},
 };
 
 type ContractExecResult = pallet_contracts_primitives::ContractExecResult<crate::types::Balance>;
@@ -49,13 +48,13 @@ impl Contract {
     /// # Parameters
     ///
     /// * `origin`: The owner of the created contract instance.
-    /// * `code`: The contract code to deploy in raw bytes.
+    /// * `code_hash`: The hash of contract code which has been uploaded.
     /// * `input_data`: The input data to pass to the contract constructor.
     /// * `salt`: Used for the address derivation.
     pub fn new(
         storage: &mut Storage,
         origin: AccountId,
-        code: Vec<u8>,
+        code_hash: Hash,
         input_data: Vec<u8>,
         cluster_id: Vec<u8>,
         salt: Vec<u8>,
@@ -69,8 +68,6 @@ impl Contract {
             });
         }
 
-        let code_hash = Hashing::hash(&code);
-
         let (address, effects) = storage.execute_with(false, move || -> Result<_, ExecError> {
             System::set_block_number(block_number);
             Timestamp::set_timestamp(now);
@@ -80,7 +77,7 @@ impl Contract {
                 0,
                 GAS_LIMIT,
                 None,
-                pallet_contracts_primitives::Code::Upload(code.into()),
+                pallet_contracts_primitives::Code::Existing(code_hash),
                 input_data,
                 salt.clone(),
                 true,
@@ -106,7 +103,7 @@ impl Contract {
     pub fn new_with_selector(
         storage: &mut Storage,
         origin: AccountId,
-        code: Vec<u8>,
+        code_hash: Hash,
         selector: [u8; 4],
         args: impl Encode,
         cluster_id: Vec<u8>,
@@ -120,7 +117,7 @@ impl Contract {
         Self::new(
             storage,
             origin,
-            code,
+            code_hash,
             input_data,
             cluster_id,
             salt,
