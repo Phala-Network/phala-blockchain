@@ -39,8 +39,11 @@ impl Tracker {
         }
     }
 
-    pub async fn create_pod(&mut self, image: &str, id: &str) -> Result<Pod> {
+    pub async fn create_pod<'a>(&'a mut self, image: &str, id: &str) -> Result<&'a Pod> {
         // TODO.kevin.must: get the port from somthing like manifest.json
+        if self.pods.contains_key(id) {
+            return Err(anyhow::anyhow!("Pod already exists"));
+        }
         let required_ports = vec![80u16];
         let exposed_ports = self
             .allocate_tcp_ports(required_ports.len())
@@ -60,8 +63,11 @@ impl Tracker {
                 .zip(required_ports.into_iter())
                 .collect(),
         };
-        self.pods.insert(id.to_owned(), pod.clone());
-        Ok(pod)
+        self.pods.insert(id.to_owned(), pod);
+        Ok(self
+            .pods
+            .get(id)
+            .expect("It must exists. We just inserted it"))
     }
 
     pub async fn stop_pod(&mut self, id: &str) -> Result<()> {
@@ -90,7 +96,7 @@ impl Tracker {
         self.pods.get(id)
     }
 
-    pub fn iter_pods(&self) -> impl Iterator<Item=&Pod> {
+    pub fn iter_pods(&self) -> impl Iterator<Item = &Pod> {
         self.pods.values()
     }
 }

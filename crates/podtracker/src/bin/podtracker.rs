@@ -110,18 +110,19 @@ impl PodtrackerApi for RpcHandler<'_> {
         &mut self,
         _request: (),
     ) -> Result<pb::ListPodsResponse, prpc::server::Error> {
-        let pods = self.tracker
+        let pods = self
+            .tracker
             .lock()
             .await
-            .iter_pods().map(pod_info_to_pb).collect();
-        Ok(pb::ListPodsResponse {
-            pods,
-        })
+            .iter_pods()
+            .map(pod_info_to_pb)
+            .collect();
+        Ok(pb::ListPodsResponse { pods })
     }
 
     async fn get_pod_info(
         &mut self,
-        request: pb::GetPodInfoRequest,
+        request: pb::PodId,
     ) -> Result<pb::PodInfo, prpc::server::Error> {
         self.tracker
             .lock()
@@ -129,6 +130,28 @@ impl PodtrackerApi for RpcHandler<'_> {
             .pod_info(&request.id)
             .map(pod_info_to_pb)
             .ok_or(prpc::server::Error::NotFound)
+    }
+
+    async fn new_pod(
+        &mut self,
+        request: pb::NewPodRequest,
+    ) -> Result<pb::PodInfo, prpc::server::Error> {
+        self.tracker
+            .lock()
+            .await
+            .create_pod(&request.image, &request.id)
+            .await
+            .map(pod_info_to_pb)
+            .map_err(from_debug)
+    }
+
+    async fn stop_pod(&mut self, request: pb::PodId) -> Result<(), prpc::server::Error> {
+        self.tracker
+            .lock()
+            .await
+            .stop_pod(&request.id)
+            .await
+            .map_err(from_debug)
     }
 }
 

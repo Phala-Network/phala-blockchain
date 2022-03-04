@@ -32,6 +32,8 @@ enum Command {
     },
     /// Stop and delete an existing pod
     Stop { id: String },
+    /// Show information of given pod
+    Show { id: String },
 }
 
 struct HttpClient {
@@ -59,19 +61,33 @@ fn main() -> anyhow::Result<()> {
     let client = PodtrackerApiClient::new(HttpClient {
         base_url: format!("http://127.0.0.1:{}/prpc", args.port),
     });
+    use podtracker::prpc as pb;
     match args.subcommand {
         Command::Status => {
             let info = client.status(())?;
             println!("{:#?}", info);
         }
         Command::List => {
-            println!("List");
+            let response = client.list_pods(())?;
+            println!("{:#?}", response);
         }
         Command::New { image, id } => {
-            println!("Create {} {}", image, id);
+            let response = client.new_pod(pb::NewPodRequest {
+                id,
+                image,
+            })?;
+            println!("{:#?}", response);
         }
         Command::Stop { id } => {
-            println!("Stop {}", id);
+            client.stop_pod(pb::PodId {
+                id,
+            })?;
+        }
+        Command::Show { id } => {
+            let response = client.get_pod_info(pb::PodId {
+                id,
+            })?;
+            println!("{:#?}", response);
         }
     }
     Ok(())

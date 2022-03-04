@@ -11,10 +11,16 @@ service PodtrackerAPI {
   rpc Status (google.protobuf.Empty) returns (TrackerInfo) {}
 
   // Inspect the given pod's status.
-  rpc GetPodInfo (GetPodInfoRequest) returns (PodInfo) {}
+  rpc GetPodInfo (PodId) returns (PodInfo) {}
 
   // Inspect the given pod's status.
   rpc ListPods (google.protobuf.Empty) returns (ListPodsResponse) {}
+
+  // Create a new pod
+  rpc NewPod (NewPodRequest) returns (PodInfo) {}
+
+  // Stop and destroy a pod
+  rpc StopPod (PodId) returns (google.protobuf.Empty) {}
 }
 
 // Basic information about the podtracker state.
@@ -27,7 +33,7 @@ message TrackerInfo {
   uint32 tcp_ports_available = 3;
 }
 
-message GetPodInfoRequest {
+message PodId {
   string id = 1;
 }
 
@@ -51,4 +57,11 @@ message PodInfo {
 message PortMap {
   uint32 exposed = 1;
   uint32 internal = 2;
+}
+
+message NewPodRequest {
+  // Unique ID for the new pod
+  string id = 1;
+  // The docker image to be used
+  string image = 2;
 }
