@@ -144,15 +144,17 @@ pub mod pallet {
 			let origin: T::AccountId = ensure_signed(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
-			let mut workers = Vec::new();
-			for worker in &deploy_workers {
-				let worker_info =
-					registry::Workers::<T>::try_get(worker).or(Err(Error::<T>::WorkerNotFound))?;
-				workers.push(WorkerIdentity {
-					pubkey: worker_info.pubkey,
-					ecdh_pubkey: worker_info.ecdh_pubkey,
-				});
-			}
+			let workers = deploy_workers
+				.iter()
+				.map(|worker| {
+					let worker_info =
+						registry::Workers::<T>::get(worker).ok_or(Error::<T>::WorkerNotFound)?;
+					Ok(WorkerIdentity {
+						pubkey: worker_info.pubkey,
+						ecdh_pubkey: worker_info.ecdh_pubkey,
+					})
+				})
+				.collect::<Result<Vec<WorkerIdentity>, Error<T>>>()?;
 
 			let cluster_info = ClusterInfo {
 				owner: origin,

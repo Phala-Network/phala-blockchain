@@ -224,7 +224,7 @@ pub mod pallet {
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
-					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+					Workers::<T>::get(&gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
 				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
