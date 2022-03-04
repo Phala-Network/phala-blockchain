@@ -10,7 +10,7 @@ expression: messages
             sender: Gatekeeper,
             destination: phala/contract/worker/report,
             payload: [
-                0,
+                1,
                 106,
                 54,
                 146,

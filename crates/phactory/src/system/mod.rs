@@ -927,20 +927,13 @@ impl<Platform: pal::Platform> System<Platform> {
                         self.egress.push_message(&message);
                     }
                     CodeIndex::WasmCode(code_hash) => {
-                        let code = chain_state::read_contract_code(block.storage, code_hash);
-                        if code.is_none() {
-                            error!("Code 0x{} not found", hex::encode(code_hash),);
-                            return Err(TransactionError::CodeNotFound.into());
-                        }
-
-                        let code = code.expect("checked; qed.");
                         let deployer = contract_info.deployer;
                         let effects = self
                             .contract_clusters
                             .instantiate_contract(
                                 cluster_id,
                                 deployer.clone(),
-                                code,
+                                code_hash,
                                 contract_info.instantiate_data,
                                 contract_info.salt,
                                 &contract_key,
@@ -1214,7 +1207,7 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+    use crate::light_validation::utils::storage_prefix;
     use crate::storage::Storage;
     use parity_scale_codec::Decode;
 
@@ -1229,14 +1222,6 @@ pub mod chain_state {
             .unwrap_or_default();
 
         gatekeepers.contains(pubkey)
-    }
-
-    pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"Code", &code_hash);
-        chain_storage.get(&key).map(|v| {
-            Vec::<u8>::decode(&mut &v[..])
-                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
-        })
     }
 }
 
@@ -1254,11 +1239,13 @@ mod tests {
         let mut keeper = ClusterKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
+        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &contract_key);
+        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
         let effects = keeper
             .instantiate_contract(
                 cluster_id,
                 ALICE,
-                wasm_bin,
+                code_hash,
                 vec![0xed, 0x4b, 0x9d, 0x1b],
                 Default::default(),
                 &contract_key,

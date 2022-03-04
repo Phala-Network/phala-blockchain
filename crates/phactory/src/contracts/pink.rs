@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
-use runtime::{AccountId, BlockNumber};
+use runtime::{AccountId, BlockNumber, Hash};
 
 use super::{contract_address_to_id, NativeContractMore};
 
@@ -40,7 +40,7 @@ impl Pink {
         cluster_id: ContractClusterId,
         storage: &mut pink::Storage,
         origin: AccountId,
-        wasm_bin: Vec<u8>,
+        code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
@@ -49,7 +49,7 @@ impl Pink {
         let (instance, effects) = pink::Contract::new(
             storage,
             origin.clone(),
-            wasm_bin,
+            code_hash,
             input_data,
             cluster_id.as_bytes().to_vec(),
             salt,
@@ -210,7 +210,7 @@ pub mod cluster {
             &mut self,
             cluster_id: ContractClusterId,
             origin: AccountId,
-            wasm_bin: Vec<u8>,
+            code_hash: Hash,
             input_data: Vec<u8>,
             salt: Vec<u8>,
             contract_key: &sr25519::Pair,
@@ -222,7 +222,7 @@ pub mod cluster {
                 cluster_id,
                 &mut cluster.storage,
                 origin,
-                wasm_bin,
+                code_hash,
                 input_data,
                 salt,
                 block_number,
@@ -296,6 +296,5 @@ pub mod cluster {
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
         }
-
     }
 }
