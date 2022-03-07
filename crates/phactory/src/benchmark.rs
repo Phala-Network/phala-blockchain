@@ -12,6 +12,9 @@ static ITERATION_COUNTER: AtomicU64 = AtomicU64::new(0);
 static PAUSED: AtomicBool = AtomicBool::new(true);
 static SCORE: AtomicU64 = AtomicU64::new(0);
 
+// If pruntime is synchronizing the history blocks, we consider it as not ready to benchmark.
+static READY_TO_BENCH: AtomicBool = AtomicBool::new(true);
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct State {
     pub counter: u64,
@@ -69,7 +72,7 @@ pub fn run() {
             );
             SCORE.store(score, Ordering::Relaxed);
         }
-        if PAUSED.load(Ordering::Relaxed) {
+        if puasing() {
             return;
         }
     }
@@ -92,7 +95,15 @@ pub fn resume() {
 }
 
 pub fn puasing() -> bool {
-    PAUSED.load(Ordering::Relaxed)
+    PAUSED.load(Ordering::Relaxed) || !READY_TO_BENCH.load(Ordering::Relaxed)
+}
+
+pub fn set_ready(ready: bool) {
+    READY_TO_BENCH.store(ready, Ordering::Relaxed)
+}
+
+pub fn is_ready() -> bool {
+    READY_TO_BENCH.load(Ordering::Relaxed)
 }
 
 pub fn score() -> u64 {
