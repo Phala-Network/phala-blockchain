@@ -1,0 +1,10 @@
+[package]
+name = "podloader"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.14"
+anyhow = "1.0.55"
+tokio = { version = "1", features = ["full"] }
+phactory-api = { path = "../phactory/api", features = ["pruntime-client"] }

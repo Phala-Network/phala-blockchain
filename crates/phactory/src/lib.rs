@@ -69,6 +69,7 @@ mod side_task;
 mod storage;
 mod system;
 mod types;
+mod pod_registry;
 
 // TODO: Completely remove the reference to Phala/Khala runtime. Instead we can create a minimal
 // runtime definition locally.

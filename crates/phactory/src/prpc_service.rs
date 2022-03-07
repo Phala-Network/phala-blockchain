@@ -743,8 +743,7 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> PhactoryApi
         Ok(state)
     }
 
-    fn echo(&mut self, request: pb::EchoMessage) -> RpcResult<pb::EchoMessage> {
-        let echo_msg = request.echo_msg;
-        Ok(pb::EchoMessage { echo_msg })
+    fn register_pod(&mut self, info: pb::RegisterPodInfo) -> RpcResult<pb::RegisterPodResponse> {
+        todo!()
     }
 }

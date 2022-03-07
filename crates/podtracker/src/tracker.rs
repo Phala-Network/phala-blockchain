@@ -40,24 +40,27 @@ impl Tracker {
     }
 
     pub async fn create_pod<'a>(&'a mut self, image: &str, id: &str) -> Result<&'a Pod> {
-        // TODO.kevin.must: get the port from somthing like manifest.json
         if self.pods.contains_key(id) {
             return Err(anyhow::anyhow!("Pod already exists"));
         }
-        let required_ports = vec![80u16];
+        // TODO.kevin.must: get the port from somthing like manifest.json
+        let required_ports = vec![80_u16];
         let exposed_ports = self
             .allocate_tcp_ports(required_ports.len())
-            .ok_or(anyhow::anyhow!("no available ports"))?;
-        let mut builder = ContainerCreateOpts::builder(image).auto_remove(true);
+            .ok_or(anyhow::anyhow!("No available ports"))?;
+        let mut builder = ContainerCreateOpts::builder(image)
+            .auto_remove(true)
+            .tty(true);
         for (po, pi) in exposed_ports.iter().zip(required_ports.iter()) {
             builder = builder.expose(PublishPort::tcp(*po as _), *pi as _);
         }
         let opts = builder.build();
-        let contrainer = self.docker.containers().create(&opts).await?;
+        let container = self.docker.containers().create(&opts).await?;
+        container.start().await?;
         let pod = Pod {
             image: image.to_owned(),
             id: id.to_owned(),
-            container_id: contrainer.id().to_owned(),
+            container_id: container.id().to_owned(),
             tcp_portmap: exposed_ports
                 .into_iter()
                 .zip(required_ports.into_iter())
@@ -77,6 +80,7 @@ impl Tracker {
             .ok_or(anyhow::anyhow!("Pod {} not found", id))?;
         let contrainer = self.docker.containers().get(pod.container_id.as_str());
         let wait = Duration::from_secs(5);
+        // TODO.kevin.must: ignore error
         contrainer.stop(Some(wait)).await?;
         if let Some(pod) = self.pods.remove(id) {
             self.free_tcp_ports(pod.tcp_portmap.iter().map(|(s, _)| *s));
