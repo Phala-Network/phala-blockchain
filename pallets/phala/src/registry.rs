@@ -26,7 +26,7 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -81,7 +81,7 @@ pub mod pallet {
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
+	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, EcdhPublicKey>;
 
 	#[pallet::storage]
 	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, EcdhPublicKey>;
@@ -123,6 +123,7 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		UnknownCluster,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -420,6 +421,10 @@ pub mod pallet {
 			let pubkey_copy: sr25519::Public;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
+				MessageOrigin::Cluster(id) => {
+					pubkey_copy = ClusterKeys::<T>::get(id).ok_or(Error::<T>::UnknownCluster)?;
+					&pubkey_copy
+				}
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKeys::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy

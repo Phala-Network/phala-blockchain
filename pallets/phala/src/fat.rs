@@ -33,6 +33,15 @@ pub mod pallet {
 		},
 	}
 
+	bind_topic!(ContractRegistryEvent, b"^phala/registry/contract");
+	#[derive(Encode, Decode, Clone, Debug)]
+	pub enum ContractRegistryEvent {
+		PubkeyAvailable {
+			contract: ContractId,
+			ecdh_pubkey: EcdhPublicKey,
+		},
+	}
+
 	#[pallet::config]
 	pub trait Config: frame_system::Config {
 		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
@@ -90,6 +99,11 @@ pub mod pallet {
 			contract: ContractId,
 			cluster: ContractClusterId,
 			deployer: T::AccountId,
+		},
+		ContractPubkeyAvailable {
+			contract: ContractId,
+			cluster: ContractClusterId,
+			ecdh_pubkey: EcdhPublicKey,
 		},
 		Instantiated {
 			contract: ContractId,
@@ -255,6 +269,29 @@ pub mod pallet {
 				} => {
 					registry::ClusterKeys::<T>::insert(&cluster, &ecdh_pubkey);
 					Self::deposit_event(Event::ClusterPubkeyAvailable {
+						cluster,
+						ecdh_pubkey,
+					});
+				}
+			}
+			Ok(())
+		}
+
+		pub fn on_contract_message_received(
+			message: DecodedMessage<ContractRegistryEvent>,
+		) -> DispatchResult {
+			let cluster = match message.sender {
+				MessageOrigin::Cluster(cluster) => cluster,
+				_ => return Err(Error::<T>::InvalidSender.into()),
+			};
+			match message.payload {
+				ContractRegistryEvent::PubkeyAvailable {
+					contract,
+					ecdh_pubkey,
+				} => {
+					registry::ContractKeys::<T>::insert(&contract, &ecdh_pubkey);
+					Self::deposit_event(Event::ContractPubkeyAvailable {
+						contract,
 						cluster,
 						ecdh_pubkey,
 					});
