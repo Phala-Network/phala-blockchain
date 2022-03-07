@@ -572,6 +572,15 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
             .timestamp_now()
             .ok_or_else(|| from_display("No timestamp found in block"))?;
 
+        let block_time = now_ms / 1000;
+        let sys_time = now();
+
+        // When delta time reaches 3600s, there are about 3600 / 12 = 300 blocks rest.
+        // It need about 30 more seconds to sync up to date.
+        let ready = block_time + 3600 > sys_time;
+        debug!("block_time={}, sys_time={}, ready={}", block_time, sys_time, ready);
+        benchmark::set_ready(ready);
+
         let storage = &state.chain_storage;
         let side_task_man = &mut self.side_task_man;
         let recv_mq = &mut *guard;

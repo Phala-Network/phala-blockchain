@@ -198,6 +198,10 @@ pub mod async_side_task {
             default_messages: [SigningMessage; N],
             future: F,
         ) {
+            if !crate::benchmark::is_ready() {
+                self.add_task(current_block, duration, default_messages, |_| None);
+                return;
+            }
             let task = AsyncSideTask::spawn(future);
             self.add_task(current_block, duration, default_messages, |context| {
                 task.finish(context)
