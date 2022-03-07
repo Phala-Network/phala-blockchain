@@ -72,7 +72,7 @@ pub fn run() {
             );
             SCORE.store(score, Ordering::Relaxed);
         }
-        if puasing() {
+        if paused() {
             return;
         }
     }
@@ -94,7 +94,7 @@ pub fn resume() {
     PAUSED.store(false, Ordering::Relaxed)
 }
 
-pub fn puasing() -> bool {
+pub fn paused() -> bool {
     PAUSED.load(Ordering::Relaxed) || !READY_TO_BENCH.load(Ordering::Relaxed)
 }
 

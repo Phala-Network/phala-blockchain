@@ -47,7 +47,7 @@ pub fn ecall_init(args: phactory_api::ecall_args::InitArgs) -> Result<()> {
 }
 
 pub fn ecall_bench_run(index: u32) {
-    if !benchmark::puasing() {
+    if !benchmark::paused() {
         info!("[{}] Benchmark thread started", index);
         benchmark::run();
     }
