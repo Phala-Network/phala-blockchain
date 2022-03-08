@@ -1452,6 +1452,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clap_complete"
+version = "3.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df6f3613c0a3cddfd78b41b10203eb322cb29b600cbdf808a7d3db95691b8e25"
+dependencies = [
+ "clap 3.1.6",
+]
+
+[[package]]
 name = "clap_derive"
 version = "3.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4246,24 +4255,6 @@ dependencies = [
 
 [[package]]
 name = "jsonrpsee-types"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cc738fd55b676ada3271ef7c383a14a0867a2a88b0fa941311bf5fc0a29d498"
-dependencies = [
- "async-trait",
- "beef",
- "futures-channel",
- "futures-util",
- "hyper",
- "log",
- "serde",
- "serde_json",
- "soketto 0.6.0",
- "thiserror",
-]
-
-[[package]]
-name = "jsonrpsee-types"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "62f778cf245158fbd8f5d50823a2e9e4c708a40be164766bd35e9fb1d86715b2"
@@ -4318,30 +4309,6 @@ dependencies = [
  "arrayvec 0.7.2",
  "beef",
  "jsonrpsee-types 0.4.1",
-]
-
-[[package]]
-name = "jsonrpsee-ws-client"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9841352dbecf4c2ed5dc71698df9f1660262ae4e0b610e968602529bdbcf7b30"
-dependencies = [
- "async-trait",
- "fnv",
- "futures 0.3.21",
- "jsonrpsee-types 0.3.1",
- "log",
- "pin-project 1.0.10",
- "rustls 0.19.1",
- "rustls-native-certs 0.5.0",
- "serde",
- "serde_json",
- "soketto 0.6.0",
- "thiserror",
- "tokio 1.17.0",
- "tokio-rustls 0.22.0",
- "tokio-util 0.6.9",
- "url 2.2.2",
 ]
 
 [[package]]
@@ -5610,7 +5577,7 @@ dependencies = [
 
 [[package]]
 name = "node-executor"
-version = "2.0.0"
+version = "3.0.0-dev"
 dependencies = [
  "criterion",
  "frame-benchmarking",
@@ -5631,9 +5598,11 @@ dependencies = [
  "sp-consensus-babe",
  "sp-core",
  "sp-externalities",
+ "sp-keyring",
  "sp-keystore",
  "sp-runtime",
  "sp-state-machine",
+ "sp-tracing",
  "sp-trie",
  "wat",
 ]
@@ -7122,13 +7091,14 @@ dependencies = [
  "assert_cmd",
  "async-std",
  "clap 3.1.6",
+ "clap_complete",
  "criterion",
  "frame-benchmarking-cli",
  "frame-system",
  "frame-system-rpc-runtime-api",
  "futures 0.3.21",
  "hex-literal",
- "jsonrpsee-ws-client 0.3.1",
+ "jsonrpsee-ws-client 0.4.1",
  "log",
  "nix",
  "node-executor",
@@ -7143,7 +7113,7 @@ dependencies = [
  "phala-node-rpc-ext",
  "phala-node-runtime",
  "phala-pallets",
- "platforms 1.1.0",
+ "platforms",
  "rand 0.8.5",
  "regex",
  "remote-externalities",
@@ -7185,13 +7155,11 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-runtime",
- "sp-state-machine",
  "sp-timestamp",
  "sp-tracing",
  "sp-transaction-pool",
  "sp-transaction-storage-proof",
  "sp-trie",
- "structopt",
  "substrate-build-script-utils",
  "substrate-frame-cli",
  "tempfile",
@@ -7624,12 +7592,6 @@ name = "pkg-config"
 version = "0.3.24"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "58893f751c9b0412871a09abd62ecd2a00298c6c83befa223ef98c52aef40cbe"
-
-[[package]]
-name = "platforms"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "989d43012e2ca1c4a02507c67282691a0a3207f9dc67cec596b43fe925b3d325"
 
 [[package]]
 name = "platforms"
@@ -10194,21 +10156,6 @@ dependencies = [
 
 [[package]]
 name = "soketto"
-version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a74e48087dbeed4833785c2f3352b59140095dc192dce966a3bfc155020a439f"
-dependencies = [
- "base64 0.13.0",
- "bytes 1.1.0",
- "futures 0.3.21",
- "httparse",
- "log",
- "rand 0.8.5",
- "sha-1 0.9.8",
-]
-
-[[package]]
-name = "soketto"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41d1c5305e39e09653383c2c7244f2f78b3bcae37cf50c64cb4789c9f5096ec2"
@@ -11184,7 +11131,7 @@ dependencies = [
 name = "substrate-build-script-utils"
 version = "3.0.0"
 dependencies = [
- "platforms 2.0.0",
+ "platforms",
 ]
 
 [[package]]

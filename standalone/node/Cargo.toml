@@ -58,7 +58,6 @@ sp-inherents = { path = "../../substrate/primitives/inherents" }
 sp-keyring = { path = "../../substrate/primitives/keyring" }
 sp-keystore = { path = "../../substrate/primitives/keystore" }
 sp-consensus = { path = "../../substrate/primitives/consensus/common" }
-sp-state-machine = { path = "../../substrate/primitives/state-machine" }
 sp-transaction-pool = { path = "../../substrate/primitives/transaction-pool" }
 sp-transaction-storage-proof = { path = "../../substrate/primitives/transaction-storage-proof" }
 
@@ -115,24 +114,25 @@ sc-service-test = { path = "../../substrate/client/service/test" }
 sc-block-builder = { path = "../../substrate/client/block-builder" }
 sp-tracing = { path = "../../substrate/primitives/tracing" }
 sp-blockchain = { path = "../../substrate/primitives/blockchain" }
-futures = "0.3.16"
+futures = "0.3.19"
 tempfile = "3.1.0"
 assert_cmd = "2.0.2"
 nix = "0.23"
 serde_json = "1.0"
 regex = "1"
-platforms = "1.1"
+platforms = "2.0"
 async-std = { version = "1.10.0", features = ["attributes"] }
 soketto = "0.4.2"
-criterion = { version = "0.3.5", features = [ "async_tokio" ] }
-tokio = { version = "1.10", features = ["macros", "time"] }
-jsonrpsee-ws-client = { version = "0.3.1", default-features = false, features = ["tokio1"] }
+criterion = { version = "0.3.5", features = ["async_tokio"] }
+tokio = { version = "1.15", features = ["macros", "time", "parking_lot"] }
+jsonrpsee-ws-client = "0.4.1"
 wait-timeout = "0.2"
 remote-externalities = { path = "../../substrate/utils/frame/remote-externalities" }
 pallet-timestamp = { path = "../../substrate/frame/timestamp" }
 
 [build-dependencies]
-structopt = { version = "0.3.25", optional = true }
+clap = { version = "3.0", optional = true }
+clap_complete = { version = "3.0", optional = true }
 node-inspect = { optional = true, path = "../../substrate/bin/node/inspect" }
 frame-benchmarking-cli = { optional = true, path = "../../substrate/utils/frame/benchmarking-cli" }
 substrate-build-script-utils = { optional = true, path = "../../substrate/utils/build-script-utils" }
@@ -150,7 +150,8 @@ cli = [
 	"frame-benchmarking-cli",
 	"substrate-frame-cli",
 	"sc-service/db",
-	"structopt",
+	"clap",
+	"clap_complete",
 	"substrate-build-script-utils",
 	"try-runtime-cli",
 ]

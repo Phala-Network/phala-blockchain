@@ -1,11 +1,11 @@
 [package]
 name = "node-executor"
-version = "2.0.0"
+version = "3.0.0-dev"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Substrate node implementation in Rust."
-edition = "2018"
+edition = "2021"
 license = "Apache-2.0"
-homepage = "https://substrate.dev"
+homepage = "https://substrate.io"
 repository = "https://github.com/paritytech/substrate/"
 
 [package.metadata.docs.rs]
@@ -15,30 +15,32 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.0" }
 scale-info = { version = "2.0", features = ["derive"] }
 node-primitives = { path = "../../substrate/bin/node/primitives" }
-node-runtime = { package = "phala-node-runtime", path = "../runtime" }
+node-runtime = { path = "../runtime", package = "phala-node-runtime" }
 sc-executor = { path = "../../substrate/client/executor" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-keystore = { path = "../../substrate/primitives/keystore" }
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
+sp-tracing = { path = "../../substrate/primitives/tracing" }
 sp-trie = { path = "../../substrate/primitives/trie" }
 frame-benchmarking = { path = "../../substrate/frame/benchmarking" }
 
 [dev-dependencies]
 criterion = "0.3.0"
-frame-support = { path = "../../substrate/frame/support" }
-frame-system = { path = "../../substrate/frame/system" }
-# node-testing = { version = "2.0.0", path = "../testing" }
-pallet-balances = { path = "../../substrate/frame/balances" }
-pallet-contracts = { path = "../../substrate/frame/contracts" }
-pallet-im-online = { path = "../../substrate/frame/im-online" }
-pallet-timestamp = { path = "../../substrate/frame/timestamp" }
-pallet-treasury = { path = "../../substrate/frame/treasury" }
-sp-application-crypto = { path = "../../substrate/primitives/application-crypto" }
-sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
-sp-runtime = { path = "../../substrate/primitives/runtime" }
-sp-externalities = { path = "../../substrate/primitives/externalities" }
+frame-support = { version = "4.0.0-dev", path = "../../substrate/frame/support" }
+frame-system = { version = "4.0.0-dev", path = "../../substrate/frame/system" }
+# node-testing = { version = "3.0.0-dev", path = "../../substrate/bin/node/testing" }
+pallet-balances = { version = "4.0.0-dev", path = "../../substrate/frame/balances" }
+pallet-contracts = { version = "4.0.0-dev", path = "../../substrate/frame/contracts" }
+pallet-im-online = { version = "4.0.0-dev", path = "../../substrate/frame/im-online" }
+pallet-timestamp = { version = "4.0.0-dev", path = "../../substrate/frame/timestamp" }
+pallet-treasury = { version = "4.0.0-dev", path = "../../substrate/frame/treasury" }
+sp-application-crypto = { version = "6.0.0", path = "../../substrate/primitives/application-crypto" }
+sp-consensus-babe = { version = "0.10.0-dev", path = "../../substrate/primitives/consensus/babe" }
+sp-runtime = { version = "6.0.0", path = "../../substrate/primitives/runtime" }
+sp-externalities = { version = "0.12.0", path = "../../substrate/primitives/externalities" }
+sp-keyring = { version = "6.0.0", path = "../../substrate/primitives/keyring" }
 wat = "1.0"
-futures = "0.3.9"
+futures = "0.3.19"
 
 [features]
 wasmtime = ["sc-executor/wasmtime"]
