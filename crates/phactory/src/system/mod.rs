@@ -840,6 +840,7 @@ impl<Platform: pal::Platform> System<Platform> {
         sender: MessageOrigin,
         event: ContractOperation<chain::Hash, chain::AccountId>,
     ) -> anyhow::Result<()> {
+        info!("Incoming contract operation: {:?}", event);
         match event {
             ContractOperation::UploadCodeToCluster {
                 origin,
@@ -852,7 +853,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
-                    .context("Cluster not found")?;
+                    .context("Cluster not deployed")?;
                 let hash = cluster
                     .upload_code(origin.clone(), code)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
@@ -877,7 +878,7 @@ impl<Platform: pal::Platform> System<Platform> {
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
-                    .expect("Cluster must exist before instantiate");
+                    .context("Cluster not deployed")?;
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
                 let contract_key = get_contract_key(cluster.key(), &contract_info);
