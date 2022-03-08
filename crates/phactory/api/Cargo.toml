@@ -5,24 +5,25 @@ edition = "2018"
 resolver = "2"
 
 [dependencies]
-
-chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
-sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../../substrate/primitives/finality-grandpa", default-features = false }
-parity-scale-codec   = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
-scale-info = { version = "1", default-features = false, features = ["derive", "serde"] }
-frame-system = { package = "frame-system", path = "../../../substrate/frame/system", default-features = false }
-sp-core = { package = "sp-core", path = "../../../substrate/primitives/core", default-features = false, features = ["full_crypto"] }
-sp-application-crypto = { package = "sp-application-crypto", path = "../../../substrate/primitives/application-crypto", default-features = false, features = ["full_crypto"] }
-sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
-phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
-phala-types = { path = "../../../crates/phala-types", default-features = false }
+parity-scale-codec   = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 serde = { version = "1", optional = true, features = ["derive"], default-features = false }
 base64 = { version = "0.13" }
 derive_more = "0.99.16"
-prpc = { path = "../../../crates/prpc" }
 prost = { version = "0.8.0", default-features = false }
+
+phala-trie-storage = { path = "../../../crates/phala-trie-storage", default-features = false, features = ["serde"] }
+phala-types = { path = "../../../crates/phala-types", default-features = false }
+prpc = { path = "../../../crates/prpc" }
 phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
+chain = { path = "../../../standalone/runtime", default-features = false, package = "phala-node-runtime" }
+
+sp-finality-grandpa = { path = "../../../substrate/primitives/finality-grandpa", package = "sp-finality-grandpa", default-features = false }
+frame-system = { path = "../../../substrate/frame/system", package = "frame-system", default-features = false }
+sp-core = { path = "../../../substrate/primitives/core", package = "sp-core", default-features = false, features = ["full_crypto"] }
+sp-application-crypto = { path = "../../../substrate/primitives/application-crypto", package = "sp-application-crypto", default-features = false, features = ["full_crypto"] }
+sp-runtime = { path = "../../../substrate/primitives/runtime", default-features = false }
 
 # for pruntime_client
 async-trait = { version = "0.1.51", optional = true }
@@ -40,7 +41,6 @@ serde_json = "1.0.79"
 prpc-build = { path = "../../../crates/prpc-build" }
 tera = { version = "1.12.1" }
 tempdir = { version = "0.3.7" }
-
 
 [features]
 default = ["std"]
