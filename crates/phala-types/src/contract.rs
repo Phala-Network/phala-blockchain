@@ -83,7 +83,6 @@ pub enum ClusterPermission<AccountId> {
 pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
-    pub contracts: Vec<ContractId>,
 }
 
 /// On-chain contract registration info

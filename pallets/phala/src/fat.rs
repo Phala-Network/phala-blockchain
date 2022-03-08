@@ -68,8 +68,12 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, ContractClusterId, ClusterInfo<T::AccountId>>;
 
 	#[pallet::storage]
+	pub type ClusterContracts<T: Config> =
+		StorageMap<_, Twox64Concat, ContractClusterId, Vec<ContractId>, ValueQuery>;
+
+	#[pallet::storage]
 	pub type ClusterWorkers<T> =
-		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>>;
+		StorageMap<_, Twox64Concat, ContractClusterId, Vec<WorkerPublicKey>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -153,8 +157,7 @@ pub mod pallet {
 			permission: ClusterPermission<T::AccountId>,
 			deploy_workers: Vec<WorkerPublicKey>,
 		) -> DispatchResult {
-			// For now, we only allow root account to create cluster
-			ensure_root(origin.clone())?;
+			// TODO.shelven: permission check?
 			let origin: T::AccountId = ensure_signed(origin)?;
 
 			ensure!(deploy_workers.len() > 0, Error::<T>::NoWorkerSpecified);
@@ -173,7 +176,6 @@ pub mod pallet {
 			let cluster_info = ClusterInfo {
 				owner: origin,
 				permission,
-				contracts: Vec::new(),
 			};
 
 			let counter = ClusterCounter::<T>::mutate(|counter| {
@@ -184,7 +186,6 @@ pub mod pallet {
 
 			Clusters::<T>::insert(&cluster, &cluster_info);
 			Self::deposit_event(Event::ClusterCreated { cluster });
-			ClusterWorkers::<T>::insert(&cluster, deploy_workers);
 			Self::push_message(ClusterEvent::DeployCluster { cluster, workers });
 			Ok(())
 		}
@@ -309,6 +310,7 @@ pub mod pallet {
 			};
 			match message.payload {
 				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
+					ClusterWorkers::<T>::append(&id, &worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
 						ecdh_pubkey: pubkey,
@@ -350,6 +352,7 @@ pub mod pallet {
 					deployer,
 					pubkey: _,
 				} => {
+					ClusterContracts::<T>::append(&cluster_id, &id);
 					Self::deposit_event(Event::Instantiated {
 						contract: id,
 						cluster: cluster_id,
