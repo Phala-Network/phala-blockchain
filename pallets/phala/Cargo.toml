@@ -14,7 +14,7 @@ targets = ["x86_64-unknown-linux-gnu"]
 codec = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
 scale-info = { version = "2.0", default-features = false, features = ["derive"] }
 
-primitive-types = { version = "0.10", default-features = false, features = ["codec", "byteorder"] }
+primitive-types = { version = "0.11.0", default-features = false, features = ["codec", "byteorder"] }
 frame-support = { default-features = false, path = "../../substrate/frame/support" }
 frame-system = { default-features = false, path = "../../substrate/frame/system" }
 pallet-randomness-collective-flip = { default-features = false, path = "../../substrate/frame/randomness-collective-flip"}

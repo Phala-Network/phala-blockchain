@@ -3614,15 +3614,6 @@ dependencies = [
 
 [[package]]
 name = "impl-codec"
-version = "0.5.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "161ebdfec3c8e3b52bf61c4f3550a1eea4f9579d10dc1b936f3171ebdcd6c443"
-dependencies = [
- "parity-scale-codec 2.3.1",
-]
-
-[[package]]
-name = "impl-codec"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba6a270039626615617f3f36d15fc827041df3b78c439da2cadfa47455a77f2f"
@@ -6747,7 +6738,7 @@ dependencies = [
  "impl-trait-for-tuples",
  "parity-util-mem-derive",
  "parking_lot 0.12.0",
- "primitive-types 0.11.1",
+ "primitive-types",
  "smallvec",
  "winapi 0.3.9",
 ]
@@ -7058,7 +7049,7 @@ dependencies = [
  "phala-node-runtime",
  "phala-trie-storage",
  "phala-types",
- "primitive-types 0.10.1",
+ "primitive-types",
  "prost 0.8.0",
  "prpc",
  "prpc-build",
@@ -7348,7 +7339,7 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec 3.0.0",
  "phala-types",
- "primitive-types 0.10.1",
+ "primitive-types",
  "rand 0.7.3",
  "scale-info 2.0.1",
  "serde_json",
@@ -7780,24 +7771,12 @@ dependencies = [
 
 [[package]]
 name = "primitive-types"
-version = "0.10.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "05e4722c697a58a99d5d06a08c30821d7c082a4632198de1eaa5a6c22ef42373"
-dependencies = [
- "fixed-hash",
- "impl-codec 0.5.1",
- "impl-serde",
- "uint",
-]
-
-[[package]]
-name = "primitive-types"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e28720988bff275df1f51b171e1b2a18c30d194c4d2b61defdacecd625a5d94a"
 dependencies = [
  "fixed-hash",
- "impl-codec 0.6.0",
+ "impl-codec",
  "impl-serde",
  "scale-info 2.0.1",
  "uint",
@@ -10452,7 +10431,7 @@ dependencies = [
  "parity-scale-codec 3.0.0",
  "parity-util-mem",
  "parking_lot 0.12.0",
- "primitive-types 0.11.1",
+ "primitive-types",
  "rand 0.7.3",
  "regex",
  "scale-info 2.0.1",
@@ -10690,7 +10669,7 @@ version = "6.0.0"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec 3.0.0",
- "primitive-types 0.11.1",
+ "primitive-types",
  "sp-externalities",
  "sp-runtime-interface-proc-macro",
  "sp-std",
