@@ -25,27 +25,29 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
 }
 
 fn serialize_worker_state(state: &pb::WorkerState) -> serde_json::Value {
-    let tokenomic_info = state.tokenomic_info.as_ref().map(|info| serde_json::json!({
-        "v": info.v,
-        "v_init": info.v_init,
-        "payable": info.payable,
-        "share": info.share,
-        "v_update_at": info.v_update_at,
-        "v_update_block": info.v_update_block,
-        "iteration_last": info.iteration_last,
-        "challenge_time_last": info.challenge_time_last,
-        "p_bench": info.p_bench,
-        "p_instant": info.p_instant,
-        "confidence_level": info.confidence_level,
-        "last_payout": info.last_payout,
-        "last_payout_at_block": info.last_payout_at_block,
-        "last_slash": info.last_slash,
-        "last_slash_at_block": info.last_slash_at_block,
-        "total_payout": info.total_payout,
-        "total_payout_count": info.total_payout_count,
-        "total_slash": info.total_slash,
-        "total_slash_count": info.total_slash_count,
-    }));
+    let tokenomic_info = state.tokenomic_info.as_ref().map(|info| {
+        serde_json::json!({
+            "v": info.v,
+            "v_init": info.v_init,
+            "payable": info.payable,
+            "share": info.share,
+            "v_update_at": info.v_update_at,
+            "v_update_block": info.v_update_block,
+            "iteration_last": info.iteration_last,
+            "challenge_time_last": info.challenge_time_last,
+            "p_bench": info.p_bench,
+            "p_instant": info.p_instant,
+            "confidence_level": info.confidence_level,
+            "last_payout": info.last_payout,
+            "last_payout_at_block": info.last_payout_at_block,
+            "last_slash": info.last_slash,
+            "last_slash_at_block": info.last_slash_at_block,
+            "total_payout": info.total_payout,
+            "total_payout_count": info.total_payout_count,
+            "total_slash": info.total_slash,
+            "total_slash_count": info.total_slash_count,
+        })
+    });
     serde_json::json!({
         "benchmarking": state.bench_state.is_some(),
         "mining": state.mining_state.is_some(),
