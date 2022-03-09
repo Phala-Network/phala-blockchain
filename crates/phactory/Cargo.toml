@@ -12,7 +12,7 @@ num-bigint  = "0.4.0"
 ring        = "0.16.20"
 rust-crypto = "0.2.36"
 rand        = "0.7.3"
-regex       = "1.5.4"
+regex       = "1.5.5"
 yasna       = { git = "https://github.com/Phala-Network/yasna.rs", branch = "phala", features = ["chrono", "bit-vec", "num-bigint"] }
 rustls      = { version = "0.19.1", features = ["dangerous_configuration"] }
 webpki      = { version = "0.21", features = ["std"] }
