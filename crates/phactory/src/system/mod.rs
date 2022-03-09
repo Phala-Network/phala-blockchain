@@ -34,7 +34,7 @@ use phala_mq::{
 };
 use phala_serde_more as more;
 use phala_types::{
-    contract::{self, messaging::ContractOperation, CodeIndex, ContractInfo},
+    contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
         ClusterKeyDistribution, DispatchClusterKeyEvent, DispatchMasterKeyEvent, GatekeeperChange,
         GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
@@ -383,16 +383,10 @@ impl WorkerIdentityKey {
 #[serde(transparent)]
 pub(crate) struct ContractKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
-fn get_contract_key(
-    cluster_key: &sr25519::Pair,
-    contract_info: &ContractInfo<chain::Hash, chain::AccountId>,
-) -> sr25519::Pair {
+fn get_contract_key(cluster_key: &sr25519::Pair, deployer: &chain::AccountId) -> sr25519::Pair {
+    // Introduce deployer in key generation to prevent Replay Attacks
     cluster_key
-        .derive_sr25519_pair(&[
-            b"contract_key",
-            contract_info.deployer.as_ref(),
-            contract_info.salt.as_ref(),
-        ])
+        .derive_sr25519_pair(&[b"contract_key", deployer.as_ref()])
         .expect("should not fail with valid info")
 }
 
@@ -881,11 +875,11 @@ impl<Platform: pal::Platform> System<Platform> {
                     .context("Cluster not deployed")?;
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
-                let contract_key = get_contract_key(cluster.key(), &contract_info);
+                let contract_key = get_contract_key(cluster.key(), &contract_info.deployer);
+                let contract_pubkey = contract_key.public();
                 let ecdh_key = contract_key
                     .derive_ecdh_key()
                     .or(Err(anyhow::anyhow!("Invalid contract key")))?;
-                let ecdh_pubkey = EcdhPublicKey(ecdh_key.public());
 
                 let sender = MessageOrigin::Cluster(cluster_id);
                 let cluster_mq: SignedMessageChannel =
@@ -938,7 +932,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
                             contract: contract_id,
-                            ecdh_pubkey,
+                            pubkey: contract_pubkey.clone(),
                         };
                         cluster_mq.push_message(&message);
 
@@ -948,7 +942,7 @@ impl<Platform: pal::Platform> System<Platform> {
                             id: contract_id,
                             cluster_id,
                             deployer,
-                            pubkey: ecdh_pubkey,
+                            pubkey: contract_pubkey,
                         };
                         info!("Native contract instantiate status: {:?}", message);
                         self.egress.push_message(&message);
@@ -959,7 +953,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
                             contract: contract_id,
-                            ecdh_pubkey,
+                            pubkey: contract_pubkey,
                         };
                         cluster_mq.push_message(&message);
 
@@ -971,7 +965,6 @@ impl<Platform: pal::Platform> System<Platform> {
                                 code_hash,
                                 contract_info.instantiate_data,
                                 contract_info.salt,
-                                &contract_key,
                                 block.block_number,
                                 block.now_ms,
                             )
@@ -980,7 +973,7 @@ impl<Platform: pal::Platform> System<Platform> {
                         let cluster = self
                             .contract_clusters
                             .get_cluster_mut(&cluster_id)
-                            .expect("Cluster must exist after instantiate");
+                            .expect("Cluster must exist");
                         apply_pink_side_effects(
                             effects,
                             cluster_id,
@@ -1114,13 +1107,12 @@ pub fn apply_pink_side_effects(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
 ) {
-    let contract_key = cluster.key().clone();
-    let ecdh_key = contract_key
-        .derive_ecdh_key()
-        .expect("Derive ecdh_key should not fail");
-
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
+        let contract_key = get_contract_key(cluster.key(), &deployer);
+        let ecdh_key = contract_key
+            .derive_ecdh_key()
+            .expect("Derive ecdh_key should not fail");
         let id = install_contract(
             contracts,
             pink,
@@ -1269,12 +1261,12 @@ mod tests {
 
     #[test]
     fn test_on_block_end() {
-        let contract_key = sp_core::Pair::from_seed(&Default::default());
+        let cluster_key = sp_core::Pair::from_seed(&Default::default());
         let mut contracts = ContractsKeeper::default();
         let mut keeper = ClusterKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
-        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &contract_key);
+        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
         let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
         let effects = keeper
             .instantiate_contract(
@@ -1283,7 +1275,6 @@ mod tests {
                 code_hash,
                 vec![0xed, 0x4b, 0x9d, 0x1b],
                 Default::default(),
-                &contract_key,
                 1,
                 1,
             )

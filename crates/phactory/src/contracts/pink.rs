@@ -213,11 +213,12 @@ pub mod cluster {
             code_hash: Hash,
             input_data: Vec<u8>,
             salt: Vec<u8>,
-            contract_key: &sr25519::Pair,
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let cluster = self.get_cluster_or_default_mut(&cluster_id, contract_key);
+            let cluster = self
+                .get_cluster_mut(&cluster_id)
+                .expect("Cluster must exist before instantiation");
             let (_, effects) = Pink::instantiate(
                 cluster_id,
                 &mut cluster.storage,
