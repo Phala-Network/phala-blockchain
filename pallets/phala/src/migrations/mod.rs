@@ -32,6 +32,14 @@ pub mod v4 {
 		StorageVersion::new(1),
 	);
 
+	const FINAL_STORAGE_VERSION: Versions = (
+		StorageVersion::new(4),
+		StorageVersion::new(4),
+		StorageVersion::new(4),
+		StorageVersion::new(4),
+		StorageVersion::new(4),
+	);
+
 	fn get_versions<T>() -> Versions
 	where
 		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
@@ -79,9 +87,12 @@ pub mod v4 {
 	}
 
 	#[cfg(feature = "try-runtime")]
-	pub fn post_migrate<T: Config>() -> Result<(), &'static str> {
+	pub fn post_migrate<T>() -> Result<(), &'static str>
+	where
+		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
+	{
 		frame_support::ensure!(
-			get_versions::<T>() == (4, 4, 4, 4, 4)
+			get_versions::<T>() == FINAL_STORAGE_VERSION
 			"incorrect pallet versions postmigrate"
 		);
 		log::info!("Ᵽ phala pallet migration passes POST migrate checks ✅",);
