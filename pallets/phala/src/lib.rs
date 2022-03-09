@@ -19,6 +19,7 @@ extern crate alloc;
 // Re-export
 use utils::{accumulator, attestation, balance_convert, constants, fixed_point};
 
+pub mod migrations;
 mod utils;
 
 pub mod fat;

@@ -512,7 +512,9 @@ pub mod messaging {
     pub enum GatekeeperEvent {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
+        /// Deprecated after https://github.com/Phala-Network/phala-blockchain/pull/499
         RepairV,
+        /// Trigger the fix to https://github.com/Phala-Network/phala-blockchain/issues/676
         Fix676,
     }
 
