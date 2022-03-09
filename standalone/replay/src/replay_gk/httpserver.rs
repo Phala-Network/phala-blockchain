@@ -24,22 +24,6 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
     }))
 }
 
-fn serialize_worker_state(state: &pb::WorkerState) -> serde_json::Value {
-    serde_json::json!({
-        "benchmarking": state.bench_state.is_some(),
-        "mining": state.mining_state.is_some(),
-        "unresponsive": state.unresponsive,
-        "last_heartbeat_for_block": state.last_heartbeat_for_block,
-        "last_heartbeat_at_block": state.last_heartbeat_at_block,
-        "waiting_heartbeats": state.waiting_heartbeats,
-        "v": state.tokenomic_info.as_ref().map(|info| info.v.clone()),
-        "v_init": state.tokenomic_info.as_ref().map(|info| info.v_init.clone()),
-        "p_instant": state.tokenomic_info.as_ref().map(|info| info.p_instant.clone()),
-        "p_init": state.tokenomic_info.as_ref().map(|info| info.p_bench.clone()),
-        "tokenomic_info": format!("{:#?}", state.tokenomic_info),
-    })
-}
-
 #[get("/worker-state/{pubkey}")]
 async fn get_worker_state(
     web::Path(pubkey): web::Path<String>,
@@ -63,7 +47,7 @@ async fn get_worker_state(
         Some(state) => HttpResponse::Ok().json(serde_json::json!({
             "current_block": factory.current_block,
             "total_share": total_share.to_string(),
-            "worker": serialize_worker_state(&state),
+            "worker": state,
         })),
     }
 }
@@ -76,12 +60,7 @@ async fn dump_workers(data: web::Data<AppState>) -> HttpResponse {
     let workers = factory.gk.dump_workers_state();
     let workers: std::collections::BTreeMap<_, _> = workers
         .iter()
-        .map(|(k, v)| {
-            (
-                "0x".to_string() + &hex::encode(&k),
-                serialize_worker_state(&v),
-            )
-        })
+        .map(|(k, v)| ("0x".to_string() + &hex::encode(&k), v))
         .collect();
     HttpResponse::Ok().json(serde_json::json!({
         "current_block": factory.current_block,
