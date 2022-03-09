@@ -28,6 +28,7 @@ async-trait = { version = "0.1.51", optional = true }
 anyhow = { version = "1.0.43", optional = true }
 log = { version = "0.4.14", optional = true }
 reqwest = { version = "0.11.4", optional = true }
+rand = { version = "0.8.5", optional = true }
 
 primitive-types = { version = "0.10.1", optional = true, default-features = false }
 
@@ -55,6 +56,7 @@ pruntime-client = [
     "anyhow",
     "log",
     "reqwest",
+    "rand",
 ]
 
 derive_serde = [

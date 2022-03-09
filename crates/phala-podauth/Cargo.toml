@@ -1,0 +1,11 @@
+[package]
+name = "phala-podauth"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+
+[dependencies.parity-scale-codec]
+version = "2"
+default-features = false
+features = ["derive"]

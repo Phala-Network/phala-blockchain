@@ -1,0 +1,27 @@
+[package]
+edition = "2021"
+name = "podinit"
+version = "0.1.0"
+
+[dependencies]
+anyhow = "1"
+clap = "3"
+rand = "0.8.5"
+parity-scale-codec = "2"
+
+[dependencies.sp-core]
+path = "../../substrate/primitives/core"
+
+[dependencies.tokio]
+features = ["full"]
+version = "1.10.0"
+
+[dependencies.phactory-api]
+features = ["pruntime-client"]
+path = "../../crates/phactory/api"
+
+[dependencies.phala-crypto]
+path = "../../crates/phala-crypto"
+
+[dependencies.phala-podauth]
+path = "../../crates/phala-podauth"
