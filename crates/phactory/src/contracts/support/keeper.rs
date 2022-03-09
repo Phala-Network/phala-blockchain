@@ -6,7 +6,7 @@ use std::ops::{Deref, DerefMut};
 use super::{Contract, NativeCompatContract, NativeContractWrapper};
 use crate::contracts::{
     assets::Assets, balances::Balances, btc_lottery::BtcLottery, btc_price_bot::BtcPriceBot,
-    geolocation::Geolocation, guess_number::GuessNumber, pink::Pink,
+    geolocation::Geolocation, guess_number::GuessNumber, pink::Pink, podauth::PodAuth,
 };
 
 
@@ -22,6 +22,7 @@ pub enum AnyContract {
     Geolocation(Compat<Geolocation>),
     GuessNumber(Compat<GuessNumber>),
     BtcPriceBot(Compat<BtcPriceBot>),
+    PodAuth(Compat<PodAuth>)
 }
 
 impl Deref for AnyContract {
@@ -36,6 +37,7 @@ impl Deref for AnyContract {
             AnyContract::Geolocation(c) => c,
             AnyContract::GuessNumber(c) => c,
             AnyContract::BtcPriceBot(c) => c,
+            AnyContract::PodAuth(c) => c,
         }
     }
 }
@@ -50,6 +52,7 @@ impl DerefMut for AnyContract {
             AnyContract::Geolocation(c) => c,
             AnyContract::GuessNumber(c) => c,
             AnyContract::BtcPriceBot(c) => c,
+            AnyContract::PodAuth(c) => c,
         }
     }
 }
@@ -93,6 +96,12 @@ impl From<Compat<GuessNumber>> for AnyContract {
 impl From<Compat<BtcPriceBot>> for AnyContract {
     fn from(c: Compat<BtcPriceBot>) -> Self {
         AnyContract::BtcPriceBot(c)
+    }
+}
+
+impl From<Compat<PodAuth>> for AnyContract {
+    fn from(c: Compat<PodAuth>) -> Self {
+        AnyContract::PodAuth(c)
     }
 }
 

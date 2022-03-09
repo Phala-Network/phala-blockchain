@@ -19,6 +19,7 @@ webpki      = { version = "0.21", features = ["std"] }
 bitcoin     = { version = "0.27.0", features = ["use-serde"]}
 bitcoin_hashes = { version = "0.10.0", default-features = false }
 woothee     = { version = "0.11.0" }
+rcgen = "0.9.2"
 
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -37,6 +38,7 @@ phala-mq = { path = "../phala-mq" }
 phala-serde-more = { path = "../phala-serde-more" }
 
 phala-crypto = { path = "../phala-crypto", features = ["getrandom", "stream"] }
+phala-podauth = { path = "../phala-podauth" }
 prpc = { path = "../prpc" }
 pink = { path = "../pink" }
 

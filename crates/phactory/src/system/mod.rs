@@ -958,7 +958,8 @@ impl<Platform: pal::Platform> System<Platform> {
                     (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
                     (GEOLOCATION => geolocation::Geolocation::new()),
                     (GUESS_NUMBER => guess_number::GuessNumber::new()),
-                    (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
+                    (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new()),
+                    (POD_AUTH => podauth::PodAuth::new()?)
                 };
 
                 self.contract_clusters

@@ -22,6 +22,7 @@ prpc = { path = "../../../crates/prpc" }
 prost = { version = "0.8.0", default-features = false }
 phala-crypto = { path = "../../../crates/phala-crypto" }
 phala-mq = { path = "../../../crates/phala-mq" }
+hex = "0.4.3"
 
 # for pruntime_client
 async-trait = { version = "0.1.51", optional = true }

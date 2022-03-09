@@ -1,7 +1,7 @@
 use alloc::boxed::Box;
 use alloc::string::{String, ToString};
 use alloc::vec::Vec;
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Result, Context};
 use log::info;
 use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::ContractId;
@@ -70,16 +70,21 @@ pub async fn query<Request: Encode, Response: Decode>(
     id: ContractId,
     data: Request,
     private_key: &sp_core::sr25519::Pair,
-    remote_pubkey: Vec<u8>,
 ) -> Result<Response> {
+    let pr = new_pruntime_client(url);
+
+    let info = pr.get_info(()).await?;
+    let remote_pubkey = &info
+        .ecdh_public_key
+        .ok_or(anyhow!("Worker not initialized"))?;
+    let remote_pubkey = hex::decode(remote_pubkey.strip_prefix("0x").unwrap_or(remote_pubkey))
+        .context("Invalid public key")?;
+    let remote_pubkey = EcdhPublicKey::try_from(&remote_pubkey[..])?;
+
     // 2. Make ContractQuery
     let nonce = rand::thread_rng().gen();
     let head = contract::ContractQueryHead { id, nonce };
     let query = contract::ContractQuery { head, data };
-
-    let pr = new_pruntime_client(url);
-
-    let remote_pubkey = EcdhPublicKey::try_from(&remote_pubkey[..])?;
 
     // 3. Encrypt the ContractQuery.
     let ecdh_key = private_key
