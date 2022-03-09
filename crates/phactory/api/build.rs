@@ -21,7 +21,15 @@ fn main() {
         .out_dir(out_dir)
         .mod_prefix("crate::prpc::")
         .disable_package_emission();
-    for r#type in ["InitRuntimeResponse", "Attestation", "AttestationReport"] {
+    for r#type in [
+        "InitRuntimeResponse",
+        "Attestation",
+        "AttestationReport",
+        "TokenomicInfo",
+        "WorkerState",
+        "BenchState",
+        "MiningState",
+    ] {
         builder = builder.type_attribute(
             r#type,
             "#[cfg_attr(feature = \"serde\", derive(::serde::Serialize, ::serde::Deserialize))]",
