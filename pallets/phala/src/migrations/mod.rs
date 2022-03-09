@@ -56,7 +56,6 @@ pub mod v4 {
 		);
 	}
 
-	/// Migration to sorted [`SortedListProvider`].
 	pub fn migrate<T>() -> Weight
 	where
 		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
