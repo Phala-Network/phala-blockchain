@@ -26,7 +26,8 @@ pub mod pallet {
 			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -81,10 +82,10 @@ pub mod pallet {
 
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, EcdhPublicKey>;
+	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
 
 	#[pallet::storage]
-	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, EcdhPublicKey>;
+	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, ClusterPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]

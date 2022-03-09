@@ -22,7 +22,9 @@ pub mod messaging {
     #[cfg(feature = "enable_serde")]
     use serde::{Deserialize, Serialize};
 
-    use super::{EcdhPublicKey, MasterPublicKey, WorkerPublicKey};
+    use super::{
+        ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+    };
     pub use phala_mq::bind_topic;
     pub use phala_mq::types::*;
 
@@ -567,7 +569,7 @@ pub mod messaging {
     pub enum WorkerClusterReport {
         ClusterDeployed {
             id: ContractClusterId,
-            pubkey: EcdhPublicKey,
+            pubkey: ClusterPublicKey,
         },
         ClusterDeploymentFailed {
             id: ContractClusterId,
@@ -586,7 +588,7 @@ pub mod messaging {
             id: ContractId,
             cluster_id: ContractClusterId,
             deployer: AccountId,
-            pubkey: EcdhPublicKey,
+            pubkey: ContractPublicKey,
         },
         ContractInstantiationFailed {
             id: ContractId,
@@ -651,6 +653,7 @@ pub struct Score {
 type MachineId = Vec<u8>;
 pub use sp_core::sr25519::Public as WorkerPublicKey;
 pub use sp_core::sr25519::Public as ContractPublicKey;
+pub use sp_core::sr25519::Public as ClusterPublicKey;
 pub use sp_core::sr25519::Public as MasterPublicKey;
 pub use sp_core::sr25519::Public as EcdhPublicKey;
 pub use sp_core::sr25519::Signature as Sr25519Signature;

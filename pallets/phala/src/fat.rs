@@ -21,7 +21,7 @@ pub mod pallet {
 		messaging::{
 			bind_topic, DecodedMessage, MessageOrigin, WorkerClusterReport, WorkerContractReport,
 		},
-		EcdhPublicKey, WorkerIdentity, WorkerPublicKey,
+		ClusterPublicKey, ContractPublicKey, WorkerIdentity, WorkerPublicKey,
 	};
 
 	bind_topic!(ClusterRegistryEvent, b"^phala/registry/cluster");
@@ -29,7 +29,7 @@ pub mod pallet {
 	pub enum ClusterRegistryEvent {
 		PubkeyAvailable {
 			cluster: ContractClusterId,
-			ecdh_pubkey: EcdhPublicKey,
+			pubkey: ClusterPublicKey,
 		},
 	}
 
@@ -38,7 +38,7 @@ pub mod pallet {
 	pub enum ContractRegistryEvent {
 		PubkeyAvailable {
 			contract: ContractId,
-			ecdh_pubkey: EcdhPublicKey,
+			pubkey: ContractPublicKey,
 		},
 	}
 
@@ -83,11 +83,11 @@ pub mod pallet {
 		},
 		ClusterPubkeyAvailable {
 			cluster: ContractClusterId,
-			ecdh_pubkey: EcdhPublicKey,
+			pubkey: ClusterPublicKey,
 		},
 		ClusterDeployed {
 			cluster: ContractClusterId,
-			ecdh_pubkey: EcdhPublicKey,
+			pubkey: ClusterPublicKey,
 			worker: WorkerPublicKey,
 		},
 		ClusterDeploymentFailed {
@@ -107,7 +107,7 @@ pub mod pallet {
 		ContractPubkeyAvailable {
 			contract: ContractId,
 			cluster: ContractClusterId,
-			ecdh_pubkey: EcdhPublicKey,
+			pubkey: ContractPublicKey,
 		},
 		Instantiated {
 			contract: ContractId,
@@ -264,15 +264,9 @@ pub mod pallet {
 				Error::<T>::InvalidSender
 			);
 			match message.payload {
-				ClusterRegistryEvent::PubkeyAvailable {
-					cluster,
-					ecdh_pubkey,
-				} => {
-					registry::ClusterKeys::<T>::insert(&cluster, &ecdh_pubkey);
-					Self::deposit_event(Event::ClusterPubkeyAvailable {
-						cluster,
-						ecdh_pubkey,
-					});
+				ClusterRegistryEvent::PubkeyAvailable { cluster, pubkey } => {
+					registry::ClusterKeys::<T>::insert(&cluster, &pubkey);
+					Self::deposit_event(Event::ClusterPubkeyAvailable { cluster, pubkey });
 				}
 			}
 			Ok(())
@@ -286,15 +280,12 @@ pub mod pallet {
 				_ => return Err(Error::<T>::InvalidSender.into()),
 			};
 			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable {
-					contract,
-					ecdh_pubkey,
-				} => {
-					registry::ContractKeys::<T>::insert(&contract, &ecdh_pubkey);
+				ContractRegistryEvent::PubkeyAvailable { contract, pubkey } => {
+					registry::ContractKeys::<T>::insert(&contract, &pubkey);
 					Self::deposit_event(Event::ContractPubkeyAvailable {
 						contract,
 						cluster,
-						ecdh_pubkey,
+						pubkey,
 					});
 				}
 			}
@@ -313,7 +304,7 @@ pub mod pallet {
 					ClusterWorkers::<T>::append(&id, &worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
-						ecdh_pubkey: pubkey,
+						pubkey,
 						worker: worker_pubkey,
 					});
 				}

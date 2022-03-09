@@ -16,7 +16,7 @@ use phala_types::{
     EcdhPublicKey, WorkerPublicKey,
 };
 use serde::{Deserialize, Serialize};
-use sp_core::{hashing, sr25519};
+use sp_core::{hashing, sr25519, Pair};
 
 use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
 
@@ -267,13 +267,11 @@ where
 
                 // first, update the on-chain cluster pubkey
                 let cluster_key = get_cluster_key(&self.master_key, &cluster);
-                let ecdh_key = cluster_key
-                    .derive_ecdh_key()
-                    .expect("should never fail with valid key; qed.");
+                let cluster_pubkey = cluster_key.public();
                 self.egress
                     .push_message(&ClusterRegistryEvent::PubkeyAvailable {
                         cluster,
-                        ecdh_pubkey: sr25519::Public(ecdh_key.public()),
+                        pubkey: cluster_pubkey,
                     });
                 // then distribute cluster key to each worker
                 // the on-chain deployment state should be updated by assigned workers
