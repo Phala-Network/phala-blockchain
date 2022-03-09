@@ -199,7 +199,7 @@ describe('A full stack', function () {
                 'worker1 restart timeout'
             );
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/data/master_key.seal`),
                 'master key not received'
             );
         });
