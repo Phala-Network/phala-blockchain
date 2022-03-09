@@ -24,7 +24,7 @@ describe('A full stack', function () {
     this.timeout(60000);
 
     let cluster;
-    let api, keyring, alice, root;
+    let api, keyring, alice, bob, root;
     let pruntime;
     const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
@@ -42,6 +42,7 @@ describe('A full stack', function () {
         await cryptoWaitReady();
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         root = alice = keyring.addFromUri('//Alice');
+        bob = keyring.addFromUri('//Bob');
     });
 
     after(async function () {
@@ -155,7 +156,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Gatekeeper2', () => {
+    describe('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -231,7 +232,7 @@ describe('A full stack', function () {
         let clusterId;
 
         it('can create cluster', async function () {
-            const perm = api.createType('ClusterPermission', 'Public');
+            const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
             const info = await pruntime[0].getInfo();
             const { events } = await assert.txAccepted(
                 api.tx.phalaFatContracts.addCluster(perm, [hex(info.publicKey)]),
@@ -262,18 +263,26 @@ describe('A full stack', function () {
             }, 4 * 6000), 'cluster not deployed');
         });
 
-        it('can upload code', async function () {
+        it('can upload code with access control', async function () {
             let code = fs.readFileSync(wasmFile, 'hex');
+            // For now, there is no way to check whether code is uploaded in script
+            // since this requires monitering the async CodeUploaded event
             await assert.txAccepted(
                 api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
                 alice,
             );
-            // For now, there is no way to check whether code is uploaded in script
-            // since this requires monitering the async CodeUploaded event
+            await assert.txFailed(
+                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                bob,
+            )
         });
 
-        it('can instantiate contract', async function () {
+        it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            await assert.txFailed(
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                bob,
+            );
             const { events } = await assert.txAccepted(
                 api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
                 alice,
