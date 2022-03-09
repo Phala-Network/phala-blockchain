@@ -889,7 +889,7 @@ impl<Platform: pal::Platform> System<Platform> {
 
                 let sender = MessageOrigin::Cluster(cluster_id);
                 let cluster_mq: SignedMessageChannel =
-                    block.send_mq.channel(sender, contract_key.clone().into());
+                    block.send_mq.channel(sender, cluster.key().clone().into());
 
                 match contract_info.code_index {
                     CodeIndex::NativeCode(contract_id) => {
