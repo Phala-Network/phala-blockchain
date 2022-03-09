@@ -25,6 +25,27 @@ async fn meminfo(data: web::Data<AppState>) -> HttpResponse {
 }
 
 fn serialize_worker_state(state: &pb::WorkerState) -> serde_json::Value {
+    let tokenomic_info = state.tokenomic_info.as_ref().map(|info| serde_json::json!({
+        "v": info.v,
+        "v_init": info.v_init,
+        "payable": info.payable,
+        "share": info.share,
+        "v_update_at": info.v_update_at,
+        "v_update_block": info.v_update_block,
+        "iteration_last": info.iteration_last,
+        "challenge_time_last": info.challenge_time_last,
+        "p_bench": info.p_bench,
+        "p_instant": info.p_instant,
+        "confidence_level": info.confidence_level,
+        "last_payout": info.last_payout,
+        "last_payout_at_block": info.last_payout_at_block,
+        "last_slash": info.last_slash,
+        "last_slash_at_block": info.last_slash_at_block,
+        "total_payout": info.total_payout,
+        "total_payout_count": info.total_payout_count,
+        "total_slash": info.total_slash,
+        "total_slash_count": info.total_slash_count,
+    }));
     serde_json::json!({
         "benchmarking": state.bench_state.is_some(),
         "mining": state.mining_state.is_some(),
@@ -32,11 +53,7 @@ fn serialize_worker_state(state: &pb::WorkerState) -> serde_json::Value {
         "last_heartbeat_for_block": state.last_heartbeat_for_block,
         "last_heartbeat_at_block": state.last_heartbeat_at_block,
         "waiting_heartbeats": state.waiting_heartbeats,
-        "v": state.tokenomic_info.as_ref().map(|info| info.v.clone()),
-        "v_init": state.tokenomic_info.as_ref().map(|info| info.v_init.clone()),
-        "p_instant": state.tokenomic_info.as_ref().map(|info| info.p_instant.clone()),
-        "p_init": state.tokenomic_info.as_ref().map(|info| info.p_bench.clone()),
-        "tokenomic_info": format!("{:#?}", state.tokenomic_info),
+        "tokenomic_info": tokenomic_info,
     })
 }
 
