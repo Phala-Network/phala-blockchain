@@ -82,6 +82,7 @@ impl Contract {
                 salt.clone(),
                 true,
             );
+            log::info!("Contract instantiation result: {:?}", &result);
             if let Err(err) = result.result {
                 return Err(ExecError {
                     source: err,
