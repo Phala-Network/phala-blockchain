@@ -59,9 +59,10 @@ pub mod v4 {
 		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
 	{
 		frame_support::ensure!(
-			get_versions::<T>() == EXPECTED_STORAGE_VERSION
+			get_versions::<T>() == EXPECTED_STORAGE_VERSION,
 			"incorrect pallet versions"
 		);
+		Ok(())
 	}
 
 	pub fn migrate<T>() -> Weight
@@ -92,7 +93,7 @@ pub mod v4 {
 		T: fat::Config + mining::Config + mq::Config + registry::Config + stakepool::Config,
 	{
 		frame_support::ensure!(
-			get_versions::<T>() == FINAL_STORAGE_VERSION
+			get_versions::<T>() == FINAL_STORAGE_VERSION,
 			"incorrect pallet versions postmigrate"
 		);
 		log::info!("Ᵽ phala pallet migration passes POST migrate checks ✅",);
