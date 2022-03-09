@@ -9,7 +9,6 @@ class PRuntimeApi {
             headers: {
                 'Content-Type': 'application/octet-stream',
             },
-            baseURL: endpoint,
             responseType: 'arraybuffer',
         });
     }

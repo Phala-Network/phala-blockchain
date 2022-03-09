@@ -11,6 +11,7 @@
 //   OUT: the output tsv file path (default: ./tmp/dump-<account>.csv
 
 require('dotenv').config();
+const { types } = require('../../../e2e/src/utils/typeoverride');
 
 const fs = require('fs');
 
@@ -73,7 +74,7 @@ async function poolStatus(apiAt, pid, account) {
 
 async function main() {
     const wsProvider = new WsProvider(process.env.ENDPOINT);
-    const api = await ApiPromise.create({ provider: wsProvider });
+    const api = await ApiPromise.create({ provider: wsProvider, types });
 
     // Parse the params
     const since = parseInt(process.env.SINCE || '411774');

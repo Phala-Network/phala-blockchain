@@ -2,17 +2,19 @@ require('dotenv').config();
 
 const fs = require('fs');
 const { program } = require('commander');
-const axios = require('axios').default;
 const { Decimal } = require('decimal.js');
 const { ApiPromise, Keyring, WsProvider } = require('@polkadot/api');
 const { cryptoWaitReady, blake2AsHex } = require('@polkadot/util-crypto');
+const { numberToHex, hexToU8a, u8aConcat, u8aToHex } = require('@polkadot/util');
 
 const { FixedPointConverter } = require('./utils/fixedUtils');
 const tokenomic  = require('./utils/tokenomic');
 const { normalizeHex, praseBn, loadJson } = require('./utils/common');
 const { poolSubAccount } = require('./utils/palletUtils');
 const { decorateStakePool } = require('./utils/displayUtils');
+const { createPRuntimeApi } = require('./utils/pruntime');
 const BN = require('bn.js');
+const { dir } = require('console');
 
 function run(afn) {
     function runner(...args) {
@@ -28,40 +30,6 @@ function rand() {
     return (Math.random() * 65536) | 0;
 }
 
-class PRuntimeApi {
-    constructor(endpoint) {
-        this.api = axios.create({
-            baseURL: endpoint,
-            headers: {
-                'Content-Type': 'application/json',
-            }
-        });
-    }
-    async req(method, data={}) {
-        const r = await this.api.post('/' + method, {
-            input: data,
-            nonce: { id: rand() }
-        });
-        if (r.data.status === 'ok') {
-            return JSON.parse(r.data.payload);
-        } else {
-            throw new Error(`Got error response: ${r.data}`);
-        }
-    }
-    async query(contractId, request) {
-        const bodyJson = JSON.stringify({
-            contract_id: contractId,
-            nonce: rand(),
-            request
-        });
-        const payloadJson = JSON.stringify({Plain: bodyJson});
-        const queryData = {query_payload: payloadJson};
-        const response = await this.req('query', queryData);
-        const plainResp = JSON.parse(response.Plain);
-        return plainResp;
-    }
-}
-
 function parseXUS(assets) {
     const m = assets.match(/(\d+(\.\d*)?) XUS/);
     if (!m) {
@@ -72,7 +40,7 @@ function parseXUS(assets) {
 
 function usePruntimeApi() {
     const { pruntimeEndpoint } = program.opts();
-    return new PRuntimeApi(pruntimeEndpoint);
+    return createPRuntimeApi(pruntimeEndpoint);
 }
 
 async function useApi() {
@@ -141,6 +109,24 @@ function printObject(obj, depth=3, getter=true) {
     } else {
         console.dir(obj, {depth, getter});
     }
+}
+
+async function estimateFeeOn(endpoint, callHex) {
+    // Create another API because we are not querying Phala
+    const wsProvider = new WsProvider(endpoint);
+    const api = await ApiPromise.create({
+        provider: wsProvider,
+        throwOnConnect: true,
+    });
+    const { pair } = await useKey();
+    // Walk-around to decode a call to a unsigned extrinsics
+    const call = api.createType('Call', callHex);
+    const { method, section } = api.registry.findMetaCall(call.callIndex);
+    const extrinsicFn = api.tx[section][method];
+    const extrinsic = extrinsicFn(...call.args);
+    // Estimate weight
+    const info = await extrinsic.paymentInfo(pair);
+    return info;
 }
 
 const CONTRACT_PDIEM = 5;
@@ -346,7 +332,7 @@ pruntime
     .description('get the running status')
     .action(run(async () => {
         const pr = usePruntimeApi();
-        printObject(await pr.req('get_info'));
+        printObject(await pr.getInfo({}));
     }));
 
 pruntime
@@ -360,8 +346,23 @@ pruntime
         if (opt.body) {
             body = JSON.parse(opt.body);
         }
-        printObject(await pr.req(method, body ? body : {}));
-    }))
+        printObject(await pr[method](body ? body : {}));
+    }));
+
+pruntime
+    .command('query-raw')
+    .description('query a raw contract')
+    .argument('<contract-id>', 'the contract id')
+    .argument('<selector>', 'the hex method selector')
+    .argument('<data>', 'the hex call data')
+    .action(run(async (method, opt) => {
+        throw Error('TODO');
+        // const pr = usePruntimeApi();
+        // // @codec scale crate::crypto::EncryptedData
+        // printObject(await pr.contractQuery({
+        //     encodedEncryptedData:
+        // }))
+    }));
 
 pruntime
     .command('query')
@@ -450,7 +451,13 @@ const xcmp = program
 xcmp
     .command('transact')
     .description('send a transact xcm to the relay chain on behalf of the parachain\'s sovereign account')
-    .option('--max-fee <fee>', 'the max fee to pay for the transaction (in pico)', '1000000000000')
+    .option('--set-safe-xcm-version <version>', 'if specified, set the SafeXcmVersion first')
+    .option('--max-fee <fee>', 'the max fee to pay for the transaction (in pico)', '100000000000')
+    .option('--transact-weight <weight>', 'set RequireWeightAtMost in transact', '2000000000')
+    .option(
+        '--estimate-on-relay <ws-url>',
+        'specify the relay chain ws endpoint to enable transact call weight estimation'
+    )
     .argument('<data>', 'the raw transac data in hex')
     .action(run(async (data, opt) => {
         const api = await useApi();
@@ -462,6 +469,31 @@ xcmp
         const dest = api.createType('XcmVersionedMultiLocation', {
             V1: { parents: 1, interior: 'Here' }
         });
+
+        const paraIdNumber = paraId.toNumber();
+        const sovereignAccount = u8aToHex(u8aConcat(
+            // sovereign account prefix
+            hexToU8a('0x70617261'),
+            // encoded para id
+            new Uint8Array([
+                paraIdNumber & 0xff,
+                (paraIdNumber & 0xff00) >> 8,
+            ]),
+            // postfix
+            hexToU8a('0x0000000000000000000000000000000000000000000000000000')
+        ));
+
+        // Estimate weight on relay chain
+        if (opt.estimateOnRelay) {
+            const info = await estimateFeeOn(opt.estimateOnRelay, data);
+            const estWeight = info.weight;
+            const weight = new BN(opt.transactWeight);
+            if (weight.lt(estWeight)) {
+                console.error(`No enough weight (${opt.transactWeight} < ${estWeight.toString()})`);
+                return;
+            }
+            console.log(`Estimated weight: ${estWeight.toString()}`);
+        }
 
         const message = api.createType('XcmVersionedXcm', {
             V2: [
@@ -485,25 +517,47 @@ xcmp
                 {
                     Transact: {
                         originType: 'Native',
-                        requiredWeightAtMost: 0,
+                        requireWeightAtMost: opt.transactWeight,
                         call: { encoded: data },
                     }
                 },
                 // Pay back the remaining fee
+                'RefundSurplus',
                 {
                     DepositAsset: {
-                        assets: { Wild: 'All' },
+                        assets: {
+                            Wild: {
+                                AllOf: {
+                                    id: { Concrete: { parents: 0, interior: 'Here' } },
+                                    fun: 'Fungible',
+                                }
+                            }
+                        },
                         maxAssets: 1,
                         beneficiary: {
                             parents: 0,
-                            interior: { X1: { Parachain: paraId } },
+                            interior: {
+                                X1: {
+                                    AccountId32: {
+                                        network: 'Any',
+                                        id: sovereignAccount,
+                                    }
+                                }
+                            },
                         }
                     }
                 },
             ]
         });
-        console.dir(message.toHuman(), {depth: 6});
-        const call = api.tx.polkadotXcm.send(dest, message);
+        console.dir(message.toHuman(), {depth: 7});
+        let call = api.tx.polkadotXcm.send(dest, message);
+        if (opt.setSafeXcmVersion) {
+            call = api.tx.utility.batch([
+                api.tx.polkadotXcm.forceDefaultXcmVersion(opt.setSafeXcmVersion),
+                call,
+            ])
+        };
+
         console.log(call.method.toHex());
     }));
 

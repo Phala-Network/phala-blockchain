@@ -36,10 +36,10 @@ function run(afn) {
     return runner;
 }
 
-async function createApi() {
+async function createApi(types) {
     const {endpoint} = program.opts();
     const wsProvider = new WsProvider(endpoint);
-    return await ApiPromise.create({ provider: wsProvider });
+    return await ApiPromise.create({ provider: wsProvider, types });
 }
 
 function writeJson(path, obj) {
@@ -84,7 +84,12 @@ async function dumpSnapshots(opt) {
     // Check file access
     fs.writeFileSync(output, '');
 
-    const api = await createApi();
+    let types;
+    if (since < 908028) {
+        types = require('../../../../e2e/src/utils/typeoverride').types;
+    }
+
+    const api = await createApi(types);
 
     const tip = await api.rpc.chain.getHeader();
     const tipNum = tip.number.toNumber();
