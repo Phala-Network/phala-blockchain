@@ -267,8 +267,7 @@ where
 
                 // first, update the on-chain cluster pubkey
                 let cluster_key = get_cluster_key(&self.master_key, &cluster);
-                let ecdh_key = self
-                    .master_key
+                let ecdh_key = cluster_key
                     .derive_ecdh_key()
                     .expect("should never fail with valid key; qed.");
                 self.egress
@@ -278,6 +277,10 @@ where
                     });
                 // then distribute cluster key to each worker
                 // the on-chain deployment state should be updated by assigned workers
+                let ecdh_key = self
+                    .master_key
+                    .derive_ecdh_key()
+                    .expect("should never fail with valid key; qed.");
                 let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
                 // TODO.shelven: set up expiration
                 for worker in workers.iter() {

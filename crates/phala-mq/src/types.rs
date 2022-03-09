@@ -14,8 +14,8 @@ pub use sp_core::H256 as AccountId;
 pub use sp_core::H256 as ContractClusterId;
 
 use crate::MessageSigner;
-use serde::{Serialize, Deserialize};
 use phala_serde_more as more;
+use serde::{Deserialize, Serialize};
 
 /// The origin of a Phala message
 // TODO: should we use XCM MultiLocation directly?
@@ -71,7 +71,10 @@ impl PartialEq for MessageOrigin {
 impl MessageOrigin {
     /// Returns if the origin is located off-chain
     pub fn is_offchain(&self) -> bool {
-        matches!(self, Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper)
+        matches!(
+            self,
+            Self::Cluster(_) | Self::Contract(_) | Self::Worker(_) | Self::Gatekeeper
+        )
     }
 
     /// Returns if the origin is from a Pallet
