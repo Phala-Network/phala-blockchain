@@ -1,6 +1,7 @@
 use alloc::vec::Vec;
 use core::convert::TryFrom;
 use parity_scale_codec::{Decode, Encode, FullCodec};
+use scale_info::TypeInfo;
 pub use sp_finality_grandpa::{AuthorityList, SetId};
 
 use sp_core::U256;
@@ -11,14 +12,13 @@ pub type StorageProof = Vec<Vec<u8>>;
 pub type StorageState = Vec<(Vec<u8>, Vec<u8>)>;
 
 /// The GRNADPA authority set with the id
-#[derive(Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySet {
     pub list: AuthorityList,
     pub id: SetId,
 }
-
 /// AuthoritySet change with the storage proof (including both the authority set and the id)
-#[derive(Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
 pub struct AuthoritySetChange {
     pub authority_set: AuthoritySet,
     pub authority_proof: StorageProof,
@@ -29,7 +29,7 @@ pub struct AuthoritySetChange {
 /// The genesis block is the first block to start GRNADPA light validation tracking. It could
 /// be block 0 or a later block on the relay chain. The authority set represents the validator
 /// infomation at the selected block.
-#[derive(Encode, Decode, Clone, PartialEq, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, PartialEq, Debug)]
 pub struct GenesisBlockInfo {
     pub block_header: chain::Header,
     pub authority_set: AuthoritySet,
@@ -45,7 +45,7 @@ pub type HeadersToSync = Vec<HeaderToSync>;
 
 pub type RawStorageKey = Vec<u8>;
 
-#[derive(Debug, Encode, Decode, Clone)]
+#[derive(Debug, TypeInfo, Encode, Decode, Clone)]
 pub struct StorageKV<T: FullCodec + Clone>(pub RawStorageKey, pub T);
 
 impl<T: FullCodec + Clone> StorageKV<T> {
@@ -57,7 +57,7 @@ impl<T: FullCodec + Clone> StorageKV<T> {
     }
 }
 
-#[derive(Encode, Decode, Debug, Clone)]
+#[derive(TypeInfo, Encode, Decode, Debug, Clone)]
 pub struct GenericHeaderToSync<BlockNumber, Hash>
 where
     BlockNumber: Copy + Into<U256> + TryFrom<U256> + Clone,
@@ -67,7 +67,7 @@ where
     pub justification: Option<Vec<u8>>,
 }
 
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct GenericBlockHeaderWithChanges<BlockNumber, Hash>
 where
     BlockNumber: Copy + Into<U256> + TryFrom<U256> + FullCodec + Clone,
@@ -77,13 +77,13 @@ where
     pub storage_changes: StorageChanges,
 }
 
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct SyncHeaderReq {
     pub headers: Vec<HeaderToSync>,
     pub authority_set_change: Option<AuthoritySetChange>,
 }
 
-#[derive(Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug, Default, PartialEq, Eq)]
 pub struct ParaId(pub u32);
 
 impl ParaId {
@@ -92,13 +92,13 @@ impl ParaId {
     }
 }
 
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct SyncParachainHeaderReq {
     pub headers: Headers,
     pub proof: StorageProof,
 }
 
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct SyncCombinedHeadersReq {
     pub relaychain_headers: Vec<HeaderToSync>,
     pub authority_set_change: Option<AuthoritySetChange>,
@@ -106,7 +106,7 @@ pub struct SyncCombinedHeadersReq {
     pub proof: StorageProof,
 }
 
-#[derive(Encode, Decode, Clone, Debug)]
+#[derive(TypeInfo, Encode, Decode, Clone, Debug)]
 pub struct DispatchBlockReq {
     pub blocks: Vec<BlockHeaderWithChanges>,
 }

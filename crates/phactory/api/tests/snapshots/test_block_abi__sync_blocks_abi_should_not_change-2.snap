@@ -1,0 +1,274 @@
+---
+source: crates/phactory/api/tests/test_block_abi.rs
+assertion_line: 13
+expression: "travel_types::<blocks::SyncParachainHeaderReq>()"
+---
+[
+  {
+    "id": 0,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 1
+        }
+      }
+    }
+  },
+  {
+    "id": 1,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "header",
+        "Header"
+      ],
+      "params": [
+        {
+          "name": "Number",
+          "type": 2
+        },
+        {
+          "name": "Hash",
+          "type": 3
+        }
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "parent_hash",
+              "type": 4,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "number",
+              "type": 7,
+              "typeName": "Number"
+            },
+            {
+              "name": "state_root",
+              "type": 4,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "extrinsics_root",
+              "type": 4,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "digest",
+              "type": 8,
+              "typeName": "Digest"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 2,
+    "type": {
+      "def": {
+        "primitive": "u32"
+      }
+    }
+  },
+  {
+    "id": 3,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "traits",
+        "BlakeTwo256"
+      ],
+      "def": {
+        "composite": {}
+      }
+    }
+  },
+  {
+    "id": 4,
+    "type": {
+      "path": [
+        "primitive_types",
+        "H256"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "type": 5,
+              "typeName": "[u8; 32]"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 5,
+    "type": {
+      "def": {
+        "array": {
+          "len": 32,
+          "type": 6
+        }
+      }
+    }
+  },
+  {
+    "id": 6,
+    "type": {
+      "def": {
+        "primitive": "u8"
+      }
+    }
+  },
+  {
+    "id": 7,
+    "type": {
+      "def": {
+        "compact": {
+          "type": 2
+        }
+      }
+    }
+  },
+  {
+    "id": 8,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "digest",
+        "Digest"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "logs",
+              "type": 9,
+              "typeName": "Vec<DigestItem>"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 9,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 10
+        }
+      }
+    }
+  },
+  {
+    "id": 10,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "digest",
+        "DigestItem"
+      ],
+      "def": {
+        "variant": {
+          "variants": [
+            {
+              "name": "PreRuntime",
+              "fields": [
+                {
+                  "type": 11,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 6
+            },
+            {
+              "name": "Consensus",
+              "fields": [
+                {
+                  "type": 11,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 4
+            },
+            {
+              "name": "Seal",
+              "fields": [
+                {
+                  "type": 11,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 5
+            },
+            {
+              "name": "Other",
+              "fields": [
+                {
+                  "type": 12,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 0
+            },
+            {
+              "name": "RuntimeEnvironmentUpdated",
+              "index": 8
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 11,
+    "type": {
+      "def": {
+        "array": {
+          "len": 4,
+          "type": 6
+        }
+      }
+    }
+  },
+  {
+    "id": 12,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 6
+        }
+      }
+    }
+  },
+  {
+    "id": 13,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 12
+        }
+      }
+    }
+  }
+]
