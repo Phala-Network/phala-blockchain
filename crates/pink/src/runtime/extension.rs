@@ -228,6 +228,9 @@ where
     }
 
     fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        if !matches!(get_call_mode(), Some(CallMode::Query)) {
+            return Ok(None);
+        }
         let value = GLOBAL_CACHE.get(self.address.as_ref(), key.as_ref());
         Ok(value)
     }
