@@ -166,6 +166,7 @@ std = [
 	"pallet-child-bounties/std",
 	"phala-pallets/std",
 	"pallet-mq-runtime-api/std",
+	"sp-sandbox?/std",
 ]
 runtime-benchmarks = [
 	"frame-benchmarking/runtime-benchmarks",
