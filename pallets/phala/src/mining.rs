@@ -195,7 +195,7 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -423,28 +423,6 @@ pub mod pallet {
 					}
 				}
 			}
-		}
-
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			} else if old == 2 {
-				// Triggers GK RepairV event (again) to rescue the slashed miners due to
-				// incorrectly applied tokenomic.
-				w += migrations::repair_v::<T>();
-				// Khala-only halving parameters
-				MiningStartBlock::<T>::put(T::BlockNumber::from(414189u32));
-				MiningHalvingInterval::<T>::put(T::BlockNumber::from(324000u32));
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(3);
-			}
-			w
 		}
 	}
 
@@ -1000,7 +978,7 @@ pub mod pallet {
 		}
 	}
 
-	mod migrations {
+	pub(crate) mod migrations {
 		use super::{Config, CoolDownPeriod, Pallet, TokenomicParameters};
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::pallet_prelude::*;
@@ -1049,10 +1027,10 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
-		pub fn repair_v<T: Config>() -> Weight {
+		pub(crate) fn fix_676<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::RepairV);
+			Pallet::<T>::queue_message(GatekeeperEvent::Fix676);
 			T::DbWeight::get().writes(1)
 		}
 	}

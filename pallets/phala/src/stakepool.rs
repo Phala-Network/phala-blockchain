@@ -89,7 +89,7 @@ pub mod pallet {
 		type BackfillOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -240,19 +240,6 @@ pub mod pallet {
 				.as_secs()
 				.saturated_into::<u64>();
 			Self::maybe_force_withdraw(now);
-		}
-
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += super::migrations::migrate_to_v1::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			}
-			w
 		}
 	}
 
@@ -3203,8 +3190,6 @@ pub mod pallet {
 		}
 	}
 }
-
-mod migrations;
 
 use sp_runtime::traits::AtLeast32BitUnsigned;
 
