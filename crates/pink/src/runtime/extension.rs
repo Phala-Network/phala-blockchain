@@ -8,8 +8,8 @@ use pallet_contracts::chain_extension::{
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
     chain_extension::{
-        CacheSetArgs, HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType,
-        SignArgs, VerifyArgs,
+        CacheSetArgs, CacheSetExpireArgs, HttpRequest, HttpResponse, PinkExtBackend,
+        PublicKeyForArgs, SigType, SignArgs, VerifyArgs,
     },
     dispatch_ext_call, PinkEvent,
 };
@@ -224,6 +224,11 @@ where
 
     fn cache_set(&self, args: CacheSetArgs<'_>) -> Result<(), Self::Error> {
         GLOBAL_CACHE.set(self.address.as_ref().into(), args.key, args.value);
+        Ok(())
+    }
+
+    fn cache_set_expire(&self, args: CacheSetExpireArgs<'_>) -> Result<(), Self::Error> {
+        GLOBAL_CACHE.set_expire(self.address.as_ref().into(), args.key, args.expire);
         Ok(())
     }
 

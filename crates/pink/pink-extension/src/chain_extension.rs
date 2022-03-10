@@ -5,7 +5,7 @@ use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpResponse};
 pub use signing::{SigType, SignArgs, VerifyArgs, PublicKeyForArgs};
-pub use local_cache::CacheSetArgs;
+pub use local_cache::{CacheSetArgs, CacheSetExpireArgs};
 
 mod http_request;
 mod signing;
@@ -52,9 +52,12 @@ pub trait PinkExt {
     fn cache_set(args: CacheSetArgs) -> ();
 
     #[ink(extension = 0xff000007, handle_status = false, returns_result = false)]
-    fn cache_get(key: Cow<[u8]>) -> Option<Vec<u8>>;
+    fn cache_set_expire(args: CacheSetExpireArgs) -> ();
 
     #[ink(extension = 0xff000008, handle_status = false, returns_result = false)]
+    fn cache_get(key: Cow<[u8]>) -> Option<Vec<u8>>;
+
+    #[ink(extension = 0xff000009, handle_status = false, returns_result = false)]
     fn cache_remove(args: Cow<[u8]>) -> Option<Vec<u8>>;
 }
 
