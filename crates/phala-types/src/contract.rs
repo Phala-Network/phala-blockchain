@@ -5,6 +5,7 @@ use alloc::vec::Vec;
 use codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
+use crate::WorkerPublicKey;
 pub use phala_mq::{ContractClusterId, ContractId};
 
 pub type ContractId32 = u32;
@@ -83,6 +84,7 @@ pub enum ClusterPermission<AccountId> {
 pub struct ClusterInfo<AccountId> {
     pub owner: AccountId,
     pub permission: ClusterPermission<AccountId>,
+    pub workers: Vec<WorkerPublicKey>,
 }
 
 /// On-chain contract registration info

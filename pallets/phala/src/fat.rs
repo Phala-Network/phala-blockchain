@@ -125,6 +125,7 @@ pub mod pallet {
 	pub enum Error<T> {
 		CodeNotFound,
 		ClusterNotFound,
+		ClusterNotDeployed,
 		ClusterPermissionDenied,
 		DuplicatedContract,
 		DuplicatedDeployment,
@@ -176,6 +177,7 @@ pub mod pallet {
 			let cluster_info = ClusterInfo {
 				owner: origin,
 				permission,
+				workers: deploy_workers,
 			};
 
 			let counter = ClusterCounter::<T>::mutate(|counter| {
@@ -198,6 +200,13 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin: T::AccountId = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
+			// only allow code upload when all the workers deploy the cluster
+			// the same check is not needed in instantiate_contract() any more
+			let deployed_workers = ClusterWorkers::<T>::get(cluster_id);
+			ensure!(
+				cluster_info.workers == deployed_workers,
+				Error::<T>::ClusterPermissionDenied
+			);
 			ensure!(
 				check_cluster_permission::<T>(&origin, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
