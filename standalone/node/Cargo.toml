@@ -48,7 +48,8 @@ rand = "0.8"
 # primitives
 sp-authority-discovery = { path = "../../substrate/primitives/authority-discovery" }
 sp-consensus-babe = { path = "../../substrate/primitives/consensus/babe" }
-grandpa-primitives = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa" }
+sp-state-machine = { path = "../../substrate/primitives/state-machine" }
+grandpa-primitives = { path = "../../substrate/primitives/finality-grandpa", package = "sp-finality-grandpa" }
 sp-api = { path = "../../substrate/primitives/api" }
 sp-core = { path = "../../substrate/primitives/core" }
 sp-runtime = { path = "../../substrate/primitives/runtime" }

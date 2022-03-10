@@ -26,6 +26,10 @@ pub struct Cli {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
 	pub run: sc_cli::RunCmd,
+
+	/// Custom block duration in milliseconds (only useful with --dev)
+	#[clap(long)]
+	pub block_millisecs: Option<u64>,
 }
 
 /// Possible subcommands of the main binary.

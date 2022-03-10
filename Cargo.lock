@@ -7158,6 +7158,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-runtime",
+ "sp-state-machine",
  "sp-timestamp",
  "sp-tracing",
  "sp-transaction-pool",
