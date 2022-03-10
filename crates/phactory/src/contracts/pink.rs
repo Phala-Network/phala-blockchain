@@ -186,7 +186,7 @@ fn cluster_storage<'a>(
 pub mod cluster {
     use super::Pink;
 
-    use anyhow::Result;
+    use anyhow::{Context, Result};
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
@@ -218,7 +218,7 @@ pub mod cluster {
         ) -> Result<ExecSideEffects> {
             let cluster = self
                 .get_cluster_mut(&cluster_id)
-                .expect("Cluster must exist before instantiation");
+                .context("Cluster must exist before instantiation")?;
             let (_, effects) = Pink::instantiate(
                 cluster_id,
                 &mut cluster.storage,

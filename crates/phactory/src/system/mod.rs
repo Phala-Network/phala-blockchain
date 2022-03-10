@@ -83,6 +83,7 @@ pub enum TransactionError {
     BadChainId,
     TransferringNotAllowed,
     // for contract
+    DuplicatedClusterDeploy,
     CodeNotFound,
 }
 
@@ -1034,6 +1035,12 @@ impl<Platform: pal::Platform> System<Platform> {
 
         // TODO(shelven): forget cluster key after expiration time
         let cluster_key = sr25519::Pair::restore_from_secret_key(&event.secret_key);
+        let cluster = self.contract_clusters.get_cluster_mut(&event.cluster);
+        if cluster.is_some() {
+            error!("Cluster {:?} is already deployed", &event.cluster);
+            return Err(TransactionError::DuplicatedClusterDeploy.into());
+        }
+
         self.contract_clusters
             .get_cluster_or_default_mut(&event.cluster, &cluster_key);
         let message = WorkerClusterReport::ClusterDeployed {
