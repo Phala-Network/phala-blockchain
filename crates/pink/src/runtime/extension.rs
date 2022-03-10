@@ -8,7 +8,8 @@ use pallet_contracts::chain_extension::{
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
     chain_extension::{
-        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs, VerifyArgs,
+        CacheSetArgs, HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType,
+        SignArgs, VerifyArgs,
     },
     dispatch_ext_call, PinkEvent,
 };
@@ -20,6 +21,8 @@ use crate::{
     runtime::{get_call_elapsed, get_call_mode, CallMode},
     types::AccountId,
 };
+
+use crate::local_cache::GLOBAL_CACHE;
 
 #[derive(Default, Debug)]
 pub struct ExecSideEffects {
@@ -217,6 +220,21 @@ where
             SigType::Ecdsa => public_key_with!(ecdsa),
         };
         Ok(pubkey)
+    }
+
+    fn cache_set(&self, args: CacheSetArgs<'_>) -> Result<(), Self::Error> {
+        GLOBAL_CACHE.set(self.address.as_ref().into(), args.key, args.value);
+        Ok(())
+    }
+
+    fn cache_get(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let value = GLOBAL_CACHE.get(self.address.as_ref(), key.as_ref());
+        Ok(value)
+    }
+
+    fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
+        let value = GLOBAL_CACHE.remove(self.address.as_ref(), key.as_ref());
+        Ok(value)
     }
 }
 

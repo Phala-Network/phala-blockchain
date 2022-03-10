@@ -5,9 +5,11 @@ use ink::ChainExtensionInstance;
 
 pub use http_request::{HttpRequest, HttpResponse};
 pub use signing::{SigType, SignArgs, VerifyArgs, PublicKeyForArgs};
+pub use local_cache::CacheSetArgs;
 
 mod http_request;
 mod signing;
+mod local_cache;
 
 #[cfg(feature = "std")]
 pub mod test;
@@ -45,6 +47,15 @@ pub trait PinkExt {
 
     #[ink(extension = 0xff000005, handle_status = false, returns_result = false)]
     fn get_public_key(args: PublicKeyForArgs) -> Vec<u8>;
+
+    #[ink(extension = 0xff000006, handle_status = false, returns_result = false)]
+    fn cache_set(args: CacheSetArgs) -> ();
+
+    #[ink(extension = 0xff000007, handle_status = false, returns_result = false)]
+    fn cache_get(key: Cow<[u8]>) -> Option<Vec<u8>>;
+
+    #[ink(extension = 0xff000008, handle_status = false, returns_result = false)]
+    fn cache_remove(args: Cow<[u8]>) -> Option<Vec<u8>>;
 }
 
 pub fn pink_extension_instance() -> <PinkExt as ChainExtensionInstance>::Instance {
