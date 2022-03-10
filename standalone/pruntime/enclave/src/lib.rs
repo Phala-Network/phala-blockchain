@@ -6,7 +6,7 @@ use parity_scale_codec::Decode;
 
 use log::{error, info, warn};
 
-use sgx_tstd::sync::SgxMutex;
+use std::sync::Mutex;
 use sgx_types::sgx_status_t;
 
 mod libc_hacks;
@@ -16,7 +16,7 @@ use pal_sgx::SgxPlatform;
 use phactory::{benchmark, Phactory};
 
 lazy_static::lazy_static! {
-    static ref APPLICATION: SgxMutex<Phactory<SgxPlatform>> = SgxMutex::new(Phactory::new(SgxPlatform));
+    static ref APPLICATION: Mutex<Phactory<SgxPlatform>> = Mutex::new(Phactory::new(SgxPlatform));
 }
 
 #[no_mangle]
