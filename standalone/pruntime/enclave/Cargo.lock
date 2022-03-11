@@ -25,6 +25,7 @@ dependencies = [
  "parity-scale-codec",
  "parking",
  "parking_lot_core 0.8.5",
+ "parking_lot_core 0.9.1",
  "phactory",
  "phactory-api",
  "phactory-pal",
@@ -3227,12 +3228,12 @@ dependencies = [
 [[package]]
 name = "parking_lot_core"
 version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "28141e0cc4143da2443301914478dc976a61ffdb3f043058310c70df2fed8954"
+source = "git+https://github.com/Phala-Network/parking_lot-sgx.git?branch=phala-0.9.1#6ab6f41a23431c00615bf9bb0e109fa3b6248d32"
 dependencies = [
  "cfg-if",
  "libc",
  "redox_syscall",
+ "sgx_tstd",
  "smallvec",
  "windows-sys",
 ]

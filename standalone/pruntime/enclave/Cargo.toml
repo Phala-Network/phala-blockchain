@@ -39,6 +39,7 @@ serde = { version = "1.0", default-features = false, features = ["derive"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["phala-sgx"] }
 aho-corasick = { version = "0.7.18", default-features = false, features = ["phala-sgx"] }
 parking_lot_core = { version = "0.8.5", default-features = false, features = ["phala-sgx"] }
+parking_lot_core_0_9_1 = { version = "0.9.1", package = "parking_lot_core", default-features = false, features = ["phala-sgx"] }
 cpufeatures = { version = "0.2", default-features = false, features = ["phala-sgx"] }
 async-io = { version = "1.6", default-features = false, features = ["phala-sgx"] }
 parking = { version = "2.0", default-features = false, features = ["phala-sgx"] }
@@ -69,6 +70,7 @@ aho-corasick = { git = "https://github.com/Phala-Network/aho-corasick-sgx.git", 
 futures-executor = { git = "https://github.com/Phala-Network/futures-rs-sgx.git", branch = "phala-0.3.21" }
 event-listener = { git = "https://github.com/Phala-Network/event-listener-sgx.git", branch = "phala" }
 parking_lot_core = { git = "https://github.com/Phala-Network/parking_lot-sgx.git", branch = "phala" }
+parking_lot_core_0_9_1 = { git = "https://github.com/Phala-Network/parking_lot-sgx.git", branch = "phala-0.9.1", package = "parking_lot_core" }
 cpufeatures = { git = "https://github.com/Phala-Network/cpufeatures-sgx.git", branch = "phala" }
 
 [patch.'https://github.com/apache/teaclave-sgx-sdk.git']
