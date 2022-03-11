@@ -74,14 +74,14 @@ impl<T: Config + Clone + Debug + Eq + Send + Sync + TypeInfo + 'static> SignedEx
         };
 
         (
-            CheckSpecVersion(PhantomData, self.spec_version),
-            CheckTxVersion(PhantomData, self.tx_version),
-            CheckGenesis(PhantomData, self.genesis_hash),
-            CheckMortality((era, PhantomData), birth_hash),
+            CheckSpecVersion(Default::default(), self.spec_version),
+            CheckTxVersion(Default::default(), self.tx_version),
+            CheckGenesis(Default::default(), self.genesis_hash),
+            CheckMortality((era, Default::default()), birth_hash),
             CheckNonce(self.nonce),
-            CheckWeight(PhantomData),
+            CheckWeight(Default::default()),
             // NOTE: skipped the ZST CheckMqSequence<T> here.
-            ChargeTransactionPayment(self.additional_params.tip.into(), PhantomData),
+            ChargeTransactionPayment(self.additional_params.tip.into(), Default::default()),
         )
     }
 }

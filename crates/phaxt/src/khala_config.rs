@@ -27,14 +27,3 @@ impl subxt::Config for KhalaConfig {
     type Signature = Signature;
     type Extrinsic = Extrinsic;
 }
-
-impl subxt::AccountData<KhalaConfig> for crate::khala::system::storage::Account {
-    fn nonce(
-        result: &<Self as subxt::StorageEntry>::Value,
-    ) -> <KhalaConfig as subxt::Config>::Index {
-        result.nonce
-    }
-    fn storage_entry(account_id: <KhalaConfig as ::subxt::Config>::AccountId) -> Self {
-        Self(account_id)
-    }
-}
