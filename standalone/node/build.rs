@@ -37,6 +37,7 @@ mod cli {
 		rerun_if_git_head_changed();
 	}
 
+	#[allow(dead_code)]
 	/// Build shell completion scripts for all known shells
 	fn build_shell_completion() {
 		for shell in Shell::value_variants() {
@@ -44,6 +45,7 @@ mod cli {
 		}
 	}
 
+	#[allow(dead_code)]
 	/// Build the shell auto-completion for a given Shell
 	fn build_completion(shell: &Shell) {
 		let outdir = match env::var_os("OUT_DIR") {
