@@ -9,7 +9,7 @@ pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
 #[test]
 fn test_ink_flip() {
     let mut storage = Contract::new_storage();
-    let mut contract = Contract::new_with_selector(
+    let contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
@@ -104,7 +104,7 @@ fn test_ink_cross_contract_instanciate() {
     )
     .unwrap();
 
-    let mut contract = Contract::new_with_selector(
+    let contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
@@ -137,7 +137,7 @@ fn test_ink_cross_contract_instanciate() {
 #[test]
 fn test_mq_egress() {
     let mut storage = Contract::new_storage();
-    let (mut contract, effects) = Contract::new_with_selector(
+    let (contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
@@ -218,7 +218,7 @@ fn test_signing() {
 
     storage.set_key_seed([1u8; 64]);
 
-    let (mut contract, _) = Contract::new_with_selector(
+    let (contract, _) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         include_bytes!("./fixtures/signing/signing.wasm").to_vec(),

@@ -221,7 +221,7 @@ mod tests {
     #[test]
     pub fn crypto_hashes_test() {
         pub const ALICE: AccountId32 = AccountId32::new([1u8; 32]);
-        const GAS_LIMIT: Weight = 10_000_000_000;
+        const GAS_LIMIT: Weight = 1_000_000_000_000_000;
 
         let (wasm, code_hash) =
             compile_wat::<PinkRuntime>(include_bytes!("../tests/fixtures/crypto_hashes.wat"))
