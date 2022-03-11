@@ -62,7 +62,7 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
     ) -> Result<(Self, ExecSideEffects), ExecError> {
-        if origin == Default::default() {
+        if origin == AccountId::new(Default::default()) {
             return Err(ExecError {
                 source: DispatchError::BadOrigin,
                 message: "Default account is not allowed to create contracts".to_string(),
@@ -144,7 +144,7 @@ impl Contract {
         block_number: BlockNumber,
         now: u64,
     ) -> (ContractExecResult, ExecSideEffects) {
-        if origin == Default::default() {
+        if origin == AccountId::new(Default::default()) {
             return (
                 ContractExecResult {
                     gas_consumed: 0,
@@ -216,7 +216,7 @@ impl Contract {
 
             let (result, effects) = self.unchecked_bare_call(
                 storage,
-                Default::default(),
+                AccountId::new(Default::default()),
                 input_data,
                 false,
                 block_number,
