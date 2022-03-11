@@ -95,7 +95,7 @@ jobs:
       - name: Change permission
         run: chmod +x ./target/release/phala-node ./target/release/pherry ./standalone/pruntime/bin/pruntime
       - name: Run E2E tests
-        run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && yarn test
+        run: echo "/opt/intel/sgxsdk/lib64/" | sudo tee /etc/ld.so.conf.d/intel-libsgx.conf | sudo ldconfig && source /opt/intel/sgxsdk/environment && yarn set version berry && cd ./e2e/ && YARN_ENABLE_IMMUTABLE_INSTALLS=false yarn && PRUNTIME_TYPE=gramine yarn test
     needs: [ build-core-blockchain, build-pruntime ]
 
   cargo-tests:

@@ -16,7 +16,11 @@ const { checkUntil, skipSlowTest } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
-const pathPRuntime = path.resolve('../standalone/pruntime/bin/pruntime');
+
+const isGramine = process.env.PRUNTIME_TYPE == "gramine";
+const pRuntimeBin = isGramine ? "pruntime" : "app";
+const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
+
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -197,8 +201,9 @@ describe('A full stack', function () {
                 await cluster.waitWorkerExitAndRestart(1, 10 * 6000),
                 'worker1 restart timeout'
             );
+            const dataDir = isGramine ? "data" : ".";
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/${dataDir}/master_key.seal`),
                 'master key not received'
             );
         });
@@ -678,13 +683,15 @@ function newNode(wsPort, tmpPath, name = 'node') {
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name = 'pruntime') {
+function newPRuntime(teePort, tmpPath, name = 'app') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
     const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
         fs.mkdirSync(sealDir);
-        const filesMustCopy = ['Rocket.toml', 'pruntime', 'pruntime.manifest'];
+        const filesMustCopy = isGramine ?
+            ['Rocket.toml', pRuntimeBin, 'pruntime.manifest'] :
+            ['Rocket.toml', pRuntimeBin, 'enclave.signed.so'];
         const filesShouldCopy = ['GeoLite2-City.mmdb']
         filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
@@ -695,13 +702,21 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
             }
         });
     }
-    return new Process([
-        `gramine-direct`, [
-            'pruntime',
-            '--cores=0',	// Disable benchmark
+    const args = isGramine ?
+        [
+            '--cores=0',  // Disable benchmark
             '--port', teePort.toString()
-        ], {
+        ] :
+        [
+            '--cores=0',
+        ];
+    return new Process([
+        `${workDir}/${pRuntimeBin}`, args, {
             cwd: workDir,
+            env: {
+                ...process.env,
+                ROCKET_PORT: teePort.toString(),
+            }
         }
     ], { logPath: `${tmpPath}/${name}.log` });
 }
