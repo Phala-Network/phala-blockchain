@@ -813,10 +813,10 @@ impl<Platform: pal::Platform> System<Platform> {
         event: ClusterKeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            ClusterKeyDistribution::ClusterKeyDistribution(dispatch_cluster_key_event) => {
-                let cluster = dispatch_cluster_key_event.cluster;
+            ClusterKeyDistribution::ClusterKeyDistribution(event) => {
+                let cluster = event.cluster;
                 if let Err(err) =
-                    self.process_cluster_key_distribution(block, origin, dispatch_cluster_key_event)
+                    self.process_cluster_key_distribution(block, origin, event)
                 {
                     error!(
                         "Failed to process cluster key distribution event: {:?}",
