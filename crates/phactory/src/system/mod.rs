@@ -26,18 +26,18 @@ pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::{Persistence, KDF},
+    sr25519::KDF,
 };
 use phala_mq::{
-    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
+    traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
     MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
 use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        ClusterKeyDistribution, DispatchClusterKeyEvent, DispatchMasterKeyEvent, GatekeeperChange,
-        GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
+        BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
+        GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
@@ -404,7 +404,7 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    cluster_key_distribution_events: SecretReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
+    cluster_key_distribution_events: TypedReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
     contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
@@ -451,12 +451,7 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            cluster_key_distribution_events: SecretReceiver::new_secret(
-                recv_mq
-                    .subscribe(ClusterKeyDistribution::<chain::BlockNumber>::topic())
-                    .into(),
-                ecdh_key.clone(),
-            ),
+            cluster_key_distribution_events: recv_mq.subscribe_bound(),
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
             ecdh_key,
@@ -813,11 +808,9 @@ impl<Platform: pal::Platform> System<Platform> {
         event: ClusterKeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            ClusterKeyDistribution::ClusterKeyDistribution(event) => {
+            ClusterKeyDistribution::BatchKeyDistribution(event) => {
                 let cluster = event.cluster;
-                if let Err(err) =
-                    self.process_cluster_key_distribution(block, origin, event)
-                {
+                if let Err(err) = self.process_cluster_key_distribution(block, origin, event) {
                     error!(
                         "Failed to process cluster key distribution event: {:?}",
                         err
@@ -1026,28 +1019,44 @@ impl<Platform: pal::Platform> System<Platform> {
         &mut self,
         _block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: DispatchClusterKeyEvent<chain::BlockNumber>,
+        event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
     ) -> anyhow::Result<()> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return Err(TransactionError::BadOrigin.into());
         }
 
-        // TODO(shelven): forget cluster key after expiration time
-        let cluster_key = sr25519::Pair::restore_from_secret_key(&event.secret_key);
-        let cluster = self.contract_clusters.get_cluster_mut(&event.cluster);
-        if cluster.is_some() {
-            error!("Cluster {:?} is already deployed", &event.cluster);
-            return Err(TransactionError::DuplicatedClusterDeploy.into());
-        }
+        let my_pubkey = self.identity_key.public();
+        if event.secret_keys.contains_key(&my_pubkey) {
+            let encrypted_key = &event.secret_keys[&my_pubkey];
+            let my_ecdh_key = self
+                .identity_key
+                .derive_ecdh_key()
+                .expect("Should never failed with valid identity key; qed.");
+            let secret = ecdh::agree(&my_ecdh_key, &encrypted_key.ecdh_pubkey.0)
+                .expect("Should never failed with valid ecdh key; qed.");
+            let mut key_buff = encrypted_key.encrypted_key.clone();
+            let secret_key = aead::decrypt(&encrypted_key.iv, &secret, &mut key_buff[..])
+                .expect("Failed to decrypt dispatched cluster key");
+            let cluster_key =
+                sr25519::Pair::from_seed_slice(secret_key).expect("Cluster key seed corrupted.");
+            info!("Worker: successfully decrypt received cluster key");
 
-        self.contract_clusters
-            .get_cluster_or_default_mut(&event.cluster, &cluster_key);
-        let message = WorkerClusterReport::ClusterDeployed {
-            id: event.cluster,
-            pubkey: cluster_key.public(),
-        };
-        self.egress.push_message(&message);
+            // TODO(shelven): forget cluster key after expiration time
+            let cluster = self.contract_clusters.get_cluster_mut(&event.cluster);
+            if cluster.is_some() {
+                error!("Cluster {:?} is already deployed", &event.cluster);
+                return Err(TransactionError::DuplicatedClusterDeploy.into());
+            }
+            // register cluster
+            self.contract_clusters
+                .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            let message = WorkerClusterReport::ClusterDeployed {
+                id: event.cluster,
+                pubkey: cluster_key.public(),
+            };
+            self.egress.push_message(&message);
+        }
         Ok(())
     }
 

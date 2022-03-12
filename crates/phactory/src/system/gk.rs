@@ -2,14 +2,14 @@ use super::{TransactionError, TypedReceiver, WorkerState};
 use chain::pallet_fat::ClusterRegistryEvent;
 use phala_crypto::{
     aead, ecdh,
-    sr25519::{Persistence, KDF},
+    sr25519::{Persistence, Sr25519SecretKey, KDF},
 };
 use phala_mq::{traits::MessageChannel, MessageDispatcher};
 use phala_serde_more as more;
 use phala_types::{
     contract::{messaging::ClusterEvent, ContractClusterId},
     messaging::{
-        ClusterKeyDistribution, GatekeeperEvent, KeyDistribution, MessageOrigin,
+        ClusterKeyDistribution, EncryptedKey, GatekeeperEvent, KeyDistribution, MessageOrigin,
         MiningInfoUpdateEvent, MiningReportEvent, RandomNumber, RandomNumberEvent, SettleInfo,
         SystemEvent, WorkerEvent, WorkerEventWithKey,
     },
@@ -18,7 +18,7 @@ use phala_types::{
 use serde::{Deserialize, Serialize};
 use sp_core::{hashing, sr25519, Pair};
 
-use crate::{secret_channel::SecretMessageChannel, types::BlockInfo};
+use crate::types::BlockInfo;
 
 use std::{
     collections::{BTreeMap, VecDeque},
@@ -218,7 +218,7 @@ where
                     self.process_gatekeeper_event(origin, event);
                 },
                 (event, origin) = self.cluster_events => {
-                    if let Err(err) = self.process_cluster_event(origin, event) {
+                    if let Err(err) = self.process_cluster_event(block, origin, event) {
                         error!(
                             "Failed to process cluster event: {:?}",
                             err
@@ -252,8 +252,35 @@ where
         }
     }
 
+    fn encrypt_key_to(
+        &mut self,
+        ecdh_pubkey: &EcdhPublicKey,
+        secret_key: &Sr25519SecretKey,
+        block_number: chain::BlockNumber,
+    ) -> EncryptedKey {
+        let derived_key = self
+            .master_key
+            .derive_sr25519_pair(&[&crate::generate_random_info()])
+            .expect("should not fail with valid info; qed.");
+        let my_ecdh_key = derived_key
+            .derive_ecdh_key()
+            .expect("ecdh key derivation should never failed with valid master key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("should never fail with valid ecdh key; qed.");
+        let iv = self.generate_iv(block_number);
+        let mut data = secret_key.to_vec();
+        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+
+        EncryptedKey {
+            ecdh_pubkey: sr25519::Public(my_ecdh_key.public()),
+            encrypted_key: data,
+            iv,
+        }
+    }
+
     fn process_cluster_event(
         &mut self,
+        block: &BlockInfo<'_>,
         origin: MessageOrigin,
         event: ClusterEvent,
     ) -> Result<(), TransactionError> {
@@ -273,23 +300,27 @@ where
                         cluster,
                         pubkey: cluster_pubkey,
                     });
-                // then distribute cluster key to each worker
+                // then distribute cluster key to all workers in one event
                 // the on-chain deployment state should be updated by assigned workers
-                let ecdh_key = self
-                    .master_key
-                    .derive_ecdh_key()
-                    .expect("should never fail with valid key; qed.");
-                let secret_mq = SecretMessageChannel::new(&ecdh_key, &self.egress);
                 // TODO.shelven: set up expiration
-                for worker in workers.iter() {
-                    secret_mq
-                        .bind_remote_key(Some(&worker.ecdh_pubkey.0))
-                        .push_message(&ClusterKeyDistribution::cluster_key_distribution(
-                            cluster_key.dump_secret_key(),
-                            cluster,
-                            0,
-                        ));
-                }
+                let secret_key = cluster_key.dump_secret_key();
+                let secret_keys: BTreeMap<_, _> = workers
+                    .into_iter()
+                    .map(|worker| {
+                        let encrypted_key = self.encrypt_key_to(
+                            &worker.ecdh_pubkey,
+                            &secret_key,
+                            block.block_number,
+                        );
+                        (worker.pubkey, encrypted_key)
+                    })
+                    .collect();
+                self.egress
+                    .push_message(&ClusterKeyDistribution::batch_cluster_key_distribution(
+                        secret_keys,
+                        cluster,
+                        0,
+                    ));
                 Ok(())
             }
         }

@@ -12,6 +12,7 @@ use sp_core::H256;
 // Messages: Phase Wallet
 
 pub mod messaging {
+    use alloc::collections::btree_map::BTreeMap;
     use alloc::string::String;
     use alloc::vec::Vec;
     use codec::{Decode, Encode};
@@ -469,17 +470,18 @@ pub mod messaging {
     bind_topic!(ClusterKeyDistribution<BlockNumber>, b"phala/cluster/key");
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum ClusterKeyDistribution<BlockNumber> {
-        ClusterKeyDistribution(DispatchClusterKeyEvent<BlockNumber>),
+        // TODO.shelven: a better way for real large batch key distribution
+        BatchKeyDistribution(BatchDispatchClusterKeyEvent<BlockNumber>),
     }
 
     impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
-        pub fn cluster_key_distribution(
-            secret_key: Sr25519SecretKey,
+        pub fn batch_cluster_key_distribution(
+            secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
         ) -> ClusterKeyDistribution<BlockNumber> {
-            ClusterKeyDistribution::ClusterKeyDistribution(DispatchClusterKeyEvent {
-                secret_key,
+            ClusterKeyDistribution::BatchKeyDistribution(BatchDispatchClusterKeyEvent {
+                secret_keys,
                 cluster,
                 expiration,
             })
@@ -487,7 +489,16 @@ pub mod messaging {
     }
 
     type AeadIV = [u8; 12];
-    type Sr25519SecretKey = [u8; 64];
+
+    #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
+    pub struct EncryptedKey {
+        /// The ecdh public key of key source
+        pub ecdh_pubkey: EcdhPublicKey,
+        /// Key encrypted with aead key
+        pub encrypted_key: Vec<u8>,
+        /// Aead IV
+        pub iv: AeadIV,
+    }
 
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct DispatchMasterKeyEvent {
@@ -502,8 +513,8 @@ pub mod messaging {
     }
 
     #[derive(Encode, Decode, Clone, PartialEq, Eq, Debug)]
-    pub struct DispatchClusterKeyEvent<BlockNumber> {
-        pub secret_key: Sr25519SecretKey,
+    pub struct BatchDispatchClusterKeyEvent<BlockNumber> {
+        pub secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
         pub cluster: ContractClusterId,
         pub expiration: BlockNumber,
     }
