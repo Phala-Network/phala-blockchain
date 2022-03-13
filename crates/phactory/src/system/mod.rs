@@ -829,15 +829,15 @@ impl<Platform: pal::Platform> System<Platform> {
         event: ContractOperation<chain::Hash, chain::AccountId>,
     ) -> anyhow::Result<()> {
         info!("Incoming contract operation: {:?}", event);
+        if !sender.is_pallet() {
+            anyhow::bail!("Invalid origin {:?} for contract operation", sender);
+        }
         match event {
             ContractOperation::UploadCodeToCluster {
                 origin,
                 code,
                 cluster_id,
             } => {
-                if !sender.is_pallet() {
-                    anyhow::bail!("Invalid origin {:?} trying to upload code", sender);
-                }
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
@@ -858,10 +858,6 @@ impl<Platform: pal::Platform> System<Platform> {
                 );
             }
             ContractOperation::InstantiateCode { contract_info } => {
-                if !sender.is_pallet() {
-                    anyhow::bail!("Invalid origin {:?} trying to instantiate code", sender);
-                }
-
                 let cluster_id = contract_info.cluster_id;
                 let cluster = self
                     .contract_clusters

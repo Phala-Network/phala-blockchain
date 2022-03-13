@@ -180,11 +180,12 @@ pub mod pallet {
 				workers: deploy_workers,
 			};
 
-			let counter = ClusterCounter::<T>::mutate(|counter| {
+			let cluster_id = ClusterCounter::<T>::mutate(|counter| {
+				let cluster_id = *counter;
 				*counter += 1;
-				*counter
+				cluster_id
 			});
-			let cluster = ContractClusterId::from_low_u64_be(counter);
+			let cluster = ContractClusterId::from_low_u64_be(cluster_id);
 
 			Clusters::<T>::insert(&cluster, &cluster_info);
 			Self::deposit_event(Event::ClusterCreated { cluster });
@@ -200,13 +201,6 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin: T::AccountId = ensure_signed(origin)?;
 			let cluster_info = Clusters::<T>::get(cluster_id).ok_or(Error::<T>::ClusterNotFound)?;
-			// only allow code upload when all the workers deploy the cluster
-			// the same check is not needed in instantiate_contract() any more
-			let deployed_workers = ClusterWorkers::<T>::get(cluster_id);
-			ensure!(
-				cluster_info.workers == deployed_workers,
-				Error::<T>::ClusterPermissionDenied
-			);
 			ensure!(
 				check_cluster_permission::<T>(&origin, &cluster_info),
 				Error::<T>::ClusterPermissionDenied
@@ -310,6 +304,7 @@ pub mod pallet {
 			};
 			match message.payload {
 				WorkerClusterReport::ClusterDeployed { id, pubkey } => {
+					// TODO.shelven: scalability concern for large number of workers
 					ClusterWorkers::<T>::append(&id, &worker_pubkey);
 					Self::deposit_event(Event::ClusterDeployed {
 						cluster: id,
