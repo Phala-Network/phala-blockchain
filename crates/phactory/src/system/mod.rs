@@ -384,10 +384,10 @@ impl WorkerIdentityKey {
 #[serde(transparent)]
 pub(crate) struct ContractKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
-fn get_contract_key(cluster_key: &sr25519::Pair, deployer: &chain::AccountId) -> sr25519::Pair {
+fn get_contract_key(cluster_key: &sr25519::Pair, contract_id: &ContractId) -> sr25519::Pair {
     // Introduce deployer in key generation to prevent Replay Attacks
     cluster_key
-        .derive_sr25519_pair(&[b"contract_key", deployer.as_ref()])
+        .derive_sr25519_pair(&[b"contract_key", contract_id.as_ref()])
         .expect("should not fail with valid info")
 }
 
@@ -869,7 +869,8 @@ impl<Platform: pal::Platform> System<Platform> {
                     .context("Cluster not deployed")?;
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
-                let contract_key = get_contract_key(cluster.key(), &contract_info.deployer);
+                let contract_id = contract_info.contract_id(Box::new(blake2_256));
+                let contract_key = get_contract_key(cluster.key(), &contract_id);
                 let contract_pubkey = contract_key.public();
                 let ecdh_key = contract_key
                     .derive_ecdh_key()
@@ -1125,7 +1126,8 @@ pub fn apply_pink_side_effects(
 ) {
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
-        let contract_key = get_contract_key(cluster.key(), &deployer);
+        let contract_id = ContractId::from(address.as_ref());
+        let contract_key = get_contract_key(cluster.key(), &contract_id);
         let ecdh_key = contract_key
             .derive_ecdh_key()
             .expect("Derive ecdh_key should not fail");
