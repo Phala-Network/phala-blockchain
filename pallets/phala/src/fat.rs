@@ -347,7 +347,10 @@ pub mod pallet {
 					deployer,
 					pubkey: _,
 				} => {
-					ClusterContracts::<T>::append(&cluster_id, &id);
+					let contracts = ClusterContracts::<T>::get(&cluster_id);
+					if !contracts.contains(&id) {
+						ClusterContracts::<T>::append(&cluster_id, &id);
+					}
 					Self::deposit_event(Event::Instantiated {
 						contract: id,
 						cluster: cluster_id,
