@@ -233,9 +233,10 @@ describe('A full stack', function () {
 
         it('can create cluster', async function () {
             const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
-            const info = await pruntime[0].getInfo();
+            const runtime0 = await pruntime[0].getInfo();
+            const runtime1 = await pruntime[1].getInfo();
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.addCluster(perm, [hex(info.publicKey)]),
+                api.tx.phalaFatContracts.addCluster(perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)]),
                 alice,
             );
             assertEvents(events, [
@@ -256,10 +257,10 @@ describe('A full stack', function () {
             }, 4 * 6000), 'cluster pubkey not uploaded');
         });
 
-        it('can deploy cluster to worker', async function () {
+        it('can deploy cluster to multiple workers', async function () {
             assert.isTrue(await checkUntil(async () => {
                 const clusterWorkers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
-                return clusterWorkers.length == 1;
+                return clusterWorkers.length == 2;
             }, 4 * 6000), 'cluster not deployed');
         });
 
