@@ -51,11 +51,11 @@ use std::time::Instant;
 use types::Error;
 
 pub use contracts::pink;
+pub use prpc_service::dispatch_prpc_request;
 pub use side_task::SideTaskManager;
 pub use storage::{Storage, StorageExt};
 pub use system::gk;
 pub use types::BlockInfo;
-pub use prpc_service::dispatch_prpc_request;
 
 pub mod benchmark;
 
@@ -312,7 +312,8 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
                 .map_err(|err| anyhow!("{:?}", err))
                 .context("Failed to create protected file")?;
 
-            serde_cbor::ser::to_writer(file, &PhactoryDumper(self)).context("Failed to write checkpoint")?;
+            serde_cbor::ser::to_writer(file, &PhactoryDumper(self))
+                .context("Failed to write checkpoint")?;
         }
 
         {
@@ -340,7 +341,9 @@ impl<Platform: pal::Platform + Serialize + DeserializeOwned> Phactory<Platform> 
         let mut enc_writer = aead::stream::new_aes128gcm_writer(key128, nonce, writer);
         serde_cbor::ser::to_writer(&mut enc_writer, &PhactoryDumper(self))
             .context("Failed to write checkpoint")?;
-        enc_writer.flush().context("Failed to flush encrypted writer")?;
+        enc_writer
+            .flush()
+            .context("Failed to flush encrypted writer")?;
         Ok(())
     }
 
@@ -492,6 +495,7 @@ fn generate_random_iv() -> aead::IV {
     nonce_vec
 }
 
+#[allow(dead_code)]
 fn generate_random_info() -> [u8; 32] {
     let mut nonce_vec = [0u8; 32];
     let rand = ring::rand::SystemRandom::new();

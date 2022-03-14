@@ -183,25 +183,19 @@ where
         block_number: chain::BlockNumber,
     ) {
         info!("Gatekeeper: try dispatch master key");
-        let derived_key = self
-            .master_key
-            .derive_sr25519_pair(&[&crate::generate_random_info()])
-            .expect("should not fail with valid info; qed.");
-        let my_ecdh_key = derived_key
-            .derive_ecdh_key()
-            .expect("ecdh key derivation should never failed with valid master key; qed.");
-        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
-            .expect("should never fail with valid ecdh key; qed.");
-        let iv = self.generate_iv(block_number);
-        let mut data = self.master_key.dump_secret_key().to_vec();
-
-        aead::encrypt(&iv, &secret, &mut data).expect("Failed to encrypt master key");
+        let master_key = self.master_key.dump_secret_key();
+        let encrypted_key = self.encrypt_key_to(
+            &[b"master_key_sharing"],
+            ecdh_pubkey,
+            &master_key,
+            block_number,
+        );
         self.egress
             .push_message(&KeyDistribution::master_key_distribution(
                 *pubkey,
-                sr25519::Public(my_ecdh_key.public()),
-                data,
-                iv,
+                encrypted_key.ecdh_pubkey,
+                encrypted_key.encrypted_key,
+                encrypted_key.iv,
             ));
     }
 
@@ -259,13 +253,14 @@ where
     // For end-to-end secret sharing, use `SecretMessageChannel`.
     fn encrypt_key_to(
         &mut self,
+        key_derive_info: &[&[u8]],
         ecdh_pubkey: &EcdhPublicKey,
         secret_key: &Sr25519SecretKey,
         block_number: chain::BlockNumber,
     ) -> EncryptedKey {
         let derived_key = self
             .master_key
-            .derive_sr25519_pair(&[&crate::generate_random_info()])
+            .derive_sr25519_pair(key_derive_info)
             .expect("should not fail with valid info; qed.");
         let my_ecdh_key = derived_key
             .derive_ecdh_key()
@@ -313,6 +308,7 @@ where
                     .into_iter()
                     .map(|worker| {
                         let encrypted_key = self.encrypt_key_to(
+                            &[b"cluster_key_sharing"],
                             &worker.ecdh_pubkey,
                             &secret_key,
                             block.block_number,
