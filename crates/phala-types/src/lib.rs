@@ -522,6 +522,7 @@ pub mod messaging {
         NewRandomNumber(RandomNumberEvent),
         TokenomicParametersChanged(TokenomicParameters),
         RepairV,
+        Fix676,
     }
 
     impl GatekeeperEvent {
