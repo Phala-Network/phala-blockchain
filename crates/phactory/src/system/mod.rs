@@ -19,25 +19,26 @@ use runtime::BlockNumber;
 
 use crate::contracts;
 use crate::pal;
+use chain::pallet_fat::ContractRegistryEvent;
 use chain::pallet_registry::RegistryEvent;
 use parity_scale_codec::{Decode, Encode};
 pub use phactory_api::prpc::{GatekeeperRole, GatekeeperStatus};
 use phala_crypto::{
     aead,
     ecdh::{self, EcdhKey},
-    sr25519::{Persistence, KDF},
+    sr25519::KDF,
 };
 use phala_mq::{
-    traits::MessageChannel, BadOrigin, BindTopic, ContractId, MessageDispatcher, MessageOrigin,
+    traits::MessageChannel, BadOrigin, ContractId, MessageDispatcher, MessageOrigin,
     MessageSendQueue, SignedMessageChannel, TypedReceiver,
 };
 use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        ContractKeyDistribution, DispatchContractKeyEvent, DispatchMasterKeyEvent,
+        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
-        NewGatekeeperEvent, SystemEvent, WorkerContractReport, WorkerEvent,
+        NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
     EcdhPublicKey, WorkerPublicKey,
 };
@@ -82,6 +83,7 @@ pub enum TransactionError {
     BadChainId,
     TransferringNotAllowed,
     // for contract
+    DuplicatedClusterDeploy,
     CodeNotFound,
 }
 
@@ -382,6 +384,13 @@ impl WorkerIdentityKey {
 #[serde(transparent)]
 pub(crate) struct ContractKey(#[serde(with = "more::key_bytes")] sr25519::Pair);
 
+fn get_contract_key(cluster_key: &sr25519::Pair, contract_id: &ContractId) -> sr25519::Pair {
+    // Introduce deployer in key generation to prevent Replay Attacks
+    cluster_key
+        .derive_sr25519_pair(&[b"contract_key", contract_id.as_ref()])
+        .expect("should not fail with valid info")
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct System<Platform> {
     platform: Platform,
@@ -395,9 +404,8 @@ pub struct System<Platform> {
     gatekeeper_launch_events: TypedReceiver<GatekeeperLaunch>,
     gatekeeper_change_events: TypedReceiver<GatekeeperChange>,
     key_distribution_events: TypedReceiver<KeyDistribution>,
-    contract_key_distribution_events:
-        SecretReceiver<ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>>,
-    contract_operation_events: TypedReceiver<ContractOperation<chain::AccountId>>,
+    cluster_key_distribution_events: TypedReceiver<ClusterKeyDistribution<chain::BlockNumber>>,
+    contract_operation_events: TypedReceiver<ContractOperation<chain::Hash, chain::AccountId>>,
     // Worker
     pub(crate) identity_key: WorkerIdentityKey,
     #[serde(with = "ecdh_serde")]
@@ -443,16 +451,7 @@ impl<Platform: pal::Platform> System<Platform> {
             gatekeeper_launch_events: recv_mq.subscribe_bound(),
             gatekeeper_change_events: recv_mq.subscribe_bound(),
             key_distribution_events: recv_mq.subscribe_bound(),
-            contract_key_distribution_events: SecretReceiver::new_secret(
-                recv_mq
-                    .subscribe(ContractKeyDistribution::<
-                        chain::Hash,
-                        chain::BlockNumber,
-                        chain::AccountId,
-                    >::topic())
-                    .into(),
-                ecdh_key.clone(),
-            ),
+            cluster_key_distribution_events: recv_mq.subscribe_bound(),
             contract_operation_events: recv_mq.subscribe_bound(),
             identity_key,
             ecdh_key,
@@ -513,8 +512,8 @@ impl<Platform: pal::Platform> System<Platform> {
             (event, origin) = self.key_distribution_events => {
                 self.process_key_distribution_event(block, origin, event);
             },
-            (event, origin) = self.contract_key_distribution_events => {
-                self.process_contract_key_distribution_event(block, origin, event);
+            (event, origin) = self.cluster_key_distribution_events => {
+                self.process_cluster_key_distribution_event(block, origin, event);
             },
             (event, origin) = self.contract_operation_events => {
                 self.process_contract_operation_event(block, origin, event)?
@@ -802,29 +801,21 @@ impl<Platform: pal::Platform> System<Platform> {
         }
     }
 
-    fn process_contract_key_distribution_event(
+    fn process_cluster_key_distribution_event(
         &mut self,
         block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: ContractKeyDistribution<chain::Hash, chain::BlockNumber, chain::AccountId>,
+        event: ClusterKeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            ContractKeyDistribution::ContractKeyDistribution(dispatch_contract_key_event) => {
-                let contract_info = dispatch_contract_key_event.contract_info.clone();
-                if let Err(err) = self.process_contract_key_distribution(
-                    block,
-                    origin,
-                    dispatch_contract_key_event,
-                ) {
+            ClusterKeyDistribution::Batch(event) => {
+                let cluster = event.cluster;
+                if let Err(err) = self.process_cluster_key_distribution(block, origin, event) {
                     error!(
-                        "Failed to process contract key distribution event: {:?}",
+                        "Failed to process cluster key distribution event: {:?}",
                         err
                     );
-                    let message = WorkerContractReport::ContractInstantiationFailed {
-                        id: contract_info.contract_id(Box::new(blake2_256)),
-                        cluster_id: contract_info.cluster_id,
-                        deployer: phala_types::messaging::AccountId(contract_info.deployer.into()),
-                    };
+                    let message = WorkerClusterReport::ClusterDeploymentFailed { id: cluster };
                     self.egress.push_message(&message);
                 }
             }
@@ -833,33 +824,179 @@ impl<Platform: pal::Platform> System<Platform> {
 
     fn process_contract_operation_event(
         &mut self,
-        _block: &mut BlockInfo,
+        block: &mut BlockInfo,
         sender: MessageOrigin,
-        event: ContractOperation<chain::AccountId>,
+        event: ContractOperation<chain::Hash, chain::AccountId>,
     ) -> anyhow::Result<()> {
+        info!("Incoming contract operation: {:?}", event);
+        if !sender.is_pallet() {
+            anyhow::bail!("Invalid origin {:?} for contract operation", sender);
+        }
         match event {
             ContractOperation::UploadCodeToCluster {
                 origin,
                 code,
                 cluster_id,
             } => {
-                if !sender.is_pallet() {
-                    anyhow::bail!("Invalid origin {:?} trying to upload code", sender);
-                }
                 let cluster = self
                     .contract_clusters
                     .get_cluster_mut(&cluster_id)
-                    .context("Cluster not found")?;
+                    .context("Cluster not deployed")?;
                 let hash = cluster
-                    .upload_code(origin, code)
+                    .upload_code(origin.clone(), code)
                     .map_err(|err| anyhow!("Failed to upload code: {:?}", err))?;
+                let uploader = phala_types::messaging::AccountId(origin.into());
+                let message = WorkerContractReport::CodeUploaded {
+                    cluster_id,
+                    uploader,
+                    hash,
+                };
+                self.egress.push_message(&message);
                 info!(
                     "Uploaded code to cluster {}, code_hash={:?}",
                     cluster_id, hash
                 );
             }
+            ContractOperation::InstantiateCode { contract_info } => {
+                let cluster_id = contract_info.cluster_id;
+                let cluster = self
+                    .contract_clusters
+                    .get_cluster_mut(&cluster_id)
+                    .context("Cluster not deployed")?;
+                // We generate a unique key for each contract instead of
+                // sharing the same cluster key to prevent replay attack
+                let contract_id = contract_info.contract_id(blake2_256);
+                let contract_key = get_contract_key(cluster.key(), &contract_id);
+                let contract_pubkey = contract_key.public();
+                let ecdh_key = contract_key
+                    .derive_ecdh_key()
+                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
+
+                let sender = MessageOrigin::Cluster(cluster_id);
+                let cluster_mq: SignedMessageChannel =
+                    block.send_mq.channel(sender, cluster.key().clone().into());
+
+                match contract_info.code_index {
+                    CodeIndex::NativeCode(contract_id) => {
+                        use contracts::*;
+                        let deployer = phala_types::messaging::AccountId(
+                            contract_info.clone().deployer.into(),
+                        );
+
+                        macro_rules! match_and_install_contract {
+                            ($(($id: path => $contract: expr)),*) => {{
+                                match contract_id {
+                                    $(
+                                        $id => {
+                                            let contract = NativeContractWrapper::new(
+                                                $contract,
+                                                &contract_info
+                                            );
+                                            install_contract(
+                                                &mut self.contracts,
+                                                contract,
+                                                contract_key.clone(),
+                                                ecdh_key,
+                                                block,
+                                                cluster_id,
+                                            )?
+                                        }
+                                    )*
+                                    _ => {
+                                        anyhow::bail!(
+                                            "Invalid contract id: {:?}",
+                                            contract_id
+                                        );
+                                    }
+                                }
+                            }};
+                        }
+
+                        let contract_id = match_and_install_contract! {
+                            (BALANCES => balances::Balances::new()),
+                            (ASSETS => assets::Assets::new()),
+                            (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.to_raw_vec()))),
+                            (GEOLOCATION => geolocation::Geolocation::new()),
+                            (GUESS_NUMBER => guess_number::GuessNumber::new()),
+                            (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
+                        };
+
+                        let message = ContractRegistryEvent::PubkeyAvailable {
+                            contract: contract_id,
+                            pubkey: contract_pubkey.clone(),
+                        };
+                        cluster_mq.push_message(&message);
+
+                        cluster.add_contract(contract_id);
+
+                        let message = WorkerContractReport::ContractInstantiated {
+                            id: contract_id,
+                            cluster_id,
+                            deployer,
+                            pubkey: contract_pubkey,
+                        };
+                        info!("Native contract instantiate status: {:?}", message);
+                        self.egress.push_message(&message);
+                    }
+                    CodeIndex::WasmCode(code_hash) => {
+                        let deployer = contract_info.deployer.clone();
+                        let contract_id = contract_info.contract_id(blake2_256);
+
+                        let message = ContractRegistryEvent::PubkeyAvailable {
+                            contract: contract_id,
+                            pubkey: contract_pubkey,
+                        };
+                        cluster_mq.push_message(&message);
+
+                        let effects = self
+                            .contract_clusters
+                            .instantiate_contract(
+                                cluster_id,
+                                deployer.clone(),
+                                code_hash,
+                                contract_info.instantiate_data,
+                                contract_info.salt,
+                                block.block_number,
+                                block.now_ms,
+                            )
+                            .with_context(|| format!("Contract deployer: {:?}", deployer))?;
+
+                        let cluster = self
+                            .contract_clusters
+                            .get_cluster_mut(&cluster_id)
+                            .expect("Cluster must exist");
+                        apply_pink_side_effects(
+                            effects,
+                            cluster_id,
+                            &mut self.contracts,
+                            cluster,
+                            block,
+                            &self.egress,
+                        );
+                    }
+                }
+            }
         }
         Ok(())
+    }
+
+    // This function is used to decrypt the key encrypted by `encrypt_key_to()`
+    fn decrypt_key_from(
+        &self,
+        ecdh_pubkey: &EcdhPublicKey,
+        encrypted_key: &Vec<u8>,
+        iv: &AeadIV,
+    ) -> sr25519::Pair {
+        let my_ecdh_key = self
+            .identity_key
+            .derive_ecdh_key()
+            .expect("Should never failed with valid identity key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("Should never failed with valid ecdh key; qed.");
+        let mut key_buff = encrypted_key.clone();
+        let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])
+            .expect("Failed to decrypt dispatched key");
+        sr25519::Pair::from_seed_slice(secret_key).expect("Key seed must be correct; qed.")
     }
 
     /// Process encrypted master key from mq
@@ -875,145 +1012,49 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
-            let my_ecdh_key = self
-                .identity_key
-                .derive_ecdh_key()
-                .expect("Should never failed with valid identity key; qed.");
-            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                .expect("Should never failed with valid ecdh key; qed.");
-
-            let mut master_key_buff = event.encrypted_master_key.clone();
-            let master_key = aead::decrypt(&event.iv, &secret, &mut master_key_buff[..])
-                .expect("Failed to decrypt dispatched master key");
-
-            let master_pair = sr25519::Pair::from_seed_slice(master_key)
-                .expect("Master key seed must be correct; qed.");
+            let master_pair =
+                self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);
         }
         Ok(())
     }
 
-    fn process_contract_key_distribution(
+    fn process_cluster_key_distribution(
         &mut self,
-        block: &mut BlockInfo,
+        _block: &mut BlockInfo,
         origin: MessageOrigin,
-        event: DispatchContractKeyEvent<chain::Hash, chain::BlockNumber, chain::AccountId>,
+        event: BatchDispatchClusterKeyEvent<chain::BlockNumber>,
     ) -> anyhow::Result<()> {
         if !origin.is_gatekeeper() {
             error!("Invalid origin {:?} sent a {:?}", origin, event);
             return Err(TransactionError::BadOrigin.into());
         }
 
-        // TODO(shelven): forget contract key after expiration time
-        let keypair = sr25519::Pair::restore_from_secret_key(&event.secret_key);
-        let contract_key = ContractKey(keypair);
-        let contract_info = event.contract_info;
-        let cluster_id = contract_info.cluster_id;
+        let my_pubkey = self.identity_key.public();
+        if event.secret_keys.contains_key(&my_pubkey) {
+            let encrypted_key = &event.secret_keys[&my_pubkey];
+            let cluster_key = self.decrypt_key_from(
+                &encrypted_key.ecdh_pubkey,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            );
+            info!("Worker: successfully decrypt received cluster key");
 
-        match contract_info.code_index {
-            CodeIndex::NativeCode(contract_id) => {
-                use contracts::*;
-                let deployer =
-                    phala_types::messaging::AccountId(contract_info.clone().deployer.into());
-                let ecdh_key = contract_key
-                    .0
-                    .derive_ecdh_key()
-                    .or(Err(anyhow::anyhow!("Invalid contract key")))?;
-
-                macro_rules! match_and_install_contract {
-                    ($(($id: path => $contract: expr)),*) => {{
-                        match contract_id {
-                            $(
-                                $id => {
-                                    let contract = NativeContractWrapper::new(
-                                        $contract,
-                                        &contract_info
-                                    );
-                                    install_contract(
-                                        &mut self.contracts,
-                                        contract,
-                                        contract_key.0.clone(),
-                                        ecdh_key,
-                                        block,
-                                        cluster_id,
-                                    )?
-                                }
-                            )*
-                            _ => {
-                                anyhow::bail!(
-                                    "Invalid contract id: {:?}",
-                                    contract_id
-                                );
-                            }
-                        }
-                    }};
-                }
-
-                let ecdh_pubkey = ecdh_key.public();
-
-                let contract_id = match_and_install_contract! {
-                    (BALANCES => balances::Balances::new()),
-                    (ASSETS => assets::Assets::new()),
-                    (BTC_LOTTERY => btc_lottery::BtcLottery::new(Some(contract_key.0.to_raw_vec()))),
-                    (GEOLOCATION => geolocation::Geolocation::new()),
-                    (GUESS_NUMBER => guess_number::GuessNumber::new()),
-                    (BTC_PRICE_BOT => btc_price_bot::BtcPriceBot::new())
-                };
-
-                self.contract_clusters
-                    .get_cluster_or_default_mut(&cluster_id, &contract_key.0)
-                    .add_contract(contract_id);
-
-                let message = WorkerContractReport::ContractInstantiated {
-                    id: contract_id,
-                    cluster_id,
-                    deployer,
-                    pubkey: EcdhPublicKey(ecdh_pubkey),
-                };
-                info!("Native contract instantiate status: {:?}", message);
-                self.egress.push_message(&message);
+            // TODO(shelven): forget cluster key after expiration time
+            let cluster = self.contract_clusters.get_cluster_mut(&event.cluster);
+            if cluster.is_some() {
+                error!("Cluster {:?} is already deployed", &event.cluster);
+                return Err(TransactionError::DuplicatedClusterDeploy.into());
             }
-            CodeIndex::WasmCode(code_hash) => {
-                let code = chain_state::read_contract_code(block.storage, code_hash);
-                if code.is_none() {
-                    error!(
-                        "Code 0x{} not found for contract 0x{}",
-                        hex::encode(code_hash),
-                        hex::encode(contract_key.public())
-                    );
-                    return Err(TransactionError::CodeNotFound.into());
-                }
-
-                let code = code.expect("checked; qed.");
-                let deployer = contract_info.deployer;
-                let effects = self
-                    .contract_clusters
-                    .instantiate_contract(
-                        cluster_id,
-                        deployer.clone(),
-                        code,
-                        contract_info.instantiate_data,
-                        contract_info.salt,
-                        &contract_key,
-                        block.block_number,
-                        block.now_ms,
-                    )
-                    .with_context(|| format!("Contract deployer: {:?}", deployer))?;
-
-                let cluster = self
-                    .contract_clusters
-                    .get_cluster_mut(&cluster_id)
-                    .expect("Cluster must exist after instantiate");
-                apply_pink_side_effects(
-                    effects,
-                    cluster_id,
-                    &mut self.contracts,
-                    cluster,
-                    block,
-                    &self.egress,
-                );
-            }
+            // register cluster
+            self.contract_clusters
+                .get_cluster_or_default_mut(&event.cluster, &cluster_key);
+            let message = WorkerClusterReport::ClusterDeployed {
+                id: event.cluster,
+                pubkey: cluster_key.public(),
+            };
+            self.egress.push_message(&message);
         }
         Ok(())
     }
@@ -1081,13 +1122,13 @@ pub fn apply_pink_side_effects(
     block: &mut BlockInfo,
     egress: &SignedMessageChannel,
 ) {
-    let contract_key = cluster.key().clone();
-    let ecdh_key = contract_key
-        .derive_ecdh_key()
-        .expect("Derive ecdh_key should not fail");
-
     for (deployer, address) in effects.instantiated {
         let pink = Pink::from_address(address.clone(), cluster_id);
+        let contract_id = ContractId::from(address.as_ref());
+        let contract_key = get_contract_key(cluster.key(), &contract_id);
+        let ecdh_key = contract_key
+            .derive_ecdh_key()
+            .expect("Derive ecdh_key should not fail");
         let id = install_contract(
             contracts,
             pink,
@@ -1209,7 +1250,7 @@ impl fmt::Display for Error {
 
 pub mod chain_state {
     use super::*;
-    use crate::light_validation::utils::{storage_map_prefix_twox_64_concat, storage_prefix};
+    use crate::light_validation::utils::storage_prefix;
     use crate::storage::Storage;
     use parity_scale_codec::Decode;
 
@@ -1225,14 +1266,6 @@ pub mod chain_state {
 
         gatekeepers.contains(pubkey)
     }
-
-    pub fn read_contract_code(chain_storage: &Storage, code_hash: chain::Hash) -> Option<Vec<u8>> {
-        let key = storage_map_prefix_twox_64_concat(b"PhalaFatContracts", b"Code", &code_hash);
-        chain_storage.get(&key).map(|v| {
-            Vec::<u8>::decode(&mut &v[..])
-                .expect("Decode value of MasterPubkey Failed. (This should not happen)")
-        })
-    }
 }
 
 #[cfg(test)]
@@ -1244,19 +1277,20 @@ mod tests {
 
     #[test]
     fn test_on_block_end() {
-        let contract_key = sp_core::Pair::from_seed(&Default::default());
+        let cluster_key = sp_core::Pair::from_seed(&Default::default());
         let mut contracts = ContractsKeeper::default();
         let mut keeper = ClusterKeeper::default();
         let wasm_bin = pink::load_test_wasm("hooks_test");
         let cluster_id = phala_mq::ContractClusterId(Default::default());
+        let cluster = keeper.get_cluster_or_default_mut(&cluster_id, &cluster_key);
+        let code_hash = cluster.upload_code(ALICE.clone(), wasm_bin).unwrap();
         let effects = keeper
             .instantiate_contract(
                 cluster_id,
                 ALICE,
-                wasm_bin,
+                code_hash,
                 vec![0xed, 0x4b, 0x9d, 0x1b],
                 Default::default(),
-                &contract_key,
                 1,
                 1,
             )

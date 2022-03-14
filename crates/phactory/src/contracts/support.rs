@@ -101,7 +101,7 @@ pub struct NativeContractWrapper<Con> {
 
 impl<Con> NativeContractWrapper<Con> {
     pub fn new(inner: Con, contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> Self {
-        let id = contract_info.contract_id(Box::new(blake2_256));
+        let id = contract_info.contract_id(blake2_256);
         NativeContractWrapper { inner, id }
     }
 }

@@ -11,7 +11,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
-	use sp_core::H256;
+	use sp_core::{sr25519, H256};
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -23,10 +23,11 @@ pub mod pallet {
 
 	use phala_types::{
 		messaging::{
-			self, bind_topic, ContractId, DecodedMessage, GatekeeperChange, GatekeeperLaunch,
-			MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
+			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -83,6 +84,9 @@ pub mod pallet {
 	#[pallet::storage]
 	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
 
+	#[pallet::storage]
+	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, ClusterPublicKey>;
+
 	/// Pubkey for secret topics.
 	#[pallet::storage]
 	pub type TopicKey<T> = StorageMap<_, Blake2_128Concat, Vec<u8>, Vec<u8>>;
@@ -120,6 +124,7 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		UnknownCluster,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -221,7 +226,7 @@ pub mod pallet {
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
-					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+					Workers::<T>::get(&gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
 				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
@@ -414,9 +419,13 @@ pub mod pallet {
 		T: crate::mq::Config,
 	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: ContractPublicKey;
+			let pubkey_copy: sr25519::Public;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
+				MessageOrigin::Cluster(id) => {
+					pubkey_copy = ClusterKeys::<T>::get(id).ok_or(Error::<T>::UnknownCluster)?;
+					&pubkey_copy
+				}
 				MessageOrigin::Contract(id) => {
 					pubkey_copy = ContractKeys::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy
