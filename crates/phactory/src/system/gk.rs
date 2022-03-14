@@ -252,6 +252,11 @@ where
         }
     }
 
+    // Manually encrypt the secret key for sharing
+    //
+    // The encrypted key intends to be shared through public channel in a broadcast way,
+    // so it is possible to share one key to multiple parties in one message.
+    // For end-to-end secret sharing, use `SecretMessageChannel`.
     fn encrypt_key_to(
         &mut self,
         ecdh_pubkey: &EcdhPublicKey,

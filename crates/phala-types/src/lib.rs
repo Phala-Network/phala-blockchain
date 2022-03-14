@@ -490,6 +490,9 @@ pub mod messaging {
 
     type AeadIV = [u8; 12];
 
+    /// Secret key encrypted with AES-256-GCM algorithm
+    ///
+    /// The encryption key is generated with sr25519-based ECDH
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub struct EncryptedKey {
         /// The ecdh public key of key source

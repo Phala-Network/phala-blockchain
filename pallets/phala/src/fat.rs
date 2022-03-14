@@ -268,6 +268,7 @@ pub mod pallet {
 			);
 			match message.payload {
 				ClusterRegistryEvent::PubkeyAvailable { cluster, pubkey } => {
+					// The cluster key can be over-written with the latest value by Gatekeeper
 					registry::ClusterKeys::<T>::insert(&cluster, &pubkey);
 					Self::deposit_event(Event::ClusterPubkeyAvailable { cluster, pubkey });
 				}
