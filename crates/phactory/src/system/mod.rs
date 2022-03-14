@@ -36,7 +36,7 @@ use phala_serde_more as more;
 use phala_types::{
     contract::{self, messaging::ContractOperation, CodeIndex},
     messaging::{
-        BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
+        AeadIV, BatchDispatchClusterKeyEvent, ClusterKeyDistribution, DispatchMasterKeyEvent,
         GatekeeperChange, GatekeeperLaunch, HeartbeatChallenge, KeyDistribution, MiningReportEvent,
         NewGatekeeperEvent, SystemEvent, WorkerClusterReport, WorkerContractReport, WorkerEvent,
     },
@@ -808,7 +808,7 @@ impl<Platform: pal::Platform> System<Platform> {
         event: ClusterKeyDistribution<chain::BlockNumber>,
     ) {
         match event {
-            ClusterKeyDistribution::BatchKeyDistribution(event) => {
+            ClusterKeyDistribution::Batch(event) => {
                 let cluster = event.cluster;
                 if let Err(err) = self.process_cluster_key_distribution(block, origin, event) {
                     error!(
@@ -980,6 +980,25 @@ impl<Platform: pal::Platform> System<Platform> {
         Ok(())
     }
 
+    // This function is used to decrypt the key encrypted by `encrypt_key_to()`
+    fn decrypt_key_from(
+        &self,
+        ecdh_pubkey: &EcdhPublicKey,
+        encrypted_key: &Vec<u8>,
+        iv: &AeadIV,
+    ) -> sr25519::Pair {
+        let my_ecdh_key = self
+            .identity_key
+            .derive_ecdh_key()
+            .expect("Should never failed with valid identity key; qed.");
+        let secret = ecdh::agree(&my_ecdh_key, &ecdh_pubkey.0)
+            .expect("Should never failed with valid ecdh key; qed.");
+        let mut key_buff = encrypted_key.clone();
+        let secret_key = aead::decrypt(iv, &secret, &mut key_buff[..])
+            .expect("Failed to decrypt dispatched key");
+        sr25519::Pair::from_seed_slice(secret_key).expect("Key seed must be correct; qed.")
+    }
+
     /// Process encrypted master key from mq
     fn process_master_key_distribution(
         &mut self,
@@ -993,19 +1012,8 @@ impl<Platform: pal::Platform> System<Platform> {
 
         let my_pubkey = self.identity_key.public();
         if my_pubkey == event.dest {
-            let my_ecdh_key = self
-                .identity_key
-                .derive_ecdh_key()
-                .expect("Should never failed with valid identity key; qed.");
-            let secret = ecdh::agree(&my_ecdh_key, &event.ecdh_pubkey.0)
-                .expect("Should never failed with valid ecdh key; qed.");
-
-            let mut master_key_buff = event.encrypted_master_key.clone();
-            let master_key = aead::decrypt(&event.iv, &secret, &mut master_key_buff[..])
-                .expect("Failed to decrypt dispatched master key");
-
-            let master_pair = sr25519::Pair::from_seed_slice(master_key)
-                .expect("Master key seed must be correct; qed.");
+            let master_pair =
+                self.decrypt_key_from(&event.ecdh_pubkey, &event.encrypted_master_key, &event.iv);
             info!("Gatekeeper: successfully decrypt received master key");
             self.set_master_key(master_pair, true);
         }
@@ -1026,17 +1034,11 @@ impl<Platform: pal::Platform> System<Platform> {
         let my_pubkey = self.identity_key.public();
         if event.secret_keys.contains_key(&my_pubkey) {
             let encrypted_key = &event.secret_keys[&my_pubkey];
-            let my_ecdh_key = self
-                .identity_key
-                .derive_ecdh_key()
-                .expect("Should never failed with valid identity key; qed.");
-            let secret = ecdh::agree(&my_ecdh_key, &encrypted_key.ecdh_pubkey.0)
-                .expect("Should never failed with valid ecdh key; qed.");
-            let mut key_buff = encrypted_key.encrypted_key.clone();
-            let secret_key = aead::decrypt(&encrypted_key.iv, &secret, &mut key_buff[..])
-                .expect("Failed to decrypt dispatched cluster key");
-            let cluster_key =
-                sr25519::Pair::from_seed_slice(secret_key).expect("Cluster key seed corrupted.");
+            let cluster_key = self.decrypt_key_from(
+                &encrypted_key.ecdh_pubkey,
+                &encrypted_key.encrypted_key,
+                &encrypted_key.iv,
+            );
             info!("Worker: successfully decrypt received cluster key");
 
             // TODO(shelven): forget cluster key after expiration time

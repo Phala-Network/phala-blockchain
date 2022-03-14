@@ -471,16 +471,16 @@ pub mod messaging {
     #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo)]
     pub enum ClusterKeyDistribution<BlockNumber> {
         // TODO.shelven: a better way for real large batch key distribution
-        BatchKeyDistribution(BatchDispatchClusterKeyEvent<BlockNumber>),
+        Batch(BatchDispatchClusterKeyEvent<BlockNumber>),
     }
 
     impl<BlockNumber> ClusterKeyDistribution<BlockNumber> {
-        pub fn batch_cluster_key_distribution(
+        pub fn batch_distribution(
             secret_keys: BTreeMap<WorkerPublicKey, EncryptedKey>,
             cluster: ContractClusterId,
             expiration: BlockNumber,
         ) -> ClusterKeyDistribution<BlockNumber> {
-            ClusterKeyDistribution::BatchKeyDistribution(BatchDispatchClusterKeyEvent {
+            ClusterKeyDistribution::Batch(BatchDispatchClusterKeyEvent {
                 secret_keys,
                 cluster,
                 expiration,
@@ -488,7 +488,7 @@ pub mod messaging {
         }
     }
 
-    type AeadIV = [u8; 12];
+    pub type AeadIV = [u8; 12];
 
     /// Secret key encrypted with AES-256-GCM algorithm
     ///

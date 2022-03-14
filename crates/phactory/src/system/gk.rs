@@ -317,7 +317,7 @@ where
                     })
                     .collect();
                 self.egress
-                    .push_message(&ClusterKeyDistribution::batch_cluster_key_distribution(
+                    .push_message(&ClusterKeyDistribution::batch_distribution(
                         secret_keys,
                         cluster,
                         0,
