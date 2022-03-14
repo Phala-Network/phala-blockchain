@@ -3,84 +3,124 @@
 //! machines of the same contract. And the data might loss when the pruntime restart or caused
 //! by some kind of cache expiring machanism.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-
 use alloc::borrow::Cow;
-use chashmap::CHashMap;
 use once_cell::sync::Lazy;
+use std::{collections::HashMap, sync::RwLock};
 
-pub static GLOBAL_CACHE: Lazy<LocalCache> = Lazy::new(|| LocalCache::default());
+pub static GLOBAL_CACHE: Lazy<RwLock<LocalCache>> = Lazy::new(Default::default);
 
-type Storage = CHashMap<Vec<u8>, StorageValue>;
+#[derive(Debug)]
+pub struct QuotaExceeded;
 
+#[derive(Default, Debug)]
+struct Storage {
+    size: usize,
+    kvs: HashMap<Vec<u8>, StorageValue>,
+}
+
+#[derive(Debug)]
 struct StorageValue {
     /// Seconds since the UNIX epoch.
     expire_at: u64,
     value: Vec<u8>,
 }
 
-#[derive(Default)]
+#[derive(Debug)]
 pub struct LocalCache {
-    set_count: AtomicU64,
-    storages: CHashMap<Vec<u8>, Storage>,
+    // Number of set ops between two GC ops.
+    gc_interval: u64,
+    // Accumulated number of set ops since last GC.
+    sets_since_last_gc: u64,
+    // Default expiration time in seconds.
+    default_value_lifetime: u64,
+    max_cache_size_per_contract: usize,
+    storages: HashMap<Vec<u8>, Storage>,
+}
+
+impl Default for LocalCache {
+    fn default() -> Self {
+        Self {
+            gc_interval: 10000,
+            sets_since_last_gc: 0,
+            default_value_lifetime: 3600 * 24 * 7, // 1 week
+            max_cache_size_per_contract: 10 * 1024 * 1024, // 10MB
+            storages: Default::default(),
+        }
+    }
 }
 
 impl LocalCache {
-    fn maybe_clear_expired(&self) {
-        const GC_INTERVAL: u64 = 10000;
-        let count = self.set_count.fetch_add(1, Ordering::Relaxed);
-        if count == GC_INTERVAL {
-            self.set_count.store(0, Ordering::Relaxed);
+    fn maybe_clear_expired(&mut self) {
+        self.sets_since_last_gc += 1;
+        if self.sets_since_last_gc == self.gc_interval {
+            self.sets_since_last_gc = 0;
             let now = now();
-            self.storages.retain(|_, store| {
-                store.retain(|_, v| v.expire_at > now);
-                true
+            self.storages.values_mut().for_each(|storage| {
+                let storage_size = &mut storage.size;
+                storage.kvs.retain(|k, v| {
+                    if v.expire_at > now {
+                        true
+                    } else {
+                        *storage_size -= v.value.len() + k.len();
+                        false
+                    }
+                });
             });
         }
     }
 
     pub fn get(&self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
-        Some(self.storages.get(id)?.get(key)?.value.to_owned())
+        Some(self.storages.get(id)?.kvs.get(key)?.value.to_owned())
     }
 
-    pub fn set(&self, id: Cow<[u8]>, key: Cow<[u8]>, value: Cow<[u8]>) {
+    pub fn set(
+        &mut self,
+        id: Cow<[u8]>,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
+    ) -> Result<(), QuotaExceeded> {
         self.maybe_clear_expired();
-        self.storages.alter(id.into(), move |store| {
-            let store = match store {
-                Some(store) => store,
-                None => Default::default(),
-            };
-            let value = StorageValue {
-                expire_at: now().saturating_add(3600 * 24 * 7), // The default expire time is 7 days.
+        let store = self
+            .storages
+            .entry(id.into_owned())
+            .or_insert_with(Storage::default);
+        let key_len = key.len();
+        let value_len = value.len();
+        let prev_value = store.kvs.remove(key.as_ref());
+
+        let new_size = match prev_value {
+            Some(v) => store.size + value_len - v.value.len(),
+            None => store.size + key_len + value_len,
+        };
+
+        if new_size > self.max_cache_size_per_contract {
+            return Err(QuotaExceeded);
+        }
+
+        store.size = new_size;
+        store.kvs.insert(
+            key.into_owned(),
+            StorageValue {
+                expire_at: now().saturating_add(self.default_value_lifetime),
                 value: value.into_owned(),
-            };
-            store.insert(key.into(), value);
-            Some(store)
-        })
+            },
+        );
+        Ok(())
     }
 
-    pub fn set_expire(&self, id: Cow<[u8]>, key: Cow<[u8]>, expire: u64) {
-        self.storages.alter(id.into(), move |store| {
-            let store = match store {
-                Some(store) => store,
-                None => Default::default(),
-            };
-            store.alter(key.into(), |mut value| {
-                if let Some(value) = &mut value {
-                    value.expire_at = now().saturating_add(expire);
-                }
-                value
-            });
-            Some(store)
-        })
+    pub fn set_expire(&mut self, id: Cow<[u8]>, key: Cow<[u8]>, expire: u64) {
+        self.storages
+            .get_mut(id.as_ref())
+            .and_then(|storage| storage.kvs.get_mut(key.as_ref()))
+            .map(|v| v.expire_at = now().saturating_add(expire));
     }
 
-    pub fn remove(&self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
-        self.storages.get_mut(id)?.remove(key).map(|v| v.value)
+    pub fn remove(&mut self, id: &[u8], key: &[u8]) -> Option<Vec<u8>> {
+        self.storages.get_mut(id)?.kvs.remove(key).map(|v| v.value)
     }
 
     #[allow(dead_code)]
-    pub fn remove_storage(&self, id: &[u8]) {
+    pub fn remove_storage(&mut self, id: &[u8]) {
         let _ = self.storages.remove(id);
     }
 }
@@ -90,4 +130,86 @@ fn now() -> u64 {
         .duration_since(std::time::UNIX_EPOCH)
         .expect("The system time is incorrect")
         .as_secs()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    fn test_cache() -> LocalCache {
+        LocalCache {
+            gc_interval: 2,
+            sets_since_last_gc: 0,
+            default_value_lifetime: 2,
+            max_cache_size_per_contract: 1024,
+            storages: Default::default(),
+        }
+    }
+
+    fn cow<'a>(s: &'a impl AsRef<[u8]>) -> Cow<'a, [u8]> {
+        Cow::Borrowed(s.as_ref())
+    }
+
+    fn gc(cache: &mut LocalCache) {
+        for _ in 0..cache.gc_interval + 1 {
+            let _ = cache.set(cow(b"_"), cow(b"_"), cow(b"_"));
+        }
+    }
+
+    fn sleep(secs: u64) {
+        std::thread::sleep(std::time::Duration::from_secs(secs));
+    }
+
+    fn get_size(cache: &LocalCache, id: &[u8]) -> usize {
+        cache.storages.get(id).unwrap().size
+    }
+
+    #[test]
+    fn default_expire_should_work() {
+        let mut cache = test_cache();
+        let _ = cache.set(cow(b"id"), cow(b"foo"), cow(b"value"));
+        assert_eq!(cache.get(b"id", b"foo"), Some(b"value".to_vec()));
+
+        sleep(cache.default_value_lifetime);
+        gc(&mut cache);
+
+        assert_eq!(cache.get(b"id", b"foo"), None);
+        assert_eq!(get_size(&cache, b"id"), 0);
+    }
+
+    #[test]
+    fn set_expire_should_work() {
+        let mut cache = test_cache();
+        let _ = cache.set(cow(b"id"), cow(b"foo"), cow(b"value"));
+        assert_eq!(cache.get(b"id", b"foo"), Some(b"value".to_vec()));
+        cache.set_expire(cow(b"id"), cow(b"foo"), cache.default_value_lifetime + 2);
+
+        sleep(cache.default_value_lifetime);
+        gc(&mut cache);
+
+        assert_eq!(cache.get(b"id", b"foo"), Some(b"value".to_vec()));
+
+        sleep(2);
+        gc(&mut cache);
+
+        assert_eq!(cache.get(b"id", b"foo"), None);
+    }
+
+    #[test]
+    fn size_limit_should_work() {
+        let mut cache = test_cache();
+        cache.max_cache_size_per_contract = 10;
+        assert!(cache.set(cow(b"id"), cow(b"foo"), cow(b"value")).is_ok());
+        assert!(cache.set(cow(b"id"), cow(b"bar"), cow(b"value")).is_err());
+    }
+
+    #[test]
+    fn size_calc() {
+        let mut cache = test_cache();
+        assert!(cache.set(cow(b"id"), cow(b"foo"), cow(b"bar")).is_ok());
+        assert_eq!(get_size(&cache, b"id"), 6);
+        assert!(cache.set(cow(b"id"), cow(b"foo"), cow(b"foobar")).is_ok());
+        assert_eq!(get_size(&cache, b"id"), 9);
+        assert!(cache.set(cow(b"id"), cow(b"foo"), cow(b"foo")).is_ok());
+        assert_eq!(get_size(&cache, b"id"), 6);
+    }
 }

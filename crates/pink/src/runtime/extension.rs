@@ -223,12 +223,20 @@ where
     }
 
     fn cache_set(&self, args: CacheSetArgs<'_>) -> Result<(), Self::Error> {
-        GLOBAL_CACHE.set(self.address.as_ref().into(), args.key, args.value);
+        GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .set(self.address.as_ref().into(), args.key, args.value)
+            .or(Err(DispatchError::Other("QuotaExceeded")))?;
         Ok(())
     }
 
     fn cache_set_expire(&self, args: CacheSetExpireArgs<'_>) -> Result<(), Self::Error> {
-        GLOBAL_CACHE.set_expire(self.address.as_ref().into(), args.key, args.expire);
+        GLOBAL_CACHE.write().unwrap().set_expire(
+            self.address.as_ref().into(),
+            args.key,
+            args.expire,
+        );
         Ok(())
     }
 
@@ -236,12 +244,18 @@ where
         if !matches!(get_call_mode(), Some(CallMode::Query)) {
             return Ok(None);
         }
-        let value = GLOBAL_CACHE.get(self.address.as_ref(), key.as_ref());
+        let value = GLOBAL_CACHE
+            .read()
+            .unwrap()
+            .get(self.address.as_ref(), key.as_ref());
         Ok(value)
     }
 
     fn cache_remove(&self, key: Cow<'_, [u8]>) -> Result<Option<Vec<u8>>, Self::Error> {
-        let value = GLOBAL_CACHE.remove(self.address.as_ref(), key.as_ref());
+        let value = GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .remove(self.address.as_ref(), key.as_ref());
         Ok(value)
     }
 }

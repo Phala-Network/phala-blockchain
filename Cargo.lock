@@ -7380,6 +7380,7 @@ dependencies = [
  "impl-serde",
  "insta",
  "log",
+ "once_cell",
  "pallet-balances",
  "pallet-contracts",
  "pallet-contracts-primitives",
