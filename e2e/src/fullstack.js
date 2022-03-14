@@ -24,7 +24,7 @@ describe('A full stack', function () {
     this.timeout(60000);
 
     let cluster;
-    let api, keyring, alice, root;
+    let api, keyring, alice, bob, root;
     let pruntime;
     const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
@@ -42,6 +42,7 @@ describe('A full stack', function () {
         await cryptoWaitReady();
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         root = alice = keyring.addFromUri('//Alice');
+        bob = keyring.addFromUri('//Bob');
     });
 
     after(async function () {
@@ -155,7 +156,7 @@ describe('A full stack', function () {
         });
     });
 
-    describe.skip('Gatekeeper2', () => {
+    describe('Gatekeeper2', () => {
         it('can be registered', async function () {
             // Register worker1 as Gatekeeper
             const info = await pruntime[1].getInfo();
@@ -198,7 +199,7 @@ describe('A full stack', function () {
                 'worker1 restart timeout'
             );
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/data/master_key.seal`),
                 'master key not received'
             );
         });
@@ -224,96 +225,96 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Contract', () => {
+    describe('Cluster & Contract', () => {
         let wasmFile = './res/flipper.wasm';
+        let codeHash = hex('0x5b1f7f0b85908c168c0d0ca65efae0e916455bf527b8589d3e655311ec7b1f2c');
         let initSelector = hex('0xed4b9d1b'); // for default() function
-        let codeHash;
-        let contractIds = [];
         let clusterId;
 
-        it('can upload code', async function () {
-            let code = fs.readFileSync(wasmFile, 'hex');
+        it('can create cluster', async function () {
+            const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
+            const runtime0 = await pruntime[0].getInfo();
+            const runtime1 = await pruntime[1].getInfo();
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.uploadCode(hex(code)),
+                api.tx.phalaFatContracts.addCluster(perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)]),
                 alice,
             );
             assertEvents(events, [
                 ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'CodeUploaded']
+                ['phalaFatContracts', 'ClusterCreated']
             ]);
+
             const { event } = events[1];
-            codeHash = hex(event.toJSON().data[0]);
-            const result = await api.query.phalaFatContracts.code(codeHash);
-            const uploadedCode = result.unwrap().toJSON();
-            assert.equal(hex(uploadedCode), hex(code), 'upload failed')
+            clusterId = hex(event.toJSON().data[0]);
+            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            assert.isTrue(clusterInfo.isSome);
         });
 
-        it('can instantiate contract', async function () {
-            const info = await pruntime[0].getInfo();
+        it('can generate cluster key', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const clusterKey = await api.query.phalaRegistry.clusterKeys(clusterId);
+                return clusterKey.isSome;
+            }, 4 * 6000), 'cluster pubkey not uploaded');
+        });
+
+        it('can deploy cluster to multiple workers', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const clusterWorkers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
+                return clusterWorkers.length == 2;
+            }, 4 * 6000), 'cluster not deployed');
+        });
+
+        it('can upload code with access control', async function () {
+            let code = fs.readFileSync(wasmFile, 'hex');
+            // For now, there is no way to check whether code is uploaded in script
+            // since this requires monitering the async CodeUploaded event
+            await assert.txAccepted(
+                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                alice,
+            );
+            await assert.txFailed(
+                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                bob,
+            )
+        });
+
+        it('can instantiate contract with access control', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
-            const deployTo = api.createType('DeployTarget', { 'NewGroup': [hex(info.publicKey)] });
+            await assert.txFailed(
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                bob,
+            );
             const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, deployTo),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
                 alice,
             );
             assertEvents(events, [
                 ['balances', 'Withdraw'],
                 ['phalaFatContracts', 'Instantiating']
             ]);
+
             const { event } = events[1];
             let contractId = hex(event.toJSON().data[0]);
-            contractIds.push(contractId);
-            clusterId = hex(event.toJSON().data[1]);
-
             let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
             assert.isTrue(contractInfo.isSome, 'no contract info');
-
-            let clusterContracts = await api.query.phalaFatContracts.clusters(clusterId);
-            assert.equal(clusterContracts.length, 1, 'no contract in cluster');
-
-            let workers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
-            assert.equal(workers.unwrap().length, 1, 'no workers for cluster');
 
             assert.isTrue(await checkUntil(async () => {
                 let key = await api.query.phalaRegistry.contractKeys(contractId);
                 return key.isSome;
-            }, 10 * 6000), 'instantiation failed');
+            }, 4 * 6000), 'contract key generation failed');
+
+            assert.isTrue(await checkUntil(async () => {
+                let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
+                return clusterContracts.length == 1;
+            }, 4 * 6000), 'instantiation failed');
         });
 
         it('cannot dup-instantiate', async function () {
             const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
-            const deployTo = api.createType('DeployTarget', { 'Cluster': clusterId });
             await assert.txFailed(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, deployTo),
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
                 alice,
             );
-        });
-
-        it('can instantiate to cluster', async function () {
-            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
-            const deployTo = api.createType('DeployTarget', { 'Cluster': clusterId });
-            const { events } = await assert.txAccepted(
-                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 1, deployTo),
-                alice,
-            );
-            assertEvents(events, [
-                ['balances', 'Withdraw'],
-                ['phalaFatContracts', 'Instantiating']
-            ]);
-            const { event } = events[1];
-            let contractId = hex(event.toJSON().data[0]);
-            contractIds.push(contractId);
-
-            let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
-            assert.isTrue(contractInfo.isSome, 'no contract info');
-
-            let clusterContracts = await api.query.phalaFatContracts.clusters(clusterId);
-            assert.equal(clusterContracts.length, 2, 'no contract in cluster');
-
-            assert.isTrue(await checkUntil(async () => {
-                let key = await api.query.phalaRegistry.contractKeys(contractId);
-                return key.isSome;
-            }, 10 * 6000), 'instantiation failed');
         });
     });
 

@@ -4,7 +4,7 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
-use runtime::{AccountId, BlockNumber};
+use runtime::{AccountId, BlockNumber, Hash};
 
 use super::{contract_address_to_id, NativeContractMore};
 
@@ -40,7 +40,7 @@ impl Pink {
         cluster_id: ContractClusterId,
         storage: &mut pink::Storage,
         origin: AccountId,
-        wasm_bin: Vec<u8>,
+        code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
@@ -49,7 +49,7 @@ impl Pink {
         let (instance, effects) = pink::Contract::new(
             storage,
             origin.clone(),
-            wasm_bin,
+            code_hash,
             input_data,
             cluster_id.as_bytes().to_vec(),
             salt,
@@ -186,7 +186,7 @@ fn cluster_storage<'a>(
 pub mod cluster {
     use super::Pink;
 
-    use anyhow::Result;
+    use anyhow::{Context, Result};
     use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
@@ -210,19 +210,20 @@ pub mod cluster {
             &mut self,
             cluster_id: ContractClusterId,
             origin: AccountId,
-            wasm_bin: Vec<u8>,
+            code_hash: Hash,
             input_data: Vec<u8>,
             salt: Vec<u8>,
-            contract_key: &sr25519::Pair,
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let cluster = self.get_cluster_or_default_mut(&cluster_id, contract_key);
+            let cluster = self
+                .get_cluster_mut(&cluster_id)
+                .context("Cluster must exist before instantiation")?;
             let (_, effects) = Pink::instantiate(
                 cluster_id,
                 &mut cluster.storage,
                 origin,
-                wasm_bin,
+                code_hash,
                 input_data,
                 salt,
                 block_number,
@@ -245,15 +246,15 @@ pub mod cluster {
         pub fn get_cluster_or_default_mut(
             &mut self,
             cluster_id: &ContractClusterId,
-            contract_key: &sr25519::Pair,
+            cluster_key: &sr25519::Pair,
         ) -> &mut Cluster {
             self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
                 let mut cluster = Cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
-                    key: contract_key.clone(),
+                    key: cluster_key.clone(),
                 };
-                let seed_key = contract_key
+                let seed_key = cluster_key
                     .derive_sr25519_pair(&[b"ink key derivation seed"])
                     .expect("Derive key seed should always success!");
                 cluster.set_id(cluster_id);
@@ -296,6 +297,5 @@ pub mod cluster {
         ) -> Result<Hash, DispatchError> {
             self.storage.upload_code(origin, code)
         }
-
     }
 }
