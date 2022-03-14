@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use alloc::format;
 use alloc::string::String;
 use alloc::vec::Vec;
@@ -115,7 +114,7 @@ pub fn contract_id_preimage(
 }
 
 impl<CodeHash: AsRef<[u8]>, AccountId: AsRef<[u8]>> ContractInfo<CodeHash, AccountId> {
-    pub fn contract_id(&self, blake2_256: Box<dyn Fn(&[u8]) -> [u8; 32]>) -> ContractId {
+    pub fn contract_id(&self, blake2_256: impl Fn(&[u8]) -> [u8; 32]) -> ContractId {
         let buf = contract_id_preimage(
             self.deployer.as_ref(),
             self.code_index.code_hash().as_ref(),

@@ -237,7 +237,7 @@ pub mod pallet {
 				cluster_id,
 				instantiate_data: data,
 			};
-			let contract_id = contract_info.contract_id(Box::new(crate::hashing::blake2_256));
+			let contract_id = contract_info.contract_id(crate::hashing::blake2_256);
 			ensure!(
 				!Contracts::<T>::contains_key(contract_id),
 				Error::<T>::DuplicatedContract

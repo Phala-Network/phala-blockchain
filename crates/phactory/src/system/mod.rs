@@ -865,7 +865,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     .context("Cluster not deployed")?;
                 // We generate a unique key for each contract instead of
                 // sharing the same cluster key to prevent replay attack
-                let contract_id = contract_info.contract_id(Box::new(blake2_256));
+                let contract_id = contract_info.contract_id(blake2_256);
                 let contract_key = get_contract_key(cluster.key(), &contract_id);
                 let contract_pubkey = contract_key.public();
                 let ecdh_key = contract_key
@@ -940,7 +940,7 @@ impl<Platform: pal::Platform> System<Platform> {
                     }
                     CodeIndex::WasmCode(code_hash) => {
                         let deployer = contract_info.deployer.clone();
-                        let contract_id = contract_info.contract_id(Box::new(blake2_256));
+                        let contract_id = contract_info.contract_id(blake2_256);
 
                         let message = ContractRegistryEvent::PubkeyAvailable {
                             contract: contract_id,
