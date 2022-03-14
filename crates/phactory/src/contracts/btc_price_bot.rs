@@ -34,12 +34,23 @@ type Command = BtcPriceBotCommand;
 ///
 /// For the basic functionalities of contract, refer to `guess_number.rs`.
 
-#[derive(Encode, Decode, Debug, Clone, Default)]
+#[derive(Encode, Decode, Debug, Clone)]
 pub struct BtcPriceBot {
     owner: AccountId,
     bot_token: String,
     chat_id: String,
     price: String,
+}
+
+impl Default for BtcPriceBot {
+    fn default() -> Self {
+        Self {
+            owner: AccountId::new(Default::default()),
+            bot_token: Default::default(),
+            chat_id: Default::default(),
+            price: Default::default(),
+        }
+    }
 }
 
 /// The Queries to this contract
@@ -100,7 +111,7 @@ struct BtcPrice {
 }
 
 // Alice is the pre-defined root account in dev mode
-const ALICE: &str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
+const ALICE: &'static str = "d43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d";
 
 impl contracts::NativeContract for BtcPriceBot {
     type Cmd = Command;

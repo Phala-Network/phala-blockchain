@@ -2,7 +2,6 @@ use std::str::FromStr;
 
 use super::*;
 use actix_web::{get, web, App, HttpResponse, HttpServer};
-use phactory_api::prpc as pb;
 use subxt::sp_runtime::AccountId32;
 
 struct AppState {

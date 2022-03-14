@@ -29,8 +29,8 @@ sc-rpc-api = { path = "../../substrate/client/rpc-api", package = "sc-rpc-api" }
 sp-runtime = { path = "../../substrate/primitives/runtime", package = "sp-runtime" }
 sc-finality-grandpa = { path = "../../substrate/client/finality-grandpa" }
 sp-finality-grandpa = { package = "sp-finality-grandpa", path = "../../substrate/primitives/finality-grandpa", default-features = false }
-codec = { package = 'parity-scale-codec', version = "2.3" }
-scale-info = { version = '1.0' }
+codec = { package = 'parity-scale-codec', version = "3.0" }
+scale-info = { version = '2.0' }
 
 pallet-grandpa = { path = "../../substrate/frame/grandpa" }
 pallet-indices = { path = "../../substrate/frame/indices" }

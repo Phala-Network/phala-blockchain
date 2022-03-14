@@ -2,8 +2,9 @@ use phala_node_rpc_ext_types::GetStorageChangesResponse;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::to_value as to_json_value;
 use subxt::{
+    rpc::{ClientT, rpc_params},
     sp_core::storage::{StorageData, StorageKey},
-    Client, Config, Error, RpcClient,
+    BasicError as Error, Client, Config, RpcClient,
 };
 
 pub trait ExtraRpcExt {
@@ -33,7 +34,7 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
         from: &T::Hash,
         to: &T::Hash,
     ) -> Result<GetStorageChangesResponse, Error> {
-        let params = &[to_json_value(from)?, to_json_value(to)?];
+        let params = rpc_params![to_json_value(from)?, to_json_value(to)?];
         self.client
             .request("pha_getStorageChanges", params)
             .await
@@ -46,14 +47,14 @@ impl<'a, T: Config> ExtraRpcClient<'a, T> {
         prefix: StorageKey,
         hash: Option<T::Hash>,
     ) -> Result<Vec<(StorageKey, StorageData)>, Error> {
-        let params = &[to_json_value(prefix)?, to_json_value(hash)?];
+        let params = rpc_params![to_json_value(prefix)?, to_json_value(hash)?];
         let data = self.client.request("state_getPairs", params).await?;
         Ok(data)
     }
 
     /// Fetch block syncing status
     pub async fn system_sync_state(&self) -> Result<SyncState, Error> {
-        Ok(self.client.request("system_syncState", &[]).await?)
+        Ok(self.client.request("system_syncState", rpc_params![]).await?)
     }
 }
 
@@ -64,7 +65,7 @@ where
 {
     /// Reads the next nonce of an account, considering the pending extrinsics in the txpool
     pub async fn account_nonce(&self, account: &T::AccountId) -> Result<T::Index, Error> {
-        let params = &[to_json_value(account)?];
+        let params = rpc_params![to_json_value(account)?];
         Ok(self
             .client
             .request("system_accountNextIndex", params)

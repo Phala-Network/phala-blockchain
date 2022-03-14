@@ -15,7 +15,7 @@ fn test_ink_flip() {
             include_bytes!("./fixtures/flip/flip.wasm").to_vec(),
         )
         .unwrap();
-    let mut contract = Contract::new_with_selector(
+    let contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         code_hash,
@@ -122,7 +122,7 @@ fn test_ink_cross_contract_instanciate() {
             include_bytes!("./fixtures/cross/cross.wasm").to_vec(),
         )
         .unwrap();
-    let mut contract = Contract::new_with_selector(
+    let contract = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         code_hash,
@@ -161,7 +161,7 @@ fn test_mq_egress() {
             include_bytes!("./fixtures/mqproxy/mqproxy.wasm").to_vec(),
         )
         .unwrap();
-    let (mut contract, effects) = Contract::new_with_selector(
+    let (contract, effects) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         code_hash,
@@ -253,7 +253,7 @@ fn test_signing() {
         )
         .unwrap();
 
-    let (mut contract, _) = Contract::new_with_selector(
+    let (contract, _) = Contract::new_with_selector(
         &mut storage,
         ALICE.clone(),
         code_hash,

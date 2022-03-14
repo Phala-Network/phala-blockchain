@@ -24,8 +24,8 @@ sp-sandbox = { path = "../../substrate/primitives/sandbox" }
 sp-state-machine = { path = "../../substrate/primitives/state-machine" }
 sp-externalities = { path = "../../substrate/primitives/externalities" }
 
-scale = { package = "parity-scale-codec", version = "2.0.0", default-features = false, features = ["derive"] }
-scale-info = { version = "1.0", default-features = false, features = ["derive", "serde", "decode"] }
+scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0", default-features = false, features = ["derive", "serde", "decode"] }
 parity-wasm = { version = "0.41.0", default-features = false }
 pwasm-utils = { version = "0.16", default-features = false }
 wasmi-validation = { version = "0.3.0", default-features = false }
