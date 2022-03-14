@@ -243,6 +243,9 @@ where
             GatekeeperEvent::RepairV => {
                 // Handled by MiningEconomics
             }
+            GatekeeperEvent::Fix676 => {
+                // Handled by MiningEconomics
+            }
         }
     }
 
@@ -424,6 +427,32 @@ pub struct MiningEconomics<MsgChan> {
     gatekeeper_events: TypedReceiver<GatekeeperEvent>,
     workers: BTreeMap<WorkerPublicKey, WorkerInfo>,
     tokenomic_params: tokenomic::Params,
+    // See https://github.com/Phala-Network/phala-blockchain/issues/676
+    #[serde(default)]
+    fix676: bool,
+}
+
+#[test]
+fn test_restore_fix676() {
+    #[derive(Serialize, Deserialize)]
+    struct MiningEconomics0 {
+        tokenomic_params: u32,
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct MiningEconomics1 {
+        tokenomic_params: u32,
+        #[serde(default)]
+        fix676: bool,
+    }
+
+    let checkpoint = serde_cbor::to_vec(&MiningEconomics0 {
+        tokenomic_params: 1,
+    })
+    .unwrap();
+
+    let state: MiningEconomics1 = serde_cbor::from_slice(&checkpoint).unwrap();
+    assert!(!state.fix676);
 }
 
 impl From<&WorkerInfo> for pb::WorkerState {
@@ -464,6 +493,7 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
             gatekeeper_events: recv_mq.subscribe_bound(),
             workers: Default::default(),
             tokenomic_params: tokenomic::test_params(),
+            fix676: false,
         }
     }
 
@@ -510,7 +540,13 @@ impl<MsgChan: MessageChannel> MiningEconomics<MsgChan> {
     pub fn sum_share(&self) -> FixedPoint {
         self.workers
             .values()
-            .filter(|info| !info.unresponsive)
+            .filter(|info| {
+                if self.fix676 {
+                    !info.unresponsive && info.state.mining_state.is_some()
+                } else {
+                    !info.unresponsive
+                }
+            })
             .map(|info| info.tokenomic.share())
             .sum()
     }
@@ -893,6 +929,12 @@ where
                                 .on_finance_event(FinanceEvent::RecoverV, w)
                         }
                     }
+                }
+            }
+            GatekeeperEvent::Fix676 => {
+                if origin.is_pallet() {
+                    // Fixes https://github.com/Phala-Network/phala-blockchain/issues/676
+                    self.state.fix676 = true;
                 }
             }
         }

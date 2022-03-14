@@ -59,7 +59,7 @@ pub mod pallet {
 		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -110,7 +110,6 @@ pub mod pallet {
 		StorageValue<_, Vec<H256>, ValueQuery>;
 
 	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
 	}
@@ -600,33 +599,6 @@ pub mod pallet {
 					}
 				}
 			}
-		}
-	}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			}
-			w
-		}
-	}
-
-	mod migrations {
-		use super::{BenchmarkDuration, Config};
-		use frame_support::pallet_prelude::*;
-
-		pub fn initialize<T: Config>() -> Weight {
-			log::info!("phala_pallet::registry: initialize()");
-			BenchmarkDuration::<T>::put(50);
-			T::DbWeight::get().writes(1)
 		}
 	}
 
