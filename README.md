@@ -74,41 +74,37 @@ the _current_ rustc.
     - Can be purged by `./target/release/phala-node purge-chain <args like --dev>`
     - The [Polkadot.js UI](https://polkadot.js.org/apps) can connect to the node at port 9944.
 
-2. Compile & launch pRuntime
-
-    Read `docs/sgx.md`, *Install SDK* section, to determine how to install the Intel SGX PSW & SDK.
-    If not using Docker, you may need the following final steps:
-
+2. Compile & launch pRuntime (Simulation mode)
     ```bash
-    sudo mkdir /opt/intel
-    sudo ln -s /opt/sgxsdk /opt/intel/sgxsdk
-    sudo pip install meson ninja
+    cd standalone/pruntime/pruntime
+    mkdir -p data
+    cargo run
     ```
 
-    Run `make` (`SGX_MODE=SW make` for simulation mode if you don't have the hardware).
-
-    ```bash
-    cd standalone/pruntime
-    SGX_MODE=SW make
-    ```
+3. Compile & launch pRuntime (Hardware mode)
 
     Apply for Remote Attestation API keys at
-    [Intel IAS service](https://api.portal.trustedservices.intel.com/EPID-attestation). The SPID must be linkable. Then put the hex
-    key in plain text files (`spid.txt` and `key.txt`) and put them into `bin/`.
+    [Intel IAS service](https://api.portal.trustedservices.intel.com/EPID-attestation). The SPID must be linkable.
 
-    Finally, run pRuntime:
+    Follow gramine's [document](https://gramine.readthedocs.io/en/latest/quickstart.html) to install the gramine toolchain.
+
+    After installing the toolchain, you can graminify and run the pRuntime.
     ```bash
-    cd bin/
-    ./app
+    export SGX_SIGNER_KEY=path/to/your/key.pem
+    export IAS_SPID=your_spid
+    export IAS_API_KEY=your_api_key_in_hex
+    cd standalone/pruntime/pruntime/gramine-build
+    make
+    gramine-sgx pruntime
     ```
 
-3. Run pherry (node and pRuntime required):
+4. Run pherry (node and pRuntime required):
 
     ```bash
     ./target/release/pherry --dev
     ```
 
-4. Web UI (TODO: still being refactored)
+5. Web UI (TODO: still being refactored)
 
 ## Sub-pages
 
