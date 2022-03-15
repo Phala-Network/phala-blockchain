@@ -295,9 +295,10 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             let fname = "mock_".to_owned() + &name;
             let fname = Ident::new(&fname, Span::call_site());
             let id = Literal::u32_unsuffixed(m.id().into_u32());
-            let inputs: Vec<Type> = m
-                .inputs()
-                .map(|arg| match *arg.ty.clone() {
+            let input_types: Vec<Type> = m.inputs().map(|arg| (*arg.ty).clone()).collect();
+            let input_types_cow: Vec<Type> = input_types
+                .iter()
+                .map(|arg| match arg.clone() {
                     Type::Reference(tp) => {
                         let inner = tp.elem.clone();
                         syn::parse_quote! { Cow<#inner> }
@@ -305,19 +306,28 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     tp => tp,
                 })
                 .collect();
-            let inputs: TokenStream2 = match inputs.len() {
-                0 => syn::parse_quote! {},
-                1 => syn::parse_quote! {
-                    (
-                        #(#inputs),*
-                    )
-                },
-                _ => syn::parse_quote! {
-                    (
-                        (#(#inputs),*)
-                    )
-                },
-            };
+            let input_args: Vec<_> = input_types
+                .iter()
+                .enumerate()
+                .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
+                .collect();
+            let input_args_asref: Vec<TokenStream2> = input_types
+                .iter()
+                .enumerate()
+                .map(|(i, tp)| {
+                    let name = Ident::new(&format!("arg_{}", i), Span::call_site());
+                    match tp {
+                        Type::Reference(_) => {
+                            syn::parse_quote! {
+                                #name.as_ref()
+                            }
+                        }
+                        _ => syn::parse_quote! {
+                            #name
+                        },
+                    }
+                })
+                .collect();
             let output = m.sig().output.clone();
             mod_item
                 .content
@@ -325,9 +335,11 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 .unwrap()
                 .1
                 .push(syn::parse_quote! {
-                    pub fn #fname(call: impl FnMut(#inputs) #output + 'static) {
+                    pub fn #fname(mut call: impl FnMut(#(#input_types),*) #output + 'static) {
                         ink_env::test::register_chain_extension(
-                            MockExtension::<_, _, _, #id>::new(call),
+                            MockExtension::<_, _, _, #id>::new(
+                                move |(#(#input_args),*): (#(#input_types_cow),*)| call(#(#input_args_asref),*)
+                            ),
                         );
                     }
                 });
