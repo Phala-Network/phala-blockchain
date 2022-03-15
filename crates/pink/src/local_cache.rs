@@ -39,7 +39,7 @@ pub struct LocalCache {
 impl Default for LocalCache {
     fn default() -> Self {
         Self {
-            gc_interval: 10000,
+            gc_interval: 1000,
             sets_since_last_gc: 0,
             default_value_lifetime: 3600 * 24 * 7, // 1 week
             max_cache_size_per_contract: 10 * 1024 * 1024, // 10MB
