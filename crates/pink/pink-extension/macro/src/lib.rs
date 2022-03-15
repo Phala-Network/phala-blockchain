@@ -4,7 +4,7 @@ use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
-use syn::{parse_macro_input, spanned::Spanned, Result};
+use syn::{parse_macro_input, spanned::Spanned, Result, Type};
 use unzip3::Unzip3 as _;
 
 use ink_lang_ir::{ChainExtension, HexLiteral as _, ImplItem, Selector};
@@ -174,6 +174,22 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         for item in item_trait.items.iter_mut() {
             if let syn::TraitItem::Method(item_method) = item {
                 item_method.attrs.clear();
+
+                // Turn &[u8] into Cow<[u8]>
+                for input in item_method.sig.inputs.iter_mut() {
+                    match input {
+                        syn::FnArg::Receiver(_) => (),
+                        syn::FnArg::Typed(arg) => {
+                            if let Type::Reference(tp) = *arg.ty.clone() {
+                                let inner_type = tp.elem.clone();
+                                arg.ty = syn::parse_quote! {
+                                    Cow<#inner_type>
+                                };
+                            }
+                        }
+                    }
+                }
+
                 item_method.sig.inputs.insert(
                     0,
                     syn::parse_quote! {
@@ -205,15 +221,12 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             .map(|m| {
                 let name = m.ident().to_string();
                 let id = m.id().into_u32();
-                let decode_args: Vec<TokenStream2> = m
+                let args: Vec<_> = m
                     .inputs()
-                    .map(|_| {
-                        syn::parse_quote! {
-                            $env.read_as_unbounded($env.in_len())?,
-                        }
-                    })
+                    .enumerate()
+                    .map(|(i, _)| Ident::new(&format!("arg_{}", i), Span::call_site()))
                     .collect();
-                (name, id, decode_args)
+                (name, id, args)
             })
             .collect()
     };
@@ -241,7 +254,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
 
     // Generate the dispatcher
     let dispatcher: syn::ItemMacro = {
-        let (names, ids, decode_args): (Vec<_>, Vec<_>, Vec<_>) = id_pairs
+        let (names, ids, args): (Vec<_>, Vec<_>, Vec<_>) = id_pairs
             .into_iter()
             .map(|(name, id, args)| {
                 let name = Ident::new(&name, Span::call_site());
@@ -256,7 +269,8 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     match $func_id {
                         #(
                             #ids => {
-                                let output = $handler.#names(#(#decode_args)*)?;
+                                let (#(#args),*) = $env.read_as_unbounded($env.in_len())?;
+                                let output = $handler.#names(#(#args),*)?;
                                 let output = output.encode();
                                 Some(output)
                             }
@@ -281,7 +295,16 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             let fname = "mock_".to_owned() + &name;
             let fname = Ident::new(&fname, Span::call_site());
             let id = Literal::u32_unsuffixed(m.id().into_u32());
-            let inputs: Vec<_> = m.inputs().map(|arg| arg.ty.clone()).collect();
+            let inputs: Vec<Type> = m
+                .inputs()
+                .map(|arg| match *arg.ty.clone() {
+                    Type::Reference(tp) => {
+                        let inner = tp.elem.clone();
+                        syn::parse_quote! { Cow<#inner> }
+                    }
+                    tp => tp,
+                })
+                .collect();
             let inputs: TokenStream2 = match inputs.len() {
                 0 => syn::parse_quote! {},
                 1 => syn::parse_quote! {
