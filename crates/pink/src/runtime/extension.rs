@@ -8,8 +8,8 @@ use pallet_contracts::chain_extension::{
 use phala_crypto::sr25519::{Persistence, KDF};
 use pink_extension::{
     chain_extension::{
-        CacheSetArgs, CacheSetExpireArgs, HttpRequest, HttpResponse, PinkExtBackend,
-        PublicKeyForArgs, SigType, SignArgs, VerifyArgs,
+        HttpRequest, HttpResponse, PinkExtBackend, PublicKeyForArgs, SigType, SignArgs,
+        StorageQuotaExceeded, VerifyArgs,
     },
     dispatch_ext_call, PinkEvent,
 };
@@ -222,21 +222,23 @@ where
         Ok(pubkey)
     }
 
-    fn cache_set(&self, args: CacheSetArgs<'_>) -> Result<(), Self::Error> {
+    fn cache_set(
+        &self,
+        key: Cow<[u8]>,
+        value: Cow<[u8]>,
+    ) -> Result<Result<(), StorageQuotaExceeded>, Self::Error> {
+        let result = GLOBAL_CACHE
+            .write()
+            .unwrap()
+            .set(self.address.as_ref().into(), key, value);
+        Ok(result)
+    }
+
+    fn cache_set_expire(&self, key: Cow<[u8]>, expire: u64) -> Result<(), Self::Error> {
         GLOBAL_CACHE
             .write()
             .unwrap()
-            .set(self.address.as_ref().into(), args.key, args.value)
-            .or(Err(DispatchError::Other("QuotaExceeded")))?;
-        Ok(())
-    }
-
-    fn cache_set_expire(&self, args: CacheSetExpireArgs<'_>) -> Result<(), Self::Error> {
-        GLOBAL_CACHE.write().unwrap().set_expire(
-            self.address.as_ref().into(),
-            args.key,
-            args.expire,
-        );
+            .set_expire(self.address.as_ref().into(), key, expire);
         Ok(())
     }
 

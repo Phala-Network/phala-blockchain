@@ -7,10 +7,9 @@ use alloc::borrow::Cow;
 use once_cell::sync::Lazy;
 use std::{collections::HashMap, sync::RwLock};
 
-pub static GLOBAL_CACHE: Lazy<RwLock<LocalCache>> = Lazy::new(Default::default);
+pub use pink_extension::chain_extension::StorageQuotaExceeded;
 
-#[derive(Debug)]
-pub struct QuotaExceeded;
+pub static GLOBAL_CACHE: Lazy<RwLock<LocalCache>> = Lazy::new(Default::default);
 
 #[derive(Default, Debug)]
 struct Storage {
@@ -78,7 +77,7 @@ impl LocalCache {
         id: Cow<[u8]>,
         key: Cow<[u8]>,
         value: Cow<[u8]>,
-    ) -> Result<(), QuotaExceeded> {
+    ) -> Result<(), StorageQuotaExceeded> {
         self.maybe_clear_expired();
         let store = self
             .storages
@@ -94,7 +93,7 @@ impl LocalCache {
         };
 
         if new_size > self.max_cache_size_per_contract {
-            return Err(QuotaExceeded);
+            return Err(StorageQuotaExceeded);
         }
 
         store.size = new_size;
