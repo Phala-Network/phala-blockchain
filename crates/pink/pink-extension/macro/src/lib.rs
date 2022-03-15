@@ -5,6 +5,7 @@ use proc_macro2::TokenStream as TokenStream2;
 use proc_macro_crate::{crate_name, FoundCrate};
 use quote::quote;
 use syn::{parse_macro_input, spanned::Spanned, Result};
+use unzip3::Unzip3 as _;
 
 use ink_lang_ir::{ChainExtension, HexLiteral as _, ImplItem, Selector};
 
@@ -204,7 +205,15 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             .map(|m| {
                 let name = m.ident().to_string();
                 let id = m.id().into_u32();
-                (name, id)
+                let decode_args: Vec<TokenStream2> = m
+                    .inputs()
+                    .map(|_| {
+                        syn::parse_quote! {
+                            $env.read_as_unbounded($env.in_len())?,
+                        }
+                    })
+                    .collect();
+                (name, id, decode_args)
             })
             .collect()
     };
@@ -214,7 +223,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
         let mut mod_item: syn::ItemMod = syn::parse_quote! {
             pub mod func_ids {}
         };
-        for (name, id) in id_pairs.iter() {
+        for (name, id, _) in id_pairs.iter() {
             let name = name.to_uppercase();
             let name = Ident::new(&name, Span::call_site());
             let id = Literal::u32_unsuffixed(*id);
@@ -232,14 +241,14 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
 
     // Generate the dispatcher
     let dispatcher: syn::ItemMacro = {
-        let (names, ids): (Vec<_>, Vec<_>) = id_pairs
+        let (names, ids, decode_args): (Vec<_>, Vec<_>, Vec<_>) = id_pairs
             .into_iter()
-            .map(|(name, id)| {
+            .map(|(name, id, args)| {
                 let name = Ident::new(&name, Span::call_site());
                 let id = Literal::u32_unsuffixed(id);
-                (name, id)
+                (name, id, args)
             })
-            .unzip();
+            .unzip3();
         syn::parse_quote! {
             #[macro_export]
             macro_rules! dispatch_ext_call {
@@ -247,8 +256,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                     match $func_id {
                         #(
                             #ids => {
-                                let input = $env.read_as_unbounded($env.in_len())?;
-                                let output = $handler.#names(input)?;
+                                let output = $handler.#names(#(#decode_args)*)?;
                                 let output = output.encode();
                                 Some(output)
                             }
@@ -273,9 +281,19 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
             let fname = "mock_".to_owned() + &name;
             let fname = Ident::new(&fname, Span::call_site());
             let id = Literal::u32_unsuffixed(m.id().into_u32());
-            let input = match m.inputs().next() {
-                Some(p0) => *p0.ty.clone(),
-                None => syn::parse_quote!(),
+            let inputs: Vec<_> = m.inputs().map(|arg| arg.ty.clone()).collect();
+            let inputs: TokenStream2 = match inputs.len() {
+                0 => syn::parse_quote! {},
+                1 => syn::parse_quote! {
+                    (
+                        #(#inputs),*
+                    )
+                },
+                _ => syn::parse_quote! {
+                    (
+                        (#(#inputs),*)
+                    )
+                },
             };
             let output = m.sig().output.clone();
             mod_item
@@ -284,7 +302,7 @@ fn patch_chain_extension_or_err(input: TokenStream2) -> Result<TokenStream2> {
                 .unwrap()
                 .1
                 .push(syn::parse_quote! {
-                    pub fn #fname(call: impl FnMut(#input) #output + 'static) {
+                    pub fn #fname(call: impl FnMut(#inputs) #output + 'static) {
                         ink_env::test::register_chain_extension(
                             MockExtension::<_, _, _, #id>::new(call),
                         );
