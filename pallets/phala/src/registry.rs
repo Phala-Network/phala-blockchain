@@ -27,7 +27,7 @@ pub mod pallet {
 			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
 		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
-		WorkerRegistrationInfo,
+		WorkerRegistrationInfo, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo}
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -347,57 +347,23 @@ pub mod pallet {
 			endpoint: Vec<u8>,
 			endpoint_type: EndpointType,
 		) -> DispatchResult {
-			ensure_signed(origin)?;
+			let who = ensure_signed(origin)?;
+			let worker = Workers::<T>::get(&pubkey).ok_or(Error::<T>::InvalidPubKey)?;
+			ensure!(worker.operator == Some(who), Error::<T>::InvalidSender);
+
 			PhalaEndpoints::<T>::mutate(pubkey, |v| {
-				match v {
-					Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(endpoint_onchain))) => {
-						// WorkerEndpoint V1 existed, it is a I2P endpoint.
-						match endpoint_type {
-							EndpointType::I2P => {
-								// bind endpoint is also a I2P endpoint
-								endpoint_onchain.endpoint = endpoint
-							}
-							EndpointType::Http => {
-								// bind endpoint is a Http endpoint
-								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
-									pubkey,
-									endpoint
-								})))
-							}
-						}
-					},
-					Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(endpoint_onchain))) => {
-						// WorkerEndpoint V1 existed, it is a Http endpoint.
-						match endpoint_type {
-							EndpointType::I2P => {
-								// bind endpoint is a I2P endpoint
-								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
-									pubkey,
-									endpoint
-								})))
-							}
-							EndpointType::Http => {
-								// bind endpoint is a Http endpoint
-								endpoint_onchain.endpoint = endpoint
-							}
-						}
-					},
-					None => {
-						// New binding
-						match endpoint_type {
-							EndpointType::I2P => {
-								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
-									pubkey,
-									endpoint
-								})))
-							}
-							EndpointType::Http => {
-								*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
-									pubkey,
-									endpoint
-								})))
-							}
-						}
+				match endpoint_type {
+					EndpointType::I2P => {
+						*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::I2P(PhalaEndpointInfo {
+							pubkey,
+							endpoint
+						})))
+					}
+					EndpointType::Http => {
+						*v = Some(VersionedWorkerEndpoint::V1(WorkerEndpoint::Http(PhalaEndpointInfo {
+							pubkey,
+							endpoint
+						})))
 					}
 				}
 			});
