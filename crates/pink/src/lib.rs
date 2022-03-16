@@ -1,7 +1,8 @@
-mod storage;
 mod contract;
 mod export_fixtures;
+
 pub mod runtime;
+pub mod storage;
 
 pub mod types;
 

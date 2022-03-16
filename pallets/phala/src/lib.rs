@@ -19,16 +19,19 @@ extern crate alloc;
 // Re-export
 use utils::{accumulator, attestation, balance_convert, constants, fixed_point};
 
+pub mod migrations;
 mod utils;
 
+pub mod fat;
 pub mod mining;
 pub mod mq;
 pub mod ott;
+pub mod puppets;
 pub mod registry;
 pub mod stakepool;
-pub mod puppets;
 
 // Alias
+pub use fat as pallet_fat;
 pub use mining as pallet_mining;
 pub use mq as pallet_mq;
 pub use ott as pallet_ott;

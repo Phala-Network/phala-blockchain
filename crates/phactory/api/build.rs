@@ -1,7 +1,7 @@
+use std::process::Command;
+
 fn main() {
     use tera::{Context, Tera};
-
-    println!("cargo:rerun-if-env-changed=PHALA_GIT_REVISIOIN");
 
     let tera = Tera::new("proto/*.proto").unwrap();
 
@@ -21,7 +21,15 @@ fn main() {
         .out_dir(out_dir)
         .mod_prefix("crate::prpc::")
         .disable_package_emission();
-    for r#type in ["InitRuntimeResponse", "Attestation", "AttestationReport"] {
+    for r#type in [
+        "InitRuntimeResponse",
+        "Attestation",
+        "AttestationReport",
+        "TokenomicInfo",
+        "WorkerState",
+        "BenchState",
+        "MiningState",
+    ] {
         builder = builder.type_attribute(
             r#type,
             "#[cfg_attr(feature = \"serde\", derive(::serde::Serialize, ::serde::Deserialize))]",
@@ -30,4 +38,24 @@ fn main() {
     builder
         .compile(&["pruntime_rpc.proto"], &[render_dir])
         .unwrap();
+    export_git_revision();
+}
+
+fn export_git_revision() {
+    let cmd = Command::new("git")
+        .args(["rev-parse", "HEAD"])
+        .output()
+        .unwrap()
+        .stdout;
+    let revision = String::from_utf8_lossy(&cmd);
+    let revision = revision.trim();
+    let dirty = !Command::new("git")
+        .args(["diff", "HEAD", "--quiet"])
+        .output()
+        .unwrap()
+        .status
+        .success();
+    let tail = if dirty { "-dirty" } else { "" };
+    println!("cargo:rustc-env=PHALA_GIT_REVISION={}{}", revision, tail);
+    println!("cargo:rerun-if-changed=always-rerun");
 }

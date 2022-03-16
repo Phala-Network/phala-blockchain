@@ -4,10 +4,10 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-serde = { default-features = false, version = "1.0.130", features = ["derive", "alloc"] }
-sp-core = { default-features = false, path = "../../substrate/primitives/core" }
-scale = { default-features = false, version = "2.3.1", package = "parity-scale-codec" }
-hex = { default-features = false, version = "0.4.3", features = ["alloc"] }
+serde = { version = "1.0.130", default-features = false, features = ["derive", "alloc"] }
+sp-core = { path = "../../substrate/primitives/core", default-features = false }
+scale = { package = "parity-scale-codec", version = "3.0", default-features = false }
+hex = { version = "0.4.3", default-features = false, features = ["alloc"] }
 
 [features]
 default = ["std"]

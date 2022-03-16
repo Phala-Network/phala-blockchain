@@ -99,17 +99,10 @@ impl sp_runtime::BuildStorage for GenesisExt {
 				EpochDurationInBlocks::set(&hours);
 
 				EpochDurationInSlots::set(&(hours as u64));
-
-				println!("test321");
 			}
 		});
 		self.runtime_genesis_config.assimilate_storage(storage)
 	}
-}
-
-/// Flaming Fir testnet generator
-pub fn flaming_fir_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_json_bytes(&include_bytes!("../res/flaming-fir.json")[..])
 }
 
 fn session_keys(
@@ -119,103 +112,6 @@ fn session_keys(
 	authority_discovery: AuthorityDiscoveryId,
 ) -> SessionKeys {
 	SessionKeys { grandpa, babe, im_online, authority_discovery }
-}
-
-fn staging_testnet_config_genesis() -> GenesisConfig {
-	// stash, controller, session-key
-	// generated with secret:
-	// for i in 1 2 3 4 ; do for j in stash controller; do subkey inspect "$secret"/fir/$j/$i; done; done
-	// and
-	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//fir//$j//$i; done; done
-
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![(
-		// 5Fbsd6WXDGiLTxunqeK5BATNiocfCqu9bS1yArVjCgeBLkVy
-		hex!["9c7a2ee14e565db0c69f78c7b4cd839fbf52b607d867e9e9c5a79042898a0d12"].into(),
-		// 5EnCiV7wSHeNhjW3FSUwiJNkcc2SBkPLn5Nj93FmbLtBjQUq
-		hex!["781ead1e2fa9ccb74b44c19d29cb2a7a4b5be3972927ae98cd3877523976a276"].into(),
-		// 5Fb9ayurnxnaXj56CjmyQLBiadfRCqUbL2VWNbbe1nZU6wiC
-		hex!["9becad03e6dcac03cee07edebca5475314861492cdfc96a2144a67bbe9699332"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-		// 5EZaeQ8djPcq9pheJUhgerXQZt9YaHnMJpiHMRhwQeinqUW8
-		hex!["6e7e4eb42cbd2e0ab4cae8708ce5509580b8c04d11f6758dbf686d50fe9f9106"].unchecked_into(),
-	),(
-		// 5ERawXCzCWkjVq3xz1W5KGNtVx2VdefvZ62Bw1FEuZW4Vny2
-		hex!["68655684472b743e456907b398d3a44c113f189e56d1bbfd55e889e295dfde78"].into(),
-		// 5Gc4vr42hH1uDZc93Nayk5G7i687bAQdHHc9unLuyeawHipF
-		hex!["c8dc79e36b29395413399edaec3e20fcca7205fb19776ed8ddb25d6f427ec40e"].into(),
-		// 5EockCXN6YkiNCDjpqqnbcqd4ad35nU4RmA1ikM4YeRN4WcE
-		hex!["7932cff431e748892fa48e10c63c17d30f80ca42e4de3921e641249cd7fa3c2f"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-		// 5DhLtiaQd1L1LU9jaNeeu9HJkP6eyg3BwXA7iNMzKm7qqruQ
-		hex!["482dbd7297a39fa145c570552249c2ca9dd47e281f0c500c971b59c9dcdcd82e"].unchecked_into(),
-	),(
-		// 5DyVtKWPidondEu8iHZgi6Ffv9yrJJ1NDNLom3X9cTDi98qp
-		hex!["547ff0ab649283a7ae01dbc2eb73932eba2fb09075e9485ff369082a2ff38d65"].into(),
-		// 5FeD54vGVNpFX3PndHPXJ2MDakc462vBCD5mgtWRnWYCpZU9
-		hex!["9e42241d7cd91d001773b0b616d523dd80e13c6c2cab860b1234ef1b9ffc1526"].into(),
-		// 5E1jLYfLdUQKrFrtqoKgFrRvxM3oQPMbf6DfcsrugZZ5Bn8d
-		hex!["5633b70b80a6c8bb16270f82cca6d56b27ed7b76c8fd5af2986a25a4788ce440"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-		// 5DhKqkHRkndJu8vq7pi2Q5S3DfftWJHGxbEUNH43b46qNspH
-		hex!["482a3389a6cf42d8ed83888cfd920fec738ea30f97e44699ada7323f08c3380a"].unchecked_into(),
-	),(
-		// 5HYZnKWe5FVZQ33ZRJK1rG3WaLMztxWrrNDb1JRwaHHVWyP9
-		hex!["f26cdb14b5aec7b2789fd5ca80f979cef3761897ae1f37ffb3e154cbcc1c2663"].into(),
-		// 5EPQdAQ39WQNLCRjWsCk5jErsCitHiY5ZmjfWzzbXDoAoYbn
-		hex!["66bc1e5d275da50b72b15de072a2468a5ad414919ca9054d2695767cf650012f"].into(),
-		// 5DMa31Hd5u1dwoRKgC4uvqyrdK45RHv3CpwvpUC1EzuwDit4
-		hex!["3919132b851ef0fd2dae42a7e734fe547af5a6b809006100f48944d7fae8e8ef"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-		// 5C4vDQxA8LTck2xJEy4Yg1hM9qjDt4LvTQaMo4Y8ne43aU6x
-		hex!["00299981a2b92f878baaf5dbeba5c18d4e70f2a1fcd9c61b32ea18daf38f4378"].unchecked_into(),
-	)];
-
-	// generated with secret: subkey inspect "$secret"/fir
-	let root_key: AccountId = hex![
-		// 5Ff3iXP75ruzroPWRP2FYBHWnmGGBSb63857BgnzCoXNxfPo
-		"9ee5e5bdc0ec239eb164f865ecc345ce4c88e76ee002e0f7e318097347471809"
-	].into();
-
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
-
-	testnet_genesis(
-		initial_authorities,
-		root_key,
-		Some(endowed_accounts),
-		false,
-	)
-}
-
-/// Staging testnet config.
-pub fn staging_testnet_config() -> ChainSpec {
-	let boot_nodes = vec![];
-	ChainSpec::from_genesis(
-		"Staging Testnet",
-		"staging_testnet",
-		ChainType::Live,
-		move || GenesisExt {
-			runtime_genesis_config: staging_testnet_config_genesis(),
-			block_milliseconds: Some(MILLISECS_PER_BLOCK)
-		},
-		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-			.expect("Staging telemetry url is valid; qed")),
-		None,
-		None,
-		Default::default(),
-	)
 }
 
 /// Helper function to generate a crypto pair from seed
@@ -248,6 +144,213 @@ pub fn authority_keys_from_seed(seed: &str) -> (
 		get_from_seed::<BabeId>(seed),
 		get_from_seed::<ImOnlineId>(seed),
 		get_from_seed::<AuthorityDiscoveryId>(seed),
+	)
+}
+
+fn development_config_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![
+			authority_keys_from_seed("Alice"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+		true,
+	)
+}
+
+/// Development config (single validator Alice)
+pub fn development_config() -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Phala Development",
+		"phala_dev",
+		ChainType::Development,
+		move || GenesisExt {
+			runtime_genesis_config: development_config_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
+		vec![],
+		None,
+		None,
+		None,
+		None,
+		Default::default(),
+	)
+}
+
+/// Development config (single validator Alice, custom block duration)
+pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
+	ChainSpec::from_genesis(
+		"Phala Development",
+		"phala_dev",
+		ChainType::Development,
+		move || GenesisExt {
+			runtime_genesis_config: development_config_genesis(),
+			block_milliseconds: Some(bd)
+		},
+		vec![],
+		None,
+		None,
+		None,
+		None,
+		Default::default(),
+	)
+}
+
+/// Local testnet config (multivalidator Alice + Bob)
+pub fn local_config() -> ChainSpec {
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "PHA".into());
+		p.insert("tokenDecimals".into(), 12u32.into());
+		p.insert("ss58Format".into(), 30u32.into());
+		p
+	};
+
+	ChainSpec::from_genesis(
+		"Phala Local Testnet",
+		"local_testnet",
+		ChainType::Local,
+		move || GenesisExt {
+			runtime_genesis_config: local_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
+		vec![],
+		None,
+		None,
+		None,
+		Some(properties),
+		Default::default(),
+	)
+}
+
+fn local_genesis() -> GenesisConfig {
+	testnet_genesis(
+		vec![
+			authority_keys_from_seed("Alice"),
+			authority_keys_from_seed("Bob"),
+		],
+		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		None,
+		false,
+	)
+}
+
+pub fn testnet_config() -> Result<ChainSpec, String> {
+	ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
+}
+
+pub fn testnet_local_config() -> ChainSpec {
+	let boot_nodes = vec![];
+	let protocol_id: &str = "phat";
+	let properties = {
+		let mut p = Properties::new();
+		p.insert("tokenSymbol".into(), "PHA".into());
+		p.insert("tokenDecimals".into(), 12u32.into());
+		p.insert("ss58Format".into(), 30u32.into());
+		p
+	};
+
+	ChainSpec::from_genesis(
+		"Phala PoC-5",
+		"phala_poc_5",
+		ChainType::Local,
+		move || GenesisExt {
+			runtime_genesis_config: testnet_local_config_genesis(),
+			block_milliseconds: Some(MILLISECS_PER_BLOCK)
+		},
+		boot_nodes,
+		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
+			.expect("Staging telemetry url is valid; qed")),
+		Some(protocol_id),
+		None,
+		Some(properties),
+		Default::default(),
+	)
+}
+
+fn testnet_local_config_genesis() -> GenesisConfig {
+	// stash, controller, session-key
+	// generated with secret:
+	// for i in 1 2 3 4 ; do for j in stash controller session; do ./phala-node key inspect "$secret"//phat//$j//$i; done; done
+	// and
+	// for i in 1 2 3 4 ; do for j in session; do ./phala-node key inspect --scheme ed25519 "$secret"//phat//$j//$i; done; done
+
+	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
+		(
+			// Stash
+			// 5DXHAev6Kht2Q4Sjk4sFqNuRh4nAUa7bNk53scQJ2WDCq8x6
+			hex!["4080bee9f2a76a4e0e0d7d27d1e91a4793ad8162b231e56f7797e8abfec7a735"].into(),
+			// Controller
+			// 5ECZDrEERBNPKtkrPJ9C3R9DgtBzWrDwbHauzUs28UroBTw2
+			hex!["5e755cde5d8a46543a3a3a44cb887f82ffa83f6ae2f23a03ea7577e59e1f2976"].into(),
+			// Session key ed25519
+			// 5HfQhACBgihgDAKzdpTTJHuheRtGMjgBDf5MxUQ26VwTHDik
+			hex!["f7a4fa3658cc703ae9049b524dc3925e48d45e2e9fa941d500a28f2d247763b3"].unchecked_into(),
+			// Session key sr25519
+			// 5EyYhJTkXyRdij7DtogyrZkPKSYjxNXX86RfifrapECcFqzp
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into(),
+			hex!["80c5a20b5e848c3f0409190860215c96e10195d6ed53b1f4029939d86bccb56e"].unchecked_into()
+		),(
+			// Stash
+			// 5E4k6rGMfVWoK56KFxHyMgFLWKTnjsjrEbAo6o7S1yC4uEFP
+			hex!["588005c8a8175f09f2bd51a4d37fcee4325b596316482d45a95981f71f7c9d5e"].into(),
+			// Controller
+			// 5GhLmXeL5tG5ZPZ5sU1o5fZ7ZnXUcq6mwRAaJr8kJbFXXQks
+			hex!["cce205ee8d7f5d9a735bdd96dae735398e6ffe084cf63d74fd442425c4595f57"].into(),
+			// Session key ed25519
+			// 5CpyfUqT6DcBvVok1vFNhNUvgnbvhJdmTsNtqAo8NnNsfTLz
+			hex!["21c4025dd9d433e3792d245b0b5f92509badbe22b0d0d8e188557262f1182c56"].unchecked_into(),
+			// Session key sr25519
+			// 5GBdn89iNNYxzHWgymoAdY8Wex17R29XMWDansq6yWnkhLNM
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into(),
+			hex!["b639ec343a1aa1d24e90e9ef8e6bde89f1b534eb42b97d4a2817499368cc7f7b"].unchecked_into()
+		),(
+			// Stash
+			// 5C7o1GJZRDPmTSNsghdze4Txr1nFWAMKWxHUUQ84ZUbFu5Pn
+			hex!["025b110dcd50fd36de3596c260192985f8646705683e765c91627eb28a74e770"].into(),
+			// Controller
+			// 5EqsSN4Zxsin5xBucWdP9vQDXoagfvY4sCU9LTh4kHkqWW2t
+			hex!["7aeac3309b6d7d4dd394d330eba2ade536d623a8ab1610c7f1ad41dc74eafe16"].into(),
+			// Session key ed25519
+			// 5CsefRq3LDSThqRjWzVAPoLy9E3Q9vtRHDdYUXC7EXkyM7eE
+			hex!["23cdc8621cfad1645ad1323ee25c8e4efb7f8baafdc57de78041eb8426b77396"].unchecked_into(),
+			// Session key sr25519
+			// 5FnH8ti3mP3wNTZgn9A7hSvq5PJ4xBpaCgnRmh2uB7jf6nSn
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into(),
+			hex!["a469ca9c8a2ab060584028762e465ca6f509e33d83b6e91055da5e4020692133"].unchecked_into()
+		),(
+			// Stash
+			// 5D85jACGvGCtAm5jWBTC7Rp4kF2UUax2AXowdr922EuXcgpQ
+			hex!["2ecf97a91ab4985999ee0a25ef9ecc0e18f42b9cee34e47771d5a08e6eb5ea39"].into(),
+			// Controller
+			// 5GZVcXsUY3uqF567quAMycDn3as5fMqq8K4rTF6KLJvrbQvM
+			hex!["c6e5d5a23f730d922762a46372144a1771ee1ed4f29e55e73c3f82fbbf3a1a4e"].into(),
+			// Session key ed25519
+			// 5ETyA4Kz4cGXWAi72aRn2NLEzBwQAaDgsqBfYon8TNV6gArL
+			hex!["6a369d6f98d4cbda264eb2fa4506d381a28c545e2065413b9119767d8e6a779a"].unchecked_into(),
+			// Session key sr25519
+			// 5CMQbZeiDgFA1rdwxPYBsZ9YdxWFthcsp6S5gdv7EixptPbx
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into(),
+			hex!["0cbd116df0cea2d32d769560a15cc416dcad87ae4852b1eee6720a1c704d2876"].unchecked_into()
+		),];
+
+	// generated with secret: ./phala-node key inspect -n phala --scheme Sr25519 "$secret"//phat
+	// 46Ndhnw1q15CaTAf1Lu63wpba7hGkMYYTFXUrmndy1tpD2h9
+	let root_key: AccountId = hex![
+        "fe9d7ef50b53c1362253b398407e6130449d8d69f8434f93d4615bfa5ad21628"
+    ].into();
+
+	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
+
+	testnet_genesis(
+		initial_authorities,
+		root_key,
+		Some(endowed_accounts),
+		false,
 	)
 }
 
@@ -345,17 +448,17 @@ pub fn testnet_genesis(
 		democracy: DemocracyConfig::default(),
 		elections: ElectionsConfig {
 			members: endowed_accounts.iter()
-						.take((num_endowed_accounts + 1) / 2)
-						.cloned()
-						.map(|member| (member, STASH))
-						.collect(),
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.map(|member| (member, STASH))
+				.collect(),
 		},
 		council: CouncilConfig::default(),
 		technical_committee: TechnicalCommitteeConfig {
 			members: endowed_accounts.iter()
-						.take((num_endowed_accounts + 1) / 2)
-						.cloned()
-						.collect(),
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
 			phantom: Default::default(),
 		},
 		technical_membership: Default::default(),
@@ -378,206 +481,17 @@ pub fn testnet_genesis(
 		treasury: Default::default(),
 		society: SocietyConfig {
 			members: endowed_accounts.iter()
-						.take((num_endowed_accounts + 1) / 2)
-						.cloned()
-						.collect(),
+				.take((num_endowed_accounts + 1) / 2)
+				.cloned()
+				.collect(),
 			pot: 0,
 			max_members: 999,
 		},
 		vesting: Default::default(),
 		phala_registry,
 		phala_mining: Default::default(),
-		scheduler: Default::default(),
 		transaction_payment: Default::default(),
 	}
-}
-
-fn development_config_genesis() -> GenesisConfig {
-	testnet_genesis(
-		vec![
-			authority_keys_from_seed("Alice"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-		true,
-	)
-}
-
-/// Development config (single validator Alice)
-pub fn development_config() -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Phala Development",
-		"phala_dev",
-		ChainType::Development,
-		move || GenesisExt {
-			runtime_genesis_config: development_config_genesis(),
-			block_milliseconds: Some(MILLISECS_PER_BLOCK)
-		},
-		vec![],
-		None,
-		None,
-		None,
-		Default::default(),
-	)
-}
-
-/// Development config (single validator Alice, custom block duration)
-pub fn development_config_custom_block_duration(bd: u64) -> ChainSpec {
-	ChainSpec::from_genesis(
-		"Phala Development",
-		"phala_dev",
-		ChainType::Development,
-		move || GenesisExt {
-			runtime_genesis_config: development_config_genesis(),
-			block_milliseconds: Some(bd)
-		},
-		vec![],
-		None,
-		None,
-		None,
-		Default::default(),
-	)
-}
-
-fn local_testnet_genesis() -> GenesisConfig {
-	testnet_genesis(
-		vec![
-			authority_keys_from_seed("Alice"),
-			authority_keys_from_seed("Bob"),
-		],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		None,
-		false,
-	)
-}
-
-/// Local testnet config (multivalidator Alice + Bob)
-pub fn local_testnet_config() -> ChainSpec {
-	let properties = {
-		let mut p = Properties::new();
-		p.insert("tokenSymbol".into(), "PHA".into());
-		p.insert("tokenDecimals".into(), 12.into());
-		p.insert("ss58Format".into(), 30.into());
-		p
-	};
-
-	ChainSpec::from_genesis(
-		"Local Testnet",
-		"local_testnet",
-		ChainType::Local,
-		move || GenesisExt {
-			runtime_genesis_config: local_testnet_genesis(),
-			block_milliseconds: Some(MILLISECS_PER_BLOCK)
-		},
-		vec![],
-		None,
-		None,
-		Some(properties),
-		Default::default(),
-	)
-}
-
-fn phala_testnet_config_genesis() -> GenesisConfig {
-	// stash, controller, session-key
-	// generated with secret:
-	// for i in 1 2 3 4 ; do for j in stash controller; do ./phala-node key inspect-key "$secret"/phat/$j/$i; done; done
-	// and
-	// for i in 1 2 3 4 ; do for j in session; do subkey --ed25519 inspect "$secret"//phat//$j//$i; done; done
-
-	let initial_authorities: Vec<(AccountId, AccountId, GrandpaId, BabeId, ImOnlineId, AuthorityDiscoveryId)> = vec![
-		(
-			// Stash
-			hex!["8e820cb4d8230419975a3d4f74cae4fd80512e1065a0501e0521fc1c902a435e"].into(),
-			// Controller
-			hex!["de5959271ca15b6c48dd2485efc3eebd83789d8266fd9def7249b8f8df0f7305"].into(),
-			// Session key ed25519
-			hex!["e1246650cb9af77a105975004c1f7d1480e8aa4fc828b3c6ef9d89248a32dc64"].unchecked_into(),
-			// Session key sr25519
-			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into(),
-			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into(),
-			hex!["123fca08c093c1acdd66b0a121f41dfa87e1df7595dbc1b1779ddf36eaf0621d"].unchecked_into()
-		),(
-			// Stash
-			hex!["6691ad54e7c7f98792388cbfde07a996e3f73b09bca387d9a74cfe52d2d98054"].into(),
-			// Controller
-			hex!["d814ebecc87860bf69292df273ea2c60ee7b471b48c3d24d9c7ac17e38beaf18"].into(),
-			// Session key ed25519
-			hex!["7857da61428ee20ac0a30d8fec4993171f8ea4abadb70e60efb88a8d2ff08e62"].unchecked_into(),
-			// Session key sr25519
-			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into(),
-			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into(),
-			hex!["7e8c205ddf5446d7b68a5c2e58d6407cae1994b2f95263e02b6d9dbce9970674"].unchecked_into()
-		),(
-			// Stash
-			hex!["e806c01894260bda4882dff48ea814891cf7dce0a57ddb29187294fafcb1ec3c"].into(),
-			// Controller
-			hex!["10bb4d7229be27688413a2e00034b5d4646663ec822bc2a7ebe24cb41acb3057"].into(),
-			// Session key ed25519
-			hex!["fa6bd2bbcb220f6c00f120f0a7fe71c5faae1558a36135cce6e6297c9d3f7f07"].unchecked_into(),
-			// Session key sr25519
-			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into(),
-			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into(),
-			hex!["10977b1f51df8539630521fa81b5e490505095d9517e180fa7440f19915e0804"].unchecked_into()
-		),(
-			// Stash
-			hex!["d8fa0b6305927c086b9709fdcd5fdfe4cbb33b0cd682de1d9461fb6dd3e91608"].into(),
-			// Controller
-			hex!["00ef78f66ced4a6b0ef68799a232af6aaed0d151114fe881e2ae9a01ca465627"].into(),
-			// Session key ed25519
-			hex!["60d9d3bbf4b83c1efd03ec0b54992894dc95542471b8edf247f83edf1b5d49ff"].unchecked_into(),
-			// Session key sr25519
-			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into(),
-			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into(),
-			hex!["2053318c201789da6206a544bf4eb5d81442419aabdcdaaa8edb6450d6da291b"].unchecked_into()
-		),];
-
-	// generated with secret: phala-node inspect-key -n phala --scheme Sr25519 "$secret"/phat4
-	let root_key: AccountId = hex![
-        "1887233b7a0848aefe0c913822678b9ed42b2a899a06abaf77014f0d52a2e12f"
-    ].into();
-
-	let endowed_accounts: Vec<AccountId> = vec![root_key.clone()];
-
-	testnet_genesis(
-		initial_authorities,
-		root_key,
-		Some(endowed_accounts),
-		false,
-	)
-}
-
-/// Local testnet config (multivalidator Alice + Bob)
-pub fn phala_testnet_local_config() -> ChainSpec {
-	let boot_nodes = vec![];
-	let protocol_id: &str = "phat4";
-	let properties = {
-		let mut p = Properties::new();
-		p.insert("tokenSymbol".into(), "PHA".into());
-		p.insert("tokenDecimals".into(), 12.into());
-		p.insert("ss58Format".into(), 30.into());
-		p
-	};
-
-	ChainSpec::from_genesis(
-		"Phala PoC-4",
-		"phala_poc_4",
-		ChainType::Local,
-		move || GenesisExt {
-			runtime_genesis_config: phala_testnet_config_genesis(),
-			block_milliseconds: Some(MILLISECS_PER_BLOCK)
-		},
-		boot_nodes,
-		Some(TelemetryEndpoints::new(vec![(STAGING_TELEMETRY_URL.to_string(), 0)])
-			.expect("Staging telemetry url is valid; qed")),
-		Some(protocol_id),
-		Some(properties),
-		Default::default(),
-	)
-}
-
-/// Phala PoC-4 testnet generator
-pub fn phala_testnet_config() -> Result<ChainSpec, String> {
-	ChainSpec::from_json_bytes(&include_bytes!("../res/phala_testnet.json")[..])
 }
 
 #[cfg(test)]
@@ -612,6 +526,7 @@ pub(crate) mod tests {
 			None,
 			None,
 			None,
+			None,
 			Default::default(),
 		)
 	}
@@ -623,10 +538,11 @@ pub(crate) mod tests {
 			"test",
 			ChainType::Development,
 			move || GenesisExt {
-				runtime_genesis_config: local_testnet_genesis(),
+				runtime_genesis_config: testnet_local_config_genesis(),
 				block_milliseconds: Some(MILLISECS_PER_BLOCK)
 			},
 			vec![],
+			None,
 			None,
 			None,
 			None,
@@ -658,11 +574,6 @@ pub(crate) mod tests {
 
 	#[test]
 	fn test_create_local_testnet_chain_spec() {
-		local_testnet_config().build_storage().unwrap();
-	}
-
-	#[test]
-	fn test_staging_test_net_chain_spec() {
-		staging_testnet_config().build_storage().unwrap();
+		testnet_local_config().build_storage().unwrap();
 	}
 }

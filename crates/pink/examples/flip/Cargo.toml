@@ -5,22 +5,25 @@ authors = ["[your_name] <[your_email]>"]
 edition = "2018"
 resolver = "2"
 
-[dependencies]
-ink_primitives = { version = "3.0.0-rc3", default-features = false }
-ink_metadata = { version = "3.0.0-rc3", default-features = false, features = ["derive"], optional = true }
-ink_env = { version = "3.0.0-rc3", default-features = false }
-ink_storage = { version = "3.0.0-rc3", default-features = false }
-ink_lang = { version = "3.0.0-rc3", default-features = false }
+# workaround for https://github.com/rust-lang/cargo/issues/6745
+[workspace]
 
-scale = { package = "parity-scale-codec", version = "2.1", default-features = false, features = ["derive"] }
-scale-info = { version = "0.6.0", default-features = false, features = ["derive"], optional = true }
+[dependencies]
+ink_primitives = { version = "3.0.0-rc9", default-features = false }
+ink_metadata = { version = "3.0.0-rc9", default-features = false, features = ["derive"], optional = true }
+ink_env = { version = "3.0.0-rc9", default-features = false }
+ink_storage = { version = "3.0.0-rc9", default-features = false }
+ink_lang = { version = "3.0.0-rc9", default-features = false }
+
+scale = { package = "parity-scale-codec", version = "3.0", default-features = false, features = ["derive"] }
+scale-info = { version = "2.0", default-features = false, features = ["derive"], optional = true }
 
 [lib]
 name = "flip"
 path = "lib.rs"
 crate-type = [
-	# Used for normal contract Wasm blobs.
-	"cdylib", "lib",
+    # Used for normal contract Wasm blobs.
+    "cdylib", "lib",
 ]
 
 [features]

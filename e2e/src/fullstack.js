@@ -16,7 +16,11 @@ const { checkUntil, skipSlowTest } = require('./utils');
 
 const pathNode = path.resolve('../target/release/phala-node');
 const pathRelayer = path.resolve('../target/release/pherry');
-const pathPRuntime = path.resolve('../standalone/pruntime/bin/app');
+
+const isGramine = process.env.PRUNTIME_TYPE == "gramine";
+const pRuntimeBin = isGramine ? "pruntime" : "app";
+const pathPRuntime = path.resolve(`../standalone/pruntime/bin/${pRuntimeBin}`);
+
 
 // TODO: Switch to [instant-seal-consensus](https://substrate.dev/recipes/kitchen-node.html) for faster test
 
@@ -24,7 +28,7 @@ describe('A full stack', function () {
     this.timeout(60000);
 
     let cluster;
-    let api, keyring, alice, root;
+    let api, keyring, alice, bob, root;
     let pruntime;
     const tmpDir = new TempDir();
     const tmpPath = tmpDir.dir;
@@ -42,6 +46,7 @@ describe('A full stack', function () {
         await cryptoWaitReady();
         keyring = new Keyring({ type: 'sr25519', ss58Format: 30 });
         root = alice = keyring.addFromUri('//Alice');
+        bob = keyring.addFromUri('//Bob');
     });
 
     after(async function () {
@@ -197,8 +202,9 @@ describe('A full stack', function () {
                 await cluster.waitWorkerExitAndRestart(1, 10 * 6000),
                 'worker1 restart timeout'
             );
+            const dataDir = isGramine ? "data" : ".";
             assert.isTrue(
-                fs.existsSync(`${tmpPath}/pruntime1/master_key.seal`),
+                fs.existsSync(`${tmpPath}/pruntime1/${dataDir}/master_key.seal`),
                 'master key not received'
             );
         });
@@ -224,7 +230,100 @@ describe('A full stack', function () {
         });
     });
 
-    describe('Solo mining workflow', () => {
+    describe('Cluster & Contract', () => {
+        let wasmFile = './res/flipper.wasm';
+        let codeHash = hex('0x5b1f7f0b85908c168c0d0ca65efae0e916455bf527b8589d3e655311ec7b1f2c');
+        let initSelector = hex('0xed4b9d1b'); // for default() function
+        let clusterId;
+
+        it('can create cluster', async function () {
+            const perm = api.createType('ClusterPermission', { 'OnlyOwner': alice.address });
+            const runtime0 = await pruntime[0].getInfo();
+            const runtime1 = await pruntime[1].getInfo();
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.addCluster(perm, [hex(runtime0.publicKey), hex(runtime1.publicKey)]),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'ClusterCreated']
+            ]);
+
+            const { event } = events[1];
+            clusterId = hex(event.toJSON().data[0]);
+            const clusterInfo = await api.query.phalaFatContracts.clusters(clusterId);
+            assert.isTrue(clusterInfo.isSome);
+        });
+
+        it('can generate cluster key', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const clusterKey = await api.query.phalaRegistry.clusterKeys(clusterId);
+                return clusterKey.isSome;
+            }, 4 * 6000), 'cluster pubkey not uploaded');
+        });
+
+        it('can deploy cluster to multiple workers', async function () {
+            assert.isTrue(await checkUntil(async () => {
+                const clusterWorkers = await api.query.phalaFatContracts.clusterWorkers(clusterId);
+                return clusterWorkers.length == 2;
+            }, 4 * 6000), 'cluster not deployed');
+        });
+
+        it('can upload code with access control', async function () {
+            let code = fs.readFileSync(wasmFile, 'hex');
+            // For now, there is no way to check whether code is uploaded in script
+            // since this requires monitering the async CodeUploaded event
+            await assert.txAccepted(
+                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                alice,
+            );
+            await assert.txFailed(
+                api.tx.phalaFatContracts.uploadCodeToCluster(hex(code), clusterId),
+                bob,
+            )
+        });
+
+        it('can instantiate contract with access control', async function () {
+            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            await assert.txFailed(
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                bob,
+            );
+            const { events } = await assert.txAccepted(
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                alice,
+            );
+            assertEvents(events, [
+                ['balances', 'Withdraw'],
+                ['phalaFatContracts', 'Instantiating']
+            ]);
+
+            const { event } = events[1];
+            let contractId = hex(event.toJSON().data[0]);
+            let contractInfo = await api.query.phalaFatContracts.contracts(contractId);
+            assert.isTrue(contractInfo.isSome, 'no contract info');
+
+            assert.isTrue(await checkUntil(async () => {
+                let key = await api.query.phalaRegistry.contractKeys(contractId);
+                return key.isSome;
+            }, 4 * 6000), 'contract key generation failed');
+
+            assert.isTrue(await checkUntil(async () => {
+                let clusterContracts = await api.query.phalaFatContracts.clusterContracts(clusterId);
+                return clusterContracts.length == 1;
+            }, 4 * 6000), 'instantiation failed');
+        });
+
+        it('cannot dup-instantiate', async function () {
+            const codeIndex = api.createType('CodeIndex', { 'WasmCode': codeHash });
+            await assert.txFailed(
+                api.tx.phalaFatContracts.instantiateContract(codeIndex, initSelector, 0, clusterId),
+                alice,
+            );
+        });
+    });
+
+    describe.skip('Solo mining workflow', () => {
         let miner;
         before(function () {
             miner = keyring.addFromUri(mnemonicGenerate());
@@ -390,7 +489,7 @@ describe('A full stack', function () {
 
 });
 
-async function assertSuccess(txBuilder, signer) {
+async function assertSubmission(txBuilder, signer, shouldSucceed = true) {
     return await new Promise(async (resolve, _reject) => {
         const unsub = await txBuilder.signAndSend(signer, (result) => {
             if (result.status.isInBlock) {
@@ -398,7 +497,12 @@ async function assertSuccess(txBuilder, signer) {
                 for (const e of result.events) {
                     const { event: { data, method, section } } = e;
                     if (section === 'system' && method === 'ExtrinsicFailed') {
-                        error = data[0];
+                        if (shouldSucceed) {
+                            error = data[0];
+                        } else {
+                            unsub();
+                            resolve(error);
+                        }
                     }
                 }
                 if (error) {
@@ -417,7 +521,8 @@ async function assertSuccess(txBuilder, signer) {
         });
     });
 }
-assert.txAccepted = assertSuccess;
+assert.txAccepted = assertSubmission;
+assert.txFailed = (txBuilder, signer) => assertSubmission(txBuilder, signer, false);
 
 function fillPartialArray(obj, pattern) {
     for (const [idx, v] of obj.entries()) {
@@ -478,7 +583,7 @@ class Cluster {
         await Promise.all([
             this.processNode.kill(),
             ...this.workers.map(w => [
-                w.processPRuntime.kill(),
+                w.processPRuntime.kill('SIGKILL'),
                 w.processRelayer.kill()
             ]).flat()
         ]);
@@ -575,15 +680,19 @@ function newNode(wsPort, tmpPath, name = 'node') {
         ]
     ];
     const cmd = cli.flat().join(' ');
-    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, {encoding: 'utf-8'});
+    fs.writeFileSync(`${tmpPath}/start-${name}.sh`, `#!/bin/bash\n${cmd}\n`, { encoding: 'utf-8' });
     return new Process(cli, { logPath: `${tmpPath}/${name}.log` });
 }
 
-function newPRuntime(teePort, tmpPath, name = 'pruntime') {
+function newPRuntime(teePort, tmpPath, name = 'app') {
     const workDir = path.resolve(`${tmpPath}/${name}`);
+    const sealDir = path.resolve(`${workDir}/data`);
     if (!fs.existsSync(workDir)) {
         fs.mkdirSync(workDir);
-        const filesMustCopy = ['Rocket.toml', 'enclave.signed.so', 'app'];
+        fs.mkdirSync(sealDir);
+        const filesMustCopy = isGramine ?
+            ['Rocket.toml', pRuntimeBin, 'pruntime.manifest'] :
+            ['Rocket.toml', pRuntimeBin, 'enclave.signed.so'];
         const filesShouldCopy = ['GeoLite2-City.mmdb']
         filesMustCopy.forEach(f =>
             fs.copyFileSync(`${path.dirname(pathPRuntime)}/${f}`, `${workDir}/${f}`)
@@ -594,11 +703,16 @@ function newPRuntime(teePort, tmpPath, name = 'pruntime') {
             }
         });
     }
+    const args = isGramine ?
+        [
+            '--cores=0',  // Disable benchmark
+            '--port', teePort.toString()
+        ] :
+        [
+            '--cores=0',
+        ];
     return new Process([
-        `${workDir}/app`, [
-            '--cores=0',	// Disable benchmark
-            '--checkpoint-interval=0',	// Save checkpoint at each block
-        ], {
+        `${workDir}/${pRuntimeBin}`, args, {
             cwd: workDir,
             env: {
                 ...process.env,

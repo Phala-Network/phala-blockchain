@@ -4,9 +4,9 @@ use anyhow::{anyhow, Result};
 use parity_scale_codec::{Decode, Encode};
 use phala_mq::{ContractClusterId, MessageOrigin};
 use pink::runtime::ExecSideEffects;
-use runtime::{AccountId, BlockNumber};
+use runtime::{AccountId, BlockNumber, Hash};
 
-use super::NativeContractMore;
+use super::{contract_address_to_id, NativeContractMore};
 
 #[derive(Debug, Encode, Decode)]
 pub enum Command {
@@ -29,7 +29,7 @@ pub enum QueryError {
     RuntimeError(String),
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub struct Pink {
     instance: pink::Contract,
     cluster_id: ContractClusterId,
@@ -40,7 +40,7 @@ impl Pink {
         cluster_id: ContractClusterId,
         storage: &mut pink::Storage,
         origin: AccountId,
-        wasm_bin: Vec<u8>,
+        code_hash: Hash,
         input_data: Vec<u8>,
         salt: Vec<u8>,
         block_number: BlockNumber,
@@ -49,8 +49,9 @@ impl Pink {
         let (instance, effects) = pink::Contract::new(
             storage,
             origin.clone(),
-            wasm_bin,
+            code_hash,
             input_data,
+            cluster_id.as_bytes().to_vec(),
             salt,
             block_number,
             now,
@@ -72,11 +73,6 @@ impl Pink {
             cluster_id,
         }
     }
-
-    pub fn address_to_id(address: &AccountId) -> contracts::ContractId {
-        let inner: &[u8; 32] = address.as_ref();
-        inner.into()
-    }
 }
 
 impl contracts::NativeContract for Pink {
@@ -87,7 +83,7 @@ impl contracts::NativeContract for Pink {
     type QResp = Result<Response, QueryError>;
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&AccountId>,
         req: Query,
         context: &mut contracts::QueryContext,
@@ -95,8 +91,7 @@ impl contracts::NativeContract for Pink {
         let origin = origin.ok_or(QueryError::BadOrigin)?;
         match req {
             Query::InkMessage(input_data) => {
-                let storage = cluster_storage(&mut context.contract_clusters, &self.cluster_id)
-                    .expect("Pink cluster should always exists!");
+                let storage = &mut context.storage;
 
                 let (ink_result, _effects) = self.instance.bare_call(
                     storage,
@@ -163,11 +158,15 @@ impl contracts::NativeContract for Pink {
             })?;
         Ok(effects)
     }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
+    }
 }
 
 impl NativeContractMore for Pink {
     fn id(&self) -> phala_mq::ContractId {
-        Pink::address_to_id(&self.instance.address)
+        contract_address_to_id(&self.instance.address)
     }
 
     fn set_on_block_end_selector(&mut self, selector: u32) {
@@ -187,7 +186,8 @@ fn cluster_storage<'a>(
 pub mod cluster {
     use super::Pink;
 
-    use anyhow::Result;
+    use anyhow::{Context, Result};
+    use phala_crypto::sr25519::{Persistence, Sr25519SecretKey, KDF};
     use phala_mq::{ContractClusterId, ContractId};
     use phala_serde_more as more;
     use pink::{
@@ -210,19 +210,20 @@ pub mod cluster {
             &mut self,
             cluster_id: ContractClusterId,
             origin: AccountId,
-            wasm_bin: Vec<u8>,
+            code_hash: Hash,
             input_data: Vec<u8>,
             salt: Vec<u8>,
-            contract_key: &sr25519::Pair,
             block_number: BlockNumber,
             now: u64,
         ) -> Result<ExecSideEffects> {
-            let cluster = self.get_cluster_or_default_mut(&cluster_id, contract_key);
+            let cluster = self
+                .get_cluster_mut(&cluster_id)
+                .context("Cluster must exist before instantiation")?;
             let (_, effects) = Pink::instantiate(
                 cluster_id,
                 &mut cluster.storage,
                 origin,
-                wasm_bin,
+                code_hash,
                 input_data,
                 salt,
                 block_number,
@@ -245,24 +246,21 @@ pub mod cluster {
         pub fn get_cluster_or_default_mut(
             &mut self,
             cluster_id: &ContractClusterId,
-            contract_key: &sr25519::Pair,
+            cluster_key: &sr25519::Pair,
         ) -> &mut Cluster {
             self.clusters.entry(cluster_id.clone()).or_insert_with(|| {
                 let mut cluster = Cluster {
                     storage: Default::default(),
                     contracts: Default::default(),
-                    key: contract_key.clone(),
+                    key: cluster_key.clone(),
                 };
+                let seed_key = cluster_key
+                    .derive_sr25519_pair(&[b"ink key derivation seed"])
+                    .expect("Derive key seed should always success!");
                 cluster.set_id(cluster_id);
+                cluster.set_key_seed(seed_key.dump_secret_key());
                 cluster
             })
-        }
-
-        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-            for cluster in self.clusters.values_mut() {
-                cluster.commit_changes()?;
-            }
-            Ok(())
         }
     }
 
@@ -284,13 +282,12 @@ pub mod cluster {
             &self.key
         }
 
-        pub fn commit_changes(&mut self) -> anyhow::Result<()> {
-            self.storage.commit_changes();
-            Ok(())
-        }
-
         pub fn set_id(&mut self, id: &ContractClusterId) {
             self.storage.set_cluster_id(id.as_bytes());
+        }
+
+        pub fn set_key_seed(&mut self, seed: Sr25519SecretKey) {
+            self.storage.set_key_seed(seed);
         }
 
         pub fn upload_code(

@@ -82,7 +82,7 @@ pub enum Error {
 impl GuessNumber {
     pub fn new() -> Self {
         GuessNumber {
-            owner: Default::default(),
+            owner: AccountId::new(Default::default()),
             random_number: Default::default(),
         }
     }
@@ -157,7 +157,7 @@ impl contracts::NativeContract for GuessNumber {
     /// * `req` — Off-chain Query to handle
     /// * `context` - The simplified current block info
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,
@@ -187,5 +187,9 @@ impl contracts::NativeContract for GuessNumber {
                 Ok(Response::RandomNumber(self.random_number))
             }
         }
+    }
+
+    fn snapshot(&self) -> Self {
+        self.clone()
     }
 }

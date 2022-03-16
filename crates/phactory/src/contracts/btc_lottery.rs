@@ -45,6 +45,7 @@ lazy_static! {
     static ref TYPE_NF_BIT: U256 = U256::from(1) << 255;
 }
 
+#[derive(Clone)]
 struct PrivateKeyWrapper(PrivateKey);
 impl From<PrivateKey> for PrivateKeyWrapper {
     fn from(pk: PrivateKey) -> Self {
@@ -70,7 +71,7 @@ impl Decode for PrivateKeyWrapper {
     }
 }
 
-#[derive(Encode, Decode)]
+#[derive(Encode, Decode, Clone)]
 pub struct BtcLottery {
     round_id: u32,
     token_set: BTreeMap<u32, Vec<String>>,
@@ -360,7 +361,7 @@ impl contracts::NativeContract for BtcLottery {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         _origin: Option<&chain::AccountId>,
         req: Request,
         _context: &mut contracts::QueryContext,
@@ -429,6 +430,11 @@ impl contracts::NativeContract for BtcLottery {
                 tx_set: self.tx_set.clone(),
             },
         }
+    }
+
+    fn snapshot(&self) -> Self {
+        // TODO: it's heavy
+        self.clone()
     }
 }
 

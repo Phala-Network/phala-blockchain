@@ -1,9 +1,16 @@
 [profile.release]
 panic = "unwind"
+opt-level = 3
+
+# make sure dev builds with backtrace do
+# not slow us down
+[profile.dev.package.backtrace]
+inherits = "release"
 
 [profile.production]
 inherits = "release"
 lto = true
+codegen-units = 1
 
 [profile.testnet]
 inherits = "release"
@@ -21,7 +28,7 @@ exclude = [
 	"ring",
 	"native-nostd-hasher",
 	"standalone/pruntime",
-	"crates/pink/examples/mqproxy",
+	"crates/pink/examples/",
 ]
 
 members = [
@@ -52,7 +59,6 @@ members = [
 	"crates/phala-serde-more",
 	"pallets/phala",
 	"pallets/phala/mq-runtime-api",
-	"pallets/bridge",
 	"pallets/utility",
 	"scripts/toml-upgrade-version",
 	"scripts/debug-cli"

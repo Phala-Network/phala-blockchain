@@ -19,7 +19,8 @@ jobs:
           node-version: "14"
       - run: yarn install
       - run: yarn build src/console.js
+      - run: yarn build src/worker-snapshot/*.js
       - uses: actions/upload-artifact@v2
         with:
-          name: console.js
-          path: ./scripts/js/dist/console.js
+          name: dist
+          path: ./scripts/js/dist

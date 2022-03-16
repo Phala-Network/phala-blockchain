@@ -11,8 +11,7 @@ pub mod pallet {
 	};
 	use frame_system::pallet_prelude::*;
 	use scale_info::TypeInfo;
-	use sp_core::H256;
-	use sp_runtime::traits::Hash;
+	use sp_core::{sr25519, H256};
 	use sp_runtime::SaturatedConversion;
 	use sp_std::prelude::*;
 	use sp_std::{convert::TryFrom, vec};
@@ -23,15 +22,12 @@ pub mod pallet {
 	pub use crate::attestation::{Attestation, IasValidator};
 
 	use phala_types::{
-		contract::messaging::{ContractEvent, ContractOperation},
-		contract::{CodeIndex, ContractInfo},
 		messaging::{
-			self, bind_topic, ContractClusterId, DecodedMessage, GatekeeperChange,
-			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerContractReport,
-			WorkerEvent,
+			self, bind_topic, ContractClusterId, ContractId, DecodedMessage, GatekeeperChange,
+			GatekeeperLaunch, MessageOrigin, SignedMessage, SystemEvent, WorkerEvent,
 		},
-		ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey, WorkerRegistrationInfo,
-		EndpointType, VersionedWorkerEndpoint, WorkerEndpointV1::{WorkerEndpoint, PhalaEndpointInfo}
+		ClusterPublicKey, ContractPublicKey, EcdhPublicKey, MasterPublicKey, WorkerPublicKey,
+		WorkerRegistrationInfo,
 	};
 
 	bind_topic!(RegistryEvent, b"^phala/registry/event");
@@ -39,19 +35,6 @@ pub mod pallet {
 	pub enum RegistryEvent {
 		BenchReport { start_time: u64, iterations: u64 },
 		MasterPubkey { master_pubkey: MasterPublicKey },
-	}
-
-	bind_topic!(ContractRegistryEvent<CodeHash, AccountId>, b"^phala/registry/contract");
-	#[derive(Encode, Decode, Clone, Debug)]
-	pub enum ContractRegistryEvent<CodeHash, AccountId> {
-		PubkeyAvailable {
-			pubkey: ContractPublicKey,
-			info: ContractInfo<CodeHash, AccountId>,
-		},
-		ContractDeployed {
-			contract_pubkey: ContractPublicKey,
-			worker_pubkey: WorkerPublicKey,
-		},
 	}
 
 	#[pallet::config]
@@ -76,11 +59,12 @@ pub mod pallet {
 		type GovernanceOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	/// Gatekeeper pubkey list
@@ -96,27 +80,12 @@ pub mod pallet {
 	pub type Workers<T: Config> =
 		StorageMap<_, Twox64Concat, WorkerPublicKey, WorkerInfo<T::AccountId>>;
 
-	// TODO(shelven): move contract code storage to a standalone pallet
-
-	/// A mapping from an original code hash to the original code, untouched by instrumentation.
-	#[pallet::storage]
-	pub type ContractCode<T: Config> = StorageMap<_, Twox64Concat, CodeHash<T>, Vec<u8>>;
-
-	/// The contract counter.
-	#[pallet::storage]
-	pub type ContractClusterCounter<T> = StorageValue<_, u64, ValueQuery>;
-
-	#[pallet::storage]
-	pub type Contracts<T: Config> =
-		StorageMap<_, Twox64Concat, ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>>;
-
-	#[pallet::storage]
-	pub type ContractWorkers<T> = StorageMap<_, Twox64Concat, ContractPublicKey, WorkerPublicKey>;
-
-	// TODO(shelven): remove this
 	/// Mapping from contract address to pubkey
 	#[pallet::storage]
-	pub type ContractKey<T> = StorageMap<_, Twox64Concat, H256, ContractPublicKey>;
+	pub type ContractKeys<T> = StorageMap<_, Twox64Concat, ContractId, ContractPublicKey>;
+
+	#[pallet::storage]
+	pub type ClusterKeys<T> = StorageMap<_, Twox64Concat, ContractClusterId, ClusterPublicKey>;
 
 	/// Pubkey for secret topics.
 	#[pallet::storage]
@@ -146,11 +115,8 @@ pub mod pallet {
 	StorageMap<_, Twox64Concat, WorkerPublicKey, VersionedWorkerEndpoint>;
 
 	#[pallet::event]
-	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
 		GatekeeperAdded(WorkerPublicKey),
-		CodeUploaded(CodeHash<T>),
-		ContractInstantiated(ContractPublicKey, ContractInfo<CodeHash<T>, T::AccountId>),
 	}
 
 	#[pallet::error]
@@ -162,6 +128,7 @@ pub mod pallet {
 		InvalidSignatureLength,
 		InvalidSignature,
 		UnknownContract,
+		UnknownCluster,
 		// IAS related
 		InvalidIASSigningCert,
 		InvalidReport,
@@ -188,12 +155,7 @@ pub mod pallet {
 		PRuntimeRejected,
 		PRuntimeAlreadyExists,
 		PRuntimeNotFound,
-		// Contract related
-		CodeNotFound,
-		DuplicatedContractPubkey,
 	}
-
-	type CodeHash<T> = <T as frame_system::Config>::Hash;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T>
@@ -268,7 +230,7 @@ pub mod pallet {
 
 			if !gatekeepers.contains(&gatekeeper) {
 				let worker_info =
-					Workers::<T>::try_get(&gatekeeper).or(Err(Error::<T>::WorkerNotFound))?;
+					Workers::<T>::get(&gatekeeper).ok_or(Error::<T>::WorkerNotFound)?;
 				gatekeepers.push(gatekeeper);
 				let gatekeeper_count = gatekeepers.len() as u32;
 				Gatekeeper::<T>::put(gatekeepers);
@@ -590,11 +552,15 @@ pub mod pallet {
 		T: crate::mq::Config,
 	{
 		pub fn check_message(message: &SignedMessage) -> DispatchResult {
-			let pubkey_copy: ContractPublicKey;
+			let pubkey_copy: sr25519::Public;
 			let pubkey = match &message.message.sender {
 				MessageOrigin::Worker(pubkey) => pubkey,
+				MessageOrigin::Cluster(id) => {
+					pubkey_copy = ClusterKeys::<T>::get(id).ok_or(Error::<T>::UnknownCluster)?;
+					&pubkey_copy
+				}
 				MessageOrigin::Contract(id) => {
-					pubkey_copy = ContractKey::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
+					pubkey_copy = ContractKeys::<T>::get(id).ok_or(Error::<T>::UnknownContract)?;
 					&pubkey_copy
 				}
 				MessageOrigin::Gatekeeper => {
@@ -675,52 +641,6 @@ pub mod pallet {
 							));
 						}
 					}
-				}
-			}
-			Ok(())
-		}
-
-		pub fn on_contract_message_received(
-			message: DecodedMessage<ContractRegistryEvent<CodeHash<T>, T::AccountId>>,
-		) -> DispatchResult {
-			ensure!(
-				message.sender == MessageOrigin::Gatekeeper,
-				Error::<T>::InvalidSender
-			);
-			match message.payload {
-				ContractRegistryEvent::PubkeyAvailable { pubkey, info } => {
-					ensure!(
-						!Contracts::<T>::contains_key(pubkey),
-						Error::<T>::DuplicatedContractPubkey
-					);
-					Contracts::<T>::insert(&pubkey, &info);
-					Self::deposit_event(Event::ContractInstantiated(pubkey, info));
-				}
-				ContractRegistryEvent::ContractDeployed {
-					contract_pubkey,
-					worker_pubkey,
-				} => {
-					ContractWorkers::<T>::insert(&contract_pubkey, &worker_pubkey);
-				}
-			}
-			Ok(())
-		}
-
-		pub fn on_worker_contract_message_received(
-			message: DecodedMessage<WorkerContractReport>,
-		) -> DispatchResult {
-			match &message.sender {
-				MessageOrigin::Worker(_) => (),
-				_ => return Err(Error::<T>::InvalidSender.into()),
-			}
-			match message.payload {
-				WorkerContractReport::ContractInstantiated {
-					id,
-					cluster_id: _,
-					deployer: _,
-					pubkey,
-				} => {
-					ContractKey::<T>::insert(id, pubkey);
 				}
 			}
 			Ok(())
@@ -816,33 +736,6 @@ pub mod pallet {
 		}
 	}
 
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			}
-			w
-		}
-	}
-
-	mod migrations {
-		use super::{BenchmarkDuration, Config};
-		use frame_support::pallet_prelude::*;
-
-		pub fn initialize<T: Config>() -> Weight {
-			log::info!("phala_pallet::registry: initialize()");
-			BenchmarkDuration::<T>::put(50);
-			T::DbWeight::get().writes(1)
-		}
-	}
-
 	impl<T: Config + crate::mq::Config> MessageOriginInfo for Pallet<T> {
 		type Config = T;
 	}
@@ -850,17 +743,17 @@ pub mod pallet {
 	#[derive(Encode, Decode, TypeInfo, Debug, Clone)]
 	pub struct WorkerInfo<AccountId> {
 		// identity
-		pubkey: WorkerPublicKey,
-		ecdh_pubkey: EcdhPublicKey,
+		pub pubkey: WorkerPublicKey,
+		pub ecdh_pubkey: EcdhPublicKey,
 		// system
-		runtime_version: u32,
-		last_updated: u64,
+		pub runtime_version: u32,
+		pub last_updated: u64,
 		pub operator: Option<AccountId>,
 		// platform
 		pub confidence_level: u8,
 		// scoring
 		pub initial_score: Option<u32>,
-		features: Vec<u32>,
+		pub features: Vec<u32>,
 	}
 
 	impl<T: Config> From<AttestationError> for Error<T> {

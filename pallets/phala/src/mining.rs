@@ -195,11 +195,12 @@ pub mod pallet {
 		type UpdateTokenomicOrigin: EnsureOrigin<Self::Origin>;
 	}
 
-	const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(STORAGE_VERSION)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	/// Tokenomic parameters used by Gatekeepers to compute the V promote.
@@ -422,28 +423,6 @@ pub mod pallet {
 					}
 				}
 			}
-		}
-
-		fn on_runtime_upgrade() -> Weight {
-			let mut w = 0;
-			let old = Self::on_chain_storage_version();
-			w += T::DbWeight::get().reads(1);
-
-			if old == 0 {
-				w += migrations::initialize::<T>();
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(1);
-			} else if old == 2 {
-				// Triggers GK RepairV event (again) to rescue the slashed miners due to
-				// incorrectly applied tokenomic.
-				w += migrations::repair_v::<T>();
-				// Khala-only halving parameters
-				MiningStartBlock::<T>::put(T::BlockNumber::from(414189u32));
-				MiningHalvingInterval::<T>::put(T::BlockNumber::from(324000u32));
-				STORAGE_VERSION.put::<super::Pallet<T>>();
-				w += T::DbWeight::get().writes(3);
-			}
-			w
 		}
 	}
 
@@ -905,17 +884,17 @@ pub mod pallet {
 			let cost_b = FixedPoint::from_bits(self.params.rig_b);
 			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
-			(cost_k * p + cost_b) / pha_rate
+			cost_k * p + cost_b
 		}
 
-		/// Gets the operating cost per sec
+		/// Gets the operating cost per block
 		#[cfg(test)]
 		fn op_cost(&self, p: u32) -> FixedPoint {
 			let cost_k = FixedPoint::from_bits(self.params.cost_k);
 			let cost_b = FixedPoint::from_bits(self.params.cost_b);
 			let pha_rate = FixedPoint::from_bits(self.params.pha_rate);
 			let p = FixedPoint::from_num(p);
-			(cost_k * p + cost_b) / pha_rate
+			cost_k * p + cost_b
 		}
 
 		/// Converts confidence level to score
@@ -999,7 +978,7 @@ pub mod pallet {
 		}
 	}
 
-	mod migrations {
+	pub(crate) mod migrations {
 		use super::{Config, CoolDownPeriod, Pallet, TokenomicParameters};
 		use fixed_macro::types::U64F64 as fp;
 		use frame_support::pallet_prelude::*;
@@ -1048,10 +1027,10 @@ pub mod pallet {
 			T::DbWeight::get().writes(2)
 		}
 
-		pub fn repair_v<T: Config>() -> Weight {
+		pub(crate) fn fix_676<T: Config>() -> Weight {
 			use crate::mq::pallet::MessageOriginInfo;
 			use phala_types::messaging::GatekeeperEvent;
-			Pallet::<T>::queue_message(GatekeeperEvent::RepairV);
+			Pallet::<T>::queue_message(GatekeeperEvent::Fix676);
 			T::DbWeight::get().writes(1)
 		}
 	}
@@ -1317,27 +1296,27 @@ pub mod pallet {
 
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 1),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 2),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 3),
-					fp!(2137.7551020408163265763)
+					fp!(2035.71428571428571430895)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 4),
-					fp!(1995.23809523809523810696)
+					fp!(1899.99999999999999999225)
 				);
 				assert_eq!(
 					tokenomic.ve(1000 * DOLLARS, 1000, 5),
-					fp!(1923.9795918367346938723)
+					fp!(1832.14285714285714283387)
 				);
 				assert_eq!(
 					tokenomic.ve(5000 * DOLLARS, 2000, 4),
-					fp!(8190.47619047619047614897)
+					fp!(7999.99999999999999991944)
 				);
 			});
 		}

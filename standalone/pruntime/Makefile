@@ -147,8 +147,6 @@ RustEnclave_Name := enclave/enclave.so
 Signed_RustEnclave_Name := bin/enclave.signed.so
 Dumped_Signed_RustEnclave_Name := bin/enclave.dump
 
-export PHALA_GIT_REVISION := $(shell ./scripts/git-revision)
-
 .PHONY: all
 all: $(App_Name) $(Signed_RustEnclave_Name)
 

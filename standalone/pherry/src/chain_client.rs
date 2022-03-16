@@ -11,7 +11,10 @@ use phala_trie_storage::ser::StorageChanges;
 use phala_types::messaging::MessageOrigin;
 use phaxt::{rpc::ExtraRpcExt as _, subxt};
 use serde_json::to_value;
-use subxt::Signer;
+use subxt::{
+    rpc::{rpc_params, ClientT},
+    Signer,
+};
 
 pub use sp_core::{twox_128, twox_64};
 
@@ -80,21 +83,21 @@ pub async fn fetch_genesis_storage(api: &ParachainApi) -> Result<Vec<(Vec<u8>, V
 pub async fn mq_next_sequence(
     api: &ParachainApi,
     sender: &MessageOrigin,
-) -> Result<u64, subxt::Error> {
+) -> Result<u64, subxt::BasicError> {
     let sender_scl = sender.encode();
     let sender_hex = hex::encode(sender_scl);
     let seq: u64 = api
         .client
         .rpc()
         .client
-        .request("pha_getMqNextSequence", &[to_value(sender_hex)?])
+        .request("pha_getMqNextSequence", rpc_params![to_value(sender_hex)?])
         .await?;
     Ok(seq)
 }
 
 pub fn paras_heads_key(para_id: u32) -> StorageKey {
     let id = phaxt::kusama::runtime_types::polkadot_parachain::primitives::Id(para_id);
-    let entry = phaxt::kusama::paras::storage::Heads(id);
+    let entry = phaxt::kusama::paras::storage::Heads(&id);
     phaxt::storage_key(entry)
 }
 

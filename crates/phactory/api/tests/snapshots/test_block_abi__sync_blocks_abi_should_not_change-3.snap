@@ -1,0 +1,507 @@
+---
+source: crates/phactory/api/tests/test_block_abi.rs
+assertion_line: 14
+expression: "travel_types::<blocks::SyncCombinedHeadersReq>()"
+---
+[
+  {
+    "id": 0,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 1
+        }
+      }
+    }
+  },
+  {
+    "id": 1,
+    "type": {
+      "path": [
+        "phactory_api",
+        "blocks",
+        "GenericHeaderToSync"
+      ],
+      "params": [
+        {
+          "name": "BlockNumber",
+          "type": 2
+        },
+        {
+          "name": "Hash",
+          "type": 3
+        }
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "header",
+              "type": 4,
+              "typeName": "Header<BlockNumber, Hash>"
+            },
+            {
+              "name": "justification",
+              "type": 14,
+              "typeName": "Option<Vec<u8>>"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 2,
+    "type": {
+      "def": {
+        "primitive": "u32"
+      }
+    }
+  },
+  {
+    "id": 3,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "traits",
+        "BlakeTwo256"
+      ],
+      "def": {
+        "composite": {}
+      }
+    }
+  },
+  {
+    "id": 4,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "header",
+        "Header"
+      ],
+      "params": [
+        {
+          "name": "Number",
+          "type": 2
+        },
+        {
+          "name": "Hash",
+          "type": 3
+        }
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "parent_hash",
+              "type": 5,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "number",
+              "type": 8,
+              "typeName": "Number"
+            },
+            {
+              "name": "state_root",
+              "type": 5,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "extrinsics_root",
+              "type": 5,
+              "typeName": "Hash::Output"
+            },
+            {
+              "name": "digest",
+              "type": 9,
+              "typeName": "Digest"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 5,
+    "type": {
+      "path": [
+        "primitive_types",
+        "H256"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "type": 6,
+              "typeName": "[u8; 32]"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 6,
+    "type": {
+      "def": {
+        "array": {
+          "len": 32,
+          "type": 7
+        }
+      }
+    }
+  },
+  {
+    "id": 7,
+    "type": {
+      "def": {
+        "primitive": "u8"
+      }
+    }
+  },
+  {
+    "id": 8,
+    "type": {
+      "def": {
+        "compact": {
+          "type": 2
+        }
+      }
+    }
+  },
+  {
+    "id": 9,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "digest",
+        "Digest"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "logs",
+              "type": 10,
+              "typeName": "Vec<DigestItem>"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 10,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 11
+        }
+      }
+    }
+  },
+  {
+    "id": 11,
+    "type": {
+      "path": [
+        "sp_runtime",
+        "generic",
+        "digest",
+        "DigestItem"
+      ],
+      "def": {
+        "variant": {
+          "variants": [
+            {
+              "name": "PreRuntime",
+              "fields": [
+                {
+                  "type": 12,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 13,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 6
+            },
+            {
+              "name": "Consensus",
+              "fields": [
+                {
+                  "type": 12,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 13,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 4
+            },
+            {
+              "name": "Seal",
+              "fields": [
+                {
+                  "type": 12,
+                  "typeName": "ConsensusEngineId"
+                },
+                {
+                  "type": 13,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 5
+            },
+            {
+              "name": "Other",
+              "fields": [
+                {
+                  "type": 13,
+                  "typeName": "Vec<u8>"
+                }
+              ],
+              "index": 0
+            },
+            {
+              "name": "RuntimeEnvironmentUpdated",
+              "index": 8
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 12,
+    "type": {
+      "def": {
+        "array": {
+          "len": 4,
+          "type": 7
+        }
+      }
+    }
+  },
+  {
+    "id": 13,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 7
+        }
+      }
+    }
+  },
+  {
+    "id": 14,
+    "type": {
+      "path": [
+        "Option"
+      ],
+      "params": [
+        {
+          "name": "T",
+          "type": 13
+        }
+      ],
+      "def": {
+        "variant": {
+          "variants": [
+            {
+              "name": "None",
+              "index": 0
+            },
+            {
+              "name": "Some",
+              "fields": [
+                {
+                  "type": 13
+                }
+              ],
+              "index": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 15,
+    "type": {
+      "path": [
+        "Option"
+      ],
+      "params": [
+        {
+          "name": "T",
+          "type": 16
+        }
+      ],
+      "def": {
+        "variant": {
+          "variants": [
+            {
+              "name": "None",
+              "index": 0
+            },
+            {
+              "name": "Some",
+              "fields": [
+                {
+                  "type": 16
+                }
+              ],
+              "index": 1
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 16,
+    "type": {
+      "path": [
+        "phactory_api",
+        "blocks",
+        "AuthoritySetChange"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "authority_set",
+              "type": 17,
+              "typeName": "AuthoritySet"
+            },
+            {
+              "name": "authority_proof",
+              "type": 23,
+              "typeName": "StorageProof"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 17,
+    "type": {
+      "path": [
+        "phactory_api",
+        "blocks",
+        "AuthoritySet"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "name": "list",
+              "type": 18,
+              "typeName": "AuthorityList"
+            },
+            {
+              "name": "id",
+              "type": 22,
+              "typeName": "SetId"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 18,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 19
+        }
+      }
+    }
+  },
+  {
+    "id": 19,
+    "type": {
+      "def": {
+        "tuple": [
+          20,
+          22
+        ]
+      }
+    }
+  },
+  {
+    "id": 20,
+    "type": {
+      "path": [
+        "sp_finality_grandpa",
+        "app",
+        "Public"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "type": 21,
+              "typeName": "ed25519::Public"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 21,
+    "type": {
+      "path": [
+        "sp_core",
+        "ed25519",
+        "Public"
+      ],
+      "def": {
+        "composite": {
+          "fields": [
+            {
+              "type": 6,
+              "typeName": "[u8; 32]"
+            }
+          ]
+        }
+      }
+    }
+  },
+  {
+    "id": 22,
+    "type": {
+      "def": {
+        "primitive": "u64"
+      }
+    }
+  },
+  {
+    "id": 23,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 13
+        }
+      }
+    }
+  },
+  {
+    "id": 24,
+    "type": {
+      "def": {
+        "sequence": {
+          "type": 4
+        }
+      }
+    }
+  }
+]

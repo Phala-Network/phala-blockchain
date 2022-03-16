@@ -2,6 +2,7 @@ use phala_crypto::ecdh::EcdhPublicKey;
 use phala_mq::traits::MessageChannel;
 use runtime::BlockNumber;
 use serde::{Deserialize, Serialize};
+use sp_core::hashing::blake2_256;
 
 use super::pink::cluster::ClusterKeeper;
 use super::*;
@@ -22,10 +23,10 @@ pub struct NativeContext<'a, 'b> {
     pub self_id: ContractId,
 }
 
-pub struct QueryContext<'a> {
+pub struct QueryContext {
     pub block_number: BlockNumber,
     pub now_ms: u64,
-    pub contract_clusters: &'a mut ClusterKeeper,
+    pub storage: ::pink::Storage,
 }
 
 impl NativeContext<'_, '_> {
@@ -34,14 +35,18 @@ impl NativeContext<'_, '_> {
     }
 }
 
-pub trait Contract {
-    fn id(&self) -> ContractId;
+pub trait Queryable {
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: OpaqueQuery,
         context: &mut QueryContext,
     ) -> Result<OpaqueReply, OpaqueError>;
+}
+
+pub trait Contract {
+    fn id(&self) -> ContractId;
+    fn snapshot_for_query(&self) -> Box<dyn Queryable>;
     fn cluster_id(&self) -> phala_mq::ContractClusterId;
     fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult>;
     fn on_block_end(&mut self, env: &mut ExecuteEnv) -> TransactionResult;
@@ -74,7 +79,7 @@ pub trait NativeContract {
         Ok(Default::default())
     }
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&chain::AccountId>,
         req: Self::QReq,
         context: &mut QueryContext,
@@ -82,6 +87,10 @@ pub trait NativeContract {
     fn on_block_end(&mut self, _context: &mut NativeContext) -> TransactionResult {
         Ok(Default::default())
     }
+
+    fn snapshot(&self) -> Self
+    where
+        Self: Sized;
 }
 
 #[derive(Serialize, Deserialize, Encode, Decode)]
@@ -91,15 +100,8 @@ pub struct NativeContractWrapper<Con> {
 }
 
 impl<Con> NativeContractWrapper<Con> {
-    pub fn new(
-        inner: Con,
-        cluster_id: &phala_mq::ContractClusterId,
-        deployer: sp_core::H256,
-        salt: &[u8],
-        id: u32,
-    ) -> Self {
-        let encoded = (deployer, id, cluster_id, salt).encode();
-        let id = sp_core::blake2_256(&encoded).into();
+    pub fn new(inner: Con, contract_info: &ContractInfo<chain::Hash, chain::AccountId>) -> Self {
+        let id = contract_info.contract_id(blake2_256);
         NativeContractWrapper { inner, id }
     }
 }
@@ -119,7 +121,7 @@ impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
     }
 
     fn handle_query(
-        &mut self,
+        &self,
         origin: Option<&runtime::AccountId>,
         req: Self::QReq,
         context: &mut QueryContext,
@@ -130,11 +132,39 @@ impl<Con: NativeContract> NativeContract for NativeContractWrapper<Con> {
     fn on_block_end(&mut self, context: &mut NativeContext) -> TransactionResult {
         self.inner.on_block_end(context)
     }
+
+    fn snapshot(&self) -> Self {
+        Self {
+            inner: self.inner.snapshot(),
+            id: self.id,
+        }
+    }
 }
 
 impl<Con: NativeContract> NativeContractMore for NativeContractWrapper<Con> {
     fn id(&self) -> phala_mq::ContractId {
         self.id
+    }
+}
+
+struct Query<Con> {
+    contract: Con,
+}
+
+impl<Con> Queryable for Query<Con>
+where
+    Con: NativeContract,
+{
+    fn handle_query(
+        &self,
+        origin: Option<&runtime::AccountId>,
+        req: OpaqueQuery,
+        context: &mut QueryContext,
+    ) -> Result<OpaqueReply, OpaqueError> {
+        let response = self
+            .contract
+            .handle_query(origin, deopaque_query(req)?, context);
+        Ok(response.encode())
     }
 }
 
@@ -171,7 +201,7 @@ impl<Con: NativeContract> NativeCompatContract<Con> {
     }
 }
 
-impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract<Con> {
+impl<Con: NativeContract + NativeContractMore + 'static> Contract for NativeCompatContract<Con> {
     fn id(&self) -> ContractId {
         self.contract_id
     }
@@ -180,17 +210,10 @@ impl<Con: NativeContract + NativeContractMore> Contract for NativeCompatContract
         self.cluster_id
     }
 
-    fn handle_query(
-        &mut self,
-        origin: Option<&runtime::AccountId>,
-        req: OpaqueQuery,
-        context: &mut QueryContext,
-    ) -> Result<OpaqueReply, OpaqueError> {
-        debug!(target: "contract", "Contract {:?} handling query", self.id());
-        let response = self
-            .contract
-            .handle_query(origin, deopaque_query(req)?, context);
-        Ok(response.encode())
+    fn snapshot_for_query(&self) -> Box<dyn Queryable> {
+        Box::new(Query {
+            contract: self.contract.snapshot(),
+        })
     }
 
     fn process_next_message(&mut self, env: &mut ExecuteEnv) -> Option<TransactionResult> {

@@ -57,10 +57,12 @@ const types = {
     "MasterPublicKey": "Sr25519PublicKey",
     "WorkerPublicKey": "Sr25519PublicKey",
     "ContractPublicKey": "Sr25519PublicKey",
+    "ClusterPublicKey": "Sr25519PublicKey",
     "EcdhPublicKey": "[u8; 32]",
     "MessageOrigin": {
         "_enum": {
             "Pallet": "Vec<u8>",
+            "Cluster": "H256",
             "Contract": "H256",
             "Worker": "Sr25519PublicKey",
             "AccountId": "H256",
@@ -222,6 +224,21 @@ const types = {
         "shares": "Balance",
         "availableRewards": "Balance",
         "rewardDebt": "Balance"
+    },
+    "ContractClusterId": "H256",
+    "ContractId32": "u32",
+    "CodeHash": "H256",
+    "CodeIndex": {
+        "_enum": {
+            "NativeCode": "ContractId32",
+            "WasmCode": "CodeHash"
+        }
+    },
+    "ClusterPermission": {
+        "_enum": {
+            "Public": null,
+            "OnlyOwner": "AccountId"
+        }
     }
 };
 
